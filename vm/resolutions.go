@@ -12,8 +12,10 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"go.uber.org/zap"
@@ -86,98 +88,48 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 	return vm.stateDB, nil
 }
 
+// TODO: correctly handle engine.Exeucte during state sync
+func (vm *VM) ForceState() merkledb.MerkleDB {
+	return vm.stateDB
+}
+
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
-	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
+func (vm *VM) IsRepeatTx(ctx context.Context, txs []*chain.Transaction, marker set.Bits) set.Bits {
+	_, span := vm.tracer.Start(ctx, "VM.IsRepeatTx")
 	defer span.End()
 
-	return vm.seen.Contains(txs, marker, stop)
+	return vm.seenTxs.Contains(txs, marker, false)
+}
+
+func (vm *VM) IsRepeatChunk(ctx context.Context, certs []*chain.ChunkCertificate, marker set.Bits) set.Bits {
+	_, span := vm.tracer.Start(ctx, "VM.IsRepeatChunk")
+	defer span.End()
+
+	return vm.seenChunks.Contains(certs, marker, false)
 }
 
 func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
-	vm.metrics.txsVerified.Add(float64(len(b.Txs)))
 	vm.verifiedL.Lock()
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	vm.mempool.Remove(ctx, b.Txs)
-	vm.gossiper.BlockVerified(b.Tmstmp)
-	vm.checkActivity(ctx)
-
-	if b.Processed() {
-		fm := b.FeeManager()
-		vm.snowCtx.Log.Info(
-			"verified block",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Hght),
-			zap.Int("txs", len(b.Txs)),
-			zap.Stringer("parent root", b.StateRoot),
-			zap.Bool("state ready", vm.StateReady()),
-			zap.Any("unit prices", fm.UnitPrices()),
-			zap.Any("units consumed", fm.UnitsConsumed()),
-		)
-	} else {
-		// [b.FeeManager] is not populated if the block
-		// has not been processed.
-		vm.snowCtx.Log.Info(
-			"skipped block verification",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Hght),
-			zap.Int("txs", len(b.Txs)),
-			zap.Stringer("parent root", b.StateRoot),
-			zap.Bool("state ready", vm.StateReady()),
-		)
-	}
 }
 
-func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
+func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+	ctx, span := vm.tracer.Start(ctx, "VM.Executed")
 	defer span.End()
 
-	vm.verifiedL.Lock()
-	delete(vm.verifiedBlocks, b.ID())
-	vm.verifiedL.Unlock()
-	vm.mempool.Add(ctx, b.Txs)
-
-	if err := vm.c.Rejected(ctx, b); err != nil {
-		vm.Fatal("rejected processing failed", zap.Error(err))
-	}
-
-	// Ensure children of block are cleared, they may never be
-	// verified
-	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
-}
-
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
-	}()
-
-	// We skip blocks that were not processed because metadata required to
-	// process blocks opaquely (like looking at results) is not populated.
-	//
-	// We don't need to worry about dangling messages in listeners because we
-	// don't allow subscription until the node is healthy.
-	if !b.Processed() {
-		vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
-		return
-	}
-
-	// Update controller
-	if err := vm.c.Accepted(context.TODO(), b); err != nil {
-		vm.Fatal("accepted processing failed", zap.Error(err))
-	}
+	// Remove any executed transactions
+	vm.mempool.Remove(ctx, chunk.Txs)
 
 	// Sign and store any warp messages (regardless if validator now, may become one)
-	results := b.Results()
-	for i, tx := range b.Txs {
+	for i, tx := range chunk.Txs { // filtered chunks only have valid txs
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
 
@@ -207,23 +159,64 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 	}
 
-	// Update server
-	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+	// Send notifications as soon as transactions are executed
+	if err := vm.webSocketServer.ExecuteChunk(blk, chunk, results); err != nil {
+		vm.Fatal("unable to execute chunk in websocket server", zap.Error(err))
 	}
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+}
+
+func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
+	ctx, span := vm.tracer.Start(ctx, "VM.Rejected")
+	defer span.End()
+
+	vm.verifiedL.Lock()
+	delete(vm.verifiedBlocks, b.ID())
+	vm.verifiedL.Unlock()
+
+	vm.cm.RestoreChunkCertificates(ctx, b.AvailableChunks)
+
+	if err := vm.c.Rejected(ctx, b); err != nil {
+		vm.Fatal("rejected processing failed", zap.Error(err))
 	}
 
-	// Update price metrics
-	feeManager := b.FeeManager()
-	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(chain.Bandwidth)))
-	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(chain.Compute)))
-	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(chain.StorageRead)))
-	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(chain.StorageAllocate)))
-	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(chain.StorageWrite)))
+	// Ensure children of block are cleared, they may never be
+	// verified
+	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()), zap.Uint64("height", b.Height()))
+}
+
+func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
+	}()
+
+	// // We skip blocks that were not processed because metadata required to
+	// // process blocks opaquely (like looking at results) is not populated.
+	// //
+	// // We don't need to worry about dangling messages in listeners because we
+	// // don't allow subscription until the node is healthy.
+	// if !b.Processed() {
+	// 	vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
+	// 	return
+	// }
+
+	// Update controller
+	//
+	// TODO: pass all chunk info here
+	if err := vm.c.Accepted(context.TODO(), b); err != nil {
+		vm.Fatal("accepted processing failed", zap.Error(err))
+	}
+
+	// Send notifications as soon as transactions are executed
+	if err := vm.webSocketServer.AcceptBlock(b, feeManager); err != nil {
+		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+	}
+
+	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+	// send [ErrExpired] messages.
+	if err := vm.webSocketServer.SetMinTx(b.StatefulBlock.Timestamp); err != nil {
+		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+	}
 }
 
 func (vm *VM) processAcceptedBlocks() {
@@ -237,26 +230,32 @@ func (vm *VM) processAcceptedBlocks() {
 	// to be processed before returning as a guarantee to listeners (which may
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
-	for b := range vm.acceptedQueue {
-		vm.processAcceptedBlock(b)
+	for bw := range vm.acceptedQueue {
+		vm.processAcceptedBlock(bw.Block, bw.FeeManager)
 		vm.snowCtx.Log.Info(
 			"block processed",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Hght),
+			zap.Stringer("blkID", bw.Block.ID()),
+			zap.Uint64("height", bw.Block.Height()),
 		)
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.FilteredChunk) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
-	vm.metrics.txsAccepted.Add(float64(len(b.Txs)))
-
 	// Update accepted blocks on-disk and caches
+	for _, fc := range chunks {
+		if err := vm.StoreFilteredChunk(fc); err != nil {
+			vm.Fatal("unable to store filtered chunk", zap.Error(err))
+		}
+	}
 	if err := vm.UpdateLastAccepted(b); err != nil {
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
+
+	// Cleanup expired chunks we are tracking and chunk certificates
+	vm.cm.SetMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
 
 	// Remove from verified caches
 	//
@@ -266,14 +265,24 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	delete(vm.verifiedBlocks, b.ID())
 	vm.verifiedL.Unlock()
 
+	// Update issued transaction tracker once we know we can't resubmit the same transaction
+	blkTime := b.StatefulBlock.Timestamp
+	evictedIssued := vm.issuedTxs.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from issued", zap.Int("len", len(evictedIssued)))
+
 	// Update replay protection heap
 	//
 	// Transactions are added to [seen] with their [expiry], so we don't need to
 	// transform [blkTime] when calling [SetMin] here.
-	blkTime := b.Tmstmp
-	evicted := vm.seen.SetMin(blkTime)
-	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
-	vm.seen.Add(b.Txs)
+	evictedTxs := vm.seenTxs.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
+	for _, fc := range chunks {
+		// Mark all valid txs as seen
+		vm.seenTxs.Add(fc.Txs)
+	}
+	evictedChunks := vm.seenChunks.SetMin(blkTime)
+	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(evictedChunks)))
+	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
@@ -302,25 +311,21 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	// We rely on the [vm.waiters] map to notify listeners of dropped
 	// transactions instead of the mempool because we won't need to iterate
 	// through as many transactions.
-	removed := vm.mempool.SetMinTimestamp(ctx, blkTime)
+	vm.mempool.SetMinTimestamp(ctx, blkTime)
 
 	// Enqueue block for processing
-	vm.acceptedQueue <- b
+	vm.acceptedQueue <- &blockWrapper{b, feeManager}
 
 	vm.snowCtx.Log.Info(
 		"accepted block",
 		zap.Stringer("blkID", b.ID()),
-		zap.Uint64("height", b.Hght),
-		zap.Int("txs", len(b.Txs)),
-		zap.Stringer("parent root", b.StateRoot),
-		zap.Int("size", len(b.Bytes())),
-		zap.Int("dropped mempool txs", len(removed)),
-		zap.Bool("state ready", vm.StateReady()),
+		zap.Uint64("height", b.Height()),
 	)
 }
 
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
-	return vm.proposerMonitor.IsValidator(ctx, nid)
+	ok, _, _, err := vm.proposerMonitor.IsValidator(ctx, nid)
+	return ok, err
 }
 
 func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error) {
@@ -351,15 +356,6 @@ func (vm *VM) StopChan() chan struct{} {
 
 func (vm *VM) EngineChan() chan<- common.Message {
 	return vm.toEngine
-}
-
-// Used for integration and load testing
-func (vm *VM) Builder() builder.Builder {
-	return vm.builder
-}
-
-func (vm *VM) Gossiper() gossiper.Gossiper {
-	return vm.gossiper
 }
 
 func (vm *VM) AcceptedSyncableBlock(
@@ -491,4 +487,32 @@ func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
 
 func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 	return vm.metrics.executorVerifyRecorder
+}
+
+func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
+	return vm.cm.NextChunkCertificate(ctx)
+}
+
+func (vm *VM) Engine() *chain.Engine {
+	return vm.engine
+}
+
+func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {
+	return vm.issuedTxs.Has(tx)
+}
+
+func (vm *VM) IssueTx(_ context.Context, tx *chain.Transaction) {
+	vm.issuedTxs.Add([]*chain.Transaction{tx})
+}
+
+func (vm *VM) Signer() *bls.PublicKey {
+	return vm.snowCtx.PublicKey
+}
+
+func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
+	return vm.snowCtx.WarpSigner.Sign(msg)
+}
+
+func (vm *VM) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+	vm.cm.RequestChunks(certs, chunks)
 }

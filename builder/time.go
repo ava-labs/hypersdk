@@ -18,7 +18,7 @@ import (
 // if we build empty blocks too soon)
 //
 // TODO: consider replacing this with AvalancheGo block build metering
-const minBuildGap int64 = 25 // ms
+const minBuildGap int64 = 500 // ms
 
 var _ Builder = (*Time)(nil)
 
@@ -62,12 +62,13 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	if next < now {
 		return -1
 	}
+	b.vm.Logger().Info("setting next build time", zap.Int64("next", next))
 	return next
 }
 
 func (b *Time) Queue(ctx context.Context) {
 	if !b.waiting.CompareAndSwap(false, true) {
-		b.vm.Logger().Debug("unable to acquire waiting lock")
+		b.vm.Logger().Warn("unable to acquire waiting lock")
 		return
 	}
 	preferredBlk, err := b.vm.PreferredBlock(context.TODO())
@@ -77,7 +78,7 @@ func (b *Time) Queue(ctx context.Context) {
 		return
 	}
 	now := time.Now().UnixMilli()
-	next := b.nextTime(now, preferredBlk.Tmstmp)
+	next := b.nextTime(now, preferredBlk.StatefulBlock.Timestamp)
 	if next < 0 {
 		if err := b.Force(ctx); err != nil {
 			b.vm.Logger().Warn("unable to build", zap.Error(err))

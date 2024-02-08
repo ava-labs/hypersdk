@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
@@ -58,6 +59,11 @@ type VM interface {
 	Monitoring
 	Parser
 
+	// TODO: cleanup
+	Engine() *Engine
+	RequestChunks([]*ChunkCertificate, chan *Chunk)
+	SubnetID() ids.ID
+
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
 	AuthVerifiers() workers.Workers
@@ -68,20 +74,25 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
-
 	State() (merkledb.MerkleDB, error)
+	ForceState() merkledb.MerkleDB
 	StateManager() StateManager
 	ValidatorState() validators.State
 
+	IsIssuedTx(context.Context, *Transaction) bool
+	IssueTx(context.Context, *Transaction)
+
+	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
+	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
+
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
-	Accepted(context.Context, *StatelessBlock)
+	Accepted(context.Context, *StatelessBlock, *FeeManager, []*FilteredChunk)
+	Executed(context.Context, uint64, *FilteredChunk, []*Result)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
@@ -89,6 +100,13 @@ type VM interface {
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
+
+	// TODO: cleanup
+	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	NodeID() ids.NodeID
+	Signer() *bls.PublicKey
+	Sign(*warp.UnsignedMessage) ([]byte, error)
+	StopChan() chan struct{}
 }
 
 type VerifyContext interface {
@@ -118,6 +136,8 @@ type Rules interface {
 	// a live network)
 	NetworkID() uint32
 	ChainID() ids.ID
+
+	GetBlockExecutionDepth() uint64
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds

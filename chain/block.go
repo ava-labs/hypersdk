@@ -5,7 +5,8 @@ package chain
 
 import (
 	"context"
-	"encoding/binary"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,20 +14,19 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/snow/validators"
+	autils "github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/window"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 var (
@@ -36,32 +36,32 @@ var (
 )
 
 type StatefulBlock struct {
-	Prnt   ids.ID `json:"parent"`
-	Tmstmp int64  `json:"timestamp"`
-	Hght   uint64 `json:"height"`
+	Parent    ids.ID `json:"parent"`
+	Height    uint64 `json:"height"`
+	Timestamp int64  `json:"timestamp"`
 
-	Txs []*Transaction `json:"txs"`
+	// AvailableChunks is a collection of valid Chunks that will be executed in
+	// the future.
+	AvailableChunks []*ChunkCertificate `json:"availableChunks"`
 
-	// StateRoot is the root of the post-execution state
-	// of [Prnt].
+	// StartRoot is the root of the post-execution state
+	// of [Parent].
 	//
 	// This "deferred root" design allows for merklization
 	// to be done asynchronously instead of during [Build]
 	// or [Verify], which reduces the amount of time we are
 	// blocking the consensus engine from voting on the block,
 	// starting the verification of another block, etc.
-	StateRoot   ids.ID     `json:"stateRoot"`
-	WarpResults set.Bits64 `json:"warpResults"`
+	StartRoot      ids.ID   `json:"startRoot"`
+	ExecutedChunks []ids.ID `json:"executedChunks"`
 
-	size int
-
-	// authCounts can be used by batch signature verification
-	// to preallocate memory
-	authCounts map[uint8]int
+	built bool
 }
 
 func (b *StatefulBlock) Size() int {
-	return b.size
+	return consts.IDLen + consts.Uint64Len + consts.Int64Len +
+		consts.IntLen + codec.CummSize(b.AvailableChunks) +
+		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
 }
 
 func (b *StatefulBlock) ID() (ids.ID, error) {
@@ -72,14 +72,69 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 	return utils.ToID(blk), nil
 }
 
-// warpJob is used to signal to a listner that a *warp.Message has been
-// verified.
-type warpJob struct {
-	msg          *warp.Message
-	signers      int
-	verifiedChan chan bool
-	verified     bool
-	warpNum      int
+func (b *StatefulBlock) Marshal() ([]byte, error) {
+	p := codec.NewWriter(b.Size(), consts.NetworkSizeLimit)
+
+	p.PackID(b.Parent)
+	p.PackUint64(b.Height)
+	p.PackInt64(b.Timestamp)
+
+	p.PackInt(len(b.AvailableChunks))
+	for _, cert := range b.AvailableChunks {
+		if err := cert.MarshalPacker(p); err != nil {
+			return nil, err
+		}
+	}
+
+	p.PackID(b.StartRoot)
+	p.PackInt(len(b.ExecutedChunks))
+	for _, chunk := range b.ExecutedChunks {
+		p.PackID(chunk)
+	}
+
+	bytes := p.Bytes()
+	if err := p.Err(); err != nil {
+		return nil, err
+	}
+	return bytes, nil
+}
+
+func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
+	var (
+		p = codec.NewReader(raw, consts.NetworkSizeLimit)
+		b StatefulBlock
+	)
+
+	p.UnpackID(false, &b.Parent)
+	b.Height = p.UnpackUint64(false)
+	b.Timestamp = p.UnpackInt64(false)
+
+	// Parse available chunks
+	chunkCount := p.UnpackInt(false)          // can produce empty blocks
+	b.AvailableChunks = []*ChunkCertificate{} // don't preallocate all to avoid DoS
+	for i := 0; i < chunkCount; i++ {
+		cert, err := UnmarshalChunkCertificatePacker(p)
+		if err != nil {
+			return nil, err
+		}
+		b.AvailableChunks = append(b.AvailableChunks, cert)
+	}
+
+	// Parse executed chunks
+	p.UnpackID(false, &b.StartRoot)
+	chunkCount = p.UnpackInt(false) // can produce empty blocks
+	b.ExecutedChunks = []ids.ID{}   // don't preallocate all to avoid DoS
+	for i := 0; i < chunkCount; i++ {
+		var id ids.ID
+		p.UnpackID(true, &id)
+		b.ExecutedChunks = append(b.ExecutedChunks, id)
+	}
+
+	// Ensure no leftover bytes
+	if !p.Empty() {
+		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+	}
+	return &b, p.Err()
 }
 
 func NewGenesisBlock(root ids.ID) *StatefulBlock {
@@ -92,10 +147,10 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 		//
 		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
 		// .../vms/proposervm/pre_fork_block.go#L201
-		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+		Timestamp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
-		// StateRoot should include all allocates made when loading the genesis file
-		StateRoot: root,
+		// StartRoot should include all allocates made when loading the genesis file
+		StartRoot: root,
 	}
 }
 
@@ -105,32 +160,27 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
+	vm VM
 
-	warpMessages map[ids.ID]*warpJob
-	containsWarp bool // this allows us to avoid allocating a map when we build
-	bctx         *block.Context
-	vdrState     validators.State
+	id    ids.ID
+	st    choices.Status
+	t     time.Time
+	bytes []byte
 
-	results    []*Result
-	feeManager *FeeManager
+	parent     *StatelessBlock
+	execHeight *uint64
 
-	vm   VM
-	view merkledb.View
+	chunks set.Set[ids.ID]
 
-	sigJob workers.Job
+	bctx *block.Context
 }
 
 func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
-			Prnt:   parent.ID(),
-			Tmstmp: tmstp,
-			Hght:   parent.Height() + 1,
+			Parent:    parent.ID(),
+			Timestamp: tmstp,
+			Height:    parent.Height() + 1,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -146,79 +196,12 @@ func ParseBlock(
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
 	defer span.End()
 
-	blk, err := UnmarshalBlock(source, vm)
+	blk, err := UnmarshalBlock(source)
 	if err != nil {
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
 	return ParseStatefulBlock(ctx, blk, source, status, vm)
-}
-
-// populateTxs is only called on blocks we did not build
-func (b *StatelessBlock) populateTxs(ctx context.Context) error {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.populateTxs")
-	defer span.End()
-
-	// Setup signature verification job
-	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
-	job, err := b.vm.AuthVerifiers().NewJob(len(b.Txs))
-	if err != nil {
-		return err
-	}
-	b.sigJob = job
-	batchVerifier := NewAuthBatch(b.vm, b.sigJob, b.authCounts)
-
-	// Make sure to always call [Done], otherwise we will block all future [Workers]
-	defer func() {
-		// BatchVerifier is given the responsibility to call [b.sigJob.Done()] because it may add things
-		// to the work queue async and that may not have completed by this point.
-		go batchVerifier.Done(func() { sigVerifySpan.End() })
-	}()
-
-	// Confirm no transaction duplicates and setup
-	// AWM processing
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	b.warpMessages = map[ids.ID]*warpJob{}
-	for _, tx := range b.Txs {
-		// Ensure there are no duplicate transactions
-		if b.txsSet.Contains(tx.ID()) {
-			return ErrDuplicateTx
-		}
-		b.txsSet.Add(tx.ID())
-
-		// Verify signature async
-		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Digest()
-			if err != nil {
-				return err
-			}
-			batchVerifier.Add(txDigest, tx.Auth)
-		}
-
-		// Check if we need the block context to verify the block (which contains
-		// an Avalanche Warp Message)
-		//
-		// Instead of erroring out if a warp message is invalid, we mark the
-		// verification as skipped and include it in the verification result so
-		// that a fee can still be deducted.
-		if tx.WarpMessage != nil {
-			if len(b.warpMessages) == MaxWarpMessages {
-				return ErrTooManyWarpMessages
-			}
-			signers, err := tx.WarpMessage.Signature.NumSigners()
-			if err != nil {
-				return err
-			}
-			b.warpMessages[tx.ID()] = &warpJob{
-				msg:          tx.WarpMessage,
-				signers:      signers,
-				verifiedChan: make(chan bool, 1),
-				warpNum:      len(b.warpMessages),
-			}
-			b.containsWarp = true
-		}
-	}
-	return nil
 }
 
 func ParseStatefulBlock(
@@ -232,7 +215,7 @@ func ParseStatefulBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Tmstmp > time.Now().Add(FutureBound).UnixMilli() {
+	if blk.Timestamp > time.Now().Add(FutureBound).UnixMilli() {
 		return nil, ErrTimestampTooLate
 	}
 
@@ -245,7 +228,7 @@ func ParseStatefulBlock(
 	}
 	b := &StatelessBlock{
 		StatefulBlock: blk,
-		t:             time.UnixMilli(blk.Tmstmp),
+		t:             time.UnixMilli(blk.Timestamp),
 		bytes:         source,
 		st:            status,
 		vm:            vm,
@@ -255,50 +238,31 @@ func ParseStatefulBlock(
 	// If we are parsing an older block, it will not be re-executed and should
 	// not be tracked as a parsed block
 	lastAccepted := b.vm.LastAcceptedBlock()
-	if lastAccepted == nil || b.Hght <= lastAccepted.Hght { // nil when parsing genesis
+	if lastAccepted == nil || blk.Height <= lastAccepted.StatefulBlock.Height { // nil when parsing genesis
 		return b, nil
 	}
 
-	// Populate hashes and tx set
-	return b, b.populateTxs(ctx)
-}
-
-// [initializeBuilt] is invoked after a block is built
-func (b *StatelessBlock) initializeBuilt(
-	ctx context.Context,
-	view merkledb.View,
-	results []*Result,
-	feeManager *FeeManager,
-) error {
-	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
-	defer span.End()
-
-	blk, err := b.StatefulBlock.Marshal()
-	if err != nil {
-		return err
+	// Update set (handle this on built)
+	b.chunks = set.NewSet[ids.ID](len(blk.AvailableChunks))
+	for _, cert := range blk.AvailableChunks {
+		b.chunks.Add(cert.Chunk)
 	}
-	b.bytes = blk
-	b.id = utils.ToID(b.bytes)
-	b.view = view
-	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
-	b.results = results
-	b.feeManager = feeManager
-	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
-	for _, tx := range b.Txs {
-		b.txsSet.Add(tx.ID())
-		if tx.WarpMessage != nil {
-			b.containsWarp = true
-		}
-	}
-	return nil
+
+	// TODO: add parent, execHeight, and bctx to the block?
+
+	return b, nil
 }
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
+//
+// TODO: may want to use a different p-chain height to verify things?
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return b.containsWarp, nil
+	// Because we require context to add any new chunks (which contain all txs), we know
+	// that any warp messages that are included in these chunks can be verified.
+	return len(b.AvailableChunks) > 0 /* need to verify certs */, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -308,15 +272,11 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 		b.vm.RecordBlockVerify(time.Since(start))
 	}()
 
-	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
-			attribute.Int64("height", int64(b.Hght)),
-			attribute.Bool("stateReady", stateReady),
+			attribute.Int64("height", int64(b.StatefulBlock.Height)),
 			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
-			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
@@ -325,7 +285,17 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 	b.bctx = bctx
 
 	// Proceed with normal verification
-	return b.verify(ctx, stateReady)
+	err := b.verify(ctx)
+	if err != nil {
+		b.vm.Logger().Error(
+			"verification failed",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Error(err),
+		)
+	}
+	return err
 }
 
 // implements "snowman.Block"
@@ -335,120 +305,49 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		b.vm.RecordBlockVerify(time.Since(start))
 	}()
 
-	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
 		oteltrace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
-			attribute.Int64("height", int64(b.Hght)),
-			attribute.Bool("stateReady", stateReady),
-			attribute.Bool("built", b.Processed()),
+			attribute.Int64("height", int64(b.StatefulBlock.Height)),
 		),
 	)
 	defer span.End()
 
-	return b.verify(ctx, stateReady)
-}
-
-func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
-	log := b.vm.Logger()
-	switch {
-	case !stateReady:
-		// If the state of the accepted tip has not been fully fetched, it is not safe to
-		// verify any block.
-		log.Info(
-			"skipping verification, state not ready",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
+	err := b.verify(ctx)
+	if err != nil {
+		b.vm.Logger().Error(
+			"verification failed",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Error(err),
 		)
-	case b.Processed():
-		// If we built the block, the state will already be populated and we don't
-		// need to compute it (we assume that we built a correct block and it isn't
-		// necessary to re-verify anything).
-		log.Info(
-			"skipping verification, already processed",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
+	}
+	return err
+}
+
+// Tasks
+// 1) verify certificates (correct signatures, correct weight, not duplicates)
+// 2) verify parent state root is correct
+// 3) verify executed certificates (correct IDs)
+func (b *StatelessBlock) verify(ctx context.Context) error {
+	// Skip verification if we built this block
+	if b.built {
+		b.vm.Logger().Info(
+			"skipping verify because built block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
 		)
-	default:
-		// Get the [VerifyContext] needed to process this block.
-		//
-		// If the parent block's height is less than or equal to the last accepted height (and
-		// the last accepted height is processed), the accepted state will be used as the execution
-		// context. Otherwise, the parent block will be used as the execution context.
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
-		if err != nil {
-			b.vm.Logger().Warn("unable to get verify context",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("blkID", b.ID()),
-				zap.Error(err),
-			)
-			return fmt.Errorf("%w: unable to load verify context", err)
-		}
-
-		// Parent block may not be processed when we verify this block, so [innerVerify] may
-		// recursively verify ancestry.
-		if err := b.innerVerify(ctx, vctx); err != nil {
-			b.vm.Logger().Warn("verification failed",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("blkID", b.ID()),
-				zap.Error(err),
-			)
-			return err
-		}
+		b.vm.Verified(ctx, b)
+		return nil
 	}
 
-	// At any point after this, we may attempt to verify the block. We should be
-	// sure we are prepared to do so.
-	//
-	// NOTE: mempool is modified by VM handler
-	b.vm.Verified(ctx, b)
-	return nil
-}
+	// TODO: skip verification if state does not exist yet
 
-// verifyWarpMessage will attempt to verify a given warp message provided by an
-// Action.
-func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
-	// We do not check the validity of [SourceChainID] because a VM could send
-	// itself a message to trigger a chain upgrade.
-	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
-	if !allowed {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(ErrDisabledChainID))
-		return false
-	}
-	if err := msg.Signature.Verify(
-		ctx,
-		&msg.UnsignedMessage,
-		r.NetworkID(),
-		b.vdrState,
-		b.bctx.PChainHeight,
-		num,
-		denom,
-	); err != nil {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(err))
-		return false
-	}
-	return true
-}
-
-// innerVerify executes the block on top of the provided [VerifyContext].
-//
-// Invariants:
-// Accepted / Rejected blocks should never have Verify called on them.
-// Blocks that were verified (and returned nil) with Verify will not have verify called again.
-// Blocks that were verified with VerifyWithContext may have verify called multiple times.
-//
-// When this may be called:
-//  1. [Verify|VerifyWithContext]
-//  2. If the parent view is missing when verifying (dynamic state sync)
-//  3. If the view of a block we are accepting is missing (finishing dynamic
-//     state sync)
-func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) error {
 	var (
 		log = b.vm.Logger()
-		r   = b.vm.Rules(b.Tmstmp)
+		r   = b.vm.Rules(b.StatefulBlock.Timestamp)
 	)
 
 	// Perform basic correctness checks before doing any expensive work
@@ -456,235 +355,200 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return ErrTimestampTooLate
 	}
 
-	// Fetch view where we will apply block state transitions
+	// Check that gap between parent is at least minimum
 	//
-	// This call may result in our ancestry being verified.
-	parentView, err := vctx.View(ctx, true)
+	// We do not have access to state here, so we must use the parent block.
+	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
 	if err != nil {
-		return fmt.Errorf("%w: unable to load parent view", err)
+		log.Error("block verification failed, missing parent", zap.Stringer("parentID", b.StatefulBlock.Parent), zap.Error(err))
+		return fmt.Errorf("%w: can't get parent block %s", err, b.StatefulBlock.Parent)
 	}
-
-	// Fetch parent height key and ensure block height is valid
-	heightKey := HeightKey(b.vm.StateManager().HeightKey())
-	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
-	if err != nil {
-		return err
-	}
-	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
-	if b.Hght != parentHeight+1 {
+	if b.StatefulBlock.Height != parent.StatefulBlock.Height+1 {
 		return ErrInvalidBlockHeight
 	}
+	b.parent = parent
+	parentTimestamp := parent.StatefulBlock.Timestamp
+	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
+		return ErrTimestampTooEarly
+	}
+	if len(b.AvailableChunks) == 0 && b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinEmptyBlockGap() {
+		return ErrTimestampTooEarly
+	}
 
-	// Fetch parent timestamp and confirm block timestamp is valid
-	//
-	// Parent may not be available (if we preformed state sync), so we
-	// can't rely on being able to fetch it during verification.
-	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
-	parentTimestampRaw, err := parentView.GetValue(ctx, timestampKey)
+	// Check duplicate certificates
+	repeats, err := parent.IsRepeatChunk(ctx, b.AvailableChunks, set.NewBits())
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: can't check if chunk is repeat", err)
 	}
-	parentTimestamp := int64(binary.BigEndian.Uint64(parentTimestampRaw))
-	if b.Tmstmp < parentTimestamp+r.GetMinBlockGap() {
-		return ErrTimestampTooEarly
-	}
-	if len(b.Txs) == 0 && b.Tmstmp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return ErrTimestampTooEarly
+	if repeats.Len() > 0 {
+		return errors.New("duplicate chunk issuance")
 	}
 
-	// Ensure tx cannot be replayed
+	// Verify certificates
 	//
-	// Before node is considered ready (emap is fully populated), this may return
-	// false when other validators think it is true.
-	//
-	// If a block is already accepted, its transactions have already been added
-	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
-	if b.st != choices.Accepted {
-		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
-		if oldestAllowed < 0 {
-			// Can occur if verifying genesis
-			oldestAllowed = 0
-		}
-		dup, err := vctx.IsRepeat(ctx, oldestAllowed, b.Txs, set.NewBits(), true)
+	// TODO: don't rely on block context for verifying certificates (will have a fixed height for computing partitions and verifying warp results)
+	// This can be very finicky near the start of the subnet (where validators were just added) and config must be set to use latest P-Chain height
+	if b.bctx != nil {
+		// We get the validator set once and reuse it instead of using warp verify (which generates the set each time).
+
+		// Get validator set at current height
+		//
+		// TODO: need to handle case where state sync on P-Chain and don't have historical validator set
+		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, b.vm.SubnetID())
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: can't get validator set", err)
 		}
-		if dup.Len() > 0 {
-			return fmt.Errorf("%w: duplicate in ancestry", ErrDuplicateTx)
-		}
-	}
 
-	// Start validating warp messages, if they exist
-	var invalidWarpResult bool
-	if b.containsWarp {
-		if b.bctx == nil {
-			log.Error(
-				"missing verify block context",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("id", b.ID()),
-			)
-			return ErrMissingBlockContext
-		}
-		_, warpVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
-		b.vdrState = b.vm.ValidatorState()
-		go func() {
-			defer warpVerifySpan.End()
-			// We don't use [b.vm.Workers] here because we need the warp verification
-			// results during normal execution. If we added a job to the workers queue,
-			// it would get executed after all signatures. Additionally, BLS
-			// Multi-Signature verification is already parallelized so we should just
-			// do one at a time to avoid overwhelming the CPU.
-			for txID, msg := range b.warpMessages {
-				if ctx.Err() != nil {
-					return
-				}
-				blockVerified := b.WarpResults.Contains(uint(msg.warpNum))
-				if b.vm.IsBootstrapped() && !invalidWarpResult {
-					start := time.Now()
-					verified := b.verifyWarpMessage(ctx, r, msg.msg)
-					msg.verifiedChan <- verified
-					msg.verified = verified
-					log.Info(
-						"processed warp message",
-						zap.Stringer("txID", txID),
-						zap.Bool("verified", verified),
-						zap.Int("signers", msg.signers),
-						zap.Duration("t", time.Since(start)),
-					)
-					if blockVerified != verified {
-						invalidWarpResult = true
-					}
-				} else {
-					// When we are bootstrapping, we just use the result in the block.
-					//
-					// We also use the result in the block when we have found
-					// a verification mismatch (our verify result is different than the
-					// block) to avoid doing extra work.
-					msg.verifiedChan <- blockVerified
-					msg.verified = blockVerified
-				}
+		// TODO: replace with canonical function used in proposer monito
+		// Compute canonical validator set (already have set, so don't call again)
+		// Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
+		var (
+			vdrs        = make(map[string]*warp.Validator, len(vdrSet))
+			totalWeight uint64
+		)
+		for _, vdr := range vdrSet {
+			totalWeight, err = math.Add64(totalWeight, vdr.Weight)
+			if err != nil {
+				return err
 			}
-		}()
-	}
 
-	// Compute next unit prices to use
-	feeKey := FeeKey(b.vm.StateManager().FeeKey())
-	feeRaw, err := parentView.GetValue(ctx, feeKey)
-	if err != nil {
-		return err
-	}
-	parentFeeManager := NewFeeManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)
-	if err != nil {
-		return err
-	}
+			if vdr.PublicKey == nil {
+				continue
+			}
 
-	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
-	if err != nil {
-		log.Error("failed to execute block", zap.Error(err))
-		return err
-	}
-	b.results = results
-	b.feeManager = feeManager
+			pkBytes := bls.SerializePublicKey(vdr.PublicKey)
+			uniqueVdr, ok := vdrs[string(pkBytes)]
+			if !ok {
+				uniqueVdr = &warp.Validator{
+					PublicKey:      vdr.PublicKey,
+					PublicKeyBytes: pkBytes,
+				}
+				vdrs[string(pkBytes)] = uniqueVdr
+			}
 
-	// Ensure warp results are correct
-	if invalidWarpResult {
-		return ErrWarpResultMismatch
-	}
-	numWarp := len(b.warpMessages)
-	if numWarp > MaxWarpMessages {
-		return ErrTooManyWarpMessages
-	}
-	var warpResultsLimit set.Bits64
-	warpResultsLimit.Add(uint(numWarp))
-	if b.WarpResults >= warpResultsLimit {
-		// If the value of [WarpResults] is greater than the value of uint64 with
-		// a 1-bit shifted [numWarp] times, then there are unused bits set to
-		// 1 (which should is not allowed).
-		return ErrWarpResultMismatch
-	}
-
-	// Update chain metadata
-	heightKeyStr := string(heightKey)
-	timestampKeyStr := string(timestampKey)
-	feeKeyStr := string(feeKey)
-
-	keys := make(state.Keys)
-	keys.Add(heightKeyStr, state.Write)
-	keys.Add(timestampKeyStr, state.Write)
-	keys.Add(feeKeyStr, state.Write)
-	tsv := ts.NewView(keys, map[string][]byte{
-		heightKeyStr:    parentHeightRaw,
-		timestampKeyStr: parentTimestampRaw,
-		feeKeyStr:       parentFeeManager.Bytes(),
-	})
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
-		return err
-	}
-	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
-		return err
-	}
-	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-		return err
-	}
-	tsv.Commit()
-
-	// Compare state root
-	//
-	// Because fee bytes are not recorded in state, it is sufficient to check the state root
-	// to verify all fee calcuations were correct.
-	_, rspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitRoot")
-	start := time.Now()
-	computedRoot, err := parentView.GetMerkleRoot(ctx)
-	rspan.End()
-	if err != nil {
-		return err
-	}
-	b.vm.RecordWaitRoot(time.Since(start))
-	if b.StateRoot != computedRoot {
-		return fmt.Errorf(
-			"%w: expected=%s found=%s",
-			ErrStateRootMismatch,
-			computedRoot,
-			b.StateRoot,
-		)
-	}
-
-	// Ensure signatures are verified
-	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitSignatures")
-	start = time.Now()
-	err = b.sigJob.Wait()
-	sspan.End()
-	if err != nil {
-		return err
-	}
-	b.vm.RecordWaitSignatures(time.Since(start))
-
-	// Get view from [tstate] after processing all state transitions
-	b.vm.RecordStateChanges(ts.PendingChanges())
-	b.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.ExportMerkleDBView(ctx, b.vm.Tracer(), parentView)
-	if err != nil {
-		return err
-	}
-	b.view = view
-
-	// Kickoff root generation
-	go func() {
-		start := time.Now()
-		root, err := view.GetMerkleRoot(ctx)
-		if err != nil {
-			log.Error("merkle root generation failed", zap.Error(err))
-			return
+			uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
+			uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
 		}
-		log.Info("merkle root generated",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
-			zap.Stringer("root", root),
+		vdrList := maps.Values(vdrs)
+		autils.Sort(vdrList)
+
+		// Verify certificates
+		//
+		// TODO: make parallel
+		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
+		// waiting for execution to complete).
+		for i, cert := range b.AvailableChunks {
+			// TODO: Ensure cert is from a validator
+			//
+			// Signers verify that validator signed chunk with right key when signing chunk, so may
+			// not be necessary?
+			//
+			// TODO: consider not verifying this in case validator set changes?
+
+			// TODO: consider moving to chunk verify
+
+			// Ensure chunk is not expired
+			if cert.Slot < b.StatefulBlock.Timestamp {
+				return ErrTimestampTooLate
+			}
+
+			// Ensure chunk is not too early
+			//
+			// TODO: handle the case where our parent is very old (seems like we should only check if > than parent here)?
+			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+				return ErrTimestampTooEarly
+			}
+
+			// Ensure chunk expiry is aligned to a tenth of a second
+			//
+			// Signatures will only be given for a configurable number of chunks per
+			// second.
+			//
+			// TODO: consider moving to unmarshal
+			if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
+				return ErrMisalignedTime
+			}
+
+			// Verify multi-signature
+			filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
+			if err != nil {
+				return err
+			}
+			filteredWeight, err := warp.SumWeight(filteredVdrs)
+			if err != nil {
+				return err
+			}
+			// TODO: make this a const
+			if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
+				return err
+			}
+			aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
+			if err != nil {
+				return err
+			}
+			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
+				return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, len(filteredVdrs), filteredWeight, totalWeight)
+			}
+		}
+	} else {
+		if len(b.AvailableChunks) > 0 {
+			return errors.New("block context not provided but have available chunks")
+		}
+	}
+
+	// Verify start root and execution results
+	depth := r.GetBlockExecutionDepth()
+	if b.StatefulBlock.Height <= depth {
+		if b.StartRoot != ids.Empty || len(b.ExecutedChunks) > 0 {
+			return errors.New("no execution result should exist")
+		}
+	} else {
+		execHeight := b.StatefulBlock.Height - depth
+		root, executed, err := b.vm.Engine().Results(execHeight)
+		if err != nil {
+			// TODO: add stat for tracking how often this happens
+			// TODOL handle case where we state synced and don't have results
+			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+			return fmt.Errorf("%w: no results for execHeight", err)
+		}
+		if b.StartRoot != root {
+			return errors.New("start root mismatch")
+		}
+		if len(b.ExecutedChunks) != len(executed) {
+			return errors.New("executed chunks count mismatch")
+		}
+		for i, id := range b.ExecutedChunks {
+			if id != executed[i] {
+				return errors.New("executed chunks mismatch")
+			}
+		}
+		b.execHeight = &execHeight
+	}
+	b.vm.Verified(ctx, b)
+
+	if b.execHeight == nil {
+		// TODO: create a stringer for *Uint64
+		log.Info(
+			"verified block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Int("available chunks", len(b.AvailableChunks)),
+			zap.Stringer("start root", b.StartRoot),
+			zap.Int("executed chunks", len(b.ExecutedChunks)),
 		)
-		b.vm.RecordRootCalculated(time.Since(start))
-	}()
+	} else {
+		log.Info(
+			"verified block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Uint64("execHeight", *b.execHeight),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Int("available chunks", len(b.AvailableChunks)),
+			zap.Stringer("start root", b.StartRoot),
+			zap.Int("executed chunks", len(b.ExecutedChunks)),
+		)
+	}
 	return nil
 }
 
@@ -698,64 +562,46 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
 	defer span.End()
 
-	// Consider verifying the a block if it is not processed and we are no longer
-	// syncing.
-	if !b.Processed() {
-		// The state of this block was not calculated during the call to
-		// [StatelessBlock.Verify]. This is because the VM was state syncing
-		// and did not have the state necessary to verify the block.
-		updated, err := b.vm.UpdateSyncTarget(b)
-		if err != nil {
-			return err
-		}
-		if updated {
-			b.vm.Logger().Info("updated state sync target",
-				zap.Stringer("id", b.ID()),
-				zap.Stringer("root", b.StateRoot),
-			)
-			return nil // the sync is still ongoing
-		}
+	b.st = choices.Accepted
 
-		// This code handles the case where this block was not
-		// verified during state sync (stopped syncing with a
-		// processing block).
-		//
-		// If state sync completes before accept is called
-		// then we need to process it here.
-		b.vm.Logger().Info("verifying unprocessed block in accept",
-			zap.Stringer("id", b.ID()),
-			zap.Stringer("root", b.StateRoot),
-		)
-		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
-		if err != nil {
-			return fmt.Errorf("%w: unable to get verify context", err)
-		}
-		if err := b.innerVerify(ctx, vctx); err != nil {
-			return fmt.Errorf("%w: unable to verify block", err)
-		}
+	// Start async execution
+	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
+		b.vm.Engine().Execute(b)
 	}
 
-	// Commit view if we don't return before here (would happen if we are still
-	// syncing)
-	if err := b.view.CommitToDB(ctx); err != nil {
-		return fmt.Errorf("%w: unable to commit block", err)
+	// Collect async results (if any)
+	var (
+		filteredChunks []*FilteredChunk
+		feeManager     *FeeManager
+	)
+	if b.execHeight != nil {
+		fm, _, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
+		if err != nil {
+			return fmt.Errorf("%w: cannot commit", err)
+		}
+		filteredChunks = fc
+		feeManager = fm
 	}
-
-	// Mark block as accepted and update last accepted in storage
-	b.MarkAccepted(ctx)
+	b.vm.Accepted(ctx, b, feeManager, filteredChunks)
+	b.vm.Logger().Info(
+		"accept returned",
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Stringer("blockID", b.ID()),
+	)
 	return nil
 }
 
+// used for accepting syncable blocks
 func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 	// Accept block and free unnecessary memory
 	b.st = choices.Accepted
-	b.txsSet = nil // only used for replay protection when processing
 
 	// [Accepted] will persist the block to disk and set in-memory variables
 	// needed to ensure we don't resync all blocks when state sync finishes.
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
-	b.vm.Accepted(ctx, b)
+	// TODO: this is definitely wrong, we should fix it
+	b.vm.Accepted(ctx, b, nil, nil)
 }
 
 // implements "snowman.Block.choices.Decidable"
@@ -772,274 +618,34 @@ func (b *StatelessBlock) Reject(ctx context.Context) error {
 func (b *StatelessBlock) Status() choices.Status { return b.st }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Prnt }
+func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Parent }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Bytes() []byte { return b.bytes }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
+func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Height }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
-// Used to determine if should notify listeners and/or pass to controller
-func (b *StatelessBlock) Processed() bool {
-	return b.view != nil
-}
-
-// View returns the [merkledb.TrieView] of the block (representing the state
-// post-execution) or returns the accepted state if the block is accepted or
-// is height 0 (genesis).
-//
-// If [b.view] is nil (not processed), this function will either return an error or will
-// run verification (depending on whether the height is in [acceptedState]).
-//
-// We still need to handle returning the accepted state here because
-// the [VM] will call [View] on the preferred tip of the chain (whether or
-// not it is accepted).
-//
-// Invariant: [View] with [verify] == true should not be called concurrently, otherwise,
-// it will result in undefined behavior.
-func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
-		oteltrace.WithAttributes(
-			attribute.Bool("processed", b.Processed()),
-			attribute.Bool("verify", verify),
-		),
-	)
-	defer span.End()
-
-	// If this is the genesis block, return the base state.
-	if b.Hght == 0 {
-		return b.vm.State()
+func (b *StatelessBlock) IsRepeatChunk(ctx context.Context, certs []*ChunkCertificate, marker set.Bits) (set.Bits, error) {
+	if b.st == choices.Accepted || b.StatefulBlock.Height == 0 /* genesis */ {
+		return b.vm.IsRepeatChunk(ctx, certs, marker), nil
 	}
-
-	// If block is processed, we can return either the accepted state
-	// or its pending view.
-	if b.Processed() {
-		if b.st == choices.Accepted {
-			// We assume that base state was properly updated if this
-			// block was accepted (this is not obvious because
-			// the accepted state may be that of the parent of the last
-			// accepted block right after state sync finishes).
-			return b.vm.State()
-		}
-		return b.view, nil
-	}
-
-	// If the block is not processed but [acceptedState] equals the height
-	// of the block, we should return the accepted state.
-	//
-	// This can happen when we are building a child block immediately after
-	// restart (latest block will not be considered [Processed] because there
-	// will be no attached view from execution).
-	//
-	// We cannot use the merkle root to check against the accepted state
-	// because the block only contains the root of the parent block's post-execution.
-	if b.st == choices.Accepted {
-		acceptedState, err := b.vm.State()
-		if err != nil {
-			return nil, err
-		}
-		acceptedHeightRaw, err := acceptedState.Get(HeightKey(b.vm.StateManager().HeightKey()))
-		if err != nil {
-			return nil, err
-		}
-		acceptedHeight := binary.BigEndian.Uint64(acceptedHeightRaw)
-		if acceptedHeight == b.Hght {
-			b.vm.Logger().Info("accepted block not processed but found post-execution state on-disk",
-				zap.Uint64("height", b.Hght),
-				zap.Stringer("blkID", b.ID()),
-				zap.Bool("verify", verify),
-			)
-			return acceptedState, nil
-		}
-		b.vm.Logger().Info("accepted block not processed and does not match state on-disk",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
-			zap.Bool("verify", verify),
-		)
-	} else {
-		b.vm.Logger().Info("block not processed",
-			zap.Uint64("height", b.Hght),
-			zap.Stringer("blkID", b.ID()),
-			zap.Bool("verify", verify),
-		)
-	}
-	if !verify {
-		return nil, ErrBlockNotProcessed
-	}
-
-	// If there are no processing blocks when state sync finishes,
-	// the first block we attempt to verify will reach this execution
-	// path.
-	//
-	// In this scenario, the last accepted block will not be processed
-	// and [acceptedState] will correspond to the post-execution state
-	// of the new block's grandparent (our parent). To remedy this,
-	// we need to process this block to return a valid view.
-	b.vm.Logger().Info("verifying block when view requested",
-		zap.Uint64("height", b.Hght),
-		zap.Stringer("blkID", b.ID()),
-		zap.Bool("accepted", b.st == choices.Accepted),
-	)
-	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
-	if err != nil {
-		b.vm.Logger().Error("unable to get verify context", zap.Error(err))
-		return nil, err
-	}
-	if err := b.innerVerify(ctx, vctx); err != nil {
-		b.vm.Logger().Error("unable to verify block", zap.Error(err))
-		return nil, err
-	}
-	if b.st != choices.Accepted {
-		return b.view, nil
-	}
-
-	// If the block is already accepted, we should update
-	// the accepted state to ensure future calls to [View]
-	// return the correct state (now that the block is considered
-	// processed).
-	//
-	// It is not possible to reach this function if this block
-	// is not the child of the block whose post-execution state
-	// is currently stored on disk, so it is safe to call [CommitToDB].
-	if err := b.view.CommitToDB(ctx); err != nil {
-		b.vm.Logger().Error("unable to commit to DB", zap.Error(err))
-		return nil, err
-	}
-	return b.vm.State()
-}
-
-// IsRepeat returns a bitset of all transactions that are considered repeats in
-// the range that spans back to [oldestAllowed].
-//
-// If [stop] is set to true, IsRepeat will return as soon as the first repeat
-// is found (useful for block verification).
-func (b *StatelessBlock) IsRepeat(
-	ctx context.Context,
-	oldestAllowed int64,
-	txs []*Transaction,
-	marker set.Bits,
-	stop bool,
-) (set.Bits, error) {
-	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.IsRepeat")
-	defer span.End()
-
-	// Early exit if we are already back at least [ValidityWindow]
-	//
-	// It is critical to ensure this logic is equivalent to [emap] to avoid
-	// non-deterministic verification.
-	if b.Tmstmp < oldestAllowed {
-		return marker, nil
-	}
-
-	// If we are at an accepted block or genesis, we can use the emap on the VM
-	// instead of checking each block
-	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
-		return b.vm.IsRepeat(ctx, txs, marker, stop), nil
-	}
-
-	// Check if block contains any overlapping txs
-	for i, tx := range txs {
+	for i, cert := range certs {
 		if marker.Contains(i) {
 			continue
 		}
-		if b.txsSet.Contains(tx.ID()) {
+		if b.chunks.Contains(cert.Chunk) {
 			marker.Add(i)
-			if stop {
-				return marker, nil
-			}
 		}
 	}
-	prnt, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
+	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
 	if err != nil {
 		return marker, err
 	}
-	return prnt.IsRepeat(ctx, oldestAllowed, txs, marker, stop)
-}
-
-func (b *StatelessBlock) GetTxs() []*Transaction {
-	return b.Txs
-}
-
-func (b *StatelessBlock) GetTimestamp() int64 {
-	return b.Tmstmp
-}
-
-func (b *StatelessBlock) Results() []*Result {
-	return b.results
-}
-
-func (b *StatelessBlock) FeeManager() *FeeManager {
-	return b.feeManager
-}
-
-func (b *StatefulBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
-		consts.Uint64Len + window.WindowSliceSize +
-		consts.IntLen + codec.CummSize(b.Txs) +
-		consts.IDLen + consts.Uint64Len + consts.Uint64Len
-
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-
-	p.PackID(b.Prnt)
-	p.PackInt64(b.Tmstmp)
-	p.PackUint64(b.Hght)
-
-	p.PackInt(len(b.Txs))
-	b.authCounts = map[uint8]int{}
-	for _, tx := range b.Txs {
-		if err := tx.Marshal(p); err != nil {
-			return nil, err
-		}
-		b.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	p.PackID(b.StateRoot)
-	p.PackUint64(uint64(b.WarpResults))
-	bytes := p.Bytes()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	b.size = len(bytes)
-	return bytes, nil
-}
-
-func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
-	var (
-		p = codec.NewReader(raw, consts.NetworkSizeLimit)
-		b StatefulBlock
-	)
-	b.size = len(raw)
-
-	p.UnpackID(false, &b.Prnt)
-	b.Tmstmp = p.UnpackInt64(false)
-	b.Hght = p.UnpackUint64(false)
-
-	// Parse transactions
-	txCount := p.UnpackInt(false) // can produce empty blocks
-	actionRegistry, authRegistry := parser.Registry()
-	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
-	b.authCounts = map[uint8]int{}
-	for i := 0; i < txCount; i++ {
-		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
-		if err != nil {
-			return nil, err
-		}
-		b.Txs = append(b.Txs, tx)
-		b.authCounts[tx.Auth.GetTypeID()]++
-	}
-
-	p.UnpackID(false, &b.StateRoot)
-	b.WarpResults = set.Bits64(p.UnpackUint64(false))
-
-	// Ensure no leftover bytes
-	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
-	}
-	return &b, p.Err()
+	return parent.IsRepeatChunk(ctx, certs, marker)
 }
 
 type SyncableBlock struct {
@@ -1055,10 +661,5 @@ func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
 }
 
 func (sb *SyncableBlock) String() string {
-	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
-}
-
-// Testing
-func (b *StatelessBlock) MarkUnprocessed() {
-	b.view = nil
+	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StartRoot)
 }

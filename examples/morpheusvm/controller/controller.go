@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -146,35 +145,39 @@ func (c *Controller) StateManager() chain.StateManager {
 	return c.stateManager
 }
 
+// TODO: convert to Executed(chunk) once queries are performed against executed state?
+//
+// TODO: need to be careful here because executed could be resent during re-processing?
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	batch := c.metaDB.NewBatch()
-	defer batch.Reset()
+	return nil
+	// batch := c.metaDB.NewBatch()
+	// defer batch.Reset()
 
-	results := blk.Results()
-	for i, tx := range blk.Txs {
-		result := results[i]
-		if c.config.GetStoreTransactions() {
-			err := storage.StoreTransaction(
-				ctx,
-				batch,
-				tx.ID(),
-				blk.GetTimestamp(),
-				result.Success,
-				result.Consumed,
-				result.Fee,
-			)
-			if err != nil {
-				return err
-			}
-		}
-		if result.Success {
-			switch tx.Action.(type) { //nolint:gocritic
-			case *actions.Transfer:
-				c.metrics.transfer.Inc()
-			}
-		}
-	}
-	return batch.Write()
+	// results := blk.Results()
+	// for i, tx := range blk.Txs {
+	// 	result := results[i]
+	// 	if c.config.GetStoreTransactions() {
+	// 		err := storage.StoreTransaction(
+	// 			ctx,
+	// 			batch,
+	// 			tx.ID(),
+	// 			blk.GetTimestamp(),
+	// 			result.Success,
+	// 			result.Consumed,
+	// 			result.Fee,
+	// 		)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	// 	if result.Success {
+	// 		switch tx.Action.(type) { //nolint:gocritic
+	// 		case *actions.Transfer:
+	// 			c.metrics.transfer.Inc()
+	// 		}
+	// 	}
+	// }
+	// return batch.Write()
 }
 
 func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {

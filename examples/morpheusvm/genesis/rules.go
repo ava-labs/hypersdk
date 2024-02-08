@@ -110,3 +110,7 @@ func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
 func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
+
+func (r *Rules) GetBlockExecutionDepth() uint64 {
+	return 5
+}

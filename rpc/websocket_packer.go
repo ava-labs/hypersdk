@@ -14,50 +14,79 @@ import (
 
 const (
 	BlockMode byte = 0
-	TxMode    byte = 1
+	ChunkMode byte = 1
+	TxMode    byte = 2
 )
 
-func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
-	results := b.Results()
-	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + chain.DimensionsLen
+func PackBlockMessage(b *chain.StatelessBlock, feeManager *chain.FeeManager) ([]byte, error) {
+	size := codec.BytesLen(b.Bytes()) + chain.DimensionsLen
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackBytes(b.Bytes())
-	mresults, err := chain.MarshalResults(results)
-	if err != nil {
-		return nil, err
-	}
-	p.PackBytes(mresults)
-	p.PackFixedBytes(b.FeeManager().UnitPrices().Bytes())
+	p.PackFixedBytes(feeManager.UnitPrices().Bytes())
 	return p.Bytes(), p.Err()
 }
 
 func UnpackBlockMessage(
 	msg []byte,
-	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, chain.Dimensions, error) {
+) (*chain.StatefulBlock, chain.Dimensions, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
-	blk, err := chain.UnmarshalBlock(blkMsg, parser)
+	blk, err := chain.UnmarshalBlock(blkMsg)
 	if err != nil {
-		return nil, nil, chain.Dimensions{}, err
-	}
-	var resultsMsg []byte
-	p.UnpackBytes(-1, true, &resultsMsg)
-	results, err := chain.UnmarshalResults(resultsMsg)
-	if err != nil {
-		return nil, nil, chain.Dimensions{}, err
+		return nil, chain.Dimensions{}, err
 	}
 	pricesMsg := make([]byte, chain.DimensionsLen)
 	p.UnpackFixedBytes(chain.DimensionsLen, &pricesMsg)
 	prices, err := chain.UnpackDimensions(pricesMsg)
 	if err != nil {
-		return nil, nil, chain.Dimensions{}, err
+		return nil, chain.Dimensions{}, err
 	}
 	if !p.Empty() {
-		return nil, nil, chain.Dimensions{}, chain.ErrInvalidObject
+		return nil, chain.Dimensions{}, chain.ErrInvalidObject
 	}
-	return blk, results, prices, p.Err()
+	return blk, prices, p.Err()
+}
+
+func PackChunkMessage(block uint64, c *chain.FilteredChunk, results []*chain.Result) ([]byte, error) {
+	chunkBytes, err := c.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	size := consts.Uint64Len + codec.BytesLen(chunkBytes) + consts.IntLen + codec.CummSize(results)
+	p := codec.NewWriter(size, consts.MaxInt)
+	p.PackUint64(block)
+	p.PackBytes(chunkBytes)
+	resultsBytes, err := chain.MarshalResults(results)
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(resultsBytes)
+	return p.Bytes(), p.Err()
+}
+
+func UnpackChunkMessage(
+	msg []byte,
+	parser chain.Parser,
+) (uint64, *chain.FilteredChunk, []*chain.Result, error) {
+	p := codec.NewReader(msg, consts.MaxInt)
+	height := p.UnpackUint64(false)
+	var chunkBytes []byte
+	p.UnpackBytes(-1, true, &chunkBytes)
+	chunk, err := chain.UnmarshalFilteredChunk(chunkBytes, parser)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	var resultsBytes []byte
+	p.UnpackBytes(-1, true, &resultsBytes)
+	results, err := chain.UnmarshalResults(resultsBytes)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	if !p.Empty() {
+		return 0, nil, nil, chain.ErrInvalidObject
+	}
+	return height, chunk, results, p.Err()
 }
 
 // Could be a better place for these methods

@@ -95,9 +95,9 @@ type LastAcceptedReply struct {
 
 func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := j.vm.LastAcceptedBlock()
-	reply.Height = blk.Hght
+	reply.Height = blk.Height()
 	reply.BlockID = blk.ID()
-	reply.Timestamp = blk.Tmstmp
+	reply.Timestamp = blk.StatefulBlock.Timestamp
 	return nil
 }
 
