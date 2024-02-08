@@ -1,6 +1,6 @@
 module github.com/ava-labs/hypersdk/examples/tokenvm
 
-go 1.20
+go 1.21
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
