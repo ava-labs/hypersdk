@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"slices"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
@@ -21,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
-	"golang.org/x/exp/slices"
 )
 
 type FeedContent struct {

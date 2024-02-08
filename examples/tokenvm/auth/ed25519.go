@@ -6,7 +6,6 @@ package auth
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -103,7 +102,7 @@ func (*ED25519Factory) MaxUnits() (uint64, uint64) {
 type ED25519AuthEngine struct{}
 
 func (*ED25519AuthEngine) GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier {
-	batchSize := math.Max(count/cores, ed25519.MinBatchSize)
+	batchSize := max(count/cores, ed25519.MinBatchSize)
 	return &ED25519Batch{
 		batchSize: batchSize,
 		total:     count,

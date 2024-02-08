@@ -10,12 +10,13 @@ import (
 	"fmt"
 	"time"
 
+	"slices"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 )
 
 var (
