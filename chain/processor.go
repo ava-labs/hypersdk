@@ -251,6 +251,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		}
 
 		// Check that transaction isn't a duplicate
+		//
+		// TODO: this contains is concurrent map read/write? ...shouldn't be checked here, this isn't safe
 		if repeats.Contains(txIndex) || p.txs.Contains(tx.ID()) {
 			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
