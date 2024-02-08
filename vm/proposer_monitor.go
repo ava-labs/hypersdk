@@ -149,9 +149,9 @@ func (p *ProposerMonitor) Validators(
 // Also returns the total weight on [subnetID].
 func (p *ProposerMonitor) GetCanonicalValidatorSet(
 	ctx context.Context,
-) ([]*warp.Validator, uint64, error) {
+) (uint64, []*warp.Validator, uint64, error) {
 	if err := p.refresh(ctx); err != nil {
-		return nil, 0, err
+		return 0, nil, 0, err
 	}
 
 	var (
@@ -162,7 +162,7 @@ func (p *ProposerMonitor) GetCanonicalValidatorSet(
 	for _, vdr := range p.validators {
 		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
 		if err != nil {
-			return nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
+			return 0, nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
 		}
 
 		if vdr.PublicKey == nil {
@@ -187,7 +187,7 @@ func (p *ProposerMonitor) GetCanonicalValidatorSet(
 	// Sort validators by public key
 	vdrList := maps.Values(vdrs)
 	utils.Sort(vdrList)
-	return vdrList, totalWeight, nil
+	return p.currentPHeight, vdrList, totalWeight, nil
 }
 
 func (p *ProposerMonitor) GetValidatorSet(

@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -384,6 +385,9 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	}
 
 	// Verify certificates
+	//
+	// TODO: don't rely on block context for verifying certificates (will have a fixed height for computing partitions and verifying warp results)
+	// This can be very finicky near the start of the subnet (where validators were just added) and config must be set to use latest P-Chain height
 	if b.bctx != nil {
 		// We get the validator set once and reuse it instead of using warp verify (which generates the set each time).
 
@@ -433,7 +437,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// TODO: make parallel
 		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
 		// waiting for execution to complete).
-		for _, cert := range b.AvailableChunks {
+		for i, cert := range b.AvailableChunks {
 			// TODO: Ensure cert is from a validator
 			//
 			// Signers verify that validator signed chunk with right key when signing chunk, so may
@@ -449,6 +453,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			}
 
 			// Ensure chunk is not too early
+			//
+			// TODO: handle the case where our parent is very old (seems like we should only check if > than parent here)?
 			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
 				return ErrTimestampTooEarly
 			}
@@ -481,7 +487,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 				return err
 			}
 			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-				return fmt.Errorf("%w: signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), len(filteredVdrs), filteredWeight, totalWeight)
+				return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, len(filteredVdrs), filteredWeight, totalWeight)
 			}
 		}
 	} else {

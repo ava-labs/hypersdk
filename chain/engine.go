@@ -101,12 +101,12 @@ func (e *Engine) Run() {
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
 			p := NewProcessor(e.vm, e, job.blk.bctx, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
-			chunks := make([]*Chunk, len(job.blk.AvailableChunks))
+			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				if err := p.Add(ctx, len(chunks), chunk); err != nil {
 					panic(err)
 				}
-				chunks[len(chunks)] = chunk
+				chunks = append(chunks, chunk)
 			}
 			txSet, ts, chunkResults, err := p.Wait()
 			if err != nil {

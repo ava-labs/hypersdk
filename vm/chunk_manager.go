@@ -328,7 +328,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Construct certificate
-		canonicalValidators, _, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		height, canonicalValidators, _, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
 		if err != nil {
 			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
 			return nil
@@ -366,6 +366,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.certs.Add(cert)
 		c.vm.Logger().Info(
 			"constructed chunk certificate",
+			zap.Uint64("Pheight", height),
 			zap.Stringer("chunkID", chunkSignature.Chunk),
 			zap.Uint64("weight", weight),
 			zap.Uint64("totalWeight", totalWeight),
@@ -384,7 +385,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Verify certificate using the current validator set
 		//
 		// TODO: consider re-verifying on some cadence prior to expiry?
-		validators, weight, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		height, validators, weight, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
 		if err != nil {
 			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
 			return nil
@@ -400,6 +401,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if err := warp.VerifyWeight(filteredWeight, weight, 67, 100); err != nil {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
+				zap.Uint64("Pheight", height),
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Error(err),
@@ -413,18 +415,23 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
+				zap.Uint64("Pheight", height),
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Binary("bitset", cert.Signers.Bytes()),
 				zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
+				zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
 				zap.Error(errors.New("invalid signature")),
 			)
 			return nil
 		}
 		c.vm.Logger().Warn(
 			"verified chunk certificate",
+			zap.Uint64("Pheight", height),
 			zap.Stringer("nodeID", nodeID),
 			zap.Stringer("chunkID", cert.Chunk),
+			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
+			zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
 			zap.Uint64("weight", filteredWeight),
 			zap.Uint64("totalWeight", weight),
 		)
