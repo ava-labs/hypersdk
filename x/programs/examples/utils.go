@@ -8,19 +8,20 @@ import (
 	"os"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/near/borsh-go"
+
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/near/borsh-go"
 )
 
-func newKey() (ed25519.PrivateKey, ed25519.PublicKey, error) {
+func newKey() (ed25519.PublicKey, error) {
 	priv, err := ed25519.GeneratePrivateKey()
 	if err != nil {
-		return ed25519.EmptyPrivateKey, ed25519.EmptyPublicKey, err
+		return ed25519.EmptyPublicKey, err
 	}
 
-	return priv, priv.PublicKey(), nil
+	return priv.PublicKey(), nil
 }
 
 // SerializeParameter serializes [obj] using Borsh

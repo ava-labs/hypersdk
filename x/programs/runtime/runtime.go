@@ -7,9 +7,9 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"

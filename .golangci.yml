@@ -1,6 +1,3 @@
-# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
-# See the file LICENSE for licensing terms.
-
 # https://golangci-lint.run/usage/configuration/
 run:
   timeout: 10m
@@ -72,9 +69,11 @@ linters:
     - prealloc
     - predeclared
     - revive
+    - spancheck
     - staticcheck
     - stylecheck
     - tagalign
+    - testifylint
     - typecheck
     - unconvert
     - unparam
@@ -114,7 +113,7 @@ linters-settings:
       - default
       - blank
       - dot
-      - prefix(github.com/ava-labs/avalanche-rosetta)
+      - prefix(github.com/ava-labs/hypersdk)
       - alias
     skip-generated: true
     custom-order: true
@@ -128,16 +127,12 @@ linters-settings:
     no-extra-aliases: false
     # List of aliases
     alias:
-      - pkg: github.com/ava-labs/coreth/core/types
-        alias: ethtypes
-      - pkg: github.com/ethereum/go-ethereum/common
-        alias: ethcommon
-      - pkg: github.com/ava-labs/avalanche-rosetta/mapper/pchain
-        alias: pmapper
-      - pkg: github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx
-        alias: cmapper
-      - pkg: github.com/ava-labs/avalanchego/utils/constants
-        alias: avaconstants
+      - pkg: github.com/ava-labs/avalanchego/utils/math
+        alias: safemath
+      - pkg: github.com/ava-labs/avalanchego/utils/json
+        alias: avajson
+      - pkg: github.com/ava-labs/avalanchego/utils
+        alias: avautils
   revive:
     rules:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#bool-literal-in-expr
@@ -180,9 +175,56 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#useless-break
       - name: useless-break
         disabled: false
+  spancheck:
+    # Checks to enable.
+    # Options include:
+    # - `end`: check that `span.End()` is called
+    # - `record-error`: check that `span.RecordError(err)` is called when an error is returned
+    # - `set-status`: check that `span.SetStatus(codes.Error, msg)` is called when an error is returned
+    # Default: ["end"]
+    checks:
+      - end
+      # - record-error
+      # - set-status
+    # A list of regexes for function signatures that silence `record-error` and `set-status` reports
+    # if found in the call path to a returned error.
+    # https://github.com/jjti/go-spancheck#ignore-check-signatures
+    # Default: []
+    ignore-check-signatures:
+      - "telemetry.RecordError"
   staticcheck:
     # https://staticcheck.io/docs/options#checks
     checks:
       - "all"
       - "-SA6002" # Storing non-pointer values in sync.Pool allocates memory
       - "-SA1019" # Using a deprecated function, variable, constant or field
+  tagalign:
+    align: true
+    sort: true
+    strict: true
+  testifylint:
+    # Disable all checkers (https://github.com/Antonboom/testifylint#checkers).
+    # Default: false
+    disable-all: true
+    # Enable checkers by name
+    # (in addition to default
+    #   blank-import, bool-compare, compares, empty, error-is-as, error-nil, expected-actual, go-require, float-compare,
+    #   len, nil-compare, require-error, suite-dont-use-pkg, suite-extra-assert-call, useless-assert
+    # ).
+    enable:
+      - blank-import
+      - bool-compare
+      - compares
+      - empty
+      - error-is-as
+      - error-nil
+      - expected-actual
+      # - go-require
+      # - float-compare
+      - len
+      - nil-compare
+      - require-error
+      - suite-dont-use-pkg
+      - suite-extra-assert-call
+      - suite-thelper
+      - useless-assert

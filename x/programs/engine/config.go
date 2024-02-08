@@ -5,7 +5,6 @@ package engine
 
 import (
 	"github.com/ava-labs/avalanchego/utils/units"
-
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
@@ -202,37 +201,37 @@ type ConfigBuilder struct {
 	// memory.copy instruction, passive data/table segments, etc, being in a
 	// module.
 	// This is false by default.
-	EnableBulkMemory bool `yaml:"enable_bulk_memory,omitempty" json:"enableBulkMemory,omitempty"`
+	EnableBulkMemory bool `json:"enableBulkMemory,omitempty" yaml:"enable_bulk_memory,omitempty"`
 	// Configures whether the WebAssembly multi-value proposal will be enabled for compilation.
 	// This feature gates functions and blocks returning multiple values in a module, for example.
 	// This is false by default.
-	EnableWasmMultiValue bool `yaml:"enable_wasm_multi_value,omitempty" json:"enableWasmMultiValue,omitempty"`
+	EnableWasmMultiValue bool `json:"enableWasmMultiValue,omitempty" yaml:"enable_wasm_multi_value,omitempty"`
 	// Configures whether the WebAssembly reference types proposal will be
 	// enabled for compilation.  This feature gates items such as the externref
 	// and funcref types as well as allowing a module to define multiple tables.
 	// Note that the reference types proposal depends on the bulk memory
 	// proposal.
 	// This is false by default.
-	EnableWasmReferenceTypes bool `yaml:"enable_wasm_reference_types,omitempty" json:"enableWasmReferenceTypes,omitempty"`
+	EnableWasmReferenceTypes bool `json:"enableWasmReferenceTypes,omitempty" yaml:"enable_wasm_reference_types,omitempty"`
 	// Configures whether the WebAssembly SIMD proposal will be enabled for
 	// compilation.  The WebAssembly SIMD proposal. This feature gates items
 	// such as the v128 type and all of its operators being in a module. Note
 	// that this does not enable the relaxed simd proposal.
 	// This is false by default.
-	EnableWasmSIMD bool `yaml:"enable_wasm_simd,omitempty" json:"enableWasmSIMD,omitempty"`
+	EnableWasmSIMD bool `json:"enableWasmSIMD,omitempty" yaml:"enable_wasm_simd,omitempty"`
 	// EnableDefaultCache enables compiled code caching for this `Config` using the default settings
 	// configuration can be found.
 	//
 	// For more information about caching see
 	// https://bytecodealliance.github.io/wasmtime/cli-cache.html
 	// This is false by default.
-	EnableDefaultCache bool `yaml:"enable_default_cache,omitempty" json:"enableDefaultCache,omitempty"`
+	EnableDefaultCache bool `json:"enableDefaultCache,omitempty" yaml:"enable_default_cache,omitempty"`
 	// SetMaxWasmStack configures the maximum stack size, in bytes, that JIT code can use.
 	// The amount of stack space that wasm takes is always relative to the first invocation of wasm on the stack.
 	// Recursive calls with host frames in the middle will all need to fit within this setting.
 	// Note that this setting is not interpreted with 100% precision.
 	// This is 256 MiB by default.
-	MaxWasmStack int `yaml:"max_wasm_stack,omitempty" json:"maxWasmStack,omitempty"`
+	MaxWasmStack int `json:"maxWasmStack,omitempty" yaml:"max_wasm_stack,omitempty"`
 	// ProfilingStrategy decides what sort of profiling to enable, if any.
 	// Default is `wasmtime.ProfilingStrategyNone`.
 	ProfilingStrategy wasmtime.ProfilingStrategy

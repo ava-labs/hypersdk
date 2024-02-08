@@ -167,7 +167,7 @@ func TestEarlyExit(t *testing.T) {
 			return nil
 		})
 	}
-	require.True(len(completed) < 500)
+	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), terr) // no task running
 }
 
@@ -194,6 +194,6 @@ func TestStop(t *testing.T) {
 			return nil
 		})
 	}
-	require.True(len(completed) < 500)
+	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
 }

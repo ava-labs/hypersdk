@@ -8,9 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
@@ -25,16 +24,13 @@ func TestTokenProgram(t *testing.T) {
 	require := require.New(t)
 	maxUnits := uint64(80000)
 	eng := engine.New(engine.NewConfig())
-	program, err := newTokenProgram(maxUnits, eng, runtime.NewConfig(), wasmBytes)
-	require.NoError(err)
-	err = program.Run(context.Background())
-	require.NoError(err)
+	program := newTokenProgram(maxUnits, eng, runtime.NewConfig(), wasmBytes)
+	require.NoError(program.Run(context.Background()))
 }
 
 // go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkTokenProgram(b *testing.B) {
 	wasmBytes := tests.ReadFixture(b, "../tests/fixture/token.wasm")
-	require := require.New(b)
 	maxUnits := uint64(80000)
 
 	cfg := runtime.NewConfig().
@@ -43,28 +39,24 @@ func BenchmarkTokenProgram(b *testing.B) {
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
-	require.NoError(err)
+	require.NoError(b, err)
 	eng := engine.New(ecfg)
 
 	b.Run("benchmark_token_program_compile_and_cache", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, eng, cfg, wasmBytes)
-			require.NoError(err)
+			program := newTokenProgram(maxUnits, eng, cfg, wasmBytes)
 			b.StartTimer()
-			err = program.Run(context.Background())
-			require.NoError(err)
+			require.NoError(b, program.Run(context.Background()))
 		}
 	})
 
 	b.Run("benchmark_token_program_compile_and_cache_short", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, eng, cfg, wasmBytes)
-			require.NoError(err)
+			program := newTokenProgram(maxUnits, eng, cfg, wasmBytes)
 			b.StartTimer()
-			err = program.RunShort(context.Background())
-			require.NoError(err)
+			require.NoError(b, program.RunShort(context.Background()))
 		}
 	})
 
@@ -74,35 +66,31 @@ func BenchmarkTokenProgram(b *testing.B) {
 		WithDefaultCache(true).
 		Build()
 	eng = engine.New(ecfg)
-	require.NoError(err)
+	require.NoError(b, err)
 	preCompiledTokenProgramBytes, err := engine.PreCompileWasmBytes(eng, wasmBytes, cfg.LimitMaxMemory)
-	require.NoError(err)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.Run("benchmark_token_program_precompile", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, eng, cfg, preCompiledTokenProgramBytes)
-			require.NoError(err)
+			program := newTokenProgram(maxUnits, eng, cfg, preCompiledTokenProgramBytes)
 			b.StartTimer()
-			err = program.Run(context.Background())
-			require.NoError(err)
+			require.NoError(b, program.Run(context.Background()))
 		}
 	})
 
 	b.Run("benchmark_token_program_precompile_short", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			program, err := newTokenProgram(maxUnits, eng, cfg, preCompiledTokenProgramBytes)
-			require.NoError(err)
+			program := newTokenProgram(maxUnits, eng, cfg, preCompiledTokenProgramBytes)
 			b.StartTimer()
-			err = program.RunShort(context.Background())
-			require.NoError(err)
+			require.NoError(b, program.RunShort(context.Background()))
 		}
 	})
 }
 
-func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config, programBytes []byte) (*Token, error) {
+func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config, programBytes []byte) *Token {
 	db := newTestDB()
 
 	log := logging.NewLogger(
@@ -119,5 +107,5 @@ func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config
 		return pstate.New(log, db)
 	})
 
-	return NewToken(log, engine, programBytes, db, cfg, importsBuilder.Build(), maxUnits), nil
+	return NewToken(log, engine, programBytes, db, cfg, importsBuilder.Build(), maxUnits)
 }

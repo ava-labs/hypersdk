@@ -8,14 +8,15 @@ import (
 	"errors"
 	"sync"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+
+	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	syncEng "github.com/ava-labs/avalanchego/x/sync"
 )
 
 type stateSyncerClient struct {

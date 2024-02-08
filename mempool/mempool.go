@@ -12,10 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/list"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 const maxPrealloc = 4_096

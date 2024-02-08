@@ -5,6 +5,7 @@ package cli
 
 import (
 	"github.com/ava-labs/avalanchego/database"
+
 	"github.com/ava-labs/hypersdk/pebble"
 )
 

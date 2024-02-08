@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -19,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -27,10 +25,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	syncEng "github.com/ava-labs/avalanchego/x/sync"
-	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/prometheus/client_golang/prometheus"
-
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/builder"
@@ -41,9 +36,14 @@ import (
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/workers"
+
+	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	hcache "github.com/ava-labs/hypersdk/cache"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type VM struct {

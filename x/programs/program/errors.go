@@ -14,10 +14,10 @@ var (
 	ErrMissingExportedFunction      = errors.New("failed to find exported function")
 	ErrMissingInvalidMemoryFunction = errors.New("memory function is invalid")
 	ErrRuntimeStoreSet              = errors.New("runtime store has already been set")
-	ErrOverflow                     = fmt.Errorf("overflow")
-	ErrUnderflow                    = fmt.Errorf("underflow")
-	ErrInvalidType                  = fmt.Errorf("invalid type")
-	ErrNegativeValue                = fmt.Errorf("negative value")
+	ErrOverflow                     = errors.New("overflow")
+	ErrUnderflow                    = errors.New("underflow")
+	ErrInvalidType                  = errors.New("invalid type")
+	ErrNegativeValue                = errors.New("negative value")
 
 	// Memory
 	ErrInvalidMemorySize    = errors.New("invalid memory size")

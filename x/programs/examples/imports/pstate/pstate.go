@@ -7,10 +7,9 @@ import (
 	"context"
 	"errors"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -37,7 +36,7 @@ type Import struct {
 	meter *engine.Meter
 }
 
-func (i *Import) Name() string {
+func (*Import) Name() string {
 	return Name
 }
 
@@ -90,7 +89,6 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 	}
 
 	valueBytes, err := program.SmartPtr(value).Bytes(memory)
-
 	if err != nil {
 		i.log.Error("failed to read value from memory",
 			zap.Error(err),
@@ -163,7 +161,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		}
 		return nil, err
 	}
-	argPtr, err := program.NewSmartPtr(uint32(ptr), len(val))
+	argPtr, err := program.NewSmartPtr(ptr, len(val))
 	if err != nil {
 		i.log.Error("failed to convert ptr to argument",
 			zap.Error(err),

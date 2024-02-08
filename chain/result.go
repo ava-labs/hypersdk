@@ -5,6 +5,7 @@ package chain
 
 import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )

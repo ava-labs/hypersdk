@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 // toReader returns an OptionalPacker that is a reader of [o].

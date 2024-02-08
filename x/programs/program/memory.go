@@ -4,6 +4,7 @@
 package program
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -197,14 +198,14 @@ func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
 	return NewSmartPtr(ptr, len(bytes))
 }
 
-// NewSmartPtr returns a SmartPtr from [ptr] and [len].
-func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
+// NewSmartPtr returns a SmartPtr from [ptr] and [byteLen].
+func NewSmartPtr(ptr uint32, byteLen int) (SmartPtr, error) {
 	// ensure length of bytes is not greater than int32 to prevent overflow
-	if !EnsureIntToInt32(len) {
-		return 0, fmt.Errorf("length of bytes is greater than int32")
+	if !EnsureIntToInt32(byteLen) {
+		return 0, errors.New("length of bytes is greater than int32")
 	}
 
-	lenUpperBits := int64(len) << 32
+	lenUpperBits := int64(byteLen) << 32
 	ptrLowerBits := int64(ptr)
 
 	return SmartPtr(lenUpperBits | ptrLowerBits), nil

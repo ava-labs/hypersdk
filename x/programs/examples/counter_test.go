@@ -8,11 +8,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
@@ -70,11 +70,11 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// generate alice keys
-	_, aliceKey, err := newKey()
+	alicePublicKey, err := newKey()
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, mem)
+	alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -113,7 +113,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr2, err := argumentToSmartPtr(aliceKey, mem2)
+	alicePtr2, err := argumentToSmartPtr(alicePublicKey, mem2)
 	require.NoError(err)
 
 	// initialize counter for alice on runtime 2

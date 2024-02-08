@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )

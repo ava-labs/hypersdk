@@ -9,9 +9,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"go.uber.org/zap"
 )
 
 var _ Gossiper = (*Manual)(nil)

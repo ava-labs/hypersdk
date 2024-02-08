@@ -7,9 +7,11 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -28,8 +30,8 @@ func TestNewWriter(t *testing.T) {
 	require.Equal(bytes, wr.Bytes(), "Bytes not packed correctly.")
 	// Pack past limit
 	wr.PackFixedBytes(bytes)
-	require.Equal(2, len(wr.Bytes()), "Bytes overpacked.")
-	require.Error(wr.Err(), "Error not set.")
+	require.Len(wr.Bytes(), 2, "Bytes overpacked.")
+	require.ErrorIs(wr.Err(), wrappers.ErrInsufficientLength)
 }
 
 func TestPackerID(t *testing.T) {
@@ -57,7 +59,7 @@ func TestPackerID(t *testing.T) {
 		unpackedID = ids.Empty
 		rp.UnpackID(true, &unpackedID)
 		require.Equal(ids.Empty, unpackedID, "UnpackID unpacked incorrectly.")
-		require.Error(rp.Err(), "UnpackID did not set error.")
+		require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
 	})
 }
 
@@ -72,7 +74,7 @@ func TestPackerWindow(t *testing.T) {
 		wp.PackWindow(wind)
 		// Check packed
 		require.Equal(TestWindow, wp.Bytes()[:len(TestWindow)], "Window not packed correctly.")
-		require.Equal(window.WindowSliceSize, len(wp.Bytes()), "Window not packed correctly.")
+		require.Len(wp.Bytes(), window.WindowSliceSize, "Window not packed correctly.")
 		require.NoError(wp.Err(), "Error packing window.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
@@ -85,7 +87,7 @@ func TestPackerWindow(t *testing.T) {
 		require.NoError(rp.Err(), "UnpackWindow set an error.")
 		// Unpack again
 		rp.UnpackWindow(&unpackedWindow)
-		require.Error(rp.Err(), "UnpackWindow did not set error.")
+		require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
 	})
 }
 
@@ -129,6 +131,6 @@ func TestNewReader(t *testing.T) {
 	require.True(rp.UnpackBool(), "Reader unpacked correctly.")
 	require.NoError(rp.Err(), "Reader set error during unpack.")
 	// Unpacked not packed with required
-	require.Equal(uint64(0), rp.UnpackUint64(true), "Reader unpacked correctly.")
-	require.Error(rp.Err(), "Reader error not set.")
+	require.Zero(rp.UnpackUint64(true), "Reader unpacked correctly.")
+	require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
 }
