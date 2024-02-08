@@ -345,7 +345,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signature: aggSignature,
 		}
 		c.PushChunkCertificate(ctx, cert)
-		c.vm.builder.Queue(ctx)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
@@ -394,7 +393,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store chunk certificate for building
 		c.certs.Add(cert)
-		c.vm.builder.Queue(ctx)
 	default:
 		c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
 	}
@@ -451,6 +449,19 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	for {
 		select {
 		case <-t.C:
+			if !c.vm.isReady() {
+				c.vm.Logger().Info("skipping chunk loop because vm isn't ready")
+				continue
+			}
+
+			// TODO: move this simple time trigger elsewhere
+			select {
+			case c.vm.EngineChan() <- common.PendingTxs:
+				c.vm.Logger().Info("sent message to build")
+			default:
+				c.vm.Logger().Info("already sent message to build")
+			}
+
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
 				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))

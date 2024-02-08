@@ -62,12 +62,13 @@ func (b *Time) nextTime(now int64, preferred int64) int64 {
 	if next < now {
 		return -1
 	}
+	b.vm.Logger().Info("setting next build time", zap.Int64("next", next))
 	return next
 }
 
 func (b *Time) Queue(ctx context.Context) {
 	if !b.waiting.CompareAndSwap(false, true) {
-		b.vm.Logger().Debug("unable to acquire waiting lock")
+		b.vm.Logger().Warn("unable to acquire waiting lock")
 		return
 	}
 	preferredBlk, err := b.vm.PreferredBlock(context.TODO())

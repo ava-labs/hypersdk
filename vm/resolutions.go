@@ -114,7 +114,6 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
-	vm.checkActivity(ctx)
 }
 
 func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
@@ -349,11 +348,6 @@ func (vm *VM) StopChan() chan struct{} {
 
 func (vm *VM) EngineChan() chan<- common.Message {
 	return vm.toEngine
-}
-
-// Used for integration and load testing
-func (vm *VM) Builder() builder.Builder {
-	return vm.builder
 }
 
 func (vm *VM) AcceptedSyncableBlock(

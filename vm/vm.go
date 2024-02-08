@@ -33,7 +33,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
@@ -62,7 +61,6 @@ type VM struct {
 
 	config         Config
 	genesis        Genesis
-	builder        builder.Builder
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
 	vmDB           database.Database
@@ -197,7 +195,7 @@ func (vm *VM) Initialize(
 
 	// Always initialize implementation first
 	vm.baseDB = baseDB
-	vm.config, vm.genesis, vm.builder, _, vm.vmDB,
+	vm.config, vm.genesis, _, _, vm.vmDB,
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
@@ -406,9 +404,6 @@ func (vm *VM) Initialize(
 	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
-	// Startup block builder
-	go vm.builder.Run()
-
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
@@ -428,10 +423,6 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
-}
-
-func (vm *VM) checkActivity(ctx context.Context) {
-	vm.builder.Queue(ctx)
 }
 
 func (vm *VM) markReady() {
@@ -465,7 +456,6 @@ func (vm *VM) markReady() {
 		"node is now ready",
 		zap.Bool("synced", vm.stateSyncClient.Started()),
 	)
-	vm.checkActivity(context.TODO())
 }
 
 func (vm *VM) isReady() bool {
@@ -561,8 +551,6 @@ func (vm *VM) ForceReady() {
 
 // onNormalOperationsStarted marks this VM as bootstrapped
 func (vm *VM) onNormalOperationsStarted() error {
-	defer vm.checkActivity(context.TODO())
-
 	if vm.bootstrapped.Get() {
 		return nil
 	}
@@ -586,7 +574,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
 	vm.cm.Done()
-	vm.builder.Done()
 	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
@@ -745,12 +732,6 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 		return nil, ErrNotReady
 	}
 
-	// Notify builder if we should build again (whether or not we are successful this time)
-	//
-	// Note: builder should regulate whether or not it actually decides to build based on state
-	// of the mempool.
-	defer vm.checkActivity(ctx)
-
 	vm.verifiedL.RLock()
 	processingBlocks := len(vm.verifiedBlocks)
 	vm.verifiedL.RUnlock()
@@ -769,7 +750,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
-		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
+		vm.snowCtx.Log.Error("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
@@ -884,7 +865,6 @@ func (vm *VM) Submit(
 		validTxs = append(validTxs, tx)
 	}
 	vm.cm.HandleTxs(ctx, validTxs)
-	vm.checkActivity(ctx)
 	return errs
 }
 
