@@ -129,8 +129,6 @@ linters-settings:
     alias:
       - pkg: github.com/ava-labs/avalanchego/utils/math
         alias: safemath
-      - pkg: github.com/ava-labs/avalanchego/utils/json
-        alias: avajson
       - pkg: github.com/ava-labs/avalanchego/utils
         alias: avautils
   revive:
