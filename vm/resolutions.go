@@ -510,3 +510,7 @@ func (vm *VM) Signer() *bls.PublicKey {
 func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 	return vm.snowCtx.WarpSigner.Sign(msg)
 }
+
+func (vm *VM) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+	vm.cm.RequestChunks(certs, chunks)
+}

@@ -223,8 +223,9 @@ func (e *Engine) Run(ctx context.Context) {
 }
 
 func (e *Engine) Execute(blk *StatelessBlock, parentTimestamp int64) {
-	// TODO: fetch chunks that don't exist (before start run) -> use a channel for the chunks so can start execution
+	// Request chunks for processing when ready
 	chunks := make(chan *Chunk, len(blk.AvailableChunks))
+	go e.vm.RequestChunks(blk.AvailableChunks, chunks)
 
 	// Enqueue job
 	e.backlog <- &engineJob{
@@ -250,7 +251,7 @@ func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Exe
 		}
 		return output.startRoot, filteredIDs, nil
 	}
-	return ids.Empty, nil, errors.New("not found")
+	return ids.Empty, nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
 
 // TODO: cleanup this function signautre

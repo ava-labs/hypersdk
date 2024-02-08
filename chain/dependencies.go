@@ -61,6 +61,7 @@ type VM interface {
 
 	// TODO: cleanup
 	Engine() *Engine
+	RequestChunks([]*ChunkCertificate, chan *Chunk)
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.

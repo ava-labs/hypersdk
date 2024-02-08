@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -599,6 +600,21 @@ func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) 
 		msg[0] = txMsg
 		copy(msg[1:], txBytes)
 		c.appSender.SendAppGossipSpecific(ctx, set.Of(vdr), msg)
+	}
+}
+
+// This function should be spawned in a goroutine because it blocks
+func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+	// TODO: require all fetching to be done
+	defer close(chunks)
+
+	for _, cert := range certs {
+		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
+		if err != nil {
+			// TODO: fetch if doesn't exist
+			panic(fmt.Errorf("%w: chunk is missing", err))
+		}
+		chunks <- chunk
 	}
 }
 

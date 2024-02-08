@@ -758,7 +758,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	// Build block and store as parsed
 	preferredBlk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
-		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
+		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Stringer("preferred", vm.preferred), zap.Error(err))
 		return nil, err
 	}
 	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
