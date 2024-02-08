@@ -193,6 +193,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// TODO: check validity (verify chunk signature)
+
 		// TODO: only store 1 chunk per slot per validator
 		if chunk.Producer != nodeID {
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
@@ -320,8 +321,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		//
 		// TODO: only send to next x builders
 		// TODO: only send once have a certain weight above 67% or X time until expiry (maximize fee)
+		// TODO: make this a config?
 		if err := warp.VerifyWeight(weight, totalWeight, 67, 100); err != nil {
-			c.vm.Logger().Warn("dropping chunk with insufficient weight", zap.Stringer("chunkID", chunkSignature.Chunk))
+			c.vm.Logger().Warn("chunk does not have sufficient weight to crete certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
 		}
 
@@ -357,7 +359,17 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signers:   signers,
 			Signature: aggSignature,
 		}
+		// Broadcast a new certificate each time we get more signatures
+		//
+		// TODO: consider if this is the right idea?
 		c.PushChunkCertificate(ctx, cert)
+		c.certs.Add(cert)
+		c.vm.Logger().Info(
+			"constructed chunk certificate",
+			zap.Stringer("chunkID", chunkSignature.Chunk),
+			zap.Uint64("weight", weight),
+			zap.Uint64("totalWeight", totalWeight),
+		)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
@@ -365,11 +377,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// Ensure certificate isn't too old
-		if cert.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
-			c.vm.Logger().Warn("dropping expired cert", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
+		// TODO: verify cert
+		//
+		// TODO: handle case for "too early check" where the parent is far in past?
 
 		// Verify certificate using the current validator set
 		//
@@ -388,23 +398,42 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return err
 		}
 		if err := warp.VerifyWeight(filteredWeight, weight, 67, 100); err != nil {
+			c.vm.Logger().Warn(
+				"dropping invalid certificate",
+				zap.Stringer("nodeID", nodeID),
+				zap.Stringer("chunkID", cert.Chunk),
+				zap.Error(err),
+			)
 			return err
 		}
 		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
 		if err != nil {
 			return err
 		}
-		msg, err := cert.Digest()
-		if err != nil {
-			return err
+		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
+			c.vm.Logger().Warn(
+				"dropping invalid certificate",
+				zap.Stringer("nodeID", nodeID),
+				zap.Stringer("chunkID", cert.Chunk),
+				zap.Binary("bitset", cert.Signers.Bytes()),
+				zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
+				zap.Error(errors.New("invalid signature")),
+			)
+			return nil
 		}
-		if !bls.Verify(aggrPubKey, cert.Signature, msg) {
-			return errors.New("certificate invalid")
-		}
+		c.vm.Logger().Warn(
+			"verified chunk certificate",
+			zap.Stringer("nodeID", nodeID),
+			zap.Stringer("chunkID", cert.Chunk),
+			zap.Uint64("weight", filteredWeight),
+			zap.Uint64("totalWeight", weight),
+		)
 
 		// TODO: fetch chunk if we don't have it from a signer (run down list and sample)
 
 		// Store chunk certificate for building
+		//
+		// TODO: store chunk with highest weight
 		c.certs.Add(cert)
 	default:
 		c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))

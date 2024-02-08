@@ -99,6 +99,21 @@ func UnixRMilli(now, add int64) int64 {
 	return t - t%consts.MillisecondsPerSecond
 }
 
+// UnixRDeci returns the current unix time in milliseconds, rounded
+// down to the nearsest decisecond.
+//
+// [now] is used as the current unix time in milliseconds if >= 0.
+//
+// [add] (in ms) is added to the unix time before it is rounded (typically
+// used when generating an expiry time with a validity window).
+func UnixRDeci(now, add int64) int64 {
+	if now < 0 {
+		now = time.Now().UnixMilli()
+	}
+	t := now + add
+	return t - t%consts.MillisecondsPerDecisecond
+}
+
 // SaveBytes writes [b] to a file [filename]. If filename does
 // not exist, it creates a new file with read/write permissions (0o600).
 func SaveBytes(filename string, b []byte) error {

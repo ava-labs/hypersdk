@@ -284,7 +284,17 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 	b.bctx = bctx
 
 	// Proceed with normal verification
-	return b.verify(ctx)
+	err := b.verify(ctx)
+	if err != nil {
+		b.vm.Logger().Error(
+			"verification failed",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Error(err),
+		)
+	}
+	return err
 }
 
 // implements "snowman.Block"
@@ -302,7 +312,17 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	)
 	defer span.End()
 
-	return b.verify(ctx)
+	err := b.verify(ctx)
+	if err != nil {
+		b.vm.Logger().Error(
+			"verification failed",
+			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("height", b.StatefulBlock.Height),
+			zap.Stringer("parentID", b.Parent()),
+			zap.Error(err),
+		)
+	}
+	return err
 }
 
 // Tasks
@@ -365,10 +385,12 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 
 	// Verify certificates
 	if b.bctx != nil {
+		// We get the validator set once and reuse it instead of using warp verify (which generates the set each time).
+
 		// Get validator set at current height
 		//
 		// TODO: need to handle case where state sync on P-Chain and don't have historical validator set
-		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, r.ChainID())
+		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, b.vm.SubnetID())
 		if err != nil {
 			return fmt.Errorf("%w: can't get validator set", err)
 		}
@@ -420,14 +442,15 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			// TODO: consider not verifying this in case validator set changes?
 
 			// TODO: consider moving to chunk verify
-			// Ensure chunk is not too early
-			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
-				return ErrTimestampTooEarly
-			}
 
 			// Ensure chunk is not expired
 			if cert.Slot < b.StatefulBlock.Timestamp {
 				return ErrTimestampTooLate
+			}
+
+			// Ensure chunk is not too early
+			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+				return ErrTimestampTooEarly
 			}
 
 			// Ensure chunk expiry is aligned to a tenth of a second
@@ -449,6 +472,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			// TODO: make this a const
 			if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
 				return err
 			}
@@ -456,12 +480,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			msg, err := cert.Digest()
-			if err != nil {
-				return err
-			}
-			if !bls.Verify(aggrPubKey, cert.Signature, msg) {
-				return errors.New("certificate invalid")
+			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
+				return fmt.Errorf("%w: signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), len(filteredVdrs), filteredWeight, totalWeight)
 			}
 		}
 	} else {

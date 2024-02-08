@@ -101,7 +101,7 @@ func (e *Engine) Run() {
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
 			p := NewProcessor(e.vm, e, job.blk.bctx, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
-			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
+			chunks := make([]*Chunk, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				if err := p.Add(ctx, len(chunks), chunk); err != nil {
 					panic(err)
@@ -117,7 +117,6 @@ func (e *Engine) Run() {
 			filteredChunks := make([]*FilteredChunk, len(chunkResults))
 			for i, chunkResult := range chunkResults {
 				var (
-					// TODO: only keep valid results?
 					validResults = make([]*Result, 0, len(chunkResult))
 					chunk        = chunks[i]
 					cert         = job.blk.AvailableChunks[i]
@@ -128,6 +127,7 @@ func (e *Engine) Run() {
 				)
 				for j, txResult := range chunkResult {
 					if !txResult.Valid {
+						// TODO: track invalid tx count
 						continue
 					}
 					validResults = append(validResults, txResult)

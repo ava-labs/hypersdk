@@ -72,8 +72,10 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Setup chunk
-	slot := time.Now().UnixMilli()
-	c.Slot = slot - slot%consts.MillisecondsPerDecisecond
+	now := time.Now().UnixMilli()
+	r := vm.Rules(now)
+	// TODO: make util support rounding (make round a configuration option)
+	c.Slot = utils.UnixRDeci(now, r.GetValidityWindow())
 	c.Producer = vm.NodeID()
 	c.Signer = vm.Signer()
 
@@ -82,7 +84,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := vm.Rules(c.Slot) // TODO: replace with actual values?
 	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
 	if err != nil {
 		return nil, err
@@ -351,6 +352,19 @@ func (c *ChunkCertificate) Digest() ([]byte, error) {
 	p.PackInt64(c.Slot)
 
 	return p.Bytes(), p.Err()
+}
+
+func (c *ChunkCertificate) VerifySignature(networkID uint32, chainID ids.ID, aggrPubKey *bls.PublicKey) bool {
+	digest, err := c.Digest()
+	if err != nil {
+		return false
+	}
+	// TODO: don't use warp message for this (nice to have chainID protection)?
+	msg, err := warp.NewUnsignedMessage(networkID, chainID, digest)
+	if err != nil {
+		return false
+	}
+	return bls.Verify(aggrPubKey, c.Signature, msg.Bytes())
 }
 
 func UnmarshalChunkCertificate(raw []byte) (*ChunkCertificate, error) {
