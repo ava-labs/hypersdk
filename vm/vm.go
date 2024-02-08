@@ -36,6 +36,7 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
@@ -322,9 +323,9 @@ func (vm *VM) Initialize(
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
-		feeManager := chain.NewFeeManager(nil)
+		feeManager := fees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
+		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
@@ -804,7 +805,7 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	feeManager := chain.NewFeeManager(feeRaw)
+	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)

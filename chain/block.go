@@ -23,6 +23,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
@@ -117,7 +118,7 @@ type StatelessBlock struct {
 	vdrState     validators.State
 
 	results    []*Result
-	feeManager *FeeManager
+	feeManager *fees.Manager
 
 	vm   VM
 	view merkledb.View
@@ -268,7 +269,7 @@ func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *FeeManager,
+	feeManager *fees.Manager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
@@ -573,7 +574,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	if err != nil {
 		return err
 	}
-	parentFeeManager := NewFeeManager(feeRaw)
+	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -972,7 +973,7 @@ func (b *StatelessBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatelessBlock) FeeManager() *FeeManager {
+func (b *StatelessBlock) FeeManager() *fees.Manager {
 	return b.feeManager
 }
 

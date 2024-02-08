@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -229,9 +230,9 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		if err != nil {
 			return err
 		}
-		consumed := chain.Dimensions{}
+		consumed := fees.Dimensions{}
 		for _, result := range results {
-			nconsumed, err := chain.Add(consumed, result.Consumed)
+			nconsumed, err := fees.Add(consumed, result.Consumed)
 			if err != nil {
 				return err
 			}

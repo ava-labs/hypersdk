@@ -37,6 +37,7 @@ import (
 	ferpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -203,10 +204,10 @@ func (b *Backend) collectBlocks() {
 			b.fatal(err)
 			return
 		}
-		consumed := chain.Dimensions{}
+		consumed := fees.Dimensions{}
 		failTxs := 0
 		for i, result := range results {
-			nconsumed, err := chain.Add(consumed, result.Consumed)
+			nconsumed, err := fees.Add(consumed, result.Consumed)
 			if err != nil {
 				b.fatal(err)
 				return
@@ -582,7 +583,7 @@ func (b *Backend) GetUnitPrices() []*GenericInfo {
 	b.blockLock.Lock()
 	defer b.blockLock.Unlock()
 
-	info := make([]*GenericInfo, 0, len(b.stats)*chain.FeeDimensions)
+	info := make([]*GenericInfo, 0, len(b.stats)*fees.FeeDimensions)
 	for i := 0; i < len(b.stats); i++ {
 		info = append(info, &GenericInfo{b.stats[i].Timestamp, b.stats[i].Prices[0], "Bandwidth"})
 		info = append(info, &GenericInfo{b.stats[i].Timestamp, b.stats[i].Prices[1], "Compute"})

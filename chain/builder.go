@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -100,7 +101,7 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	parentFeeManager := NewFeeManager(feeRaw)
+	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err

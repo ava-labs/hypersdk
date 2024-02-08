@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -123,10 +124,10 @@ type Rules interface {
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
 
-	GetMinUnitPrice() Dimensions
-	GetUnitPriceChangeDenominator() Dimensions
-	GetWindowTargetUnits() Dimensions
-	GetMaxBlockUnits() Dimensions
+	GetMinUnitPrice() fees.Dimensions
+	GetUnitPriceChangeDenominator() fees.Dimensions
+	GetWindowTargetUnits() fees.Dimensions
+	GetMaxBlockUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
