@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,7 +28,7 @@ type Chunk struct {
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	c := &Chunk{
-		Txs: make([]*Transaction, 100),
+		Txs: make([]*Transaction, 0, 100),
 	}
 
 	// Pack chunk for build duration
@@ -61,6 +62,11 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 	if len(c.Txs) < 100 {
 		mempool.FinishStreaming(ctx, nil)
+	}
+
+	// Discard chunk if nothing produced
+	if len(c.Txs) == 0 {
+		return nil, errors.New("no transactions")
 	}
 
 	// Setup chunk
