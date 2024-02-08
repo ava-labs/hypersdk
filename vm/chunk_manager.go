@@ -450,8 +450,6 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	for {
 		select {
 		case <-t.C:
-			c.vm.builder.Queue(context.TODO()) // ensure we try to build at least every 500ms (may be empty)
-
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
 				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))

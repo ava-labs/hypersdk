@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/utils"
@@ -87,7 +86,6 @@ func BuildBlock(
 		return nil, err
 	}
 	b.id = utils.ToID(b.bytes)
-	b.st = choices.Processing
 	b.t = time.UnixMilli(b.StatefulBlock.Timestamp)
 	b.bytes = bytes
 	b.parent = parent

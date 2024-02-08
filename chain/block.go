@@ -378,7 +378,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		// TODO: need to handle case where state sync on P-Chain and don't have historical validator set
 		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, r.ChainID())
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: can't get validator set", err)
 		}
 
 		// TODO: replace with canonical function used in proposer monito
@@ -491,7 +491,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			// TODO: add stat for tracking how often this happens
 			// TODOL handle case where we state synced and don't have results
 			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
-			return err
+			return fmt.Errorf("%w: no results for execHeight", err)
 		}
 		if b.StartRoot != root {
 			return errors.New("start root mismatch")
