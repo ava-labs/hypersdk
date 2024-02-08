@@ -348,6 +348,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// We do not have access to state here, so we must use the parent block.
 	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
 	if err != nil {
+		log.Error("block verification failed, missing parent", zap.Stringer("parentID", b.StatefulBlock.Parent), zap.Error(err))
 		return fmt.Errorf("%w: can't get parent block %s", err, b.StatefulBlock.Parent)
 	}
 	if b.StatefulBlock.Height != parent.StatefulBlock.Height+1 {
