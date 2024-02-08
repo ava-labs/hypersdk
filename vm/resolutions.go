@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
@@ -219,11 +220,11 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 
 	// Update price metrics
 	feeManager := b.FeeManager()
-	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(chain.Bandwidth)))
-	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(chain.Compute)))
-	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(chain.StorageRead)))
-	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(chain.StorageAllocate)))
-	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(chain.StorageWrite)))
+	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
+	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
+	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
+	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
+	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 }
 
 func (vm *VM) processAcceptedBlocks() {
@@ -473,12 +474,12 @@ func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
 
-func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
+func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
-		return chain.Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
-	return chain.NewFeeManager(v).UnitPrices(), nil
+	return fees.NewManager(v).UnitPrices(), nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {

@@ -9,10 +9,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {
@@ -30,7 +30,7 @@ func (c *Controller) Tracer() trace.Tracer {
 func (c *Controller) GetTransaction(
 	ctx context.Context,
 	txID ids.ID,
-) (bool, int64, bool, chain.Dimensions, uint64, error) {
+) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	return storage.GetTransaction(ctx, c.metaDB, txID)
 }
 

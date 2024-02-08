@@ -13,10 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -92,11 +92,11 @@ func StoreTransaction(
 	id ids.ID,
 	t int64,
 	success bool,
-	units chain.Dimensions,
+	units fees.Dimensions,
 	fee uint64,
 ) error {
 	k := TxKey(id)
-	v := make([]byte, consts.Uint64Len+1+chain.DimensionsLen+consts.Uint64Len)
+	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
 	binary.BigEndian.PutUint64(v, uint64(t))
 	if success {
 		v[consts.Uint64Len] = successByte
@@ -104,7 +104,7 @@ func StoreTransaction(
 		v[consts.Uint64Len] = failureByte
 	}
 	copy(v[consts.Uint64Len+1:], units.Bytes())
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+chain.DimensionsLen:], fee)
+	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
 	return db.Put(k, v)
 }
 
@@ -112,25 +112,25 @@ func GetTransaction(
 	_ context.Context,
 	db database.KeyValueReader,
 	id ids.ID,
-) (bool, int64, bool, chain.Dimensions, uint64, error) {
+) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	k := TxKey(id)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, chain.Dimensions{}, 0, nil
+		return false, 0, false, fees.Dimensions{}, 0, nil
 	}
 	if err != nil {
-		return false, 0, false, chain.Dimensions{}, 0, err
+		return false, 0, false, fees.Dimensions{}, 0, err
 	}
 	t := int64(binary.BigEndian.Uint64(v))
 	success := true
 	if v[consts.Uint64Len] == failureByte {
 		success = false
 	}
-	d, err := chain.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+chain.DimensionsLen])
+	d, err := fees.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+fees.DimensionsLen])
 	if err != nil {
-		return false, 0, false, chain.Dimensions{}, 0, err
+		return false, 0, false, fees.Dimensions{}, 0, err
 	}
-	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+chain.DimensionsLen:])
+	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
 	return true, t, success, d, fee, nil
 }
 

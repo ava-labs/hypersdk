@@ -19,6 +19,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -36,7 +37,7 @@ type JSONRPCClient struct {
 	chainID   ids.ID
 
 	lastUnitPrices time.Time
-	unitPrices     chain.Dimensions
+	unitPrices     fees.Dimensions
 }
 
 func NewJSONRPCClient(uri string) *JSONRPCClient {
@@ -88,7 +89,7 @@ func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, 
 	return resp.BlockID, resp.Height, resp.Timestamp, err
 }
 
-func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (chain.Dimensions, error) {
+func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (fees.Dimensions, error) {
 	if useCache && time.Since(cli.lastUnitPrices) < unitPricesCacheRefresh {
 		return cli.unitPrices, nil
 	}
@@ -101,7 +102,7 @@ func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (chain.
 		resp,
 	)
 	if err != nil {
-		return chain.Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 	cli.unitPrices = resp.UnitPrices
 	// We update the time last in case there are concurrent requests being
@@ -178,7 +179,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	maxFee, err := chain.MulSum(unitPrices, maxUnits)
+	maxFee, err := fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return nil, nil, 0, err
 	}

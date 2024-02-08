@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
@@ -141,14 +142,14 @@ func (c *WebSocketClient) RegisterBlocks() error {
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, chain.Dimensions, error) {
+) (*chain.StatefulBlock, []*chain.Result, fees.Dimensions, error) {
 	select {
 	case msg := <-c.pendingBlocks:
 		return UnpackBlockMessage(msg, parser)
 	case <-c.readStopped:
-		return nil, nil, chain.Dimensions{}, c.err
+		return nil, nil, fees.Dimensions{}, c.err
 	case <-ctx.Done():
-		return nil, nil, chain.Dimensions{}, ctx.Err()
+		return nil, nil, fees.Dimensions{}, ctx.Err()
 	}
 }
 

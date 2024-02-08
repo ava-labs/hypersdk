@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 
 func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 	results := b.Results()
-	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + chain.DimensionsLen
+	size := codec.BytesLen(b.Bytes()) + consts.IntLen + codec.CummSize(results) + fees.DimensionsLen
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackBytes(b.Bytes())
 	mresults, err := chain.MarshalResults(results)
@@ -34,28 +35,28 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 func UnpackBlockMessage(
 	msg []byte,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, chain.Dimensions, error) {
+) (*chain.StatefulBlock, []*chain.Result, fees.Dimensions, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
 	blk, err := chain.UnmarshalBlock(blkMsg, parser)
 	if err != nil {
-		return nil, nil, chain.Dimensions{}, err
+		return nil, nil, fees.Dimensions{}, err
 	}
 	var resultsMsg []byte
 	p.UnpackBytes(-1, true, &resultsMsg)
 	results, err := chain.UnmarshalResults(resultsMsg)
 	if err != nil {
-		return nil, nil, chain.Dimensions{}, err
+		return nil, nil, fees.Dimensions{}, err
 	}
-	pricesMsg := make([]byte, chain.DimensionsLen)
-	p.UnpackFixedBytes(chain.DimensionsLen, &pricesMsg)
-	prices, err := chain.UnpackDimensions(pricesMsg)
+	pricesMsg := make([]byte, fees.DimensionsLen)
+	p.UnpackFixedBytes(fees.DimensionsLen, &pricesMsg)
+	prices, err := fees.UnpackDimensions(pricesMsg)
 	if err != nil {
-		return nil, nil, chain.Dimensions{}, err
+		return nil, nil, fees.Dimensions{}, err
 	}
 	if !p.Empty() {
-		return nil, nil, chain.Dimensions{}, chain.ErrInvalidObject
+		return nil, nil, fees.Dimensions{}, chain.ErrInvalidObject
 	}
 	return blk, results, prices, p.Err()
 }
