@@ -382,6 +382,7 @@ func (vm *VM) Initialize(
 
 	// Setup chain engine
 	vm.engine = chain.NewEngine(vm, 128)
+	go vm.engine.Run()
 
 	// Setup state syncing
 	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
@@ -570,6 +571,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
+
+	// Shutdown engine
+	vm.engine.Done()
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()

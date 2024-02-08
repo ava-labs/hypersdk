@@ -88,6 +88,11 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 	return vm.stateDB, nil
 }
 
+// TODO: correctly handle engine.Exeucte during state sync
+func (vm *VM) ForceState() merkledb.MerkleDB {
+	return vm.stateDB
+}
+
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
@@ -248,6 +253,9 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager 
 	if err := vm.UpdateLastAccepted(b); err != nil {
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
+
+	// Cleanup expired chunks we are tracking and chunk certificates
+	vm.cm.SetMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
 
 	// Remove from verified caches
 	//

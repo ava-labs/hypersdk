@@ -74,6 +74,7 @@ type VM interface {
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
 	State() (merkledb.MerkleDB, error)
+	ForceState() merkledb.MerkleDB
 	StateManager() StateManager
 	ValidatorState() validators.State
 
@@ -104,6 +105,7 @@ type VM interface {
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
 	Sign(*warp.UnsignedMessage) ([]byte, error)
+	StopChan() chan struct{}
 }
 
 type VerifyContext interface {

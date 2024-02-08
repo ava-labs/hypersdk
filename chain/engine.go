@@ -36,7 +36,8 @@ type output struct {
 //
 // TODO: put in VM?
 type Engine struct {
-	vm VM
+	vm   VM
+	done chan struct{}
 
 	backlog chan *engineJob
 
@@ -49,7 +50,8 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	// TODO: strategically use old timestamps on blocks when catching up after processing
 	// surge to maximize chunk inclusion
 	return &Engine{
-		vm: vm,
+		vm:   vm,
+		done: make(chan struct{}),
 
 		backlog: make(chan *engineJob, maxBacklog),
 
@@ -57,20 +59,18 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	}
 }
 
-func (e *Engine) Run(ctx context.Context) {
+func (e *Engine) Run() {
+	defer close(e.done)
 	log := e.vm.Logger()
 
 	// Get last accepted state
-	var parentView state.View
-	view, err := e.vm.State()
-	if err != nil {
-		panic(err)
-	}
-	parentView = view
+	parentView := state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
 
 	for {
 		select {
 		case job := <-e.backlog:
+			estart := time.Now()
+			ctx := context.Background() // TODO: cleanup
 			r := e.vm.Rules(job.blk.StatefulBlock.Timestamp)
 
 			// Fetch parent height key and ensure block height is valid
@@ -162,7 +162,7 @@ func (e *Engine) Run(ctx context.Context) {
 			heightKeyStr := string(heightKey)
 			feeKeyStr := string(feeKey)
 			keys := make(state.Keys)
-			keys.Add(heightKeyStr, state.Write)
+			keys.Add(heightKeyStr, state.Write) // TODO: can probably remove this?
 			keys.Add(feeKeyStr, state.Write)
 			tsv := ts.NewView(keys, map[string][]byte{
 				heightKeyStr: parentHeightRaw,
@@ -216,20 +216,27 @@ func (e *Engine) Run(ctx context.Context) {
 			e.outputsLock.Unlock()
 			parentView = view
 
-		case <-ctx.Done():
+			log.Info(
+				"executed block",
+				zap.Stringer("blkID", job.blk.ID()),
+				zap.Uint64("height", job.blk.StatefulBlock.Height),
+				zap.Duration("t", time.Since(estart)),
+			)
+
+		case <-e.vm.StopChan():
 			return
 		}
 	}
 }
 
-func (e *Engine) Execute(blk *StatelessBlock, parentTimestamp int64) {
+func (e *Engine) Execute(blk *StatelessBlock) {
 	// Request chunks for processing when ready
 	chunks := make(chan *Chunk, len(blk.AvailableChunks))
 	go e.vm.RequestChunks(blk.AvailableChunks, chunks)
 
 	// Enqueue job
 	e.backlog <- &engineJob{
-		parentTimestamp: parentTimestamp,
+		parentTimestamp: blk.parent.StatefulBlock.Timestamp,
 		blk:             blk,
 		chunks:          chunks,
 	}
@@ -295,4 +302,8 @@ func (e *Engine) IsRepeatTx(
 	}
 	e.outputsLock.RUnlock()
 	return e.vm.IsRepeatTx(ctx, txs, marker), nil
+}
+
+func (e *Engine) Done() {
+	<-e.done
 }

@@ -166,6 +166,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 			vm.Logger().Info("compacted disk blocks", zap.Uint64("end", expiryHeight), zap.Duration("t", time.Since(start)))
 		}()
 	}
+	// TODO: clean up expired chunks
 	return nil
 }
 

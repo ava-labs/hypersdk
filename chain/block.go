@@ -527,7 +527,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 
 	// Start async execution
 	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
-		b.vm.Engine().Execute(b, b.StatefulBlock.Timestamp)
+		b.vm.Engine().Execute(b)
 	}
 
 	// Collect async results (if any)
