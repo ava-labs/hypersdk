@@ -143,20 +143,17 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				}
 				// key has ONLY a Read permission
 				if v == state.Read {
-					// lt contains either Allocate or Write permission. If lt had only a Read
-					// permission, no dependency or blocking would be added
-					if latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
-						t.dependencies.Add(lt.id) // t depends on lt to execute
-						lt.blocking.Add(id)       // lt is blocking this current task
-						// If lt is blocking any other txn, we need to record this
-						// to prevent subsequent txns that depend on lt from executing
-						// at the same time
-						e.blocking.Add(lt.id)
-					}
+					t.dependencies.Add(lt.id) // t depends on lt to execute
+					lt.blocking.Add(id)       // lt is blocking this current task
+					// If lt is blocking any other txn, we need to record this
+					// to prevent subsequent txns that depend on lt from executing
+					// at the same time
+					e.blocking.Add(lt.id)
+					continue
 				}
 
-				// key contains a Write permission
-				if v.Has(state.Write) {
+				// key contains a Allocate or Write permission
+				if v.Has(state.Allocate) || v.Has(state.Write) {
 					// lt contains either Read, Allocate, or Write
 					if latest.Permissions.Has(state.Read) || latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
 						t.dependencies.Add(lt.id)
