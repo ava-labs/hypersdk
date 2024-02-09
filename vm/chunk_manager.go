@@ -135,6 +135,11 @@ type ChunkManager struct {
 
 	certs *CertStore
 
+	// Ensures that only one request job is running at a time
+	waiterL sync.Mutex
+	waiter  chan struct{}
+
+	// Handles concurrent fetching of chunks
 	callbacksL sync.Mutex
 	requestID  uint32
 	callbacks  map[uint32]func([]byte)
@@ -459,7 +464,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			)
 			return nil
 		}
-		c.vm.Logger().Warn(
+		c.vm.Logger().Info(
 			"verified chunk certificate",
 			zap.Uint64("Pheight", height),
 			zap.Stringer("nodeID", nodeID),
@@ -793,88 +798,113 @@ func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) 
 
 // This function should be spawned in a goroutine because it blocks
 func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
-	fetchStream := stream.New()
-	fetchStream.WithMaxGoroutines(2) // TODO: use config
-	for _, rcert := range certs {
-		cert := rcert
-		fetchStream.Go(func() stream.Callback {
-			// Look for chunk
-			chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-			if err == nil {
-				return func() { chunks <- chunk }
+	// Ensure only one fetch is running at a time (all bandwidth should be allocated towards fetching chunks for next block)
+	myWaiter := make(chan struct{})
+	c.waiterL.Lock()
+	waiter := c.waiter
+	c.waiter = myWaiter
+	c.waiterL.Unlock()
+
+	// Kickoff job async
+	go func() {
+		if waiter != nil { // nil at first
+			select {
+			case <-waiter:
+			case <-c.vm.stop:
+				return
 			}
+		}
 
-			// Fetch missing chunk
-			attempts := 0
-			for {
-				c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
-
-				// Make request
-				bytesChan := make(chan []byte, 1)
-				c.callbacksL.Lock()
-				requestID := c.requestID
-				c.callbacks[requestID] = func(response []byte) {
-					bytesChan <- response
-					close(bytesChan)
+		// Kickoff fetch
+		fetchStream := stream.New()
+		fetchStream.WithMaxGoroutines(2) // TODO: use config
+		for _, rcert := range certs {
+			cert := rcert
+			fetchStream.Go(func() stream.Callback {
+				// Look for chunk
+				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
+				if err == nil {
+					return func() { chunks <- chunk }
 				}
-				c.requestID++
-				c.callbacksL.Unlock()
-				var validator ids.NodeID
+
+				// Fetch missing chunk
+				attempts := 0
 				for {
-					randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background())
+					c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
+
+					// Make request
+					bytesChan := make(chan []byte, 1)
+					c.callbacksL.Lock()
+					requestID := c.requestID
+					c.callbacks[requestID] = func(response []byte) {
+						bytesChan <- response
+						close(bytesChan)
+					}
+					c.requestID++
+					c.callbacksL.Unlock()
+					var validator ids.NodeID
+					for {
+						// Chunk should be sent to all validators, so we can just pick a random one
+						//
+						// TODO: consider using cert to select validators?
+						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background())
+						if err != nil {
+							panic(err)
+						}
+						if c.connected.Contains(randomValidator) {
+							validator = randomValidator
+							break
+						}
+						c.vm.Logger().Warn("skipping disconnected validator", zap.Stringer("nodeID", randomValidator))
+						// TODO: put some time delay here to avoid spinning when disconnected?
+					}
+					request := make([]byte, 1+consts.Uint64Len+ids.IDLen)
+					request[0] = chunkReq
+					binary.BigEndian.PutUint64(request[1:], uint64(cert.Slot))
+					copy(request[1+consts.Uint64Len:], cert.Chunk[:])
+					if err := c.appSender.SendAppRequest(context.Background(), set.Of(validator), requestID, request); err != nil {
+						c.vm.Logger().Warn("failed to send chunk request", zap.Error(err))
+						continue
+					}
+
+					// Wait for reponse or exit
+					var bytes []byte
+					select {
+					case bytes = <-bytesChan:
+					case <-c.vm.stop:
+						return func() { chunks <- nil }
+					}
+					if len(bytes) == 0 {
+						continue
+					}
+
+					// Handle response
+					chunk, err := chain.UnmarshalChunk(bytes, c.vm)
+					if err != nil {
+						c.vm.Logger().Warn("failed to unmarshal chunk", zap.Error(err))
+						continue
+					}
+					chunkID, err := chunk.ID()
 					if err != nil {
 						panic(err)
 					}
-					if c.connected.Contains(randomValidator) {
-						validator = randomValidator
-						break
+					if chunkID != cert.Chunk {
+						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
+						continue
 					}
-					c.vm.Logger().Warn("skipping disconnected validator", zap.Stringer("nodeID", randomValidator))
-					// TODO: put some time delay here to avoid spinning when disconnected?
+					if err := c.vm.StoreChunk(chunk); err != nil {
+						panic(err)
+					}
+					return func() { chunks <- chunk }
 				}
-				request := make([]byte, 1+consts.Uint64Len+ids.IDLen)
-				request[0] = chunkReq
-				binary.BigEndian.PutUint64(request[1:], uint64(cert.Slot))
-				copy(request[1+consts.Uint64Len:], cert.Chunk[:])
-				if err := c.appSender.SendAppRequest(context.Background(), set.Of(validator), requestID, request); err != nil {
-					c.vm.Logger().Warn("failed to send chunk request", zap.Error(err))
-					continue
-				}
+			})
+		}
+		fetchStream.Wait()
+		close(chunks)
 
-				// Wait for reponse or exit
-				var bytes []byte
-				select {
-				case bytes = <-bytesChan:
-				case <-c.vm.stop:
-					return func() { chunks <- nil }
-				}
-				if len(bytes) == 0 {
-					continue
-				}
-
-				// Handle response
-				chunk, err := chain.UnmarshalChunk(bytes, c.vm)
-				if err != nil {
-					c.vm.Logger().Warn("failed to unmarshal chunk", zap.Error(err))
-					continue
-				}
-				chunkID, err := chunk.ID()
-				if err != nil {
-					panic(err)
-				}
-				if chunkID != cert.Chunk {
-					c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
-					continue
-				}
-				if err := c.vm.StoreChunk(chunk); err != nil {
-					panic(err)
-				}
-				return func() { chunks <- chunk }
-			}
-		})
-	}
-	fetchStream.Wait()
-	close(chunks)
+		// Invoke next waiter
+		close(myWaiter)
+	}()
 }
 
 func (c *ChunkManager) Done() {
