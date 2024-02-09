@@ -37,8 +37,13 @@ type Processor struct {
 	exectutor  *executor.Executor
 	ts         *tstate.TState
 
-	txs     set.Set[ids.ID]
+	txs     map[ids.ID]*blockLoc
 	results [][]*Result
+}
+
+type blockLoc struct {
+	chunk int
+	index int
 }
 
 type fetchData struct {
@@ -73,7 +78,7 @@ func NewProcessor(
 		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorVerifyRecorder()),
 		ts:        tstate.New(numTxs * 2),
 
-		txs:     set.NewSet[ids.ID](numTxs),
+		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
 	}
 }
@@ -155,7 +160,6 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 			return nil
 		}
 		result.Valid = true
-		p.txs.Add(tx.ID()) // only track duplicates on valid txs
 		result.WarpVerified = warpVerified
 		p.results[chunkIndex][txIndex] = result
 
@@ -251,19 +255,20 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		}
 
 		// Check that transaction isn't a duplicate
-		//
-		// TODO: this contains is concurrent map read/write? ...shouldn't be checked here, this isn't safe
-		if repeats.Contains(txIndex) || p.txs.Contains(tx.ID()) {
+		_, seen := p.txs[tx.ID()]
+		if repeats.Contains(txIndex) || seen {
 			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
 
-		// TODO: only run first txID referenced per chunk
+		// If this is the first instance of a transaction in this block,
+		// record it in the set.
 		//
-		// TODO: Remove txIDs that are invalid after all execution is done.
-
-		// TODO: Check that transaction included in right partition
+		// Remove any invalid transactions from this set when all chunks are done processing (otherwise
+		// it would be trivial for a dishonest producer to include a tx in a bad chunk and prevent it
+		// from ever being executed).
+		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
 		// Enqueue transaction for execution
 		p.authStream.Go(func() stream.Callback {
@@ -286,7 +291,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 	return nil
 }
 
-func (p *Processor) Wait() (set.Set[ids.ID], *tstate.TState, [][]*Result, error) {
+func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
 	p.authStream.Wait()
 	return p.txs, p.ts, p.results, p.exectutor.Wait()
 }

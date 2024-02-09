@@ -22,7 +22,7 @@ type engineJob struct {
 }
 
 type output struct {
-	txs          set.Set[ids.ID]
+	txs          map[ids.ID]*blockLoc
 	view         merkledb.View
 	chunkResults [][]*Result
 
@@ -126,12 +126,20 @@ func (e *Engine) Run() {
 					warpCount   uint
 				)
 				for j, txResult := range chunkResult {
+					tx := chunk.Txs[j]
 					if !txResult.Valid {
+						// Remove txID from txSet if it was invalid and
+						// it was the first txID of its kind seen in the block.
+						if bl, ok := txSet[tx.ID()]; ok {
+							if bl.chunk == i && bl.index == j {
+								delete(txSet, tx.ID())
+							}
+						}
+
 						// TODO: track invalid tx count
 						continue
 					}
 					validResults = append(validResults, txResult)
-					tx := chunk.Txs[j]
 					txs = append(txs, tx)
 					if tx.WarpMessage != nil {
 						if txResult.WarpVerified {
@@ -294,7 +302,7 @@ func (e *Engine) IsRepeatTx(
 				if marker.Contains(i) {
 					continue
 				}
-				if output.txs.Contains(tx.ID()) {
+				if _, ok := output.txs[tx.ID()]; ok {
 					marker.Add(i)
 				}
 			}
