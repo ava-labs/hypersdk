@@ -30,6 +30,9 @@ const (
 	chunkSignatureMsg   uint8 = 0x1
 	chunkCertificateMsg uint8 = 0x2
 	txMsg               uint8 = 0x3
+
+	minWeightNumerator = 67
+	weightDenominator  = 100
 )
 
 type chunkWrapper struct {
@@ -340,7 +343,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: only send to next x builders
 		// TODO: only send once have a certain weight above 67% or X time until expiry (maximize fee)
 		// TODO: make this a config?
-		if err := warp.VerifyWeight(weight, totalWeight, 67, 100); err != nil {
+		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Warn("chunk does not have sufficient weight to crete certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
 		}
@@ -418,7 +421,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if err != nil {
 			return err
 		}
-		if err := warp.VerifyWeight(filteredWeight, weight, 67, 100); err != nil {
+		if err := warp.VerifyWeight(filteredWeight, weight, minWeightNumerator, weightDenominator); err != nil {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
 				zap.Uint64("Pheight", height),

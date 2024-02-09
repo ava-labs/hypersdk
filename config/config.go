@@ -42,8 +42,9 @@ func (c *Config) GetAcceptorSize() int             { return 64 }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
-func (c *Config) GetVerifyAuth() bool                    { return true }
-func (c *Config) GetTargetBuildDuration() time.Duration  { return 100 * time.Millisecond }
-func (c *Config) GetProcessingBuildSkip() int            { return 16 }
-func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Millisecond }
-func (c *Config) GetBlockCompactionFrequency() int       { return 32 } // 64 MB of deletion if 2 MB blocks
+func (c *Config) GetVerifyAuth() bool                             { return true }
+func (c *Config) GetTargetBuildDuration() time.Duration           { return 100 * time.Millisecond }
+func (c *Config) GetProcessingBuildSkip() int                     { return 16 }
+func (c *Config) GetTargetGossipDuration() time.Duration          { return 20 * time.Millisecond }
+func (c *Config) GetBlockCompactionFrequency() int                { return 32 } // 64 MB of deletion if 2 MB blocks
+func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 75 } // out of 100 (more weight == more fees)
