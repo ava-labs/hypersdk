@@ -6,6 +6,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
-	"golang.org/x/exp/slices"
 )
 
 type FeedContent struct {

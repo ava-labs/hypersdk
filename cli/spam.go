@@ -7,7 +7,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -355,7 +354,7 @@ func (h *Handler) Spam(
 
 					// Determine how long to sleep
 					dur := time.Since(start)
-					sleep := math.Max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
+					sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
 					t.Reset(time.Duration(sleep) * time.Millisecond)
 				case <-gctx.Done():
 					return gctx.Err()

@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -88,7 +87,7 @@ func BuildBlock(
 	// If the parent block is not yet verified, we will attempt to
 	// execute it.
 	mempoolSize := vm.Mempool().Len(ctx)
-	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
+	changesEstimate := min(mempoolSize, maxViewPreallocation)
 	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))

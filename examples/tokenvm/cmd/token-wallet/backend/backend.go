@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -489,7 +488,7 @@ func (b *Backend) collectBlocks() {
 			tpsWindow = newWindow
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 			runningDuration := time.Since(start)
-			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
+			tpsDivisor := min(window.WindowSize, runningDuration.Seconds())
 			bi.TPS = fmt.Sprintf("%.2f", float64(window.Sum(tpsWindow))/tpsDivisor)
 			bi.Latency = time.Now().UnixMilli() - blk.Tmstmp
 		} else {
