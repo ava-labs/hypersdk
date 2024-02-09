@@ -163,6 +163,8 @@ func (e *Engine) Run() {
 				// will be artificially delayed to give time to fetch missing chunks)
 				//
 				// TODO: handle restart case where block may be sent twice?
+				//
+				// TODO: send async?
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults)
 			}
 
