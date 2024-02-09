@@ -275,7 +275,7 @@ mod tests {
                 "get_balance",
                 vec![
                     Param {
-                        value: program_id.into(),
+                        value: program_id,
                         param_type: ParamType::Id,
                     },
                     Param {
@@ -314,6 +314,6 @@ mod tests {
             .program_create::<PlanResponse>("owner", p_path.as_ref())
             .unwrap();
         assert_eq!(resp.error, None);
-        assert_eq!(resp.result.id.is_some(), true);
+        assert!(resp.result.id.is_some());
     }
 }

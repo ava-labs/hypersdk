@@ -207,7 +207,7 @@ mod tests {
             let result = memory.range(data.len());
             assert_eq!(result, data);
             let data = vec![9, 9, 2];
-            memory.write(&data);
+            memory.write(data);
             let result = memory.range(ptr_len);
             assert_eq!(result, vec![9, 9, 2, 4, 5]);
         };
