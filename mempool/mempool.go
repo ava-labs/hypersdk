@@ -10,7 +10,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -71,7 +70,7 @@ func New[T Item](
 		maxSponsorSize: maxSponsorSize,
 
 		queue: &list.List[T]{},
-		eh:    eheap.New[*list.Element[T]](math.Min(maxSize, maxPrealloc)),
+		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
 
 		owned:          map[codec.Address]int{},
 		exemptSponsors: set.Set[codec.Address]{},

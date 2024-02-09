@@ -54,14 +54,14 @@ func TestTypeParser(t *testing.T) {
 		require.NoError(
 			tp.Register(
 				blah1.GetTypeID(),
-				func(p *Packer, a any) (Blah, error) { return nil, errBlah1 },
+				func(*Packer, any) (Blah, error) { return nil, errBlah1 },
 				true,
 			),
 		)
 		require.NoError(
 			tp.Register(
 				blah2.GetTypeID(),
-				func(p *Packer, a any) (Blah, error) { return nil, errBlah2 },
+				func(*Packer, any) (Blah, error) { return nil, errBlah2 },
 				false,
 			),
 		)

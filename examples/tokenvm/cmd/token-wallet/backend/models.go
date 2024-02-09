@@ -5,7 +5,7 @@ package backend
 
 import (
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type Alert struct {
@@ -36,7 +36,7 @@ type TimeStat struct {
 	Timestamp    int64
 	Transactions int
 	Accounts     set.Set[string]
-	Prices       chain.Dimensions
+	Prices       fees.Dimensions
 }
 
 type BlockInfo struct {

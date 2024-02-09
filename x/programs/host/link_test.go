@@ -33,14 +33,12 @@ func TestLinkMissingImport(t *testing.T) {
 }
 
 func TestLinkImport(t *testing.T) {
-	require := require.New(t)
-
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
       (import "env" "one" (func $one (param i64) (result i64)))
     )	
 	`)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name,
@@ -68,6 +66,8 @@ func TestLinkImport(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
 			imports := NewImportsBuilder()
 			imports.Register(tt.module, func() Import {
 				return newTestImport(tt.module, tt.fn)

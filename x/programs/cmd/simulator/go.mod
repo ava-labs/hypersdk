@@ -1,10 +1,11 @@
 module github.com/ava-labs/hypersdk/x/programs/cmd/simulator
 
-go 1.20
+go 1.21
 
 require (
 	github.com/ava-labs/avalanchego v1.10.18
 	github.com/ava-labs/hypersdk v0.0.1
+	github.com/near/borsh-go v0.3.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
@@ -45,7 +46,6 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d // indirect
-	github.com/near/borsh-go v0.3.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.13.1 // indirect
 	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
