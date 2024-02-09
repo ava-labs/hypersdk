@@ -131,6 +131,14 @@ linters-settings:
         alias: safemath
       - pkg: github.com/ava-labs/avalanchego/utils
         alias: avautils
+      - pkg: github.com/ava-labs/avalanchego/trace
+        alias: avatrace
+      - pkg: github.com/ava-labs/avalanchego/api/metrics
+        alias: avametrics
+      - pkg: github.com/ava-labs/avalanchego/cache
+        alias: avacache
+      - pkg: github.com/ava-labs/avalanchego/x/sync
+        alias: avasync
   revive:
     rules:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#bool-literal-in-expr

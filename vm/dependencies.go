@@ -20,8 +20,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	atrace "github.com/ava-labs/avalanchego/trace"
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 type Handlers map[string]http.Handler
@@ -56,7 +56,7 @@ type Config interface {
 }
 
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, state.Mutable) error
+	Load(context.Context, avatrace.Tracer, state.Mutable) error
 
 	GetStateBranchFactor() merkledb.BranchFactor
 }
@@ -70,7 +70,7 @@ type Controller interface {
 	Initialize(
 		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
-		gatherer ametrics.MultiGatherer,
+		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,
 		configBytes []byte,
