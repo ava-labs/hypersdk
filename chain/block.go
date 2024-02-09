@@ -487,7 +487,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 				return err
 			}
 			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-				return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, len(filteredVdrs), filteredWeight, totalWeight)
+				return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
 			}
 		}
 	} else {

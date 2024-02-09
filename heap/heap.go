@@ -79,3 +79,9 @@ func (h *Heap[I, V]) First() *Entry[I, V] {
 	}
 	return h.ih.items[0]
 }
+
+// Fix re-establishes the heap ordering after the element at [index]
+// has changed its value.
+func (h *Heap[I, V]) Fix(index int) {
+	heap.Fix(h.ih, index)
+}

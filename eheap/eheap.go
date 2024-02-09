@@ -21,6 +21,8 @@ type Item interface {
 // items can be removed (ExpiryHeap must store each item in the heap
 // instead of grouping by expiry to support this feature, which makes it
 // less efficient).
+//
+// Concurrent access to [ExpiryHeap] is not supported.
 type ExpiryHeap[T Item] struct {
 	minHeap *heap.Heap[T, int64]
 }
@@ -43,6 +45,28 @@ func (eh *ExpiryHeap[T]) Add(item T) {
 		Item:  item,
 		Index: poolLen,
 	})
+}
+
+func (eh *ExpiryHeap[T]) Get(id ids.ID) (T, bool) {
+	entry, ok := eh.minHeap.Get(id)
+	if !ok {
+		return *new(T), false
+	}
+	return entry.Item, true
+}
+
+// Update adds [item] to eh if it does not exist, otherwise it updates the
+// value of [item] in eh.
+func (eh *ExpiryHeap[T]) Update(item T) {
+	itemID := item.ID()
+	minEntry, ok := eh.minHeap.Get(itemID) // O(1)
+	if !ok {
+		eh.Add(item)
+		return
+	}
+	minEntry.Item = item
+	minEntry.Val = item.Expiry()
+	eh.minHeap.Fix(minEntry.Index) // O(log N)
 }
 
 // Remove removes [id] from eh. If the id does not exist, Remove returns.

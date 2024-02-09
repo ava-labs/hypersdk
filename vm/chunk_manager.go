@@ -33,6 +33,8 @@ const (
 )
 
 type chunkWrapper struct {
+	l sync.Mutex
+
 	chunk      *chain.Chunk
 	signatures map[ids.ID]*chain.ChunkSignature
 }
@@ -65,15 +67,26 @@ func NewCertStore() *CertStore {
 }
 
 // Called when we get a valid cert or if a block is rejected with valid certs.
-func (c *CertStore) Add(cert *chain.ChunkCertificate) {
+//
+// If called more than once for the same ChunkID, the cert will be updated if it has
+// more signers.
+//
+// TODO: update if more weight rather than using signer heuristic?
+func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	if c.eh.Has(cert.ID()) {
-		return
+	elem, ok := c.eh.Get(cert.ID())
+	if !ok {
+		elem = c.queue.PushBack(cert)
+	} else {
+		// If the existing certificate has more signers than the
+		// new certificate, don't update.
+		if elem.Value().Signers.Len() > cert.Signers.Len() {
+			return
+		}
 	}
-	elem := c.queue.PushBack(cert)
-	c.eh.Add(elem)
+	c.eh.Update(elem)
 }
 
 // Called when a block is accepted with valid certs.
@@ -111,6 +124,7 @@ type ChunkManager struct {
 	txs *cache.FIFO[ids.ID, any]
 
 	built *emap.EMap[*chunkWrapper]
+
 	certs *CertStore
 
 	// connected includes all connected nodes, not just those that are validators (we use
@@ -296,6 +310,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("dropping untracked chunk", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
+		cw.l.Lock()
 		cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
 		// Count pending weight
@@ -318,6 +333,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}); err != nil {
 			panic(err)
 		}
+		cw.l.Unlock()
 
 		// Check if weight is sufficient
 		//
@@ -337,6 +353,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		signers := set.NewBits()
 		orderedSignatures := []*bls.Signature{}
+		cw.l.Lock()
 		for i, vdr := range canonicalValidators {
 			sig, ok := cw.signatures[utils.ToID(bls.PublicKeyToBytes(vdr.PublicKey))]
 			if !ok {
@@ -345,15 +362,14 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			signers.Add(i)
 			orderedSignatures = append(orderedSignatures, sig.Signature)
 		}
+		cw.l.Unlock()
 		aggSignature, err := bls.AggregateSignatures(orderedSignatures)
 		if err != nil {
 			c.vm.Logger().Warn("cannot generate aggregate signature", zap.Error(err))
 			return nil
 		}
 
-		// Send certificate to all validators
-		//
-		// TODO: only send to next x builders
+		// Construct and update stored certificate
 		cert := &chain.ChunkCertificate{
 			Chunk: chunkSignature.Chunk,
 			Slot:  chunkSignature.Slot,
@@ -361,11 +377,13 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signers:   signers,
 			Signature: aggSignature,
 		}
-		// Broadcast a new certificate each time we get more signatures
+		c.certs.Update(cert)
+
+		// Broadcast certificate
 		//
-		// TODO: consider if this is the right idea?
+		// Each time we get more signatures, we'll broadcast a new
+		// certificate
 		c.PushChunkCertificate(ctx, cert)
-		c.certs.Add(cert)
 		c.vm.Logger().Info(
 			"constructed chunk certificate",
 			zap.Uint64("Pheight", height),
@@ -443,7 +461,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Store chunk certificate for building
 		//
 		// TODO: store chunk with highest weight
-		c.certs.Add(cert)
+		c.certs.Update(cert)
 	default:
 		c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
 	}
@@ -626,7 +644,7 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 
 func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	for _, cert := range certs {
-		c.certs.Add(cert)
+		c.certs.Update(cert)
 	}
 }
 
