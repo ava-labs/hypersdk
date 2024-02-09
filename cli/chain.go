@@ -10,10 +10,12 @@ import (
 	"strings"
 	"time"
 
-	runner "github.com/ava-labs/avalanche-network-runner/client"
+	"github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"gopkg.in/yaml.v2"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
@@ -21,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
-	"gopkg.in/yaml.v2"
 )
 
 func (h *Handler) ImportChain() error {
@@ -55,7 +56,7 @@ func (h *Handler) ImportANR() error {
 	}
 
 	// Load new items from ANR
-	anrCli, err := runner.New(runner.Config{
+	anrCli, err := client.New(client.Config{
 		Endpoint:    "0.0.0.0:12352",
 		DialTimeout: 10 * time.Second,
 	}, logging.NoLog{})

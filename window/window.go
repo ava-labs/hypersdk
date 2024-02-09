@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 
 	"github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/ava-labs/hypersdk/consts"
 )
 

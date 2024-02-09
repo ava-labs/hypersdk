@@ -9,9 +9,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"go.uber.org/zap"
 )
 
 type MessageBuffer struct {

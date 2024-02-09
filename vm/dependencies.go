@@ -8,10 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	atrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
@@ -20,7 +18,10 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
-	trace "github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/hypersdk/trace"
+
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 type Handlers map[string]http.Handler
@@ -38,7 +39,7 @@ type Config interface {
 	GetStateHistoryLength() int               // how many roots back of data to keep to serve state queries
 	GetIntermediateNodeCacheSize() int        // how many bytes to keep in intermediate cache
 	GetStateIntermediateWriteBufferSize() int // how many bytes to keep unwritten in intermediate cache
-	GetStateIntermediateWriteBatchSize() int  // how many bytes to to write from intermediate cache at once
+	GetStateIntermediateWriteBatchSize() int  // how many bytes to write from intermediate cache at once
 	GetValueNodeCacheSize() int               // how many bytes to keep in value cache
 	GetAcceptorSize() int                     // how far back we can fall in processing accepted blocks
 	GetStateSyncParallelism() int
@@ -55,7 +56,7 @@ type Config interface {
 }
 
 type Genesis interface {
-	Load(context.Context, atrace.Tracer, state.Mutable) error
+	Load(context.Context, avatrace.Tracer, state.Mutable) error
 
 	GetStateBranchFactor() merkledb.BranchFactor
 }
@@ -69,7 +70,7 @@ type Controller interface {
 	Initialize(
 		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
-		gatherer ametrics.MultiGatherer,
+		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,
 		configBytes []byte,

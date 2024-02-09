@@ -13,7 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
@@ -64,7 +64,7 @@ func BuildBlock(
 	ctx context.Context,
 	vm VM,
 	parent *StatelessBlock,
-	blockContext *smblock.Context,
+	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
@@ -148,7 +148,7 @@ func BuildBlock(
 			b.vm.RecordClearedMempool()
 			break
 		}
-		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
 
 		// Perform a batch repeat check
 		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
@@ -434,7 +434,7 @@ func BuildBlock(
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(b.Txs) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime)
+			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
 		vm.RecordEmptyBlockBuilt()
 	}

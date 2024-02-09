@@ -9,9 +9,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"go.uber.org/zap"
 )
 
 var _ Gossiper = (*Manual)(nil)
@@ -46,7 +47,7 @@ func (g *Manual) Force(ctx context.Context) error {
 	mempoolErr := g.vm.Mempool().Top(
 		ctx,
 		g.vm.GetTargetGossipDuration(),
-		func(ictx context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
+		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
 			if next.Base.Timestamp < now {
 				return true, false, nil

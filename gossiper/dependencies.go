@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/chain"
 )
 

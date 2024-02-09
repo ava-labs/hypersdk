@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
-	autils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -22,6 +21,8 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
+
+	avautils "github.com/ava-labs/avalanchego/utils"
 )
 
 const (
@@ -286,7 +287,7 @@ func getCanonicalValidatorSet(
 
 	// Sort validators by public key
 	vdrList := maps.Values(vdrs)
-	autils.Sort(vdrList)
+	avautils.Sort(vdrList)
 	return vdrList, totalWeight, nil
 }
 

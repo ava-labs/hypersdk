@@ -6,9 +6,10 @@ package runtime
 import (
 	"fmt"
 
+	"github.com/bytecodealliance/wasmtime-go/v14"
+
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
 var _ program.Instance = (*Instance)(nil)

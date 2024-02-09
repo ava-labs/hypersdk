@@ -81,7 +81,7 @@ func (s *Store) GetMaxUnits() uint64 {
 func (s *Store) GetBalanceUnits() (uint64, error) {
 	consumed, ok := s.UnitsConsumed()
 	if !ok {
-		return 0, fmt.Errorf("failed to get units consumed: metering not enabled")
+		return 0, errors.New("failed to get units consumed: metering not enabled")
 	}
 	return (s.maxUnits - consumed), nil
 }

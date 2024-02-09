@@ -9,9 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/bytecodealliance/wasmtime-go/v14"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -144,7 +142,7 @@ func TestMetering(t *testing.T) {
 	}
 	balance, err = runtime.Meter().GetBalance()
 	require.NoError(err)
-	require.Equal(balance, uint64(0))
+	require.Zero(balance)
 }
 
 func TestMeterAfterStop(t *testing.T) {
@@ -205,7 +203,7 @@ func TestLimitMaxMemory(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 	err = runtime.Initialize(context.Background(), wasm, maxUnits)
-	require.ErrorContains(err, "memory minimum size of 2 pages exceeds memory limits")
+	require.ErrorContains(err, "memory minimum size of 2 pages exceeds memory limits") //nolint:forbidigo
 }
 
 func TestLimitMaxMemoryGrow(t *testing.T) {
@@ -240,7 +238,7 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 
 	// attempt to grow memory to 2 pages which exceeds the limit
 	_, err = mem.Grow(1)
-	require.ErrorContains(err, "failed to grow memory by `1`")
+	require.ErrorContains(err, "failed to grow memory by `1`") //nolint:forbidigo
 }
 
 func TestWriteExceedsLimitMaxMemory(t *testing.T) {
@@ -272,7 +270,7 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 
 	bytes := utils.RandomBytes(int(maxMemory) + 1)
 	err = mem.Write(0, bytes)
-	require.Error(err, "write memory failed: invalid memory size")
+	require.ErrorIs(err, program.ErrOverflow)
 }
 
 func TestWithMaxWasmStack(t *testing.T) {

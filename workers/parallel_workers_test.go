@@ -13,10 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/neilotoole/errgroup"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/semaphore"
 )
 

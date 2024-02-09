@@ -13,11 +13,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
-
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -196,58 +196,58 @@ func TestInsertRemoveInsert(t *testing.T) {
 	// Insert key for first time
 	require.NoError(tsv.Insert(ctx, key2, testVal))
 	allocates, writes := tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{key2str: 2}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{key2str: 2}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
 
 	// Remove key
 	require.NoError(tsv.Remove(ctx, key2))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 
 	// Insert key again
 	require.NoError(tsv.Insert(ctx, key2, testVal))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{key2str: 2}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{key2str: 2}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
 
 	// Modify key
 	testVal2 := []byte("blah")
 	require.NoError(tsv.Insert(ctx, key2, testVal2))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{key2str: 2}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{key2str: 2}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Rollback modify
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{key2str: 2}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{key2str: 2}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
 
 	// Rollback second insert
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 
 	// Rollback remove
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{key2str: 2}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{key2str: 2}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal))
 
 	// Rollback insert
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 	require.Equal(0, tsv.OpIndex())
 
@@ -269,43 +269,43 @@ func TestModifyRemoveInsert(t *testing.T) {
 	testVal2 := []byte("blah")
 	require.NoError(tsv.Insert(ctx, key2, testVal2))
 	allocates, writes := tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Remove modified key
 	require.NoError(tsv.Remove(ctx, key2))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 0}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 0}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Nothing[[]byte]())
 
 	// Insert key again (with original value)
 	require.NoError(tsv.Insert(ctx, key2, testVal))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 
 	// Rollback insert
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 0}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 0}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Nothing[[]byte]())
 
 	// Rollback remove
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Rollback modify
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 	require.Equal(0, tsv.OpIndex())
 }
@@ -323,29 +323,29 @@ func TestModifyRevert(t *testing.T) {
 	testVal2 := []byte("blah")
 	require.NoError(tsv.Insert(ctx, key2, testVal2))
 	allocates, writes := tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Revert modification
 	require.NoError(tsv.Insert(ctx, key2, testVal))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 
 	// Rollback revert modification
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Rollback modification
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 	require.Equal(0, tsv.OpIndex())
 }
@@ -363,36 +363,36 @@ func TestModifyModify(t *testing.T) {
 	testVal2 := []byte("blah")
 	require.NoError(tsv.Insert(ctx, key2, testVal2))
 	allocates, writes := tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Perform same modification (no change)
 	require.NoError(tsv.Insert(ctx, key2, testVal2))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Revert modification
 	require.NoError(tsv.Insert(ctx, key2, testVal))
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 
 	// Rollback revert modification
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{key2str: 1}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{key2str: 1}, writes)
 	require.Equal(tsv.pendingChangedKeys[key2str], maybe.Some(testVal2))
 
 	// Rollback modification
 	tsv.Rollback(ctx, tsv.OpIndex()-1)
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{}, allocates)
-	require.EqualValues(map[string]uint16{}, writes)
+	require.Equal(map[string]uint16{}, allocates)
+	require.Equal(map[string]uint16{}, writes)
 	require.NotContains(tsv.pendingChangedKeys, key2str)
 	require.Equal(0, tsv.OpIndex())
 }
@@ -458,8 +458,8 @@ func TestRestoreInsert(t *testing.T) {
 	allocMap := map[string]uint16{key1str: 1, key2str: 2, key3str: 3}
 	writeMap := map[string]uint16{key1str: 1, key2str: 1, key3str: 1}
 	allocates, writes := tsv.KeyOperations()
-	require.EqualValues(allocMap, allocates)
-	require.EqualValues(writeMap, writes)
+	require.Equal(allocMap, allocates)
+	require.Equal(writeMap, writes)
 
 	// Update keys[0]
 	updatedVal := []byte("newVal")
@@ -471,8 +471,8 @@ func TestRestoreInsert(t *testing.T) {
 
 	// No change to KeyOperations
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(allocMap, allocates)
-	require.EqualValues(writeMap, writes)
+	require.Equal(allocMap, allocates)
+	require.Equal(writeMap, writes)
 
 	// Rollback inserting updatedVal and key[2]
 	tsv.Rollback(ctx, 2)
@@ -489,8 +489,8 @@ func TestRestoreInsert(t *testing.T) {
 
 	// Modifications rolled back
 	allocates, writes = tsv.KeyOperations()
-	require.EqualValues(map[string]uint16{key1str: 1, key2str: 2}, allocates)
-	require.EqualValues(map[string]uint16{key1str: 1, key2str: 1}, writes)
+	require.Equal(map[string]uint16{key1str: 1, key2str: 2}, allocates)
+	require.Equal(map[string]uint16{key1str: 1, key2str: 1}, writes)
 }
 
 func TestRestoreDelete(t *testing.T) {
@@ -542,7 +542,8 @@ func TestCreateView(t *testing.T) {
 
 	ctx := context.TODO()
 	ts := New(10)
-	tracer, _ := trace.New(&trace.Config{Enabled: false})
+	tracer, err := trace.New(&trace.Config{Enabled: false})
+	require.NoError(err)
 	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
 		BranchFactor:                merkledb.BranchFactor16,
 		RootGenConcurrency:          1,
@@ -553,9 +554,7 @@ func TestCreateView(t *testing.T) {
 		IntermediateWriteBatchSize:  units.KiB,
 		Tracer:                      tracer,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(err)
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
 		key1str: state.Read | state.Write,
@@ -578,15 +577,15 @@ func TestCreateView(t *testing.T) {
 	allocMap := map[string]uint16{key1str: 1, key2str: 2, key3str: 3}
 	writeMap := map[string]uint16{key1str: 1, key2str: 1, key3str: 1}
 	allocates, writes := tsv.KeyOperations()
-	require.EqualValues(allocMap, allocates)
-	require.EqualValues(writeMap, writes)
+	require.Equal(allocMap, allocates)
+	require.Equal(writeMap, writes)
 
 	// Test warm modification
 	tsvM := ts.NewView(keySet, map[string][]byte{})
 	require.NoError(tsvM.Insert(ctx, keys[0], vals[2]))
 	allocates, writes = tsvM.KeyOperations()
 	require.Empty(allocates)
-	require.EqualValues(map[string]uint16{key1str: 1}, writes)
+	require.Equal(map[string]uint16{key1str: 1}, writes)
 
 	// Create merkle view
 	view, err := ts.ExportMerkleDBView(ctx, tracer, db)

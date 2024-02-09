@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"

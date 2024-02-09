@@ -10,10 +10,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/manifoldco/promptui"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/manifoldco/promptui"
 )
 
 func (h *Handler) PromptAddress(label string) (codec.Address, error) {
@@ -230,7 +231,7 @@ func (*Handler) PromptContinue() (bool, error) {
 
 func (*Handler) PromptBool(label string) (bool, error) {
 	promptText := promptui.Prompt{
-		Label: fmt.Sprintf("%s (y/n)", label),
+		Label: label + " (y/n)",
 		Validate: func(input string) error {
 			if len(input) == 0 {
 				return ErrInputEmpty

@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/trace"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
 )
 
 var testSponsor = codec.CreateAddress(1, ids.GenerateTestID())
@@ -179,11 +180,11 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	}
 	// Remove half
 	removed := txm.SetMinTimestamp(ctx, 5)
-	require.Equal(5, len(removed), "Mempool has incorrect number of txs.")
+	require.Len(removed, 5, "Mempool has incorrect number of txs.")
 	// All timestamps less than 5
 	seen := make(map[int64]bool)
 	for _, item := range removed {
-		require.True(item.Expiry() < 5)
+		require.Less(item.Expiry(), int64(5))
 		_, ok := seen[item.Expiry()]
 		require.False(ok)
 		seen[item.Expiry()] = true

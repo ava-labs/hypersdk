@@ -11,29 +11,23 @@ import (
 	"sync"
 	"time"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	syncEng "github.com/ava-labs/avalanchego/x/sync"
-	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/prometheus/client_golang/prometheus"
-
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/builder"
+	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/fees"
@@ -42,9 +36,15 @@ import (
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/state"
-	htrace "github.com/ava-labs/hypersdk/trace"
-	hutils "github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/trace"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
+
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avacache "github.com/ava-labs/avalanchego/cache"
+	avatrace "github.com/ava-labs/avalanchego/trace"
+	avautils "github.com/ava-labs/avalanchego/utils"
+	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
 type VM struct {
@@ -68,7 +68,7 @@ type VM struct {
 	authRegistry   chain.AuthRegistry
 	authEngine     map[uint8]AuthEngine
 
-	tracer  trace.Tracer
+	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
@@ -78,7 +78,7 @@ type VM struct {
 	seenValidityWindow     chan struct{}
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessBlock]
+	parsedBlocks *avacache.LRU[ids.ID, *chain.StatelessBlock]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
@@ -87,8 +87,8 @@ type VM struct {
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
-	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *chain.StatelessBlock]
+	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	// Accepted block queue
 	acceptedQueue chan *chain.StatelessBlock
@@ -101,7 +101,7 @@ type VM struct {
 	// with limited parallelism
 	authVerifiers workers.Workers
 
-	bootstrapped utils.Atomic[bool]
+	bootstrapped avautils.Atomic[bool]
 	genesisBlk   *chain.StatelessBlock
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
@@ -109,8 +109,8 @@ type VM struct {
 
 	// State Sync client and AppRequest handlers
 	stateSyncClient        *stateSyncerClient
-	stateSyncNetworkClient syncEng.NetworkClient
-	stateSyncNetworkServer *syncEng.NetworkServer
+	stateSyncNetworkClient avasync.NetworkClient
+	stateSyncNetworkServer *avasync.NetworkServer
 
 	// Warp manager fetches signatures from other validators for a given accepted
 	// txID
@@ -152,7 +152,7 @@ func (vm *VM) Initialize(
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
-	gatherer := ametrics.NewMultiGatherer()
+	gatherer := avametrics.NewMultiGatherer()
 	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Setup tracer
-	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
+	vm.tracer, err = trace.New(vm.config.GetTraceConfig())
 	if err != nil {
 		return err
 	}
@@ -233,13 +233,13 @@ func (vm *VM) Initialize(
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.parsedBlocks = &cache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = hcache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindowCache())
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindowCache())
 	if err != nil {
 		return err
 	}
-	vm.acceptedBlocksByHeight, err = hcache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindowCache())
+	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindowCache())
 	if err != nil {
 		return err
 	}
@@ -362,7 +362,7 @@ func (vm *VM) Initialize(
 	// Setup state syncing
 	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
 	syncRegistry := prometheus.NewRegistry()
-	vm.stateSyncNetworkClient, err = syncEng.NewNetworkClient(
+	vm.stateSyncNetworkClient, err = avasync.NewNetworkClient(
 		stateSyncSender,
 		vm.snowCtx.NodeID,
 		int64(vm.config.GetStateSyncParallelism()),
@@ -377,7 +377,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
-	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
+	vm.stateSyncNetworkServer = avasync.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
 	// Setup gossip networking
@@ -465,7 +465,7 @@ func (vm *VM) BaseDB() database.Database {
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
 	if !vm.isReady() {
-		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
+		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
 	}
 	// Atomic read to ensure consistency
 	return vm.stateDB.GetValues(ctx, keys)
@@ -675,7 +675,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	defer span.End()
 
 	// Check to see if we've already parsed
-	id := hutils.ToID(source)
+	id := utils.ToID(source)
 
 	// If we have seen this block before, return it with the most
 	// up-to-date info
@@ -708,7 +708,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+func (vm *VM) buildBlock(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -763,7 +763,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 }
 
 // implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockBuild.Observe(float64(time.Since(start)))

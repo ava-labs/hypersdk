@@ -7,8 +7,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type Blah interface {
@@ -48,17 +49,19 @@ func TestTypeParser(t *testing.T) {
 
 		blah1 := &Blah1{}
 		blah2 := &Blah2{}
+		errBlah1 := errors.New("blah1")
+		errBlah2 := errors.New("blah2")
 		require.NoError(
 			tp.Register(
 				blah1.GetTypeID(),
-				func(p *Packer, a any) (Blah, error) { return nil, errors.New("blah1") },
+				func(*Packer, any) (Blah, error) { return nil, errBlah1 },
 				true,
 			),
 		)
 		require.NoError(
 			tp.Register(
 				blah2.GetTypeID(),
-				func(p *Packer, a any) (Blah, error) { return nil, errors.New("blah2") },
+				func(*Packer, any) (Blah, error) { return nil, errBlah2 },
 				false,
 			),
 		)
@@ -68,14 +71,14 @@ func TestTypeParser(t *testing.T) {
 		require.True(b)
 		res, err := f(nil, nil)
 		require.Nil(res)
-		require.ErrorContains(err, "blah1")
+		require.ErrorIs(err, errBlah1)
 
 		f, b, ok = tp.LookupIndex(blah2.GetTypeID())
 		require.True(ok)
 		require.False(b)
 		res, err = f(nil, nil)
 		require.Nil(res)
-		require.ErrorContains(err, "blah2")
+		require.ErrorIs(err, errBlah2)
 	})
 
 	t.Run("duplicate item", func(t *testing.T) {

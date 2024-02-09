@@ -11,12 +11,9 @@ import (
 	"time"
 
 	"github.com/NYTimes/gziphandler"
-
-	"github.com/rs/cors"
-
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/rs/cors"
+	"go.uber.org/zap"
 )
 
 var _ Server = (*server)(nil)

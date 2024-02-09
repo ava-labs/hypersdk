@@ -7,10 +7,13 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/consts"
 )
 
 func testRollup(t *testing.T, uint64s []uint64, roll int) {
+	require := require.New(t)
 	slice := [WindowSliceSize]byte{}
 	numUint64s := len(uint64s)
 	for i := 0; i < numUint64s; i++ {
@@ -18,9 +21,7 @@ func testRollup(t *testing.T, uint64s []uint64, roll int) {
 	}
 
 	newSlice, err := Roll(slice, roll)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(err)
 	// numCopies is the number of uint64s that should have been copied over from the previous
 	// slice as opposed to being left empty.
 	numCopies := numUint64s - roll
@@ -31,20 +32,12 @@ func testRollup(t *testing.T, uint64s []uint64, roll int) {
 		// over from the previous slice, assert that the value encoded in [newSlice]
 		// is 0
 		if i >= numCopies {
-			if num != 0 {
-				t.Errorf(
-					"Expected num encoded in newSlice at position %d to be 0, but found %d",
-					i,
-					num,
-				)
-			}
+			require.Zero(num, "position=%d", i)
 		} else {
 			// Otherwise, check that the value was copied over correctly
 			prevIndex := i + roll
 			prevNum := uint64s[prevIndex]
-			if prevNum != num {
-				t.Errorf("Expected num encoded in new slice at position %d to be %d, but found %d", i, prevNum, num)
-			}
+			require.Equal(prevNum, num, "position=%d", i)
 		}
 	}
 }
@@ -92,6 +85,7 @@ func TestRollupWindow(t *testing.T) {
 }
 
 func TestUint64Window(t *testing.T) {
+	require := require.New(t)
 	uint64s := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	sumUint64s := uint64(0)
 	uint64Window := Window{}
@@ -101,9 +95,7 @@ func TestUint64Window(t *testing.T) {
 	}
 
 	sum := Sum(uint64Window)
-	if sum != sumUint64s {
-		t.Fatalf("Expected sum to be %d but found %d", sumUint64s, sum)
-	}
+	require.Equal(sumUint64s, sum)
 
 	for i := 0; i < 10; i++ {
 		iu64 := uint64(i)
@@ -111,13 +103,12 @@ func TestUint64Window(t *testing.T) {
 		sum = Sum(uint64Window)
 		sumUint64s += iu64
 
-		if sum != sumUint64s {
-			t.Fatalf("Expected sum to be %d but found %d (iteration: %d)", sumUint64s, sum, i)
-		}
+		require.Equal(sumUint64s, sum, "i=%d", i)
 	}
 }
 
 func TestUint64WindowOverflow(t *testing.T) {
+	require := require.New(t)
 	uint64s := []uint64{0, 0, 0, 0, 0, 0, 0, 0, 2, consts.MaxUint64 - 1}
 	uint64Window := Window{}
 	for i, uint64 := range uint64s {
@@ -125,16 +116,12 @@ func TestUint64WindowOverflow(t *testing.T) {
 	}
 
 	sum := Sum(uint64Window)
-	if sum != consts.MaxUint64 {
-		t.Fatalf("Expected sum to be maxUint64 (%d), but found %d", consts.MaxUint64, sum)
-	}
+	require.Equal(consts.MaxUint64, sum)
 
 	for i := 0; i < 10; i++ {
 		Update(&uint64Window, i*8, uint64(i))
 		sum = Sum(uint64Window)
 
-		if sum != consts.MaxUint64 {
-			t.Fatalf("Expected sum to be maxUint64 (%d), but found %d", consts.MaxUint64, sum)
-		}
+		require.Equal(consts.MaxUint64, sum)
 	}
 }

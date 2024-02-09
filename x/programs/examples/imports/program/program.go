@@ -7,15 +7,13 @@ import (
 	"context"
 	"encoding/binary"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
@@ -47,7 +45,7 @@ func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runti
 	}
 }
 
-func (i *Import) Name() string {
+func (*Import) Name() string {
 	return Name
 }
 
@@ -166,8 +164,7 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	function_name := string(functionBytes)
-	res, err := rt.Call(ctx, function_name, params...)
+	res, err := rt.Call(ctx, string(functionBytes), params...)
 	if err != nil {
 		i.log.Error("failed to call entry function",
 			zap.Error(err),
@@ -175,17 +172,17 @@ func (i *Import) callProgramFn(
 		return -1
 	}
 
-	return int64(res[0])
+	return res[0]
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, programIDBytes []byte) ([]program.SmartPtr, error) {
+func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte, programIDBytes []byte) ([]program.SmartPtr, error) {
 	// first arg contains id of program to call
 	invokeProgramIDPtr, err := program.WriteBytes(memory, programIDBytes)
 	if err != nil {
 		return nil, err
 	}
-	argPtr, err := program.NewSmartPtr(uint32(invokeProgramIDPtr), len(programIDBytes))
+	argPtr, err := program.NewSmartPtr(invokeProgramIDPtr, len(programIDBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +202,7 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte, pro
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := program.NewSmartPtr(uint32(ptr), int(length))
+		argPtr, err := program.NewSmartPtr(ptr, int(length))
 		if err != nil {
 			return nil, err
 		}
