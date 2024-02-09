@@ -1,12 +1,18 @@
 //! The `program` module provides functions for calling other programs.
 use crate::errors::StateError;
-use crate::memory::to_smart_ptr;
+use crate::memory::{to_smart_ptr, SmartPtr};
 use crate::program::Program;
 
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
     fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> i64;
+}
+
+#[link(wasm_import_module = "program")]
+extern "C" {
+    #[link_name = "enter_program"]
+    fn _enter_program(target_id: i64, function: i64) -> i64;
 }
 
 /// Calls a program `target` and returns the result.
@@ -21,4 +27,15 @@ pub(crate) fn call(
     let args = to_smart_ptr(args)?;
 
     Ok(unsafe { _call_program(target, function, args, max_units) })
+}
+
+/// Tries to enter a program `target` and returns whether or not it was successful.
+/// # Errors
+/// Errors if `function_name` cannot be converted to a [`SmartPtr`].
+pub fn enter(target: SmartPtr, function_name: &str) -> Result<(), StateError> {
+    let function = to_smart_ptr(function_name.as_bytes())?;
+    unsafe {
+        _enter_program(target, function);
+    };
+    Ok(())
 }

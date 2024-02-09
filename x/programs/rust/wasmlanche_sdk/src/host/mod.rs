@@ -7,3 +7,5 @@ mod state;
 pub(crate) use program::call as call_program;
 #[allow(unused_imports)]
 pub use state::*;
+
+pub use program::enter as enter_program;

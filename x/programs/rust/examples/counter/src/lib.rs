@@ -46,6 +46,36 @@ fn inc_external(_: Program, target: Program, max_units: i64, of: Address, amount
         .unwrap()
 }
 
+/// multiply is an example of a reentrant function. It will call inc with value `x`, `y` times.
+/// This function will fail because it is not marked as reentrant.
+#[public]
+fn multiply(program: Program, address: Address, x: i64, y: i64, max_units: i64) {
+    if y > 0 && inc(program, address, x) {
+        program
+            .call_function(
+                "multiply",
+                params!(&address, &x, &(y - 1), &(max_units / 10)),
+                max_units,
+            )
+            .expect("failed to call multiply");
+    }
+}
+
+/// multiply_reentrant is an example of a reentrant function. It will call inc with value `x`, `y` times.
+/// This function will succeed because it is marked as reentrant.
+#[public(reentrant)]
+fn multiply_reentrant(program: Program, address: Address, x: i64, y: i64, max_units: i64) {
+    if y > 0 && inc(program, address, x) {
+        program
+            .call_function(
+                "multiply_reentrant",
+                params!(&address, &x, &(y - 1), &(max_units / 10)),
+                max_units,
+            )
+            .expect("failed to call multiply");
+    }
+}
+
 /// Gets the count at the address.
 #[public]
 fn get_value(program: Program, of: Address) -> i64 {

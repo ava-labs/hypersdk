@@ -23,12 +23,14 @@ func New(
 	engine *engine.Engine,
 	imports host.SupportedImports,
 	cfg *Config,
+	rg program.ReentrancyGuard,
 ) Runtime {
 	return &WasmRuntime{
 		log:     log,
 		engine:  engine,
 		imports: imports,
 		cfg:     cfg,
+		rg:      rg,
 	}
 }
 
@@ -43,6 +45,8 @@ type WasmRuntime struct {
 	cancelFn context.CancelFunc
 
 	log logging.Logger
+
+	rg program.ReentrancyGuard
 }
 
 func (r *WasmRuntime) Initialize(ctx context.Context, programBytes []byte, maxUnits uint64) (err error) {
@@ -105,7 +109,12 @@ func (r *WasmRuntime) Call(_ context.Context, name string, params ...program.Sma
 		return nil, err
 	}
 
-	return fn.Call(params...)
+	rVals, err := fn.Call(params...)
+	if err != nil {
+		return nil, err
+	}
+	r.rg.Reset()
+	return rVals, nil
 }
 
 func (r *WasmRuntime) Memory() (*program.Memory, error) {
