@@ -90,7 +90,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				case BlockMode:
 					wc.pendingBlocks <- tmsg
 				case ChunkMode:
-					wc.pendingBlocks <- tmsg
+					wc.pendingChunks <- tmsg
 				case TxMode:
 					wc.pendingTxs <- tmsg
 				default:
