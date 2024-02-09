@@ -193,3 +193,18 @@ func (p *ProposerMonitor) IterateValidators(
 	}
 	return nil
 }
+
+func (p *ProposerMonitor) RandomValidator(ctx context.Context) (ids.NodeID, error) {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+
+	if err := p.refresh(ctx); err != nil {
+		return ids.NodeID{}, err
+	}
+
+	// Golang map iteration order is random
+	for k := range p.validators {
+		return k, nil
+	}
+	return ids.NodeID{}, fmt.Errorf("no validators")
+}

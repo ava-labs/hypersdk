@@ -239,6 +239,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		return err
 	}
 	for ri, rtx := range chunk.Txs {
+		// TODO: remove in go1.22
 		txIndex := ri
 		tx := rtx
 

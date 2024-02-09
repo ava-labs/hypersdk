@@ -3,9 +3,9 @@ package vm
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -18,10 +18,12 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/list"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +32,9 @@ const (
 	chunkSignatureMsg   uint8 = 0x1
 	chunkCertificateMsg uint8 = 0x2
 	txMsg               uint8 = 0x3
+
+	chunkReq         uint8 = 0x0
+	filteredChunkReq uint8 = 0x1
 
 	minWeightNumerator = 67
 	weightDenominator  = 100
@@ -130,6 +135,10 @@ type ChunkManager struct {
 
 	certs *CertStore
 
+	callbacksL sync.Mutex
+	requestID  uint32
+	callbacks  map[uint32]func([]byte)
+
 	// connected includes all connected nodes, not just those that are validators (we use
 	// this for sending txs/requesting chunks from only connected nodes)
 	connected set.Set[ids.NodeID]
@@ -148,6 +157,8 @@ func NewChunkManager(vm *VM) *ChunkManager {
 
 		built: emap.NewEMap[*chunkWrapper](),
 		certs: NewCertStore(),
+
+		callbacks: make(map[uint32]func([]byte)),
 
 		connected: set.NewSet[ids.NodeID](64), // TODO: make a const
 	}
@@ -466,11 +477,13 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: store chunk with highest weight
 		c.certs.Update(cert)
 	default:
-		c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
+		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
 	return nil
 }
 
+// TODO: support returning an error to the sender instead of just timing out (will make
+// miss handling MUCH faster)
 func (c *ChunkManager) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
@@ -478,23 +491,95 @@ func (c *ChunkManager) AppRequest(
 	_ time.Time,
 	request []byte,
 ) error {
+	if len(request) == 0 {
+		c.vm.Logger().Warn("dropping empty message", zap.Stringer("nodeID", nodeID))
+		return nil
+	}
+	switch request[0] {
+	case chunkReq:
+		rid := request[1:]
+		if len(rid) != consts.Uint64Len+ids.IDLen {
+			c.vm.Logger().Warn("dropping invalid request", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		slot := int64(binary.BigEndian.Uint64(rid[:consts.Uint64Len]))
+		id := ids.ID(rid[consts.Uint64Len:])
+		chunk, err := c.vm.GetChunk(slot, id)
+		if err != nil {
+			c.vm.Logger().Warn(
+				"unable to fetch chunk",
+				zap.Stringer("nodeID", nodeID),
+				zap.Int64("slot", slot),
+				zap.Stringer("chunkID", id),
+				zap.Error(err),
+			)
+			return nil
+		}
+		chunkBytes, err := chunk.Marshal()
+		if err != nil {
+			panic(err)
+		}
+		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunkBytes)
+	case filteredChunkReq:
+		rid := request[1:]
+		if len(rid) != ids.IDLen {
+			c.vm.Logger().Warn("dropping invalid request", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		id := ids.ID(rid)
+		chunk, err := c.vm.GetFilteredChunk(id)
+		if err != nil {
+			c.vm.Logger().Warn(
+				"unable to fetch filtered chunk",
+				zap.Stringer("nodeID", nodeID),
+				zap.Stringer("chunkID", id),
+				zap.Error(err),
+			)
+			return nil
+		}
+		chunkBytes, err := chunk.Marshal()
+		if err != nil {
+			panic(err)
+		}
+		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunkBytes)
+	default:
+		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
+	}
 	return nil
 }
 
 func (w *ChunkManager) AppRequestFailed(
 	_ context.Context,
-	_ ids.NodeID,
+	nodeID ids.NodeID,
 	requestID uint32,
 ) error {
+	w.callbacksL.Lock()
+	callback, ok := w.callbacks[requestID]
+	delete(w.callbacks, requestID)
+	w.callbacksL.Unlock()
+	if !ok {
+		w.vm.Logger().Warn("dropping unknown response", zap.Stringer("nodeID", nodeID), zap.Uint32("requestID", requestID))
+		return nil
+	}
+	callback(nil)
 	return nil
 }
 
 func (w *ChunkManager) AppResponse(
 	_ context.Context,
-	_ ids.NodeID,
+	nodeID ids.NodeID,
 	requestID uint32,
 	response []byte,
 ) error {
+	w.callbacksL.Lock()
+	callback, ok := w.callbacks[requestID]
+	delete(w.callbacks, requestID)
+	w.callbacksL.Unlock()
+	if !ok {
+		w.vm.Logger().Warn("dropping unknown response", zap.Stringer("nodeID", nodeID), zap.Uint32("requestID", requestID))
+		return nil
+	}
+	callback(response)
 	return nil
 }
 
@@ -708,17 +793,88 @@ func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) 
 
 // This function should be spawned in a goroutine because it blocks
 func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
-	// TODO: require all fetching to be done
-	defer close(chunks)
+	fetchStream := stream.New()
+	fetchStream.WithMaxGoroutines(2) // TODO: use config
+	for _, rcert := range certs {
+		cert := rcert
+		fetchStream.Go(func() stream.Callback {
+			// Look for chunk
+			chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
+			if err == nil {
+				return func() { chunks <- chunk }
+			}
 
-	for _, cert := range certs {
-		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-		if err != nil {
-			// TODO: fetch if doesn't exist
-			panic(fmt.Errorf("%w: chunk is missing", err))
-		}
-		chunks <- chunk
+			// Fetch missing chunk
+			attempts := 0
+			for {
+				c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
+
+				// Make request
+				bytesChan := make(chan []byte, 1)
+				c.callbacksL.Lock()
+				requestID := c.requestID
+				c.callbacks[requestID] = func(response []byte) {
+					bytesChan <- response
+					close(bytesChan)
+				}
+				c.requestID++
+				c.callbacksL.Unlock()
+				var validator ids.NodeID
+				for {
+					randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background())
+					if err != nil {
+						panic(err)
+					}
+					if c.connected.Contains(randomValidator) {
+						validator = randomValidator
+						break
+					}
+					c.vm.Logger().Warn("skipping disconnected validator", zap.Stringer("nodeID", randomValidator))
+					// TODO: put some time delay here to avoid spinning when disconnected?
+				}
+				request := make([]byte, 1+consts.Uint64Len+ids.IDLen)
+				request[0] = chunkReq
+				binary.BigEndian.PutUint64(request[1:], uint64(cert.Slot))
+				copy(request[1+consts.Uint64Len:], cert.Chunk[:])
+				if err := c.appSender.SendAppRequest(context.Background(), set.Of(validator), requestID, request); err != nil {
+					c.vm.Logger().Warn("failed to send chunk request", zap.Error(err))
+					continue
+				}
+
+				// Wait for reponse or exit
+				var bytes []byte
+				select {
+				case bytes = <-bytesChan:
+				case <-c.vm.stop:
+					return func() { chunks <- nil }
+				}
+				if len(bytes) == 0 {
+					continue
+				}
+
+				// Handle response
+				chunk, err := chain.UnmarshalChunk(bytes, c.vm)
+				if err != nil {
+					c.vm.Logger().Warn("failed to unmarshal chunk", zap.Error(err))
+					continue
+				}
+				chunkID, err := chunk.ID()
+				if err != nil {
+					panic(err)
+				}
+				if chunkID != cert.Chunk {
+					c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
+					continue
+				}
+				if err := c.vm.StoreChunk(chunk); err != nil {
+					panic(err)
+				}
+				return func() { chunks <- chunk }
+			}
+		})
 	}
+	fetchStream.Wait()
+	close(chunks)
 }
 
 func (c *ChunkManager) Done() {
