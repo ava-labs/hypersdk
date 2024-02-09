@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"fmt"
-
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -27,6 +26,10 @@ type Instance struct {
 	store wasmtime.Storelike
 }
 
+func (i *Instance) GetStore() wasmtime.Storelike {
+	return i.store
+}
+
 func (i *Instance) GetFunc(name string) (*program.Func, error) {
 	exp, err := i.GetExport(program.FuncName(name))
 	if err != nil {
@@ -38,7 +41,7 @@ func (i *Instance) GetFunc(name string) (*program.Func, error) {
 		return nil, err
 	}
 
-	return program.NewFunc(fn, i.store), nil
+	return program.NewFunc(fn, i), nil
 }
 
 func (i *Instance) GetExport(name string) (*program.Export, error) {
