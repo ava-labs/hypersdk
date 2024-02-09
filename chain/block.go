@@ -14,15 +14,12 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	autils "github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -399,38 +396,10 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			return fmt.Errorf("%w: can't get validator set", err)
 		}
 
-		// TODO: replace with canonical function used in proposer monito
-		// Compute canonical validator set (already have set, so don't call again)
-		// Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
-		var (
-			vdrs        = make(map[string]*warp.Validator, len(vdrSet))
-			totalWeight uint64
-		)
-		for _, vdr := range vdrSet {
-			totalWeight, err = math.Add64(totalWeight, vdr.Weight)
-			if err != nil {
-				return err
-			}
-
-			if vdr.PublicKey == nil {
-				continue
-			}
-
-			pkBytes := bls.SerializePublicKey(vdr.PublicKey)
-			uniqueVdr, ok := vdrs[string(pkBytes)]
-			if !ok {
-				uniqueVdr = &warp.Validator{
-					PublicKey:      vdr.PublicKey,
-					PublicKeyBytes: pkBytes,
-				}
-				vdrs[string(pkBytes)] = uniqueVdr
-			}
-
-			uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
-			uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
+		vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(vdrSet)
+		if err != nil {
+			return fmt.Errorf("%w: can't construct canonical validator set", err)
 		}
-		vdrList := maps.Values(vdrs)
-		autils.Sort(vdrList)
 
 		// Verify certificates
 		//

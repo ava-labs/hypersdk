@@ -14,10 +14,16 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	safemath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/perms"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/consts"
 	formatter "github.com/onsi/ginkgo/v2/formatter"
+	"golang.org/x/exp/maps"
 )
 
 func ToID(bytes []byte) ids.ID {
@@ -130,4 +136,42 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 		return nil, ErrInvalidSize
 	}
 	return bytes, nil
+}
+
+// ConstructCanonicalValidatorSet constructs the validator set order to use
+// for warp validation.
+//
+// Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
+func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidatorOutput) ([]*warp.Validator, uint64, error) {
+	var (
+		vdrs        = make(map[string]*warp.Validator, len(vdrSet))
+		totalWeight uint64
+		err         error
+	)
+	for _, vdr := range vdrSet {
+		totalWeight, err = safemath.Add64(totalWeight, vdr.Weight)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		if vdr.PublicKey == nil {
+			continue
+		}
+
+		pkBytes := bls.SerializePublicKey(vdr.PublicKey)
+		uniqueVdr, ok := vdrs[string(pkBytes)]
+		if !ok {
+			uniqueVdr = &warp.Validator{
+				PublicKey:      vdr.PublicKey,
+				PublicKeyBytes: pkBytes,
+			}
+			vdrs[string(pkBytes)] = uniqueVdr
+		}
+
+		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
+		uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
+	}
+	vdrList := maps.Values(vdrs)
+	utils.Sort(vdrList)
+	return vdrList, totalWeight, nil
 }

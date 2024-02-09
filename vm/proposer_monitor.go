@@ -12,14 +12,13 @@ import (
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
-	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
+	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
-	"golang.org/x/exp/maps"
 )
 
 const (
@@ -149,39 +148,10 @@ func (p *ProposerMonitor) GetCanonicalValidatorSet(
 		return 0, nil, 0, err
 	}
 
-	var (
-		vdrs        = make(map[string]*warp.Validator, len(p.validators))
-		totalWeight uint64
-		err         error
-	)
-	for _, vdr := range p.validators {
-		totalWeight, err = math.Add64(totalWeight, vdr.Weight)
-		if err != nil {
-			return 0, nil, 0, fmt.Errorf("%w: %v", warp.ErrWeightOverflow, err) //nolint:errorlint
-		}
-
-		if vdr.PublicKey == nil {
-			fmt.Println("skipping validator because of empty public key", vdr.NodeID)
-			continue
-		}
-
-		pkBytes := bls.PublicKeyToBytes(vdr.PublicKey)
-		uniqueVdr, ok := vdrs[string(pkBytes)]
-		if !ok {
-			uniqueVdr = &warp.Validator{
-				PublicKey:      vdr.PublicKey,
-				PublicKeyBytes: pkBytes,
-			}
-			vdrs[string(pkBytes)] = uniqueVdr
-		}
-
-		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
-		uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
+	vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(p.validators)
+	if err != nil {
+		return 0, nil, 0, err
 	}
-
-	// Sort validators by public key
-	vdrList := maps.Values(vdrs)
-	utils.Sort(vdrList)
 	return p.currentPHeight, vdrList, totalWeight, nil
 }
 
