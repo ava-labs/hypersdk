@@ -574,7 +574,7 @@ To use the `hypersdk`, you must import it into your own `hypervm` and implement 
 required interfaces. Below, we'll cover some of the ones that your
 `hypervm` must implement.
 
-> _Note: `hypersdk` requires a minimum Go version of 1.20_
+> _Note: `hypersdk` requires a minimum Go version of 1.21_
 
 ### Controller
 ```golang

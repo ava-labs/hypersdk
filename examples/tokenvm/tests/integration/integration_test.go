@@ -37,6 +37,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -176,7 +177,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	gen = genesis.Default()
-	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
+	gen.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
 	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
@@ -436,7 +437,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created
 			// write: 1 key modified, 1 key new
-			transferTxConsumed := chain.Dimensions{227, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{227, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
@@ -660,7 +661,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(tx.Asset).To(gomega.Equal(ids.Empty))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
-		gomega.Ω(prices).Should(gomega.Equal(chain.Dimensions{1, 1, 1, 1, 1}))
+		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
 		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)

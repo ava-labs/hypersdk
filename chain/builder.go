@@ -15,12 +15,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -87,7 +87,7 @@ func BuildBlock(
 	// If the parent block is not yet verified, we will attempt to
 	// execute it.
 	mempoolSize := vm.Mempool().Len(ctx)
-	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
+	changesEstimate := min(mempoolSize, maxViewPreallocation)
 	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -100,7 +100,7 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	parentFeeManager := NewFeeManager(feeRaw)
+	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err

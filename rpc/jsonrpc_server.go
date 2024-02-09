@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"go.uber.org/zap"
 )
 
@@ -102,7 +103,7 @@ func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAc
 }
 
 type UnitPricesReply struct {
-	UnitPrices chain.Dimensions `json:"unitPrices"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
 }
 
 func (j *JSONRPCServer) UnitPrices(

@@ -7,20 +7,21 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type Result struct {
 	Success bool
 	Output  []byte
 
-	Consumed Dimensions
+	Consumed fees.Dimensions
 	Fee      uint64
 
 	WarpMessage *warp.UnsignedMessage
 }
 
 func (r *Result) Size() int {
-	size := consts.BoolLen + codec.BytesLen(r.Output) + DimensionsLen + consts.Uint64Len
+	size := consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
 	if r.WarpMessage != nil {
 		size += codec.BytesLen(r.WarpMessage.Bytes())
 	} else {
@@ -63,9 +64,9 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 		// Enforce object standardization
 		result.Output = nil
 	}
-	consumedRaw := make([]byte, DimensionsLen)
-	p.UnpackFixedBytes(DimensionsLen, &consumedRaw)
-	consumed, err := UnpackDimensions(consumedRaw)
+	consumedRaw := make([]byte, fees.DimensionsLen)
+	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
+	consumed, err := fees.UnpackDimensions(consumedRaw)
 	if err != nil {
 		return nil, err
 	}

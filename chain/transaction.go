@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/math"
 	"github.com/ava-labs/hypersdk/mempool"
@@ -161,7 +162,7 @@ func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful because state
 // lookup is not free.
-func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
+func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
@@ -176,7 +177,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	}
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 
 	// Calculate the max storage cost we could incur by processing all
@@ -185,7 +186,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	// TODO: make this a tighter bound (allow for granular storage controls)
 	stateKeys, err := t.StateKeys(sm)
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 	readsOp := math.NewUint64Operator(0)
 	allocatesOp := math.NewUint64Operator(0)
@@ -199,7 +200,7 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 		// Compute value costs
 		maxChunks, ok := keys.MaxChunks([]byte(k))
 		if !ok {
-			return Dimensions{}, ErrInvalidKeyValue
+			return fees.Dimensions{}, ErrInvalidKeyValue
 		}
 		readsOp.MulAdd(uint64(maxChunks), r.GetStorageValueReadUnits())
 		allocatesOp.MulAdd(uint64(maxChunks), r.GetStorageValueAllocateUnits())
@@ -207,22 +208,22 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (Dimensions, error) {
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 	allocates, err := allocatesOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 	writes, err := writesOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
-	return Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (Dimensions, error) {
+func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (fees.Dimensions, error) {
 	authBandwidth, authCompute := authFactory.MaxUnits()
 	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
 	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
@@ -241,7 +242,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
 		numSigners, err := warpMessage.Signature.NumSigners()
 		if err != nil {
-			return Dimensions{}, err
+			return fees.Dimensions{}, err
 		}
 		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
 	}
@@ -251,7 +252,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	}
 	computeUnits, err := computeUnitsOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 
 	// Estimate storage costs
@@ -273,22 +274,22 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 	allocates, err := allocatesOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
 	writes, err := writesOp.Value()
 	if err != nil {
-		return Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
-	return Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
 	ctx context.Context,
-	feeManager *FeeManager,
+	feeManager *fees.Manager,
 	s StateManager,
 	r Rules,
 	im state.Immutable,
@@ -331,7 +332,7 @@ func (t *Transaction) PreExecute(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	feeManager *FeeManager,
+	feeManager *fees.Manager,
 	reads map[string]uint16,
 	s StateManager,
 	r Rules,
@@ -492,7 +493,7 @@ func (t *Transaction) Execute(
 	if err != nil {
 		return handleRevert(err)
 	}
-	used := Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
+	used := fees.Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
 
 	// Check to see if the units consumed are greater than the max units
 	//
