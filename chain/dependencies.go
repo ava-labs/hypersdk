@@ -138,6 +138,7 @@ type Rules interface {
 	ChainID() ids.ID
 
 	GetBlockExecutionDepth() uint64
+	GetEpochDuration() int64
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
@@ -214,6 +215,12 @@ type FeeHandler interface {
 	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
 
+type EpochManager interface {
+	// PChainHeightKey is the key that corresponds to the height of the P-Chain to use for
+	// validation of a given epoch.
+	EpochKey(epoch uint64) []byte
+}
+
 // StateManager allows [Chain] to safely store certain types of items in state
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
@@ -221,9 +228,10 @@ type FeeHandler interface {
 // None of these keys should be suffixed with the max amount of chunks they will
 // use. This will be handled by the hypersdk.
 type StateManager interface {
-	FeeHandler
 	MetadataManager
 	WarpManager
+	FeeHandler
+	EpochManager
 }
 
 type Object interface {

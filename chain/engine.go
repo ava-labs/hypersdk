@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
 
@@ -83,6 +84,18 @@ func (e *Engine) Run() {
 			if job.blk.Height() != parentHeight+1 {
 				// TODO: re-execute previous blocks to get to required state
 				panic(ErrInvalidBlockHeight)
+			}
+
+			// Fetch PChainHeight for this epoch
+			var pchainHeight *uint64
+			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
+			epochKey := EpochKey(e.vm.StateManager().EpochKey(epoch))
+			epochHeightRaw, err := parentView.GetValue(ctx, epochKey)
+			if err != nil {
+				e.vm.Logger().Warn("no epoch height found", zap.Uint64("epoch", epoch), zap.Error(err))
+			} else {
+				h := binary.BigEndian.Uint64(epochHeightRaw)
+				pchainHeight = &h
 			}
 
 			// Compute fees
@@ -176,11 +189,32 @@ func (e *Engine) Run() {
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults)
 			}
 
+			// Attempt to set height for next epoch (if not yet set)
+			if job.blk.bctx != nil {
+				nextEpoch := epoch + 1
+				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
+				_, err := parentView.GetValue(ctx, nextEpochKey)
+				if err == nil {
+					keys := make(state.Keys)
+					keys.Add(string(nextEpochKey), state.Write)
+					tsv := ts.NewView(keys, map[string][]byte{})
+					if err := tsv.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
+						panic(err)
+					}
+					tsv.Commit()
+					e.vm.Logger().Info(
+						"setting epoch height",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Uint64("height", job.blk.bctx.PChainHeight),
+					)
+				}
+			}
+
 			// Update chain metadata
 			heightKeyStr := string(heightKey)
 			feeKeyStr := string(feeKey)
 			keys := make(state.Keys)
-			keys.Add(heightKeyStr, state.Write) // TODO: can probably remove this?
+			keys.Add(heightKeyStr, state.Write)
 			keys.Add(feeKeyStr, state.Write)
 			tsv := ts.NewView(keys, map[string][]byte{
 				heightKeyStr: parentHeightRaw,

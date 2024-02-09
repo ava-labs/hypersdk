@@ -34,6 +34,7 @@ const (
 	HeightKeyChunks       = 1
 	TimestampKeyChunks    = 1
 	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
+	EpochKeyChunks        = 1
 )
 
 func HeightKey(prefix []byte) []byte {
@@ -46,4 +47,8 @@ func TimestampKey(prefix []byte) []byte {
 
 func FeeKey(prefix []byte) []byte {
 	return keys.EncodeChunks(prefix, FeeKeyChunks)
+}
+
+func EpochKey(prefix []byte) []byte {
+	return keys.EncodeChunks(prefix, EpochKeyChunks)
 }

@@ -120,6 +120,11 @@ func UnixRDeci(now, add int64) int64 {
 	return t - t%consts.MillisecondsPerDecisecond
 }
 
+// Both [t] and [epochLength] are in milliseconds.
+func Epoch(t, epochLength int64) uint64 {
+	return uint64(t / epochLength)
+}
+
 // SaveBytes writes [b] to a file [filename]. If filename does
 // not exist, it creates a new file with read/write permissions (0o600).
 func SaveBytes(filename string, b []byte) error {
