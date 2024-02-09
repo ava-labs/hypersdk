@@ -139,6 +139,7 @@ type Rules interface {
 
 	GetBlockExecutionDepth() uint64
 	GetEpochDuration() int64
+	GetChunksPerBlock() int
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
@@ -216,7 +217,7 @@ type FeeHandler interface {
 }
 
 type EpochManager interface {
-	// PChainHeightKey is the key that corresponds to the height of the P-Chain to use for
+	// EpochKey is the key that corresponds to the height of the P-Chain to use for
 	// validation of a given epoch.
 	EpochKey(epoch uint64) []byte
 }

@@ -86,6 +86,13 @@ func (e *Engine) Run() {
 				panic(ErrInvalidBlockHeight)
 			}
 
+			// Fetch timestamp key
+			timestampKey := HeightKey(e.vm.StateManager().TimestampKey())
+			timestampRaw, err := parentView.GetValue(ctx, timestampKey)
+			if err != nil {
+				panic(err)
+			}
+
 			// Fetch PChainHeight for this epoch
 			var pchainHeight *uint64
 			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
@@ -113,7 +120,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, job.blk.bctx, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, pchainHeight, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
@@ -189,9 +196,9 @@ func (e *Engine) Run() {
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults)
 			}
 
-			// Attempt to set height for next epoch (if not yet set)
+			// Attempt to set height for n+2 epoch (if not yet set)
 			if job.blk.bctx != nil {
-				nextEpoch := epoch + 1
+				nextEpoch := epoch + 2 // ensures we are never stuck waiting for height information near the end of an epoch
 				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
 				_, err := parentView.GetValue(ctx, nextEpochKey)
 				if err == nil {
@@ -212,15 +219,21 @@ func (e *Engine) Run() {
 
 			// Update chain metadata
 			heightKeyStr := string(heightKey)
+			timestampKeyStr := string(timestampKey)
 			feeKeyStr := string(feeKey)
 			keys := make(state.Keys)
 			keys.Add(heightKeyStr, state.Write)
+			keys.Add(timestampKeyStr, state.Write)
 			keys.Add(feeKeyStr, state.Write)
 			tsv := ts.NewView(keys, map[string][]byte{
-				heightKeyStr: parentHeightRaw,
-				feeKeyStr:    parentFeeManager.Bytes(),
+				heightKeyStr:    parentHeightRaw,
+				timestampKeyStr: timestampRaw,
+				feeKeyStr:       parentFeeManager.Bytes(),
 			})
 			if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
+				panic(err)
+			}
+			if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
 				panic(err)
 			}
 			if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
