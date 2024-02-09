@@ -121,12 +121,37 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.parsedBlocks.Evict(b.ID())
 }
 
+func (vm *VM) processExecutedChunks() {
+	// Always close [acceptorDone] or we may block shutdown.
+	defer func() {
+		close(vm.executorDone)
+		vm.snowCtx.Log.Info("executor queue shutdown")
+	}()
+
+	// The VM closes [executedQueue] during shutdown. We wait for all enqueued blocks
+	// to be processed before returning as a guarantee to listeners (which may
+	// persist indexed state) instead of just exiting as soon as `vm.stop` is
+	// closed.
+	for ew := range vm.executedQueue {
+		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
+		vm.snowCtx.Log.Info(
+			"chunk processed",
+			zap.Uint64("blk", ew.Block),
+			zap.Stringer("chunkID", ew.Chunk.Chunk),
+		)
+	}
+}
+
 func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Executed")
 	defer span.End()
 
+	vm.executedQueue <- &executedWrapper{blk, chunk, results}
+}
+
+func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
 	// Remove any executed transactions
-	vm.mempool.Remove(ctx, chunk.Txs)
+	vm.mempool.Remove(context.TODO(), chunk.Txs)
 
 	// Sign and store any warp messages (regardless if validator now, may become one)
 	for i, tx := range chunk.Txs { // filtered chunks only have valid txs

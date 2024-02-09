@@ -49,6 +49,11 @@ type blockWrapper struct {
 	Block      *chain.StatelessBlock
 	FeeManager *chain.FeeManager
 }
+type executedWrapper struct {
+	Block   uint64
+	Chunk   *chain.FilteredChunk
+	Results []*chain.Result
+}
 
 type VM struct {
 	c Controller
@@ -101,6 +106,10 @@ type VM struct {
 	// to avoid reading blocks from disk.
 	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
 	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
+
+	// Executed chunk queue
+	executedQueue chan *executedWrapper
+	executorDone  chan struct{}
 
 	// Accepted block queue
 	acceptedQueue chan *blockWrapper
@@ -264,6 +273,8 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
+	vm.executedQueue = make(chan *executedWrapper, vm.config.GetAcceptorSize())
+	vm.executorDone = make(chan struct{})
 	vm.acceptedQueue = make(chan *blockWrapper, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
@@ -378,6 +389,7 @@ func (vm *VM) Initialize(
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
+	go vm.processExecutedChunks()
 	go vm.processAcceptedBlocks()
 
 	// Setup chain engine
@@ -565,6 +577,10 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.stateSyncClient.Shutdown(); err != nil {
 		return err
 	}
+
+	// Process remaining executed chunks before shutdown
+	close(vm.executedQueue)
+	<-vm.executorDone
 
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
