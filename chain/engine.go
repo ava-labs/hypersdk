@@ -42,6 +42,8 @@ type Engine struct {
 
 	backlog chan *engineJob
 
+	latestView state.View
+
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
@@ -65,13 +67,15 @@ func (e *Engine) Run() {
 	log := e.vm.Logger()
 
 	// Get last accepted state
-	parentView := state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
+	e.latestView = state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
 
 	for {
 		select {
 		case job := <-e.backlog:
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
+
+			parentView := e.latestView
 			r := e.vm.Rules(job.blk.StatefulBlock.Timestamp)
 
 			// Fetch parent height key and ensure block height is valid
@@ -279,7 +283,7 @@ func (e *Engine) Run() {
 			}
 			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
-			parentView = view
+			e.latestView = view
 
 			log.Info(
 				"executed block",
@@ -367,6 +371,18 @@ func (e *Engine) IsRepeatTx(
 	}
 	e.outputsLock.RUnlock()
 	return e.vm.IsRepeatTx(ctx, txs, marker), nil
+}
+
+func (e *Engine) ReadLatestState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+	view := e.latestView
+	results := make([][]byte, len(keys))
+	errors := make([]error, len(keys))
+	for i, key := range keys {
+		result, err := view.GetValue(ctx, key)
+		results[i] = result
+		errors[i] = err
+	}
+	return results, errors
 }
 
 func (e *Engine) Done() {

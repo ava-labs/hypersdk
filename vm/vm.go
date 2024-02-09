@@ -340,7 +340,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(genesisBlk.StatefulBlock.Timestamp))); err != nil {
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
@@ -474,15 +474,13 @@ func (vm *VM) BaseDB() database.Database {
 	return vm.baseDB
 }
 
+// ReadState reads the latest executed state
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
 	if !vm.isReady() {
 		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
 	}
 
-	// TODO: read last executed state rather than accepted state
-
-	// Atomic read to ensure consistency
-	return vm.stateDB.GetValues(ctx, keys)
+	return vm.engine.ReadLatestState(ctx, keys)
 }
 
 func (vm *VM) SetState(_ context.Context, state snow.State) error {

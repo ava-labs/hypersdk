@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -354,6 +355,24 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	//
 	// If missing and state read has timestamp updated in same or previous slot, we know that epoch
 	// cannot be set.
+	timestampKey := HeightKey(b.vm.StateManager().TimestampKey())
+	epochKey := EpochKey(b.vm.StateManager().EpochKey(epoch))
+	values, errs := b.vm.Engine().ReadLatestState(ctx, [][]byte{timestampKey, epochKey})
+	if errs[0] != nil {
+		return fmt.Errorf("%w: can't read timestamp key", errs[0])
+	}
+	executedTime := int64(binary.BigEndian.Uint64(values[0]))
+	executedEpoch := utils.Epoch(executedTime, r.GetEpochDuration())
+	if executedEpoch+2 < epoch {
+		return errors.New("executed tip is too far behind to verify block")
+	}
+	var pchainHeight *uint64
+	if errs[1] == nil {
+		height := binary.BigEndian.Uint64(values[1])
+		pchainHeight = &height
+	} else {
+		log.Warn("missing epoch key", zap.Uint64("epoch", epoch))
+	}
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
@@ -390,20 +409,16 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	}
 
 	// Verify certificates
-	//
-	// TODO: don't rely on block context for verifying certificates (will have a fixed height for computing partitions and verifying warp results)
-	// This can be very finicky near the start of the subnet (where validators were just added) and config must be set to use latest P-Chain height
-	if b.bctx != nil {
+	if pchainHeight != nil {
 		// We get the validator set once and reuse it instead of using warp verify (which generates the set each time).
 
 		// Get validator set at current height
 		//
-		// TODO: need to handle case where state sync on P-Chain and don't have historical validator set
-		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, b.vm.SubnetID())
+		// TODO: get from validator manager
+		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, *pchainHeight, b.vm.SubnetID())
 		if err != nil {
 			return fmt.Errorf("%w: can't get validator set", err)
 		}
-
 		vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(vdrSet)
 		if err != nil {
 			return fmt.Errorf("%w: can't construct canonical validator set", err)
@@ -431,7 +446,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 
 			// Ensure chunk is not too early
 			//
-			// TODO: handle the case where our parent is very old (seems like we should only check if > than parent here)?
+			// TODO: ensure slot is in the block epoch
 			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
 				return ErrTimestampTooEarly
 			}
