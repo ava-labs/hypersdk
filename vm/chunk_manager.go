@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
@@ -301,20 +302,21 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		//
 		// TODO: add safe math
 		// TODO: handle changing validator sets
-		validators, _ := c.vm.proposerMonitor.Validators(ctx)
 		var (
 			weight      uint64 = 0
 			totalWeight uint64 = 0
 		)
-		for _, out := range validators {
+		if err := c.vm.proposerMonitor.IterateValidators(ctx, func(vdr ids.NodeID, out *validators.GetValidatorOutput) {
 			totalWeight += out.Weight
 			if out.PublicKey == nil {
-				continue
+				return
 			}
 			k := utils.ToID(bls.PublicKeyToBytes(out.PublicKey))
 			if _, ok := cw.signatures[k]; ok {
 				weight += out.Weight
 			}
+		}); err != nil {
+			panic(err)
 		}
 
 		// Check if weight is sufficient
@@ -551,7 +553,10 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		return
 	}
 	copy(msg[1:], chunkBytes)
-	validators := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	if err != nil {
+		panic(err)
+	}
 	cw := &chunkWrapper{
 		chunk:      chunk,
 		signatures: make(map[ids.ID]*chain.ChunkSignature, len(validators)+1),
@@ -608,7 +613,11 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		return
 	}
 	copy(msg[1:], certBytes)
-	c.appSender.SendAppGossipSpecific(ctx, c.vm.proposerMonitor.GetValidatorSet(ctx, false), msg) // skips validators we aren't connected to
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	if err != nil {
+		panic(err)
+	}
+	c.appSender.SendAppGossipSpecific(ctx, validators, msg) // skips validators we aren't connected to
 }
 
 func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
@@ -653,7 +662,10 @@ func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) 
 	// Select random validator recipient and send
 	//
 	// TODO: send to partition allocated validator
-	vdrSet := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	vdrSet, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	if err != nil {
+		panic(err)
+	}
 	for vdr := range vdrSet { // golang iterates over map in random order
 		if vdr == c.vm.snowCtx.NodeID {
 			continue

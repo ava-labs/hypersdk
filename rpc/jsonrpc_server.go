@@ -10,7 +10,9 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -159,24 +161,27 @@ func (j *JSONRPCServer) GetWarpSignatures(
 	}
 
 	// Ensure we only return valid signatures
+	publicKeys := set.NewSet[string](len(signatures))
 	validSignatures := []*chain.WarpSignature{}
 	warpValidators := []*WarpValidator{}
-	validators, publicKeys := j.vm.CurrentValidators(req.Context())
+	if err := j.vm.IterateValidators(req.Context(), func(n ids.NodeID, out *validators.GetValidatorOutput) {
+		wv := &WarpValidator{
+			NodeID: n,
+			Weight: out.Weight,
+		}
+		if out.PublicKey != nil {
+			wv.PublicKey = bls.PublicKeyToBytes(out.PublicKey)
+			publicKeys.Add(string(wv.PublicKey))
+		}
+		warpValidators = append(warpValidators, wv)
+	}); err != nil {
+		return err
+	}
 	for _, sig := range signatures {
 		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
 			continue
 		}
 		validSignatures = append(validSignatures, sig)
-	}
-	for _, vdr := range validators {
-		wv := &WarpValidator{
-			NodeID: vdr.NodeID,
-			Weight: vdr.Weight,
-		}
-		if vdr.PublicKey != nil {
-			wv.PublicKey = bls.PublicKeyToBytes(vdr.PublicKey)
-		}
-		warpValidators = append(warpValidators, wv)
 	}
 
 	// Optimistically request that we gather signatures if we don't have all of them

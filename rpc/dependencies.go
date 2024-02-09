@@ -30,9 +30,7 @@ type VM interface {
 	UnitPrices(context.Context) (chain.Dimensions, error)
 	GetOutgoingWarpMessage(ids.ID) (*warp.UnsignedMessage, error)
 	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)
-	CurrentValidators(
-		context.Context,
-	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
+	IterateValidators(context.Context, func(ids.NodeID, *validators.GetValidatorOutput)) error
 	GatherSignatures(context.Context, ids.ID, []byte)
 	GetVerifyAuth() bool
 }

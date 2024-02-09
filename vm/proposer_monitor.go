@@ -54,9 +54,6 @@ func NewProposerMonitor(vm *VM) *ProposerMonitor {
 }
 
 func (p *ProposerMonitor) refresh(ctx context.Context) error {
-	p.rl.Lock()
-	defer p.rl.Unlock()
-
 	// Refresh P-Chain height if [refreshTime] has elapsed
 	if time.Since(p.lastFetchedPHeight) < refreshTime {
 		return nil
@@ -94,6 +91,9 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 }
 
 func (p *ProposerMonitor) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, *bls.PublicKey, uint64, error) {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+
 	if err := p.refresh(ctx); err != nil {
 		return false, nil, 0, err
 	}
@@ -106,6 +106,9 @@ func (p *ProposerMonitor) Proposers(
 	diff int,
 	depth int,
 ) (set.Set[ids.NodeID], error) {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+
 	if err := p.refresh(ctx); err != nil {
 		return nil, err
 	}
@@ -134,22 +137,14 @@ func (p *ProposerMonitor) Proposers(
 	return proposersToGossip, nil
 }
 
-// TODO: remove this function, isn't safe?
-func (p *ProposerMonitor) Validators(
-	ctx context.Context,
-) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
-	if err := p.refresh(ctx); err != nil {
-		// TODO: return error
-		return nil, nil
-	}
-	return p.validators, p.validatorPublicKeys
-}
-
 // getCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
 // Also returns the total weight on [subnetID].
 func (p *ProposerMonitor) GetCanonicalValidatorSet(
 	ctx context.Context,
 ) (uint64, []*warp.Validator, uint64, error) {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+
 	if err := p.refresh(ctx); err != nil {
 		return 0, nil, 0, err
 	}
@@ -193,14 +188,38 @@ func (p *ProposerMonitor) GetCanonicalValidatorSet(
 func (p *ProposerMonitor) GetValidatorSet(
 	ctx context.Context,
 	includeMe bool,
-) set.Set[ids.NodeID] {
-	vdrs, _ := p.Validators(ctx)
-	vdrSet := set.NewSet[ids.NodeID](len(vdrs))
-	for v := range vdrs {
+) (set.Set[ids.NodeID], error) {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+
+	if err := p.refresh(ctx); err != nil {
+		return nil, err
+	}
+
+	vdrSet := set.NewSet[ids.NodeID](len(p.validators))
+	for v := range p.validators {
 		if v == p.vm.snowCtx.NodeID && !includeMe {
 			continue
 		}
 		vdrSet.Add(v)
 	}
-	return vdrSet
+	return vdrSet, nil
+}
+
+// Prevent unnecessary map copies
+func (p *ProposerMonitor) IterateValidators(
+	ctx context.Context,
+	f func(ids.NodeID, *validators.GetValidatorOutput),
+) error {
+	p.rl.Lock()
+	defer p.rl.Unlock()
+
+	if err := p.refresh(ctx); err != nil {
+		return err
+	}
+
+	for k, v := range p.validators {
+		f(k, v)
+	}
+	return nil
 }

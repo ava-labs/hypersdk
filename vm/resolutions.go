@@ -332,10 +332,11 @@ func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.N
 	return vm.proposerMonitor.Proposers(ctx, diff, depth)
 }
 
-func (vm *VM) CurrentValidators(
+func (vm *VM) IterateValidators(
 	ctx context.Context,
-) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
-	return vm.proposerMonitor.Validators(ctx)
+	fn func(ids.NodeID, *validators.GetValidatorOutput),
+) error {
+	return vm.proposerMonitor.IterateValidators(ctx, fn)
 }
 
 func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
