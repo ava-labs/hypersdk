@@ -202,6 +202,8 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 //
 // This can be used to ensure we clean up all large tombstoned keys on a regular basis instead
 // of waiting for the database to run a compaction (and potentially delete GBs of data at once).
+//
+// TODO: change this to be WS driven as well
 func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
 	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockKey(lastExpired))
 }
