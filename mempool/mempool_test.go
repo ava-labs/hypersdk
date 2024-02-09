@@ -184,7 +184,7 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	// All timestamps less than 5
 	seen := make(map[int64]bool)
 	for _, item := range removed {
-		require.Less(item.Expiry(), 5)
+		require.Less(item.Expiry(), int64(5))
 		_, ok := seen[item.Expiry()]
 		require.False(ok)
 		seen[item.Expiry()] = true
