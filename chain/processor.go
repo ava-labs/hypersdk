@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 )
@@ -248,6 +249,13 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		tx := rtx
 
 		// Perform basic verification (also performed inside of PreExecute)
+		//
+		// TODO: make this more efficient
+		if utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration()) != utils.Epoch(p.timestamp, p.r.GetEpochDuration()) {
+			p.vm.Logger().Warn("base transaction has timestamp in different epoch", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
 		if err := tx.Base.Execute(p.r.ChainID(), p.r, p.timestamp); err != nil {
 			p.vm.Logger().Warn("base transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}

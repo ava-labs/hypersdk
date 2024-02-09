@@ -191,13 +191,8 @@ func (e *Engine) Run() {
 				// As soon as execution of transactions is finished, let the VM know so that it
 				// can notify subscribers.
 				//
-				// TODO: allow for querying agains the executed tip of state rather than the accepted one (which
-				// will be artificially delayed to give time to fetch missing chunks)
-				//
 				// TODO: handle restart case where block may be sent twice?
-				//
-				// TODO: send async?
-				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults)
+				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 			}
 
 			// Attempt to set height for n+2 epoch (if not yet set)

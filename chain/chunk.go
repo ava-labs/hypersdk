@@ -29,14 +29,18 @@ type Chunk struct {
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
+	now := time.Now().UnixMilli()
+	r := vm.Rules(now)
 	c := &Chunk{
-		Txs: make([]*Transaction, 0, 100),
+		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
+		Txs:  make([]*Transaction, 0, 100),
 	}
+	epoch := utils.Epoch(now, r.GetEpochDuration())
 
 	// Pack chunk for build duration
 	start := time.Now()
 	mempool := vm.Mempool()
-	mempool.StartStreaming(ctx)
+	mempool.StartStreaming(ctx, epoch)
 	for time.Since(start) < vm.GetTargetBuildDuration() && len(c.Txs) < 100 {
 		txs := mempool.Stream(ctx, 16)
 		for i, tx := range txs {
@@ -72,10 +76,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Setup chunk
-	now := time.Now().UnixMilli()
-	r := vm.Rules(now)
-	// TODO: make util support rounding (make round a configuration option)
-	c.Slot = utils.UnixRDeci(now, r.GetValidityWindow())
 	c.Producer = vm.NodeID()
 	c.Signer = vm.Signer()
 
@@ -99,6 +99,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("nodeID", vm.NodeID()),
 		zap.Uint32("networkID", r.NetworkID()),
 		zap.Stringer("chainID", r.ChainID()),
+		zap.Int64("slot", c.Slot),
+		zap.Uint64("epoch", epoch),
 		zap.String("digest", hex.EncodeToString(digest)),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
