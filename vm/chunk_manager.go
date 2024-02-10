@@ -226,9 +226,14 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
+		// TODO: check that chunk producer is a validator
+
 		// TODO: check validity (verify chunk signature)
 
 		// TODO: only store 1 chunk per slot per validator
+		// TODO: warn if chunk is dropped for a conflict during fetching (same producer, slot, different chunkID)
+
+		// Check that producer is the sender
 		if chunk.Producer != nodeID {
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
 			return nil

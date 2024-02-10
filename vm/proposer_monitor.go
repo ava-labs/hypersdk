@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,10 +14,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
@@ -26,148 +25,102 @@ const (
 	proposerMonitorLRUSize = 60
 )
 
+type proposerInfo struct {
+	validators   map[ids.NodeID]*validators.GetValidatorOutput
+	canonicalSet []*warp.Validator
+	totalWeight  uint64
+}
+
 type ProposerMonitor struct {
-	vm       *VM
-	proposer proposer.Windower
+	vm *VM
 
-	currentPHeight      uint64
-	lastFetchedPHeight  time.Time
-	validators          map[ids.NodeID]*validators.GetValidatorOutput
-	validatorPublicKeys map[string]struct{}
-
-	proposerCache *cache.LRU[string, []ids.NodeID]
-
-	rl sync.Mutex
+	fetchLock sync.Mutex
+	proposers *cache.LRU[uint64, *proposerInfo] // safe for concurrent use
 }
 
 func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	return &ProposerMonitor{
-		vm: vm,
-		proposer: proposer.New(
-			vm.snowCtx.ValidatorState,
-			vm.snowCtx.SubnetID,
-			vm.snowCtx.ChainID,
-		),
-		proposerCache: &cache.LRU[string, []ids.NodeID]{Size: proposerMonitorLRUSize},
+		vm:        vm,
+		proposers: &cache.LRU[uint64, *proposerInfo]{Size: proposerMonitorLRUSize},
 	}
 }
 
-func (p *ProposerMonitor) refresh(ctx context.Context) error {
-	// Refresh P-Chain height if [refreshTime] has elapsed
-	if time.Since(p.lastFetchedPHeight) < refreshTime {
-		return nil
-	}
-	start := time.Now()
-	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
-	if err != nil {
-		return err
-	}
-	p.validators, err = p.vm.snowCtx.ValidatorState.GetValidatorSet(
+func (p *ProposerMonitor) fetch(ctx context.Context, height uint64) *proposerInfo {
+	validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
 		ctx,
-		pHeight,
+		height,
 		p.vm.snowCtx.SubnetID,
 	)
 	if err != nil {
-		return err
+		p.vm.snowCtx.Log.Error("failed to fetch proposer set", zap.Uint64("height", height), zap.Error(err))
+		return nil
 	}
-	pks := map[string]struct{}{}
-	for _, v := range p.validators {
-		if v.PublicKey == nil {
-			continue
-		}
-		pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
-	}
-	p.validatorPublicKeys = pks
-	p.vm.snowCtx.Log.Info(
-		"refreshed proposer monitor",
-		zap.Uint64("previous", p.currentPHeight),
-		zap.Uint64("new", pHeight),
-		zap.Duration("t", time.Since(start)),
-	)
-	p.currentPHeight = pHeight
-	p.lastFetchedPHeight = time.Now()
-	return nil
-}
-
-func (p *ProposerMonitor) IsValidator(ctx context.Context, nodeID ids.NodeID) (bool, *bls.PublicKey, uint64, error) {
-	p.rl.Lock()
-	defer p.rl.Unlock()
-
-	if err := p.refresh(ctx); err != nil {
-		return false, nil, 0, err
-	}
-	output, ok := p.validators[nodeID]
-	return ok, output.PublicKey, output.Weight, nil
-}
-
-func (p *ProposerMonitor) Proposers(
-	ctx context.Context,
-	diff int,
-	depth int,
-) (set.Set[ids.NodeID], error) {
-	p.rl.Lock()
-	defer p.rl.Unlock()
-
-	if err := p.refresh(ctx); err != nil {
-		return nil, err
-	}
-	preferredBlk, err := p.vm.GetStatelessBlock(ctx, p.vm.preferred)
+	vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(validators)
 	if err != nil {
-		return nil, err
+		p.vm.snowCtx.Log.Error("failed to construct canonical validator set", zap.Uint64("height", height), zap.Error(err))
+		return nil
 	}
-	proposersToGossip := set.NewSet[ids.NodeID](diff * depth)
-	udepth := uint64(depth)
-	for i := uint64(1); i <= uint64(diff); i++ {
-		height := preferredBlk.Height() + i
-		key := fmt.Sprintf("%d-%d", height, p.currentPHeight)
-		var proposers []ids.NodeID
-		if v, ok := p.proposerCache.Get(key); ok {
-			proposers = v
-		} else {
-			proposers, err = p.proposer.Proposers(ctx, height, p.currentPHeight, diff)
-			if err != nil {
-				return nil, err
-			}
-			p.proposerCache.Put(key, proposers)
-		}
-		arrLen := math.Min(udepth, uint64(len(proposers)))
-		proposersToGossip.Add(proposers[:arrLen]...)
+	info := &proposerInfo{
+		validators:   validators,
+		canonicalSet: vdrList,
+		totalWeight:  totalWeight,
 	}
-	return proposersToGossip, nil
+	p.proposers.Put(height, info)
+	return info
 }
 
-// getCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
+// Fetch is used to pre-cache sets that will be used later
+func (p *ProposerMonitor) Fetch(ctx context.Context, height uint64) *proposerInfo {
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
+
+	return p.fetch(ctx, height)
+}
+
+func (p *ProposerMonitor) IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, *bls.PublicKey, uint64, error) {
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
+
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
+	}
+	if info == nil {
+		return false, nil, 0, errors.New("could not get validator set for height")
+	}
+	output, exists := info.validators[nodeID]
+	return exists, output.PublicKey, output.Weight, nil
+}
+
+// GetCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
 // Also returns the total weight on [subnetID].
-func (p *ProposerMonitor) GetCanonicalValidatorSet(
-	ctx context.Context,
-) (uint64, []*warp.Validator, uint64, error) {
-	p.rl.Lock()
-	defer p.rl.Unlock()
+func (p *ProposerMonitor) GetCanonicalValidatorSet(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
 
-	if err := p.refresh(ctx); err != nil {
-		return 0, nil, 0, err
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
 	}
-
-	vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(p.validators)
-	if err != nil {
-		return 0, nil, 0, err
+	if info == nil {
+		return nil, 0, errors.New("could not get validator set for height")
 	}
-	return p.currentPHeight, vdrList, totalWeight, nil
+	return info.canonicalSet, info.totalWeight, nil
 }
 
-func (p *ProposerMonitor) GetValidatorSet(
-	ctx context.Context,
-	includeMe bool,
-) (set.Set[ids.NodeID], error) {
-	p.rl.Lock()
-	defer p.rl.Unlock()
+func (p *ProposerMonitor) GetValidatorSet(ctx context.Context, height uint64, includeMe bool) (set.Set[ids.NodeID], error) {
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
 
-	if err := p.refresh(ctx); err != nil {
-		return nil, err
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
 	}
-
-	vdrSet := set.NewSet[ids.NodeID](len(p.validators))
-	for v := range p.validators {
+	if info == nil {
+		return nil, errors.New("could not get validator set for height")
+	}
+	vdrSet := set.NewSet[ids.NodeID](len(info.validators))
+	for v := range info.validators {
 		if v == p.vm.snowCtx.NodeID && !includeMe {
 			continue
 		}
@@ -179,31 +132,37 @@ func (p *ProposerMonitor) GetValidatorSet(
 // Prevent unnecessary map copies
 func (p *ProposerMonitor) IterateValidators(
 	ctx context.Context,
+	height uint64,
 	f func(ids.NodeID, *validators.GetValidatorOutput),
 ) error {
-	p.rl.Lock()
-	defer p.rl.Unlock()
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
 
-	if err := p.refresh(ctx); err != nil {
-		return err
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
 	}
-
-	for k, v := range p.validators {
+	if info == nil {
+		return errors.New("could not get validator set for height")
+	}
+	for k, v := range info.validators {
 		f(k, v)
 	}
 	return nil
 }
 
-func (p *ProposerMonitor) RandomValidator(ctx context.Context) (ids.NodeID, error) {
-	p.rl.Lock()
-	defer p.rl.Unlock()
+func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (ids.NodeID, error) {
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
 
-	if err := p.refresh(ctx); err != nil {
-		return ids.NodeID{}, err
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
 	}
-
-	// Golang map iteration order is random
-	for k := range p.validators {
+	if info == nil {
+		return ids.NodeID{}, errors.New("could not get validator set for height")
+	}
+	for k := range info.validators { // Golang map iteration order is random
 		return k, nil
 	}
 	return ids.NodeID{}, fmt.Errorf("no validators")
