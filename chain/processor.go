@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 )
@@ -25,16 +26,17 @@ type Processor struct {
 
 	authStream *stream.Stream
 
-	pchainHeight *uint64
-	timestamp    int64
-	im           state.Immutable
-	feeManager   *FeeManager
-	r            Rules
-	sm           StateManager
-	cacheLock    sync.RWMutex
-	cache        map[string]*fetchData
-	exectutor    *executor.Executor
-	ts           *tstate.TState
+	pchainHeights []*uint64
+	timestamp     int64
+	epoch         uint64
+	im            state.Immutable
+	feeManager    *FeeManager
+	r             Rules
+	sm            StateManager
+	cacheLock     sync.RWMutex
+	cache         map[string]*fetchData
+	exectutor     *executor.Executor
+	ts            *tstate.TState
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
@@ -55,7 +57,7 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM, eng *Engine,
-	pchainHeight *uint64, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	pchainHeights []*uint64, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
 ) *Processor {
 	stream := stream.New()
 	stream.WithMaxGoroutines(10) // TODO: use config
@@ -65,13 +67,14 @@ func NewProcessor(
 
 		authStream: stream,
 
-		pchainHeight: pchainHeight,
-		timestamp:    timestamp,
-		im:           im,
-		feeManager:   feeManager,
-		r:            r,
-		sm:           vm.StateManager(),
-		cache:        make(map[string]*fetchData, numTxs),
+		pchainHeights: pchainHeights,
+		timestamp:     timestamp,
+		epoch:         utils.Epoch(timestamp, r.GetEpochDuration()),
+		im:            im,
+		feeManager:    feeManager,
+		r:             r,
+		sm:            vm.StateManager(),
+		cache:         make(map[string]*fetchData, numTxs),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
 		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorVerifyRecorder()),
@@ -149,12 +152,14 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 		}
 
 		// Wait to perform warp verification until we know the transaction can pay fees
-		if p.pchainHeight == nil && tx.WarpMessage != nil {
+		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
+		pchainHeight := p.pchainHeights[txEpoch-p.epoch]
+		if pchainHeight == nil && tx.WarpMessage != nil {
 			p.vm.Logger().Warn("cannot verify warp message because no pchain height for epoch", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			return nil
 		}
-		warpVerified := p.verifyWarpMessage(ctx, tx)
+		warpVerified := p.verifyWarpMessage(ctx, pchainHeight, tx)
 
 		// Execute transaction
 		result, err := tx.Execute(ctx, p.feeManager, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
@@ -192,7 +197,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 	})
 }
 
-func (p *Processor) verifyWarpMessage(ctx context.Context, tx *Transaction) bool {
+func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight *uint64, tx *Transaction) bool {
 	if tx.WarpMessage == nil {
 		return false
 	}
@@ -201,14 +206,15 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, tx *Transaction) bool
 	if !allowed {
 		p.vm.Logger().
 			Warn("unable to verify warp message", zap.Stringer("warpID", tx.WarpMessage.ID()), zap.Error(ErrDisabledChainID))
-
 	}
+
+	// TODO: use cached validator set (like certs)
 	if err := tx.WarpMessage.Signature.Verify(
 		ctx,
 		&tx.WarpMessage.UnsignedMessage,
 		p.r.NetworkID(),
 		p.vm.ValidatorState(),
-		*p.pchainHeight,
+		*pchainHeight,
 		num,
 		denom,
 	); err != nil {

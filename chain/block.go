@@ -423,32 +423,19 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		}
 
 		// Get validator set for the epoch
-		var vdrList []*warp.Validator
-		var totalWeight uint64
 		certEpoch := utils.Epoch(cert.Slot, r.GetEpochDuration())
-		if certEpoch == epoch {
-			if heights[0] == nil {
-				log.Warn(
-					"skipping certificate because epoch is missing",
-					zap.Uint64("epoch", certEpoch),
-					zap.Stringer("chunkID", cert.Chunk),
-				)
-				continue
-			}
-			vdrList, totalWeight, err = b.vm.GetValidators(ctx, *heights[0])
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			if heights[1] == nil {
-				log.Warn(
-					"skipping certificate because epoch is missing",
-					zap.Uint64("epoch", certEpoch),
-					zap.Stringer("chunkID", cert.Chunk),
-				)
-				continue
-			}
-			vdrList, totalWeight, err = b.vm.GetValidators(ctx, *heights[1])
+		heightIndex := certEpoch - epoch
+		if heights[heightIndex] == nil {
+			log.Warn(
+				"skipping certificate because epoch is missing",
+				zap.Uint64("epoch", certEpoch),
+				zap.Stringer("chunkID", cert.Chunk),
+			)
+			continue
+		}
+		vdrList, totalWeight, err := b.vm.GetValidators(ctx, *heights[heightIndex])
+		if err != nil {
+			panic(err)
 		}
 
 		// Verify multi-signature

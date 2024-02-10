@@ -98,15 +98,10 @@ func (e *Engine) Run() {
 			}
 
 			// Fetch PChainHeight for this epoch
-			var pchainHeight *uint64
 			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
-			epochKey := EpochKey(e.vm.StateManager().EpochKey(epoch))
-			epochHeightRaw, err := parentView.GetValue(ctx, epochKey)
+			_, heights, err := e.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
 			if err != nil {
-				e.vm.Logger().Warn("no epoch height found", zap.Uint64("epoch", epoch), zap.Error(err))
-			} else {
-				h := binary.BigEndian.Uint64(epochHeightRaw)
-				pchainHeight = &h
+				panic(err)
 			}
 
 			// Compute fees
@@ -124,7 +119,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, pchainHeight, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, heights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
