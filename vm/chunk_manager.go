@@ -746,59 +746,46 @@ func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*ch
 	}
 }
 
-func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) {
-	ok, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, c.vm.snowCtx.NodeID)
+func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
+	// Check if issued recently
+	if _, ok := c.txs.Get(tx.ID()); ok {
+		return
+	}
+	c.txs.Put(tx.ID(), nil)
+
+	// Find transaction partition
+	r := c.vm.Rules(time.Now().UnixMilli())
+	epoch := utils.Epoch(tx.Base.Timestamp, r.GetEpochDuration())
+	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
 	if err != nil {
-		c.vm.Logger().Warn("failed to check if validator", zap.Error(err))
+		c.vm.Logger().Warn("cannot lookup epoch", zap.Uint64("epoch", epoch), zap.Error(err))
+		return
+	}
+	if heights[0] == nil {
+		c.vm.Logger().Warn("epoch for transaction is not yet set", zap.Uint64("epoch", epoch), zap.Error(err))
+		return
+	}
+	pHeight := *heights[0]
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, pHeight, tx.Sponsor())
+	if err != nil {
+		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return
 	}
 
-	// Add to mempool
-	if ok {
-		c.vm.mempool.Add(ctx, txs)
-		c.vm.Logger().Info("added txs to mempool", zap.Int("n", len(txs)))
+	// Add to mempool if we are the issuer
+	if partition == c.vm.snowCtx.NodeID {
+		c.vm.mempool.Add(ctx, []*chain.Transaction{tx})
 		return
 	}
 
-	// Check cache to see if issued recently
+	// If we are not the issuer, send to the correct issuer
 	//
-	// TODO: can probably remove when partitions are added but needed know to
-	// prevent distribution of duplicate txs
-	selected := make([]*chain.Transaction, 0, len(txs))
-	for _, tx := range txs {
-		if _, ok := c.txs.Get(tx.ID()); !ok {
-			selected = append(selected, tx)
-			c.txs.Put(tx.ID(), nil)
-		}
-	}
-	if len(selected) == 0 {
-		return
-	}
-
-	// Select random validator recipient and send
-	//
-	// TODO: send to partition allocated validator
-	vdrSet, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	// TODO: batch tx issuance
+	msg, err := chain.MarshalTxs([]*chain.Transaction{tx})
 	if err != nil {
 		panic(err)
 	}
-	for vdr := range vdrSet { // golang iterates over map in random order
-		if vdr == c.vm.snowCtx.NodeID {
-			continue
-		}
-		if !c.connected.Contains(vdr) {
-			continue
-		}
-		txBytes, err := chain.MarshalTxs(txs)
-		if err != nil {
-			c.vm.Logger().Warn("failed to marshal txs", zap.Error(err))
-			return
-		}
-		msg := make([]byte, 1+len(txBytes))
-		msg[0] = txMsg
-		copy(msg[1:], txBytes)
-		c.appSender.SendAppGossipSpecific(ctx, set.Of(vdr), msg)
-	}
+	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
 }
 
 // This function should be spawned in a goroutine because it blocks
