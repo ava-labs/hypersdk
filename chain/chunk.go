@@ -53,7 +53,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	// Check if validator
 	//
 	// If not a validator in this epoch height, don't build.
-	amValidator, err := vm.IsValidator(ctx, vm.NodeID(), *heights[0])
+	amValidator, err := vm.IsValidator(ctx, *heights[0], vm.NodeID())
 	if err != nil {
 		return nil, err
 	}
