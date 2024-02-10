@@ -314,14 +314,29 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Check if we broadcast this chunk
-		if !c.built.HasID(chunkSignature.Chunk) {
-			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Error(err))
+		cw, ok := c.built.Get(chunkSignature.Chunk)
+		if !ok || cw.chunk.Slot != chunkSignature.Slot {
+			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunkSignature.Chunk))
 			return nil
 		}
 
-		// Check that signer is associated with NodeID
-		if !bytes.Equal(bls.PublicKeyToBytes(pk), bls.PublicKeyToBytes(chunkSignature.Signer)) {
-			c.vm.Logger().Warn("unexpected signer", zap.Stringer("nodeID", nodeID))
+		// Determine if chunk signer is a validator and that their key is valid
+		epochHeight, err := c.getEpochHeight(ctx, chunkSignature.Slot)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunkSignature.Slot))
+			return nil
+		}
+		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, nodeID)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine if signer is validator", zap.Stringer("signer", nodeID), zap.Error(err))
+			return nil
+		}
+		if !isValidator {
+			c.vm.Logger().Warn("dropping chunk signature from non-validator", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		if signerKey == nil || !bytes.Equal(bls.PublicKeyToBytes(chunkSignature.Signer), bls.PublicKeyToBytes(signerKey)) {
+			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
@@ -331,15 +346,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// Collect signature
-		//
-		// TODO: add locking
-		cw, ok := c.built.Get(chunkSignature.Chunk)
-		if !ok {
-			// This shouldn't happen because we checked earlier but could
-			c.vm.Logger().Warn("dropping untracked chunk", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
+		// Store signature for chunk
 		cw.l.Lock()
 		cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
@@ -351,7 +358,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			weight      uint64 = 0
 			totalWeight uint64 = 0
 		)
-		if err := c.vm.proposerMonitor.IterateValidators(ctx, func(vdr ids.NodeID, out *validators.GetValidatorOutput) {
+		if err := c.vm.proposerMonitor.IterateValidators(ctx, epochHeight, func(vdr ids.NodeID, out *validators.GetValidatorOutput) {
 			totalWeight += out.Weight
 			if out.PublicKey == nil {
 				return
@@ -366,17 +373,13 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		cw.l.Unlock()
 
 		// Check if weight is sufficient
-		//
-		// TODO: only send to next x builders
-		// TODO: only send once have a certain weight above 67% or X time until expiry (maximize fee)
-		// TODO: make this a config?
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Warn("chunk does not have sufficient weight to crete certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
 		}
 
 		// Construct certificate
-		height, canonicalValidators, _, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		canonicalValidators, _, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
 		if err != nil {
 			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
 			return nil
@@ -416,7 +419,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.PushChunkCertificate(ctx, cert)
 		c.vm.Logger().Info(
 			"constructed chunk certificate",
-			zap.Uint64("Pheight", height),
+			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("chunkID", chunkSignature.Chunk),
 			zap.Uint64("weight", weight),
 			zap.Uint64("totalWeight", totalWeight),
