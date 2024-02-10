@@ -108,7 +108,7 @@ type VM interface {
 	Signer() *bls.PublicKey
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
-	FetchValidators(context.Context, uint64)
+	FetchValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)     // TODO: filter based on being part of whole epoch
 	GetValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) // cached
 	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)

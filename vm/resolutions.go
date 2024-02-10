@@ -20,17 +20,14 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 var (
 	_ chain.VM                           = (*VM)(nil)
-	_ gossiper.VM                        = (*VM)(nil)
-	_ builder.VM                         = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
 	_ block.StateSyncableVM              = (*VM)(nil)
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
@@ -348,20 +345,29 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager 
 	)
 }
 
-func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
-	ok, _, _, err := vm.proposerMonitor.IsValidator(ctx, nid)
+func (vm *VM) FetchValidators(ctx context.Context, height uint64) {
+	vm.proposerMonitor.Fetch(ctx, height)
+}
+
+func (vm *VM) AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartition(ctx, height, addr)
+}
+
+func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (bool, error) {
+	ok, _, _, err := vm.proposerMonitor.IsValidator(ctx, height, nid)
 	return ok, err
 }
 
-func (vm *VM) Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error) {
-	return vm.proposerMonitor.Proposers(ctx, diff, depth)
+func (vm *VM) GetValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
+	return vm.proposerMonitor.GetWarpValidatorSet(ctx, height)
 }
 
 func (vm *VM) IterateValidators(
 	ctx context.Context,
+	height uint64,
 	fn func(ids.NodeID, *validators.GetValidatorOutput),
 ) error {
-	return vm.proposerMonitor.IterateValidators(ctx, fn)
+	return vm.proposerMonitor.IterateValidators(ctx, height, fn)
 }
 
 func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
@@ -459,10 +465,6 @@ func (vm *VM) GetTargetBuildDuration() time.Duration {
 	return vm.config.GetTargetBuildDuration()
 }
 
-func (vm *VM) GetTargetGossipDuration() time.Duration {
-	return vm.config.GetTargetGossipDuration()
-}
-
 func (vm *VM) RecordEmptyBlockBuilt() {
 	vm.metrics.emptyBlockBuilt.Inc()
 }
@@ -517,6 +519,10 @@ func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 
 func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
 	return vm.cm.NextChunkCertificate(ctx)
+}
+
+func (vm *VM) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
+	vm.cm.RestoreChunkCertificates(ctx, certs)
 }
 
 func (vm *VM) Engine() *chain.Engine {

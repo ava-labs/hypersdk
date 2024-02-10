@@ -783,6 +783,7 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 	return c.certs.Pop(ctx)
 }
 
+// TODO: ensure they are at front?
 func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	for _, cert := range certs {
 		c.certs.Update(cert)
