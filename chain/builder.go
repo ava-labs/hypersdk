@@ -32,15 +32,27 @@ func BuildBlock(
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime, blockContext != nil)
-	epoch := utils.Epoch(nextTime, r.GetEpochDuration())
 
 	// Attempt to add valid certs that are not expired
 	b.chunks = set.NewSet[ids.ID](r.GetChunksPerBlock())
-	b.AvailableChunks = make([]*ChunkCertificate, 0, r.GetChunksPerBlock()) // TODO: make this a value
+	b.AvailableChunks = make([]*ChunkCertificate, 0, r.GetChunksPerBlock())
+	restorableChunks := []*ChunkCertificate{}
 	for len(b.AvailableChunks) < r.GetChunksPerBlock() {
-		cert, ok := vm.NextChunkCertificate(ctx, epoch)
+		cert, ok := vm.NextChunkCertificate(ctx)
 		if !ok {
 			break
+		}
+
+		// Check that certificate can be in block
+		if cert.Slot < b.StatefulBlock.Timestamp {
+			log.Warn("skipping expired chunk", zap.Stringer("chunkID", cert.Chunk))
+			restorableChunks = append(restorableChunks, cert) // wait for this to get cleared via "SetMin" (may still want if reorg)
+			continue
+		}
+		if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+			log.Warn("skipping chunk too far in the future", zap.Stringer("chunkID", cert.Chunk))
+			restorableChunks = append(restorableChunks, cert)
+			continue
 		}
 
 		// Check if the chunk is a repeat
@@ -53,13 +65,11 @@ func BuildBlock(
 			continue
 		}
 
-		// TODO: verify certificate signature is valid
-		// TODO: verify certificate is not expired
-		// TODO: verify certificate is not a repeat
-
+		// Assume chunk is valid because it has sufficient signatures
 		b.chunks.Add(cert.Chunk)
 		b.AvailableChunks = append(b.AvailableChunks, cert)
 	}
+	vm.RestoreChunkCertificates(ctx, restorableChunks)
 
 	// Fetch executed blocks
 	depth := r.GetBlockExecutionDepth()
@@ -87,6 +97,7 @@ func BuildBlock(
 	b.bctx = blockContext
 
 	// TODO: put into a single log message
+	epoch := utils.Epoch(nextTime, r.GetEpochDuration())
 	if b.execHeight == nil {
 		log.Info(
 			"built block",

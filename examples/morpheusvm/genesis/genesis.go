@@ -33,8 +33,7 @@ type Genesis struct {
 	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
 	// Chain Parameters
-	MinBlockGap      int64 `json:"minBlockGap"`      // ms
-	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
+	MinBlockGap int64 `json:"minBlockGap"` // ms
 
 	// Chain Fee Parameters
 	MinUnitPrice               chain.Dimensions `json:"minUnitPrice"`
@@ -67,8 +66,7 @@ func Default() *Genesis {
 		StateBranchFactor: merkledb.BranchFactor16,
 
 		// Chain Parameters
-		MinBlockGap:      100,
-		MinEmptyBlockGap: 2_500,
+		MinBlockGap: 100, // TODO: align with slot frequency
 
 		// Chain Fee Parameters
 		MinUnitPrice:               chain.Dimensions{100, 100, 100, 100, 100},

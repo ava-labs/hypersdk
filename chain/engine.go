@@ -195,9 +195,16 @@ func (e *Engine) Run() {
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 			}
 
-			// Attempt to set height for n+2 epoch (if not yet set)
+			// Attempt to set height for n+3 epoch (if not yet set)
 			if job.blk.bctx != nil {
-				nextEpoch := epoch + 2 // ensures we are never stuck waiting for height information near the end of an epoch
+				// Ensure we are never stuck waiting for height information near the end of an epoch
+				//
+				// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
+				// is not populated, we need to know by e that e+1 cannot be populated. If we only set e+2 below, we may
+				// not know whether e+1 is populated unitl we wait for e-1 execution to finish (as any block in e-1 could set
+				// the epoch height). This could cause verification to stutter across the boundary when it is taking longer than
+				// expected to set to the p-chain hegiht for an epoch.
+				nextEpoch := epoch + 3
 				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
 				_, err := parentView.GetValue(ctx, nextEpochKey)
 				if err == nil {
@@ -382,4 +389,24 @@ func (e *Engine) ReadLatestState(ctx context.Context, keys [][]byte) ([][]byte, 
 
 func (e *Engine) Done() {
 	<-e.done
+}
+
+func (e *Engine) GetEpochHeights(ctx context.Context, epochs []uint64) (int64, []*uint64, error) {
+	keys := [][]byte{HeightKey(e.vm.StateManager().TimestampKey())}
+	for _, epoch := range epochs {
+		keys = append(keys, EpochKey(e.vm.StateManager().EpochKey(epoch)))
+	}
+	values, errs := e.ReadLatestState(ctx, keys)
+	if errs[0] != nil {
+		return -1, nil, fmt.Errorf("%w: can't read timestamp key", errs[0])
+	}
+	heights := make([]*uint64, len(epochs))
+	for i := 0; i < len(epochs); i++ {
+		if errs[i+1] != nil {
+			continue
+		}
+		h := binary.BigEndian.Uint64(values[i+1])
+		heights[i] = &h
+	}
+	return int64(binary.BigEndian.Uint64(values[0])), heights, nil
 }

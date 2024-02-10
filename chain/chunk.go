@@ -37,10 +37,12 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
 
+	// TODO: don't build chunk if no p-chain height for epoch
+
 	// Pack chunk for build duration
 	start := time.Now()
 	mempool := vm.Mempool()
-	mempool.StartStreaming(ctx, epoch)
+	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() && len(c.Txs) < 100 {
 		txs := mempool.Stream(ctx, 16)
 		for i, tx := range txs {

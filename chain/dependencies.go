@@ -103,6 +103,7 @@ type VM interface {
 
 	// TODO: cleanup
 	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
 	Sign(*warp.UnsignedMessage) ([]byte, error)
@@ -141,9 +142,8 @@ type Rules interface {
 	GetEpochDuration() int64
 	GetChunksPerBlock() int
 
-	GetMinBlockGap() int64      // in milliseconds
-	GetMinEmptyBlockGap() int64 // in milliseconds
-	GetValidityWindow() int64   // in milliseconds
+	GetMinBlockGap() int64    // in milliseconds
+	GetValidityWindow() int64 // in milliseconds
 
 	GetMinUnitPrice() Dimensions
 	GetUnitPriceChangeDenominator() Dimensions

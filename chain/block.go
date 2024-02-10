@@ -357,7 +357,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// cannot be set.
 	timestampKey := HeightKey(b.vm.StateManager().TimestampKey())
 	epochKey := EpochKey(b.vm.StateManager().EpochKey(epoch))
-	values, errs := b.vm.Engine().ReadLatestState(ctx, [][]byte{timestampKey, epochKey})
+	nextEpochKey := EpochKey(b.vm.StateManager().EpochKey(epoch + 1))
+	values, errs := b.vm.Engine().ReadLatestState(ctx, [][]byte{timestampKey, epochKey, nextEpochKey})
 	if errs[0] != nil {
 		return fmt.Errorf("%w: can't read timestamp key", errs[0])
 	}
@@ -372,6 +373,13 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		pchainHeight = &height
 	} else {
 		log.Warn("missing epoch key", zap.Uint64("epoch", epoch))
+	}
+	var nextPchainHeight *uint64
+	if errs[2] == nil {
+		height := binary.BigEndian.Uint64(values[2])
+		nextPchainHeight = &height
+	} else {
+		log.Warn("missing epoch key", zap.Uint64("epoch", epoch+1))
 	}
 
 	// Perform basic correctness checks before doing any expensive work
@@ -393,9 +401,6 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	b.parent = parent
 	parentTimestamp := parent.StatefulBlock.Timestamp
 	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
-		return ErrTimestampTooEarly
-	}
-	if len(b.AvailableChunks) == 0 && b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinEmptyBlockGap() {
 		return ErrTimestampTooEarly
 	}
 
