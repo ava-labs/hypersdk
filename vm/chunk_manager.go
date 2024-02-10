@@ -496,19 +496,31 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Store chunk certificate for building
 		c.certs.Update(cert)
 	case txMsg:
-		// 	_, txs, err := chain.UnmarshalTxs(msg[1:], 100, c.vm.actionRegistry, c.vm.authRegistry)
-		// 	if err != nil {
-		// 		c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
-		// 		return nil
-		// 	}
+		_, txs, err := chain.UnmarshalTxs(msg[1:], 1, c.vm.actionRegistry, c.vm.authRegistry)
+		if err != nil {
+			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		tx := txs[0]
 
-		// 	// Submit txs
-		// 	c.vm.Submit(ctx, true, txs)
-		// } else {
-		// 	c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
-		// 	return nil
-		// }
+		// Check that we are the partition for the tx
+		epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+			return nil
+		}
+		partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+		if err != nil {
+			c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+			return nil
+		}
+		if partition != c.vm.snowCtx.NodeID {
+			c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
 
+		// Submit txs
+		c.vm.Submit(ctx, true, txs)
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
