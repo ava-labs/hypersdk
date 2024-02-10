@@ -693,9 +693,7 @@ func (c *ChunkManager) SetMin(ctx context.Context, t int64) {
 	c.certs.SetMin(ctx, t)
 }
 
-// TODO: sign own chunks and add to cert
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
-	// TODO: record chunks we sent out to collect signatures
 	msg := make([]byte, 1+chunk.Size())
 	msg[0] = chunkMsg
 	chunkBytes, err := chunk.Marshal()
@@ -704,7 +702,12 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		return
 	}
 	copy(msg[1:], chunkBytes)
-	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+	if err != nil {
+		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("t", chunk.Slot), zap.Error(err))
+		return
+	}
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, epochHeight, false)
 	if err != nil {
 		panic(err)
 	}
@@ -764,7 +767,12 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		return
 	}
 	copy(msg[1:], certBytes)
-	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+	if err != nil {
+		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", cert.Slot), zap.Error(err))
+		return
+	}
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, epochHeight, false)
 	if err != nil {
 		panic(err)
 	}
@@ -852,6 +860,13 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				for {
 					c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
+					// Look for chunk epoch
+					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)
+					if err != nil {
+						c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
+						continue
+					}
+
 					// Make request
 					bytesChan := make(chan []byte, 1)
 					c.callbacksL.Lock()
@@ -867,7 +882,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						// Chunk should be sent to all validators, so we can just pick a random one
 						//
 						// TODO: consider using cert to select validators?
-						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background())
+						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background(), epochHeight)
 						if err != nil {
 							panic(err)
 						}
