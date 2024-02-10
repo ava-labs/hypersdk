@@ -144,20 +144,22 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 }
 
 // ConstructCanonicalValidatorSet constructs the validator set order to use
-// for warp validation.
+// for address partitioning and warp validation.
 //
 // Source: https://github.com/ava-labs/avalanchego/blob/813bd481c764970b5c47c3ae9c0a40f2c28da8e4/vms/platformvm/warp/validator.go#L61-L92
-func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidatorOutput) ([]*warp.Validator, uint64, error) {
+func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidatorOutput) ([]ids.NodeID, []*warp.Validator, uint64, error) {
 	var (
-		vdrs        = make(map[string]*warp.Validator, len(vdrSet))
-		totalWeight uint64
-		err         error
+		vdrs         = make(map[string]*warp.Validator, len(vdrSet))
+		paritionVdrs = make([]ids.NodeID, 0, len(vdrSet))
+		totalWeight  uint64
+		err          error
 	)
 	for _, vdr := range vdrSet {
 		totalWeight, err = safemath.Add64(totalWeight, vdr.Weight)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
+		paritionVdrs = append(paritionVdrs, vdr.NodeID)
 
 		if vdr.PublicKey == nil {
 			continue
@@ -176,7 +178,8 @@ func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidat
 		uniqueVdr.Weight += vdr.Weight // Impossible to overflow here
 		uniqueVdr.NodeIDs = append(uniqueVdr.NodeIDs, vdr.NodeID)
 	}
+	utils.Sort(paritionVdrs)
 	vdrList := maps.Values(vdrs)
 	utils.Sort(vdrList)
-	return vdrList, totalWeight, nil
+	return paritionVdrs, vdrList, totalWeight, nil
 }

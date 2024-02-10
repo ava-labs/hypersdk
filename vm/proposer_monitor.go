@@ -5,8 +5,11 @@ package vm
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -16,6 +19,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
@@ -27,7 +32,8 @@ const (
 
 type proposerInfo struct {
 	validators   map[ids.NodeID]*validators.GetValidatorOutput
-	canonicalSet []*warp.Validator
+	partitionSet []ids.NodeID
+	warpSet      []*warp.Validator
 	totalWeight  uint64
 }
 
@@ -55,14 +61,15 @@ func (p *ProposerMonitor) fetch(ctx context.Context, height uint64) *proposerInf
 		p.vm.snowCtx.Log.Error("failed to fetch proposer set", zap.Uint64("height", height), zap.Error(err))
 		return nil
 	}
-	vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(validators)
+	partitionSet, warpSet, totalWeight, err := utils.ConstructCanonicalValidatorSet(validators)
 	if err != nil {
 		p.vm.snowCtx.Log.Error("failed to construct canonical validator set", zap.Uint64("height", height), zap.Error(err))
 		return nil
 	}
 	info := &proposerInfo{
 		validators:   validators,
-		canonicalSet: vdrList,
+		partitionSet: partitionSet,
+		warpSet:      warpSet,
 		totalWeight:  totalWeight,
 	}
 	p.proposers.Put(height, info)
@@ -92,9 +99,9 @@ func (p *ProposerMonitor) IsValidator(ctx context.Context, height uint64, nodeID
 	return exists, output.PublicKey, output.Weight, nil
 }
 
-// GetCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
+// GetWarpValidatorSet returns the validator set of [subnetID] in a canonical ordering.
 // Also returns the total weight on [subnetID].
-func (p *ProposerMonitor) GetCanonicalValidatorSet(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
+func (p *ProposerMonitor) GetWarpValidatorSet(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
 	p.fetchLock.Lock()
 	defer p.fetchLock.Unlock()
 
@@ -105,7 +112,7 @@ func (p *ProposerMonitor) GetCanonicalValidatorSet(ctx context.Context, height u
 	if info == nil {
 		return nil, 0, errors.New("could not get validator set for height")
 	}
-	return info.canonicalSet, info.totalWeight, nil
+	return info.warpSet, info.totalWeight, nil
 }
 
 func (p *ProposerMonitor) GetValidatorSet(ctx context.Context, height uint64, includeMe bool) (set.Set[ids.NodeID], error) {
@@ -166,4 +173,33 @@ func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (i
 		return k, nil
 	}
 	return ids.NodeID{}, fmt.Errorf("no validators")
+}
+
+func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error) {
+	p.fetchLock.Lock()
+	defer p.fetchLock.Unlock()
+
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
+	}
+	if info == nil {
+		return ids.NodeID{}, errors.New("could not get validator set for height")
+	}
+	if len(info.partitionSet) == 0 {
+		return ids.NodeID{}, errors.New("no validators")
+	}
+	seed := make([]byte, consts.Uint64Len+codec.AddressLen)
+	binary.BigEndian.PutUint64(seed, height)
+	copy(seed[consts.Uint64Len:], addr[:])
+	h := utils.ToID(seed)
+	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
+	indexInt := int(index.Int64())
+	p.vm.Logger().Info(
+		"address partition computed",
+		zap.Uint64("height", height),
+		zap.String("address", hex.EncodeToString(addr[:])),
+		zap.Int("index", indexInt),
+	)
+	return info.partitionSet[indexInt], nil
 }
