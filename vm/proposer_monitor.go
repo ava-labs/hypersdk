@@ -42,6 +42,10 @@ type ProposerMonitor struct {
 
 	fetchLock sync.Mutex
 	proposers *cache.LRU[uint64, *proposerInfo] // safe for concurrent use
+
+	currentLock        sync.Mutex
+	lastFetchedPHeight time.Time
+	currentValidators  map[ids.NodeID]*validators.GetValidatorOutput
 }
 
 func NewProposerMonitor(vm *VM) *ProposerMonitor {
@@ -134,6 +138,41 @@ func (p *ProposerMonitor) GetValidatorSet(ctx context.Context, height uint64, in
 		vdrSet.Add(v)
 	}
 	return vdrSet, nil
+}
+
+// Prevent unnecessary map copies
+func (p *ProposerMonitor) IterateCurrentValidators(
+	ctx context.Context,
+	f func(ids.NodeID, *validators.GetValidatorOutput),
+) error {
+	// Refresh P-Chain height if [refreshTime] has elapsed
+	p.currentLock.Lock()
+	if time.Since(p.lastFetchedPHeight) > refreshTime {
+		pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
+		if err != nil {
+			p.currentLock.Unlock()
+			return err
+		}
+		validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
+			ctx,
+			pHeight,
+			p.vm.snowCtx.SubnetID,
+		)
+		if err != nil {
+			p.currentLock.Unlock()
+			return err
+		}
+		p.lastFetchedPHeight = time.Now()
+		p.currentValidators = validators
+	}
+	validators := p.currentValidators
+	p.currentLock.Unlock()
+
+	// Iterate over the validators
+	for k, v := range validators {
+		f(k, v)
+	}
+	return nil
 }
 
 // Prevent unnecessary map copies

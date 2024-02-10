@@ -15,10 +15,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
 )
@@ -77,8 +75,6 @@ type Controller interface {
 	) (
 		config Config,
 		genesis Genesis,
-		builder builder.Builder,
-		gossiper gossiper.Gossiper,
 		// TODO: consider splitting out blockDB for use with more experimental
 		// databases
 		vmDB database.Database,

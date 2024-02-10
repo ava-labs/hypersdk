@@ -110,3 +110,11 @@ func (*Rules) FetchCustom(string) (any, bool) {
 func (r *Rules) GetBlockExecutionDepth() uint64 {
 	return 5
 }
+
+func (r *Rules) GetChunksPerBlock() int {
+	return 16
+}
+
+func (r *Rules) GetEpochDuration() int64 {
+	return 180000 // 180s
+}

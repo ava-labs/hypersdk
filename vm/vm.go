@@ -204,7 +204,7 @@ func (vm *VM) Initialize(
 
 	// Always initialize implementation first
 	vm.baseDB = baseDB
-	vm.config, vm.genesis, _, _, vm.vmDB,
+	vm.config, vm.genesis, vm.vmDB,
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
@@ -828,7 +828,6 @@ func (vm *VM) Submit(
 	// Perform basic validity checks before storing in mempool
 	now := time.Now().UnixMilli()
 	r := vm.Rules(now)
-	validTxs := make([]*chain.Transaction, 0, len(txs))
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
 		if repeats.Contains(i) {
@@ -880,9 +879,8 @@ func (vm *VM) Submit(
 			}
 		}
 		errs = append(errs, nil)
-		validTxs = append(validTxs, tx)
+		vm.cm.HandleTx(ctx, tx)
 	}
-	vm.cm.HandleTxs(ctx, validTxs)
 	return errs
 }
 

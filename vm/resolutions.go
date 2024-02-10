@@ -358,7 +358,7 @@ func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (b
 	return ok, err
 }
 
-func (vm *VM) GetValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
+func (vm *VM) GetWarpValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
 	return vm.proposerMonitor.GetWarpValidatorSet(ctx, height)
 }
 
@@ -368,6 +368,13 @@ func (vm *VM) IterateValidators(
 	fn func(ids.NodeID, *validators.GetValidatorOutput),
 ) error {
 	return vm.proposerMonitor.IterateValidators(ctx, height, fn)
+}
+
+func (vm *VM) IterateCurrentValidators(
+	ctx context.Context,
+	fn func(ids.NodeID, *validators.GetValidatorOutput),
+) error {
+	return vm.proposerMonitor.IterateCurrentValidators(ctx, fn)
 }
 
 func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {

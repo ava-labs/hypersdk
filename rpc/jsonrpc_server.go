@@ -164,7 +164,7 @@ func (j *JSONRPCServer) GetWarpSignatures(
 	publicKeys := set.NewSet[string](len(signatures))
 	validSignatures := []*chain.WarpSignature{}
 	warpValidators := []*WarpValidator{}
-	if err := j.vm.IterateValidators(req.Context(), func(n ids.NodeID, out *validators.GetValidatorOutput) {
+	if err := j.vm.IterateCurrentValidators(req.Context(), func(n ids.NodeID, out *validators.GetValidatorOutput) {
 		wv := &WarpValidator{
 			NodeID: n,
 			Weight: out.Weight,

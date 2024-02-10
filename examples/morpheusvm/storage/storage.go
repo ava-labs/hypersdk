@@ -39,15 +39,19 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
 const (
 	// metaDB
+	//
+	// TODO: remove
 	txPrefix = 0x0
 
 	// stateDB
 	balancePrefix      = 0x0
 	heightPrefix       = 0x1
-	timestampPrefix    = 0x2
-	feePrefix          = 0x3
-	incomingWarpPrefix = 0x4
-	outgoingWarpPrefix = 0x5
+	pHeightPrefix      = 0x2
+	timestampPrefix    = 0x3
+	feePrefix          = 0x4
+	incomingWarpPrefix = 0x5
+	outgoingWarpPrefix = 0x6
+	epochPrefix        = 0x7
 )
 
 const BalanceChunks uint16 = 1
@@ -56,6 +60,7 @@ var (
 	failureByte  = byte(0x0)
 	successByte  = byte(0x1)
 	heightKey    = []byte{heightPrefix}
+	pHeightKey   = []byte{pHeightPrefix}
 	timestampKey = []byte{timestampPrefix}
 	feeKey       = []byte{feePrefix}
 )
@@ -250,6 +255,10 @@ func HeightKey() (k []byte) {
 	return heightKey
 }
 
+func PHeightKey() (k []byte) {
+	return pHeightKey
+}
+
 func TimestampKey() (k []byte) {
 	return timestampKey
 }
@@ -270,5 +279,12 @@ func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen)
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])
+	return k
+}
+
+func EpochKey(epoch uint64) (k []byte) {
+	k = make([]byte, 1+consts.Uint64Len)
+	k[0] = epochPrefix
+	binary.BigEndian.PutUint64(k[1:], epoch)
 	return k
 }

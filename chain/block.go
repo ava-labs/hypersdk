@@ -433,7 +433,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			)
 			continue
 		}
-		vdrList, totalWeight, err := b.vm.GetValidators(ctx, *heights[heightIndex])
+		vdrList, totalWeight, err := b.vm.GetWarpValidators(ctx, *heights[heightIndex])
 		if err != nil {
 			panic(err)
 		}
