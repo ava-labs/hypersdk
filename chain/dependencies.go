@@ -108,7 +108,8 @@ type VM interface {
 	Signer() *bls.PublicKey
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
-	IsValidator(ctx context.Context, nodeID ids.NodeID, height uint64) (bool, error)     // TODO: filter based on being part of whole epoch
+	FetchValidators(context.Context, uint64)
+	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)     // TODO: filter based on being part of whole epoch
 	GetValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) // cached
 	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
 }
@@ -185,6 +186,7 @@ type Rules interface {
 
 type MetadataManager interface {
 	HeightKey() []byte
+	PHeightKey() []byte
 	TimestampKey() []byte
 	FeeKey() []byte
 }

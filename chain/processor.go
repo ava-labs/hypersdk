@@ -26,17 +26,19 @@ type Processor struct {
 
 	authStream *stream.Stream
 
+	latestPHeight *uint64
 	pchainHeights []*uint64
-	timestamp     int64
-	epoch         uint64
-	im            state.Immutable
-	feeManager    *FeeManager
-	r             Rules
-	sm            StateManager
-	cacheLock     sync.RWMutex
-	cache         map[string]*fetchData
-	exectutor     *executor.Executor
-	ts            *tstate.TState
+
+	timestamp  int64
+	epoch      uint64
+	im         state.Immutable
+	feeManager *FeeManager
+	r          Rules
+	sm         StateManager
+	cacheLock  sync.RWMutex
+	cache      map[string]*fetchData
+	exectutor  *executor.Executor
+	ts         *tstate.TState
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
@@ -57,7 +59,8 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM, eng *Engine,
-	pchainHeights []*uint64, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	latestPHeight *uint64, pchainHeights []*uint64,
+	chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
 ) *Processor {
 	stream := stream.New()
 	stream.WithMaxGoroutines(10) // TODO: use config
@@ -67,14 +70,16 @@ func NewProcessor(
 
 		authStream: stream,
 
+		latestPHeight: latestPHeight,
 		pchainHeights: pchainHeights,
-		timestamp:     timestamp,
-		epoch:         utils.Epoch(timestamp, r.GetEpochDuration()),
-		im:            im,
-		feeManager:    feeManager,
-		r:             r,
-		sm:            vm.StateManager(),
-		cache:         make(map[string]*fetchData, numTxs),
+
+		timestamp:  timestamp,
+		epoch:      utils.Epoch(timestamp, r.GetEpochDuration()),
+		im:         im,
+		feeManager: feeManager,
+		r:          r,
+		sm:         vm.StateManager(),
+		cache:      make(map[string]*fetchData, numTxs),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
 		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorVerifyRecorder()),
@@ -277,6 +282,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
+		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
 		parition, err := p.vm.AddressPartition(ctx, *pchainHeight, tx.Auth.Sponsor())
@@ -314,7 +320,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 					return func() {}
 				}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *pchainHeight, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, tx) }
 		})
 	}
 	return nil

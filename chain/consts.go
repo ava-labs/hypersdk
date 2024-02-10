@@ -32,6 +32,7 @@ const (
 	// ranges (so, we can't expose a way to modify this over time).
 	MaxOutgoingWarpChunks = 4
 	HeightKeyChunks       = 1
+	PHeightKeyChunks      = 1
 	TimestampKeyChunks    = 1
 	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
 	EpochKeyChunks        = 1
@@ -39,6 +40,10 @@ const (
 
 func HeightKey(prefix []byte) []byte {
 	return keys.EncodeChunks(prefix, HeightKeyChunks)
+}
+
+func PHeightKey(prefix []byte) []byte {
+	return keys.EncodeChunks(prefix, PHeightKeyChunks)
 }
 
 func TimestampKey(prefix []byte) []byte {

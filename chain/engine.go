@@ -90,6 +90,15 @@ func (e *Engine) Run() {
 				panic(ErrInvalidBlockHeight)
 			}
 
+			// Fetch latest block context (used for reliable and recent warp verification)
+			pHeightKey := PHeightKey(e.vm.StateManager().PHeightKey())
+			pHeightRaw, err := parentView.GetValue(ctx, pHeightKey)
+			var pHeight *uint64
+			if err == nil {
+				h := binary.BigEndian.Uint64(pHeightRaw)
+				pHeight = &h
+			}
+
 			// Fetch timestamp key
 			timestampKey := HeightKey(e.vm.StateManager().TimestampKey())
 			timestampRaw, err := parentView.GetValue(ctx, timestampKey)
@@ -121,7 +130,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, heights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, pHeight, heights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
@@ -192,8 +201,21 @@ func (e *Engine) Run() {
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 			}
 
-			// Attempt to set height for n+3 epoch (if not yet set)
+			// Update tracked p-chain heights
 			if job.blk.bctx != nil {
+				// Set latest pHeight
+				keys := make(state.Keys)
+				keys.Add(string(pHeightKey), state.Allocate|state.Write)
+				m := make(map[string][]byte)
+				if pHeight != nil {
+					m[string(pHeightKey)] = pHeightRaw
+				}
+				tsv := ts.NewView(keys, m)
+				if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
+					panic(err)
+				}
+				tsv.Commit()
+
 				// Ensure we are never stuck waiting for height information near the end of an epoch
 				//
 				// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
@@ -206,12 +228,13 @@ func (e *Engine) Run() {
 				_, err := parentView.GetValue(ctx, nextEpochKey)
 				if err == nil {
 					keys := make(state.Keys)
-					keys.Add(string(nextEpochKey), state.Write)
+					keys.Add(string(nextEpochKey), state.Allocate|state.Write)
 					tsv := ts.NewView(keys, map[string][]byte{})
 					if err := tsv.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
 						panic(err)
 					}
 					tsv.Commit()
+					e.vm.FetchValidators(ctx, job.blk.bctx.PChainHeight) // optimistically fetch validators to prevent lockbacks
 					e.vm.Logger().Info(
 						"setting epoch height",
 						zap.Uint64("epoch", nextEpoch),
