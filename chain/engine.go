@@ -98,6 +98,8 @@ func (e *Engine) Run() {
 			}
 
 			// Fetch PChainHeight for this epoch
+			//
+			// We don't need to check timestamps here becuase we already handled that in block verification.
 			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
 			_, heights, err := e.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
 			if err != nil {

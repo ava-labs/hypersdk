@@ -359,7 +359,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return fmt.Errorf("%w: can't get epoch heights", err)
 	}
 	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
-	if executedEpoch+2 < epoch {
+	if executedEpoch+1 < epoch { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
 		return errors.New("executed tip is too far behind to verify block")
 	}
 
