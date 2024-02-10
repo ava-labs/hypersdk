@@ -169,6 +169,19 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	}
 }
 
+func (c *ChunkManager) getEpochHeight(ctx context.Context, t int64) (uint64, error) {
+	r := c.vm.Rules(time.Now().UnixMilli())
+	epoch := utils.Epoch(t, r.GetEpochDuration())
+	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
+	if err != nil {
+		return 0, err
+	}
+	if heights[0] == nil {
+		return 0, errors.New("epoch is not yet set")
+	}
+	return *heights[0], nil
+}
+
 func (c *ChunkManager) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
 	c.connected.Add(nodeID)
 	return nil
@@ -196,49 +209,41 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.vm.Logger().Warn("dropping empty message", zap.Stringer("nodeID", nodeID))
 		return nil
 	}
-	// Check that sender is a validator
-	ok, pk, _, err := c.vm.proposerMonitor.IsValidator(ctx, nodeID)
-	if err != nil {
-		c.vm.Logger().Warn("unable to determine if node is a validator", zap.Error(err))
-		return nil
-	}
-	if !ok {
-		// Only allow tx messages from non-validators
-		if msg[0] == txMsg {
-			_, txs, err := chain.UnmarshalTxs(msg[1:], 100, c.vm.actionRegistry, c.vm.authRegistry)
-			if err != nil {
-				c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
-				return nil
-			}
-
-			// Submit txs
-			c.vm.Submit(ctx, true, txs)
-		} else {
-			c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
-	}
 	switch msg[0] {
 	case chunkMsg:
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
-			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
-
-		// TODO: check that chunk producer is a validator
-
-		// TODO: check validity (verify chunk signature)
-
-		// TODO: only store 1 chunk per slot per validator
-		// TODO: warn if chunk is dropped for a conflict during fetching (same producer, slot, different chunkID)
 
 		// Check that producer is the sender
 		if chunk.Producer != nodeID {
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
-		// TODO: ensure signer of chunk is associated with NodeID
+
+		// Determine if chunk producer is a validator and that their key is valid
+		epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
+			return nil
+		}
+		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, chunk.Producer)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine if producer is validator", zap.Stringer("producer", chunk.Producer), zap.Error(err))
+			return nil
+		}
+		if !isValidator {
+			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		if signerKey == nil || !bytes.Equal(bls.PublicKeyToBytes(chunk.Signer), bls.PublicKeyToBytes(signerKey)) {
+			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+
+		// Verify signature of chunk
 		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
 			dig, err := chunk.Digest()
 			if err != nil {
@@ -256,6 +261,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
+		// TODO: only store 1 chunk per slot per validator
+		// TODO: warn if chunk is dropped for a conflict during fetching (same producer, slot, different chunkID)
+
 		// Persist chunk to disk (delete if not used in time but need to store to protect
 		// against shutdown risk across network -> chunk may no longer be accessible after included
 		// in referenced certificate)
@@ -265,8 +273,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Sign chunk
-		// TODO: allow for signing different types of messages
-		// TODO: create signer for chunkID
 		cid, err := chunk.ID()
 		if err != nil {
 			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
@@ -486,6 +492,21 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		//
 		// TODO: store chunk with highest weight
 		c.certs.Update(cert)
+
+	case txMsg:
+		// 	_, txs, err := chain.UnmarshalTxs(msg[1:], 100, c.vm.actionRegistry, c.vm.authRegistry)
+		// 	if err != nil {
+		// 		c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+		// 		return nil
+		// 	}
+
+		// 	// Submit txs
+		// 	c.vm.Submit(ctx, true, txs)
+		// } else {
+		// 	c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
+		// 	return nil
+		// }
+
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
@@ -754,19 +775,12 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	c.txs.Put(tx.ID(), nil)
 
 	// Find transaction partition
-	r := c.vm.Rules(time.Now().UnixMilli())
-	epoch := utils.Epoch(tx.Base.Timestamp, r.GetEpochDuration())
-	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
+	epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
 	if err != nil {
-		c.vm.Logger().Warn("cannot lookup epoch", zap.Uint64("epoch", epoch), zap.Error(err))
+		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 		return
 	}
-	if heights[0] == nil {
-		c.vm.Logger().Warn("epoch for transaction is not yet set", zap.Uint64("epoch", epoch), zap.Error(err))
-		return
-	}
-	pHeight := *heights[0]
-	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, pHeight, tx.Sponsor())
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
 	if err != nil {
 		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return
