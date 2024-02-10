@@ -206,7 +206,8 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight uint64, 
 			Warn("unable to verify warp message", zap.Stringer("warpID", tx.WarpMessage.ID()), zap.Error(ErrDisabledChainID))
 	}
 
-	// TODO: use cached validator set (like certs)
+	// We don't use cached validator set here because we need to fetch
+	// external subnet sets.
 	if err := tx.WarpMessage.Signature.Verify(
 		ctx,
 		&tx.WarpMessage.UnsignedMessage,
