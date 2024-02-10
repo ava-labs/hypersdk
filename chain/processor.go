@@ -85,7 +85,7 @@ func NewProcessor(
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx *Transaction) {
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, tx *Transaction) {
 	stateKeys, err := tx.StateKeys(p.sm)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -152,13 +152,6 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 		}
 
 		// Wait to perform warp verification until we know the transaction can pay fees
-		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
-		pchainHeight := p.pchainHeights[txEpoch-p.epoch]
-		if pchainHeight == nil && tx.WarpMessage != nil {
-			p.vm.Logger().Warn("cannot verify warp message because no pchain height for epoch", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			return nil
-		}
 		warpVerified := p.verifyWarpMessage(ctx, pchainHeight, tx)
 
 		// Execute transaction
@@ -197,7 +190,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 	})
 }
 
-func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight *uint64, tx *Transaction) bool {
+func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight uint64, tx *Transaction) bool {
 	if tx.WarpMessage == nil {
 		return false
 	}
@@ -214,7 +207,7 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight *uint64,
 		&tx.WarpMessage.UnsignedMessage,
 		p.r.NetworkID(),
 		p.vm.ValidatorState(),
-		*pchainHeight,
+		pchainHeight,
 		num,
 		denom,
 	); err != nil {
@@ -275,6 +268,29 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			continue
 		}
 
+		// Check that height is set for epoch
+		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
+		pchainHeight := p.pchainHeights[txEpoch-p.epoch]
+		if pchainHeight == nil {
+			// We can't verify tx partition if this is the case
+			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+
+		// Check that transaction is in right partition
+		parition, err := p.vm.AddressPartition(ctx, *pchainHeight, tx.Auth.Sponsor())
+		if err != nil {
+			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		if parition != chunk.Producer {
+			p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+
 		// If this is the first instance of a transaction in this block,
 		// record it in the set.
 		//
@@ -298,7 +314,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 					return func() {}
 				}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *pchainHeight, tx) }
 		})
 	}
 	return nil

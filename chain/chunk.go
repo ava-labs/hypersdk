@@ -50,6 +50,17 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		return nil, errors.New("no P-Chain height for epoch")
 	}
 
+	// Check if validator
+	//
+	// If not a validator in this epoch height, don't build.
+	amValidator, err := vm.IsValidator(ctx, vm.NodeID(), *heights[0])
+	if err != nil {
+		return nil, err
+	}
+	if !amValidator {
+		return nil, errors.New("not a validator during this epoch, so no one will sign my chunk")
+	}
+
 	// Pack chunk for build duration
 	start := time.Now()
 	mempool := vm.Mempool()
