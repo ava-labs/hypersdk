@@ -431,14 +431,15 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// TODO: verify cert
-		//
-		// TODO: handle case for "too early check" where the parent is far in past?
+		// Determine epoch for certificate
+		epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine certificate epoch", zap.Int64("slot", cert.Slot))
+			return nil
+		}
 
-		// Verify certificate using the current validator set
-		//
-		// TODO: consider re-verifying on some cadence prior to expiry?
-		height, validators, weight, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		// Verify certificate using the epoch validator set
+		validators, weight, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
 		if err != nil {
 			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
 			return nil
@@ -454,7 +455,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if err := warp.VerifyWeight(filteredWeight, weight, minWeightNumerator, weightDenominator); err != nil {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
-				zap.Uint64("Pheight", height),
+				zap.Uint64("Pheight", epochHeight),
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Error(err),
@@ -468,7 +469,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
-				zap.Uint64("Pheight", height),
+				zap.Uint64("Pheight", epochHeight),
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Binary("bitset", cert.Signers.Bytes()),
@@ -480,7 +481,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.vm.Logger().Info(
 			"verified chunk certificate",
-			zap.Uint64("Pheight", height),
+			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("nodeID", nodeID),
 			zap.Stringer("chunkID", cert.Chunk),
 			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
@@ -488,14 +489,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Uint64("weight", filteredWeight),
 			zap.Uint64("totalWeight", weight),
 		)
+		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 
-		// TODO: fetch chunk if we don't have it from a signer (run down list and sample)
+		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		//
-		// TODO: store chunk with highest weight
 		c.certs.Update(cert)
-
 	case txMsg:
 		// 	_, txs, err := chain.UnmarshalTxs(msg[1:], 100, c.vm.actionRegistry, c.vm.authRegistry)
 		// 	if err != nil {
