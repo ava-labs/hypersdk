@@ -5,7 +5,6 @@ package chain
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -355,31 +354,13 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	//
 	// If missing and state read has timestamp updated in same or previous slot, we know that epoch
 	// cannot be set.
-	timestampKey := HeightKey(b.vm.StateManager().TimestampKey())
-	epochKey := EpochKey(b.vm.StateManager().EpochKey(epoch))
-	nextEpochKey := EpochKey(b.vm.StateManager().EpochKey(epoch + 1))
-	values, errs := b.vm.Engine().ReadLatestState(ctx, [][]byte{timestampKey, epochKey, nextEpochKey})
-	if errs[0] != nil {
-		return fmt.Errorf("%w: can't read timestamp key", errs[0])
+	timestamp, heights, err := b.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
+	if err != nil {
+		return fmt.Errorf("%w: can't get epoch heights", err)
 	}
-	executedTime := int64(binary.BigEndian.Uint64(values[0]))
-	executedEpoch := utils.Epoch(executedTime, r.GetEpochDuration())
+	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
 	if executedEpoch+2 < epoch {
 		return errors.New("executed tip is too far behind to verify block")
-	}
-	var pchainHeight *uint64
-	if errs[1] == nil {
-		height := binary.BigEndian.Uint64(values[1])
-		pchainHeight = &height
-	} else {
-		log.Warn("missing epoch key", zap.Uint64("epoch", epoch))
-	}
-	var nextPchainHeight *uint64
-	if errs[2] == nil {
-		height := binary.BigEndian.Uint64(values[2])
-		nextPchainHeight = &height
-	} else {
-		log.Warn("missing epoch key", zap.Uint64("epoch", epoch+1))
 	}
 
 	// Perform basic correctness checks before doing any expensive work
@@ -414,82 +395,81 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	}
 
 	// Verify certificates
-	if pchainHeight != nil {
-		// We get the validator set once and reuse it instead of using warp verify (which generates the set each time).
+	//
+	// TODO: make parallel
+	// TODO: cache verifications (may be verified multiple times at the same p-chain height while
+	// waiting for execution to complete).
+	for i, cert := range b.AvailableChunks {
+		// Ensure chunk is not expired
+		if cert.Slot < b.StatefulBlock.Timestamp {
+			return ErrTimestampTooLate
+		}
 
-		// Get validator set at current height
+		// Ensure chunk is not too early
 		//
-		// TODO: get from validator manager
-		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, *pchainHeight, b.vm.SubnetID())
-		if err != nil {
-			return fmt.Errorf("%w: can't get validator set", err)
-		}
-		vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(vdrSet)
-		if err != nil {
-			return fmt.Errorf("%w: can't construct canonical validator set", err)
+		// TODO: ensure slot is in the block epoch
+		if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+			return ErrTimestampTooEarly
 		}
 
-		// Verify certificates
+		// Ensure chunk expiry is aligned to a tenth of a second
 		//
-		// TODO: make parallel
-		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
-		// waiting for execution to complete).
-		for i, cert := range b.AvailableChunks {
-			// TODO: Ensure cert is from a validator
-			//
-			// Signers verify that validator signed chunk with right key when signing chunk, so may
-			// not be necessary?
-			//
-			// TODO: consider not verifying this in case validator set changes?
-
-			// TODO: consider moving to chunk verify
-
-			// Ensure chunk is not expired
-			if cert.Slot < b.StatefulBlock.Timestamp {
-				return ErrTimestampTooLate
-			}
-
-			// Ensure chunk is not too early
-			//
-			// TODO: ensure slot is in the block epoch
-			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
-				return ErrTimestampTooEarly
-			}
-
-			// Ensure chunk expiry is aligned to a tenth of a second
-			//
-			// Signatures will only be given for a configurable number of chunks per
-			// second.
-			//
-			// TODO: consider moving to unmarshal
-			if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
-				return ErrMisalignedTime
-			}
-
-			// Verify multi-signature
-			filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
-			if err != nil {
-				return err
-			}
-			filteredWeight, err := warp.SumWeight(filteredVdrs)
-			if err != nil {
-				return err
-			}
-			// TODO: make this a const
-			if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
-				return err
-			}
-			aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
-			if err != nil {
-				return err
-			}
-			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-				return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
-			}
+		// Signatures will only be given for a configurable number of chunks per
+		// second.
+		//
+		// TODO: consider moving to unmarshal
+		if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
+			return ErrMisalignedTime
 		}
-	} else {
-		if len(b.AvailableChunks) > 0 {
-			return errors.New("block context not provided but have available chunks")
+
+		// Get validator set for the epoch
+		var vdrList []*warp.Validator
+		var totalWeight uint64
+		certEpoch := utils.Epoch(cert.Slot, r.GetEpochDuration())
+		if certEpoch == epoch {
+			if heights[0] == nil {
+				log.Warn(
+					"skipping certificate because epoch is missing",
+					zap.Uint64("epoch", certEpoch),
+					zap.Stringer("chunkID", cert.Chunk),
+				)
+				continue
+			}
+			vdrList, totalWeight, err = b.vm.GetValidators(ctx, *heights[0])
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			if heights[1] == nil {
+				log.Warn(
+					"skipping certificate because epoch is missing",
+					zap.Uint64("epoch", certEpoch),
+					zap.Stringer("chunkID", cert.Chunk),
+				)
+				continue
+			}
+			vdrList, totalWeight, err = b.vm.GetValidators(ctx, *heights[1])
+		}
+
+		// Verify multi-signature
+		filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
+		if err != nil {
+			return err
+		}
+		filteredWeight, err := warp.SumWeight(filteredVdrs)
+		if err != nil {
+			return err
+		}
+		// TODO: make this a const
+		if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
+			return err
+		}
+		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
+		if err != nil {
+			return err
+		}
+		if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
+			return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
 		}
 	}
 

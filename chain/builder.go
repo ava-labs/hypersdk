@@ -65,7 +65,11 @@ func BuildBlock(
 			continue
 		}
 
-		// Assume chunk is valid because it has sufficient signatures
+		// Assume chunk is valid and there are P-Chain heights for applicable epochs because it has sufficient signatures
+		//
+		// TODO: consider validating anyways
+
+		// Add chunk to block
 		b.chunks.Add(cert.Chunk)
 		b.AvailableChunks = append(b.AvailableChunks, cert)
 	}

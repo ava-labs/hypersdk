@@ -108,6 +108,7 @@ type VM interface {
 	Signer() *bls.PublicKey
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
+	GetValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) // cached
 }
 
 type VerifyContext interface {
