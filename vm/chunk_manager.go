@@ -353,7 +353,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Count pending weight
 		//
 		// TODO: add safe math
-		// TODO: handle changing validator sets
 		var (
 			weight      uint64 = 0
 			totalWeight uint64 = 0
