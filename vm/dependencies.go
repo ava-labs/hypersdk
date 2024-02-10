@@ -49,8 +49,8 @@ type Config interface {
 	GetAcceptedBlockWindowCache() int
 	GetContinuousProfilerConfig() *profiler.Config
 	GetTargetBuildDuration() time.Duration
+	GetBuildFrequency() time.Duration
 	GetProcessingBuildSkip() int
-	GetTargetGossipDuration() time.Duration
 	GetBlockCompactionFrequency() int
 	GetMinimumCertificateBroadcastNumerator() uint64
 }

@@ -72,6 +72,14 @@ func BuildBlock(
 		// Add chunk to block
 		b.chunks.Add(cert.Chunk)
 		b.AvailableChunks = append(b.AvailableChunks, cert)
+		b.vm.Logger().Info(
+			"included chunk in block",
+			zap.Stringer("blockID", b.ID()),
+			zap.Stringer("chunkID", cert.Chunk),
+			zap.Uint64("epoch", utils.Epoch(cert.Slot, r.GetEpochDuration())),
+			zap.Duration("t(replication)", time.Duration(b.StatefulBlock.Timestamp-cert.Slot)*time.Millisecond),
+		)
+
 	}
 	vm.RestoreChunkCertificates(ctx, restorableChunks)
 

@@ -611,7 +611,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
 
-	t := time.NewTicker(500 * time.Millisecond)
+	t := time.NewTicker(c.vm.config.GetBuildFrequency())
 	defer t.Stop()
 	for {
 		select {
