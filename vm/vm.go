@@ -187,20 +187,6 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
-	vm.proposerMonitor = NewProposerMonitor(vm)
-	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
-
-	// Initialize warp handler
-	warpHandler, warpSender := vm.networkManager.Register()
-	vm.warpManager = NewWarpManager(vm)
-	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
-	go vm.warpManager.Run(warpSender)
-
-	// Initialize chunk manager
-	chunkHandler, chunkSender := vm.networkManager.Register()
-	vm.cm = NewChunkManager(vm)
-	vm.networkManager.SetHandler(chunkHandler, vm.cm)
-	go vm.cm.Run(chunkSender)
 
 	// Always initialize implementation first
 	vm.baseDB = baseDB
@@ -216,6 +202,22 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
+
+	// Setup network and validator tracking
+	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
+	vm.proposerMonitor = NewProposerMonitor(vm)
+
+	// Initialize warp handler
+	warpHandler, warpSender := vm.networkManager.Register()
+	vm.warpManager = NewWarpManager(vm)
+	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
+	go vm.warpManager.Run(warpSender)
+
+	// Initialize chunk manager
+	chunkHandler, chunkSender := vm.networkManager.Register()
+	vm.cm = NewChunkManager(vm)
+	vm.networkManager.SetHandler(chunkHandler, vm.cm)
+	go vm.cm.Run(chunkSender)
 
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())

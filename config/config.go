@@ -44,7 +44,7 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 }
 func (c *Config) GetVerifyAuth() bool                             { return true }
 func (c *Config) GetTargetBuildDuration() time.Duration           { return 100 * time.Millisecond }
-func (c *Config) GetBuildFrequency() time.Duration                { return 250 * time.Millisecond }
+func (c *Config) GetBuildFrequency() time.Duration                { return 500 * time.Millisecond }
 func (c *Config) GetProcessingBuildSkip() int                     { return 16 }
 func (c *Config) GetBlockCompactionFrequency() int                { return 32 } // 64 MB of deletion if 2 MB blocks
 func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 75 } // out of 100 (more weight == more fees)

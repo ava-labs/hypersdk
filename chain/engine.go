@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -215,6 +216,7 @@ func (e *Engine) Run() {
 					panic(err)
 				}
 				tsv.Commit()
+				e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.bctx.PChainHeight))
 
 				// Ensure we are never stuck waiting for height information near the end of an epoch
 				//
@@ -225,8 +227,15 @@ func (e *Engine) Run() {
 				// expected to set to the p-chain hegiht for an epoch.
 				nextEpoch := epoch + 3
 				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
-				_, err := parentView.GetValue(ctx, nextEpochKey)
-				if err == nil {
+				epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey)
+				switch {
+				case err == nil:
+					e.vm.Logger().Info(
+						"height already set for epoch",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw)),
+					)
+				case err != nil && errors.Is(err, database.ErrNotFound):
 					keys := make(state.Keys)
 					keys.Add(string(nextEpochKey), state.Allocate|state.Write)
 					tsv := ts.NewView(keys, map[string][]byte{})
@@ -239,6 +248,13 @@ func (e *Engine) Run() {
 						"setting epoch height",
 						zap.Uint64("epoch", nextEpoch),
 						zap.Uint64("height", job.blk.bctx.PChainHeight),
+						zap.Error(err),
+					)
+				default:
+					e.vm.Logger().Warn(
+						"unable to determine if should set epoch height",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Error(err),
 					)
 				}
 			}

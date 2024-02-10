@@ -359,9 +359,10 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return fmt.Errorf("%w: can't get epoch heights", err)
 	}
 	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
-	if executedEpoch+1 < epoch { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
-		return errors.New("executed tip is too far behind to verify block")
+	if executedEpoch+1 < epoch && len(b.AvailableChunks) > 0 { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
+		return errors.New("executed tip is too far behind to verify block with certs")
 	}
+	// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
