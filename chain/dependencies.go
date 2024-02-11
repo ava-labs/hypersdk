@@ -221,8 +221,8 @@ type FeeHandler interface {
 	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
 	// TODO: cleanup
-	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
-	CanProcess(ctx context.Context, addr codec.Address, im state.Immutable) (bool, error)
+	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error)                // total locked is this value * 2
+	CanProcess(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)                 // we mark by epoch to support unfreezing
 	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
 }
 
