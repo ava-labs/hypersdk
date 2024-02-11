@@ -42,6 +42,10 @@ type Processor struct {
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
+
+	claimL         sync.Mutex
+	frozenSponsors set.Set[string]
+	claims         []*Transaction
 }
 
 type blockLoc struct {
@@ -87,6 +91,9 @@ func NewProcessor(
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
+
+		frozenSponsors: set.NewSet[string](4),
+		claims:         []*Transaction{},
 	}
 }
 
@@ -154,11 +161,20 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 			// This is an unexpected error
 			return err
 		}
-		if err := p.sm.CanDeduct(ctx, tx.Auth.Sponsor(), tsv, feeRequired); err != nil {
+		sponsor := tx.Auth.Sponsor()
+		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, feeRequired)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			p.vm.Logger().Warn("insufficient funds", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 
-			// TODO: file claim and deduct bond
+			// Enqueue for claim filing
+			p.claimL.Lock()
+			p.claims = append(p.claims, tx)
+			p.frozenSponsors.Add(string(sponsor[:]))
+			p.claimL.Unlock()
 			return nil
 		}
 
@@ -313,6 +329,26 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// from ever being executed).
 		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
+		// Check that transaction isn't frozen (can avoid state lookups)
+		//
+		// Need to wait to enqueue until after verify signature.
+		var frozen bool
+		sponsor := tx.Auth.Sponsor()
+		ok, err := p.sm.CanProcess(ctx, sponsor, p.im)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			frozen = true
+		} else {
+			// Avoid unnecessary state lookups if we already marked as frozen
+			p.claimL.Lock()
+			if p.frozenSponsors.Contains(string(sponsor[:])) {
+				frozen = true
+			}
+			p.claimL.Unlock()
+		}
+
 		// Enqueue transaction for execution
 		p.authStream.Go(func() stream.Callback {
 			msg, err := tx.Digest()
@@ -328,13 +364,24 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 					return func() {}
 				}
 			}
+			if frozen {
+				p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+
+				// Enqueue for claim filing
+				p.claimL.Lock()
+				p.claims = append(p.claims, tx)
+				p.frozenSponsors.Add(string(sponsor[:]))
+				p.claimL.Unlock()
+				return func() {}
+			}
 			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, maxUnits, tx) }
 		})
 	}
 	return nil
 }
 
-func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
+func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*Transaction, error) {
 	p.authStream.Wait()
-	return p.txs, p.ts, p.results, p.exectutor.Wait()
+	return p.txs, p.ts, p.results, p.claims, p.exectutor.Wait()
 }

@@ -206,7 +206,7 @@ type FeeHandler interface {
 	SponsorStateKeys(addr codec.Address) state.Keys
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
-	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
+	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) (bool, error)
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
@@ -222,8 +222,8 @@ type FeeHandler interface {
 
 	// TODO: cleanup
 	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
-	CanProcess(ctx context.Context, addr codec.Address, im state.Immutable) error
-	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts
+	CanProcess(ctx context.Context, addr codec.Address, im state.Immutable) (bool, error)
+	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
 }
 
 type EpochManager interface {

@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -147,9 +148,20 @@ func (e *Engine) Run() {
 				}
 				chunks = append(chunks, chunk)
 			}
-			txSet, ts, chunkResults, err := p.Wait()
+			txSet, ts, chunkResults, claims, err := p.Wait()
 			if err != nil {
 				panic(err)
+			}
+
+			// Submit claims
+			for _, claim := range claims {
+				// TODO: fetch previous claim to ensure don't overwrite?
+
+				// TODO: add beneficiary address
+				err := e.vm.StateManager().ClaimBond(ctx, claim.Auth.Sponsor(), codec.Address{}, utils.Epoch(claim.Base.Timestamp, r.GetEpochDuration()), nil)
+				if err != nil {
+					panic(err)
+				}
 			}
 
 			// Create FilteredChunks
