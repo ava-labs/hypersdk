@@ -169,6 +169,19 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	}
 }
 
+func (c *ChunkManager) getEpochHeight(ctx context.Context, t int64) (uint64, error) {
+	r := c.vm.Rules(time.Now().UnixMilli())
+	epoch := utils.Epoch(t, r.GetEpochDuration())
+	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
+	if err != nil {
+		return 0, err
+	}
+	if heights[0] == nil {
+		return 0, errors.New("epoch is not yet set")
+	}
+	return *heights[0], nil
+}
+
 func (c *ChunkManager) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
 	c.connected.Add(nodeID)
 	return nil
@@ -196,44 +209,41 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.vm.Logger().Warn("dropping empty message", zap.Stringer("nodeID", nodeID))
 		return nil
 	}
-	// Check that sender is a validator
-	ok, pk, _, err := c.vm.proposerMonitor.IsValidator(ctx, nodeID)
-	if err != nil {
-		c.vm.Logger().Warn("unable to determine if node is a validator", zap.Error(err))
-		return nil
-	}
-	if !ok {
-		// Only allow tx messages from non-validators
-		if msg[0] == txMsg {
-			_, txs, err := chain.UnmarshalTxs(msg[1:], 100, c.vm.actionRegistry, c.vm.authRegistry)
-			if err != nil {
-				c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
-				return nil
-			}
-
-			// Submit txs
-			c.vm.Submit(ctx, true, txs)
-		} else {
-			c.vm.Logger().Warn("dropping message from non-validator", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
-	}
 	switch msg[0] {
 	case chunkMsg:
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
-			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
 
-		// TODO: check validity (verify chunk signature)
-
-		// TODO: only store 1 chunk per slot per validator
+		// Check that producer is the sender
 		if chunk.Producer != nodeID {
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
-		// TODO: ensure signer of chunk is associated with NodeID
+
+		// Determine if chunk producer is a validator and that their key is valid
+		epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
+			return nil
+		}
+		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, chunk.Producer)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine if producer is validator", zap.Stringer("producer", chunk.Producer), zap.Error(err))
+			return nil
+		}
+		if !isValidator {
+			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		if signerKey == nil || !bytes.Equal(bls.PublicKeyToBytes(chunk.Signer), bls.PublicKeyToBytes(signerKey)) {
+			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+
+		// Verify signature of chunk
 		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
 			dig, err := chunk.Digest()
 			if err != nil {
@@ -251,6 +261,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
+		// TODO: only store 1 chunk per slot per validator
+		// TODO: warn if chunk is dropped for a conflict during fetching (same producer, slot, different chunkID)
+
 		// Persist chunk to disk (delete if not used in time but need to store to protect
 		// against shutdown risk across network -> chunk may no longer be accessible after included
 		// in referenced certificate)
@@ -260,8 +273,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Sign chunk
-		// TODO: allow for signing different types of messages
-		// TODO: create signer for chunkID
 		cid, err := chunk.ID()
 		if err != nil {
 			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
@@ -303,14 +314,29 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Check if we broadcast this chunk
-		if !c.built.HasID(chunkSignature.Chunk) {
-			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Error(err))
+		cw, ok := c.built.Get(chunkSignature.Chunk)
+		if !ok || cw.chunk.Slot != chunkSignature.Slot {
+			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunkSignature.Chunk))
 			return nil
 		}
 
-		// Check that signer is associated with NodeID
-		if !bytes.Equal(bls.PublicKeyToBytes(pk), bls.PublicKeyToBytes(chunkSignature.Signer)) {
-			c.vm.Logger().Warn("unexpected signer", zap.Stringer("nodeID", nodeID))
+		// Determine if chunk signer is a validator and that their key is valid
+		epochHeight, err := c.getEpochHeight(ctx, chunkSignature.Slot)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunkSignature.Slot))
+			return nil
+		}
+		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, nodeID)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine if signer is validator", zap.Stringer("signer", nodeID), zap.Error(err))
+			return nil
+		}
+		if !isValidator {
+			c.vm.Logger().Warn("dropping chunk signature from non-validator", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+		if signerKey == nil || !bytes.Equal(bls.PublicKeyToBytes(chunkSignature.Signer), bls.PublicKeyToBytes(signerKey)) {
+			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
@@ -320,27 +346,18 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// Collect signature
-		//
-		// TODO: add locking
-		cw, ok := c.built.Get(chunkSignature.Chunk)
-		if !ok {
-			// This shouldn't happen because we checked earlier but could
-			c.vm.Logger().Warn("dropping untracked chunk", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
+		// Store signature for chunk
 		cw.l.Lock()
 		cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
 		// Count pending weight
 		//
 		// TODO: add safe math
-		// TODO: handle changing validator sets
 		var (
 			weight      uint64 = 0
 			totalWeight uint64 = 0
 		)
-		if err := c.vm.proposerMonitor.IterateValidators(ctx, func(vdr ids.NodeID, out *validators.GetValidatorOutput) {
+		if err := c.vm.proposerMonitor.IterateValidators(ctx, epochHeight, func(vdr ids.NodeID, out *validators.GetValidatorOutput) {
 			totalWeight += out.Weight
 			if out.PublicKey == nil {
 				return
@@ -355,17 +372,13 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		cw.l.Unlock()
 
 		// Check if weight is sufficient
-		//
-		// TODO: only send to next x builders
-		// TODO: only send once have a certain weight above 67% or X time until expiry (maximize fee)
-		// TODO: make this a config?
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Warn("chunk does not have sufficient weight to crete certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
 		}
 
 		// Construct certificate
-		height, canonicalValidators, _, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		canonicalValidators, _, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
 		if err != nil {
 			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
 			return nil
@@ -405,7 +418,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.PushChunkCertificate(ctx, cert)
 		c.vm.Logger().Info(
 			"constructed chunk certificate",
-			zap.Uint64("Pheight", height),
+			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("chunkID", chunkSignature.Chunk),
 			zap.Uint64("weight", weight),
 			zap.Uint64("totalWeight", totalWeight),
@@ -417,14 +430,15 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// TODO: verify cert
-		//
-		// TODO: handle case for "too early check" where the parent is far in past?
+		// Determine epoch for certificate
+		epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine certificate epoch", zap.Int64("slot", cert.Slot))
+			return nil
+		}
 
-		// Verify certificate using the current validator set
-		//
-		// TODO: consider re-verifying on some cadence prior to expiry?
-		height, validators, weight, err := c.vm.proposerMonitor.GetCanonicalValidatorSet(ctx)
+		// Verify certificate using the epoch validator set
+		validators, weight, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
 		if err != nil {
 			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
 			return nil
@@ -440,7 +454,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if err := warp.VerifyWeight(filteredWeight, weight, minWeightNumerator, weightDenominator); err != nil {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
-				zap.Uint64("Pheight", height),
+				zap.Uint64("Pheight", epochHeight),
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Error(err),
@@ -454,7 +468,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
-				zap.Uint64("Pheight", height),
+				zap.Uint64("Pheight", epochHeight),
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Binary("bitset", cert.Signers.Bytes()),
@@ -466,7 +480,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.vm.Logger().Info(
 			"verified chunk certificate",
-			zap.Uint64("Pheight", height),
+			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("nodeID", nodeID),
 			zap.Stringer("chunkID", cert.Chunk),
 			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
@@ -474,13 +488,39 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Uint64("weight", filteredWeight),
 			zap.Uint64("totalWeight", weight),
 		)
+		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 
-		// TODO: fetch chunk if we don't have it from a signer (run down list and sample)
+		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		//
-		// TODO: store chunk with highest weight
 		c.certs.Update(cert)
+	case txMsg:
+		_, txs, err := chain.UnmarshalTxs(msg[1:], 1, c.vm.actionRegistry, c.vm.authRegistry)
+		if err != nil {
+			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		tx := txs[0]
+
+		// Check that we are the partition for the tx
+		epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+			return nil
+		}
+		partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+		if err != nil {
+			c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+			return nil
+		}
+		if partition != c.vm.snowCtx.NodeID {
+			c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
+			return nil
+		}
+
+		// Submit txs
+		c.vm.Submit(ctx, true, txs)
+		c.vm.Logger().Debug("received tx from gossip", zap.Stringer("txID", tx.ID()), zap.Stringer("nodeID", nodeID))
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
@@ -606,7 +646,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
 
-	t := time.NewTicker(500 * time.Millisecond)
+	t := time.NewTicker(c.vm.config.GetBuildFrequency())
 	defer t.Stop()
 	for {
 		select {
@@ -616,14 +656,14 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				continue
 			}
 
+			// Attempt to build a block
 			// TODO: move this simple time trigger elsewhere
 			select {
 			case c.vm.EngineChan() <- common.PendingTxs:
-				c.vm.Logger().Info("sent message to build")
 			default:
-				c.vm.Logger().Info("already sent message to build")
 			}
 
+			// Attempt to build a chunk
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
 				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))
@@ -653,9 +693,7 @@ func (c *ChunkManager) SetMin(ctx context.Context, t int64) {
 	c.certs.SetMin(ctx, t)
 }
 
-// TODO: sign own chunks and add to cert
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
-	// TODO: record chunks we sent out to collect signatures
 	msg := make([]byte, 1+chunk.Size())
 	msg[0] = chunkMsg
 	chunkBytes, err := chunk.Marshal()
@@ -664,7 +702,12 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		return
 	}
 	copy(msg[1:], chunkBytes)
-	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+	if err != nil {
+		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("t", chunk.Slot), zap.Error(err))
+		return
+	}
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, epochHeight, false)
 	if err != nil {
 		panic(err)
 	}
@@ -724,7 +767,12 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		return
 	}
 	copy(msg[1:], certBytes)
-	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+	if err != nil {
+		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", cert.Slot), zap.Error(err))
+		return
+	}
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, epochHeight, false)
 	if err != nil {
 		panic(err)
 	}
@@ -735,65 +783,51 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 	return c.certs.Pop(ctx)
 }
 
+// TODO: ensure they are at front?
 func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	for _, cert := range certs {
 		c.certs.Update(cert)
 	}
 }
 
-func (c *ChunkManager) HandleTxs(ctx context.Context, txs []*chain.Transaction) {
-	ok, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, c.vm.snowCtx.NodeID)
+func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
+	// Check if issued recently
+	if _, ok := c.txs.Get(tx.ID()); ok {
+		return
+	}
+	c.txs.Put(tx.ID(), nil)
+
+	// Find transaction partition
+	epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
 	if err != nil {
-		c.vm.Logger().Warn("failed to check if validator", zap.Error(err))
+		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
+		return
+	}
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+	if err != nil {
+		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return
 	}
 
-	// Add to mempool
-	if ok {
-		c.vm.mempool.Add(ctx, txs)
-		c.vm.Logger().Info("added txs to mempool", zap.Int("n", len(txs)))
+	// Add to mempool if we are the issuer
+	if partition == c.vm.snowCtx.NodeID {
+		c.vm.mempool.Add(ctx, []*chain.Transaction{tx})
+		c.vm.Logger().Debug("adding tx to mempool", zap.Stringer("txID", tx.ID()))
 		return
 	}
 
-	// Check cache to see if issued recently
+	// If we are not the issuer, send to the correct issuer
 	//
-	// TODO: can probably remove when partitions are added but needed know to
-	// prevent distribution of duplicate txs
-	selected := make([]*chain.Transaction, 0, len(txs))
-	for _, tx := range txs {
-		if _, ok := c.txs.Get(tx.ID()); !ok {
-			selected = append(selected, tx)
-			c.txs.Put(tx.ID(), nil)
-		}
-	}
-	if len(selected) == 0 {
-		return
-	}
-
-	// Select random validator recipient and send
-	//
-	// TODO: send to partition allocated validator
-	vdrSet, err := c.vm.proposerMonitor.GetValidatorSet(ctx, false)
+	// TODO: batch tx issuance
+	txBytes, err := chain.MarshalTxs([]*chain.Transaction{tx})
 	if err != nil {
 		panic(err)
 	}
-	for vdr := range vdrSet { // golang iterates over map in random order
-		if vdr == c.vm.snowCtx.NodeID {
-			continue
-		}
-		if !c.connected.Contains(vdr) {
-			continue
-		}
-		txBytes, err := chain.MarshalTxs(txs)
-		if err != nil {
-			c.vm.Logger().Warn("failed to marshal txs", zap.Error(err))
-			return
-		}
-		msg := make([]byte, 1+len(txBytes))
-		msg[0] = txMsg
-		copy(msg[1:], txBytes)
-		c.appSender.SendAppGossipSpecific(ctx, set.Of(vdr), msg)
-	}
+	msg := make([]byte, 1+len(txBytes))
+	msg[0] = txMsg
+	copy(msg[1:], txBytes)
+	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
+	c.vm.Logger().Info("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
 }
 
 // This function should be spawned in a goroutine because it blocks
@@ -832,6 +866,13 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				for {
 					c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
+					// Look for chunk epoch
+					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)
+					if err != nil {
+						c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
+						continue
+					}
+
 					// Make request
 					bytesChan := make(chan []byte, 1)
 					c.callbacksL.Lock()
@@ -847,7 +888,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						// Chunk should be sent to all validators, so we can just pick a random one
 						//
 						// TODO: consider using cert to select validators?
-						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background())
+						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background(), epochHeight)
 						if err != nil {
 							panic(err)
 						}

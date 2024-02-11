@@ -39,10 +39,6 @@ func (r *Rules) GetMinBlockGap() int64 {
 	return r.g.MinBlockGap
 }
 
-func (r *Rules) GetMinEmptyBlockGap() int64 {
-	return r.g.MinEmptyBlockGap
-}
-
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
@@ -113,4 +109,13 @@ func (*Rules) FetchCustom(string) (any, bool) {
 
 func (r *Rules) GetBlockExecutionDepth() uint64 {
 	return 5
+}
+
+func (r *Rules) GetChunksPerBlock() int {
+	return 16
+}
+
+func (r *Rules) GetEpochDuration() int64 {
+	// TODO: ensure this is greater than validity window
+	return 15000 // 15s
 }

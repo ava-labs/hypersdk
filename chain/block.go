@@ -33,9 +33,10 @@ var (
 )
 
 type StatefulBlock struct {
-	Parent    ids.ID `json:"parent"`
-	Height    uint64 `json:"height"`
-	Timestamp int64  `json:"timestamp"`
+	Parent     ids.ID `json:"parent"`
+	Height     uint64 `json:"height"`
+	Timestamp  int64  `json:"timestamp"`
+	HasContext bool   `json:"hasContext"`
 
 	// AvailableChunks is a collection of valid Chunks that will be executed in
 	// the future.
@@ -56,7 +57,7 @@ type StatefulBlock struct {
 }
 
 func (b *StatefulBlock) Size() int {
-	return consts.IDLen + consts.Uint64Len + consts.Int64Len +
+	return consts.IDLen + consts.Uint64Len + consts.Int64Len + consts.BoolLen +
 		consts.IntLen + codec.CummSize(b.AvailableChunks) +
 		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
 }
@@ -75,6 +76,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackID(b.Parent)
 	p.PackUint64(b.Height)
 	p.PackInt64(b.Timestamp)
+	p.PackBool(b.HasContext)
 
 	p.PackInt(len(b.AvailableChunks))
 	for _, cert := range b.AvailableChunks {
@@ -105,6 +107,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
 	b.Timestamp = p.UnpackInt64(false)
+	b.HasContext = p.UnpackBool()
 
 	// Parse available chunks
 	chunkCount := p.UnpackInt(false)          // can produce empty blocks
@@ -172,12 +175,13 @@ type StatelessBlock struct {
 	bctx *block.Context
 }
 
-func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
+func NewBlock(vm VM, parent snowman.Block, tmstp int64, context bool) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
-			Parent:    parent.ID(),
-			Timestamp: tmstp,
-			Height:    parent.Height() + 1,
+			Parent:     parent.ID(),
+			Timestamp:  tmstp,
+			Height:     parent.Height() + 1,
+			HasContext: context,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -254,12 +258,10 @@ func ParseStatefulBlock(
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
-//
-// TODO: may want to use a different p-chain height to verify things?
 func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	// Because we require context to add any new chunks (which contain all txs), we know
-	// that any warp messages that are included in these chunks can be verified.
-	return len(b.AvailableChunks) > 0 /* need to verify certs */, nil
+	// If we build with context, we should verify with context. We may use this context
+	// to update the P-Chain height for the next epoch.
+	return b.HasContext, nil
 }
 
 // implements "block.WithVerifyContext"
@@ -343,9 +345,24 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	// TODO: skip verification if state does not exist yet
 
 	var (
-		log = b.vm.Logger()
-		r   = b.vm.Rules(b.StatefulBlock.Timestamp)
+		log   = b.vm.Logger()
+		r     = b.vm.Rules(b.StatefulBlock.Timestamp)
+		epoch = utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
 	)
+
+	// Fetch P-Chain height for epoch from executed state
+	//
+	// If missing and state read has timestamp updated in same or previous slot, we know that epoch
+	// cannot be set.
+	timestamp, heights, err := b.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
+	if err != nil {
+		return fmt.Errorf("%w: can't get epoch heights", err)
+	}
+	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
+	if executedEpoch+1 < epoch && len(b.AvailableChunks) > 0 { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
+		return errors.New("executed tip is too far behind to verify block with certs")
+	}
+	// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
 
 	// Perform basic correctness checks before doing any expensive work
 	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
@@ -368,9 +385,6 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
 		return ErrTimestampTooEarly
 	}
-	if len(b.AvailableChunks) == 0 && b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinEmptyBlockGap() {
-		return ErrTimestampTooEarly
-	}
 
 	// Check duplicate certificates
 	repeats, err := parent.IsRepeatChunk(ctx, b.AvailableChunks, set.NewBits())
@@ -383,85 +397,67 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 
 	// Verify certificates
 	//
-	// TODO: don't rely on block context for verifying certificates (will have a fixed height for computing partitions and verifying warp results)
-	// This can be very finicky near the start of the subnet (where validators were just added) and config must be set to use latest P-Chain height
-	if b.bctx != nil {
-		// We get the validator set once and reuse it instead of using warp verify (which generates the set each time).
+	// TODO: make parallel
+	// TODO: cache verifications (may be verified multiple times at the same p-chain height while
+	// waiting for execution to complete).
+	for i, cert := range b.AvailableChunks {
+		// Ensure chunk is not expired
+		if cert.Slot < b.StatefulBlock.Timestamp {
+			return ErrTimestampTooLate
+		}
 
-		// Get validator set at current height
+		// Ensure chunk is not too early
 		//
-		// TODO: need to handle case where state sync on P-Chain and don't have historical validator set
-		vdrSet, err := b.vm.ValidatorState().GetValidatorSet(ctx, b.bctx.PChainHeight, b.vm.SubnetID())
-		if err != nil {
-			return fmt.Errorf("%w: can't get validator set", err)
+		// TODO: ensure slot is in the block epoch
+		if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+			return ErrTimestampTooEarly
 		}
 
-		vdrList, totalWeight, err := utils.ConstructCanonicalValidatorSet(vdrSet)
-		if err != nil {
-			return fmt.Errorf("%w: can't construct canonical validator set", err)
-		}
-
-		// Verify certificates
+		// Ensure chunk expiry is aligned to a tenth of a second
 		//
-		// TODO: make parallel
-		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
-		// waiting for execution to complete).
-		for i, cert := range b.AvailableChunks {
-			// TODO: Ensure cert is from a validator
-			//
-			// Signers verify that validator signed chunk with right key when signing chunk, so may
-			// not be necessary?
-			//
-			// TODO: consider not verifying this in case validator set changes?
-
-			// TODO: consider moving to chunk verify
-
-			// Ensure chunk is not expired
-			if cert.Slot < b.StatefulBlock.Timestamp {
-				return ErrTimestampTooLate
-			}
-
-			// Ensure chunk is not too early
-			//
-			// TODO: handle the case where our parent is very old (seems like we should only check if > than parent here)?
-			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
-				return ErrTimestampTooEarly
-			}
-
-			// Ensure chunk expiry is aligned to a tenth of a second
-			//
-			// Signatures will only be given for a configurable number of chunks per
-			// second.
-			//
-			// TODO: consider moving to unmarshal
-			if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
-				return ErrMisalignedTime
-			}
-
-			// Verify multi-signature
-			filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
-			if err != nil {
-				return err
-			}
-			filteredWeight, err := warp.SumWeight(filteredVdrs)
-			if err != nil {
-				return err
-			}
-			// TODO: make this a const
-			if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
-				return err
-			}
-			aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
-			if err != nil {
-				return err
-			}
-			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-				return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
-			}
+		// Signatures will only be given for a configurable number of chunks per
+		// second.
+		//
+		// TODO: consider moving to unmarshal
+		if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
+			return ErrMisalignedTime
 		}
-	} else {
-		if len(b.AvailableChunks) > 0 {
-			return errors.New("block context not provided but have available chunks")
+
+		// Get validator set for the epoch
+		certEpoch := utils.Epoch(cert.Slot, r.GetEpochDuration())
+		heightIndex := certEpoch - epoch
+		if heights[heightIndex] == nil {
+			log.Warn(
+				"skipping certificate because epoch is missing",
+				zap.Uint64("epoch", certEpoch),
+				zap.Stringer("chunkID", cert.Chunk),
+			)
+			continue
+		}
+		vdrList, totalWeight, err := b.vm.GetWarpValidators(ctx, *heights[heightIndex])
+		if err != nil {
+			panic(err)
+		}
+
+		// Verify multi-signature
+		filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
+		if err != nil {
+			return err
+		}
+		filteredWeight, err := warp.SumWeight(filteredVdrs)
+		if err != nil {
+			return err
+		}
+		// TODO: make this a const
+		if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
+			return err
+		}
+		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
+		if err != nil {
+			return err
+		}
+		if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
+			return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
 		}
 	}
 
@@ -552,11 +548,6 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		feeManager = fm
 	}
 	b.vm.Accepted(ctx, b, feeManager, filteredChunks)
-	b.vm.Logger().Info(
-		"accept returned",
-		zap.Uint64("height", b.StatefulBlock.Height),
-		zap.Stringer("blockID", b.ID()),
-	)
 	return nil
 }
 

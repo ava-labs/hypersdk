@@ -20,6 +20,10 @@ func (*StateManager) HeightKey() []byte {
 	return HeightKey()
 }
 
+func (*StateManager) PHeightKey() []byte {
+	return PHeightKey()
+}
+
 func (*StateManager) TimestampKey() []byte {
 	return TimestampKey()
 }
@@ -75,4 +79,8 @@ func (*StateManager) Refund(
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
 	return AddBalance(ctx, mu, addr, amount, false)
+}
+
+func (*StateManager) EpochKey(epoch uint64) []byte {
+	return EpochKey(epoch)
 }

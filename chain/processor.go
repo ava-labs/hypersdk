@@ -8,12 +8,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 )
@@ -26,8 +26,11 @@ type Processor struct {
 
 	authStream *stream.Stream
 
-	blkCtx     *smblock.Context
+	latestPHeight *uint64
+	pchainHeights []*uint64
+
 	timestamp  int64
+	epoch      uint64
 	im         state.Immutable
 	feeManager *FeeManager
 	r          Rules
@@ -56,7 +59,8 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM, eng *Engine,
-	blkCtx *smblock.Context, chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	latestPHeight *uint64, pchainHeights []*uint64,
+	chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
 ) *Processor {
 	stream := stream.New()
 	stream.WithMaxGoroutines(10) // TODO: use config
@@ -66,8 +70,11 @@ func NewProcessor(
 
 		authStream: stream,
 
-		blkCtx:     blkCtx,
+		latestPHeight: latestPHeight,
+		pchainHeights: pchainHeights,
+
 		timestamp:  timestamp,
+		epoch:      utils.Epoch(timestamp, r.GetEpochDuration()),
 		im:         im,
 		feeManager: feeManager,
 		r:          r,
@@ -83,7 +90,7 @@ func NewProcessor(
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx *Transaction) {
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, tx *Transaction) {
 	stateKeys, err := tx.StateKeys(p.sm)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -150,7 +157,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 		}
 
 		// Wait to perform warp verification until we know the transaction can pay fees
-		warpVerified := p.verifyWarpMessage(ctx, tx)
+		warpVerified := p.verifyWarpMessage(ctx, pchainHeight, tx)
 
 		// Execute transaction
 		result, err := tx.Execute(ctx, p.feeManager, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
@@ -188,7 +195,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, tx
 	})
 }
 
-func (p *Processor) verifyWarpMessage(ctx context.Context, tx *Transaction) bool {
+func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight uint64, tx *Transaction) bool {
 	if tx.WarpMessage == nil {
 		return false
 	}
@@ -197,14 +204,16 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, tx *Transaction) bool
 	if !allowed {
 		p.vm.Logger().
 			Warn("unable to verify warp message", zap.Stringer("warpID", tx.WarpMessage.ID()), zap.Error(ErrDisabledChainID))
-
 	}
+
+	// We don't use cached validator set here because we need to fetch
+	// external subnet sets.
 	if err := tx.WarpMessage.Signature.Verify(
 		ctx,
 		&tx.WarpMessage.UnsignedMessage,
 		p.r.NetworkID(),
 		p.vm.ValidatorState(),
-		p.blkCtx.PChainHeight,
+		pchainHeight,
 		num,
 		denom,
 	); err != nil {
@@ -244,7 +253,9 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		tx := rtx
 
 		// Perform basic verification (also performed inside of PreExecute)
-		if err := tx.Base.Execute(p.r.ChainID(), p.r, p.timestamp); err != nil {
+		//
+		// We don't care whether this transaction is in the current epoch or the next.
+		if err := tx.Base.Execute(p.r.ChainID(), p.r, p.timestamp); err != nil { // checks timestamp vs validity window
 			p.vm.Logger().Warn("base transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
@@ -259,6 +270,30 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		_, seen := p.txs[tx.ID()]
 		if repeats.Contains(txIndex) || seen {
 			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+
+		// Check that height is set for epoch
+		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
+		pchainHeight := p.pchainHeights[txEpoch-p.epoch]
+		if pchainHeight == nil {
+			// We can't verify tx partition if this is the case
+			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		// If this passes, we know that latest pHeight must be non-nil
+
+		// Check that transaction is in right partition
+		parition, err := p.vm.AddressPartition(ctx, *pchainHeight, tx.Auth.Sponsor())
+		if err != nil {
+			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		if parition != chunk.Producer {
+			p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
@@ -286,7 +321,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 					return func() {}
 				}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, tx) }
 		})
 	}
 	return nil

@@ -8,10 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
 
@@ -41,6 +43,8 @@ type Engine struct {
 
 	backlog chan *engineJob
 
+	latestView state.View
+
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
@@ -64,13 +68,15 @@ func (e *Engine) Run() {
 	log := e.vm.Logger()
 
 	// Get last accepted state
-	parentView := state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
+	e.latestView = state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
 
 	for {
 		select {
 		case job := <-e.backlog:
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
+
+			parentView := e.latestView
 			r := e.vm.Rules(job.blk.StatefulBlock.Timestamp)
 
 			// Fetch parent height key and ensure block height is valid
@@ -83,6 +89,31 @@ func (e *Engine) Run() {
 			if job.blk.Height() != parentHeight+1 {
 				// TODO: re-execute previous blocks to get to required state
 				panic(ErrInvalidBlockHeight)
+			}
+
+			// Fetch latest block context (used for reliable and recent warp verification)
+			pHeightKey := PHeightKey(e.vm.StateManager().PHeightKey())
+			pHeightRaw, err := parentView.GetValue(ctx, pHeightKey)
+			var pHeight *uint64
+			if err == nil {
+				h := binary.BigEndian.Uint64(pHeightRaw)
+				pHeight = &h
+			}
+
+			// Fetch timestamp key
+			timestampKey := HeightKey(e.vm.StateManager().TimestampKey())
+			timestampRaw, err := parentView.GetValue(ctx, timestampKey)
+			if err != nil {
+				panic(err)
+			}
+
+			// Fetch PChainHeight for this epoch
+			//
+			// We don't need to check timestamps here becuase we already handled that in block verification.
+			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
+			_, heights, err := e.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
+			if err != nil {
+				panic(err)
 			}
 
 			// Compute fees
@@ -100,7 +131,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, job.blk.bctx, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, pHeight, heights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
@@ -167,26 +198,83 @@ func (e *Engine) Run() {
 				// As soon as execution of transactions is finished, let the VM know so that it
 				// can notify subscribers.
 				//
-				// TODO: allow for querying agains the executed tip of state rather than the accepted one (which
-				// will be artificially delayed to give time to fetch missing chunks)
-				//
 				// TODO: handle restart case where block may be sent twice?
+				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
+			}
+
+			// Update tracked p-chain heights
+			if job.blk.bctx != nil {
+				// Set latest pHeight
+				keys := make(state.Keys)
+				keys.Add(string(pHeightKey), state.Allocate|state.Write)
+				m := make(map[string][]byte)
+				if pHeight != nil {
+					m[string(pHeightKey)] = pHeightRaw
+				}
+				tsv := ts.NewView(keys, m)
+				if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
+					panic(err)
+				}
+				tsv.Commit()
+				e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.bctx.PChainHeight))
+
+				// Ensure we are never stuck waiting for height information near the end of an epoch
 				//
-				// TODO: send async?
-				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults)
+				// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
+				// is not populated, we need to know by e that e+1 cannot be populated. If we only set e+2 below, we may
+				// not know whether e+1 is populated unitl we wait for e-1 execution to finish (as any block in e-1 could set
+				// the epoch height). This could cause verification to stutter across the boundary when it is taking longer than
+				// expected to set to the p-chain hegiht for an epoch.
+				nextEpoch := epoch + 3
+				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
+				epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey)
+				switch {
+				case err == nil:
+					e.vm.Logger().Info(
+						"height already set for epoch",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw)),
+					)
+				case err != nil && errors.Is(err, database.ErrNotFound):
+					keys := make(state.Keys)
+					keys.Add(string(nextEpochKey), state.Allocate|state.Write)
+					tsv := ts.NewView(keys, map[string][]byte{})
+					if err := tsv.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
+						panic(err)
+					}
+					tsv.Commit()
+					e.vm.FetchValidators(ctx, job.blk.bctx.PChainHeight) // optimistically fetch validators to prevent lockbacks
+					e.vm.Logger().Info(
+						"setting epoch height",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Uint64("height", job.blk.bctx.PChainHeight),
+					)
+				default:
+					e.vm.Logger().Warn(
+						"unable to determine if should set epoch height",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Error(err),
+					)
+				}
 			}
 
 			// Update chain metadata
 			heightKeyStr := string(heightKey)
+			timestampKeyStr := string(timestampKey)
 			feeKeyStr := string(feeKey)
 			keys := make(state.Keys)
-			keys.Add(heightKeyStr, state.Write) // TODO: can probably remove this?
+			keys.Add(heightKeyStr, state.Write)
+			keys.Add(timestampKeyStr, state.Write)
 			keys.Add(feeKeyStr, state.Write)
 			tsv := ts.NewView(keys, map[string][]byte{
-				heightKeyStr: parentHeightRaw,
-				feeKeyStr:    parentFeeManager.Bytes(),
+				heightKeyStr:    parentHeightRaw,
+				timestampKeyStr: timestampRaw,
+				feeKeyStr:       parentFeeManager.Bytes(),
 			})
 			if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
+				panic(err)
+			}
+			if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
 				panic(err)
 			}
 			if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
@@ -232,7 +320,7 @@ func (e *Engine) Run() {
 			}
 			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
-			parentView = view
+			e.latestView = view
 
 			log.Info(
 				"executed block",
@@ -322,6 +410,38 @@ func (e *Engine) IsRepeatTx(
 	return e.vm.IsRepeatTx(ctx, txs, marker), nil
 }
 
+func (e *Engine) ReadLatestState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+	view := e.latestView
+	results := make([][]byte, len(keys))
+	errors := make([]error, len(keys))
+	for i, key := range keys {
+		result, err := view.GetValue(ctx, key)
+		results[i] = result
+		errors[i] = err
+	}
+	return results, errors
+}
+
 func (e *Engine) Done() {
 	<-e.done
+}
+
+func (e *Engine) GetEpochHeights(ctx context.Context, epochs []uint64) (int64, []*uint64, error) {
+	keys := [][]byte{HeightKey(e.vm.StateManager().TimestampKey())}
+	for _, epoch := range epochs {
+		keys = append(keys, EpochKey(e.vm.StateManager().EpochKey(epoch)))
+	}
+	values, errs := e.ReadLatestState(ctx, keys)
+	if errs[0] != nil {
+		return -1, nil, fmt.Errorf("%w: can't read timestamp key", errs[0])
+	}
+	heights := make([]*uint64, len(epochs))
+	for i := 0; i < len(epochs); i++ {
+		if errs[i+1] != nil {
+			continue
+		}
+		h := binary.BigEndian.Uint64(values[i+1])
+		heights[i] = &h
+	}
+	return int64(binary.BigEndian.Uint64(values[0])), heights, nil
 }

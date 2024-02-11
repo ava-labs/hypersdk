@@ -29,8 +29,36 @@ type Chunk struct {
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
+	now := time.Now().UnixMilli()
+	r := vm.Rules(now)
 	c := &Chunk{
-		Txs: make([]*Transaction, 0, 100),
+		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
+		Txs:  make([]*Transaction, 0, 100),
+	}
+	epoch := utils.Epoch(now, r.GetEpochDuration())
+
+	// Don't build chunk if no P-Chain height for epoch
+	timestamp, heights, err := vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
+	if err != nil {
+		return nil, err
+	}
+	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
+	if executedEpoch+2 < epoch { // only require + 2 because we don't care about epoch + 1 like in verification.
+		return nil, fmt.Errorf("executed epoch (%d) is too far behind (%d) to verify chunk", executedEpoch, epoch)
+	}
+	if heights[0] == nil {
+		return nil, fmt.Errorf("no P-Chain height for epoch %d", epoch)
+	}
+
+	// Check if validator
+	//
+	// If not a validator in this epoch height, don't build.
+	amValidator, err := vm.IsValidator(ctx, *heights[0], vm.NodeID())
+	if err != nil {
+		return nil, err
+	}
+	if !amValidator {
+		return nil, errors.New("not a validator during this epoch, so no one will sign my chunk")
 	}
 
 	// Pack chunk for build duration
@@ -72,10 +100,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Setup chunk
-	now := time.Now().UnixMilli()
-	r := vm.Rules(now)
-	// TODO: make util support rounding (make round a configuration option)
-	c.Slot = utils.UnixRDeci(now, r.GetValidityWindow())
 	c.Producer = vm.NodeID()
 	c.Signer = vm.Signer()
 
@@ -99,6 +123,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("nodeID", vm.NodeID()),
 		zap.Uint32("networkID", r.NetworkID()),
 		zap.Stringer("chainID", r.ChainID()),
+		zap.Int64("slot", c.Slot),
+		zap.Uint64("epoch", epoch),
 		zap.String("digest", hex.EncodeToString(digest)),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),

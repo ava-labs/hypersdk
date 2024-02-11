@@ -49,6 +49,11 @@ type blockWrapper struct {
 	Block      *chain.StatelessBlock
 	FeeManager *chain.FeeManager
 }
+type executedWrapper struct {
+	Block   uint64
+	Chunk   *chain.FilteredChunk
+	Results []*chain.Result
+}
 
 type VM struct {
 	c Controller
@@ -101,6 +106,10 @@ type VM struct {
 	// to avoid reading blocks from disk.
 	acceptedBlocksByID     *hcache.FIFO[ids.ID, *chain.StatelessBlock]
 	acceptedBlocksByHeight *hcache.FIFO[uint64, ids.ID]
+
+	// Executed chunk queue
+	executedQueue chan *executedWrapper
+	executorDone  chan struct{}
 
 	// Accepted block queue
 	acceptedQueue chan *blockWrapper
@@ -178,8 +187,25 @@ func (vm *VM) Initialize(
 		return err
 	}
 	vm.metrics = metrics
-	vm.proposerMonitor = NewProposerMonitor(vm)
+
+	// Always initialize implementation first
+	vm.baseDB = baseDB
+	vm.config, vm.genesis, vm.vmDB,
+		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+		vm,
+		snowCtx,
+		gatherer,
+		genesisBytes,
+		upgradeBytes,
+		configBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("implementation initialization failed: %w", err)
+	}
+
+	// Setup network and validator tracking
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
+	vm.proposerMonitor = NewProposerMonitor(vm)
 
 	// Initialize warp handler
 	warpHandler, warpSender := vm.networkManager.Register()
@@ -192,21 +218,6 @@ func (vm *VM) Initialize(
 	vm.cm = NewChunkManager(vm)
 	vm.networkManager.SetHandler(chunkHandler, vm.cm)
 	go vm.cm.Run(chunkSender)
-
-	// Always initialize implementation first
-	vm.baseDB = baseDB
-	vm.config, vm.genesis, _, _, vm.vmDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
-		vm,
-		snowCtx,
-		gatherer,
-		genesisBytes,
-		upgradeBytes,
-		configBytes,
-	)
-	if err != nil {
-		return fmt.Errorf("implementation initialization failed: %w", err)
-	}
 
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
@@ -264,6 +275,8 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
+	vm.executedQueue = make(chan *executedWrapper, vm.config.GetAcceptorSize())
+	vm.executorDone = make(chan struct{})
 	vm.acceptedQueue = make(chan *blockWrapper, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
@@ -340,7 +353,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(genesisBlk.StatefulBlock.Timestamp))); err != nil {
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
@@ -378,6 +391,7 @@ func (vm *VM) Initialize(
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}
+	go vm.processExecutedChunks()
 	go vm.processAcceptedBlocks()
 
 	// Setup chain engine
@@ -474,15 +488,13 @@ func (vm *VM) BaseDB() database.Database {
 	return vm.baseDB
 }
 
+// ReadState reads the latest executed state
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
 	if !vm.isReady() {
 		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
 	}
 
-	// TODO: read last executed state rather than accepted state
-
-	// Atomic read to ensure consistency
-	return vm.stateDB.GetValues(ctx, keys)
+	return vm.engine.ReadLatestState(ctx, keys)
 }
 
 func (vm *VM) SetState(_ context.Context, state snow.State) error {
@@ -567,6 +579,10 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if err := vm.stateSyncClient.Shutdown(); err != nil {
 		return err
 	}
+
+	// Process remaining executed chunks before shutdown
+	close(vm.executedQueue)
+	<-vm.executorDone
 
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
@@ -814,7 +830,6 @@ func (vm *VM) Submit(
 	// Perform basic validity checks before storing in mempool
 	now := time.Now().UnixMilli()
 	r := vm.Rules(now)
-	validTxs := make([]*chain.Transaction, 0, len(txs))
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
 		if repeats.Contains(i) {
@@ -866,9 +881,8 @@ func (vm *VM) Submit(
 			}
 		}
 		errs = append(errs, nil)
-		validTxs = append(validTxs, tx)
+		vm.cm.HandleTx(ctx, tx)
 	}
-	vm.cm.HandleTxs(ctx, validTxs)
 	return errs
 }
 
