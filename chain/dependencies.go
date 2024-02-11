@@ -226,6 +226,7 @@ type FeeHandler interface {
 	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
 	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
 	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
+	//  TODO: claims handled in random order, we need to handle deterministically to get canonical epoch/epoch result
 }
 
 type EpochManager interface {
