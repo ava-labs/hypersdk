@@ -44,10 +44,10 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
 	if executedEpoch+2 < epoch { // only require + 2 because we don't care about epoch + 1 like in verification.
-		return nil, errors.New("executed tip is too far behind to verify block")
+		return nil, fmt.Errorf("executed epoch (%d) is too far behind (%d) to verify chunk", executedEpoch, epoch)
 	}
 	if heights[0] == nil {
-		return nil, errors.New("no P-Chain height for epoch")
+		return nil, fmt.Errorf("no P-Chain height for epoch %d", epoch)
 	}
 
 	// Check if validator
