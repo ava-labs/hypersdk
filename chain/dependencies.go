@@ -224,6 +224,8 @@ type FeeHandler interface {
 	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error)                // total locked is this value * 2
 	CanProcess(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)                 // we mark by epoch to support unfreezing
 	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
+	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
+	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
 }
 
 type EpochManager interface {
