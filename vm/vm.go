@@ -6,6 +6,7 @@ package vm
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -879,8 +880,19 @@ func (vm *VM) Submit(
 			}
 		}
 
-		// TODO: check that bond is valid
-		// Don't check that too many outstanding here
+		// Check that bond is valid
+		//
+		// Outstanding tx limit is maintained in chunk builder
+		// TODO: add immutable access
+		ok, err := vm.StateManager().CanProcess(ctx, tx.Auth.Sponsor(), hutils.Epoch(tx.Base.Timestamp, r.GetEpochDuration()), nil)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if !ok {
+			errs = append(errs, errors.New("sponsor has no valid bond"))
+			continue
+		}
 
 		errs = append(errs, nil)
 		vm.cm.HandleTx(ctx, tx)
