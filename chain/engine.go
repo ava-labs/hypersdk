@@ -157,7 +157,7 @@ func (e *Engine) Run() {
 			for _, claim := range claims {
 				// TODO: fetch previous claim to ensure don't overwrite?
 
-				// TODO: add beneficiary address
+				// TODO: add beneficiary address from chunk
 				err := e.vm.StateManager().ClaimBond(ctx, claim.Auth.Sponsor(), codec.Address{}, utils.Epoch(claim.Base.Timestamp, r.GetEpochDuration()), nil)
 				if err != nil {
 					panic(err)

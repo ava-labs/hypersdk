@@ -846,10 +846,8 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// TODO: check that bond is valid
-
-		// Ensure not expired and not too far in the future
-		if err := tx.Base.Execute(vm.snowCtx.ChainID, r, now); err != nil {
+		// Perform syntactic verification
+		if _, err := tx.SyntacticVerify(ctx, vm.StateManager(), r, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -880,6 +878,10 @@ func (vm *VM) Submit(
 				continue
 			}
 		}
+
+		// TODO: check that bond is valid
+		// Don't check that too many outstanding here
+
 		errs = append(errs, nil)
 		vm.cm.HandleTx(ctx, tx)
 	}

@@ -77,6 +77,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			}
 
 			// TODO: count outstanding for an account and ensure less than epoch bond
+			// if too many, just put back into mempool and try again later
 
 			// TODO: verify transactions
 			if tx.Base.Timestamp > c.Slot {
