@@ -289,40 +289,30 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 // TODO: remove balance check from this function
 // to enable more granular handling of balance check
 // failures
-func (t *Transaction) PreExecute(
+func (t *Transaction) SyntacticVerify(
 	ctx context.Context,
-	feeManager *FeeManager,
 	s StateManager,
 	r Rules,
-	im state.Immutable,
 	timestamp int64,
-) error {
+) (Dimensions, error) {
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
-		return err
+		return Dimensions{}, err
 	}
 	start, end := t.Action.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return ErrActionNotActivated
+		return Dimensions{}, ErrActionNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return ErrActionNotActivated
+		return Dimensions{}, ErrActionNotActivated
 	}
 	start, end = t.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
-		return ErrAuthNotActivated
+		return Dimensions{}, ErrAuthNotActivated
 	}
 	if end >= 0 && timestamp > end {
-		return ErrAuthNotActivated
+		return Dimensions{}, ErrAuthNotActivated
 	}
-	maxUnits, err := t.MaxUnits(s, r)
-	if err != nil {
-		return err
-	}
-	maxFee, err := feeManager.MaxFee(maxUnits)
-	if err != nil {
-		return err
-	}
-	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, maxFee)
+	return t.MaxUnits(s, r)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt

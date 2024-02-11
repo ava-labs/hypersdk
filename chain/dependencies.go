@@ -219,6 +219,11 @@ type FeeHandler interface {
 	//
 	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+
+	// TODO: cleanup
+	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
+	CanProcess(ctx context.Context, addr codec.Address, im state.Immutable) error
+	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts
 }
 
 type EpochManager interface {

@@ -90,7 +90,7 @@ func NewProcessor(
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, tx *Transaction) {
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, maxUnits Dimensions, tx *Transaction) {
 	stateKeys, err := tx.StateKeys(p.sm)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -149,10 +149,16 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		tsv := p.ts.NewView(stateKeys, storage)
 
 		// Ensure we have enough funds to pay fees
-		if err := tx.PreExecute(ctx, p.feeManager, p.sm, p.r, tsv, p.timestamp); err != nil {
-			// TODO: freeze account and pay bond
-			p.vm.Logger().Warn("pre-execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
+		feeRequired, err := p.feeManager.MaxFee(maxUnits)
+		if err != nil {
+			// This is an unexpected error
+			return err
+		}
+		if err := p.sm.CanDeduct(ctx, tx.Auth.Sponsor(), tsv, feeRequired); err != nil {
+			p.vm.Logger().Warn("insufficient funds", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+
+			// TODO: file claim and deduct bond
 			return nil
 		}
 
@@ -252,11 +258,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		txIndex := ri
 		tx := rtx
 
-		// Perform basic verification (also performed inside of PreExecute)
+		// Perform syntactic verification
 		//
 		// We don't care whether this transaction is in the current epoch or the next.
-		if err := tx.Base.Execute(p.r.ChainID(), p.r, p.timestamp); err != nil { // checks timestamp vs validity window
-			p.vm.Logger().Warn("base transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+		maxUnits, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
+		if err != nil {
+			p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
@@ -321,7 +328,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 					return func() {}
 				}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, maxUnits, tx) }
 		})
 	}
 	return nil

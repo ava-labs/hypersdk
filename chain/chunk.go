@@ -76,7 +76,12 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 				continue
 			}
 
+			// TODO: count outstanding for an account and ensure less than epoch bond
+
 			// TODO: verify transactions
+			if tx.Base.Timestamp > c.Slot {
+				continue
+			}
 
 			// Add transaction to chunk
 			vm.IssueTx(ctx, tx)
