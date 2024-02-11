@@ -286,6 +286,9 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	return Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
 }
 
+// TODO: remove balance check from this function
+// to enable more granular handling of balance check
+// failures
 func (t *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *FeeManager,
