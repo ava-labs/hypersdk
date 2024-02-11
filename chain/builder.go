@@ -74,10 +74,9 @@ func BuildBlock(
 		b.AvailableChunks = append(b.AvailableChunks, cert)
 		b.vm.Logger().Info(
 			"included chunk in block",
-			zap.Stringer("blockID", b.ID()),
+			zap.Uint64("block", b.StatefulBlock.Height),
 			zap.Stringer("chunkID", cert.Chunk),
 			zap.Uint64("epoch", utils.Epoch(cert.Slot, r.GetEpochDuration())),
-			zap.Duration("t(replication)", time.Duration(b.StatefulBlock.Timestamp-cert.Slot)*time.Millisecond),
 		)
 
 	}

@@ -248,7 +248,6 @@ func (e *Engine) Run() {
 						"setting epoch height",
 						zap.Uint64("epoch", nextEpoch),
 						zap.Uint64("height", job.blk.bctx.PChainHeight),
-						zap.Error(err),
 					)
 				default:
 					e.vm.Logger().Warn(

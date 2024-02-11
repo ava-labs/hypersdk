@@ -66,7 +66,7 @@ func Default() *Genesis {
 		StateBranchFactor: merkledb.BranchFactor16,
 
 		// Chain Parameters
-		MinBlockGap: 500, // TODO: align with slot frequency
+		MinBlockGap: 2500, // TODO: align with slot frequency
 
 		// Chain Fee Parameters
 		MinUnitPrice:               chain.Dimensions{100, 100, 100, 100, 100},
@@ -75,7 +75,7 @@ func Default() *Genesis {
 		MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
-		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
+		ValidityWindow: 10 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Compute Parameters
 		BaseComputeUnits:          1,

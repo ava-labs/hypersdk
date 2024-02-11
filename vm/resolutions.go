@@ -132,7 +132,7 @@ func (vm *VM) processExecutedChunks() {
 	for ew := range vm.executedQueue {
 		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
 		vm.snowCtx.Log.Info(
-			"chunk processed",
+			"chunk async executed",
 			zap.Uint64("blk", ew.Block),
 			zap.Stringer("chunkID", ew.Chunk.Chunk),
 		)
@@ -255,7 +255,7 @@ func (vm *VM) processAcceptedBlocks() {
 	for bw := range vm.acceptedQueue {
 		vm.processAcceptedBlock(bw.Block, bw.FeeManager)
 		vm.snowCtx.Log.Info(
-			"block processed",
+			"block async accepted",
 			zap.Stringer("blkID", bw.Block.ID()),
 			zap.Uint64("height", bw.Block.Height()),
 		)

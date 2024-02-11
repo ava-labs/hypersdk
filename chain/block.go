@@ -548,11 +548,6 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		feeManager = fm
 	}
 	b.vm.Accepted(ctx, b, feeManager, filteredChunks)
-	b.vm.Logger().Info(
-		"accept returned",
-		zap.Uint64("height", b.StatefulBlock.Height),
-		zap.Stringer("blockID", b.ID()),
-	)
 	return nil
 }
 

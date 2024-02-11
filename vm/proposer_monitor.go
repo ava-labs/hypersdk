@@ -6,7 +6,6 @@ package vm
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -234,11 +233,5 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, a
 	h := utils.ToID(seed)
 	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
 	indexInt := int(index.Int64())
-	p.vm.Logger().Info(
-		"address partition computed",
-		zap.Uint64("height", height),
-		zap.String("address", hex.EncodeToString(addr[:])),
-		zap.Int("index", indexInt),
-	)
 	return info.partitionSet[indexInt], nil
 }

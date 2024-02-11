@@ -520,6 +520,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Submit txs
 		c.vm.Submit(ctx, true, txs)
+		c.vm.Logger().Debug("received tx from gossip", zap.Stringer("txID", tx.ID()), zap.Stringer("nodeID", nodeID))
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
@@ -655,14 +656,14 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				continue
 			}
 
+			// Attempt to build a block
 			// TODO: move this simple time trigger elsewhere
 			select {
 			case c.vm.EngineChan() <- common.PendingTxs:
-				c.vm.Logger().Info("sent message to build")
 			default:
-				c.vm.Logger().Info("already sent message to build")
 			}
 
+			// Attempt to build a chunk
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
 				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))
@@ -811,17 +812,22 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	// Add to mempool if we are the issuer
 	if partition == c.vm.snowCtx.NodeID {
 		c.vm.mempool.Add(ctx, []*chain.Transaction{tx})
+		c.vm.Logger().Debug("adding tx to mempool", zap.Stringer("txID", tx.ID()))
 		return
 	}
 
 	// If we are not the issuer, send to the correct issuer
 	//
 	// TODO: batch tx issuance
-	msg, err := chain.MarshalTxs([]*chain.Transaction{tx})
+	txBytes, err := chain.MarshalTxs([]*chain.Transaction{tx})
 	if err != nil {
 		panic(err)
 	}
+	msg := make([]byte, 1+len(txBytes))
+	msg[0] = txMsg
+	copy(msg[1:], txBytes)
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
+	c.vm.Logger().Info("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
 }
 
 // This function should be spawned in a goroutine because it blocks

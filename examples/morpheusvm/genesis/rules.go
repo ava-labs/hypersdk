@@ -116,5 +116,6 @@ func (r *Rules) GetChunksPerBlock() int {
 }
 
 func (r *Rules) GetEpochDuration() int64 {
-	return 180000 // 180s
+	// TODO: ensure this is greater than validity window
+	return 15000 // 15s
 }
