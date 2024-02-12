@@ -78,7 +78,7 @@ pub type SmartPtr = i64;
 /// Converts a pointer to a i64 with the first 4 bytes of the pointer
 /// representing the length of the memory block.
 /// # Errors
-/// Returns an `StateError` if the pointer or length of [args] exceeds
+/// Returns an `StateError` if the pointer or length of `args` exceeds
 /// the maximum size of a u32.
 #[allow(clippy::cast_possible_truncation)]
 pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
@@ -110,8 +110,8 @@ pub fn split_smart_ptr(arg: SmartPtr) -> (i64, usize) {
 }
 
 /// Converts a raw pointer to a deserialized value.
-/// Expects the first 4 bytes of the pointer to represent the [length] of the serialized value,
-/// with the subsequent [length] bytes comprising the serialized data.
+/// Expects the first 4 bytes of the pointer to represent the `length` of the serialized value,
+/// with the subsequent `length` bytes comprising the serialized data.
 /// # Panics
 /// Panics if the bytes cannot be deserialized.
 /// # Safety

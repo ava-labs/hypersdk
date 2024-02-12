@@ -55,7 +55,7 @@ impl State {
     }
 }
 
-/// Key is a wrapper around a Vec<u8> that represents a key in the host storage.
+/// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
 #[derive(Debug, Default, Clone)]
 pub struct Key(Vec<u8>);
 
