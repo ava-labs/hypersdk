@@ -33,7 +33,6 @@ type Executor struct {
 	completed int
 	tasks     map[int]*task
 	edges     map[string]*KeyData
-	blocking  set.Set[int]
 }
 
 // KeyData keeps track of the key permission and the
@@ -41,6 +40,7 @@ type Executor struct {
 type KeyData struct {
 	TaskID      int
 	Permissions state.Permissions
+	Parent int
 }
 
 // New creates a new [Executor].
@@ -51,7 +51,6 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		tasks:      make(map[int]*task, items),
 		edges:      make(map[string]*KeyData, items*2), // TODO: tune this
 		executable: make(chan *task, items),            // ensure we don't block while holding lock
-		blocking:   set.NewSet[int](defaultSetSize),    // txns that are executing that are blocking other txns
 	}
 	for i := 0; i < concurrency; i++ {
 		e.createWorker()
@@ -92,7 +91,6 @@ func (e *Executor) createWorker() {
 				for b := range t.blocking { // works fine on non-initialized map
 					bt := e.tasks[b]
 					bt.dependencies.Remove(t.id)
-					e.blocking.Remove(t.id)         // if a txn was blocking other txn, we can move remove it
 					if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 						bt.dependencies = nil // free memory
 						e.executable <- bt
@@ -102,7 +100,6 @@ func (e *Executor) createWorker() {
 				t.executed = true
 				e.completed++
 				if e.done && e.completed == len(e.tasks) {
-					e.blocking = nil // free memory
 					// We will close here if there are unexecuted tasks
 					// when we call [Wait].
 					close(e.executable)
@@ -143,23 +140,19 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				}
 				// key has ONLY a Read permission
 				if v == state.Read {
-					t.dependencies.Add(lt.id) // t depends on lt to execute
-					lt.blocking.Add(id)       // lt is blocking this current task
-					// If lt is blocking any other txn, we need to record this
-					// to prevent subsequent txns that depend on lt from executing
-					// at the same time
-					e.blocking.Add(lt.id)
+					// lt contains either Allocate or Write permission. If lt had only a Read
+					// permission, no dependency or blocking would be added
+					if latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {					
+						t.dependencies.Add(lt.id) // t depends on lt to execute
+						lt.blocking.Add(id)       // lt is blocking this current task
+					}
 					continue
 				}
 
 				// key contains a Allocate or Write permission
 				if v.Has(state.Allocate) || v.Has(state.Write) {
-					// lt contains either Read, Allocate, or Write
-					if latest.Permissions.Has(state.Read) || latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {
-						t.dependencies.Add(lt.id)
-						lt.blocking.Add(id)
-						e.blocking.Add(lt.id)
-					}
+					t.dependencies.Add(lt.id)
+					lt.blocking.Add(id)
 				}
 			}
 		}
@@ -167,24 +160,17 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		e.edges[k] = &KeyData{TaskID: id, Permissions: v}
 	}
 
-	if t.dependencies != nil && t.dependencies.Len() > 0 {
-		// Ensure that we don't schedule a transaction that is
-		// blocked by another transaction currently running
-		for bID := range t.dependencies {
-			// don't execute if any dependency task is in blocking
-			if e.blocking.Contains(bID) {
-				if e.metrics != nil {
-					e.metrics.RecordBlocked()
-				}
-				return
-			}
-		}
-	}
 	// Start execution if there are no blocking dependencies
-	t.dependencies = nil // free memory
-	e.executable <- t
+	if t.dependencies == nil || t.dependencies.Len() == 0 {
+		t.dependencies = nil // free memory
+		e.executable <- t
+		if e.metrics != nil {
+			e.metrics.RecordExecutable()
+		}
+		return
+	}
 	if e.metrics != nil {
-		e.metrics.RecordExecutable()
+		e.metrics.RecordBlocked()
 	}
 }
 
@@ -202,7 +188,6 @@ func (e *Executor) Wait() error {
 	e.l.Lock()
 	e.done = true
 	if e.completed == len(e.tasks) {
-		e.blocking = nil // free memory
 		// We will close here if all tasks
 		// are executed by the time we call [Wait].
 		close(e.executable)
