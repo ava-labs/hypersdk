@@ -5,7 +5,9 @@ use core::panic;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type};
+use syn::{
+    parse_macro_input, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type, Visibility,
+};
 
 fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
     quote! {
@@ -21,6 +23,12 @@ fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
 #[proc_macro_attribute]
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
+
+    if !matches!(input.vis, Visibility::Public(_)) {
+        let name = &input.sig.ident;
+        panic!("Function `{name}` must be pub to be marked with the `#[public]` attribute.");
+    }
+
     let name = &input.sig.ident;
     let input_args = &input.sig.inputs;
     let new_name = Ident::new(&format!("{}_guest", name), name.span()); // Create a new name for the generated function(name that will be called by the host)

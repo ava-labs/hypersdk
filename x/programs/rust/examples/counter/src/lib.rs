@@ -8,7 +8,7 @@ enum StateKeys {
 
 /// Initializes the program address a count of 0.
 #[public]
-fn initialize_address(program: Program, address: Address) -> bool {
+pub fn initialize_address(program: Program, address: Address) -> bool {
     if program
         .state()
         .get::<i64, _>(StateKeys::Counter(address))
@@ -27,7 +27,7 @@ fn initialize_address(program: Program, address: Address) -> bool {
 
 /// Increments the count at the address by the amount.
 #[public]
-fn inc(program: Program, to: Address, amount: i64) -> bool {
+pub fn inc(program: Program, to: Address, amount: i64) -> bool {
     let counter = amount + get_value(program, to);
 
     program
@@ -40,7 +40,7 @@ fn inc(program: Program, to: Address, amount: i64) -> bool {
 
 /// Increments the count at the address by the amount for an external program.
 #[public]
-fn inc_external(_: Program, target: Program, max_units: i64, of: Address, amount: i64) -> i64 {
+pub fn inc_external(_: Program, target: Program, max_units: i64, of: Address, amount: i64) -> i64 {
     target
         .call_function("inc", params!(&of, &amount), max_units)
         .unwrap()
@@ -48,7 +48,7 @@ fn inc_external(_: Program, target: Program, max_units: i64, of: Address, amount
 
 /// Gets the count at the address.
 #[public]
-fn get_value(program: Program, of: Address) -> i64 {
+pub fn get_value(program: Program, of: Address) -> i64 {
     program
         .state()
         .get(StateKeys::Counter(of))
@@ -57,7 +57,7 @@ fn get_value(program: Program, of: Address) -> i64 {
 
 /// Gets the count at the address for an external program.
 #[public]
-fn get_value_external(_: Program, target: Program, max_units: i64, of: Address) -> i64 {
+pub fn get_value_external(_: Program, target: Program, max_units: i64, of: Address) -> i64 {
     target
         .call_function("get_value", params!(&of), max_units)
         .unwrap()
