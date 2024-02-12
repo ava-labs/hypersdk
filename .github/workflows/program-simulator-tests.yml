@@ -22,12 +22,7 @@ jobs:
           check-latest: true
           cache: true
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          profile: minimal
-          components: rustfmt, clippy
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Run token simulator test
         working-directory: ./x/programs/rust/examples/token
         shell: bash
