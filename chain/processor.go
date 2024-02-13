@@ -156,6 +156,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		tsv := p.ts.NewView(stateKeys, storage)
 
 		// Ensure we have enough funds to pay fees
+		// TODO: replace with epoch fees
 		feeRequired, err := p.feeManager.MaxFee(maxUnits)
 		if err != nil {
 			// This is an unexpected error
@@ -377,7 +378,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 				p.claimL.Unlock()
 				return func() {}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, maxUnits, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, maxUnits, epochInfo, tx) }
 		})
 	}
 	return nil

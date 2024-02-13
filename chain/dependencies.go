@@ -199,7 +199,9 @@ type WarpManager interface {
 
 type FeeHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
-	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
+	// by [addr] or during bond check/claim.
+	//
+	// This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
@@ -222,15 +224,12 @@ type FeeHandler interface {
 	//
 	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
-}
 
-// TODO: cleanup
-type BondHandler interface {
-	// TODO: how to handle bond state keys? Can just require sponsor is sufficient for ClaimBond
-
-	IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // some bond is claimed
+	// IsFrozen returns true if transactions from [addr] are not allowed to be submitted.
+	IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit
+	IsClaimed(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)   // some bond is claimed
 	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
-	ConsumeBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error           // Must handle after execution to avoid conflicts, if already claimed, does nothing
+	ClaimBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error             // Must handle after execution to avoid conflicts, if already claimed, does nothing
 	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
 	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
 	//  TODO: claims handled in random order, we need to handle deterministically to get canonical epoch/epoch result
@@ -262,7 +261,6 @@ type StateManager interface {
 	MetadataManager
 	WarpManager
 	FeeHandler
-	BondHandler
 	EpochManager
 	RewardHandler
 }

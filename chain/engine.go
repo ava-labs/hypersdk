@@ -112,7 +112,7 @@ func (e *Engine) Run() {
 			//
 			// We don't need to check timestamps here becuase we already handled that in block verification.
 			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
-			_, heights, err := e.GetEpochInfo(ctx, []uint64{epoch, epoch + 1})
+			_, epochInfo, err := e.GetEpochInfo(ctx, []uint64{epoch, epoch + 1})
 			if err != nil {
 				panic(err)
 			}
@@ -132,7 +132,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, pHeight, heights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, pHeight, epochInfo, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
@@ -265,6 +265,13 @@ func (e *Engine) Run() {
 					zap.Error(err),
 				)
 			}
+
+			// TODO: need to figure out what % to burn? tip can't be burned or side deals pop up
+
+			// TODO: If epoch is stale, then will compete on out-of-protocol components
+
+			// TODO: don't need to pay to spike fees with a delayed fee structure?
+			//// Use epoch as fee to make smoother?
 
 			// Update chain metadata
 			if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
