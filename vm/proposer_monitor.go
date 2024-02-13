@@ -27,6 +27,7 @@ import (
 const (
 	refreshTime            = 30 * time.Second
 	proposerMonitorLRUSize = 60
+	aggrPubKeyLRUSize      = 1024
 )
 
 type proposerInfo struct {
@@ -45,12 +46,15 @@ type ProposerMonitor struct {
 	currentLock        sync.Mutex
 	lastFetchedPHeight time.Time
 	currentValidators  map[ids.NodeID]*validators.GetValidatorOutput
+
+	aggrCache *cache.LRU[string, *bls.PublicKey]
 }
 
 func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	return &ProposerMonitor{
 		vm:        vm,
 		proposers: &cache.LRU[uint64, *proposerInfo]{Size: proposerMonitorLRUSize},
+		aggrCache: &cache.LRU[string, *bls.PublicKey]{Size: aggrPubKeyLRUSize},
 	}
 }
 
@@ -234,4 +238,43 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, a
 	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
 	indexInt := int(index.Int64())
 	return info.partitionSet[indexInt], nil
+}
+
+func (p *ProposerMonitor) GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) {
+	// Confirm signing weight is sufficient
+	vdrSet, totalWeight, err := p.GetWarpValidatorSet(ctx, height)
+	if err != nil {
+		return nil, err
+	}
+	filtered, err := warp.FilterValidators(signers, vdrSet)
+	if err != nil {
+		return nil, err
+	}
+	filteredWeight, err := warp.SumWeight(filtered)
+	if err != nil {
+		return nil, err
+	}
+	if err := warp.VerifyWeight(filteredWeight, totalWeight, num, denom); err != nil {
+		return nil, err
+	}
+
+	// Attempt to load aggregate public key from cache
+	bitSetBytes := signers.Bytes()
+	k := make([]byte, consts.Uint64Len+len(bitSetBytes))
+	binary.BigEndian.PutUint64(k, height)
+	copy(k[consts.Uint64Len:], bitSetBytes)
+	sk := string(k)
+	v, ok := p.aggrCache.Get(sk) // we may perform duplicate aggregations because we don't lock here
+	if !ok {
+		aggrPubKey, err := warp.AggregatePublicKeys(filtered)
+		if err != nil {
+			return nil, err
+		}
+		p.aggrCache.Put(sk, aggrPubKey)
+		v = aggrPubKey
+		p.vm.Logger().Info("caching aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
+	} else {
+		p.vm.Logger().Info("found cached aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
+	}
+	return v, nil
 }

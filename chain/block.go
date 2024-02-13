@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -434,30 +433,14 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			)
 			continue
 		}
-		vdrList, totalWeight, err := b.vm.GetWarpValidators(ctx, *heights[heightIndex])
-		if err != nil {
-			panic(err)
-		}
 
-		// Verify multi-signature
-		filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
+		// Get the public key for the signers
+		aggrPubKey, err := b.vm.GetAggregatePublicKey(ctx, *heights[heightIndex], cert.Signers, 67, 100) // TODO: add consts
 		if err != nil {
-			return err
-		}
-		filteredWeight, err := warp.SumWeight(filteredVdrs)
-		if err != nil {
-			return err
-		}
-		// TODO: make this a const
-		if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
-			return err
-		}
-		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
-		if err != nil {
-			return err
+			return fmt.Errorf("%w: can't generate aggregate public key", err)
 		}
 		if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-			return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
+			return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, cert.Signers.String())
 		}
 	}
 

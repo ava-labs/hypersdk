@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
@@ -351,27 +350,22 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		cw.signatures[string(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
 		// Count pending weight
-		//
-		// TODO: add safe math
-		var (
-			weight      uint64 = 0
-			totalWeight uint64 = 0
-		)
-		if err := c.vm.proposerMonitor.IterateValidators(ctx, epochHeight, func(vdr ids.NodeID, out *validators.GetValidatorOutput) {
-			totalWeight += out.Weight
-			if out.PublicKey == nil {
-				return
-			}
-			k := string(bls.PublicKeyToBytes(out.PublicKey))
-			if _, ok := cw.signatures[k]; ok {
-				weight += out.Weight
-			}
-		}); err != nil {
+		var weight uint64
+		vdrList, totalWeight, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
+		if err != nil {
 			panic(err)
+		}
+		for _, vdr := range vdrList {
+			k := string(bls.PublicKeyToBytes(vdr.PublicKey))
+			if _, ok := cw.signatures[k]; ok {
+				weight += vdr.Weight // cannot overflow
+			}
 		}
 		cw.l.Unlock()
 
 		// Check if weight is sufficient
+		//
+		// Fees are proportional to the weight of the chunk, so we may want to wait until it has more than the minimum.
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Warn("chunk does not have sufficient weight to crete certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
@@ -438,20 +432,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Verify certificate using the epoch validator set
-		validators, weight, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
+		aggrPubKey, err := c.vm.proposerMonitor.GetAggregatePublicKey(ctx, epochHeight, cert.Signers, minWeightNumerator, weightDenominator)
 		if err != nil {
-			c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
-			return nil
-		}
-		filteredVdrs, err := warp.FilterValidators(cert.Signers, validators)
-		if err != nil {
-			return err
-		}
-		filteredWeight, err := warp.SumWeight(filteredVdrs)
-		if err != nil {
-			return err
-		}
-		if err := warp.VerifyWeight(filteredWeight, weight, minWeightNumerator, weightDenominator); err != nil {
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
 				zap.Uint64("Pheight", epochHeight),
@@ -459,10 +441,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Error(err),
 			)
-			return err
-		}
-		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
-		if err != nil {
 			return err
 		}
 		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
@@ -485,8 +463,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Stringer("chunkID", cert.Chunk),
 			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
 			zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
-			zap.Uint64("weight", filteredWeight),
-			zap.Uint64("totalWeight", weight),
+			zap.String("signers", cert.Signers.String()),
 		)
 		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 

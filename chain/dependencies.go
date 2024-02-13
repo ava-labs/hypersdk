@@ -110,8 +110,8 @@ type VM interface {
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
 	FetchValidators(ctx context.Context, height uint64)
-	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)         // TODO: filter based on being part of whole epoch
-	GetWarpValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) // cached
+	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
+	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
 	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
 }
 
@@ -223,7 +223,7 @@ type FeeHandler interface {
 
 	// TODO: cleanup
 	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error)                // total locked is this value * 2
-	CanProcess(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)                 // we mark by epoch to support unfreezing
+	HasBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)                    // we mark by epoch to support unfreezing
 	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
 	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
 	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
