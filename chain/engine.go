@@ -200,8 +200,10 @@ func (e *Engine) Run() {
 					}
 				}
 				filteredChunks[i] = &FilteredChunk{
-					Chunk:    cert.Chunk,
-					Producer: chunk.Producer,
+					Chunk: cert.Chunk,
+
+					Producer:    chunk.Producer,
+					Beneficiary: chunk.Beneficiary,
 
 					Txs:         txs,
 					WarpResults: warpResults,
