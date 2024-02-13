@@ -93,19 +93,19 @@ func (e *Engine) Run() {
 			}
 
 			// Fetch latest block context (used for reliable and recent warp verification)
+			var (
+				pHeight             *uint64
+				shouldUpdatePHeight bool
+			)
 			pHeightKey := PHeightKey(e.vm.StateManager().PHeightKey())
 			pHeightRaw, err := parentView.GetValue(ctx, pHeightKey)
-			var pHeight *uint64
 			if err == nil {
 				h := binary.BigEndian.Uint64(pHeightRaw)
 				pHeight = &h
 			}
-
-			// Fetch timestamp key
-			timestampKey := HeightKey(e.vm.StateManager().TimestampKey())
-			timestampRaw, err := parentView.GetValue(ctx, timestampKey)
-			if err != nil {
-				panic(err)
+			if pHeight == nil || *pHeight < job.blk.PHeight { // use latest P-Chain height during verification
+				shouldUpdatePHeight = true
+				pHeight = &job.blk.PHeight
 			}
 
 			// Fetch PChainHeight for this epoch
@@ -214,19 +214,15 @@ func (e *Engine) Run() {
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 			}
 
-			// Update tracked p-chain heights
-			keys := make(state.Keys)
-			keys.Add(string(pHeightKey), state.Allocate|state.Write)
-			m := make(map[string][]byte)
-			if pHeight != nil {
-				m[string(pHeightKey)] = pHeightRaw
+			// Update tracked p-chain height as long as it is increasing
+			if shouldUpdatePHeight {
+				if err := ts.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+					panic(err)
+				}
+				e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
+			} else {
+				e.vm.Logger().Info("ignoring p-chain height update", zap.Uint64("height", job.blk.PHeight))
 			}
-			tsv := ts.NewView(keys, m)
-			if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
-				panic(err)
-			}
-			tsv.Commit()
-			e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
 
 			// Ensure we are never stuck waiting for height information near the end of an epoch
 			//
@@ -246,14 +242,10 @@ func (e *Engine) Run() {
 					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw)),
 				)
 			case err != nil && errors.Is(err, database.ErrNotFound):
-				keys := make(state.Keys)
-				keys.Add(string(nextEpochKey), state.Allocate|state.Write)
-				tsv := ts.NewView(keys, map[string][]byte{})
-				if err := tsv.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+				if err := ts.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
 					panic(err)
 				}
-				tsv.Commit()
-				e.vm.FetchValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
+				e.vm.CacheValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
 				e.vm.Logger().Info(
 					"setting epoch height",
 					zap.Uint64("epoch", nextEpoch),
@@ -268,30 +260,15 @@ func (e *Engine) Run() {
 			}
 
 			// Update chain metadata
-			//
-			// TODO: convert to direct commits
-			heightKeyStr := string(heightKey)
-			timestampKeyStr := string(timestampKey)
-			feeKeyStr := string(feeKey)
-			keys := make(state.Keys)
-			keys.Add(heightKeyStr, state.Write)
-			keys.Add(timestampKeyStr, state.Write)
-			keys.Add(feeKeyStr, state.Write)
-			tsv := ts.NewView(keys, map[string][]byte{
-				heightKeyStr:    parentHeightRaw,
-				timestampKeyStr: timestampRaw,
-				feeKeyStr:       parentFeeManager.Bytes(),
-			})
-			if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
+			if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
 				panic(err)
 			}
-			if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
+			if err := ts.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
 				panic(err)
 			}
-			if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+			if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 				panic(err)
 			}
-			tsv.Commit()
 
 			// Get start root
 			startRoot, err := parentView.GetMerkleRoot(ctx)

@@ -102,14 +102,16 @@ type VM interface {
 	StateReady() bool
 
 	// TODO: cleanup
-	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
-	HasChunk(ctx context.Context, chunkID ids.ID) bool
-	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
-	FetchValidators(ctx context.Context, height uint64)
+
+	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	HasChunk(ctx context.Context, chunkID ids.ID) bool
+	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+
+	CacheValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
 	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
