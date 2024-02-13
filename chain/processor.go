@@ -332,6 +332,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// Check that transaction isn't frozen (can avoid state lookups)
 		//
 		// Need to wait to enqueue until after verify signature.
+		//
+		// TODO: We still want to claim if there is an available bond for our epoch even if frozen in another.
 		var frozen bool
 		sponsor := tx.Auth.Sponsor()
 		ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
