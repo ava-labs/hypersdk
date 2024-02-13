@@ -58,6 +58,7 @@ func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	}
 }
 
+// TODO: don't add validators that won't be validators for the entire epoch
 func (p *ProposerMonitor) fetch(ctx context.Context, height uint64) *proposerInfo {
 	validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
 		ctx,
