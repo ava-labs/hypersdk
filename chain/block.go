@@ -26,9 +26,8 @@ import (
 )
 
 var (
-	_ snowman.Block           = &StatelessBlock{}
-	_ block.WithVerifyContext = &StatelessBlock{}
-	_ block.StateSummary      = &SyncableBlock{}
+	_ snowman.Block      = &StatelessBlock{}
+	_ block.StateSummary = &SyncableBlock{}
 )
 
 type StatefulBlock struct {
@@ -390,7 +389,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			return fmt.Errorf("%w: can't generate aggregate public key", err)
 		}
 		if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-			return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, cert.Signers.String())
+			return fmt.Errorf("%w: pk=%s signature=%s pHeight=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), b.PHeight, i, cert.Chunk, cert.Signers.String())
 		}
 	}
 

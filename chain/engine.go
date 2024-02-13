@@ -215,62 +215,61 @@ func (e *Engine) Run() {
 			}
 
 			// Update tracked p-chain heights
-			if job.blk.bctx != nil {
-				// Set latest pHeight
+			keys := make(state.Keys)
+			keys.Add(string(pHeightKey), state.Allocate|state.Write)
+			m := make(map[string][]byte)
+			if pHeight != nil {
+				m[string(pHeightKey)] = pHeightRaw
+			}
+			tsv := ts.NewView(keys, m)
+			if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+				panic(err)
+			}
+			tsv.Commit()
+			e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
+
+			// Ensure we are never stuck waiting for height information near the end of an epoch
+			//
+			// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
+			// is not populated, we need to know by e that e+1 cannot be populated. If we only set e+2 below, we may
+			// not know whether e+1 is populated unitl we wait for e-1 execution to finish (as any block in e-1 could set
+			// the epoch height). This could cause verification to stutter across the boundary when it is taking longer than
+			// expected to set to the p-chain hegiht for an epoch.
+			nextEpoch := epoch + 3
+			nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
+			epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey)
+			switch {
+			case err == nil:
+				e.vm.Logger().Info(
+					"height already set for epoch",
+					zap.Uint64("epoch", nextEpoch),
+					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw)),
+				)
+			case err != nil && errors.Is(err, database.ErrNotFound):
 				keys := make(state.Keys)
-				keys.Add(string(pHeightKey), state.Allocate|state.Write)
-				m := make(map[string][]byte)
-				if pHeight != nil {
-					m[string(pHeightKey)] = pHeightRaw
-				}
-				tsv := ts.NewView(keys, m)
-				if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
+				keys.Add(string(nextEpochKey), state.Allocate|state.Write)
+				tsv := ts.NewView(keys, map[string][]byte{})
+				if err := tsv.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
 					panic(err)
 				}
 				tsv.Commit()
-				e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.bctx.PChainHeight))
-
-				// Ensure we are never stuck waiting for height information near the end of an epoch
-				//
-				// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
-				// is not populated, we need to know by e that e+1 cannot be populated. If we only set e+2 below, we may
-				// not know whether e+1 is populated unitl we wait for e-1 execution to finish (as any block in e-1 could set
-				// the epoch height). This could cause verification to stutter across the boundary when it is taking longer than
-				// expected to set to the p-chain hegiht for an epoch.
-				nextEpoch := epoch + 3
-				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
-				epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey)
-				switch {
-				case err == nil:
-					e.vm.Logger().Info(
-						"height already set for epoch",
-						zap.Uint64("epoch", nextEpoch),
-						zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw)),
-					)
-				case err != nil && errors.Is(err, database.ErrNotFound):
-					keys := make(state.Keys)
-					keys.Add(string(nextEpochKey), state.Allocate|state.Write)
-					tsv := ts.NewView(keys, map[string][]byte{})
-					if err := tsv.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.bctx.PChainHeight)); err != nil {
-						panic(err)
-					}
-					tsv.Commit()
-					e.vm.FetchValidators(ctx, job.blk.bctx.PChainHeight) // optimistically fetch validators to prevent lockbacks
-					e.vm.Logger().Info(
-						"setting epoch height",
-						zap.Uint64("epoch", nextEpoch),
-						zap.Uint64("height", job.blk.bctx.PChainHeight),
-					)
-				default:
-					e.vm.Logger().Warn(
-						"unable to determine if should set epoch height",
-						zap.Uint64("epoch", nextEpoch),
-						zap.Error(err),
-					)
-				}
+				e.vm.FetchValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
+				e.vm.Logger().Info(
+					"setting epoch height",
+					zap.Uint64("epoch", nextEpoch),
+					zap.Uint64("height", job.blk.PHeight),
+				)
+			default:
+				e.vm.Logger().Warn(
+					"unable to determine if should set epoch height",
+					zap.Uint64("epoch", nextEpoch),
+					zap.Error(err),
+				)
 			}
 
 			// Update chain metadata
+			//
+			// TODO: convert to direct commits
 			heightKeyStr := string(heightKey)
 			timestampKeyStr := string(timestampKey)
 			feeKeyStr := string(feeKey)
