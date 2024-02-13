@@ -32,10 +32,11 @@ var (
 )
 
 type StatefulBlock struct {
-	Parent     ids.ID `json:"parent"`
-	Height     uint64 `json:"height"`
-	Timestamp  int64  `json:"timestamp"`
-	HasContext bool   `json:"hasContext"`
+	PHeight uint64 `json:"pHeight"`
+
+	Parent    ids.ID `json:"parent"`
+	Height    uint64 `json:"height"`
+	Timestamp int64  `json:"timestamp"`
 
 	// AvailableChunks is a collection of valid Chunks that will be executed in
 	// the future.
@@ -56,7 +57,7 @@ type StatefulBlock struct {
 }
 
 func (b *StatefulBlock) Size() int {
-	return consts.IDLen + consts.Uint64Len + consts.Int64Len + consts.BoolLen +
+	return consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
 		consts.IntLen + codec.CummSize(b.AvailableChunks) +
 		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
 }
@@ -72,10 +73,11 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p := codec.NewWriter(b.Size(), consts.NetworkSizeLimit)
 
+	p.PackUint64(b.PHeight)
+
 	p.PackID(b.Parent)
 	p.PackUint64(b.Height)
 	p.PackInt64(b.Timestamp)
-	p.PackBool(b.HasContext)
 
 	p.PackInt(len(b.AvailableChunks))
 	for _, cert := range b.AvailableChunks {
@@ -103,10 +105,11 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 		b StatefulBlock
 	)
 
+	b.PHeight = p.UnpackUint64(true)
+
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
 	b.Timestamp = p.UnpackInt64(false)
-	b.HasContext = p.UnpackBool()
 
 	// Parse available chunks
 	chunkCount := p.UnpackInt(false)          // can produce empty blocks
@@ -172,13 +175,13 @@ type StatelessBlock struct {
 	chunks set.Set[ids.ID]
 }
 
-func NewBlock(vm VM, parent snowman.Block, tmstp int64, context bool) *StatelessBlock {
+func NewBlock(vm VM, pHeight uint64, parent snowman.Block, tmstp int64) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
-			Parent:     parent.ID(),
-			Timestamp:  tmstp,
-			Height:     parent.Height() + 1,
-			HasContext: context,
+			PHeight:   pHeight,
+			Parent:    parent.ID(),
+			Timestamp: tmstp,
+			Height:    parent.Height() + 1,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -255,6 +258,11 @@ func ParseStatefulBlock(
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "snowman.Block"
+//
+// Tasks
+// 1) verify certificates (correct signatures, correct weight, not duplicates)
+// 2) verify parent state root is correct
+// 3) verify executed certificates (correct IDs)
 func (b *StatelessBlock) Verify(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
@@ -269,24 +277,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	)
 	defer span.End()
 
-	err := b.verify(ctx)
-	if err != nil {
-		b.vm.Logger().Error(
-			"verification failed",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Error(err),
-		)
-	}
-	return err
-}
-
-// Tasks
-// 1) verify certificates (correct signatures, correct weight, not duplicates)
-// 2) verify parent state root is correct
-// 3) verify executed certificates (correct IDs)
-func (b *StatelessBlock) verify(ctx context.Context) error {
 	// Skip verification if we built this block
 	if b.built {
 		b.vm.Logger().Info(
@@ -298,6 +288,8 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		b.vm.Verified(ctx, b)
 		return nil
 	}
+
+	// TODO: ensure p-chain height referenced is valid
 
 	// TODO: skip verification if state does not exist yet (state sync)
 

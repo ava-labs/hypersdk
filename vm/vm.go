@@ -743,7 +743,21 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+// implements "block.ChainVM"
+func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	return nil, errors.New("must build block with context")
+}
+
+// implements "block.BuildBlockWithContextChainVM"
+func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
+	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
+	defer span.End()
+
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -767,7 +781,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Stringer("preferred", vm.preferred), zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
+	blk, err := chain.BuildBlock(ctx, vm, blockContext.PChainHeight, preferredBlk)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
@@ -776,32 +790,6 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
-}
-
-// implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
-	defer span.End()
-
-	return vm.buildBlock(ctx, nil)
-}
-
-// implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
-	defer span.End()
-
-	return vm.buildBlock(ctx, blockContext)
 }
 
 func (vm *VM) Submit(

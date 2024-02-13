@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -18,8 +17,8 @@ import (
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
+	pHeight uint64,
 	parent *StatelessBlock,
-	blockContext *smblock.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
@@ -31,7 +30,7 @@ func BuildBlock(
 	if nextTime < parent.StatefulBlock.Timestamp+r.GetMinBlockGap() {
 		return nil, ErrTimestampTooEarly
 	}
-	b := NewBlock(vm, parent, nextTime, blockContext != nil)
+	b := NewBlock(vm, pHeight, parent, nextTime)
 
 	// Attempt to add valid certs that are not expired
 	b.chunks = set.NewSet[ids.ID](r.GetChunksPerBlock())
