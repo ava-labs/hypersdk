@@ -11,7 +11,7 @@ use syn::{
 
 fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
     quote! {
-        unsafe { wasmlanche_sdk::memory::from_smart_ptr(#param_name).expect("error serializing ptr") }
+        unsafe { wasmlanche_sdk::memory::from_host_ptr(#param_name).expect("error serializing ptr") }
     }
 }
 

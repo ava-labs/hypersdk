@@ -1,7 +1,7 @@
 use crate::{
     errors::StateError,
     host::{get_bytes, put_bytes},
-    memory::from_smart_ptr,
+    memory::from_host_ptr,
     program::Program,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -51,7 +51,7 @@ impl State {
         }
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-        unsafe { from_smart_ptr(val_ptr) }
+        unsafe { from_host_ptr(val_ptr) }
     }
 }
 
