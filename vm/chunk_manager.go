@@ -44,7 +44,7 @@ type chunkWrapper struct {
 	l sync.Mutex
 
 	chunk      *chain.Chunk
-	signatures map[ids.ID]*chain.ChunkSignature
+	signatures map[string]*chain.ChunkSignature
 }
 
 func (cw *chunkWrapper) ID() ids.ID {
@@ -348,7 +348,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store signature for chunk
 		cw.l.Lock()
-		cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
+		cw.signatures[string(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
 		// Count pending weight
 		//
@@ -362,7 +362,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			if out.PublicKey == nil {
 				return
 			}
-			k := utils.ToID(bls.PublicKeyToBytes(out.PublicKey))
+			k := string(bls.PublicKeyToBytes(out.PublicKey))
 			if _, ok := cw.signatures[k]; ok {
 				weight += out.Weight
 			}
@@ -387,7 +387,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		orderedSignatures := []*bls.Signature{}
 		cw.l.Lock()
 		for i, vdr := range canonicalValidators {
-			sig, ok := cw.signatures[utils.ToID(bls.PublicKeyToBytes(vdr.PublicKey))]
+			sig, ok := cw.signatures[string(bls.PublicKeyToBytes(vdr.PublicKey))]
 			if !ok {
 				continue
 			}
@@ -713,7 +713,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	}
 	cw := &chunkWrapper{
 		chunk:      chunk,
-		signatures: make(map[ids.ID]*chain.ChunkSignature, len(validators)+1),
+		signatures: make(map[string]*chain.ChunkSignature, len(validators)+1),
 	}
 
 	// Persist our own chunk
@@ -746,7 +746,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	if err != nil {
 		panic(err)
 	}
-	cw.signatures[utils.ToID(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature
+	cw.signatures[string(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature
 	c.built.Add([]*chunkWrapper{cw})
 
 	// Send chunk to all validators
