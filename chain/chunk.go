@@ -459,8 +459,10 @@ func UnmarshalChunkCertificatePacker(p *codec.Packer) (*ChunkCertificate, error)
 
 // TODO: consider evaluating what other fields should be here (tx results bit array? so no need to sync for simple transfers)
 type FilteredChunk struct {
-	Chunk    ids.ID     `json:"chunk"`
-	Producer ids.NodeID `json:"producer"`
+	Chunk ids.ID `json:"chunk"`
+
+	Producer    ids.NodeID    `json:"producer"`
+	Beneficiary codec.Address `json:"beneficiary"` // used for fees
 
 	Txs         []*Transaction `json:"txs"`
 	WarpResults set.Bits64     `json:"warpResults"`
@@ -482,7 +484,7 @@ func (c *FilteredChunk) ID() (ids.ID, error) {
 }
 
 func (c *FilteredChunk) Size() int {
-	return consts.IDLen + consts.NodeIDLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
+	return consts.IDLen + consts.NodeIDLen + codec.AddressLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
 }
 
 func (c *FilteredChunk) Marshal() ([]byte, error) {
@@ -491,6 +493,7 @@ func (c *FilteredChunk) Marshal() ([]byte, error) {
 	// Marshal header
 	p.PackID(c.Chunk)
 	p.PackNodeID(c.Producer)
+	p.PackAddress(c.Beneficiary)
 
 	// Marshal transactions
 	p.PackInt(len(c.Txs))
@@ -512,9 +515,12 @@ func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
 	)
 	c.id = utils.ToID(raw)
 
-	// Parse transactions
+	// Parse header
 	p.UnpackID(true, &c.Chunk)
 	p.UnpackNodeID(true, &c.Producer)
+	p.UnpackAddress(&c.Beneficiary)
+
+	// Parse transactions
 	txCount := p.UnpackInt(true) // can't produce empty blocks
 	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
