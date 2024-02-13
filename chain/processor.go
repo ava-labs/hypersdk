@@ -27,7 +27,7 @@ type Processor struct {
 	authStream *stream.Stream
 
 	latestPHeight *uint64
-	pchainHeights []*uint64
+	epochInfo     []*EpochInfo
 
 	timestamp  int64
 	epoch      uint64
@@ -63,7 +63,7 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM, eng *Engine,
-	latestPHeight *uint64, pchainHeights []*uint64,
+	latestPHeight *uint64, epochInfo []*EpochInfo,
 	chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
 ) *Processor {
 	stream := stream.New()
@@ -75,7 +75,7 @@ func NewProcessor(
 		authStream: stream,
 
 		latestPHeight: latestPHeight,
-		pchainHeights: pchainHeights,
+		epochInfo:     epochInfo,
 
 		timestamp:  timestamp,
 		epoch:      utils.Epoch(timestamp, r.GetEpochDuration()),
@@ -299,8 +299,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 
 		// Check that height is set for epoch
 		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
-		pchainHeight := p.pchainHeights[txEpoch-p.epoch]
-		if pchainHeight == nil {
+		epochInfo := p.epochInfo[txEpoch-p.epoch]
+		if epochInfo == nil {
 			// We can't verify tx partition if this is the case
 			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -309,7 +309,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, *pchainHeight, tx.Auth.Sponsor())
+		parition, err := p.vm.AddressPartition(ctx, epochInfo.PHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -334,7 +334,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// Need to wait to enqueue until after verify signature.
 		var frozen bool
 		sponsor := tx.Auth.Sponsor()
-		ok, err := p.sm.CanProcess(ctx, sponsor, p.im)
+		ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
 		if err != nil {
 			return err
 		}

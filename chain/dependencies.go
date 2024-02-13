@@ -228,7 +228,7 @@ type FeeHandler interface {
 type BondHandler interface {
 	// TODO: how to handle bond state keys? Can just require sponsor is sufficient for ClaimBond
 
-	HasBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)     // we mark by epoch to support unfreezing
+	IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // some bond is claimed
 	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
 	ConsumeBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error           // Must handle after execution to avoid conflicts, if already claimed, does nothing
 	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
