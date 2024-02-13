@@ -21,7 +21,9 @@ type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
 
-	Producer  ids.NodeID     `json:"producer"`
+	Producer    ids.NodeID    `json:"producer"`
+	Beneficiary codec.Address `json:"beneficiary"` // used for fees
+
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 
@@ -109,6 +111,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 
 	// Setup chunk
 	c.Producer = vm.NodeID()
+	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
 
 	// Sign chunk
@@ -155,6 +158,7 @@ func (c *Chunk) Digest() ([]byte, error) {
 
 	// Marshal signer
 	p.PackNodeID(c.Producer)
+	p.PackAddress(c.Beneficiary)
 	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
 
 	return p.Bytes(), p.Err()
@@ -174,7 +178,7 @@ func (c *Chunk) ID() (ids.ID, error) {
 }
 
 func (c *Chunk) Size() int {
-	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + bls.PublicKeyLen + bls.SignatureLen
+	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
@@ -191,6 +195,7 @@ func (c *Chunk) Marshal() ([]byte, error) {
 
 	// Marshal signer
 	p.PackNodeID(c.Producer)
+	p.PackAddress(c.Beneficiary)
 	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
@@ -232,6 +237,7 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 
 	// Parse signer
 	p.UnpackNodeID(true, &c.Producer)
+	p.UnpackAddress(&c.Beneficiary)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
 	signer, err := bls.PublicKeyFromBytes(pk)
@@ -258,7 +264,6 @@ type ChunkSignature struct {
 	Chunk ids.ID `json:"chunk"`
 	Slot  int64  `json:"slot"` // used for builders that don't yet have the chunk being sequenced to verify not included before expiry
 
-	// TODO: may need NodeID to track weight? -> can get from the NodeID response
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 }

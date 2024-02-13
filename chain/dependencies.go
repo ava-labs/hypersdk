@@ -104,6 +104,8 @@ type VM interface {
 	// TODO: cleanup
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
+	Beneficiary() codec.Address
+
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
 
@@ -218,8 +220,12 @@ type FeeHandler interface {
 	//
 	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+}
 
-	// TODO: cleanup
+// TODO: cleanup
+type BondHandler interface {
+	// TODO: how to handle bond state keys? Can just require sponsor is sufficient for ClaimBond
+
 	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error)                // total locked is this value * 2
 	HasBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)                    // we mark by epoch to support unfreezing
 	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
@@ -244,6 +250,7 @@ type StateManager interface {
 	MetadataManager
 	WarpManager
 	FeeHandler
+	BondHandler
 	EpochManager
 }
 
