@@ -218,6 +218,8 @@ type FeeHandler interface {
 	// Refund will return an error if it attempts to create any new keys. It can only
 	// modify or remove existing keys.
 	//
+	// TODO: use state keys for protection from invalid actions?
+	//
 	// Refund is only invoked if [amount] > 0.
 	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
@@ -226,9 +228,9 @@ type FeeHandler interface {
 type BondHandler interface {
 	// TODO: how to handle bond state keys? Can just require sponsor is sufficient for ClaimBond
 
-	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error)                // total locked is this value * 2
-	HasBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)                    // we mark by epoch to support unfreezing
-	ClaimBond(ctx context.Context, addr codec.Address, beneficiary codec.Address, epoch uint64, mu state.Mutable) error // Must handle after execution to avoid conflicts, if already claimed, does nothing
+	HasBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)     // we mark by epoch to support unfreezing
+	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
+	ConsumeBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error           // Must handle after execution to avoid conflicts, if already claimed, does nothing
 	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
 	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
 	//  TODO: claims handled in random order, we need to handle deterministically to get canonical epoch/epoch result
@@ -236,8 +238,18 @@ type BondHandler interface {
 
 type EpochManager interface {
 	// EpochKey is the key that corresponds to the height of the P-Chain to use for
-	// validation of a given epoch.
+	// validation of a given epoch and the fees to use for verifying transactions.
 	EpochKey(epoch uint64) []byte
+}
+
+type RewardHandler interface {
+	// Reward sends [amount] to [addr] after block execution if any fees were collected.
+	//
+	// Reward will return an error if it attempts to create any new keys. It can only
+	// modify or remove existing keys.
+	//
+	// Reward is only invoked if [amount] > 0.
+	Reward(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
 
 // StateManager allows [Chain] to safely store certain types of items in state
@@ -252,6 +264,7 @@ type StateManager interface {
 	FeeHandler
 	BondHandler
 	EpochManager
+	RewardHandler
 }
 
 type Object interface {

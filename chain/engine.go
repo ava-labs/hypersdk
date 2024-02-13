@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -111,7 +112,7 @@ func (e *Engine) Run() {
 			//
 			// We don't need to check timestamps here becuase we already handled that in block verification.
 			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
-			_, heights, err := e.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
+			_, heights, err := e.GetEpochInfo(ctx, []uint64{epoch, epoch + 1})
 			if err != nil {
 				panic(err)
 			}
@@ -232,16 +233,19 @@ func (e *Engine) Run() {
 			// expected to set to the p-chain hegiht for an epoch.
 			nextEpoch := epoch + 3
 			nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
-			epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey)
+			epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
 			switch {
 			case err == nil:
 				e.vm.Logger().Info(
 					"height already set for epoch",
 					zap.Uint64("epoch", nextEpoch),
-					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw)),
+					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw[:consts.Uint64Len])),
 				)
 			case err != nil && errors.Is(err, database.ErrNotFound):
-				if err := ts.Insert(ctx, nextEpochKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+				value := make([]byte, consts.Uint64Len+DimensionsLen)
+				binary.BigEndian.PutUint64(value, job.blk.PHeight)
+				copy(value[consts.Uint64Len:], feeManager.Bytes())
+				if err := ts.Insert(ctx, nextEpochKey, value); err != nil {
 					panic(err)
 				}
 				e.vm.CacheValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
@@ -413,7 +417,12 @@ func (e *Engine) Done() {
 	<-e.done
 }
 
-func (e *Engine) GetEpochHeights(ctx context.Context, epochs []uint64) (int64, []*uint64, error) {
+type EpochInfo struct {
+	PHeight uint64
+	Prices  Dimensions
+}
+
+func (e *Engine) GetEpochInfo(ctx context.Context, epochs []uint64) (int64, []*EpochInfo, error) {
 	keys := [][]byte{HeightKey(e.vm.StateManager().TimestampKey())}
 	for _, epoch := range epochs {
 		keys = append(keys, EpochKey(e.vm.StateManager().EpochKey(epoch)))
@@ -422,13 +431,18 @@ func (e *Engine) GetEpochHeights(ctx context.Context, epochs []uint64) (int64, [
 	if errs[0] != nil {
 		return -1, nil, fmt.Errorf("%w: can't read timestamp key", errs[0])
 	}
-	heights := make([]*uint64, len(epochs))
+	info := make([]*EpochInfo, len(epochs))
 	for i := 0; i < len(epochs); i++ {
 		if errs[i+1] != nil {
 			continue
 		}
-		h := binary.BigEndian.Uint64(values[i+1])
-		heights[i] = &h
+		value := values[i+1]
+		h := binary.BigEndian.Uint64(value[:consts.Uint64Len])
+		prices, err := UnpackDimensions(value[consts.Uint64Len:])
+		if err != nil {
+			return 0, nil, err
+		}
+		info[i] = &EpochInfo{h, prices}
 	}
-	return int64(binary.BigEndian.Uint64(values[0])), heights, nil
+	return int64(binary.BigEndian.Uint64(values[0])), info, nil
 }
