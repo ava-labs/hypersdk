@@ -242,9 +242,10 @@ func (e *Engine) Run() {
 					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw[:consts.Uint64Len])),
 				)
 			case err != nil && errors.Is(err, database.ErrNotFound):
+				prices := feeManager.UnitPrices()
 				value := make([]byte, consts.Uint64Len+DimensionsLen)
 				binary.BigEndian.PutUint64(value, job.blk.PHeight)
-				copy(value[consts.Uint64Len:], feeManager.Bytes())
+				copy(value[consts.Uint64Len:], prices.Bytes())
 				if err := ts.Insert(ctx, nextEpochKey, value); err != nil {
 					panic(err)
 				}
@@ -253,6 +254,7 @@ func (e *Engine) Run() {
 					"setting epoch height",
 					zap.Uint64("epoch", nextEpoch),
 					zap.Uint64("height", job.blk.PHeight),
+					zap.Any("prices", prices),
 				)
 			default:
 				e.vm.Logger().Warn(
