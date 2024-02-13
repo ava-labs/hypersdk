@@ -103,6 +103,7 @@ type VM interface {
 
 	// TODO: cleanup
 	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	HasChunk(ctx context.Context, chunkID ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey

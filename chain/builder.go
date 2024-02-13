@@ -43,6 +43,13 @@ func BuildBlock(
 			break
 		}
 
+		// Check that we actually have the chunk
+		if !vm.HasChunk(ctx, cert.Chunk) {
+			log.Warn("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))
+			restorableChunks = append(restorableChunks, cert)
+			continue
+		}
+
 		// Check that certificate can be in block
 		if cert.Slot < b.StatefulBlock.Timestamp {
 			log.Warn("skipping expired chunk", zap.Stringer("chunkID", cert.Chunk))
