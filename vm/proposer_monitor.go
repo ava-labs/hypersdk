@@ -37,6 +37,7 @@ type proposerInfo struct {
 	totalWeight  uint64
 }
 
+// TODO: change to PChainManager (or something like it)
 type ProposerMonitor struct {
 	vm *VM
 
@@ -45,6 +46,7 @@ type ProposerMonitor struct {
 
 	currentLock        sync.Mutex
 	lastFetchedPHeight time.Time
+	currentHeight      uint64
 	currentValidators  map[ids.NodeID]*validators.GetValidatorOutput
 
 	aggrCache *cache.LRU[string, *bls.PublicKey]
@@ -144,6 +146,26 @@ func (p *ProposerMonitor) GetValidatorSet(ctx context.Context, height uint64, in
 	return vdrSet, nil
 }
 
+func (p *ProposerMonitor) refreshCurrent(ctx context.Context) error {
+	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
+	if err != nil {
+		p.currentLock.Unlock()
+		return err
+	}
+	p.currentHeight = pHeight
+	validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
+		ctx,
+		pHeight,
+		p.vm.snowCtx.SubnetID,
+	)
+	if err != nil {
+		return err
+	}
+	p.lastFetchedPHeight = time.Now()
+	p.currentValidators = validators
+	return nil
+}
+
 // Prevent unnecessary map copies
 func (p *ProposerMonitor) IterateCurrentValidators(
 	ctx context.Context,
@@ -152,22 +174,10 @@ func (p *ProposerMonitor) IterateCurrentValidators(
 	// Refresh P-Chain height if [refreshTime] has elapsed
 	p.currentLock.Lock()
 	if time.Since(p.lastFetchedPHeight) > refreshTime {
-		pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
-		if err != nil {
+		if err := p.refreshCurrent(ctx); err != nil {
 			p.currentLock.Unlock()
 			return err
 		}
-		validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
-			ctx,
-			pHeight,
-			p.vm.snowCtx.SubnetID,
-		)
-		if err != nil {
-			p.currentLock.Unlock()
-			return err
-		}
-		p.lastFetchedPHeight = time.Now()
-		p.currentValidators = validators
 	}
 	validators := p.currentValidators
 	p.currentLock.Unlock()
@@ -177,6 +187,19 @@ func (p *ProposerMonitor) IterateCurrentValidators(
 		f(k, v)
 	}
 	return nil
+}
+
+func (p *ProposerMonitor) IsValidHeight(ctx context.Context, height uint64) (bool, error) {
+	p.currentLock.Lock()
+	defer p.currentLock.Unlock()
+
+	if height <= p.currentHeight {
+		return true, nil
+	}
+	if err := p.refreshCurrent(ctx); err != nil {
+		return false, err
+	}
+	return height <= p.currentHeight, nil
 }
 
 // Prevent unnecessary map copies

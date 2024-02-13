@@ -170,8 +170,6 @@ type StatelessBlock struct {
 	execHeight *uint64
 
 	chunks set.Set[ids.ID]
-
-	bctx *block.Context
 }
 
 func NewBlock(vm VM, parent snowman.Block, tmstp int64, context bool) *StatelessBlock {
@@ -256,46 +254,6 @@ func ParseStatefulBlock(
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	// If we build with context, we should verify with context. We may use this context
-	// to update the P-Chain height for the next epoch.
-	return b.HasContext, nil
-}
-
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
-	start := time.Now()
-	defer func() {
-		b.vm.RecordBlockVerify(time.Since(start))
-	}()
-
-	ctx, span := b.vm.Tracer().Start(
-		ctx, "StatelessBlock.VerifyWithContext",
-		oteltrace.WithAttributes(
-			attribute.Int64("height", int64(b.StatefulBlock.Height)),
-			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
-		),
-	)
-	defer span.End()
-
-	// Persist the context in case we need it during Accept
-	b.bctx = bctx
-
-	// Proceed with normal verification
-	err := b.verify(ctx)
-	if err != nil {
-		b.vm.Logger().Error(
-			"verification failed",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Error(err),
-		)
-	}
-	return err
-}
-
 // implements "snowman.Block"
 func (b *StatelessBlock) Verify(ctx context.Context) error {
 	start := time.Now()
@@ -341,7 +299,7 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return nil
 	}
 
-	// TODO: skip verification if state does not exist yet
+	// TODO: skip verification if state does not exist yet (state sync)
 
 	var (
 		log   = b.vm.Logger()

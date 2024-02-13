@@ -113,6 +113,7 @@ type VM interface {
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
 	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
+	IsValidHeight(ctx context.Context, height uint64) (bool, error)
 }
 
 type VerifyContext interface {
