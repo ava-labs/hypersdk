@@ -272,6 +272,7 @@ func (e *Engine) Run() {
 
 			// TODO: don't need to pay to spike fees with a delayed fee structure?
 			//// Use epoch as fee to make smoother?
+			//// Have discrete epochs?
 
 			// Update chain metadata
 			if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
