@@ -237,8 +237,6 @@ func computeNextPriceWindow(
 		nextUnitFee        = previousUnitFee
 	)
 	switch {
-	case totalUnitsConsumed == target:
-		return nextUnitFee, newRollupWindow, nil
 	case totalUnitsConsumed > target:
 		// If the parent block used more units than its target, the baseFee should increase.
 		rawDelta := previousUnitFee * (totalUnitsConsumed - target) / target
@@ -255,9 +253,12 @@ func computeNextPriceWindow(
 		rawDelta := previousUnitFee * (target - totalUnitsConsumed) / target
 		delta := max(rawDelta/changeDenom, 1) * changeDenom // price must change in increments on changeDenom
 
-		// if we had no blocks for more than [WindowSize] seconds, we reduce fees even more,
-		// to try and account for all the low activity interval
+		// If [roll] is greater than [rollupWindow], apply the state transition to the base fee to account
+		// for the interval during which no blocks were produced.
+		// We use roll/rollupWindow, so that the transition is applied for every [rollupWindow] seconds
+		// that has elapsed between the parent and this block.
 		if since > window.WindowSize {
+			// Note: roll/rollupWindow must be greater than 1 since we've checked that roll > rollupWindow
 			delta *= uint64(since / window.WindowSize)
 		}
 
@@ -266,6 +267,8 @@ func computeNextPriceWindow(
 		if under != nil {
 			nextUnitFee = 0
 		}
+	case totalUnitsConsumed == target:
+		return nextUnitFee, newRollupWindow, nil
 	}
 
 	nextUnitFee = max(nextUnitFee, minUnitFee)
