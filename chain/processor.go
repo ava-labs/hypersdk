@@ -81,18 +81,8 @@ func (b *StatelessBlock) Execute(
 			// Fetch keys from disk
 			var toCache map[string]*fetchData
 			if len(toLookup) > 0 {
-				cacheLock.RLock()
 				toCache = make(map[string]*fetchData, len(toLookup))
 				for _, k := range toLookup {
-					// Ensure we don't read the same value from disk more than once
-					// We can use the cache for subsequent reads
-					if v, ok := cache[k]; ok {
-						reads[k] = v.chunks
-						if v.exists {
-							storage[k] = v.v
-						}
-						continue
-					}
 					v, err := im.GetValue(ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						reads[k] = 0
@@ -111,7 +101,6 @@ func (b *StatelessBlock) Execute(
 					toCache[k] = &fetchData{v, true, numChunks}
 					storage[k] = v
 				}
-				cacheLock.RUnlock()
 			}
 
 			// Execute transaction
