@@ -213,10 +213,10 @@ func (f *Manager) UnitsConsumed() Dimensions {
 func computeNextPriceWindow(
 	previous window.Window,
 	previousConsumed uint64,
-	previousPrice uint64,
-	target uint64, /* per window */
+	previousUnitFee uint64,
+	target uint64, /* per window, must be non-zero */
 	changeDenom uint64,
-	minPrice uint64,
+	minUnitFee uint64,
 	since int, /* seconds */
 ) (uint64, window.Window, error) {
 	newRollupWindow, err := window.Roll(previous, since)
@@ -231,53 +231,45 @@ func computeNextPriceWindow(
 		start := slot * consts.Uint64Len
 		window.Update(&newRollupWindow, start, previousConsumed)
 	}
-	total := window.Sum(newRollupWindow)
 
-	nextPrice := previousPrice
-	if total > target {
+	var (
+		totalUnitsConsumed = window.Sum(newRollupWindow)
+		nextUnitFee        = previousUnitFee
+	)
+	switch {
+	case totalUnitsConsumed == target:
+		return nextUnitFee, newRollupWindow, nil
+	case totalUnitsConsumed > target:
 		// If the parent block used more units than its target, the baseFee should increase.
-		delta := total - target
-		x := previousPrice * delta
-		y := x / target
-		baseDelta := y / changeDenom
-		if baseDelta < 1 {
-			baseDelta = 1
-		}
-		n, over := math.Add64(nextPrice, baseDelta)
+		rawDelta := previousUnitFee * (totalUnitsConsumed - target) / target
+		delta := max(rawDelta/changeDenom, 1) * changeDenom // price must change in increments on changeDenom
+
+		var over error
+		nextUnitFee, over = math.Add64(nextUnitFee, delta)
 		if over != nil {
-			nextPrice = consts.MaxUint64
-		} else {
-			nextPrice = n
-		}
-	} else if total < target {
-		// Otherwise if the parent block used less units than its target, the baseFee should decrease.
-		delta := target - total
-		x := previousPrice * delta
-		y := x / target
-		baseDelta := y / changeDenom
-		if baseDelta < 1 {
-			baseDelta = 1
+			nextUnitFee = consts.MaxUint64
 		}
 
-		// If [roll] is greater than [rollupWindow], apply the state transition to the base fee to account
-		// for the interval during which no blocks were produced.
-		// We use roll/rollupWindow, so that the transition is applied for every [rollupWindow] seconds
-		// that has elapsed between the parent and this block.
+	case totalUnitsConsumed < target:
+		// Otherwise if the parent block used less units than its target, the baseFee should decrease.
+		rawDelta := previousUnitFee * (target - totalUnitsConsumed) / target
+		delta := max(rawDelta/changeDenom, 1) * changeDenom // price must change in increments on changeDenom
+
+		// if we had no blocks for more than [WindowSize] seconds, we reduce fees even more,
+		// to try and account for all the low activity interval
 		if since > window.WindowSize {
-			// Note: roll/rollupWindow must be greater than 1 since we've checked that roll > rollupWindow
-			baseDelta *= uint64(since / window.WindowSize)
+			delta *= uint64(since / window.WindowSize)
 		}
-		n, under := math.Sub(nextPrice, baseDelta)
+
+		var under error
+		nextUnitFee, under = math.Sub(nextUnitFee, delta)
 		if under != nil {
-			nextPrice = 0
-		} else {
-			nextPrice = n
+			nextUnitFee = 0
 		}
 	}
-	if nextPrice < minPrice {
-		nextPrice = minPrice
-	}
-	return nextPrice, newRollupWindow, nil
+
+	nextUnitFee = max(nextUnitFee, minUnitFee)
+	return nextUnitFee, newRollupWindow, nil
 }
 
 func Add(a, b Dimensions) (Dimensions, error) {
