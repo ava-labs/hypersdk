@@ -35,12 +35,28 @@ type Executor struct {
 	edges     map[string]*KeyData
 }
 
-// KeyData keeps track of the key permission and the
-// TaskID using the state key name.
+// KeyData keeps track of the last blocked task, known
+// as the Parent, its Permissions, and any tasks that
+// are trying to read, but is blocked by the Parent,
+// known as ConcurrentReads.
+//
+// ConcurrentReads is important in the case where we have
+// many Reads that we want to access in parallel, followed
+// by a Write. It isn't sufficient enough to note the Parent
+// because we can't write if we're trying to read, and we can't
+// read if we're trying to write. This is to adhere to the
+// properties of the Executor.
+//
+// Consider the case where four transactions, touching the same state
+// key, with the following permissions: T1_W -> T2_R -> T3_R -> T4_W.
+// Assume that T1 hasn't executed, so this blocks T2 and T3. But,
+// we also note down that T2 and T3 are concurrent reads here. So,
+// when we get to T4, we observe that T2 and T3 are both blocking T4,
+// and we can record the appropriate dependencies with ConcurrentReads.
 type KeyData struct {
-	TaskID      int
-	Permissions state.Permissions
-	Parent int
+	Parent          int
+	Permissions     state.Permissions
+	ConcurrentReads set.Set[int]
 }
 
 // New creates a new [Executor].
@@ -87,6 +103,7 @@ func (e *Executor) createWorker() {
 					})
 					return
 				}
+
 				e.l.Lock()
 				for b := range t.blocking { // works fine on non-initialized map
 					bt := e.tasks[b]
@@ -128,36 +145,91 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 
 	// Record dependencies
 	for k, v := range conflicts {
-		latest, ok := e.edges[k]
-		if ok {
-			lt := e.tasks[latest.TaskID]
-			if !lt.executed {
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
-				}
-				if lt.blocking == nil {
-					lt.blocking = set.NewSet[int](defaultSetSize)
-				}
-				// key has ONLY a Read permission
-				if v == state.Read {
-					// lt contains either Allocate or Write permission. If lt had only a Read
-					// permission, no dependency or blocking would be added
-					if latest.Permissions.Has(state.Allocate) || latest.Permissions.Has(state.Write) {					
-						t.dependencies.Add(lt.id) // t depends on lt to execute
-						lt.blocking.Add(id)       // lt is blocking this current task
-					}
+		// Get last blocked transaction
+		parent, exists := e.edges[k]
+		if !exists {
+			concurrentReads := set.NewSet[int](defaultSetSize)
+			if v == state.Read {
+				// Record any reads on the same key to help
+				// with updating dependencies properly
+				concurrentReads.Add(id)
+			}
+			// Key doesn't exist, so we add it to our edge map
+			e.edges[k] = &KeyData{Parent: id, Permissions: v, ConcurrentReads: concurrentReads}
+			continue
+		}
+		pt := e.tasks[parent.Parent]
+		if !pt.executed {
+			if t.dependencies == nil {
+				t.dependencies = set.NewSet[int](defaultSetSize)
+			}
+			if pt.blocking == nil {
+				pt.blocking = set.NewSet[int](defaultSetSize)
+			}
+			// key has ONLY a Read permission
+			if v == state.Read {
+				parent.ConcurrentReads.Add(id)
+				// If the first read hasn't executed for some reason, and
+				// we're doing a bunch of Reads with no conflicts like
+				// R->R->R->..., we don't want to record any dependencies
+				if parent.Permissions == state.Read {
 					continue
 				}
+				// Last blocked transaction was a Allocate/Write
+				pt.blocking.Add(id)
+				t.dependencies.Add(parent.Parent)
+				continue
+			}
 
-				// key contains a Allocate or Write permission
-				if v.Has(state.Allocate) || v.Has(state.Write) {
-					t.dependencies.Add(lt.id)
-					lt.blocking.Add(id)
+			// key contains an Allocate/Write permission
+			if v.Has(state.Allocate) || v.Has(state.Write) {
+				// This may occur if we're doing a lot of W->W->W->...,
+				// we still want to record that we're blocked
+				if parent.ConcurrentReads.Len() == 0 {
+					pt.blocking.Add(id)
+					t.dependencies.Add(parent.Parent)
+				} else {
+					// With a bunch of reads before our write,
+					// we need to update that we're blocked by
+					// all of these reads
+					for b := range parent.ConcurrentReads {
+						bt := e.tasks[b]
+						// In the case one of the concurrent reads have
+						// executed and we're at this stage of the code,
+						// we only want to record that we're blocked on
+						// the concurrent reads that are not yet executed.
+						if !bt.executed {
+							bt.blocking.Add(id)
+							t.dependencies.Add(b)
+						}
+					}
+					// Any subsequent reads will now be blocked by this
+					// task, if it hasn't executed yet.
+					parent.ConcurrentReads.Clear()
 				}
 			}
+		} else {
+			// We don't need to record the case of W->W->W->...,
+			// since that parent write already executed. We
+			// consider any outstanding reads that still need
+			// to be executed once its parent write ran.
+			if v.Has(state.Allocate) || v.Has(state.Write) {
+				for b := range parent.ConcurrentReads {
+					bt := e.tasks[b]
+					if !bt.executed {
+						bt.blocking.Add(id)
+						t.dependencies.Add(b)
+					}
+				}
+			}
+			parent.ConcurrentReads.Clear()
+			if v == state.Read {
+				parent.ConcurrentReads.Add(id)
+			}
 		}
-		// key doesn't exist in our edges map, so we add it
-		e.edges[k] = &KeyData{TaskID: id, Permissions: v}
+		// Update Parent everytime it's a Allocate/Write key or if the parent ran
+		parent.Parent = id
+		parent.Permissions = v
 	}
 
 	// Start execution if there are no blocking dependencies
