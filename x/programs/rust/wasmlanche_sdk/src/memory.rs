@@ -71,9 +71,9 @@ impl Memory {
     }
 }
 
-/// `SmartPtr` is an i64 where the first 4 bytes represent the length of the bytes
+/// `HostPtr` is an i64 where the first 4 bytes represent the length of the bytes
 /// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-pub type SmartPtr = i64;
+pub type HostPtr = i64;
 
 /// Converts a pointer to a i64 with the first 4 bytes of the pointer
 /// representing the length of the memory block.
@@ -81,7 +81,7 @@ pub type SmartPtr = i64;
 /// Returns an `StateError` if the pointer or length of `args` exceeds
 /// the maximum size of a u32.
 #[allow(clippy::cast_possible_truncation)]
-pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
+pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
     let ptr = arg.as_ptr() as usize;
     let len = arg.len();
 
@@ -90,8 +90,8 @@ pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
         return Err(StateError::IntegerConversion);
     }
 
-    let smart_ptr = i64::from(ptr as u32) | (i64::from(len as u32) << 32);
-    Ok(smart_ptr)
+    let host_ptr = i64::from(ptr as u32) | (i64::from(len as u32) << 32);
+    Ok(host_ptr)
 }
 
 /// Converts a i64 to a pointer with the first 4 bytes of the pointer
@@ -100,7 +100,7 @@ pub fn to_smart_ptr(arg: &[u8]) -> Result<SmartPtr, StateError> {
 /// Panics if arg is negative.
 #[must_use]
 #[allow(clippy::cast_sign_loss)]
-pub fn split_smart_ptr(arg: SmartPtr) -> (i64, usize) {
+pub fn split_host_ptr(arg: HostPtr) -> (i64, usize) {
     assert!(arg >= 0);
 
     let len = arg >> 32;
@@ -118,7 +118,7 @@ pub fn split_smart_ptr(arg: SmartPtr) -> (i64, usize) {
 /// This function is unsafe because it dereferences raw pointers.
 /// # Errors
 /// Returns an `StateError` if the bytes cannot be deserialized.
-pub unsafe fn from_smart_ptr<V>(ptr: SmartPtr) -> Result<V, StateError>
+pub unsafe fn from_host_ptr<V>(ptr: HostPtr) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
@@ -127,11 +127,11 @@ where
 }
 
 /// Returns a tuple of the bytes and length of the argument.
-/// `smart_ptr` is encoded using Big Endian as an i64.
+/// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-pub fn into_bytes(smart_ptr: SmartPtr) -> Vec<u8> {
+pub fn into_bytes(host_ptr: HostPtr) -> Vec<u8> {
     // grab length from ptrArg
-    let (ptr, len) = split_smart_ptr(smart_ptr);
+    let (ptr, len) = split_host_ptr(host_ptr);
     let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
     value.to_vec()
 }
