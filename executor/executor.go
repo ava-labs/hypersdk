@@ -32,17 +32,17 @@ type Executor struct {
 	done      bool
 	completed int
 	tasks     map[int]*task
-	edges     map[string]*KeyData
+	edges     map[string]*keyData
 }
 
-// KeyData keeps track of the last blocked task, known
-// as the Parent, its Permissions, and any tasks that
-// are trying to read, but is blocked by the Parent,
+// keyData keeps track of the last blocked task, known
+// as the id, its Permissions, and any tasks that
+// are trying to read, but is blocked by the id,
 // known as ConcurrentReads.
 //
 // ConcurrentReads is important in the case where we have
 // many Reads that we want to access in parallel, followed
-// by a Write. It isn't sufficient enough to note the Parent
+// by a Write. It isn't sufficient enough to note the id
 // because we can't write if we're trying to read, and we can't
 // read if we're trying to write. This is to adhere to the
 // properties of the Executor.
@@ -53,10 +53,10 @@ type Executor struct {
 // we also note down that T2 and T3 are concurrent reads here. So,
 // when we get to T4, we observe that T2 and T3 are both blocking T4,
 // and we can record the appropriate dependencies with ConcurrentReads.
-type KeyData struct {
-	Parent          int
-	Permissions     state.Permissions
-	ConcurrentReads set.Set[int]
+type keyData struct {
+	id              int
+	permissions     state.Permissions
+	concurrentReads set.Set[int]
 }
 
 // New creates a new [Executor].
@@ -65,7 +65,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		metrics:    metrics,
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
-		edges:      make(map[string]*KeyData, items*2), // TODO: tune this
+		edges:      make(map[string]*keyData, items*2), // TODO: tune this
 		executable: make(chan *task, items),            // ensure we don't block while holding lock
 	}
 	for i := 0; i < concurrency; i++ {
@@ -146,7 +146,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Record dependencies
 	for k, v := range conflicts {
 		// Get last blocked transaction
-		parent, exists := e.edges[k]
+		key, exists := e.edges[k]
 		if !exists {
 			concurrentReads := set.NewSet[int](defaultSetSize)
 			if v == state.Read {
@@ -155,10 +155,10 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				concurrentReads.Add(id)
 			}
 			// Key doesn't exist, so we add it to our edge map
-			e.edges[k] = &KeyData{Parent: id, Permissions: v, ConcurrentReads: concurrentReads}
+			e.edges[k] = &keyData{id: id, permissions: v, concurrentReads: concurrentReads}
 			continue
 		}
-		pt := e.tasks[parent.Parent]
+		pt := e.tasks[key.id]
 		if !pt.executed {
 			if t.dependencies == nil {
 				t.dependencies = set.NewSet[int](defaultSetSize)
@@ -168,16 +168,16 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			}
 			// key has ONLY a Read permission
 			if v == state.Read {
-				parent.ConcurrentReads.Add(id)
+				key.concurrentReads.Add(id)
 				// If the first read hasn't executed for some reason, and
 				// we're doing a bunch of Reads with no conflicts like
 				// R->R->R->..., we don't want to record any dependencies
-				if parent.Permissions == state.Read {
+				if key.permissions == state.Read {
 					continue
 				}
 				// Last blocked transaction was a Allocate/Write
 				pt.blocking.Add(id)
-				t.dependencies.Add(parent.Parent)
+				t.dependencies.Add(key.id)
 				continue
 			}
 
@@ -185,14 +185,14 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			if v.Has(state.Allocate) || v.Has(state.Write) {
 				// This may occur if we're doing a lot of W->W->W->...,
 				// we still want to record that we're blocked
-				if parent.ConcurrentReads.Len() == 0 {
+				if key.concurrentReads.Len() == 0 {
 					pt.blocking.Add(id)
-					t.dependencies.Add(parent.Parent)
+					t.dependencies.Add(key.id)
 				} else {
 					// With a bunch of reads before our write,
 					// we need to update that we're blocked by
 					// all of these reads
-					for b := range parent.ConcurrentReads {
+					for b := range key.concurrentReads {
 						bt := e.tasks[b]
 						// In the case one of the concurrent reads have
 						// executed and we're at this stage of the code,
@@ -205,7 +205,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					}
 					// Any subsequent reads will now be blocked by this
 					// task, if it hasn't executed yet.
-					parent.ConcurrentReads.Clear()
+					key.concurrentReads.Clear()
 				}
 			}
 		} else {
@@ -214,7 +214,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			// consider any outstanding reads that still need
 			// to be executed once its parent write ran.
 			if v.Has(state.Allocate) || v.Has(state.Write) {
-				for b := range parent.ConcurrentReads {
+				for b := range key.concurrentReads {
 					bt := e.tasks[b]
 					if !bt.executed {
 						bt.blocking.Add(id)
@@ -222,14 +222,14 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					}
 				}
 			}
-			parent.ConcurrentReads.Clear()
+			key.concurrentReads.Clear()
 			if v == state.Read {
-				parent.ConcurrentReads.Add(id)
+				key.concurrentReads.Add(id)
 			}
 		}
-		// Update Parent everytime it's a Allocate/Write key or if the parent ran
-		parent.Parent = id
-		parent.Permissions = v
+		// Update id everytime it's a Allocate/Write key or if the parent ran
+		key.id = id
+		key.permissions = v
 	}
 
 	// Start execution if there are no blocking dependencies
