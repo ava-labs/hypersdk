@@ -214,17 +214,6 @@ type FeeHandler interface {
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
-	// Refund returns [amount] to [addr] after transaction execution if any fees were
-	// not used.
-	//
-	// Refund will return an error if it attempts to create any new keys. It can only
-	// modify or remove existing keys.
-	//
-	// TODO: use state keys for protection from invalid actions?
-	//
-	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
-
 	// IsFrozen returns true if transactions from [addr] are not allowed to be submitted.
 	IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit
 	IsClaimed(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)   // some bond is claimed
