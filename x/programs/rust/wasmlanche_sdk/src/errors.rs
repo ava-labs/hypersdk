@@ -28,4 +28,7 @@ pub enum StateError {
 
     #[error("failed to convert integer")]
     IntegerConversion,
+
+    #[error("failed to delete from host storage")]
+    Delete,
 }
