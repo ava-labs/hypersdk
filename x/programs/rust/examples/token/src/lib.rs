@@ -63,6 +63,16 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
     true
 }
 
+/// Burn the token from the recipient.
+#[public]
+pub fn burn_from(program: Program, recipient: Address) -> bool {
+    program
+        .state()
+        .delete(StateKey::Balance(recipient))
+        .expect("failed to burn recipient tokens");
+    true
+}
+
 /// Transfers balance from the sender to the the recipient.
 #[public]
 pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
