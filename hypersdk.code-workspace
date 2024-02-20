@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "examples/tokenvm"
+		},
+		{
+			"path": "examples/morpheusvm"
+		}
+	],
+	"settings": {
+		"editor.tokenColorCustomizations": {
+			"comments": "",
+			"textMateRules": []
+		}
+	}
+}

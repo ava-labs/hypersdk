@@ -50,7 +50,11 @@ const (
 	outgoingWarpPrefix = 0x5
 )
 
-const BalanceChunks uint16 = 1
+const (
+	BalanceChunks uint16 = 1
+
+	balanceAddrLen = 20 // Ethereum compatible address length
+)
 
 var (
 	failureByte  = byte(0x0)
@@ -116,12 +120,18 @@ func GetTransaction(
 	return true, t, success, d, fee, nil
 }
 
-// [balancePrefix] + [address]
+func BytesToAddress(b []byte) codec.Address {
+	var addr codec.Address
+	copy(addr[codec.AddressLen-len(b):], b)
+	return addr
+}
+
+// [balancePrefix] + last [balanceAddrLen] bytes of [address]
 func BalanceKey(addr codec.Address) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+	k = make([]byte, 1+balanceAddrLen+consts.Uint16Len)
 	k[0] = balancePrefix
-	copy(k[1:], addr[:])
-	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
+	copy(k[1:], addr[len(addr)-balanceAddrLen:])
+	binary.BigEndian.PutUint16(k[1+balanceAddrLen:], BalanceChunks)
 	return
 }
 

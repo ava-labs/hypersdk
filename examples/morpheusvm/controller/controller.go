@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/state"
 	hstorage "github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
@@ -185,4 +186,12 @@ func (*Controller) Shutdown(context.Context) error {
 	// Do not close any databases provided during initialization. The VM will
 	// close any databases your provided.
 	return nil
+}
+
+func (c *Controller) View() (state.View, error) {
+	return c.inner.State()
+}
+
+func (c *Controller) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
+	return consts.ActionRegistry, consts.AuthRegistry
 }

@@ -8,9 +8,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type Controller interface {
@@ -18,4 +21,8 @@ type Controller interface {
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
+	Rules(t int64) chain.Rules
+	View() (state.View, error)
+	Registry() (chain.ActionRegistry, chain.AuthRegistry)
+	Logger() logging.Logger
 }

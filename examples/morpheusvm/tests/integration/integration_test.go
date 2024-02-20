@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,7 +28,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/fatih/color"
+	"github.com/holiman/uint256"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"go.uber.org/zap"
@@ -50,6 +54,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 )
 
 var (
@@ -310,6 +315,136 @@ var _ = ginkgo.Describe("[Network]", func() {
 			gomega.Ω(chainID).ShouldNot(gomega.Equal(ids.Empty))
 			gomega.Ω(err).Should(gomega.BeNil())
 		}
+	})
+})
+
+var _ = ginkgo.Describe("[EVMCall Processing]", func() {
+
+	initialBalance := uint64(10000000)
+
+	ginkgo.It("can do EVM call", func() {
+		ginkgo.By("check balance", func() {
+			balance, err := instances[0].lcli.Balance(context.Background(), addrStr)
+			gomega.Ω(err).To(gomega.BeNil())
+			gomega.Ω(balance).To(gomega.Equal(initialBalance))
+		})
+
+		submitAndAccept := func(ctx context.Context, call *actions.EvmCall) *chain.Result {
+			parser, err := instances[0].lcli.Parser(ctx)
+			gomega.Ω(err).Should(gomega.BeNil())
+
+			reply, err := instances[0].lcli.TraceAction(
+				ctx,
+				lrpc.TraceTxArgs{
+					Actor:  addr,
+					Action: *call,
+				},
+			)
+			gomega.Ω(err).To(gomega.BeNil())
+			err = rlp.DecodeBytes(reply.AccessList, &call.AccessList)
+			gomega.Ω(err).To(gomega.BeNil())
+
+			// Now the action can be submitted as a transaction
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				ctx,
+				parser,
+				nil,
+				call,
+				factory,
+			)
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(submit(ctx)).Should(gomega.BeNil())
+			gomega.Ω(instances[0].vm.Mempool().Len(ctx)).Should(gomega.Equal(1))
+
+			blk, err := instances[0].vm.BuildBlock(ctx)
+			gomega.Ω(err).To(gomega.BeNil())
+
+			gomega.Ω(blk.Verify(ctx)).To(gomega.BeNil())
+			gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
+
+			err = instances[0].vm.SetPreference(ctx, blk.ID())
+			gomega.Ω(err).To(gomega.BeNil())
+
+			gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
+			gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
+			blocks = append(blocks, blk)
+
+			lastAccepted, err := instances[0].vm.LastAccepted(ctx)
+			gomega.Ω(err).To(gomega.BeNil())
+			gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
+
+			results := blk.(*chain.StatelessBlock).Results()
+			gomega.Ω(results).Should(gomega.HaveLen(1))
+			return results[0]
+		}
+
+		ginkgo.By("evm transfer", func() {
+			ctx := context.Background()
+			amount := uint64(10)
+			to := actions.ToEVMAddress(addr2)
+			sufficientGas := uint64(1000000)
+			call := &actions.EvmCall{
+				To:         &to,
+				Value:      new(big.Int).SetUint64(amount),
+				GasLimit:   sufficientGas,
+				GasFeeCap:  new(big.Int),
+				GasTipCap:  new(big.Int),
+				GasPrice:   new(big.Int),
+				AccessList: shim.NewTracer(),
+			}
+			result := submitAndAccept(ctx, call)
+			gomega.Ω(result.Success).Should(gomega.BeTrue())
+			gomega.Ω(result.Output).Should(gomega.BeNil())
+			balance, err := instances[0].lcli.Balance(context.Background(), addrStr)
+			gomega.Ω(err).To(gomega.BeNil())
+
+			balance2, err := instances[0].lcli.Balance(context.Background(), addrStr2)
+			gomega.Ω(err).To(gomega.BeNil())
+
+			gomega.Ω(balance).To(gomega.Equal(initialBalance - amount - result.Fee))
+			gomega.Ω(balance2).To(gomega.Equal(amount))
+		})
+
+		ginkgo.By("evm contract", func() {
+			ctx := context.Background()
+			sufficientGas := uint64(1000000)
+			// Deploy a contract
+			data, err := hex.DecodeString("608060405234801561000f575f80fd5b506101438061001d5f395ff3fe608060405234801561000f575f80fd5b5060043610610034575f3560e01c80632e64cec1146100385780636057361d14610056575b5f80fd5b610040610072565b60405161004d919061009b565b60405180910390f35b610070600480360381019061006b91906100e2565b61007a565b005b5f8054905090565b805f8190555050565b5f819050919050565b61009581610083565b82525050565b5f6020820190506100ae5f83018461008c565b92915050565b5f80fd5b6100c181610083565b81146100cb575f80fd5b50565b5f813590506100dc816100b8565b92915050565b5f602082840312156100f7576100f66100b4565b5b5f610104848285016100ce565b9150509291505056fea264697066735822122000afd17ac37e0bb2b68b3ac973de3608be934fa6f2b2e31808f1502fc93a2f2d64736f6c63430008180033")
+			gomega.Ω(err).To(gomega.BeNil())
+			call := &actions.EvmCall{
+				Value:     new(big.Int),
+				GasLimit:  sufficientGas,
+				Data:      data,
+				GasFeeCap: new(big.Int),
+				GasTipCap: new(big.Int),
+				GasPrice:  new(big.Int),
+				Nonce:     1,
+			}
+			result := submitAndAccept(ctx, call)
+			gomega.Ω(result.Success).Should(gomega.BeTrue())
+
+			// Store "42" in contract
+			contractAddress := crypto.CreateAddress(actions.ToEVMAddress(addr), call.Nonce)
+			data, err = hex.DecodeString("6057361d000000000000000000000000000000000000000000000000000000000000002a")
+			gomega.Ω(err).To(gomega.BeNil())
+			call.To = &contractAddress
+			call.AccessList = shim.NewTracer()
+			call.Nonce++
+			call.Data = data
+			result = submitAndAccept(ctx, call)
+			gomega.Ω(result.Success).Should(gomega.BeTrue())
+
+			// Read "42" from contract
+			data, err = hex.DecodeString("2e64cec1")
+			gomega.Ω(err).To(gomega.BeNil())
+			call.AccessList = shim.NewTracer()
+			call.Nonce++
+			call.Data = data
+			result = submitAndAccept(ctx, call)
+			gomega.Ω(result.Success).Should(gomega.BeTrue())
+			expected := new(uint256.Int).SetUint64(42).Bytes32()
+			gomega.Ω(result.Output).Should(gomega.Equal(expected[:]))
+		})
 	})
 })
 
