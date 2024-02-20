@@ -175,7 +175,7 @@ func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 }
 
 func (e *EvmCall) StateKeysMaxChunks() []uint16 {
-	var output []uint16
+	output := make([]uint16, 0, len(e.AccessList.Reads)+len(e.AccessList.CodeReads)+len(e.AccessList.CodeWrites))
 	if e.AccessList == nil {
 		return output
 	}

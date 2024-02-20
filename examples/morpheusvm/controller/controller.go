@@ -192,6 +192,6 @@ func (c *Controller) View() (state.View, error) {
 	return c.inner.State()
 }
 
-func (c *Controller) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
+func (*Controller) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return consts.ActionRegistry, consts.AuthRegistry
 }

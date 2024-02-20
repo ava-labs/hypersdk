@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ethereum/go-ethereum/rlp"
-	"go.uber.org/zap"
 )
 
 type TraceTxArgs struct {
@@ -44,7 +43,6 @@ func (j *JSONRPCServer) TraceTx(
 	if err != nil {
 		return err
 	}
-	j.c.Logger().Info("TraceTx called")
 
 	mu := state.NewSimpleMutable(view)
 	args.Action.SetLogger(j.c.Logger())
@@ -53,7 +51,6 @@ func (j *JSONRPCServer) TraceTx(
 		ctx, r, mu, t, args.Actor, args.TxID, args.WarpVerified,
 	)
 	if err != nil {
-		j.c.Logger().Error("Error executing action", zap.Error(err))
 		return err
 	}
 

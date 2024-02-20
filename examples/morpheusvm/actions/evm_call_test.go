@@ -32,9 +32,9 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func newLogger(prefix string) logging.Logger {
+func newLogger() logging.Logger {
 	return logging.NewLogger(
-		prefix,
+		"test",
 		logging.NewWrappedCore(
 			logging.Info,
 			os.Stderr,
@@ -64,7 +64,7 @@ func TestContract(t *testing.T) {
 		GasTipCap: txTip,
 		GasPrice:  feeCap,
 
-		logger: newLogger("test"),
+		logger: newLogger(),
 	}
 
 	rules := chain.NewMockRules(controller)
@@ -114,7 +114,7 @@ func TestContract(t *testing.T) {
 		GasPrice:  feeCap,
 		Nonce:     1,
 
-		logger: newLogger("test"),
+		logger: newLogger(),
 	}
 	{
 		success, actionCUs, output, warpMessage, err := call.Execute(
@@ -140,7 +140,7 @@ func TestContract(t *testing.T) {
 		GasPrice:  feeCap,
 		Nonce:     2,
 
-		logger: newLogger("test"),
+		logger: newLogger(),
 	}
 	require.NoError(mu.Commit(ctx))
 	mu = state.NewSimpleMutable(statedb)
@@ -208,7 +208,7 @@ func TestContractWithTracing(t *testing.T) {
 		GasTipCap: txTip,
 		GasPrice:  feeCap,
 
-		logger: newLogger("test"),
+		logger: newLogger(),
 	}
 
 	r := chain.NewMockRules(controller)
@@ -288,7 +288,7 @@ func TestContractWithTracing(t *testing.T) {
 		GasPrice:  feeCap,
 		Nonce:     1,
 
-		logger: newLogger("test"),
+		logger: newLogger(),
 	}
 	view = traceAndExecute(call, view)
 
@@ -303,7 +303,7 @@ func TestContractWithTracing(t *testing.T) {
 		GasPrice:  feeCap,
 		Nonce:     2,
 
-		logger: newLogger("test"),
+		logger: newLogger(),
 	}
 	_ = traceAndExecute(call, view)
 }

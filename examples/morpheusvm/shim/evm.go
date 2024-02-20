@@ -26,7 +26,7 @@ func NewEVMFactory() *EVMFactory {
 	return &EVMFactory{}
 }
 
-func getParentHeight(ctx context.Context, im state.Immutable) (uint64, error) {
+func getParentHeight(_ context.Context, _ state.Immutable) (uint64, error) {
 	return 0, nil
 	// TODO: Implement this
 	// parentHeightBytes, err := im.GetValue(ctx, storage.HeightKey())

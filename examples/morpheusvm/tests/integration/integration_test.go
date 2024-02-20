@@ -319,7 +319,6 @@ var _ = ginkgo.Describe("[Network]", func() {
 })
 
 var _ = ginkgo.Describe("[EVMCall Processing]", func() {
-
 	initialBalance := uint64(10000000)
 
 	ginkgo.It("can do EVM call", func() {
