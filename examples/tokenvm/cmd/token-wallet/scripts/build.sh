@@ -11,8 +11,8 @@ SCRIPT_DIR=$(
   cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd
 )
 
-source $SCRIPT_DIR/../../../../../scripts/common/utils.sh
-source $SCRIPT_DIR/../../../../../scripts/constants.sh
+source "$SCRIPT_DIR"/../../../../../scripts/common/utils.sh
+source "$SCRIPT_DIR"/../../../../../scripts/constants.sh
 
 PUBLISH=${PUBLISH:-true}
 
