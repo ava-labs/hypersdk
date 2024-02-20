@@ -7,7 +7,7 @@ set -o pipefail
 set -e
 
 if ! [[ "$0" =~ scripts/tests.disk.sh ]]; then
-  echo "must be run from repository root"
+  echo "must be run from tokenvm root"
   exit 255
 fi
 

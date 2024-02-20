@@ -2,15 +2,18 @@
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-
 set -o errexit
 set -o pipefail
 set -e
 
 if ! [[ "$0" =~ scripts/tests.lint.sh ]]; then
-  echo "must be run from repository root"
+  echo "must be run from hypersdk root"
   exit 255
 fi
+
+source $HYPERSDK_PATH/scripts/common/utils.sh
+
+check_repository_root scripts/tests.lint.sh
 
 if [ "$#" -eq 0 ]; then
   # by default, check all source code
@@ -29,6 +32,10 @@ TESTS=${TESTS:-"golangci_lint license_header"}
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
   go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.1
+  
+  # alert the user if they do not have $GOPATH properly configured
+  check_command golangci-lint
+
   golangci-lint run --config .golangci.yml
 }
 
@@ -45,6 +52,10 @@ function find_go_files {
 _addlicense_flags=${ADDLICENSE_FLAGS:-"--verify --debug"}
 function test_license_header {
   go install -v github.com/palantir/go-license@latest
+
+  # alert the user if they do not have $GOPATH properly configured
+  check_command go-license
+
   local target="${1}"
   local files=()
   while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
