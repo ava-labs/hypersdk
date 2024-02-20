@@ -21,7 +21,7 @@ if ! command -v mockgen &> /dev/null
 then
   echo "mockgen not found, installing..."
   # https://github.com/uber-go/mock
-  go install -v go.uber.org/mock/mockgen@v0.2.0
+  go install -v go.uber.org/mock/mockgen@v0.4.0
 fi
 
 # alert the user if they do not have $GOPATH properly configured
