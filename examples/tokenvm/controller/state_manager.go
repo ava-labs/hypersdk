@@ -26,7 +26,7 @@ func (*StateManager) TimestampKey() []byte {
 }
 
 func (*StateManager) FeeKey() []byte {
-	return storage.HeightKey()
+	return storage.FeeKey()
 }
 
 func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
