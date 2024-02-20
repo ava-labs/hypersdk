@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/x/programs/cmd/simulator
 go 1.21
 
 require (
-	github.com/ava-labs/avalanchego v1.10.18
+	github.com/ava-labs/avalanchego v1.11.0-rc.2
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/near/borsh-go v0.3.1
 	github.com/prometheus/client_golang v1.16.0
