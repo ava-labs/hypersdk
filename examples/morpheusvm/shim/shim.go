@@ -161,15 +161,18 @@ func NewDatabaseShim(ctx context.Context, mu state.Mutable) *databaseShim {
 func (d *databaseShim) OpenTrie(common.Hash) (evm_state.Trie, error) {
 	return &trieShim{d}, nil
 }
+
 func (d *databaseShim) OpenStorageTrie(common.Hash, common.Address, common.Hash) (evm_state.Trie, error) {
 	return &trieShim{d}, nil
 }
+
 func (d *databaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
 	if d.tracer != nil {
 		d.tracer.CodeReads[addr] = struct{}{}
 	}
 	return storage.GetCode(d.ctx, d.mu, addr)
 }
+
 func (d *databaseShim) ContractCodeSize(addr common.Address, codeHash common.Hash) (int, error) {
 	code, err := d.ContractCode(addr, codeHash)
 	return len(code), err
@@ -189,6 +192,7 @@ func (t *trieShim) GetStorage(addr common.Address, key []byte) ([]byte, error) {
 	}
 	return storage.GetStorage(t.d.ctx, t.d.mu, addr, key)
 }
+
 func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, error) {
 	if t.d.tracer != nil {
 		t.d.tracer.Reads.Add(address)
@@ -213,6 +217,7 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 	account.Balance = new(big.Int).SetUint64(balance)
 	return &account, nil
 }
+
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
 	if t.d.tracer != nil {
 		t.d.tracer.Writes.AddKey(addr, common.BytesToHash(key))
@@ -220,6 +225,7 @@ func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
 	}
 	return storage.SetStorage(t.d.ctx, t.d.mu, addr, key, value)
 }
+
 func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAccount) error {
 	if t.d.tracer != nil {
 		t.d.tracer.Writes.Add(address)
@@ -236,6 +242,7 @@ func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAcc
 	}
 	return storage.SetAccount(t.d.ctx, t.d.mu, address, bytes)
 }
+
 func (t *trieShim) UpdateContractCode(address common.Address, _ common.Hash, code []byte) error {
 	if t.d.tracer != nil {
 		t.d.tracer.CodeWrites[address] = struct{}{}
@@ -243,6 +250,7 @@ func (t *trieShim) UpdateContractCode(address common.Address, _ common.Hash, cod
 	}
 	return storage.SetCode(t.d.ctx, t.d.mu, address, code)
 }
+
 func (t *trieShim) DeleteStorage(addr common.Address, key []byte) error {
 	if t.d.tracer != nil {
 		t.d.tracer.Writes.AddKey(addr, common.BytesToHash(key))
@@ -250,6 +258,7 @@ func (t *trieShim) DeleteStorage(addr common.Address, key []byte) error {
 	}
 	return storage.DeleteStorage(t.d.ctx, t.d.mu, addr, key)
 }
+
 func (t *trieShim) DeleteAccount(address common.Address) error {
 	if t.d.tracer != nil {
 		t.d.tracer.Writes.Add(address)
