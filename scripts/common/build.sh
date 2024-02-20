@@ -15,7 +15,7 @@ build_project() {
 
     local binary_path
     if [[ $# -eq 3 ]]; then
-        local binary_dir=$(cd "$(dirname "$3")" && pwd)
+        local binary_dir=$(cd "$(dirname "build/$3")" && pwd)
         local binary_name=$(basename "$3")
         binary_path=$binary_dir/$binary_name
     else
