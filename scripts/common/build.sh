@@ -25,7 +25,7 @@ build_project() {
 
     cd "$project_path"
     echo "Building $project_name in $binary_path"
-    mkdir -p $(dirname $binary_path)
+    mkdir -p "$(dirname "$binary_path")"
 
     go build -o "$binary_path" ./cmd/"$project_name"
 }

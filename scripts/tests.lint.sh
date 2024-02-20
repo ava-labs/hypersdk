@@ -11,7 +11,7 @@ if ! [[ "$0" =~ scripts/tests.lint.sh ]]; then
   exit 255
 fi
 
-source $HYPERSDK_PATH/scripts/common/utils.sh
+source "$HYPERSDK_PATH"/scripts/common/utils.sh
 
 check_repository_root scripts/tests.lint.sh
 

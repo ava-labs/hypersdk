@@ -11,7 +11,7 @@ HYPERSDK_PATH=$(
   cd .. && pwd
 )
 
-source $HYPERSDK_PATH/scripts/common/utils.sh
+source "$HYPERSDK_PATH"/scripts/common/utils.sh
 
 echo "installing proxy"
 go install -v github.com/sensiblecodeio/tiny-ssl-reverse-proxy

@@ -11,8 +11,8 @@ SCRIPT_DIR=$(
   cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd
 )
 
-source $SCRIPT_DIR/../../../../../scripts/common/utils.sh
-source $SCRIPT_DIR/../../../../../scripts/constants.sh
+source "$SCRIPT_DIR"/../../../../../scripts/common/utils.sh
+source "$SCRIPT_DIR"/../../../../../scripts/constants.sh
 
 # Install wails
 go install -v github.com/wailsapp/wails/v2/cmd/wails@v2.6.0
