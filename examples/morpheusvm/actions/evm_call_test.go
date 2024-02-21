@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -151,7 +152,6 @@ func TestContract(t *testing.T) {
 		require.Nil(err)
 		require.Nil(warpMessage)
 		require.True(success)
-		fmt.Println("accessList:", call.toMessage(ToEVMAddress(from)).AccessList)
 
 		fmt.Println(actionCUs)
 		fmt.Println(common.Bytes2Hex(output))
@@ -235,13 +235,14 @@ func TestContractWithTracing(t *testing.T) {
 
 	traceAndExecute := func(call *EvmCall, view state.View) state.View {
 		mu := state.NewSimpleMutable(view)
-		traceAction := call.TraceAction()
+		traced := shim.NewStateKeyTracer(mu)
 		traceResult := toExecutionResult(
-			traceAction.Execute(ctx, r, mu, time, from, txID, false),
+			call.Execute(ctx, r, traced, time, from, txID, false),
 		)
 		require.NoError(traceResult.err)
 		require.Nil(traceResult.warpMessage)
 		require.True(traceResult.success)
+		call.SetStateKeys(traced.Keys)
 
 		// now that the state keys are known we should be able to execute the action
 		// in the environment with restricted state keys
@@ -265,7 +266,6 @@ func TestContractWithTracing(t *testing.T) {
 		require.True(executionResult.success)
 		require.Equal(traceResult.actionCUs, executionResult.actionCUs)
 		require.Equal(traceResult.output, executionResult.output)
-		fmt.Println("accessList:", call.toMessage(ToEVMAddress(from)).AccessList)
 
 		tsv.Commit()
 		view, err = ts.ExportMerkleDBView(ctx, tracer, view)

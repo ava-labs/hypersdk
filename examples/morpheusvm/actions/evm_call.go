@@ -5,7 +5,10 @@ package actions
 
 import (
 	"context"
+	"encoding/binary"
+	"io"
 	"math/big"
+	"sort"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -15,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/subnet-evm/core"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,20 +28,19 @@ import (
 var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
-	To            *common.Address `json:"to" rlp:"nil"` // nil means contract creation
-	Nonce         uint64          `json:"nonce"`
-	Value         *big.Int        `json:"value"`
-	GasLimit      uint64          `json:"gasLimit"`
-	GasPrice      *big.Int        `json:"gasPrice"`
-	GasFeeCap     *big.Int        `json:"gasFeeCap"`
-	GasTipCap     *big.Int        `json:"gasTipCap"`
-	Data          []byte          `json:"data"`
-	BlobGasFeeCap *big.Int        `json:"blobGasFeeCap"`
-	BlobHashes    []common.Hash   `json:"blobHashes"`
-	AccessList    *shim.Tracer    `json:"accessList"`
+	To            *common.Address  `json:"to" rlp:"nil"` // nil means contract creation
+	Nonce         uint64           `json:"nonce"`
+	Value         *big.Int         `json:"value"`
+	GasLimit      uint64           `json:"gasLimit"`
+	GasPrice      *big.Int         `json:"gasPrice"`
+	GasFeeCap     *big.Int         `json:"gasFeeCap"`
+	GasTipCap     *big.Int         `json:"gasTipCap"`
+	Data          []byte           `json:"data"`
+	BlobGasFeeCap *big.Int         `json:"blobGasFeeCap"`
+	BlobHashes    []common.Hash    `json:"blobHashes"`
+	Keys          SerializableKeys `json:"stateKeys"`
 
-	logger         logging.Logger
-	traceStateKeys bool
+	logger logging.Logger
 }
 
 func ToEVMAddress(addr codec.Address) common.Address {
@@ -53,18 +54,17 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		blobHashes = e.BlobHashes
 	}
 	return &core.Message{
-		From:              from,
-		To:                e.To,
-		Nonce:             e.Nonce,
-		Value:             e.Value,
-		GasLimit:          e.GasLimit,
-		GasPrice:          e.GasPrice,
-		GasFeeCap:         e.GasFeeCap,
-		GasTipCap:         e.GasTipCap,
-		Data:              e.Data,
-		BlobGasFeeCap:     e.BlobGasFeeCap,
-		BlobHashes:        blobHashes,
-		SkipAccountChecks: e.traceStateKeys,
+		From:          from,
+		To:            e.To,
+		Nonce:         e.Nonce,
+		Value:         e.Value,
+		GasLimit:      e.GasLimit,
+		GasPrice:      e.GasPrice,
+		GasFeeCap:     e.GasFeeCap,
+		GasTipCap:     e.GasTipCap,
+		Data:          e.Data,
+		BlobGasFeeCap: e.BlobGasFeeCap,
+		BlobHashes:    blobHashes,
 	}
 }
 
@@ -73,75 +73,25 @@ func (*EvmCall) GetTypeID() uint8 {
 }
 
 func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	output := make(state.Keys)
-	if e.AccessList == nil {
-		return output
-	}
-	for addr, keys := range e.AccessList.Writes {
-		codecAddress := storage.BytesToAddress(addr[:])
-		output.Add(string(storage.BalanceKey(codecAddress)), state.Write)
-
-		output.Add(string(storage.AccountKey(addr)), state.Write)
-		for key := range keys {
-			output.Add(string(storage.StorageKey(addr, key[:])), state.Write)
-		}
-	}
-	for addr, keys := range e.AccessList.Reads {
-		codecAddress := storage.BytesToAddress(addr[:])
-		output.Add(string(storage.BalanceKey(codecAddress)), state.Read)
-
-		output.Add(string(storage.AccountKey(addr)), state.Read)
-		for key := range keys {
-			output.Add(string(storage.StorageKey(addr, key[:])), state.Read)
-		}
-	}
-	for addr := range e.AccessList.CodeWrites {
-		output.Add(string(storage.CodeKey(addr)), state.Write)
-	}
-	for addr := range e.AccessList.CodeReads {
-		output.Add(string(storage.CodeKey(addr)), state.Read)
-	}
-
 	if e.logger != nil {
-		for k := range output {
+		for k := range e.Keys {
 			e.logger.Info(
 				"EVM call state key",
 				zap.String("key", common.Bytes2Hex([]byte(k))),
 			)
 		}
 	}
-	return output
+	return state.Keys(e.Keys) // TODO: copy?
 }
 
 func (e *EvmCall) StateKeysMaxChunks() []uint16 {
-	output := make([]uint16, 0, len(e.AccessList.Reads)+len(e.AccessList.CodeReads)+len(e.AccessList.CodeWrites))
-	if e.AccessList == nil {
-		return output
-	}
-	for _, keys := range e.AccessList.Writes {
-		output = append(output, storage.AccountChunks)
-		for range keys {
-			output = append(output, storage.StorageChunks)
-		}
-	}
-	for account, keys := range e.AccessList.Reads {
-		// only add account chunks if it's not already in the write set
-		if _, ok := e.AccessList.Writes[account]; !ok {
-			output = append(output, storage.AccountChunks)
-		}
-		for key := range keys {
-			if _, ok := e.AccessList.Writes[account][key]; !ok {
-				output = append(output, storage.StorageChunks)
-			}
-		}
-	}
-	for range e.AccessList.CodeWrites {
-		output = append(output, storage.CodeChunks)
-	}
-	for account := range e.AccessList.CodeReads {
-		if _, ok := e.AccessList.CodeWrites[account]; !ok {
-			output = append(output, storage.CodeChunks)
-		}
+	output := make([]uint16, 0, len(e.Keys))
+	for k := range e.Keys {
+		bytes := []byte(k)
+		// TODO: is there a helper for this?
+		// TODO: tracer can measure the actual number of chunks
+		maxChunks := binary.BigEndian.Uint16(bytes[:len(bytes)-2])
+		output = append(output, maxChunks)
 	}
 	return output
 }
@@ -169,14 +119,7 @@ func (e *EvmCall) Execute(
 		return false, 0, nil, nil, err
 	}
 
-	var tracer *shim.Tracer
-	if e.traceStateKeys {
-		if e.AccessList == nil {
-			e.AccessList = shim.NewTracer()
-		}
-		tracer = e.AccessList
-	}
-	statedb := shim.NewStateDBWithTracer(ctx, mu, tracer)
+	statedb := shim.NewStateDB(ctx, mu)
 	from := ToEVMAddress(actor)
 	msg := e.toMessage(from)
 	evm, _ := f.GetEVM(ctx, msg, statedb, nil, nil, nil)
@@ -233,6 +176,7 @@ func UnmarshalEvmCall(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 		return nil, p.Err()
 	}
 	var evmCall EvmCall
+	evmCall.Keys = make(SerializableKeys)
 	if err := rlp.DecodeBytes(bytes, &evmCall); err != nil {
 		return nil, err
 	}
@@ -244,67 +188,42 @@ func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (e *EvmCall) TraceAction() chain.Action {
-	return &evmCallTracer{e}
-}
-
-type evmCallTracer struct {
-	*EvmCall
-}
-
-func (e *evmCallTracer) Execute(
-	ctx context.Context,
-	r chain.Rules,
-	mu state.Mutable,
-	time int64,
-	actor codec.Address,
-	txID ids.ID,
-	warpVerified bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	// enable tracing of state keys
-	original := e.EvmCall.traceStateKeys
-	e.EvmCall.traceStateKeys = true
-	defer func() { e.EvmCall.traceStateKeys = original }()
-
-	var (
-		stateKeys   = e.StateKeys(actor, txID)
-		success     bool
-		actionCUs   uint64
-		output      []byte
-		warpMessage *warp.UnsignedMessage
-		err         error
-	)
-	// calculate a fixpoint of state keys
-	// since state keys listed impact the evm tx access list, they
-	// can impact gas calculation and tx execution path.
-	for {
-		success, actionCUs, output, warpMessage, err = e.EvmCall.Execute(
-			ctx, r, mu, time, actor, txID, warpVerified)
-		if err != nil {
-			return false, 0, nil, nil, err
-		}
-		nextStateKeys := e.StateKeys(actor, txID)
-		if StateKeysEqual(nextStateKeys, stateKeys) {
-			break
-		}
-		stateKeys = nextStateKeys
-	}
-	return success, actionCUs, output, warpMessage, nil
+func (e *EvmCall) SetStateKeys(k state.Keys) {
+	e.Keys = SerializableKeys(k)
 }
 
 func (e *EvmCall) SetLogger(logger logging.Logger) {
 	e.logger = logger
 }
 
-// TODO: move to state package
-func StateKeysEqual(k state.Keys, other state.Keys) bool {
-	if len(k) != len(other) {
-		return false
+type SerializableKeys state.Keys
+
+type serializablePermissions struct {
+	Key         string            `json:"key"`
+	Permissions state.Permissions `json:"permission"`
+}
+
+func (s SerializableKeys) EncodeRLP(w io.Writer) error {
+	keys := make([]serializablePermissions, 0, len(s))
+	for k, v := range s {
+		keys = append(keys, serializablePermissions{
+			Key:         k,
+			Permissions: v,
+		})
 	}
-	for key, perm := range k {
-		if other[key] != perm {
-			return false
-		}
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].Key < keys[j].Key
+	})
+	return rlp.Encode(w, keys)
+}
+
+func (s SerializableKeys) DecodeRLP(stream *rlp.Stream) error {
+	var keys []serializablePermissions
+	if err := stream.Decode(&keys); err != nil {
+		return err
 	}
-	return true
+	for _, key := range keys {
+		s[key.Key] = key.Permissions
+	}
+	return nil
 }

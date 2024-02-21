@@ -54,7 +54,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 )
 
 var (
@@ -340,7 +339,8 @@ var _ = ginkgo.Describe("[EVMCall Processing]", func() {
 				},
 			)
 			gomega.Ω(err).To(gomega.BeNil())
-			err = rlp.DecodeBytes(reply.AccessList, &call.AccessList)
+			call.Keys = make(actions.SerializableKeys)
+			err = rlp.DecodeBytes(reply.StateKeys, &call.Keys)
 			gomega.Ω(err).To(gomega.BeNil())
 
 			// Now the action can be submitted as a transaction
@@ -383,13 +383,12 @@ var _ = ginkgo.Describe("[EVMCall Processing]", func() {
 			to := actions.ToEVMAddress(addr2)
 			sufficientGas := uint64(1000000)
 			call := &actions.EvmCall{
-				To:         &to,
-				Value:      new(big.Int).SetUint64(amount),
-				GasLimit:   sufficientGas,
-				GasFeeCap:  new(big.Int),
-				GasTipCap:  new(big.Int),
-				GasPrice:   new(big.Int),
-				AccessList: shim.NewTracer(),
+				To:        &to,
+				Value:     new(big.Int).SetUint64(amount),
+				GasLimit:  sufficientGas,
+				GasFeeCap: new(big.Int),
+				GasTipCap: new(big.Int),
+				GasPrice:  new(big.Int),
 			}
 			result := submitAndAccept(ctx, call)
 			gomega.Ω(result.Success).Should(gomega.BeTrue())
@@ -427,7 +426,6 @@ var _ = ginkgo.Describe("[EVMCall Processing]", func() {
 			data, err = hex.DecodeString("6057361d000000000000000000000000000000000000000000000000000000000000002a")
 			gomega.Ω(err).To(gomega.BeNil())
 			call.To = &contractAddress
-			call.AccessList = shim.NewTracer()
 			call.Nonce++
 			call.Data = data
 			result = submitAndAccept(ctx, call)
@@ -436,7 +434,6 @@ var _ = ginkgo.Describe("[EVMCall Processing]", func() {
 			// Read "42" from contract
 			data, err = hex.DecodeString("2e64cec1")
 			gomega.Ω(err).To(gomega.BeNil())
-			call.AccessList = shim.NewTracer()
 			call.Nonce++
 			call.Data = data
 			result = submitAndAccept(ctx, call)

@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -27,7 +28,7 @@ type TraceTxReply struct {
 	CUs         uint64 `json:"units"`
 	Output      []byte `json:"output"`
 	WarpMessage bool   `json:"warpMessage"` // TODO: output full details
-	AccessList  []byte `json:"stateKeys"`
+	StateKeys   []byte `json:"stateKeys"`
 }
 
 func (j *JSONRPCServer) TraceTx(
@@ -45,10 +46,10 @@ func (j *JSONRPCServer) TraceTx(
 	}
 
 	mu := state.NewSimpleMutable(view)
+	traced := shim.NewStateKeyTracer(mu)
 	args.Action.SetLogger(j.c.Logger())
-	action := args.Action.TraceAction()
-	success, actionCUs, output, warpMessage, err := action.Execute(
-		ctx, r, mu, t, args.Actor, args.TxID, args.WarpVerified,
+	success, actionCUs, output, warpMessage, err := args.Action.Execute(
+		ctx, r, traced, t, args.Actor, args.TxID, args.WarpVerified,
 	)
 	if err != nil {
 		return err
@@ -59,6 +60,7 @@ func (j *JSONRPCServer) TraceTx(
 	reply.CUs = actionCUs
 	reply.Output = output
 	reply.WarpMessage = warpMessage != nil
-	reply.AccessList, err = rlp.EncodeToBytes(args.Action.AccessList)
+	stateKeys := actions.SerializableKeys(traced.Keys)
+	reply.StateKeys, err = rlp.EncodeToBytes(stateKeys)
 	return err
 }

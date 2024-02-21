@@ -5,9 +5,7 @@ package shim
 
 import (
 	"context"
-	"io"
 	"math/big"
-	"slices"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -25,129 +23,13 @@ var (
 	_ evm_state.Trie     = (*trieShim)(nil)
 )
 
-type AccessSet map[common.Address]map[common.Hash]struct{}
-
-func (a AccessSet) Add(addr common.Address) {
-	if a[addr] == nil {
-		a[addr] = make(map[common.Hash]struct{})
-	}
-}
-
-func (a AccessSet) AddKey(addr common.Address, key common.Hash) {
-	a.Add(addr)
-	a[addr][key] = struct{}{}
-}
-
-type Tracer struct {
-	Reads      AccessSet
-	Writes     AccessSet
-	CodeReads  map[common.Address]struct{}
-	CodeWrites map[common.Address]struct{}
-}
-
-func NewTracer() *Tracer {
-	return &Tracer{
-		Reads:      make(AccessSet),
-		Writes:     make(AccessSet),
-		CodeReads:  make(map[common.Address]struct{}),
-		CodeWrites: make(map[common.Address]struct{}),
-	}
-}
-
-type rlpTracer struct {
-	ReadAccounts  []common.Address
-	WriteAccounts []common.Address
-	ReadKeys      [][]common.Hash
-	WriteKeys     [][]common.Hash
-	CodeReads     []common.Address
-	CodeWrites    []common.Address
-}
-
-func (t *Tracer) EncodeRLP(w io.Writer) error {
-	var rlpTracer rlpTracer
-	for addr := range t.Reads {
-		rlpTracer.ReadAccounts = append(rlpTracer.ReadAccounts, addr)
-	}
-	for addr := range t.Writes {
-		rlpTracer.WriteAccounts = append(rlpTracer.WriteAccounts, addr)
-	}
-	for addr := range t.CodeReads {
-		rlpTracer.CodeReads = append(rlpTracer.CodeReads, addr)
-	}
-	for addr := range t.CodeWrites {
-		rlpTracer.CodeWrites = append(rlpTracer.CodeWrites, addr)
-	}
-	slices.SortFunc(rlpTracer.ReadAccounts, common.Address.Cmp)
-	slices.SortFunc(rlpTracer.WriteAccounts, common.Address.Cmp)
-	slices.SortFunc(rlpTracer.CodeReads, common.Address.Cmp)
-	slices.SortFunc(rlpTracer.CodeWrites, common.Address.Cmp)
-
-	for _, addr := range rlpTracer.ReadAccounts {
-		keys := make([]common.Hash, 0, len(t.Reads[addr]))
-		for key := range t.Reads[addr] {
-			keys = append(keys, key)
-		}
-		slices.SortFunc(keys, common.Hash.Cmp)
-		rlpTracer.ReadKeys = append(rlpTracer.ReadKeys, keys)
-	}
-	for _, addr := range rlpTracer.WriteAccounts {
-		keys := make([]common.Hash, 0, len(t.Writes[addr]))
-		for key := range t.Writes[addr] {
-			keys = append(keys, key)
-		}
-		slices.SortFunc(keys, common.Hash.Cmp)
-		rlpTracer.WriteKeys = append(rlpTracer.WriteKeys, keys)
-	}
-
-	return rlp.Encode(w, rlpTracer)
-}
-
-func (t *Tracer) DecodeRLP(s *rlp.Stream) error {
-	var rlpTracer rlpTracer
-	if err := s.Decode(&rlpTracer); err != nil {
-		return err
-	}
-	*t = *NewTracer()
-	for i, addr := range rlpTracer.ReadAccounts {
-		t.Reads.Add(addr)
-		for _, key := range rlpTracer.ReadKeys[i] {
-			t.Reads.AddKey(addr, key)
-		}
-	}
-	for i, addr := range rlpTracer.WriteAccounts {
-		t.Writes.Add(addr)
-		for _, key := range rlpTracer.WriteKeys[i] {
-			t.Writes.AddKey(addr, key)
-		}
-	}
-	for _, addr := range rlpTracer.CodeReads {
-		t.CodeReads[addr] = struct{}{}
-	}
-	for _, addr := range rlpTracer.CodeWrites {
-		t.CodeWrites[addr] = struct{}{}
-	}
-	return nil
-}
-
 type databaseShim struct {
 	ctx context.Context
 	mu  state.Mutable
-
-	tracer *Tracer
 }
 
 func NewStateDB(ctx context.Context, mu state.Mutable) *evm_state.StateDB {
 	statedb, err := evm_state.New(common.Hash{}, NewDatabaseShim(ctx, mu), nil)
-	if err != nil {
-		panic(err) // This can never happen since OpenTrie will always succeed
-	}
-	return statedb
-}
-
-func NewStateDBWithTracer(ctx context.Context, mu state.Mutable, tracer *Tracer) *evm_state.StateDB {
-	shim := NewDatabaseShim(ctx, mu)
-	shim.tracer = tracer
-	statedb, err := evm_state.New(common.Hash{}, shim, nil)
 	if err != nil {
 		panic(err) // This can never happen since OpenTrie will always succeed
 	}
@@ -167,9 +49,6 @@ func (d *databaseShim) OpenStorageTrie(common.Hash, common.Address, common.Hash)
 }
 
 func (d *databaseShim) ContractCode(addr common.Address, _ common.Hash) ([]byte, error) {
-	if d.tracer != nil {
-		d.tracer.CodeReads[addr] = struct{}{}
-	}
 	return storage.GetCode(d.ctx, d.mu, addr)
 }
 
@@ -187,16 +66,10 @@ type trieShim struct {
 
 func (*trieShim) GetKey([]byte) []byte { panic("unimplemented") }
 func (t *trieShim) GetStorage(addr common.Address, key []byte) ([]byte, error) {
-	if t.d.tracer != nil {
-		t.d.tracer.Reads.AddKey(addr, common.BytesToHash(key))
-	}
 	return storage.GetStorage(t.d.ctx, t.d.mu, addr, key)
 }
 
 func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, error) {
-	if t.d.tracer != nil {
-		t.d.tracer.Reads.Add(address)
-	}
 	// TODO: consolidate account & balance into a single storage entry
 	var account types.StateAccount
 	codecAddr := storage.BytesToAddress(address[:])
@@ -219,18 +92,10 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 }
 
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
-	if t.d.tracer != nil {
-		t.d.tracer.Writes.AddKey(addr, common.BytesToHash(key))
-		return nil
-	}
 	return storage.SetStorage(t.d.ctx, t.d.mu, addr, key, value)
 }
 
 func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAccount) error {
-	if t.d.tracer != nil {
-		t.d.tracer.Writes.Add(address)
-		return nil
-	}
 	bytes, err := rlp.EncodeToBytes(account)
 	if err != nil {
 		return err
@@ -244,26 +109,14 @@ func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAcc
 }
 
 func (t *trieShim) UpdateContractCode(address common.Address, _ common.Hash, code []byte) error {
-	if t.d.tracer != nil {
-		t.d.tracer.CodeWrites[address] = struct{}{}
-		return nil
-	}
 	return storage.SetCode(t.d.ctx, t.d.mu, address, code)
 }
 
 func (t *trieShim) DeleteStorage(addr common.Address, key []byte) error {
-	if t.d.tracer != nil {
-		t.d.tracer.Writes.AddKey(addr, common.BytesToHash(key))
-		return nil
-	}
 	return storage.DeleteStorage(t.d.ctx, t.d.mu, addr, key)
 }
 
 func (t *trieShim) DeleteAccount(address common.Address) error {
-	if t.d.tracer != nil {
-		t.d.tracer.Writes.Add(address)
-		return nil
-	}
 	return storage.DeleteAccount(t.d.ctx, t.d.mu, address)
 }
 func (*trieShim) Hash() common.Hash { return common.Hash{} }
