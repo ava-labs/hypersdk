@@ -4,16 +4,19 @@
 
 set -o errexit
 set -o pipefail
-set -e
+set -u
 
 if ! [[ "$0" =~ scripts/tests.lint.sh ]]; then
   echo "must be run from hypersdk root"
   exit 255
 fi
 
-source "$HYPERSDK_PATH"/scripts/common/utils.sh
+HYPERSDK_PATH=$(
+  cd "$(dirname "${BASH_SOURCE[0]}")"
+  cd .. && pwd
+)
 
-check_repository_root scripts/tests.lint.sh
+source "$HYPERSDK_PATH"/scripts/common/utils.sh
 
 if [ "$#" -eq 0 ]; then
   # by default, check all source code
