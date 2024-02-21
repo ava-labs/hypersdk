@@ -27,6 +27,7 @@ awscpu
 
 .vscode*
 .env
+*.code-workspace
 
 *.pb*
 
