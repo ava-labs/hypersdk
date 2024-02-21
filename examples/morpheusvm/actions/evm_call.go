@@ -18,9 +18,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/subnet-evm/core"
-	"github.com/ava-labs/subnet-evm/core/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"go.uber.org/zap"
 )
@@ -44,69 +42,11 @@ type EvmCall struct {
 	traceStateKeys bool
 }
 
-func tracerToAccessList(tracer *shim.Tracer, excl map[common.Address]struct{}) types.AccessList {
-	var output types.AccessList
-	if tracer == nil {
-		return output
-	}
-	for addr, keys := range tracer.Writes {
-		var storageKeys []common.Hash
-		for key := range keys {
-			storageKeys = append(storageKeys, key)
-		}
-		for key := range tracer.Reads[addr] {
-			if _, ok := keys[key]; ok {
-				continue
-			}
-			storageKeys = append(storageKeys, key)
-		}
-		if len(storageKeys) == 0 {
-			if _, ok := excl[addr]; ok {
-				continue
-			}
-		}
-		output = append(output, types.AccessTuple{
-			Address:     addr,
-			StorageKeys: storageKeys,
-		})
-	}
-	for addr, keys := range tracer.Reads {
-		if _, ok := tracer.Writes[addr]; ok {
-			continue
-		}
-		var storageKeys []common.Hash
-		for key := range keys {
-			storageKeys = append(storageKeys, key)
-		}
-		if len(storageKeys) == 0 {
-			if _, ok := excl[addr]; ok {
-				continue
-			}
-		}
-		output = append(output, types.AccessTuple{
-			Address:     addr,
-			StorageKeys: storageKeys,
-		})
-	}
-	return output
-}
-
 func ToEVMAddress(addr codec.Address) common.Address {
 	return common.BytesToAddress(addr[len(addr)-common.AddressLength:])
 }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {
-	coinbase := common.Address{} // XXX: pass coinbase properly
-	var to common.Address
-	if e.To != nil {
-		to = *e.To
-	} else {
-		to = crypto.CreateAddress(from, e.Nonce)
-	}
-	excl := map[common.Address]struct{}{
-		from: {}, to: {}, coinbase: {},
-	}
-
 	// EVM state transition treats nil vs. empty blob hashes differently
 	var blobHashes []common.Hash
 	if len(e.BlobHashes) > 0 {
@@ -122,7 +62,6 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		GasFeeCap:         e.GasFeeCap,
 		GasTipCap:         e.GasTipCap,
 		Data:              e.Data,
-		AccessList:        tracerToAccessList(e.AccessList, excl),
 		BlobGasFeeCap:     e.BlobGasFeeCap,
 		BlobHashes:        blobHashes,
 		SkipAccountChecks: e.traceStateKeys,
