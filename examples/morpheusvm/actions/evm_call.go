@@ -20,6 +20,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/subnet-evm/core"
+	"github.com/ava-labs/subnet-evm/core/vm"
+	"github.com/ava-labs/subnet-evm/params"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"go.uber.org/zap"
@@ -100,6 +102,18 @@ func (*EvmCall) OutputsWarpMessage() bool {
 	return false
 }
 
+func getParentHeight(_ context.Context, _ state.Immutable) (uint64, error) {
+	return 0, nil
+	// TODO: Implement this
+	// parentHeightBytes, err := im.GetValue(ctx, storage.HeightKey())
+	// if errors.Is(err, database.ErrNotFound) {
+	// 	return 0, nil
+	// } else if err != nil {
+	// 	return 0, err
+	// }
+	// return binary.BigEndian.Uint64(parentHeightBytes), nil
+}
+
 // An error should only be returned if a fatal error was encountered, otherwise [success] should
 // be marked as false and fees will still be charged.
 func (e *EvmCall) Execute(
@@ -111,18 +125,30 @@ func (e *EvmCall) Execute(
 	_ ids.ID,
 	_ bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
-	f := shim.NewEVMFactory()
-	if err := f.SetBlockContext(ctx, r, mu, time); err != nil {
-		if e.logger != nil {
-			e.logger.Error("EVM set block context failed", zap.Error(err))
-		}
+	blockGasLimit := r.GetMaxBlockUnits()[1]
+	parentHeight, err := getParentHeight(ctx, mu)
+	if err != nil {
 		return false, 0, nil, nil, err
+	}
+	blockCtx := vm.BlockContext{
+		CanTransfer: core.CanTransfer,
+		Transfer:    core.Transfer,
+		GetHash:     func(uint64) common.Hash { return common.Hash{} },
+		GasLimit:    blockGasLimit,
+		BlockNumber: new(big.Int).SetUint64(parentHeight + 1),
+		Time:        uint64(time),
+		Difficulty:  big.NewInt(1),
+		BaseFee:     big.NewInt(0),
 	}
 
 	statedb := shim.NewStateDB(ctx, mu)
 	from := ToEVMAddress(actor)
 	msg := e.toMessage(from)
-	evm, _ := f.GetEVM(ctx, msg, statedb, nil, nil, nil)
+	txContext := core.NewEVMTxContext(msg)
+	chainConfig := params.SubnetEVMDefaultChainConfig
+	evm := core.NewEVM(
+		blockCtx, txContext, statedb, chainConfig, vm.Config{},
+	)
 	gp := new(core.GasPool).AddGas(e.GasLimit)
 	result, err := core.ApplyMessage(evm, msg, gp)
 	if err != nil {
