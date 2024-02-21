@@ -9,10 +9,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type TraceTxArgs struct {
@@ -60,7 +60,11 @@ func (j *JSONRPCServer) TraceTx(
 	reply.CUs = actionCUs
 	reply.Output = output
 	reply.WarpMessage = warpMessage != nil
-	stateKeys := actions.SerializableKeys(traced.Keys)
-	reply.StateKeys, err = rlp.EncodeToBytes(stateKeys)
-	return err
+	p := codec.NewWriter(0, consts.MaxInt)
+	actions.MarshalKeys(traced.Keys, p)
+	if err := p.Err(); err != nil {
+		return err
+	}
+	reply.StateKeys = p.Bytes()
+	return nil
 }

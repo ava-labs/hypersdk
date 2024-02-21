@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 	"encoding/binary"
-	"io"
 	"math/big"
 	"sort"
 
@@ -23,24 +22,23 @@ import (
 	"github.com/ava-labs/subnet-evm/core/vm"
 	"github.com/ava-labs/subnet-evm/params"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rlp"
 	"go.uber.org/zap"
 )
 
 var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
-	To            *common.Address  `json:"to" rlp:"nil"` // nil means contract creation
-	Nonce         uint64           `json:"nonce"`
-	Value         *big.Int         `json:"value"`
-	GasLimit      uint64           `json:"gasLimit"`
-	GasPrice      *big.Int         `json:"gasPrice"`
-	GasFeeCap     *big.Int         `json:"gasFeeCap"`
-	GasTipCap     *big.Int         `json:"gasTipCap"`
-	Data          []byte           `json:"data"`
-	BlobGasFeeCap *big.Int         `json:"blobGasFeeCap"`
-	BlobHashes    []common.Hash    `json:"blobHashes"`
-	Keys          SerializableKeys `json:"stateKeys"`
+	To            *common.Address `json:"to" rlp:"nil"` // nil means contract creation
+	Nonce         uint64          `json:"nonce"`
+	Value         *big.Int        `json:"value"`
+	GasLimit      uint64          `json:"gasLimit"`
+	GasPrice      *big.Int        `json:"gasPrice"`
+	GasFeeCap     *big.Int        `json:"gasFeeCap"`
+	GasTipCap     *big.Int        `json:"gasTipCap"`
+	Data          []byte          `json:"data"`
+	BlobGasFeeCap *big.Int        `json:"blobGasFeeCap"`
+	BlobHashes    []common.Hash   `json:"blobHashes"`
+	Keys          state.Keys      `json:"stateKeys"`
 
 	logger logging.Logger
 }
@@ -186,27 +184,75 @@ func (*EvmCall) Size() int {
 }
 
 func (e *EvmCall) Marshal(p *codec.Packer) {
-	// TODO: use packer
-	bytes, err := rlp.EncodeToBytes(e)
-	if err != nil {
-		panic(err)
+	packBig := func(b *big.Int) {
+		if b == nil {
+			p.PackBytes([]byte{})
+		} else {
+			p.PackBytes(b.Bytes())
+		}
 	}
-	p.PackBytes(bytes)
+
+	if e.To == nil {
+		p.PackBool(false)
+	} else {
+		p.PackBool(true)
+		p.PackFixedBytes(e.To[:])
+	}
+	p.PackUint64(e.Nonce)
+	packBig(e.Value)
+	p.PackUint64(e.GasLimit)
+	packBig(e.GasPrice)
+	packBig(e.GasFeeCap)
+	packBig(e.GasTipCap)
+	if e.Data == nil {
+		p.PackBytes([]byte{})
+	} else {
+		p.PackBytes(e.Data)
+	}
+	packBig(e.BlobGasFeeCap)
+	p.PackInt(len(e.BlobHashes))
+	for _, hash := range e.BlobHashes {
+		p.PackFixedBytes(hash[:])
+	}
+	MarshalKeys(e.Keys, p)
 }
 
 func UnmarshalEvmCall(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	unlimited := -1
-	var bytes []byte
-	p.UnpackBytes(unlimited, false, &bytes)
-	if p.Err() != nil {
-		return nil, p.Err()
+	var e EvmCall
+	hasAddr := p.UnpackBool()
+	if hasAddr {
+		buf := make([]byte, common.AddressLength)
+		p.UnpackFixedBytes(len(buf), &buf)
+		e.To = new(common.Address)
+		copy(e.To[:], buf)
 	}
-	var evmCall EvmCall
-	evmCall.Keys = make(SerializableKeys)
-	if err := rlp.DecodeBytes(bytes, &evmCall); err != nil {
+	e.Nonce = p.UnpackUint64(false)
+	unpackBig := func() *big.Int {
+		var buf []byte
+		p.UnpackBytes(unlimited, false, &buf)
+		return new(big.Int).SetBytes(buf)
+	}
+	e.Value = unpackBig()
+	e.GasLimit = p.UnpackUint64(false)
+	e.GasPrice = unpackBig()
+	e.GasFeeCap = unpackBig()
+	e.GasTipCap = unpackBig()
+	p.UnpackBytes(unlimited, false, &e.Data)
+	e.BlobGasFeeCap = unpackBig()
+	numHashes := p.UnpackInt(false)
+	e.BlobHashes = make([]common.Hash, numHashes)
+	for i := 0; i < numHashes; i++ {
+		buf := make([]byte, common.HashLength)
+		p.UnpackFixedBytes(len(buf), &buf)
+		copy(e.BlobHashes[i][:], buf)
+	}
+	var err error
+	e.Keys, err = UnmarshalKeys(p)
+	if err != nil {
 		return nil, err
 	}
-	return &evmCall, nil
+	return &e, p.Err()
 }
 
 func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
@@ -215,21 +261,19 @@ func (*EvmCall) ValidRange(chain.Rules) (int64, int64) {
 }
 
 func (e *EvmCall) SetStateKeys(k state.Keys) {
-	e.Keys = SerializableKeys(k)
+	e.Keys = k
 }
 
 func (e *EvmCall) SetLogger(logger logging.Logger) {
 	e.logger = logger
 }
 
-type SerializableKeys state.Keys
-
 type serializablePermissions struct {
 	Key         string            `json:"key"`
 	Permissions state.Permissions `json:"permission"`
 }
 
-func (s SerializableKeys) EncodeRLP(w io.Writer) error {
+func MarshalKeys(s state.Keys, p *codec.Packer) {
 	keys := make([]serializablePermissions, 0, len(s))
 	for k, v := range s {
 		keys = append(keys, serializablePermissions{
@@ -240,16 +284,20 @@ func (s SerializableKeys) EncodeRLP(w io.Writer) error {
 	sort.Slice(keys, func(i, j int) bool {
 		return keys[i].Key < keys[j].Key
 	})
-	return rlp.Encode(w, keys)
+	p.PackInt(len(keys))
+	for _, key := range keys {
+		p.PackString(key.Key)
+		p.PackByte(byte(key.Permissions))
+	}
 }
 
-func (s SerializableKeys) DecodeRLP(stream *rlp.Stream) error {
-	var keys []serializablePermissions
-	if err := stream.Decode(&keys); err != nil {
-		return err
+func UnmarshalKeys(p *codec.Packer) (state.Keys, error) {
+	numKeys := p.UnpackInt(false)
+	keys := make(state.Keys, numKeys)
+	for i := 0; i < numKeys; i++ {
+		key := p.UnpackString(false)
+		perm := state.Permissions(p.UnpackByte())
+		keys[key] = perm
 	}
-	for _, key := range keys {
-		s[key.Key] = key.Permissions
-	}
-	return nil
+	return keys, p.Err()
 }

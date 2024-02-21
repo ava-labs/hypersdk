@@ -29,7 +29,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/fatih/color"
 	"github.com/holiman/uint256"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -339,8 +338,8 @@ var _ = ginkgo.Describe("[EVMCall Processing]", func() {
 				},
 			)
 			gomega.Ω(err).To(gomega.BeNil())
-			call.Keys = make(actions.SerializableKeys)
-			err = rlp.DecodeBytes(reply.StateKeys, &call.Keys)
+			p := codec.NewReader(reply.StateKeys, len(reply.StateKeys))
+			call.Keys, err = actions.UnmarshalKeys(p)
 			gomega.Ω(err).To(gomega.BeNil())
 
 			// Now the action can be submitted as a transaction
