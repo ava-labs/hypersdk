@@ -7,6 +7,8 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	evm_state "github.com/ava-labs/subnet-evm/core/state"
@@ -15,7 +17,6 @@ import (
 	"github.com/ava-labs/subnet-evm/trie/trienode"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var (
@@ -82,13 +83,22 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 	if err != nil {
 		return nil, err
 	}
+	p := codec.NewReader(bytes, len(bytes))
 	if len(bytes) > 0 {
-		if err := rlp.DecodeBytes(bytes, &account); err != nil {
-			return nil, err
-		}
+		unlimited := -1
+		var buf []byte
+		p.UnpackBytes(unlimited, false, &buf)
+		account.Balance = new(big.Int).SetBytes(buf)
+		account.Nonce = p.UnpackUint64(false)
+
+		hashBuf := make([]byte, 32)
+		p.UnpackFixedBytes(len(hashBuf), &hashBuf)
+		copy(account.Root[:], hashBuf)
+
+		p.UnpackBytes(unlimited, false, &account.CodeHash)
 	}
 	account.Balance = new(big.Int).SetUint64(balance)
-	return &account, nil
+	return &account, p.Err()
 }
 
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
@@ -96,8 +106,12 @@ func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
 }
 
 func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAccount) error {
-	bytes, err := rlp.EncodeToBytes(account)
-	if err != nil {
+	p := codec.NewWriter(0, consts.MaxInt)
+	p.PackBytes(account.Balance.Bytes())
+	p.PackUint64(account.Nonce)
+	p.PackFixedBytes(account.Root[:])
+	p.PackBytes(account.CodeHash)
+	if err := p.Err(); err != nil {
 		return err
 	}
 	// TODO: consolidate account & balance into a single storage entry
@@ -105,7 +119,7 @@ func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAcc
 	if err := storage.SetBalance(t.d.ctx, t.d.mu, codecAddr, account.Balance.Uint64()); err != nil {
 		return err
 	}
-	return storage.SetAccount(t.d.ctx, t.d.mu, address, bytes)
+	return storage.SetAccount(t.d.ctx, t.d.mu, address, p.Bytes())
 }
 
 func (t *trieShim) UpdateContractCode(address common.Address, _ common.Hash, code []byte) error {
