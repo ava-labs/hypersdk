@@ -97,7 +97,6 @@ func TestContract(t *testing.T) {
 		require.Nil(err)
 		require.Nil(warpMessage)
 		require.True(success)
-		fmt.Println("accessList:", call.toMessage(ToEVMAddress(from)).AccessList)
 
 		fmt.Println(actionCUs)
 		fmt.Println(common.Bytes2Hex(output))
@@ -124,7 +123,6 @@ func TestContract(t *testing.T) {
 		require.Nil(err)
 		require.Nil(warpMessage)
 		require.True(success)
-		fmt.Println("accessList:", call.toMessage(ToEVMAddress(from)).AccessList)
 
 		fmt.Println(actionCUs)
 		fmt.Println(common.Bytes2Hex(output))
