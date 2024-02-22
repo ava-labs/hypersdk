@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"math/big"
-	"sort"
+	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -81,7 +81,7 @@ func (e *EvmCall) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 			)
 		}
 	}
-	return state.Keys(e.Keys) // TODO: copy?
+	return e.Keys // TODO: copy?
 }
 
 func (e *EvmCall) StateKeysMaxChunks() []uint16 {
@@ -268,26 +268,16 @@ func (e *EvmCall) SetLogger(logger logging.Logger) {
 	e.logger = logger
 }
 
-type serializablePermissions struct {
-	Key         string            `json:"key"`
-	Permissions state.Permissions `json:"permission"`
-}
-
 func MarshalKeys(s state.Keys, p *codec.Packer) {
-	keys := make([]serializablePermissions, 0, len(s))
-	for k, v := range s {
-		keys = append(keys, serializablePermissions{
-			Key:         k,
-			Permissions: v,
-		})
+	keys := make([]string, 0, len(s))
+	for k := range s {
+		keys = append(keys, k)
 	}
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].Key < keys[j].Key
-	})
+	slices.Sort(keys)
 	p.PackInt(len(keys))
-	for _, key := range keys {
-		p.PackString(key.Key)
-		p.PackByte(byte(key.Permissions))
+	for _, k := range keys {
+		p.PackString(k)
+		p.PackByte(byte(s[k]))
 	}
 }
 
