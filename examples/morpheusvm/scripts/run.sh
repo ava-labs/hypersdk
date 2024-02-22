@@ -12,6 +12,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
 fi
 
 source ../../scripts/constants.sh
+source ../../scripts/common/utils.sh
 
 VERSION=v1.11.8
 MAX_UINT64=18446744073709551615

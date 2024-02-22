@@ -9,4 +9,6 @@ if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
   exit 255
 fi
 
+source ../../scripts/common/utils.sh
+
 ../../scripts/tests.unit.sh

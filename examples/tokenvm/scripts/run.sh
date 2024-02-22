@@ -10,6 +10,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
 fi
 
 source ../../scripts/constants.sh
+source ../../scripts/common/utils.sh
 
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
