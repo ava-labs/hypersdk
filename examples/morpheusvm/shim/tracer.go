@@ -4,8 +4,9 @@
 package shim
 
 import (
+	"context"
+
 	"github.com/ava-labs/hypersdk/state"
-	"golang.org/x/net/context"
 )
 
 var _ state.Mutable = (*StateKeyTracer)(nil)
