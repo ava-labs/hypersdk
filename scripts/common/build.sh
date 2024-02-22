@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
@@ -15,8 +16,10 @@ build_project() {
 
     local binary_path
     if [[ $# -eq 3 ]]; then
-        local binary_dir=$(cd "$(dirname "build/$3")" && pwd)
-        local binary_name=$(basename "$3")
+        local binary_dir
+        local binary_name
+        binary_dir=$(cd "$(dirname "build/$3")" && pwd)
+        binary_name=$(basename "$3")
         binary_path=$binary_dir/$binary_name
     else
         # Set default binary directory location
