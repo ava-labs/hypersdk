@@ -285,7 +285,7 @@ mod tests {
                 "get_balance",
                 vec![
                     Param {
-                        value: program_id,
+                        value: program_id.clone(),
                         param_type: ParamType::Id,
                     },
                     Param {
@@ -301,6 +301,19 @@ mod tests {
                 }),
             )
             .expect("failed to get bob balance");
+        assert_eq!(resp.error, None);
+
+        let resp = simulator.execute::<PlanResponse>(Step {
+            endpoint: Endpoint::Execute,
+            method: "burn_from".into(),
+            params: vec![
+                Param::new(ParamType::Id, program_id.as_ref()),
+                Param::new(ParamType::Key(Key::Ed25519), "alice_key"),
+            ],
+            max_units: 10000,
+            require: None,
+        }, owner_key)
+        .expect("failed to burn alice tokens");
         assert_eq!(resp.error, None);
     }
 
