@@ -5,7 +5,7 @@
 set -e
 
 if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
-  echo "must be run from repository root"
+  echo "must be run from hypersdk root"
   exit 255
 fi
 
@@ -13,6 +13,7 @@ HYPERSDK_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
   cd .. && pwd
 )
+
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
 # Provision of the list of tests requires word splitting, so disable the shellcheck
