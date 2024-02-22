@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
@@ -71,14 +72,18 @@ func TestTokenProgram(t *testing.T) {
 		require.NoError(err)
 		require.Equal(int64(1000), result[0])
 
+		// read alice balance from state db
+		aliceBalance, err := program.GetUserBalanceFromState(ctx, programID, alicePublicKey)
+		require.NoError(err)
+		require.Equal(int64(1000), aliceBalance)
+
 		// burn alice tokens
 		_, err = rt.Call(ctx, "burn_from", programIDPtr, alicePtr)
 		require.NoError(err)
 
-		// check balance of alice
-		result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
-		require.NoError(err)
-		require.Equal(int64(0), result[0])
+		// check balance of alice from state db
+		_, err = program.GetUserBalanceFromState(ctx, programID, alicePublicKey)
+		require.ErrorIs(err, database.ErrNotFound)
 	})
 
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
