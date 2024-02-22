@@ -211,7 +211,7 @@ func (i *Import) deleteFn(caller *program.Caller, id int64, key int64) (*types.V
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	if err := i.mu.Remove(context.Background(), k); err != nil {
 		i.log.Error("failed to remove from storage", zap.Error(err))
-		return nil, err
+		return types.ValI64(-1), nil
 	}
 	return types.ValI64(0), nil
 }
