@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if ! [[ "$0" =~ scripts/tests.simulator.sh ]]; then
-  echo "must be run from token crate root"
+  echo "must be run from csamm crate root"
   exit 255
 fi
 
@@ -16,9 +16,10 @@ simulator_bin="${simulator_path}"/bin/simulator
 export SIMULATOR_PATH="${simulator_bin}"
 
 # The path to the compiled Wasm program to be tested
-export PROGRAM_PATH="${PWD}"/build/token.wasm
+export TOKEN_PROGRAM_PATH="${PWD}"/../../build/token.wasm
+export AMM_PROGRAM_PATH="${PWD}"/build/csamm.wasm
 
-echo "Building Token example..."
+echo "Building CSAMM example..."
 ./../../scripts/build.sh
 
 echo "Downloading dependencies..."
