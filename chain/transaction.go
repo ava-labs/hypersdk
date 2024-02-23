@@ -159,8 +159,9 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 // Sponsor is the [codec.Address] that pays fees for this transaction.
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
-// Units is charged whether or not a transaction is successful because state
-// lookup is not free.
+// Units are charged whether or not the transaction is successful and whether or not
+// keys specified are accessed. This is done to ensure chunk producers accrue expected
+// fees for filling chunks.
 func (t *Transaction) Units(sm StateManager, r Rules) (Dimensions, error) {
 	// Cacluate compute cost
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
