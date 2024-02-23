@@ -76,13 +76,14 @@ func (f *Fetcher) createWorker() {
 
 				// fetch from disk
 				for _, k := range t.toLookup {
-					/*f.cacheLock.Lock()
+					f.cacheLock.RLock()
 					if _, ok := f.Cache[k]; ok {
-						f.cacheLock.Unlock()
+						f.cacheLock.RUnlock()
 						//f.keysToFetch[k].Done()
 						f.TxnsToFetch[t.id].Done()
 						continue
-					}*/
+					}
+					f.cacheLock.RUnlock()
 
 					v, err := f.im.GetValue(t.ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
