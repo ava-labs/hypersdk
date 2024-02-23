@@ -5,16 +5,14 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/fetcher"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )
@@ -40,8 +38,10 @@ func (b *StatelessBlock) Execute(
 		sm        = b.vm.StateManager()
 		numTxs    = len(b.Txs)
 		t         = b.GetTimestamp()
-		cacheLock sync.RWMutex
-		cache     = make(map[string]*fetchData, numTxs)
+		fetchLock sync.RWMutex
+		//cacheLock sync.RWMutex
+		//cache     = make(map[string]*fetchData, numTxs)
+		f = fetcher.New(numTxs, b.vm.GetKeyStorageConcurrency(), im)
 
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
@@ -58,50 +58,27 @@ func (b *StatelessBlock) Execute(
 			e.Stop()
 			return nil, nil, err
 		}
+		f.Lookup(ctx, tx.ID(), stateKeys)
 		e.Run(stateKeys, func() error {
+			// Block until fetch workers finish fetching
+			fmt.Printf("sup\n")
+			f.TxnsToFetch[tx.ID()].Wait()
+			fmt.Printf("yo\n")
 			// Fetch keys from cache
 			var (
 				reads    = make(map[string]uint16, len(stateKeys))
 				storage  = make(map[string][]byte, len(stateKeys))
-				toLookup = make([]string, 0, len(stateKeys))
 			)
-			cacheLock.RLock()
+			fetchLock.RLock()
 			for k := range stateKeys {
-				if v, ok := cache[k]; ok {
-					reads[k] = v.chunks
-					if v.exists {
-						storage[k] = v.v
+				if v, ok := f.Cache[k]; ok {
+					reads[k] = v.Chunks
+					if v.Exists {
+						storage[k] = v.Val
 					}
-					continue
-				}
-				toLookup = append(toLookup, k)
-			}
-			cacheLock.RUnlock()
-
-			// Fetch keys from disk
-			var toCache map[string]*fetchData
-			if len(toLookup) > 0 {
-				toCache = make(map[string]*fetchData, len(toLookup))
-				for _, k := range toLookup {
-					v, err := im.GetValue(ctx, []byte(k))
-					if errors.Is(err, database.ErrNotFound) {
-						reads[k] = 0
-						toCache[k] = &fetchData{nil, false, 0}
-						continue
-					} else if err != nil {
-						return err
-					}
-					// We verify that the [NumChunks] is already less than the number
-					// added on the write path, so we don't need to do so again here.
-					numChunks, ok := keys.NumChunks(v)
-					if !ok {
-						return ErrInvalidKeyValue
-					}
-					reads[k] = numChunks
-					toCache[k] = &fetchData{v, true, numChunks}
-					storage[k] = v
 				}
 			}
+			fetchLock.RUnlock()
 
 			// Execute transaction
 			//
@@ -138,15 +115,6 @@ func (b *StatelessBlock) Execute(
 
 			// Commit results to parent [TState]
 			tsv.Commit()
-
-			// Update key cache
-			if len(toCache) > 0 {
-				cacheLock.Lock()
-				for k := range toCache {
-					cache[k] = toCache[k]
-				}
-				cacheLock.Unlock()
-			}
 			return nil
 		})
 	}

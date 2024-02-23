@@ -79,6 +79,7 @@ type VM interface {
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
+	GetKeyStorageConcurrency() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
