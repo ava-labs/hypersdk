@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 	"errors"
-	"fmt"
+	//"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/database"
@@ -16,6 +16,26 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 )
 
+// Fetcher retrieves values on-the-fly and
+// ensures that a value is only fetched from
+// disk once. Subsequent requests are fetched
+// from cache.
+type Fetcher struct {
+	im state.Immutable
+	cacheLock sync.RWMutex
+	Cache map[string]*FetchData
+
+	keysToFetch map[string]*sync.WaitGroup // Number of txns a key is processing
+	TxnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
+
+	wg sync.WaitGroup
+	stopOnce sync.Once
+	stop     chan struct{}
+	err error
+	fetchable chan *task
+}
+
+// Data to insert into the cache
 type FetchData struct {
 	Val      []byte
 	Exists bool
@@ -23,30 +43,14 @@ type FetchData struct {
 	Chunks uint16
 }
 
-type Fetcher struct {
-	im state.Immutable
-
-	keysToFetch map[string]*sync.WaitGroup
-	TxnsToFetch map[ids.ID]*sync.WaitGroup
-
-	wg sync.WaitGroup
-	stopOnce sync.Once
-	stop     chan struct{}
-	err error
-	l sync.Mutex
-
-	cacheLock sync.RWMutex
-	Cache map[string]*FetchData
-
-	fetchable chan *task
-}
-
+// task holds the information that a worker needs to fetch values
 type task struct {
 	ctx context.Context
 	id ids.ID
 	toLookup []string
 }
 
+// New creates a new [Fetcher]
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher {
 		keysToFetch: make(map[string]*sync.WaitGroup),
@@ -73,26 +77,15 @@ func (f *Fetcher) createWorker() {
 				if !ok {
 					return
 				}
-
-				// fetch from disk
+				// Fetch from disk that aren't already in cache
 				for _, k := range t.toLookup {
-					/*f.cacheLock.RLock()
-					if _, ok := f.Cache[k]; ok {
-						fmt.Printf("nah\n")
-						f.cacheLock.RUnlock()
-						f.keysToFetch[k].Done()
-						f.TxnsToFetch[t.id].Done()
-						continue
-					}
-					f.cacheLock.RUnlock()*/
-
 					v, err := f.im.GetValue(t.ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
+						// Update the cache
 						f.cacheLock.Lock()
 						f.Cache[k] = &FetchData{nil, false, 0}
 						f.cacheLock.Unlock()
-
-						//f.keysToFetch[k].Done()
+						// Decrement the count as we fetched one of the keys
 						f.TxnsToFetch[t.id].Done()
 						continue
 					} else if err != nil {
@@ -117,8 +110,7 @@ func (f *Fetcher) createWorker() {
 					f.cacheLock.Lock()
 					f.Cache[k] = &FetchData{v, true, numChunks}
 					f.cacheLock.Unlock()
-					
-					//f.keysToFetch[k].Done()
+
 					f.TxnsToFetch[t.id].Done()
 				}
 			case <-f.stop:
@@ -128,8 +120,10 @@ func (f *Fetcher) createWorker() {
 	}()
 }
 
+// Lookup enqueues a set of stateKey values that we need to fetch.
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) {
 	f.TxnsToFetch[txID] = &sync.WaitGroup{}
+	
 	toLookup := make([]string, 0, len(stateKeys))
 	for k := range stateKeys {
 		// find all keys that need to be fetched from disk
