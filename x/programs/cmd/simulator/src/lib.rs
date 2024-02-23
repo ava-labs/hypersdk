@@ -3,16 +3,14 @@
 //! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
+use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     ffi::OsStr,
     io::Write,
+    path::Path,
     process::{Command, Output, Stdio},
 };
-
-pub const PATH_KEY: &str = "SIMULATOR_PATH";
-
-use serde::{Deserialize, Serialize};
 
 /// Converts the step index to a string identifier. This is used to populate Ids
 /// created in previous inline plan steps.
@@ -159,18 +157,17 @@ pub struct PlanResult {
     pub response: Option<Vec<i64>>,
 }
 
-pub struct Client<P> {
+pub struct Client {
     /// Path to the simulator binary
-    path: P,
+    path: &'static str,
 }
 
-impl<P> Client<P>
-where
-    P: AsRef<OsStr>,
-{
+impl Client {
     #[must_use]
-    pub fn new(path: P) -> Self {
-        Self { path }
+    pub fn new() -> Self {
+        Self {
+            path: env!("SIMULATOR_PATH"),
+        }
     }
 
     /// Runs a `Plan` against the simulator and returns vec of result.
@@ -258,22 +255,26 @@ where
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn program_create<T>(&self, key: &str, path: &str) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
-        let plan = &Plan {
+    pub fn create_program<P: AsRef<Path>>(
+        &self,
+        key: &str,
+        path: P,
+    ) -> Result<PlanResponse, Box<dyn Error>> {
+        let path = path.as_ref();
+        let path = path.to_string_lossy();
+
+        let plan = Plan {
             caller_key: key.into(),
             steps: vec![Step {
                 endpoint: Endpoint::Execute,
                 method: "program_create".into(),
                 max_units: 0,
-                params: vec![Param::new(ParamType::String, path)],
+                params: vec![Param::new(ParamType::String, &path)],
                 require: None,
             }],
         };
 
-        run_step(&self.path, plan)
+        run_step(&self.path, &plan)
     }
 }
 
