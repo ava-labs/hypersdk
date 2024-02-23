@@ -26,7 +26,7 @@ type FetchData struct {
 type Fetcher struct {
 	im state.Immutable
 
-	//keysToFetch map[string]*sync.WaitGroup
+	keysToFetch map[string]*sync.WaitGroup
 	TxnsToFetch map[ids.ID]*sync.WaitGroup
 
 	wg sync.WaitGroup
@@ -49,7 +49,7 @@ type task struct {
 
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher {
-		//keysToFetch: make(map[string]*sync.WaitGroup),
+		keysToFetch: make(map[string]*sync.WaitGroup),
 		TxnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable: make(chan *task),
 		im: im,
@@ -79,7 +79,7 @@ func (f *Fetcher) createWorker() {
 					f.cacheLock.RLock()
 					if _, ok := f.Cache[k]; ok {
 						f.cacheLock.RUnlock()
-						//f.keysToFetch[k].Done()
+						f.keysToFetch[k].Done()
 						f.TxnsToFetch[t.id].Done()
 						continue
 					}
@@ -135,11 +135,11 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys,
 		f.cacheLock.Lock()
 		if _, ok := f.Cache[k]; !ok {
 			toLookup = append(toLookup, k)
-			/*if _, ok := f.keysToFetch[k]; !ok {
+			if _, ok := f.keysToFetch[k]; !ok {
 				f.keysToFetch[k] = &sync.WaitGroup{}
 			} else {
 				f.keysToFetch[k].Add(1)
-			}*/
+			}
 		}
 		f.cacheLock.Unlock()
 	}
