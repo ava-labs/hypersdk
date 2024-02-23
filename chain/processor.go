@@ -97,7 +97,7 @@ func NewProcessor(
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, maxUnits Dimensions, tx *Transaction) {
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, units Dimensions, tx *Transaction) {
 	stateKeys, err := tx.StateKeys(p.sm)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -157,13 +157,21 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 
 		// Ensure we have enough funds to pay fees
 		// TODO: replace with epoch fees
-		feeRequired, err := p.feeManager.MaxFee(maxUnits)
+		// TODO: check before keys fetched
+		fee, err := p.feeManager.Fee(units)
 		if err != nil {
 			// This is an unexpected error
 			return err
 		}
+		if tx.Base.MaxFee < fee {
+			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+
+		// Deduct fees
 		sponsor := tx.Auth.Sponsor()
-		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, feeRequired)
+		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, fee)
 		if err != nil {
 			return err
 		}
@@ -278,7 +286,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// Perform syntactic verification
 		//
 		// We don't care whether this transaction is in the current epoch or the next.
-		maxUnits, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
+		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
 		if err != nil {
 			p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -378,7 +386,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 				p.claimL.Unlock()
 				return func() {}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, maxUnits, epochInfo, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, units, tx) }
 		})
 	}
 	return nil
