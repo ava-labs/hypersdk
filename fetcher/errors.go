@@ -5,4 +5,7 @@ package fetcher
 
 import "errors"
 
-var ErrInvalidKeyValue        = errors.New("invalid key or value")
+var (
+	ErrInvalidKeyValue = errors.New("invalid key or value")
+	ErrStopped         = errors.New("stopped")
+)

@@ -5,15 +5,15 @@ package fetcher
 
 import (
 	"context"
-	"sync"
 	"errors"
+	"sync"
 	//"fmt"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 // Fetcher retrieves values on-the-fly and
@@ -21,23 +21,21 @@ import (
 // disk once. Subsequent requests are fetched
 // from cache.
 type Fetcher struct {
-	im state.Immutable
+	im        state.Immutable
 	cacheLock sync.RWMutex
-	Cache map[string]*FetchData
+	Cache     map[string]*FetchData
 
-	keysToFetch map[string]*sync.WaitGroup // Number of txns a key is processing
 	TxnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
 
-	wg sync.WaitGroup
-	stopOnce sync.Once
-	stop     chan struct{}
-	err error
+	stopOnce  sync.Once
+	stop      chan struct{}
+	err       error
 	fetchable chan *task
 }
 
 // Data to insert into the cache
 type FetchData struct {
-	Val      []byte
+	Val    []byte
 	Exists bool
 
 	Chunks uint16
@@ -45,19 +43,19 @@ type FetchData struct {
 
 // task holds the information that a worker needs to fetch values
 type task struct {
-	ctx context.Context
-	id ids.ID
+	ctx      context.Context
+	id       ids.ID
 	toLookup []string
 }
 
 // New creates a new [Fetcher]
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
-	f := &Fetcher {
-		keysToFetch: make(map[string]*sync.WaitGroup),
+	f := &Fetcher{
 		TxnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
-		fetchable: make(chan *task),
-		im: im,
-		Cache: make(map[string]*FetchData, numTxs),
+		fetchable:   make(chan *task),
+		im:          im,
+		Cache:       make(map[string]*FetchData, numTxs),
+		stop:        make(chan struct{}),
 	}
 	for i := 0; i < concurrency; i++ {
 		f.createWorker()
@@ -66,14 +64,10 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 }
 
 func (f *Fetcher) createWorker() {
-	f.wg.Add(1)
-
 	go func() {
-		defer f.wg.Done()
-
 		for {
 			select {
-			case t, ok := <- f.fetchable:
+			case t, ok := <-f.fetchable:
 				if !ok {
 					return
 				}
@@ -95,7 +89,7 @@ func (f *Fetcher) createWorker() {
 						})
 						return
 					}
-					
+
 					// We verify that the [NumChunks] is already less than the number
 					// added on the write path, so we don't need to do so again here.
 					numChunks, ok := keys.NumChunks(v)
@@ -106,7 +100,7 @@ func (f *Fetcher) createWorker() {
 						})
 						return
 					}
-					
+
 					f.cacheLock.Lock()
 					f.Cache[k] = &FetchData{v, true, numChunks}
 					f.cacheLock.Unlock()
@@ -114,38 +108,33 @@ func (f *Fetcher) createWorker() {
 					f.TxnsToFetch[t.id].Done()
 				}
 			case <-f.stop:
-				return	
+				return
 			}
 		}
 	}()
 }
 
-// Lookup enqueues a set of stateKey values that we need to fetch.
+// Lookup enqueues a set of stateKey values that we need to fetch from disk.
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) {
 	f.TxnsToFetch[txID] = &sync.WaitGroup{}
-	
+
 	toLookup := make([]string, 0, len(stateKeys))
 	for k := range stateKeys {
-		// find all keys that need to be fetched from disk
-		f.cacheLock.Lock()
+		// Find all keys that need to be fetched from disk
+		f.cacheLock.RLock()
 		if _, ok := f.Cache[k]; !ok {
 			toLookup = append(toLookup, k)
-			if _, ok := f.keysToFetch[k]; !ok {
-				f.keysToFetch[k] = &sync.WaitGroup{}
-			} else {
-				f.keysToFetch[k].Add(1)
-			}
 		}
-		f.cacheLock.Unlock()
+		f.cacheLock.RUnlock()
 	}
+	// Only enqueue to worker if we have keys we need to fetch
 	if len(toLookup) > 0 {
 		f.TxnsToFetch[txID].Add(len(toLookup))
-		t := &task {
-			ctx: ctx,
-			id: txID,
+		t := &task{
+			ctx:      ctx,
+			id:       txID,
 			toLookup: toLookup,
 		}
 		f.fetchable <- t
 	}
 }
-

@@ -39,9 +39,7 @@ func (b *StatelessBlock) Execute(
 		numTxs    = len(b.Txs)
 		t         = b.GetTimestamp()
 		fetchLock sync.RWMutex
-		//cacheLock sync.RWMutex
-		//cache     = make(map[string]*fetchData, numTxs)
-		f = fetcher.New(numTxs, b.vm.GetKeyStorageConcurrency(), im)
+		f         = fetcher.New(numTxs, b.vm.GetKeyStorageConcurrency(), im)
 
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
@@ -58,16 +56,17 @@ func (b *StatelessBlock) Execute(
 			e.Stop()
 			return nil, nil, err
 		}
+		// Fetch keys from disk
 		f.Lookup(ctx, tx.ID(), stateKeys)
 
 		e.Run(stateKeys, func() error {
-			// Block until fetch workers finish fetching
+			// Block until worker finishes fetching from disk
 			f.TxnsToFetch[tx.ID()].Wait()
-		
+
 			// Fetch keys from cache
 			var (
-				reads    = make(map[string]uint16, len(stateKeys))
-				storage  = make(map[string][]byte, len(stateKeys))
+				reads   = make(map[string]uint16, len(stateKeys))
+				storage = make(map[string][]byte, len(stateKeys))
 			)
 			fetchLock.RLock()
 			for k := range stateKeys {
