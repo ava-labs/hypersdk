@@ -485,6 +485,10 @@ func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
 }
 
+func (vm *VM) GetKeyStorageConcurrency() int {
+	return vm.config.GetKeyStorageConcurrency()
+}
+
 func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
 	return vm.metrics.executorBuildRecorder
 }
