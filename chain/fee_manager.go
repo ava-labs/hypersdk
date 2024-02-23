@@ -168,7 +168,7 @@ func (f *FeeManager) Bytes() []byte {
 	return f.raw
 }
 
-func (f *FeeManager) MaxFee(d Dimensions) (uint64, error) {
+func (f *FeeManager) Fee(d Dimensions) (uint64, error) {
 	f.l.RLock()
 	defer f.l.RUnlock()
 

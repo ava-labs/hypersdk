@@ -172,7 +172,7 @@ type Rules interface {
 	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
 	// * If a key is removed and then re-created with the same value during a transaction,
 	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
-	GetSponsorStateKeysMaxChunks() []uint16
+	GetSponsorStateKeyChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk
 	GetStorageKeyAllocateUnits() uint64
@@ -275,18 +275,14 @@ type Object interface {
 type Action interface {
 	Object
 
-	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
-	// used to determine whether the [Action] can be included in a given block and to compute
-	// the required fee to execute.
-	//
-	// Developers should make every effort to bound this as tightly to the actual max so that
-	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
-	MaxComputeUnits(Rules) uint64
+	// ComputeUnits is the amount of compute an [Action] uses. This is used to determine whether the
+	// [Action] can be included in a given block and to compute the required fee to execute.
+	ComputeUnits(Rules) uint64
 
-	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
-	// chunks each state key could use without requiring the state keys to actually be provided (may
-	// not be known until execution).
-	StateKeysMaxChunks() []uint16
+	// StateKeyChunks is used to estimate the fee a transaction should pay. It includes the chunks each
+	// state key could use without requiring the state keys to actually be provided (may not be known
+	// until execution).
+	StateKeyChunks() []uint16
 
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
@@ -302,7 +298,7 @@ type Action interface {
 	// be done here.
 	//
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
-	// will revert and the max fee will be charged.
+	// will revert.
 	//
 	// An error should only be returned if a fatal error was encountered, otherwise [success] should
 	// be marked as false and fees will still be charged.
@@ -314,7 +310,7 @@ type Action interface {
 		actor codec.Address,
 		txID ids.ID,
 		warpVerified bool,
-	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
+	) (success bool, output []byte, warpMessage *warp.UnsignedMessage, err error)
 
 	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
 	// of any warp message is [MaxOutgoingWarpChunks].
