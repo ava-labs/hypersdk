@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 	"errors"
-	//"fmt"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/database"
@@ -76,14 +76,15 @@ func (f *Fetcher) createWorker() {
 
 				// fetch from disk
 				for _, k := range t.toLookup {
-					f.cacheLock.RLock()
+					/*f.cacheLock.RLock()
 					if _, ok := f.Cache[k]; ok {
+						fmt.Printf("nah\n")
 						f.cacheLock.RUnlock()
 						f.keysToFetch[k].Done()
 						f.TxnsToFetch[t.id].Done()
 						continue
 					}
-					f.cacheLock.RUnlock()
+					f.cacheLock.RUnlock()*/
 
 					v, err := f.im.GetValue(t.ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
@@ -127,7 +128,7 @@ func (f *Fetcher) createWorker() {
 	}()
 }
 
-func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys, numTxs int) {
+func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) {
 	f.TxnsToFetch[txID] = &sync.WaitGroup{}
 	toLookup := make([]string, 0, len(stateKeys))
 	for k := range stateKeys {
