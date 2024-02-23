@@ -58,12 +58,12 @@ func (b *StatelessBlock) Execute(
 			e.Stop()
 			return nil, nil, err
 		}
-		f.Lookup(ctx, tx.ID(), stateKeys)
+		f.Lookup(ctx, tx.ID(), stateKeys, numTxs)
+
 		e.Run(stateKeys, func() error {
 			// Block until fetch workers finish fetching
-			fmt.Printf("sup\n")
 			f.TxnsToFetch[tx.ID()].Wait()
-			fmt.Printf("yo\n")
+		
 			// Fetch keys from cache
 			var (
 				reads    = make(map[string]uint16, len(stateKeys))
