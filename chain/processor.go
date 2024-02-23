@@ -58,7 +58,7 @@ func (b *StatelessBlock) Execute(
 			e.Stop()
 			return nil, nil, err
 		}
-		f.Lookup(ctx, tx.ID(), stateKeys, numTxs)
+		f.Lookup(ctx, tx.ID(), stateKeys)
 
 		e.Run(stateKeys, func() error {
 			// Block until fetch workers finish fetching
