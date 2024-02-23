@@ -4,16 +4,15 @@
 package fetcher
 
 import (
-	//"sync"
-	"testing"
-	"strconv"
 	"context"
+	"strconv"
+	"testing"
 	"time"
 	//"fmt"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
-	"github.com/ava-labs/avalanchego/database"
 
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -34,7 +33,7 @@ func newTestDB() *testDB {
 func newTestDBWithValue() *testDB {
 	db := testDB{storage: make(map[string][]byte)}
 	for i := 0; i < 100; i++ {
-		if i % 2 == 0 {
+		if i%2 == 0 {
 			db.storage[strconv.Itoa(i)] = []byte("value")
 		}
 	}
@@ -52,11 +51,11 @@ func (db *testDB) GetValue(_ context.Context, key []byte) (value []byte, err err
 func TestFetchDifferentKeys(t *testing.T) {
 	var (
 		require = require.New(t)
-		f = New(100, 4, newTestDB())
-		ctx = context.TODO()
+		f       = New(100, 4, newTestDB())
+		ctx     = context.TODO()
 	)
 	for i := 0; i < 100; i++ {
-		stateKeys := make(state.Keys, (i+1))
+		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate different read keys
 			stateKeys.Add(ids.GenerateTestID().String(), state.Read)
@@ -65,7 +64,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 		// Since these are all different keys, we will
 		// fetch each key from disk
 		f.Lookup(ctx, txID, stateKeys)
-		f.TxnsToFetch[txID].Wait()	
+		f.TxnsToFetch[txID].Wait()
 	}
 	// There should be 5050 different keys now in the cache
 	require.Equal(5050, len(f.Cache))
@@ -74,11 +73,11 @@ func TestFetchDifferentKeys(t *testing.T) {
 func TestFetchSameKeys(t *testing.T) {
 	var (
 		require = require.New(t)
-		f = New(100, 4, newTestDB())
-		ctx = context.TODO()
+		f       = New(100, 4, newTestDB())
+		ctx     = context.TODO()
 	)
 	for i := 0; i < 100; i++ {
-		stateKeys := make(state.Keys, (i+1))
+		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
 			stateKeys.Add(strconv.Itoa(k), state.Read)
@@ -96,18 +95,18 @@ func TestFetchSameKeys(t *testing.T) {
 func TestFetchSameKeysSlow(t *testing.T) {
 	var (
 		require = require.New(t)
-		f = New(100, 4, newTestDB())
-		ctx = context.TODO()
+		f       = New(100, 4, newTestDB())
+		ctx     = context.TODO()
 	)
 	for i := 0; i < 100; i++ {
-		stateKeys := make(state.Keys, (i+1))
+		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
 		f.Lookup(ctx, txID, stateKeys)
-		if i % 2 == 0 {
+		if i%2 == 0 {
 			time.Sleep(1 * time.Second)
 		}
 		f.TxnsToFetch[txID].Wait()
@@ -118,11 +117,11 @@ func TestFetchSameKeysSlow(t *testing.T) {
 func TestFetchKeysWithValues(t *testing.T) {
 	var (
 		require = require.New(t)
-		f = New(10, 4, newTestDBWithValue())
-		ctx = context.TODO()
+		f       = New(10, 4, newTestDBWithValue())
+		ctx     = context.TODO()
 	)
 	for i := 0; i < 100; i++ {
-		stateKeys := make(state.Keys, (i+1))
+		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
 			stateKeys.Add(strconv.Itoa(k), state.Read)
