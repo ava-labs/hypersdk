@@ -31,6 +31,10 @@ type Fetcher struct {
 	stop      chan struct{}
 	err       error
 	fetchable chan *task
+	l         sync.Mutex
+
+	completed int
+	totalTxns int
 }
 
 // Data to insert into the cache
@@ -56,6 +60,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		im:          im,
 		Cache:       make(map[string]*FetchData, numTxs),
 		stop:        make(chan struct{}),
+		totalTxns:   numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
 		f.createWorker()
@@ -76,7 +81,6 @@ func (f *Fetcher) createWorker() {
 					// Allow concurrent reads to cache
 					f.cacheLock.RLock()
 					if _, ok := f.Cache[k]; ok {
-						fmt.Printf("cache hit for key %v %v\n", k, t.id)
 						f.TxnsToFetch[t.id].Done()
 						f.cacheLock.RUnlock()
 						continue
@@ -117,6 +121,13 @@ func (f *Fetcher) createWorker() {
 					f.TxnsToFetch[t.id].Done()
 					f.cacheLock.Unlock()
 				}
+
+				f.l.Lock()
+				f.completed++
+				if f.completed == f.totalTxns {
+					close(f.fetchable)
+				}
+				f.l.Unlock()
 			case <-f.stop:
 				return
 			}
