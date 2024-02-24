@@ -5,10 +5,10 @@ package fetcher
 
 import (
 	"context"
-	"fmt"
+	_ "fmt"
 	"strconv"
 	"testing"
-	_ "time"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -48,7 +48,7 @@ func (db *testDB) GetValue(_ context.Context, key []byte) (value []byte, err err
 	return val, nil
 }
 
-/*func TestFetchDifferentKeys(t *testing.T) {
+func TestFetchDifferentKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		f       = New(100, 4, newTestDB())
@@ -131,7 +131,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 		wg.Wait()
 	}
 	require.Equal(100, len(f.Cache))
-}*/
+}
 
 func TestFetchSameKeyRepeatedly(t *testing.T) {
 	var (
@@ -148,9 +148,7 @@ func TestFetchSameKeyRepeatedly(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 		wg := f.Lookup(ctx, txID, stateKeys)
-		fmt.Printf("before %v\n", txID)
 		wg.Wait()
-		fmt.Printf("after %v\n\n", txID)
 	}
 	require.Equal(2, len(f.Cache))
 }

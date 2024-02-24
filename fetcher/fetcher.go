@@ -6,7 +6,7 @@ package fetcher
 import (
 	"context"
 	"errors"
-	"fmt"
+	_ "fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -71,28 +71,27 @@ func (f *Fetcher) createWorker() {
 				if !ok {
 					return
 				}
-				// Fetch from disk that aren't already in cache
-				fmt.Printf("lookup %v\n", t.toLookup)
+
 				for _, k := range t.toLookup {
-					fmt.Printf("fetching key %v for %v\n", k, t.id)
-					f.cacheLock.Lock()
+					// Allow concurrent reads to cache
+					f.cacheLock.RLock()
 					if _, ok := f.Cache[k]; ok {
 						fmt.Printf("cache hit for key %v %v\n", k, t.id)
 						f.TxnsToFetch[t.id].Done()
-						f.cacheLock.Unlock()
+						f.cacheLock.RUnlock()
 						continue
 					}
-					f.cacheLock.Unlock()
+					f.cacheLock.RUnlock()
 
-					fmt.Printf("cache miss %v %v\n", k, t.id)
+					// Fetch from disk that aren't already in cache
+					// We only ever fetch from disk once
 					v, err := f.im.GetValue(t.ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						// Update the cache
 						f.cacheLock.Lock()
 						f.Cache[k] = &FetchData{nil, false, 0}
+						f.TxnsToFetch[t.id].Done() // Decrement the count as we fetched one of the keys
 						f.cacheLock.Unlock()
-						// Decrement the count as we fetched one of the keys
-						f.TxnsToFetch[t.id].Done()
 						continue
 					} else if err != nil {
 						f.stopOnce.Do(func() {
@@ -115,9 +114,8 @@ func (f *Fetcher) createWorker() {
 
 					f.cacheLock.Lock()
 					f.Cache[k] = &FetchData{v, true, numChunks}
-					f.cacheLock.Unlock()
-
 					f.TxnsToFetch[t.id].Done()
+					f.cacheLock.Unlock()
 				}
 			case <-f.stop:
 				return
