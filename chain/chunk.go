@@ -88,6 +88,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
 			// of activity).
 
+			// TODO: check if chunk units greater than limit
+
 			// TODO: verify transactions
 			if tx.Base.Timestamp > c.Slot {
 				continue
