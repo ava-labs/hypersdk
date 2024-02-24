@@ -59,6 +59,10 @@ type Genesis struct {
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
+
+	// Validator driven transactions
+	AllowedValidatorDrivenActions []uint8 `json:"allowedValidatorDrivenActions"`
+	MinGapValidatorTxs            int64   `json:"minGapValidatorTxs"`
 }
 
 func Default() *Genesis {
@@ -94,6 +98,10 @@ func Default() *Genesis {
 		StorageValueAllocateUnits: 5,
 		StorageKeyWriteUnits:      10,
 		StorageValueWriteUnits:    3,
+
+		AllowedValidatorDrivenActions: nil,
+		// -1 -> not enabled, 0 -> no gap is set, and other gaps
+		MinGapValidatorTxs: -1,
 	}
 }
 

@@ -339,6 +339,7 @@ func (t *Transaction) Execute(
 	ts *tstate.TStateView,
 	timestamp int64,
 	warpVerified bool,
+	isValidatorDriven bool,
 ) (*Result, error) {
 	// Always charge fee first (in case [Action] moves funds)
 	maxUnits, err := t.MaxUnits(s, r)
@@ -351,7 +352,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, maxFee); err != nil {
+	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, maxFee); !isValidatorDriven && err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -511,7 +512,7 @@ func (t *Transaction) Execute(
 		return handleRevert(err)
 	}
 	refund := maxFee - feeRequired
-	if refund > 0 {
+	if !isValidatorDriven && refund > 0 {
 		ts.DisableAllocation()
 		defer ts.EnableAllocation()
 		if err := s.Refund(ctx, t.Auth.Sponsor(), ts, refund); err != nil {
@@ -523,7 +524,8 @@ func (t *Transaction) Execute(
 		Output:  output,
 
 		Consumed: used,
-		Fee:      feeRequired,
+		// TODO: should we make it 0 when it's a validator driven action
+		Fee: feeRequired,
 
 		WarpMessage: warpMessage,
 	}, nil
