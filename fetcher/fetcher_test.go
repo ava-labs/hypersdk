@@ -136,12 +136,12 @@ func TestFetchKeysWithValues(t *testing.T) {
 func TestFetchSameKeyRepeatedly(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(10, 10, newTestDBWithValue())
+		f       = New(100, 10, newTestDBWithValue())
 		ctx     = context.TODO()
 	)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		stateKeys := make(state.Keys, 1)
-		if i < 5 {
+		if i < 50 {
 			stateKeys.Add(strconv.Itoa(1), state.Read)
 		} else {
 			stateKeys.Add(strconv.Itoa(2), state.Read)
