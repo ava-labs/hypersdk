@@ -150,7 +150,7 @@ func TestFetchSameKeyRepeatedly(t *testing.T) {
 		wg := f.Lookup(ctx, txID, stateKeys)
 		fmt.Printf("before %v\n", txID)
 		wg.Wait()
-		fmt.Printf("after %v\n", txID)
+		fmt.Printf("after %v\n\n", txID)
 	}
 	require.Equal(2, len(f.Cache))
 }
