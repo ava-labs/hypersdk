@@ -153,6 +153,11 @@ func (e *Engine) Run() {
 				panic(err)
 			}
 
+			// TODO: pay beneficiary all tips for processing chunk
+			//
+			// TODO: add configuration for how much of base fee to pay (could be 100% in a payment network, however,
+			// this allows miner to drive up fees without consequence as they get their fees back)
+
 			// Submit claims
 			for _, claim := range claims {
 				// TODO: fetch previous claim to ensure don't overwrite?

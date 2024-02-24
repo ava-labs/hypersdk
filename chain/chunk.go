@@ -64,6 +64,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Pack chunk for build duration
+	//
+	// TODO: sort mempool by priority and fit (only fetch items that can be included)
 	start := time.Now()
 	mempool := vm.Mempool()
 	mempool.StartStreaming(ctx)
@@ -82,6 +84,9 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			// if too many, just put back into mempool and try again later
 
 			// TODO: ensure tx can still be processed (bond not frozen)
+
+			// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
+			// of activity).
 
 			// TODO: verify transactions
 			if tx.Base.Timestamp > c.Slot {
