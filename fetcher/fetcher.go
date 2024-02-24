@@ -6,8 +6,8 @@ package fetcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
-	//"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -73,6 +73,7 @@ func (f *Fetcher) createWorker() {
 				}
 				// Fetch from disk that aren't already in cache
 				for _, k := range t.toLookup {
+					fmt.Printf("fetching %v\n", t.id)
 					v, err := f.im.GetValue(t.ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						// Update the cache
@@ -114,8 +115,9 @@ func (f *Fetcher) createWorker() {
 	}()
 }
 
-// Lookup enqueues a set of stateKey values that we need to fetch from disk.
-func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) {
+// Lookup enqueues a set of stateKey values that we need to fetch from disk, and
+// returns a WaitGroup for a given transaction.
+func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	f.TxnsToFetch[txID] = &sync.WaitGroup{}
 
 	toLookup := make([]string, 0, len(stateKeys))
@@ -137,4 +139,5 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		}
 		f.fetchable <- t
 	}
+	return f.TxnsToFetch[txID]
 }
