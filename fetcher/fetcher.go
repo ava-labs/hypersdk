@@ -72,8 +72,19 @@ func (f *Fetcher) createWorker() {
 					return
 				}
 				// Fetch from disk that aren't already in cache
+				fmt.Printf("lookup %v\n", t.toLookup)
 				for _, k := range t.toLookup {
-					fmt.Printf("fetching %v\n", t.id)
+					fmt.Printf("fetching key %v for %v\n", k, t.id)
+					f.cacheLock.Lock()
+					if _, ok := f.Cache[k]; ok {
+						fmt.Printf("cache hit for key %v %v\n", k, t.id)
+						f.TxnsToFetch[t.id].Done()
+						f.cacheLock.Unlock()
+						continue
+					}
+					f.cacheLock.Unlock()
+
+					fmt.Printf("cache miss %v %v\n", k, t.id)
 					v, err := f.im.GetValue(t.ctx, []byte(k))
 					if errors.Is(err, database.ErrNotFound) {
 						// Update the cache
@@ -118,26 +129,20 @@ func (f *Fetcher) createWorker() {
 // Lookup enqueues a set of stateKey values that we need to fetch from disk, and
 // returns a WaitGroup for a given transaction.
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
-	f.TxnsToFetch[txID] = &sync.WaitGroup{}
-
+	// Get key names
 	toLookup := make([]string, 0, len(stateKeys))
 	for k := range stateKeys {
-		// Find all keys that need to be fetched from disk
-		f.cacheLock.RLock()
-		if _, ok := f.Cache[k]; !ok {
-			toLookup = append(toLookup, k)
-		}
-		f.cacheLock.RUnlock()
+		toLookup = append(toLookup, k)
 	}
-	// Only enqueue to worker if we have keys we need to fetch
-	if len(toLookup) > 0 {
-		f.TxnsToFetch[txID].Add(len(toLookup))
-		t := &task{
-			ctx:      ctx,
-			id:       txID,
-			toLookup: toLookup,
-		}
-		f.fetchable <- t
+	// Increment counter to number of keys to fetch
+	f.TxnsToFetch[txID] = &sync.WaitGroup{}
+	f.TxnsToFetch[txID].Add(len(toLookup))
+	t := &task{
+		ctx:      ctx,
+		id:       txID,
+		toLookup: toLookup,
 	}
+	// Go fetch from disk or cache
+	f.fetchable <- t
 	return f.TxnsToFetch[txID]
 }
