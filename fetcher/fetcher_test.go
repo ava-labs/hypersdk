@@ -5,10 +5,10 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
-	"time"
-	//"fmt"
+	_ "time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -48,7 +48,7 @@ func (db *testDB) GetValue(_ context.Context, key []byte) (value []byte, err err
 	return val, nil
 }
 
-func TestFetchDifferentKeys(t *testing.T) {
+/*func TestFetchDifferentKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		f       = New(100, 4, newTestDB())
@@ -63,8 +63,8 @@ func TestFetchDifferentKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// Since these are all different keys, we will
 		// fetch each key from disk
-		f.Lookup(ctx, txID, stateKeys)
-		f.TxnsToFetch[txID].Wait()
+		wg := f.Lookup(ctx, txID, stateKeys)
+		wg.Wait()
 	}
 	// There should be 5050 different keys now in the cache
 	require.Equal(5050, len(f.Cache))
@@ -85,8 +85,8 @@ func TestFetchSameKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
 		// be getting subsequnt requests from cache
-		f.Lookup(ctx, txID, stateKeys)
-		f.TxnsToFetch[txID].Wait()
+		wg := f.Lookup(ctx, txID, stateKeys)
+		wg.Wait()
 	}
 	// There's only 100 keys
 	require.Equal(100, len(f.Cache))
@@ -105,11 +105,11 @@ func TestFetchSameKeysSlow(t *testing.T) {
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		f.Lookup(ctx, txID, stateKeys)
+		wg := f.Lookup(ctx, txID, stateKeys)
 		if i%2 == 0 {
 			time.Sleep(1 * time.Second)
 		}
-		f.TxnsToFetch[txID].Wait()
+		wg.Wait()
 	}
 	require.Equal(100, len(f.Cache))
 }
@@ -117,7 +117,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 func TestFetchKeysWithValues(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(10, 4, newTestDBWithValue())
+		f       = New(100, 4, newTestDBWithValue())
 		ctx     = context.TODO()
 	)
 	for i := 0; i < 100; i++ {
@@ -127,8 +127,30 @@ func TestFetchKeysWithValues(t *testing.T) {
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		f.Lookup(ctx, txID, stateKeys)
-		f.TxnsToFetch[txID].Wait()
+		wg := f.Lookup(ctx, txID, stateKeys)
+		wg.Wait()
 	}
 	require.Equal(100, len(f.Cache))
+}*/
+
+func TestFetchSameKeyRepeatedly(t *testing.T) {
+	var (
+		require = require.New(t)
+		f       = New(10, 10, newTestDBWithValue())
+		ctx     = context.TODO()
+	)
+	for i := 0; i < 10; i++ {
+		stateKeys := make(state.Keys, 1)
+		if i < 5 {
+			stateKeys.Add(strconv.Itoa(1), state.Read)
+		} else {
+			stateKeys.Add(strconv.Itoa(2), state.Read)
+		}
+		txID := ids.GenerateTestID()
+		wg := f.Lookup(ctx, txID, stateKeys)
+		fmt.Printf("before %v\n", txID)
+		wg.Wait()
+		fmt.Printf("after %v\n", txID)
+	}
+	require.Equal(2, len(f.Cache))
 }

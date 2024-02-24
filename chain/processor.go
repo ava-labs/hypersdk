@@ -57,11 +57,11 @@ func (b *StatelessBlock) Execute(
 			return nil, nil, err
 		}
 		// Fetch keys from disk
-		f.Lookup(ctx, tx.ID(), stateKeys)
+		wg := f.Lookup(ctx, tx.ID(), stateKeys)
 
 		e.Run(stateKeys, func() error {
 			// Block until worker finishes fetching from disk
-			f.TxnsToFetch[tx.ID()].Wait()
+			wg.Wait()
 
 			// Fetch keys from cache
 			var (
