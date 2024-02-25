@@ -6,7 +6,6 @@ package fetcher
 import (
 	"context"
 	"errors"
-	_ "fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -18,7 +17,7 @@ import (
 
 // Fetcher retrieves values on-the-fly and
 // ensures that a value is only fetched from
-// disk once. Subsequent requests are fetched
+// disk once. Subsequent requests can be retrieved
 // from cache.
 type Fetcher struct {
 	im        state.Immutable
@@ -55,11 +54,11 @@ type task struct {
 // New creates a new [Fetcher]
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher{
+		im:          im,
+		Cache:       make(map[string]*FetchData, numTxs),		
 		TxnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
-		im:          im,
-		Cache:       make(map[string]*FetchData, numTxs),
-		stop:        make(chan struct{}),
+		stop:        make(chan struct{}), // TODO: implement Stop()
 		totalTxns:   numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
@@ -76,7 +75,6 @@ func (f *Fetcher) createWorker() {
 				if !ok {
 					return
 				}
-
 				for _, k := range t.toLookup {
 					// Allow concurrent reads to cache
 					f.cacheLock.RLock()
@@ -135,7 +133,7 @@ func (f *Fetcher) createWorker() {
 	}()
 }
 
-// Lookup enqueues a set of stateKey values that we need to fetch from disk, and
+// Lookup enqueues a set of stateKey values that we need to lookup, and
 // returns a WaitGroup for a given transaction.
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	// Get key names
@@ -151,7 +149,7 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		id:       txID,
 		toLookup: toLookup,
 	}
-	// Go fetch from disk or cache
+	// Go fetch from disk or verify it's in cache
 	f.fetchable <- t
 	return f.TxnsToFetch[txID]
 }

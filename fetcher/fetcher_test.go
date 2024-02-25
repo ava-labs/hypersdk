@@ -5,7 +5,6 @@ package fetcher
 
 import (
 	"context"
-	_ "fmt"
 	"strconv"
 	"testing"
 	"time"
