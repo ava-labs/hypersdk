@@ -38,6 +38,7 @@ type Config struct {
 	AuthVerificationCores     int `json:"authVerificationCores"`
 	RootGenerationCores       int `json:"rootGenerationCores"`
 	TransactionExecutionCores int `json:"transactionExecutionCores"`
+	KeyStorageConcurrency     int `json:"keyStorageConcurrency"`
 
 	// Gossip
 	GossipMaxSize       int   `json:"gossipMaxSize"`
@@ -115,6 +116,7 @@ func (c *Config) setDefault() {
 	c.AuthVerificationCores = c.Config.GetAuthVerificationCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
+	c.KeyStorageConcurrency = c.Config.GetKeyStorageConcurrency()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
@@ -129,6 +131,7 @@ func (c *Config) GetTestMode() bool                         { return c.TestMode 
 func (c *Config) GetAuthVerificationCores() int             { return c.AuthVerificationCores }
 func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
 func (c *Config) GetTransactionExecutionCores() int         { return c.TransactionExecutionCores }
+func (c *Config) GetKeyStorageConcurrency() int             { return c.KeyStorageConcurrency }
 func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
 func (c *Config) GetMempoolSponsorSize() int                { return c.MempoolSponsorSize }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return c.parsedExemptSponsors }
