@@ -85,9 +85,9 @@ func (f *Fetcher) runWorker() {
 
 			// Allow concurrent reads to cache
 			if exists := f.isInCache(t.key); exists {
-				//fmt.Printf("never prints\n")
+				//fmt.Printf("cache hit! %v\n", t.key)
 			} else {
-
+				//fmt.Printf("cache miss, fetching %v\n", t.key)
 				// Fetch from disk that aren't already in cache
 				// We only ever fetch from disk once
 				v, err := f.im.GetValue(t.ctx, []byte(t.key))
@@ -104,7 +104,7 @@ func (f *Fetcher) runWorker() {
 					})
 					return
 				} else {
-					//fmt.Printf("this shouldn't print\n")
+					//fmt.Printf("fetching with value! %v\n", t.key)
 
 					// We verify that the [NumChunks] is already less than the number
 					// added on the write path, so we don't need to do so again here.
