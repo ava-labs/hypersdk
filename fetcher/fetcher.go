@@ -15,10 +15,9 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-// Fetcher retrieves values on-the-fly and
-// ensures that a value is only fetched from
-// disk once. Subsequent requests can be retrieved
-// from cache.
+// Fetcher retrieves values on-the-fly and ensures that
+// a value is only fetched from disk once. Subsequent
+// requests can be retrieved from cache.
 type Fetcher struct {
 	im        state.Immutable
 	cacheLock sync.RWMutex
@@ -26,10 +25,8 @@ type Fetcher struct {
 
 	keysToFetch map[string][]ids.ID        // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
-
-	// Lock for each map
-	keysFetchLock sync.Mutex
-	txnsFetchLock sync.Mutex
+	keyLock     sync.Mutex
+	txnLock     sync.Mutex
 
 	stopOnce  sync.Once
 	stop      chan struct{}
@@ -39,18 +36,17 @@ type Fetcher struct {
 	wg        sync.WaitGroup
 
 	completed int
-	totalTxns int
+	numTxs    int
 }
 
 // Data to insert into the cache
 type fetchData struct {
 	v      []byte
 	exists bool
-
 	chunks uint16
 }
 
-// task holds the information that a worker needs to fetch values
+// Holds the information that a worker needs to fetch values
 type task struct {
 	ctx context.Context
 	key string
@@ -65,7 +61,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
 		stop:        make(chan struct{}),
-		totalTxns:   numTxs,
+		numTxs:      numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
 		f.wg.Add(1)
@@ -85,12 +81,12 @@ func (f *Fetcher) runWorker() {
 			}
 
 			// Allow concurrent reads to cache
-			if exists := f.isInCache(t.key); exists {
+			if exists := f.has(t.key); exists {
+				f.updateDependencies(t.key)
 				continue
 			}
 
-			// Fetch from disk that aren't already in cache
-			// We only ever fetch from disk once
+			// Fetch from disk once if key isn't already in cache
 			v, err := f.im.GetValue(t.ctx, []byte(t.key))
 			if errors.Is(err, database.ErrNotFound) {
 				f.updateCache(t.key, nil, false, 0)
@@ -124,53 +120,46 @@ func (f *Fetcher) runWorker() {
 }
 
 // Checks if a key is in the cache
-func (f *Fetcher) isInCache(k string) bool {
+func (f *Fetcher) has(k string) bool {
 	f.cacheLock.RLock()
 	defer f.cacheLock.RUnlock()
-
-	inCache := false
-	if _, ok := f.cache[k]; ok {
-		inCache = true
-		f.updateDependencies(k)
-	}
-	return inCache
+	_, exists := f.cache[k]
+	return exists
 }
 
-// Writes a key that was fetched from disk into the cache
+// Puts a key that was fetched from disk into cache
 func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
 	f.cacheLock.Lock()
 	defer f.cacheLock.Unlock()
 	f.cache[k] = &fetchData{v, exists, chunks}
 }
 
-// For a key that was fetched from disk or was already in cache, we decrement
-// the count for the txID that was waiting on that key. This function is
-// only called by the worker.
+// After fetching a key, decrement the tx count that was waiting on the key.
+// This function is only called by the worker.
 func (f *Fetcher) updateDependencies(k string) {
-	f.keysFetchLock.Lock()
-	defer f.keysFetchLock.Unlock()
+	f.keyLock.Lock()
+	defer f.keyLock.Unlock()
 
-	txIDs, _ := f.keysToFetch[k]
-	f.txnsFetchLock.Lock()
+	txIDs := f.keysToFetch[k]
+	f.txnLock.Lock()
 	for _, id := range txIDs {
 		f.txnsToFetch[id].Done()
 	}
-	f.txnsFetchLock.Unlock()
+	f.txnLock.Unlock()
 
 	// Clear queue of txns waiting for this key
 	f.keysToFetch[k] = nil
 }
 
-// Lookup enqueues keys that we need to lookup to the workers, and
-// returns a WaitGroup for a given transaction.
+// Lookup enqueues keys for the workers to fetch
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
-	f.txnsFetchLock.Lock()
+	f.txnLock.Lock()
 	f.txnsToFetch[txID] = &sync.WaitGroup{}
 	f.txnsToFetch[txID].Add(len(stateKeys))
-	f.txnsFetchLock.Unlock()
+	f.txnLock.Unlock()
 
 	for k := range stateKeys {
-		f.keysFetchLock.Lock()
+		f.keyLock.Lock()
 		if _, ok := f.keysToFetch[k]; !ok {
 			f.keysToFetch[k] = make([]ids.ID, 0)
 		}
@@ -179,21 +168,21 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 			ctx: ctx,
 			key: k,
 		}
-		// Release the lock to avoid deadlock when
-		// calling updateDependencies
-		f.keysFetchLock.Unlock()
+		// Release the lock before passing to worker to avoid
+		// deadlock when calling updateDependencies
+		f.keyLock.Unlock()
 		f.fetchable <- t
 	}
 	return f.txnsToFetch[txID]
 }
 
-// Block until worker finishes fetching keys and then fetch the
-// keys from cache
 func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint16, map[string][]byte) {
+	// Block until all keys for the tx are fetched
 	wg.Wait()
+
 	f.l.Lock()
 	f.completed++
-	if f.completed == f.totalTxns {
+	if f.completed == f.numTxs {
 		close(f.fetchable)
 	}
 	f.l.Unlock()
@@ -201,6 +190,7 @@ func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uin
 	f.cacheLock.Lock()
 	defer f.cacheLock.Unlock()
 
+	// Fetch keys from cache
 	var (
 		reads   = make(map[string]uint16, len(stateKeys))
 		storage = make(map[string][]byte, len(stateKeys))
@@ -224,8 +214,7 @@ func (f *Fetcher) Stop() {
 	})
 }
 
-// Wait until all the workers are done and bubble up
-// any errors occurred.
+// Wait until all the workers are done and return any errors
 func (f *Fetcher) HandleErrors() error {
 	f.wg.Wait()
 	return f.err
