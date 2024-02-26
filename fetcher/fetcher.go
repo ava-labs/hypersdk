@@ -22,9 +22,12 @@ import (
 type Fetcher struct {
 	im        state.Immutable
 	cacheLock sync.RWMutex
-	Cache     map[string]*FetchData
+	cache     map[string]*fetchData
 
 	TxnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
+
+	//keyFetchLock sync.Mutex
+	//txnFetchLock sync.Mutex
 
 	stopOnce  sync.Once
 	stop      chan struct{}
@@ -37,26 +40,26 @@ type Fetcher struct {
 }
 
 // Data to insert into the cache
-type FetchData struct {
-	Val    []byte
-	Exists bool
+type fetchData struct {
+	v    []byte
+	exists bool
 
-	Chunks uint16
+	chunks uint16
 }
 
 // task holds the information that a worker needs to fetch values
 type task struct {
 	ctx      context.Context
-	id       ids.ID
-	toLookup []string
+	key string
 }
 
 // New creates a new [Fetcher]
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher{
 		im:          im,
-		Cache:       make(map[string]*FetchData, numTxs),		
-		TxnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
+		cache:       make(map[string]*fetchData, numTxs),		
+		keysToFetch: make(map[string][]ids.ID),
+		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
 		stop:        make(chan struct{}), // TODO: implement Stop()
 		totalTxns:   numTxs,
@@ -67,89 +70,127 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	return f
 }
 
-func (f *Fetcher) createWorker() {
-	go func() {
-		for {
-			select {
-			case t, ok := <-f.fetchable:
-				if !ok {
-					return
-				}
-				for _, k := range t.toLookup {
-					// Allow concurrent reads to cache
-					f.cacheLock.RLock()
-					if _, ok := f.Cache[k]; ok {
-						f.TxnsToFetch[t.id].Done()
-						f.cacheLock.RUnlock()
-						continue
-					}
-					f.cacheLock.RUnlock()
-
-					// Fetch from disk that aren't already in cache
-					// We only ever fetch from disk once
-					v, err := f.im.GetValue(t.ctx, []byte(k))
-					if errors.Is(err, database.ErrNotFound) {
-						// Update the cache
-						f.cacheLock.Lock()
-						f.Cache[k] = &FetchData{nil, false, 0}
-						f.TxnsToFetch[t.id].Done() // Decrement the count as we fetched one of the keys
-						f.cacheLock.Unlock()
-						continue
-					} else if err != nil {
-						f.stopOnce.Do(func() {
-							f.err = err
-							close(f.stop)
-						})
-						return
-					}
-
-					// We verify that the [NumChunks] is already less than the number
-					// added on the write path, so we don't need to do so again here.
-					numChunks, ok := keys.NumChunks(v)
-					if !ok {
-						f.stopOnce.Do(func() {
-							f.err = ErrInvalidKeyValue
-							close(f.stop)
-						})
-						return
-					}
-
-					f.cacheLock.Lock()
-					f.Cache[k] = &FetchData{v, true, numChunks}
-					f.TxnsToFetch[t.id].Done()
-					f.cacheLock.Unlock()
-				}
-
-				f.l.Lock()
-				f.completed++
-				if f.completed == f.totalTxns {
-					close(f.fetchable)
-				}
-				f.l.Unlock()
-			case <-f.stop:
+// Workers fetch individual keys
+func (f *Fetcher) runWorker() {
+	for {
+		select {
+		case t, ok := <-f.fetchable:
+			if !ok {
 				return
 			}
+
+			// Allow concurrent reads to cache
+			if exists := f.isInCache(t.key); exists {
+				continue
+			}
+
+			// Fetch from disk that aren't already in cache
+			// We only ever fetch from disk once
+			v, err := f.im.GetValue(t.ctx, []byte(t.key))
+			if errors.Is(err, database.ErrNotFound) {
+				f.updateCache(t.key, nil, false, 0)
+				f.updateDependencies(t.key)
+				continue
+			} else if err != nil {
+				f.stopOnce.Do(func() {
+					f.err = err
+					close(f.stop)
+				})
+				return
+			}
+
+			// We verify that the [NumChunks] is already less than the number
+			// added on the write path, so we don't need to do so again here.
+			numChunks, ok := keys.NumChunks(v)
+			if !ok {
+				f.stopOnce.Do(func() {
+					f.err = ErrInvalidKeyValue
+					close(f.stop)
+				})
+				return
+			}
+
+			f.updateCache(t.key, v, true, numChunks)
+			f.updateDependencies(t.key)
+		case <-f.stop:
+			return
 		}
 	}()
+}
+
+func (f *Fetcher) isInCache(k string) bool {
+	f.cacheLock.RLock()
+	defer f.cacheLock.RUnlock()
+	
+	inCache := false
+	if _, ok := f.cache[k]; ok {
+		inCache = true
+		f.updateDependencies(k)
+	}
+	return inCache
+}
+
+func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
+	f.cacheLock.Lock()
+	defer f.cacheLock.Unlock()
+	f.cache[k] = &fetchData{v, exists, chunks}
+}
+
+func (f *Fetcher) updateDependencies(k string) {
+	f.l.Lock()
+	defer f.l.Unlock()
+	// Don't need to check if k exists because this function 
+	// is only called in the worker after we have already added
+	// k to the map entry.
+	txIDs, _ := f.keysToFetch[k]
+	for _, id := range txIDs {
+		// Decrement number of keys we're waiting on
+		f.txnsToFetch[id].Done()
+	}
+	// Clear queue of txns waiting for this key
+	f.keysToFetch[k] = nil	
 }
 
 // Lookup enqueues a set of stateKey values that we need to lookup, and
 // returns a WaitGroup for a given transaction.
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
-	// Get key names
-	toLookup := make([]string, 0, len(stateKeys))
+	f.l.Lock()
+	defer f.l.Unlock()
+	
+	f.txnsToFetch[txID] = &sync.WaitGroup{}
+	f.txnsToFetch[txID].Add(len(stateKeys))	
 	for k := range stateKeys {
-		toLookup = append(toLookup, k)
+		if _, ok := f.keysToFetch[k]; !ok {
+			f.keysToFetch[k] = make([]ids.ID, 0)
+			continue
+		}
+		f.keysToFetch[k] = append(f.keysToFetch[k], txID)
+		t := &task{
+			ctx: ctx,
+			key: k,
+		}
+		f.fetchable <- t
 	}
-	// Increment counter to number of keys to fetch
-	f.TxnsToFetch[txID] = &sync.WaitGroup{}
-	f.TxnsToFetch[txID].Add(len(toLookup))
-	t := &task{
-		ctx:      ctx,
-		id:       txID,
-		toLookup: toLookup,
+
+	return f.txnsToFetch[txID]
+}
+
+func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint16, map[string][]byte) {
+	wg.Wait()
+	f.cacheLock.Lock()
+	defer f.cacheLock.Unlock()
+
+	var (
+		reads   = make(map[string]uint16, len(stateKeys))
+		storage = make(map[string][]byte, len(stateKeys))
+	)
+	for k := range stateKeys {
+		if v, ok := f.cache[k]; ok {
+			reads[k] = v.chunks
+			if v.exists {
+				storage[k] = v.v
+			}
+		}
 	}
-	// Go fetch from disk or verify it's in cache
-	f.fetchable <- t
-	return f.TxnsToFetch[txID]
+	return reads, storage
 }

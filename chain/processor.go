@@ -6,7 +6,6 @@ package chain
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/ava-labs/avalanchego/trace"
 
@@ -38,7 +37,6 @@ func (b *StatelessBlock) Execute(
 		sm        = b.vm.StateManager()
 		numTxs    = len(b.Txs)
 		t         = b.GetTimestamp()
-		fetchLock sync.RWMutex
 		f         = fetcher.New(numTxs, b.vm.GetKeyStorageConcurrency(), im)
 
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
@@ -59,24 +57,9 @@ func (b *StatelessBlock) Execute(
 		// Fetch keys from disk or check if it's in cache
 		wg := f.Lookup(ctx, tx.ID(), stateKeys)
 		e.Run(stateKeys, func() error {
-			// Block until worker finishes fetching keys
-			wg.Wait()
-
-			// Fetch keys from cache
-			var (
-				reads   = make(map[string]uint16, len(stateKeys))
-				storage = make(map[string][]byte, len(stateKeys))
-			)
-			fetchLock.RLock()
-			for k := range stateKeys {
-				if v, ok := f.Cache[k]; ok {
-					reads[k] = v.Chunks
-					if v.Exists {
-						storage[k] = v.Val
-					}
-				}
-			}
-			fetchLock.RUnlock()
+			// Block until worker finishes fetching keys and then
+			// fetch the keys from cache
+			reads, storage := f.Wait(wg, stateKeys)
 
 			// Execute transaction
 			//
