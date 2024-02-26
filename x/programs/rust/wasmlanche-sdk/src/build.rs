@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::{path::Path, process::Command};
 
 pub const BUILD_DIR_NAME: &str = "build";
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -7,14 +7,12 @@ const RELEASE_PROFILE: &str = "release";
 /// Put this in your build.rs file. It currently relies on `/build` directory to be in your crate root.
 pub fn build_wasm_on_test() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=/build");
 
     // TODO:
     // remove these printlns
     let target = std::env::var("TARGET").unwrap();
-    println!("cargo:warning=TARGET={target}");
-
     let profile = std::env::var("PROFILE").unwrap();
-    println!("cargo:warning=PROFILE={profile}");
 
     if target != WASM_TARGET {
         let package_name = std::env::var("CARGO_PKG_NAME").unwrap();
@@ -29,6 +27,8 @@ pub fn build_wasm_on_test() {
             "test"
         };
 
+        let target_dir = format!("{manifest_dir}/{BUILD_DIR_NAME}");
+
         let cargo_build_output = Command::new("cargo")
             .arg("build")
             .arg("--target")
@@ -36,9 +36,24 @@ pub fn build_wasm_on_test() {
             .arg("--profile")
             .arg(&profile)
             .arg("--target-dir")
-            .arg(&format!("{manifest_dir}/{BUILD_DIR_NAME}"))
+            .arg(&target_dir)
             .output()
             .expect("command should execute even if it fails");
+
+        let profile = if profile == RELEASE_PROFILE {
+            "release"
+        } else {
+            "debug"
+        };
+
+        let target_dir = Path::new(&target_dir)
+            .join(WASM_TARGET)
+            .join(profile)
+            .join(format!("{package_name}.wasm"))
+            .canonicalize()
+            .expect("file was not in expected location");
+
+        println!("cargo:warning=`.wasm` file at {target_dir:?}");
 
         if !cargo_build_output.status.success() {
             let stdout = String::from_utf8_lossy(&cargo_build_output.stdout);

@@ -257,7 +257,7 @@ mod tests {
 
         // get total supply and assert result is expected
         let resp = simulator
-            .read_only::<PlanResponse>(
+            .read_only(
                 "owner",
                 "get_total_supply",
                 vec![Param::new(ParamType::Id, program_id.as_ref())],
@@ -273,7 +273,7 @@ mod tests {
 
         // verify alice balance is 900
         let resp = simulator
-            .read_only::<PlanResponse>(
+            .read_only(
                 "owner",
                 "get_balance",
                 vec![
@@ -292,7 +292,7 @@ mod tests {
 
         // verify bob balance is 100
         let resp = simulator
-            .read_only::<PlanResponse>(
+            .read_only(
                 "owner",
                 "get_balance",
                 vec![

@@ -185,16 +185,13 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn read_only<T>(
+    pub fn read_only(
         &self,
         key: &str,
         method: &str,
         params: Vec<Param>,
         require: Option<Require>,
-    ) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    ) -> Result<PlanResponse, Box<dyn Error>> {
         let step = Step {
             endpoint: Endpoint::ReadOnly,
             method: method.into(),
@@ -312,6 +309,14 @@ where
     let mut items: Vec<T> = Vec::new();
 
     if !output.status.success() {
+        println!("stderr");
+        for line in String::from_utf8_lossy(&output.stderr).lines() {
+            println!("{line}");
+        }
+        println!("stdout");
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            println!("{line}");
+        }
         return Err(String::from_utf8(output.stdout)?.into());
     }
 
@@ -335,6 +340,14 @@ where
     let output = cmd_output(path, plan)?;
 
     if !output.status.success() {
+        println!("stderr");
+        for line in String::from_utf8_lossy(&output.stderr).lines() {
+            println!("{line}");
+        }
+        println!("stdout");
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            println!("{line}");
+        }
         return Err(String::from_utf8(output.stdout)?.into());
     }
 
