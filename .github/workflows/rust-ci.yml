@@ -20,7 +20,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Run static analysis tests
         run: cargo fmt --all --check
 
@@ -36,7 +36,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - name: Run doc tests
         run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items --all
@@ -53,7 +53,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - name: Run static analysis tests
         shell: bash
@@ -65,7 +65,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: '1.21'
           check-latest: true
           cache: true
       - name: Install Rust
@@ -73,7 +73,7 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - name: Run unit tests
         run: cargo test --all-features --all
