@@ -64,7 +64,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		keysToFetch: make(map[string][]ids.ID),
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
-		stop:        make(chan struct{}), // TODO: implement Stop()
+		stop:        make(chan struct{}), 
 		totalTxns:   numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
@@ -212,4 +212,12 @@ func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uin
 		}
 	}
 	return reads, storage
+}
+
+func (f *Fetcher) Stop() {
+	f.stopOnce.Do(func() {
+		f.err = ErrStopped
+		close(f.fetchable)
+		close(f.stop)
+	})
 }
