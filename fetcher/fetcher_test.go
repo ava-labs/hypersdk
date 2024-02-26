@@ -7,7 +7,7 @@ import (
 	"context"
 	"strconv"
 	"testing"
-	_ "time"
+	"time"
 	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -72,7 +72,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 	require.Equal(5050, len(f.cache))
 }
 
-/*func TestFetchSameKeys(t *testing.T) {
+func TestFetchSameKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		f       = New(100, 4, newTestDB())
@@ -88,19 +88,19 @@ func TestFetchDifferentKeys(t *testing.T) {
 		// We are fetching the same keys, so we should
 		// be getting subsequnt requests from cache
 		wg := f.Lookup(ctx, txID, stateKeys)
-		wg.Wait()
+		_, _ = f.Wait(wg, stateKeys)
 	}
 	// There's only 100 keys
-	require.Equal(100, len(f.Cache))
+	require.Equal(100, len(f.cache))
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(100, 4, newTestDB())
+		f       = New(25, 4, newTestDB())
 		ctx     = context.TODO()
 	)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 25; i++ {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
@@ -111,9 +111,9 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		if i%2 == 0 {
 			time.Sleep(1 * time.Second)
 		}
-		wg.Wait()
+		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Equal(100, len(f.Cache))
+	require.Equal(25, len(f.cache))
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
@@ -130,9 +130,9 @@ func TestFetchKeysWithValues(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 		wg := f.Lookup(ctx, txID, stateKeys)
-		wg.Wait()
+		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Equal(100, len(f.Cache))
+	require.Equal(100, len(f.cache))
 }
 
 func TestFetchSameKeyRepeatedly(t *testing.T) {
@@ -150,7 +150,7 @@ func TestFetchSameKeyRepeatedly(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 		wg := f.Lookup(ctx, txID, stateKeys)
-		wg.Wait()
+		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Equal(2, len(f.Cache))
-}*/
+	require.Equal(2, len(f.cache))
+}
