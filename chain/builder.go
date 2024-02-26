@@ -37,6 +37,10 @@ func BuildBlock(
 	b.AvailableChunks = make([]*ChunkCertificate, 0, r.GetChunksPerBlock())
 	restorableChunks := []*ChunkCertificate{}
 	for len(b.AvailableChunks) < r.GetChunksPerBlock() {
+		// TODO: ensure chunk producer is in this epoch
+		// TODO: ensure only 1 chunk per producer
+		// TOOD: prefer old chunks to new chunks for a given producer
+
 		cert, ok := vm.NextChunkCertificate(ctx)
 		if !ok {
 			break
