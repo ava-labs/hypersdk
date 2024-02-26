@@ -51,6 +51,7 @@ func (b *StatelessBlock) Execute(
 
 		stateKeys, err := tx.StateKeys(sm)
 		if err != nil {
+			f.Stop()
 			e.Stop()
 			return nil, nil, err
 		}
