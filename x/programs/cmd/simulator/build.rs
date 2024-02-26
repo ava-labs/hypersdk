@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:warning=fetching go dependencies...");
 
-    let status = Command::new("go").args(&["mod", "download"]).status()?;
+    let status = Command::new("go").args(["mod", "download"]).status()?;
 
     println!("cargo:warning={status}");
 
@@ -43,8 +43,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("cargo:warning={line}");
         }
     }
-
-    println!("cargo:warning={status}");
 
     println!("cargo:rustc-env=SIMULATOR_PATH={simulator_path}");
 

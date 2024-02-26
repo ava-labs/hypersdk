@@ -4,6 +4,7 @@ pub const BUILD_DIR_NAME: &str = "build";
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const RELEASE_PROFILE: &str = "release";
 
+#[allow(clippy::missing_panics_doc, clippy::module_name_repetitions)]
 /// Put this in your build.rs file. It currently relies on `/build` directory to be in your crate root.
 pub fn build_wasm_on_test() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -17,7 +18,7 @@ pub fn build_wasm_on_test() {
     if target != WASM_TARGET {
         let package_name = std::env::var("CARGO_PKG_NAME").unwrap();
 
-        println!("cargo:warning=building `{}` wasm file", package_name);
+        println!("cargo:warning=building `{package_name}` wasm file");
 
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
 
@@ -34,7 +35,7 @@ pub fn build_wasm_on_test() {
             .arg("--target")
             .arg(WASM_TARGET)
             .arg("--profile")
-            .arg(&profile)
+            .arg(profile)
             .arg("--target-dir")
             .arg(&target_dir)
             .output()
@@ -62,13 +63,13 @@ pub fn build_wasm_on_test() {
             println!("cargo:warning=stdout:");
 
             for line in stdout.lines() {
-                println!("cargo:warning={}", line);
+                println!("cargo:warning={line}");
             }
 
             println!("cargo:warning=stderr:");
 
             for line in stderr.lines() {
-                println!("cargo:warning={}", line);
+                println!("cargo:warning={line}");
             }
 
             println!("cargo:warning=exit-status={}", cargo_build_output.status);

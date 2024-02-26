@@ -162,6 +162,12 @@ pub struct Client {
     path: &'static str,
 }
 
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Client {
     #[must_use]
     pub fn new() -> Self {
@@ -178,7 +184,7 @@ impl Client {
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
-        run_steps(&self.path, plan)
+        run_steps(self.path, plan)
     }
 
     /// Performs a `ReadOnly` step against the simulator and returns the result.
@@ -204,7 +210,7 @@ impl Client {
             steps: vec![step],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, plan)
     }
 
     /// Performs a single `Execute` step against the simulator and returns the result.
@@ -220,7 +226,7 @@ impl Client {
             steps: vec![step],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, plan)
     }
 
     /// Creates a key in a single step.
@@ -245,7 +251,7 @@ impl Client {
             }],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, plan)
     }
 
     /// Creates a program in a single step.
@@ -271,7 +277,7 @@ impl Client {
             }],
         };
 
-        run_step(&self.path, &plan)
+        run_step(self.path, &plan)
     }
 }
 
