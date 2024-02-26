@@ -6,7 +6,6 @@ package fetcher
 import (
 	"context"
 	"errors"
-	_ "fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -37,6 +36,7 @@ type Fetcher struct {
 	err       error
 	fetchable chan *task
 	l         sync.Mutex
+	wg        sync.WaitGroup
 
 	completed int
 	totalTxns int
@@ -64,10 +64,11 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		keysToFetch: make(map[string][]ids.ID),
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
-		stop:        make(chan struct{}), 
+		stop:        make(chan struct{}),
 		totalTxns:   numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
+		f.wg.Add(1)
 		go f.runWorker()
 	}
 	return f
@@ -75,6 +76,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 
 // Workers fetch individual keys
 func (f *Fetcher) runWorker() {
+	defer f.wg.Done()
 	for {
 		select {
 		case t, ok := <-f.fetchable:
@@ -220,4 +222,11 @@ func (f *Fetcher) Stop() {
 		close(f.fetchable)
 		close(f.stop)
 	})
+}
+
+// Wait until all the workers are done and bubble up
+// any errors occurred.
+func (f *Fetcher) HandleErrors() error {
+	f.wg.Wait()
+	return f.err
 }
