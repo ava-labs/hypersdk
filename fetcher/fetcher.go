@@ -22,9 +22,10 @@ import (
 type Fetcher struct {
 	im        state.Immutable
 	cacheLock sync.RWMutex
-	Cache     map[string]*FetchData
+	cache     map[string]*FetchData
 
-	TxnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
+	keysToFetch map[string][]ids.ID // Number of txns waiting for a key
+	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
 
 	stopOnce  sync.Once
 	stop      chan struct{}
@@ -55,82 +56,80 @@ type task struct {
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher{
 		im:          im,
-		Cache:       make(map[string]*FetchData, numTxs),		
-		TxnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
+		cache:       make(map[string]*FetchData, numTxs),		
+		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
 		stop:        make(chan struct{}), // TODO: implement Stop()
 		totalTxns:   numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
-		f.createWorker()
+		go f.runWorker()
 	}
 	return f
 }
 
-func (f *Fetcher) createWorker() {
-	go func() {
-		for {
-			select {
-			case t, ok := <-f.fetchable:
-				if !ok {
-					return
-				}
-				for _, k := range t.toLookup {
-					// Allow concurrent reads to cache
-					f.cacheLock.RLock()
-					if _, ok := f.Cache[k]; ok {
-						f.TxnsToFetch[t.id].Done()
-						f.cacheLock.RUnlock()
-						continue
-					}
-					f.cacheLock.RUnlock()
-
-					// Fetch from disk that aren't already in cache
-					// We only ever fetch from disk once
-					v, err := f.im.GetValue(t.ctx, []byte(k))
-					if errors.Is(err, database.ErrNotFound) {
-						// Update the cache
-						f.cacheLock.Lock()
-						f.Cache[k] = &FetchData{nil, false, 0}
-						f.TxnsToFetch[t.id].Done() // Decrement the count as we fetched one of the keys
-						f.cacheLock.Unlock()
-						continue
-					} else if err != nil {
-						f.stopOnce.Do(func() {
-							f.err = err
-							close(f.stop)
-						})
-						return
-					}
-
-					// We verify that the [NumChunks] is already less than the number
-					// added on the write path, so we don't need to do so again here.
-					numChunks, ok := keys.NumChunks(v)
-					if !ok {
-						f.stopOnce.Do(func() {
-							f.err = ErrInvalidKeyValue
-							close(f.stop)
-						})
-						return
-					}
-
-					f.cacheLock.Lock()
-					f.Cache[k] = &FetchData{v, true, numChunks}
-					f.TxnsToFetch[t.id].Done()
-					f.cacheLock.Unlock()
-				}
-
-				f.l.Lock()
-				f.completed++
-				if f.completed == f.totalTxns {
-					close(f.fetchable)
-				}
-				f.l.Unlock()
-			case <-f.stop:
+func (f *Fetcher) runWorker() {
+	for {
+		select {
+		case t, ok := <-f.fetchable:
+			if !ok {
 				return
 			}
+			for _, k := range t.toLookup {
+				// Allow concurrent reads to cache
+				f.cacheLock.RLock()
+				if _, ok := f.cache[k]; ok {
+					f.txnsToFetch[t.id].Done()
+					f.cacheLock.RUnlock()
+					continue
+				}
+				f.cacheLock.RUnlock()
+
+				// Fetch from disk that aren't already in cache
+				// We only ever fetch from disk once
+				v, err := f.im.GetValue(t.ctx, []byte(k))
+				if errors.Is(err, database.ErrNotFound) {
+					// Update the cache
+					f.cacheLock.Lock()
+					f.cache[k] = &FetchData{nil, false, 0}
+					f.txnsToFetch[t.id].Done() // Decrement the count as we fetched one of the keys
+					f.cacheLock.Unlock()
+					continue
+				} else if err != nil {
+					f.stopOnce.Do(func() {
+						f.err = err
+						close(f.stop)
+					})
+					return
+				}
+
+				// We verify that the [NumChunks] is already less than the number
+				// added on the write path, so we don't need to do so again here.
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					f.stopOnce.Do(func() {
+						f.err = ErrInvalidKeyValue
+						close(f.stop)
+					})
+					return
+				}
+
+				f.cacheLock.Lock()
+				f.cache[k] = &FetchData{v, true, numChunks}
+				f.txnsToFetch[t.id].Done()
+				f.cacheLock.Unlock()
+			}
+
+			f.l.Lock()
+			f.completed++
+			if f.completed == f.totalTxns {
+				close(f.fetchable)
+			}
+			f.l.Unlock()
+		case <-f.stop:
+			return
 		}
-	}()
+	}
 }
 
 // Lookup enqueues a set of stateKey values that we need to lookup, and
@@ -142,8 +141,8 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		toLookup = append(toLookup, k)
 	}
 	// Increment counter to number of keys to fetch
-	f.TxnsToFetch[txID] = &sync.WaitGroup{}
-	f.TxnsToFetch[txID].Add(len(toLookup))
+	f.txnsToFetch[txID] = &sync.WaitGroup{}
+	f.txnsToFetch[txID].Add(len(toLookup))
 	t := &task{
 		ctx:      ctx,
 		id:       txID,
@@ -151,5 +150,5 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	}
 	// Go fetch from disk or verify it's in cache
 	f.fetchable <- t
-	return f.TxnsToFetch[txID]
+	return f.txnsToFetch[txID]
 }
