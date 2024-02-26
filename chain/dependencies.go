@@ -145,15 +145,12 @@ type Rules interface {
 
 	GetBlockExecutionDepth() uint64
 	GetEpochDuration() int64
-	GetChunksPerBlock() int
 
 	GetMinBlockGap() int64    // in milliseconds
 	GetValidityWindow() int64 // in milliseconds
 
-	GetMinUnitPrice() Dimensions
-	GetUnitPriceChangeDenominator() Dimensions
-	GetWindowTargetUnits() Dimensions
-	GetMaxBlockUnits() Dimensions
+	GetUnitPrices() Dimensions
+	GetMaxChunkUnits() Dimensions
 
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64

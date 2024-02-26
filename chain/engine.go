@@ -118,6 +118,11 @@ func (e *Engine) Run() {
 			}
 
 			// Compute fees
+			//
+			// TODO: complexity -> limit is odd/tough to enforce across all compute (could multiple chunks by chunk limit by block per second)
+			// -> generally, want to do target at 50% of limit?
+			// -> this gets especially weird if limit grows with more participants?
+			// -> could just set via rules and then adjust as needed (using priority to prefer)?
 			feeKey := FeeKey(e.vm.StateManager().FeeKey())
 			feeRaw, err := parentView.GetValue(ctx, feeKey)
 			if err != nil {
