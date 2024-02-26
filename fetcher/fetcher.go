@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -27,8 +28,8 @@ type Fetcher struct {
 	keysToFetch map[string][]ids.ID // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
 
-	//keyFetchLock sync.Mutex
-	//txnFetchLock sync.Mutex
+	keysFetchLock sync.Mutex
+	txnsFetchLock sync.Mutex
 
 	stopOnce  sync.Once
 	stop      chan struct{}
@@ -80,39 +81,46 @@ func (f *Fetcher) runWorker() {
 				return
 			}
 
+			// TODO: use break/continue?
+
 			// Allow concurrent reads to cache
 			if exists := f.isInCache(t.key); exists {
-				continue
-			}
+				//fmt.Printf("never prints\n")
+			} else {
 
-			// Fetch from disk that aren't already in cache
-			// We only ever fetch from disk once
-			v, err := f.im.GetValue(t.ctx, []byte(t.key))
-			if errors.Is(err, database.ErrNotFound) {
-				f.updateCache(t.key, nil, false, 0)
-				f.updateDependencies(t.key)
-				continue
-			} else if err != nil {
-				f.stopOnce.Do(func() {
-					f.err = err
-					close(f.stop)
-				})
-				return
-			}
+				// Fetch from disk that aren't already in cache
+				// We only ever fetch from disk once
+				v, err := f.im.GetValue(t.ctx, []byte(t.key))
+				if errors.Is(err, database.ErrNotFound) {
+					//fmt.Printf("cache miss %v\n", t.key)
+					f.updateCache(t.key, nil, false, 0)
+					//fmt.Printf("insert into cache %v\n", t.key)
+					f.updateDependencies(t.key)
+					//fmt.Printf("dep updated %v\n", t.key)
+				} else if err != nil {
+					f.stopOnce.Do(func() {
+						f.err = err
+						close(f.stop)
+					})
+					return
+				} else {
+					//fmt.Printf("this shouldn't print\n")
 
-			// We verify that the [NumChunks] is already less than the number
-			// added on the write path, so we don't need to do so again here.
-			numChunks, ok := keys.NumChunks(v)
-			if !ok {
-				f.stopOnce.Do(func() {
-					f.err = ErrInvalidKeyValue
-					close(f.stop)
-				})
-				return
-			}
+					// We verify that the [NumChunks] is already less than the number
+					// added on the write path, so we don't need to do so again here.
+					numChunks, ok := keys.NumChunks(v)
+					if !ok {
+						f.stopOnce.Do(func() {
+							f.err = ErrInvalidKeyValue
+							close(f.stop)
+						})
+						return
+					}
 
-			f.updateCache(t.key, v, true, numChunks)
-			f.updateDependencies(t.key)
+					f.updateCache(t.key, v, true, numChunks)
+					f.updateDependencies(t.key)
+				}
+			}
 		case <-f.stop:
 			return
 		}
@@ -138,41 +146,61 @@ func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
 }
 
 func (f *Fetcher) updateDependencies(k string) {
-	f.l.Lock()
-	defer f.l.Unlock()
+	//f.l.Lock()
+	//defer f.l.Unlock()
+	f.keysFetchLock.Lock()
+	defer f.keysFetchLock.Unlock()
+
 	// Don't need to check if k exists because this function 
 	// is only called in the worker after we have already added
 	// k to the map entry.
+	//fmt.Printf("updateDependencies start\n")
 	txIDs, _ := f.keysToFetch[k]
+	//fmt.Printf("trying to acquire the lock\n")
+	f.txnsFetchLock.Lock()
+	//fmt.Printf("got in!\n")
 	for _, id := range txIDs {
 		// Decrement number of keys we're waiting on
 		f.txnsToFetch[id].Done()
 	}
-	// Clear queue of txns waiting for this key
-	f.keysToFetch[k] = nil	
+	f.txnsFetchLock.Unlock()
+
+	// Clear queue of txns waiting for this key and delete
+	f.keysToFetch[k] = nil
+	delete(f.keysToFetch, k)
+	//fmt.Printf("updateDependencies finished\n")
 }
 
 // Lookup enqueues a set of stateKey values that we need to lookup, and
 // returns a WaitGroup for a given transaction.
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
-	f.l.Lock()
-	defer f.l.Unlock()
+	//f.l.Lock()
+	//defer f.l.Unlock()
 	
+	f.txnsFetchLock.Lock()
+	//fmt.Printf("%v acquired the lock\n", txID)	
 	f.txnsToFetch[txID] = &sync.WaitGroup{}
-	f.txnsToFetch[txID].Add(len(stateKeys))	
+	f.txnsToFetch[txID].Add(len(stateKeys))
+	//fmt.Printf("%v released the lock\n", txID)	
+	f.txnsFetchLock.Unlock()
+	
 	for k := range stateKeys {
+		f.keysFetchLock.Lock()
 		if _, ok := f.keysToFetch[k]; !ok {
 			f.keysToFetch[k] = make([]ids.ID, 0)
-			continue
-		}
+		} 
 		f.keysToFetch[k] = append(f.keysToFetch[k], txID)
 		t := &task{
 			ctx: ctx,
 			key: k,
 		}
+		f.keysFetchLock.Unlock()
+		//fmt.Printf("sending into chan %v\n", k)
 		f.fetchable <- t
+		//fmt.Printf("out of chan %v\n", k)
 	}
 
+	// TODO: will this cause a panic if i don't hold the lock?
 	return f.txnsToFetch[txID]
 }
 
