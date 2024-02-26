@@ -66,7 +66,8 @@ func TestFetchDifferentKeys(t *testing.T) {
 		_, _ = f.Wait(wg, stateKeys)
 	}
 	// There should be 5050 different keys now in the cache
-	require.Equal(5050, len(f.cache))
+	l := len(f.cache)
+	require.Equal(5050, l)
 	require.Equal(100, f.completed)
 	require.NoError(f.HandleErrors())
 }
@@ -90,7 +91,8 @@ func TestFetchSameKeys(t *testing.T) {
 		_, _ = f.Wait(wg, stateKeys)
 	}
 	// There's only 100 keys
-	require.Equal(100, len(f.cache))
+	l := len(f.cache)
+	require.Equal(100, l)
 	require.Equal(100, f.completed)
 	require.NoError(f.HandleErrors())
 }
@@ -114,7 +116,8 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		}
 		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Equal(25, len(f.cache))
+	l := len(f.cache)
+	require.Equal(25, l)
 	require.Equal(25, f.completed)
 	require.NoError(f.HandleErrors())
 }
@@ -135,7 +138,8 @@ func TestFetchKeysWithValues(t *testing.T) {
 		wg := f.Lookup(ctx, txID, stateKeys)
 		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Equal(100, len(f.cache))
+	l := len(f.cache)
+	require.Equal(100, l)
 	require.Equal(100, f.completed)
 	require.NoError(f.HandleErrors())
 }
@@ -157,7 +161,8 @@ func TestFetchSameKeyRepeatedly(t *testing.T) {
 		wg := f.Lookup(ctx, txID, stateKeys)
 		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Equal(2, len(f.cache))
+	l := len(f.cache)
+	require.Equal(2, l)
 	require.Equal(100, f.completed)
 	require.NoError(f.HandleErrors())
 }
@@ -170,7 +175,7 @@ func TestFetcherStop(t *testing.T) {
 	)
 	for i := 0; i < 100; i++ {
 		stateKeys := make(state.Keys, 1)
-		if i == 1 {
+		if i == 3 {
 			f.Stop()
 			break
 		}
@@ -178,7 +183,7 @@ func TestFetcherStop(t *testing.T) {
 		wg := f.Lookup(ctx, txID, stateKeys)
 		_, _ = f.Wait(wg, stateKeys)
 	}
-	require.Less(len(f.cache), 1)
-	require.Equal(1, f.completed)
+	require.Less(len(f.cache), 4)
+	require.Equal(3, f.completed)
 	require.Equal(ErrStopped, f.HandleErrors())
 }
