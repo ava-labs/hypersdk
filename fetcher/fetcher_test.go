@@ -63,10 +63,8 @@ func TestFetchDifferentKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// Since these are all different keys, we will
 		// fetch each key from disk
-		//fmt.Printf("starting %v\n%v\n\n", txID, stateKeys)
 		wg := f.Lookup(ctx, txID, stateKeys)
 		_, _ = f.Wait(wg, stateKeys)
-		//fmt.Printf("done %v\n\n", txID)
 	}
 	// There should be 5050 different keys now in the cache
 	require.Equal(5050, len(f.cache))
