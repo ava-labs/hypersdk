@@ -142,23 +142,20 @@ func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
 }
 
 // For a key that was fetched from disk or was already in cache, we decrement
-// the count for the txID that was waiting on that key.
+// the count for the txID that was waiting on that key. This function is
+// only called by the worker.
 func (f *Fetcher) updateDependencies(k string) {
 	f.keysFetchLock.Lock()
 	defer f.keysFetchLock.Unlock()
 
-	// Don't need to check if k exists because this function
-	// is only called in the worker after we have already added
-	// k to the map entry.
 	txIDs, _ := f.keysToFetch[k]
 	f.txnsFetchLock.Lock()
 	for _, id := range txIDs {
-		// Decrement number of keys we're waiting on
 		f.txnsToFetch[id].Done()
 	}
 	f.txnsFetchLock.Unlock()
 
-	// Clear queue of txns waiting for this key and delete
+	// Clear queue of txns waiting for this key
 	f.keysToFetch[k] = nil
 }
 
@@ -185,15 +182,20 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		f.keysFetchLock.Unlock()
 		f.fetchable <- t
 	}
-
-	// TODO: will this cause a panic if i don't hold the lock?
 	return f.txnsToFetch[txID]
 }
 
-// Block until worker finishes fetching keys and then fetch the 
+// Block until worker finishes fetching keys and then fetch the
 // keys from cache
 func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint16, map[string][]byte) {
 	wg.Wait()
+	f.l.Lock()
+	f.completed++
+	if f.completed == f.totalTxns {
+		close(f.fetchable)
+	}
+	f.l.Unlock()
+
 	f.cacheLock.Lock()
 	defer f.cacheLock.Unlock()
 
