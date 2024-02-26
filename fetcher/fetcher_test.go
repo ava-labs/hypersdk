@@ -5,10 +5,10 @@ package fetcher
 
 import (
 	"context"
+	_ "fmt"
 	"strconv"
 	"testing"
 	"time"
-	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"

@@ -34,11 +34,11 @@ func (b *StatelessBlock) Execute(
 	defer span.End()
 
 	var (
-		sm        = b.vm.StateManager()
-		numTxs    = len(b.Txs)
-		t         = b.GetTimestamp()
-		
-		f         = fetcher.New(numTxs, b.vm.GetKeyStorageConcurrency(), im)
+		sm     = b.vm.StateManager()
+		numTxs = len(b.Txs)
+		t      = b.GetTimestamp()
+
+		f       = fetcher.New(numTxs, b.vm.GetKeyStorageConcurrency(), im)
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
@@ -57,8 +57,6 @@ func (b *StatelessBlock) Execute(
 		// Fetch keys from disk or check if it's in cache
 		wg := f.Lookup(ctx, tx.ID(), stateKeys)
 		e.Run(stateKeys, func() error {
-			// Block until worker finishes fetching keys and then
-			// fetch the keys from cache
 			reads, storage := f.Wait(wg, stateKeys)
 
 			// Execute transaction
