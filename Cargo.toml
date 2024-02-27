@@ -4,7 +4,7 @@ members = [
     "x/programs/rust/sdk_macros",
     "x/programs/rust/wasmlanche_sdk",
     "x/programs/rust/examples/token",
-    "x/programs/rust/examples/counter",
+    "x/programs/rust/examples/counter", "x/programs/rust/simulator_client",
 ]
 resolver = "2"
 
