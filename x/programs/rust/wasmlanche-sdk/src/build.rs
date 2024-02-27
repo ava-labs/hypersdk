@@ -50,9 +50,16 @@ pub fn build_wasm_on_test() {
         let target_dir = Path::new(&target_dir)
             .join(WASM_TARGET)
             .join(profile)
-            .join(format!("{package_name}.wasm"))
-            .canonicalize()
-            .expect("file was not in expected location");
+            .join(format!("{package_name}.wasm"));
+
+        let target_dir = match target_dir.canonicalize() {
+            Ok(target_dir) => target_dir,
+            err @ Err(_) => {
+                // print the target_dir
+                println!("cargo:warning= not found -> {target_dir:?}");
+                err.expect("failed to canonicalize wasm file path")
+            }
+        };
 
         println!("cargo:warning=`.wasm` file at {target_dir:?}");
 
