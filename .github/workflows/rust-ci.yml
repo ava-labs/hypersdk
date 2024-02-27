@@ -35,6 +35,8 @@ jobs:
           cache: true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - name: Checkout
         uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
@@ -52,6 +54,8 @@ jobs:
           cache: true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - name: Checkout
         uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
