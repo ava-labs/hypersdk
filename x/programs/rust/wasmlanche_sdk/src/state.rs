@@ -61,9 +61,9 @@ impl State {
     pub fn delete<K>(&self, key: K) -> Result<(), StateError>
     where
         K: Into<Key>,
-        {
-            unsafe { delete_bytes(&self.program, &key.into())}
-        }
+    {
+        unsafe { delete_bytes(&self.program, &key.into()) }
+    }
 }
 
 /// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
