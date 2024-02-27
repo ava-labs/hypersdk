@@ -151,13 +151,18 @@ func (s *simulator) Init() error {
 
 	// initialize the simulator VM
 	vm := controller.New()
+	// create a string of {"testMode": true}
+	silly := "{\"testMode\": true}"
+	// turn s into bytes
+	configBytes := []byte(silly)
+
 	err = vm.Initialize(
 		context.TODO(),
 		snowCtx,
 		pdb,
 		genesisBytes,
 		nil,
-		nil,
+		configBytes,
 		toEngine,
 		nil,
 		nil,
