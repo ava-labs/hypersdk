@@ -1,7 +1,9 @@
+//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./api/service.proto
 package main
 
 import (
 	context "context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -64,12 +66,12 @@ type simulatorServer struct {
 	api.UnimplementedSimulatorServer
 }
 
-func (x *simulatorServer) CreateKey(ctx context.Context, in *api.CreateKeyRequest) (*api.PublicKey, error) {
+func (x *simulatorServer) CreateKey(ctx context.Context, in *api.CreateKeyRequest) (*api.CreateKeyResponse, error) {
 	_, err := x.simulator.CreateKey(ctx, in.GetName())
-	if err != nil {
+	if err != nil && !errors.Is(err, cmd.ErrDuplicateKeyName) {
 		return nil, err
 	}
-	return &api.PublicKey{
-		Value: in.GetName(),
+	return &api.CreateKeyResponse{
+		Name: in.GetName(),
 	}, nil
 }

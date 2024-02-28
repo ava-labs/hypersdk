@@ -7,10 +7,10 @@ message CreateKeyRequest {
     string name = 1;
 }
 
-message PublicKey {
-    string value = 1;
+message CreateKeyResponse {
+    string name = 1;
 }
 
 service Simulator {
-    rpc CreateKey(CreateKeyRequest) returns (PublicKey);
+    rpc CreateKey(CreateKeyRequest) returns (CreateKeyResponse);
 }
