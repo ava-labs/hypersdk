@@ -4,6 +4,7 @@
 //! Simulator binary directly.
 
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use std::{
     error::Error,
     ffi::OsStr,
@@ -12,13 +13,11 @@ use std::{
     process::{Command, Output, Stdio},
 };
 
-/// Converts the step index to a string identifier. This is used to populate Ids
-/// created in previous inline plan steps.
-#[must_use]
-pub fn id_from_step(i: usize) -> String {
-    format!("step_{i}")
-}
+mod id;
 
+pub use id::Id;
+
+/// The endpoint to call for a [Step].
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
@@ -32,6 +31,7 @@ pub enum Endpoint {
     Execute,
 }
 
+/// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
@@ -43,43 +43,82 @@ pub struct Step {
     pub max_units: u64,
     /// The parameters to pass to the method.
     pub params: Vec<Param>,
+    /// If defined the result of the step must match this assertion.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub require: Option<Require>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+impl Step {
+    /// Create a [Step] that creates a key.
+    #[must_use]
+    pub fn create_key(key: Key) -> Self {
+        Self {
+            endpoint: Endpoint::Key,
+            method: "create_key".into(),
+            max_units: 0,
+            params: vec![Param::Key(key)],
+            require: None,
+        }
+    }
+
+    /// Create a [Step] that creates a program.
+    #[must_use]
+    pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
+        let path = path.as_ref().to_string_lossy();
+
+        Self {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::String(path.into())],
+            require: None,
+        }
+    }
+}
+
+/// The algorithm used to generate the key along with a [String] identifier for the key.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum ParamType {
-    U64,
-    String,
-    Id,
+#[serde(tag = "type", content = "value")]
+pub enum Key {
+    Ed25519(String),
+    Secp256r1(String),
+}
+
+// TODO:
+// add `Cow` types for borrowing
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+pub enum Param {
+    U64(#[serde_as(as = "DisplayFromStr")] u64),
+    String(String),
+    Id(Id),
     #[serde(untagged)]
     Key(Key),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum Key {
-    Ed25519,
-    Secp256r1,
+impl From<u64> for Param {
+    fn from(val: u64) -> Self {
+        Param::U64(val)
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Param {
-    #[serde(rename = "type")]
-    /// The type of the parameter.
-    pub param_type: ParamType,
-    /// The value of the parameter.
-    pub value: String,
+impl From<String> for Param {
+    fn from(val: String) -> Self {
+        Param::String(val)
+    }
 }
 
-impl Param {
-    #[must_use]
-    pub fn new(param_type: ParamType, value: &str) -> Self {
-        Self {
-            param_type,
-            value: value.into(),
-        }
+impl From<Id> for Param {
+    fn from(val: Id) -> Self {
+        Param::Id(val)
+    }
+}
+
+impl From<Key> for Param {
+    fn from(val: Key) -> Self {
+        Param::Key(val)
     }
 }
 
@@ -89,28 +128,22 @@ pub struct Require {
     pub result: ResultAssertion,
 }
 
+#[serde_as]
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum Operator {
+#[serde(tag = "operator", content = "value")]
+pub enum ResultAssertion {
     #[serde(rename = "==")]
-    NumericEq,
+    NumericEq(#[serde_as(as = "DisplayFromStr")] u64),
     #[serde(rename = "!=")]
-    NumericNe,
+    NumericNe(#[serde_as(as = "DisplayFromStr")] u64),
     #[serde(rename = ">")]
-    NumericGt,
+    NumericGt(#[serde_as(as = "DisplayFromStr")] u64),
     #[serde(rename = "<")]
-    NumericLt,
+    NumericLt(#[serde_as(as = "DisplayFromStr")] u64),
     #[serde(rename = ">=")]
-    NumericGe,
+    NumericGe(#[serde_as(as = "DisplayFromStr")] u64),
     #[serde(rename = "<=")]
-    NumericLe,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct ResultAssertion {
-    /// The operator to use for the assertion.
-    pub operator: Operator,
-    /// The value to compare against.
-    pub value: String,
+    NumericLe(#[serde_as(as = "DisplayFromStr")] u64),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -122,16 +155,19 @@ pub struct Plan {
 }
 
 impl Plan {
+    /// Pass in the `caller_key` to be used in each step of the plan.
     #[must_use]
-    pub fn new(caller_key: &str) -> Self {
+    pub fn new(caller_key: String) -> Self {
         Self {
-            caller_key: caller_key.into(),
+            caller_key,
             steps: vec![],
         }
     }
 
-    pub fn add_step(&mut self, step: Step) {
+    /// returns the [Id] of the added [Step]
+    pub fn add_step(&mut self, step: Step) -> Id {
         self.steps.push(step);
+        Id::from(self.steps.len() - 1)
     }
 }
 
@@ -157,6 +193,7 @@ pub struct PlanResult {
     pub response: Option<Vec<i64>>,
 }
 
+/// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
 pub struct Client {
     /// Path to the simulator binary
     path: &'static str,
@@ -186,108 +223,25 @@ impl Client {
         Self { path }
     }
 
-    /// Runs a `Plan` against the simulator and returns vec of result.
+    /// Runs a [Plan] against the simulator and returns vec of result.
     /// # Errors
     ///
-    /// Returns an error if the if serialization or plan fails.
-    pub fn run<T>(&self, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    /// Returns an error if the serialization or plan fails.
+    pub fn run_plan(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
         run_steps(self.path, plan)
-    }
-
-    /// Performs a `ReadOnly` step against the simulator and returns the result.
-    /// # Errors
-    ///
-    /// Returns an error if the if serialization or plan fails.
-    pub fn read_only(
-        &self,
-        key: &str,
-        method: &str,
-        params: Vec<Param>,
-        require: Option<Require>,
-    ) -> Result<PlanResponse, Box<dyn Error>> {
-        let step = Step {
-            endpoint: Endpoint::ReadOnly,
-            method: method.into(),
-            max_units: 0,
-            params,
-            require,
-        };
-        let plan = &Plan {
-            caller_key: key.into(),
-            steps: vec![step],
-        };
-
-        run_step(self.path, plan)
     }
 
     /// Performs a single `Execute` step against the simulator and returns the result.
     /// # Errors
     ///
-    /// Returns an error if the if serialization or plan fails.
-    pub fn execute<T>(&self, step: Step, key: &str) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    /// Returns an error if the serialization or single-[Step]-[Plan] fails.
+    pub fn execute_step(&self, key: &str, step: Step) -> Result<PlanResponse, Box<dyn Error>> {
         let plan = &Plan {
             caller_key: key.into(),
             steps: vec![step],
         };
 
         run_step(self.path, plan)
-    }
-
-    /// Creates a key in a single step.
-    /// # Errors
-    ///
-    /// Returns an error if the if serialization or plan fails.
-    pub fn key_create<T>(&self, name: &str, key_type: Key) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
-        let plan = &Plan {
-            caller_key: name.into(),
-            steps: vec![Step {
-                endpoint: Endpoint::Key,
-                method: "create_key".into(),
-                max_units: 0,
-                params: vec![Param {
-                    value: name.into(),
-                    param_type: ParamType::Key(key_type),
-                }],
-                require: None,
-            }],
-        };
-
-        run_step(self.path, plan)
-    }
-
-    /// Creates a program in a single step.
-    /// # Errors
-    ///
-    /// Returns an error if the if serialization or plan fails.
-    pub fn create_program<P: AsRef<Path>>(
-        &self,
-        key: &str,
-        path: P,
-    ) -> Result<PlanResponse, Box<dyn Error>> {
-        let path = path.as_ref();
-        let path = path.to_string_lossy();
-
-        let plan = Plan {
-            caller_key: key.into(),
-            steps: vec![Step {
-                endpoint: Endpoint::Execute,
-                method: "program_create".into(),
-                max_units: 0,
-                params: vec![Param::new(ParamType::String, &path)],
-                require: None,
-            }],
-        };
-
-        run_step(self.path, &plan)
     }
 }
 
@@ -297,6 +251,7 @@ where
 {
     let mut child = Command::new(path)
         .arg("run")
+        .arg("--cleanup")
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -371,4 +326,111 @@ where
         .map_err(|e| format!("failed to parse output to json: {e}"))?;
 
     Ok(resp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn convert_u64_param() {
+        let value = 42u64;
+        let expected_param_type = "u64";
+        let expected_value = value.to_string();
+
+        let expected_json = json!({
+            "type": expected_param_type,
+            "value": &expected_value,
+        });
+
+        let param = Param::from(value);
+        let expected_param = Param::U64(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+
+        let output_param: Param = serde_json::from_value(expected_json).unwrap();
+
+        assert_eq!(output_param, expected_param);
+    }
+
+    #[test]
+    fn convert_string_param() {
+        let value = String::from("hello world");
+        let expected_param_type = "string";
+        let expected_value = value.clone();
+
+        let expected_json = json!({
+            "type": expected_param_type,
+            "value": &expected_value,
+        });
+
+        let param = Param::from(value.clone());
+        let expected_param = Param::String(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+
+        let output_param: Param = serde_json::from_value(expected_json).unwrap();
+
+        assert_eq!(output_param, expected_param);
+    }
+
+    #[test]
+    fn convert_id_param() {
+        let value = 42;
+        let expected_param_type = "id";
+        let expected_value = format!("step_{value}");
+
+        let expected_json = json!({
+            "type": expected_param_type,
+            "value": &expected_value,
+        });
+
+        let id = Id::from(value);
+        let param = Param::from(id);
+        let expected_param = Param::Id(id);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+
+        let output_param: Param = serde_json::from_value(dbg!(expected_json)).unwrap();
+
+        assert_eq!(output_param, expected_param);
+    }
+
+    #[test]
+    fn convert_key_param() {
+        let expected_param_type = "ed25519";
+        let expected_value = "id".into();
+
+        let expected_json = json!({
+            "type": expected_param_type,
+            "value": &expected_value,
+        });
+
+        let key = Key::Ed25519(expected_value);
+        let param = Param::from(key.clone());
+        let expected_param = Param::Key(key);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+
+        let output_param: Param = serde_json::from_value(expected_json).unwrap();
+
+        assert_eq!(output_param, expected_param);
+    }
 }
