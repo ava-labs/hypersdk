@@ -28,7 +28,7 @@ import (
 var _ chain.Action = (*EvmCall)(nil)
 
 type EvmCall struct {
-	To            *common.Address `json:"to" rlp:"nil"` // nil means contract creation
+	To            *common.Address `json:"to"` // nil means contract creation
 	Nonce         uint64          `json:"nonce"`
 	Value         *big.Int        `json:"value"`
 	GasLimit      uint64          `json:"gasLimit"`
@@ -40,7 +40,8 @@ type EvmCall struct {
 	BlobHashes    []common.Hash   `json:"blobHashes"`
 	Keys          state.Keys      `json:"stateKeys"`
 
-	logger logging.Logger
+	logger         logging.Logger
+	executionError error
 }
 
 func ToEVMAddress(addr codec.Address) common.Address {
@@ -166,6 +167,7 @@ func (e *EvmCall) Execute(
 		)
 	}
 	success := result.Err == nil
+	e.executionError = result.Err
 	return success, GasToComputeUnits(result.UsedGas), result.ReturnData, nil, nil
 }
 
@@ -266,6 +268,13 @@ func (e *EvmCall) SetStateKeys(k state.Keys) {
 
 func (e *EvmCall) SetLogger(logger logging.Logger) {
 	e.logger = logger
+}
+
+func (e *EvmCall) ExecutionError() string {
+	if e.executionError == nil {
+		return ""
+	}
+	return e.executionError.Error()
 }
 
 func MarshalKeys(s state.Keys, p *codec.Packer) {
