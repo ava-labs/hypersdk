@@ -133,6 +133,7 @@ pub fn get_balance(program: Program, recipient: Address) -> i64 {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
     use simulator::{
         id_from_step, Endpoint, Key, Operator, Param, ParamType, Plan, PlanResponse, Require,
         ResultAssertion, Step,
@@ -142,7 +143,8 @@ mod tests {
     const PROGRAM_PATH: &str = "./build/wasm32-unknown-unknown/debug/token.wasm";
 
     #[test]
-    fn test_create_program() {
+    #[serial]
+    fn create_program() {
         let simulator = simulator::Client::new();
 
         let owner_key = "owner";
@@ -159,7 +161,8 @@ mod tests {
     }
 
     #[test]
-    fn test_token_plan() {
+    #[serial]
+    fn mint_and_transfer() {
         let simulator = simulator::Client::new();
 
         let owner_key = "owner";
