@@ -39,16 +39,12 @@ var (
 var evmCallCmd = &cobra.Command{
 	Use: "evm-call",
 	RunE: func(*cobra.Command, []string) error {
-		var (
-			to   *common.Address
-			data []byte
-			err  error
-		)
+		var to *common.Address
 		if evmCallTo != "" {
 			addr := common.HexToAddress(evmCallTo)
 			to = &addr
 		}
-		data, err = readFileOrHex(evmCallData, evmCallDataFile)
+		data, err := readFileOrHex(evmCallData, evmCallDataFile)
 		if err != nil {
 			return err
 		}
