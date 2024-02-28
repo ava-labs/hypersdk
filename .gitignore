@@ -71,3 +71,6 @@ Cargo.lock
 **/*.rs.bk
 
 x/programs/cmd/simulator/simulator
+
+go.work
+go.work.sum
