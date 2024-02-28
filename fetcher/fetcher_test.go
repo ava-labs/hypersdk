@@ -5,7 +5,6 @@ package fetcher
 
 import (
 	"context"
-	_ "fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -47,6 +46,98 @@ func (db *testDB) GetValue(_ context.Context, key []byte) (value []byte, err err
 		return nil, database.ErrNotFound
 	}
 	return val, nil
+}
+
+func TestFetchSameKeysConcurrentBasic(t *testing.T) {
+	var (
+		require = require.New(t)
+		f       = New(2, 4, newTestDB())
+		ctx     = context.TODO()
+	)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	sk := make(state.Keys, 1)
+	sk.Add(strconv.Itoa(1), state.Read)
+
+	txID1 := ids.GenerateTestID()
+	txID2 := ids.GenerateTestID()
+
+	wg1 := f.Lookup(ctx, txID1, sk)
+	wg2 := f.Lookup(ctx, txID2, sk)
+
+	go func(sk state.Keys, wg1 *sync.WaitGroup) {
+		defer wg.Done()
+		_, _ = f.Wait(wg1, sk)
+	}(sk, wg1)
+
+	go func(sk state.Keys, wg2 *sync.WaitGroup) {
+		defer wg.Done()
+		_, _ = f.Wait(wg2, sk)
+	}(sk, wg2)
+
+	wg.Wait()
+
+	l := len(f.cache)
+	require.Equal(1, l)
+	require.Equal(2, f.completed)
+	require.NoError(f.HandleErrors())
+}
+
+func TestFetchSameKeysConcurrent(t *testing.T) {
+	var (
+		require = require.New(t)
+		f       = New(10, 4, newTestDB())
+		ctx     = context.TODO()
+	)
+	var wg sync.WaitGroup
+	wg.Add(10)
+
+	sk1 := make(state.Keys, 1)
+	sk1.Add(strconv.Itoa(1), state.Read)
+
+	sk2 := make(state.Keys, 2)
+	sk2.Add(strconv.Itoa(1), state.Read)
+	sk2.Add(strconv.Itoa(2), state.Read)
+
+	sk3 := make(state.Keys, 1)
+	sk1.Add(strconv.Itoa(3), state.Read)
+
+	sk4 := make(state.Keys, 3)
+	sk2.Add(strconv.Itoa(1), state.Read)
+	sk2.Add(strconv.Itoa(2), state.Read)
+	sk2.Add(strconv.Itoa(3), state.Read)
+
+	for i := 0; i < 10; i++ {
+		txID := ids.GenerateTestID()
+		var fetchWg *sync.WaitGroup
+		var sk state.Keys
+		switch i % 4 {
+		case 0:
+			fetchWg = f.Lookup(ctx, txID, sk1)
+			sk = sk1
+		case 1:
+			fetchWg = f.Lookup(ctx, txID, sk2)
+			sk = sk2
+		case 2:
+			fetchWg = f.Lookup(ctx, txID, sk3)
+			sk = sk3
+		case 3:
+			fetchWg = f.Lookup(ctx, txID, sk4)
+			sk = sk4
+		}
+		go func(sk state.Keys, fwg *sync.WaitGroup) {
+			defer wg.Done()
+			_, _ = f.Wait(fwg, sk)
+		}(sk, fetchWg)
+	}
+
+	wg.Wait()
+
+	l := len(f.cache)
+	require.Equal(3, l)
+	require.Equal(10, f.completed)
+	require.NoError(f.HandleErrors())
 }
 
 func TestFetchDifferentKeys(t *testing.T) {
@@ -188,97 +279,4 @@ func TestFetcherStop(t *testing.T) {
 	require.Less(len(f.cache), 4)
 	require.Equal(3, f.completed)
 	require.Equal(ErrStopped, f.HandleErrors())
-}
-
-func TestFetchSameKeysConcurrentBasic(t *testing.T) {
-	var (
-		require = require.New(t)
-		f       = New(2, 4, newTestDB())
-		ctx     = context.TODO()
-	)
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	sk := make(state.Keys, 1)
-	sk.Add(strconv.Itoa(1), state.Read)
-
-	txID1 := ids.GenerateTestID()
-	txID2 := ids.GenerateTestID()
-
-	wg1 := f.Lookup(ctx, txID1, sk)
-	wg2 := f.Lookup(ctx, txID2, sk)
-
-	go func(sk state.Keys, txID ids.ID, wg1 *sync.WaitGroup) {
-		defer wg.Done()
-		_, _ = f.Wait(wg1, sk)
-	}(sk, txID1, wg1)
-
-	go func(sk state.Keys, txID ids.ID, wg2 *sync.WaitGroup) {
-		defer wg.Done()
-		_, _ = f.Wait(wg2, sk)
-	}(sk, txID2, wg2)
-
-	wg.Wait()
-
-	l := len(f.cache)
-	require.Equal(1, l)
-	require.Equal(2, f.completed)
-	require.NoError(f.HandleErrors())
-}
-
-func TestFetchSameKeysConcurrent(t *testing.T) {
-	var (
-		require = require.New(t)
-		f       = New(10, 4, newTestDB())
-		ctx     = context.TODO()
-	)
-	var wg sync.WaitGroup
-	wg.Add(10)
-
-	sk1 := make(state.Keys, 1)
-	sk1.Add(strconv.Itoa(1), state.Read)
-
-	sk2 := make(state.Keys, 2)
-	sk2.Add(strconv.Itoa(1), state.Read)
-	sk2.Add(strconv.Itoa(2), state.Read)
-
-	sk3 := make(state.Keys, 1)
-	sk1.Add(strconv.Itoa(3), state.Read)
-
-	sk4 := make(state.Keys, 3)
-	sk2.Add(strconv.Itoa(1), state.Read)
-	sk2.Add(strconv.Itoa(2), state.Read)
-	sk2.Add(strconv.Itoa(3), state.Read)
-
-	for i := 0; i < 10; i++ {
-		txID := ids.GenerateTestID()
-		//fmt.Printf("txID %v %v\n", i, txID)
-		var fetchWg *sync.WaitGroup
-		var sk state.Keys
-		switch i % 4 {
-		case 0:
-			fetchWg = f.Lookup(ctx, txID, sk1)
-			sk = sk1
-		case 1:
-			fetchWg = f.Lookup(ctx, txID, sk2)
-			sk = sk2
-		case 2:
-			fetchWg = f.Lookup(ctx, txID, sk3)
-			sk = sk3
-		case 3:
-			fetchWg = f.Lookup(ctx, txID, sk4)
-			sk = sk4
-		}
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
-			defer wg.Done()
-			_, _ = f.Wait(fwg, sk)
-		}(sk, fetchWg)
-	}
-
-	wg.Wait()
-
-	l := len(f.cache)
-	require.Equal(3, l)
-	require.Equal(10, f.completed)
-	require.NoError(f.HandleErrors())
 }
