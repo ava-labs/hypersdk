@@ -158,8 +158,9 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	f.txnsToFetch[txID].Add(len(stateKeys))
 	f.txnLock.Unlock()
 
+	f.keyLock.Lock()
+	var tasks []*task
 	for k := range stateKeys {
-		f.keyLock.Lock()
 		if _, ok := f.keysToFetch[k]; !ok {
 			f.keysToFetch[k] = make([]ids.ID, 0)
 		}
@@ -168,9 +169,11 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 			ctx: ctx,
 			key: k,
 		}
-		// Release the lock before passing to worker to avoid
-		// deadlock when calling updateDependencies
-		f.keyLock.Unlock()
+		tasks = append(tasks, t)
+	}
+	f.keyLock.Unlock()
+
+	for _, t := range tasks {
 		f.fetchable <- t
 	}
 	return f.txnsToFetch[txID]
