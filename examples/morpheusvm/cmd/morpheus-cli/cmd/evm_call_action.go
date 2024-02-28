@@ -193,7 +193,7 @@ func prepareData(abiFile string, method string, args []string) ([]byte, error) {
 			argsABI = append(argsABI, addr)
 		case abi.UintTy:
 			bigInt := new(big.Int)
-			bigInt, ok := bigInt.SetString(args[i], 10)
+			bigInt, ok := bigInt.SetString(args[i], 0)
 			if !ok {
 				return nil, fmt.Errorf("invalid uint %s", args[i])
 			}
