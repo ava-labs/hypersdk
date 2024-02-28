@@ -53,12 +53,12 @@ var evmCallCmd = &cobra.Command{
 			return err
 		}
 		if evmCallAbi != "" {
-			abiData, err := prepareData(evmCallAbi, evmCallMethod, evmCallArgs)
+			calldata, err := prepareData(evmCallAbi, evmCallMethod, evmCallArgs)
 			if err != nil {
 				return err
 			}
-			utils.Outf("{{yellow}}data:{{/}} %s\n", hex.EncodeToString(data))
-			data = append(data, abiData...)
+			utils.Outf("{{yellow}}calldata:{{/}} %s\n", hex.EncodeToString(calldata))
+			data = append(data, calldata...)
 		}
 		call := &actions.EvmCall{
 			To:       to,
