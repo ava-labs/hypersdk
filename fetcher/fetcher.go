@@ -154,12 +154,13 @@ func (f *Fetcher) updateDependencies(k string) {
 // Lookup enqueues keys for the workers to fetch
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	f.txnLock.Lock()
-	f.txnsToFetch[txID] = &sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
+	f.txnsToFetch[txID] = wg
 	f.txnsToFetch[txID].Add(len(stateKeys))
 	f.txnLock.Unlock()
 
 	f.keyLock.Lock()
-	var tasks []*task
+	tasks := make([]*task, 0, len(stateKeys))
 	for k := range stateKeys {
 		if _, ok := f.keysToFetch[k]; !ok {
 			f.keysToFetch[k] = make([]ids.ID, 0)
@@ -176,7 +177,7 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	for _, t := range tasks {
 		f.fetchable <- t
 	}
-	return f.txnsToFetch[txID]
+	return wg
 }
 
 func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint16, map[string][]byte) {
