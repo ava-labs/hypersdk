@@ -102,6 +102,8 @@ func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, erro
 }
 
 func (t *trieShim) UpdateStorage(addr common.Address, key, value []byte) error {
+	// TODO: why is this copy necessary?
+	value = common.CopyBytes(value)
 	return storage.SetStorage(t.d.ctx, t.d.mu, addr, key, value)
 }
 
