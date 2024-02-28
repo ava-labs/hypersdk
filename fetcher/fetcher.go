@@ -6,6 +6,7 @@ package fetcher
 import (
 	"context"
 	"errors"
+	_ "fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -25,7 +26,7 @@ type Fetcher struct {
 
 	keysToFetch map[string][]ids.ID        // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
-	keyLock     sync.Mutex
+	keyLock     sync.RWMutex
 	txnLock     sync.Mutex
 
 	stopOnce  sync.Once
@@ -49,7 +50,9 @@ type fetchData struct {
 // Holds the information that a worker needs to fetch values
 type task struct {
 	ctx context.Context
+	id  ids.ID
 	key string
+	wg  *sync.WaitGroup
 }
 
 // New creates a new [Fetcher]
@@ -80,17 +83,27 @@ func (f *Fetcher) runWorker() {
 				return
 			}
 
+			f.keyLock.RLock()
+			if exists := f.has(t.key); !exists && f.keysToFetch[t.key][0] != t.id {
+				f.keyLock.RUnlock()
+				t.wg.Wait()
+			} else {
+				f.keyLock.RUnlock()
+			}
+
 			// Allow concurrent reads to cache
 			if exists := f.has(t.key); exists {
-				f.updateDependencies(t.key)
+				//fmt.Printf("cache hit! %v %v\n", t.key, t.id)
+				f.updateDependencies(t.id, t.key)
 				continue
 			}
 
+			//fmt.Printf("disk! %v, %v\n", t.key, t.id)
 			// Fetch from disk once if key isn't already in cache
 			v, err := f.im.GetValue(t.ctx, []byte(t.key))
 			if errors.Is(err, database.ErrNotFound) {
 				f.updateCache(t.key, nil, false, 0)
-				f.updateDependencies(t.key)
+				f.updateDependencies(t.id, t.key)
 				continue
 			} else if err != nil {
 				f.stopOnce.Do(func() {
@@ -112,7 +125,7 @@ func (f *Fetcher) runWorker() {
 			}
 
 			f.updateCache(t.key, v, true, numChunks)
-			f.updateDependencies(t.key)
+			f.updateDependencies(t.id, t.key)
 		case <-f.stop:
 			return
 		}
@@ -136,9 +149,22 @@ func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
 
 // After fetching a key, decrement the tx count that was waiting on the key.
 // This function is only called by the worker.
-func (f *Fetcher) updateDependencies(k string) {
+func (f *Fetcher) updateDependencies(id ids.ID, k string) {
 	f.keyLock.Lock()
 	defer f.keyLock.Unlock()
+
+	/*
+		f.txnLock.Lock()
+		txns := f.keysToFetch[k]
+		for _, txID := range txns {
+			if txID == id {
+				f.txnsToFetch[txID].Done()
+			}
+		}
+		// Remove txn waiting for this key
+		f.keysToFetch[k] = f.keysToFetch[k][1:]
+		f.txnLock.Unlock()
+	*/
 
 	txIDs := f.keysToFetch[k]
 	f.txnLock.Lock()
@@ -168,7 +194,9 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		f.keysToFetch[k] = append(f.keysToFetch[k], txID)
 		t := &task{
 			ctx: ctx,
+			id:  txID,
 			key: k,
+			wg:  wg,
 		}
 		tasks = append(tasks, t)
 	}
