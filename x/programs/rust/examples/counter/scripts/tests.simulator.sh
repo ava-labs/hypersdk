@@ -27,7 +27,7 @@ cd "${simulator_path}"
 go mod download
 
 echo "Building Simulator..."
-go build -o "${simulator_bin}" "${simulator_path}"
+go generate && go build -o "${simulator_bin}" "${simulator_path}"
 
 echo "Running Simulator Tests..."
 cd "${example_path}"

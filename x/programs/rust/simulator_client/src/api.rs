@@ -6,9 +6,9 @@ pub struct CreateKeyRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PublicKey {
+pub struct CreateKeyResponse {
     #[prost(string, tag = "1")]
-    pub value: ::prost::alloc::string::String,
+    pub name: ::prost::alloc::string::String,
 }
 /// Generated client implementations.
 pub mod simulator_client {
@@ -98,7 +98,10 @@ pub mod simulator_client {
         pub async fn create_key(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateKeyRequest>,
-        ) -> std::result::Result<tonic::Response<super::PublicKey>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::CreateKeyResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
