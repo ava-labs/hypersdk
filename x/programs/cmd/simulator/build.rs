@@ -18,8 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let simulator_path = "bin/simulator";
     let simulator_src = "simulator.go";
 
-    // resolve absolute path for simulator_path and create dir if it doesn't exist
-
     let simulator_path = current_dir.join(simulator_path);
     let simulator_path = simulator_path.to_str().unwrap();
 

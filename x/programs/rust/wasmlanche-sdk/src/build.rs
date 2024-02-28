@@ -10,8 +10,6 @@ pub fn build_wasm_on_test() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=/build");
 
-    // TODO:
-    // remove these printlns
     let target = std::env::var("TARGET").unwrap();
     let profile = std::env::var("PROFILE").unwrap();
 
@@ -55,7 +53,6 @@ pub fn build_wasm_on_test() {
         let target_dir = match target_dir.canonicalize() {
             Ok(target_dir) => target_dir,
             err @ Err(_) => {
-                // print the target_dir
                 println!("cargo:warning= not found -> {target_dir:?}");
                 err.expect("failed to canonicalize wasm file path")
             }

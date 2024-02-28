@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use wasmlanche_sdk::{program::Program, public, state_keys, types::Address};
-// new things
 
 /// The program state keys.
 #[state_keys]
