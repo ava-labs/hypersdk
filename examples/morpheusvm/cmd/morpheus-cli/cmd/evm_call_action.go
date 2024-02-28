@@ -48,17 +48,17 @@ var evmCallCmd = &cobra.Command{
 			addr := common.HexToAddress(evmCallTo)
 			to = &addr
 		}
+		data, err = readFileOrHex(evmCallData, evmCallDataFile)
+		if err != nil {
+			return err
+		}
 		if evmCallAbi != "" {
-			data, err = prepareData(evmCallAbi, evmCallMethod, evmCallArgs)
+			abiData, err := prepareData(evmCallAbi, evmCallMethod, evmCallArgs)
 			if err != nil {
 				return err
 			}
 			utils.Outf("{{yellow}}data:{{/}} %s\n", hex.EncodeToString(data))
-		} else {
-			data, err = readFileOrHex(evmCallData, evmCallDataFile)
-			if err != nil {
-				return err
-			}
+			data = append(data, abiData...)
 		}
 		call := &actions.EvmCall{
 			To:       to,
@@ -170,10 +170,18 @@ func prepareData(abiFile string, method string, args []string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var argsABI []interface{}
-	methodABI, ok := parsed.Methods[method]
-	if !ok {
-		return nil, fmt.Errorf("method %s not found in ABI", method)
+	var (
+		argsABI   []interface{}
+		methodABI abi.Method
+	)
+	if method == "" {
+		methodABI = parsed.Constructor
+	} else {
+		var ok bool
+		methodABI, ok = parsed.Methods[method]
+		if !ok {
+			return nil, fmt.Errorf("method %s not found in ABI", method)
+		}
 	}
 	if len(args) != len(methodABI.Inputs) {
 		return nil, fmt.Errorf(
