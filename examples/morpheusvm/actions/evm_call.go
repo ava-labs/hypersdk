@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
@@ -45,7 +46,8 @@ type EvmCall struct {
 }
 
 func ToEVMAddress(addr codec.Address) common.Address {
-	return common.BytesToAddress(addr[len(addr)-common.AddressLength:])
+	hashed := hashing.ComputeHash256(addr[:])
+	return common.BytesToAddress(hashed[len(hashed)-common.AddressLength:])
 }
 
 func (e *EvmCall) toMessage(from common.Address) *core.Message {

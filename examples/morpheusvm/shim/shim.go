@@ -73,8 +73,7 @@ func (t *trieShim) GetStorage(addr common.Address, key []byte) ([]byte, error) {
 func (t *trieShim) GetAccount(address common.Address) (*types.StateAccount, error) {
 	// TODO: consolidate account & balance into a single storage entry
 	var account types.StateAccount
-	codecAddr := storage.BytesToAddress(address[:])
-	balance, err := storage.GetBalance(t.d.ctx, t.d.mu, codecAddr)
+	balance, err := storage.GetBalanceHashed(t.d.ctx, t.d.mu, address[:])
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +116,7 @@ func (t *trieShim) UpdateAccount(address common.Address, account *types.StateAcc
 		return err
 	}
 	// TODO: consolidate account & balance into a single storage entry
-	codecAddr := storage.BytesToAddress(address[:])
-	if err := storage.SetBalance(t.d.ctx, t.d.mu, codecAddr, account.Balance.Uint64()); err != nil {
+	if err := storage.SetBalanceHashed(t.d.ctx, t.d.mu, address[:], account.Balance.Uint64()); err != nil {
 		return err
 	}
 	return storage.SetAccount(t.d.ctx, t.d.mu, address, p.Bytes())
