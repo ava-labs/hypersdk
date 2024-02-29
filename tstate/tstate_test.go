@@ -120,7 +120,7 @@ func TestInsertNew(t *testing.T) {
 	ts := New(10)
 
 	// SetScope
-	tsv := ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{})
 
 	// Test Disable Allocate
 	tsv.DisableAllocation()
@@ -190,7 +190,7 @@ func TestInsertRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.Read | state.Write}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{})
 	require.Equal(0, ts.OpIndex())
 
 	// Insert key for first time
@@ -262,7 +262,7 @@ func TestModifyRemoveInsert(t *testing.T) {
 	ts := New(10)
 
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.Read | state.Write}, map[string][]byte{key2str: testVal})
+	tsv := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{key2str: testVal})
 	require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
@@ -403,7 +403,7 @@ func TestRemoveInsertRollback(t *testing.T) {
 	ctx := context.TODO()
 
 	// Insert
-	tsv := ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{})
+	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{})
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	v, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err)
@@ -442,9 +442,9 @@ func TestRestoreInsert(t *testing.T) {
 	ctx := context.TODO()
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
-		key1str: state.Read | state.Write,
-		key2str: state.Read | state.Write,
-		key3str: state.Read | state.Write,
+		key1str: state.All,
+		key2str: state.All,
+		key3str: state.All,
 	}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
@@ -557,9 +557,9 @@ func TestCreateView(t *testing.T) {
 	require.NoError(err)
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
-		key1str: state.Read | state.Write,
-		key2str: state.Read | state.Write,
-		key3str: state.Read | state.Write,
+		key1str: state.All,
+		key2str: state.All,
+		key3str: state.All,
 	}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
@@ -828,6 +828,83 @@ func TestUpdatingKeyPermission(t *testing.T) {
 			require.NoError(err)
 			require.NoError(tsv.Insert(ctx, []byte(tt.key), []byte("val")))
 			require.NoError(tsv.Remove(ctx, []byte(tt.key)))
+		})
+	}
+}
+
+func TestInsertAllocate(t *testing.T) {
+	tests := []struct {
+		name        string
+		key         string
+		permission1 state.Permissions
+		permission2 state.Permissions
+		shouldFail  bool
+	}{
+		{
+			name:        "key has R then W",
+			key:         "test",
+			permission1: state.Read,
+			permission2: state.Write,
+			shouldFail:  true,
+		},
+		{
+			name:        "key has R then A",
+			key:         "test",
+			permission1: state.Read,
+			permission2: state.Allocate,
+			shouldFail:  true,
+		},
+		{
+			name:        "key has R then W/A",
+			key:         "test",
+			permission1: state.Read,
+			permission2: state.Write | state.Allocate,
+			shouldFail:  false,
+		},
+		{
+			name:        "key has W then A",
+			key:         "test",
+			permission1: state.Write,
+			permission2: state.Allocate,
+			shouldFail:  false,
+		},
+		{
+			name:        "key has A then W",
+			key:         "test",
+			permission1: state.Allocate,
+			permission2: state.Write,
+			shouldFail:  false,
+		},
+		{
+			name:        "key has no perms then R/W/A",
+			key:         "test",
+			permission1: state.None,
+			permission2: state.All,
+			shouldFail:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			ctx := context.TODO()
+			ts := New(10)
+
+			keys := state.Keys{tt.key: tt.permission1}
+			tsv := ts.NewView(keys, map[string][]byte{})
+
+			// Try to update key
+			require.ErrorIs(tsv.Insert(ctx, []byte(tt.key), testVal), ErrInvalidKeyOrPermission)
+
+			// Update the permission
+			keys.Add(tt.key, tt.permission2)
+
+			// Insert key
+			if tt.shouldFail {
+				require.ErrorIs(tsv.Insert(ctx, []byte(tt.key), testVal), ErrInvalidKeyOrPermission)
+			} else {
+				require.NoError(tsv.Insert(ctx, []byte(tt.key), testVal))
+			}
 		})
 	}
 }

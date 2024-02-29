@@ -213,10 +213,6 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 // Insert allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	// Inserting requires a Write Permissions, so we pass state.Write
-	if !ts.checkScope(ctx, key, state.Write) {
-		return ErrInvalidKeyOrPermission
-	}
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}
@@ -234,11 +230,19 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 			// No change, so this isn't an op.
 			return nil
 		}
+		// Updating just requires a Write permission
+		if !ts.checkScope(ctx, key, state.Write) {
+			return ErrInvalidKeyOrPermission
+		}
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
 		if !ts.canAllocate {
 			return ErrAllocationDisabled
+		}
+		// New entry requires Write and Allocate
+		if !ts.checkScope(ctx, key, state.Write|state.Allocate) {
+			return ErrInvalidKeyOrPermission
 		}
 		op.t = createOp
 		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
