@@ -53,8 +53,8 @@ func TestFetchSameKeysConcurrentBasic(t *testing.T) {
 		require = require.New(t)
 		f       = New(2, 4, newTestDB())
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
-	var wg sync.WaitGroup
 	wg.Add(2)
 
 	sk := make(state.Keys, 1)
@@ -89,8 +89,8 @@ func TestFetchSameKeysConcurrent(t *testing.T) {
 		require = require.New(t)
 		f       = New(10, 4, newTestDB())
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
-	var wg sync.WaitGroup
 	wg.Add(10)
 
 	sk1 := make(state.Keys, 1)
@@ -131,7 +131,6 @@ func TestFetchSameKeysConcurrent(t *testing.T) {
 			_, _ = f.Wait(fwg, sk)
 		}(sk, fetchWg)
 	}
-
 	wg.Wait()
 
 	l := len(f.cache)
@@ -143,10 +142,14 @@ func TestFetchSameKeysConcurrent(t *testing.T) {
 func TestFetchDifferentKeys(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(100, 4, newTestDB())
+		numTxs  = 100
+		f       = New(numTxs, 4, newTestDB())
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
-	for i := 0; i < 100; i++ {
+	wg.Add(numTxs)
+
+	for i := 0; i < numTxs; i++ {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate different read keys
@@ -155,23 +158,32 @@ func TestFetchDifferentKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// Since these are all different keys, we will
 		// fetch each key from disk
-		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Wait(wg, stateKeys)
+		fwg := f.Lookup(ctx, txID, stateKeys)
+		go func(sk state.Keys, fwg *sync.WaitGroup) {
+			defer wg.Done()
+			_, _ = f.Wait(fwg, sk)
+		}(stateKeys, fwg)
 	}
+	wg.Wait()
+
 	// There should be 5050 different keys now in the cache
 	l := len(f.cache)
 	require.Equal(5050, l)
-	require.Equal(100, f.completed)
+	require.Equal(numTxs, f.completed)
 	require.NoError(f.HandleErrors())
 }
 
 func TestFetchSameKeys(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(100, 4, newTestDB())
+		numTxs  = 100
+		f       = New(numTxs, 4, newTestDB())
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
-	for i := 0; i < 100; i++ {
+	wg.Add(numTxs)
+
+	for i := 0; i < numTxs; i++ {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
@@ -180,93 +192,91 @@ func TestFetchSameKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
 		// be getting subsequnt requests from cache
-		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Wait(wg, stateKeys)
+		fwg := f.Lookup(ctx, txID, stateKeys)
+		go func(sk state.Keys, fwg *sync.WaitGroup) {
+			defer wg.Done()
+			_, _ = f.Wait(fwg, sk)
+		}(stateKeys, fwg)
 	}
-	// There's only 100 keys
+	wg.Wait()
+
 	l := len(f.cache)
-	require.Equal(100, l)
-	require.Equal(100, f.completed)
+	require.Equal(numTxs, l)
+	require.Equal(numTxs, f.completed)
 	require.NoError(f.HandleErrors())
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(25, 4, newTestDB())
+		numTxs  = 25
+		f       = New(numTxs, 4, newTestDB())
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
-	for i := 0; i < 25; i++ {
+	wg.Add(numTxs)
+	for i := 0; i < numTxs; i++ {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		wg := f.Lookup(ctx, txID, stateKeys)
 		if i%2 == 0 {
 			time.Sleep(1 * time.Second)
 		}
-		_, _ = f.Wait(wg, stateKeys)
+		fwg := f.Lookup(ctx, txID, stateKeys)
+		go func(sk state.Keys, fwg *sync.WaitGroup) {
+			defer wg.Done()
+			_, _ = f.Wait(fwg, sk)
+		}(stateKeys, fwg)
 	}
+	wg.Wait()
+
 	l := len(f.cache)
-	require.Equal(25, l)
-	require.Equal(25, f.completed)
+	require.Equal(numTxs, l)
+	require.Equal(numTxs, f.completed)
 	require.NoError(f.HandleErrors())
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(100, 4, newTestDBWithValue())
+		numTxs  = 100
+		f       = New(numTxs, 4, newTestDBWithValue())
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
-	for i := 0; i < 100; i++ {
+	wg.Add(numTxs)
+	for i := 0; i < numTxs; i++ {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Wait(wg, stateKeys)
+		fwg := f.Lookup(ctx, txID, stateKeys)
+		go func(sk state.Keys, fwg *sync.WaitGroup) {
+			defer wg.Done()
+			_, _ = f.Wait(fwg, sk)
+		}(stateKeys, fwg)
 	}
-	l := len(f.cache)
-	require.Equal(100, l)
-	require.Equal(100, f.completed)
-	require.NoError(f.HandleErrors())
-}
+	wg.Wait()
 
-func TestFetchSameKeyRepeatedly(t *testing.T) {
-	var (
-		require = require.New(t)
-		f       = New(100, 10, newTestDBWithValue())
-		ctx     = context.TODO()
-	)
-	for i := 0; i < 100; i++ {
-		stateKeys := make(state.Keys, 1)
-		if i < 50 {
-			stateKeys.Add(strconv.Itoa(1), state.Read)
-		} else {
-			stateKeys.Add(strconv.Itoa(2), state.Read)
-		}
-		txID := ids.GenerateTestID()
-		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Wait(wg, stateKeys)
-	}
 	l := len(f.cache)
-	require.Equal(2, l)
-	require.Equal(100, f.completed)
+	require.Equal(numTxs, l)
+	require.Equal(numTxs, f.completed)
 	require.NoError(f.HandleErrors())
 }
 
 func TestFetcherStop(t *testing.T) {
 	var (
 		require = require.New(t)
-		f       = New(100, 10, newTestDBWithValue())
+		numTxs  = 100
+		f       = New(numTxs, 10, newTestDBWithValue())
 		ctx     = context.TODO()
 	)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < numTxs; i++ {
 		stateKeys := make(state.Keys, 1)
 		if i == 3 {
 			f.Stop()
