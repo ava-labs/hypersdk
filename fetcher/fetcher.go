@@ -82,13 +82,19 @@ func (f *Fetcher) runWorker() {
 				return
 			}
 
-			// Checks the cache twice. In isFirst, we will wait if it's not
-			// in the cache and not the first tx requesting the key. We have
-			// the second check to ensure when the tx is unblocked, it can
-			// fetch from cache.
-			f.isFirst(t)
+			// Allows concurrent reads to cache.
 			if exists := f.has(t.key); exists {
 				f.updateDependencies(t.key)
+				continue
+			}
+
+			// Doesn't exist in cache, check if we were the first to
+			// request the key.
+			f.keyLock.RLock()
+			firstTx := f.keysToFetch[t.key][0]
+			f.keyLock.RUnlock()
+			if firstTx != t.id {
+				t.wg.Wait()
 				continue
 			}
 
@@ -125,23 +131,12 @@ func (f *Fetcher) runWorker() {
 	}
 }
 
-// Checks if a key is in the cache. Allows concurrent reads to cache.
+// Checks if a key is in the cache.
 func (f *Fetcher) has(k string) bool {
 	f.cacheLock.RLock()
 	defer f.cacheLock.RUnlock()
 	_, exists := f.cache[k]
 	return exists
-}
-
-// Checks if tx fetching this key was the first to request
-func (f *Fetcher) isFirst(t *task) {
-	f.keyLock.RLock()
-	if exists := f.has(t.key); !exists && f.keysToFetch[t.key][0] != t.id {
-		f.keyLock.RUnlock() // Release the lock before blocking
-		t.wg.Wait()
-	} else {
-		f.keyLock.RUnlock()
-	}
 }
 
 // Puts a key that was fetched from disk into cache
