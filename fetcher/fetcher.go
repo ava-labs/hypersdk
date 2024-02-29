@@ -136,9 +136,11 @@ func (f *Fetcher) has(k string) bool {
 // Checks if tx fetching this key was the first to request
 func (f *Fetcher) isFirst(t *task) {
 	f.keyLock.RLock()
-	defer f.keyLock.RUnlock()
 	if exists := f.has(t.key); !exists && f.keysToFetch[t.key][0] != t.id {
+		f.keyLock.RUnlock() // Release the lock before blocking
 		t.wg.Wait()
+	} else {
+		f.keyLock.RUnlock()
 	}
 }
 
