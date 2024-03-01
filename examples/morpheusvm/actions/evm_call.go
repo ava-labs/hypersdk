@@ -42,6 +42,7 @@ type EvmCall struct {
 	Keys          state.Keys      `json:"stateKeys"`
 
 	logger         logging.Logger
+	usedGas        uint64
 	executionError error
 }
 
@@ -170,6 +171,7 @@ func (e *EvmCall) Execute(
 	}
 	success := result.Err == nil
 	e.executionError = result.Err
+	e.usedGas = result.UsedGas
 	return success, GasToComputeUnits(result.UsedGas), result.ReturnData, nil, nil
 }
 
@@ -277,6 +279,10 @@ func (e *EvmCall) ExecutionError() string {
 		return ""
 	}
 	return e.executionError.Error()
+}
+
+func (e *EvmCall) UsedGas() uint64 {
+	return e.usedGas
 }
 
 func MarshalKeys(s state.Keys, p *codec.Packer) {

@@ -125,6 +125,32 @@ func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (
 	return success, fee, nil
 }
 
+func (cli *JSONRPCClient) EvmAccount(ctx context.Context, addr string) (uint64, uint64, error) {
+	resp := new(EVMAccountReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"evmAccount",
+		&EVMAccountArgs{
+			Address: addr,
+		},
+		resp,
+	)
+	return resp.Balance, resp.Nonce, err
+}
+
+func (cli *JSONRPCClient) EvmGetCode(ctx context.Context, addr string) ([]byte, error) {
+	resp := new(EVMGetCodeReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"evmGetCode",
+		&EVMGetCodeArgs{
+			Address: addr,
+		},
+		resp,
+	)
+	return resp.Code, err
+}
+
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {

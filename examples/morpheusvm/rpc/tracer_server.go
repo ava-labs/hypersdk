@@ -26,6 +26,7 @@ type TraceTxReply struct {
 	Timestamp   int64  `json:"timestamp"`
 	Success     bool   `json:"success"`
 	CUs         uint64 `json:"units"`
+	UsedGas     uint64 `json:"usedGas"`
 	Output      []byte `json:"output"`
 	WarpMessage bool   `json:"warpMessage"` // TODO: output full details
 	StateKeys   []byte `json:"stateKeys"`
@@ -62,6 +63,7 @@ func (j *JSONRPCServer) TraceTx(
 	reply.Output = output
 	reply.WarpMessage = warpMessage != nil
 	reply.Error = args.Action.ExecutionError()
+	reply.UsedGas = args.Action.UsedGas()
 	p := codec.NewWriter(0, consts.MaxInt)
 	actions.MarshalKeys(traced.Keys, p)
 	if err := p.Err(); err != nil {
