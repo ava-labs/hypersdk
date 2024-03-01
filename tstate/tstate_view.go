@@ -8,7 +8,10 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/maybe"
+	"github.com/ethereum/go-ethereum/common"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
@@ -319,4 +322,21 @@ func chunks(m map[string]uint16, key string) *uint16 {
 		return nil
 	}
 	return &chunks
+}
+
+func (ts *TStateView) LogChangedKeys(log logging.Logger) {
+	for k, v := range ts.pendingChangedKeys {
+		if v.IsNothing() {
+			log.Info(
+				"TStateView deleted key",
+				zap.String("key", common.Bytes2Hex([]byte(k))),
+			)
+		} else {
+			log.Info(
+				"TStateView changed key",
+				zap.String("key", common.Bytes2Hex([]byte(k))),
+				zap.String("value", common.Bytes2Hex(v.Value())),
+			)
+		}
+	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
@@ -124,6 +125,12 @@ func (b *StatelessBlock) Execute(
 					return ctx.Err()
 				}
 			}
+			type setLogger interface {
+				SetLogger(logger logging.Logger)
+			}
+			if sl, ok := tx.Action.(setLogger); ok {
+				sl.SetLogger(b.vm.Logger())
+			}
 			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified)
 			if err != nil {
 				return err
@@ -137,6 +144,7 @@ func (b *StatelessBlock) Execute(
 			}
 
 			// Commit results to parent [TState]
+			tsv.LogChangedKeys(b.vm.Logger())
 			tsv.Commit()
 
 			// Update key cache
