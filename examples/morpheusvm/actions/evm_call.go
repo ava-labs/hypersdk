@@ -138,7 +138,7 @@ func (e *EvmCall) Execute(
 		GetHash:     func(uint64) common.Hash { return common.Hash{} },
 		GasLimit:    blockGasLimit,
 		BlockNumber: new(big.Int).SetUint64(parentHeight + 1),
-		Time:        uint64(time),
+		Time:        uint64(time / 1000),
 		Difficulty:  big.NewInt(1),
 		BaseFee:     big.NewInt(0),
 	}
