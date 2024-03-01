@@ -241,7 +241,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 			return ErrAllocationDisabled
 		}
 		// New entry requires Write and Allocate
-		if !ts.checkScope(ctx, key, state.Write|state.Allocate) {
+		if !ts.checkScope(ctx, key, state.Allocate|state.Write) {
 			return ErrInvalidKeyOrPermission
 		}
 		op.t = createOp

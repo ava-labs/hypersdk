@@ -834,53 +834,40 @@ func TestUpdatingKeyPermission(t *testing.T) {
 
 func TestInsertAllocate(t *testing.T) {
 	tests := []struct {
-		name        string
-		key         string
-		permission1 state.Permissions
-		permission2 state.Permissions
-		shouldFail  bool
+		name       string
+		key        string
+		permission state.Permissions
+		shouldFail bool
 	}{
 		{
-			name:        "key has R then W",
-			key:         "test",
-			permission1: state.Read,
-			permission2: state.Write,
-			shouldFail:  true,
+			name:       "key has RW",
+			key:        "test",
+			permission: state.Read | state.Write,
+			shouldFail: true,
 		},
 		{
-			name:        "key has R then A",
-			key:         "test",
-			permission1: state.Read,
-			permission2: state.Allocate,
-			shouldFail:  true,
+			name:       "key has RA",
+			key:        "test",
+			permission: state.Read | state.Allocate,
+			shouldFail: true,
 		},
 		{
-			name:        "key has R then W/A",
-			key:         "test",
-			permission1: state.Read,
-			permission2: state.Write | state.Allocate,
-			shouldFail:  false,
+			name:       "key has RWA",
+			key:        "test",
+			permission: state.Read | state.Allocate | state.Write,
+			shouldFail: false,
 		},
 		{
-			name:        "key has W then A",
-			key:         "test",
-			permission1: state.Write,
-			permission2: state.Allocate,
-			shouldFail:  false,
+			name:       "key has WA",
+			key:        "test",
+			permission: state.Write | state.Allocate,
+			shouldFail: false,
 		},
 		{
-			name:        "key has A then W",
-			key:         "test",
-			permission1: state.Allocate,
-			permission2: state.Write,
-			shouldFail:  false,
-		},
-		{
-			name:        "key has no perms then R/W/A",
-			key:         "test",
-			permission1: state.None,
-			permission2: state.All,
-			shouldFail:  false,
+			name:       "key has no perms",
+			key:        "test",
+			permission: state.None,
+			shouldFail: true,
 		},
 	}
 
@@ -890,16 +877,10 @@ func TestInsertAllocate(t *testing.T) {
 			ctx := context.TODO()
 			ts := New(10)
 
-			keys := state.Keys{tt.key: tt.permission1}
+			keys := state.Keys{tt.key: tt.permission}
 			tsv := ts.NewView(keys, map[string][]byte{})
 
 			// Try to update key
-			require.ErrorIs(tsv.Insert(ctx, []byte(tt.key), testVal), ErrInvalidKeyOrPermission)
-
-			// Update the permission
-			keys.Add(tt.key, tt.permission2)
-
-			// Insert key
 			if tt.shouldFail {
 				require.ErrorIs(tsv.Insert(ctx, []byte(tt.key), testVal), ErrInvalidKeyOrPermission)
 			} else {
