@@ -149,7 +149,7 @@ type Rules interface {
 	GetMinBlockGap() int64    // in milliseconds
 	GetValidityWindow() int64 // in milliseconds
 
-	GetUnitPrices() Dimensions
+	GetUnitPrices() Dimensions // TODO: make this dynamic if we want to burn fees?
 	GetMaxChunkUnits() Dimensions
 
 	GetBaseComputeUnits() uint64
@@ -186,7 +186,6 @@ type MetadataManager interface {
 	HeightKey() []byte
 	PHeightKey() []byte
 	TimestampKey() []byte
-	FeeKey() []byte
 }
 
 type WarpManager interface {

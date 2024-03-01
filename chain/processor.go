@@ -64,7 +64,7 @@ type fetchData struct {
 func NewProcessor(
 	vm VM, eng *Engine,
 	latestPHeight *uint64, epochInfo []*EpochInfo,
-	chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	chunks int, timestamp int64, im state.Immutable, r Rules,
 ) *Processor {
 	stream := stream.New()
 	stream.WithMaxGoroutines(10) // TODO: use config
@@ -77,13 +77,12 @@ func NewProcessor(
 		latestPHeight: latestPHeight,
 		epochInfo:     epochInfo,
 
-		timestamp:  timestamp,
-		epoch:      utils.Epoch(timestamp, r.GetEpochDuration()),
-		im:         im,
-		feeManager: feeManager,
-		r:          r,
-		sm:         vm.StateManager(),
-		cache:      make(map[string]*fetchData, numTxs),
+		timestamp: timestamp,
+		epoch:     utils.Epoch(timestamp, r.GetEpochDuration()),
+		im:        im,
+		r:         r,
+		sm:        vm.StateManager(),
+		cache:     make(map[string]*fetchData, numTxs),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
 		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorVerifyRecorder()),
@@ -205,6 +204,8 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		// exit with an error based on which tx over the limit is processed first)
 		//
 		// TODO: we won't know this when just including certs?
+		//
+		// TODO: need to track during chunk execution to avoid unbounded compute (if we wait until end)
 		if ok, d := p.feeManager.Consume(result.Consumed, p.r.GetMaxBlockUnits()); !ok {
 			return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 		}

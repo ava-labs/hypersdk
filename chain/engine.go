@@ -117,23 +117,6 @@ func (e *Engine) Run() {
 				panic(err)
 			}
 
-			// Compute fees
-			//
-			// TODO: complexity -> limit is odd/tough to enforce across all compute (could multiple chunks by chunk limit by block per second)
-			// -> generally, want to do target at 50% of limit?
-			// -> this gets especially weird if limit grows with more participants?
-			// -> could just set via rules and then adjust as needed (using priority to prefer)?
-			feeKey := FeeKey(e.vm.StateManager().FeeKey())
-			feeRaw, err := parentView.GetValue(ctx, feeKey)
-			if err != nil {
-				panic(err)
-			}
-			parentFeeManager := NewFeeManager(feeRaw)
-			feeManager, err := parentFeeManager.ComputeNext(job.parentTimestamp, job.blk.StatefulBlock.Timestamp, r)
-			if err != nil {
-				panic(err)
-			}
-
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
