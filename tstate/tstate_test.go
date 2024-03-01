@@ -837,36 +837,58 @@ func TestInsertAllocate(t *testing.T) {
 		name       string
 		key        string
 		permission state.Permissions
+		keyExists  bool
 		shouldFail bool
 	}{
+		// Test if key already exists
 		{
 			name:       "key has RW",
 			key:        "test",
 			permission: state.Read | state.Write,
-			shouldFail: true,
+			keyExists:  true,
+			shouldFail: false,
 		},
 		{
 			name:       "key has RA",
 			key:        "test",
 			permission: state.Read | state.Allocate,
+			keyExists:  true,
+			shouldFail: true,
+		},
+		// Test if key doesn't exist
+		{
+			name:       "key has RA",
+			key:        "test",
+			permission: state.Read | state.Allocate,
+			keyExists:  false,
 			shouldFail: true,
 		},
 		{
-			name:       "key has RWA",
+			name:       "key has RW",
 			key:        "test",
-			permission: state.Read | state.Allocate | state.Write,
+			permission: state.Read | state.Write,
+			keyExists:  false,
+			shouldFail: true,
+		},
+		{
+			name:       "key has RAW",
+			key:        "test",
+			permission: state.All,
+			keyExists:  false,
 			shouldFail: false,
 		},
 		{
-			name:       "key has WA",
+			name:       "key has AW",
 			key:        "test",
-			permission: state.Write | state.Allocate,
+			permission: state.Allocate | state.Write,
+			keyExists:  false,
 			shouldFail: false,
 		},
 		{
 			name:       "key has no perms",
 			key:        "test",
 			permission: state.None,
+			keyExists:  false,
 			shouldFail: true,
 		},
 	}
@@ -878,7 +900,12 @@ func TestInsertAllocate(t *testing.T) {
 			ts := New(10)
 
 			keys := state.Keys{tt.key: tt.permission}
-			tsv := ts.NewView(keys, map[string][]byte{})
+			var tsv *TStateView
+			if tt.keyExists {
+				tsv = ts.NewView(keys, map[string][]byte{tt.key: testVal})
+			} else {
+				tsv = ts.NewView(keys, map[string][]byte{})
+			}
 
 			// Try to update key
 			if tt.shouldFail {
