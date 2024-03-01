@@ -441,6 +441,10 @@ var evmRelayCmd = &cobra.Command{
 			ReadHeaderTimeout: timeout,
 		}
 
+		utils.Outf(
+			"{{yellow}}EVMAddress (issuing, receiving): %s{{/}}\n",
+			actions.ToEVMAddress(priv.Address).Hex(),
+		)
 		go func() {
 			utils.Outf("{{green}}Listening on %s{{/}}\n", addr)
 			err := sever.ListenAndServe()
