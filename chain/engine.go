@@ -112,7 +112,7 @@ func (e *Engine) Run() {
 			//
 			// We don't need to check timestamps here becuase we already handled that in block verification.
 			epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
-			_, epochInfo, err := e.GetEpochInfo(ctx, []uint64{epoch, epoch + 1})
+			_, epochHeights, err := e.GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
 			if err != nil {
 				panic(err)
 			}
@@ -120,7 +120,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, pHeight, epochInfo, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
+			p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
@@ -412,12 +412,7 @@ func (e *Engine) Done() {
 	<-e.done
 }
 
-type EpochInfo struct {
-	PHeight uint64
-	Prices  Dimensions
-}
-
-func (e *Engine) GetEpochInfo(ctx context.Context, epochs []uint64) (int64, []*EpochInfo, error) {
+func (e *Engine) GetEpochHeights(ctx context.Context, epochs []uint64) (int64, []*uint64, error) {
 	keys := [][]byte{HeightKey(e.vm.StateManager().TimestampKey())}
 	for _, epoch := range epochs {
 		keys = append(keys, EpochKey(e.vm.StateManager().EpochKey(epoch)))
@@ -426,18 +421,14 @@ func (e *Engine) GetEpochInfo(ctx context.Context, epochs []uint64) (int64, []*E
 	if errs[0] != nil {
 		return -1, nil, fmt.Errorf("%w: can't read timestamp key", errs[0])
 	}
-	info := make([]*EpochInfo, len(epochs))
+	heights := make([]*uint64, len(epochs))
 	for i := 0; i < len(epochs); i++ {
 		if errs[i+1] != nil {
 			continue
 		}
 		value := values[i+1]
-		h := binary.BigEndian.Uint64(value[:consts.Uint64Len])
-		prices, err := UnpackDimensions(value[consts.Uint64Len:])
-		if err != nil {
-			return 0, nil, err
-		}
-		info[i] = &EpochInfo{h, prices}
+		height := binary.BigEndian.Uint64(value[:consts.Uint64Len])
+		heights[i] = &height
 	}
-	return int64(binary.BigEndian.Uint64(values[0])), info, nil
+	return int64(binary.BigEndian.Uint64(values[0])), heights, nil
 }

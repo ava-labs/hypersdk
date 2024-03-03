@@ -26,7 +26,7 @@ type Processor struct {
 	authStream *stream.Stream
 
 	latestPHeight *uint64
-	epochInfo     []*EpochInfo
+	epochHeights  []*uint64
 
 	timestamp int64
 	epoch     uint64
@@ -59,11 +59,11 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM, eng *Engine,
-	latestPHeight *uint64, epochInfo []*EpochInfo,
+	latestPHeight *uint64, epochHeights []*uint64,
 	chunks int, timestamp int64, im state.Immutable, r Rules,
 ) *Processor {
 	stream := stream.New()
-	stream.WithMaxGoroutines(10) // TODO: use config
+	stream.WithMaxGoroutines(vm.GetAuthVerifyCores())
 	return &Processor{
 		vm:  vm,
 		eng: eng,
@@ -71,7 +71,7 @@ func NewProcessor(
 		authStream: stream,
 
 		latestPHeight: latestPHeight,
-		epochInfo:     epochInfo,
+		epochHeights:  epochHeights,
 
 		timestamp: timestamp,
 		epoch:     utils.Epoch(timestamp, r.GetEpochDuration()),
@@ -319,8 +319,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 
 		// Check that height is set for epoch
 		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
-		epochInfo := p.epochInfo[txEpoch-p.epoch]
-		if epochInfo == nil {
+		epochHeight := p.epochHeights[txEpoch-p.epoch]
+		if epochHeight == nil {
 			// We can't verify tx partition if this is the case
 			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -329,7 +329,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, epochInfo.PHeight, tx.Auth.Sponsor())
+		parition, err := p.vm.AddressPartition(ctx, *epochHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -354,11 +354,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// Need to wait to enqueue until after verify signature.
 		sponsor := tx.Auth.Sponsor()
 		ssponsor := string(sponsor[:])
-		ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
-		if err != nil {
-			panic(err)
-		}
-		if !ok {
+		// ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		frozen := false
+		if frozen {
 			p.frozenSponsors.Add(ssponsor)
 		}
 

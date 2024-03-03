@@ -98,13 +98,9 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 	return nil
 }
 
-func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager) error {
+func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 	if w.blockListeners.Len() > 0 {
-		bytes, err := PackBlockMessage(b, feeManager)
-		if err != nil {
-			return err
-		}
-		inactiveConnection := w.s.Publish(append([]byte{BlockMode}, bytes...), w.blockListeners)
+		inactiveConnection := w.s.Publish(append([]byte{BlockMode}, b.Bytes()...), w.blockListeners)
 		for _, conn := range inactiveConnection {
 			w.blockListeners.Remove(conn)
 		}

@@ -453,19 +453,15 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	}
 
 	// Collect async results (if any)
-	var (
-		filteredChunks []*FilteredChunk
-		feeManager     *FeeManager
-	)
+	var filteredChunks []*FilteredChunk
 	if b.execHeight != nil {
-		fm, _, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
+		_, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
 		if err != nil {
 			return fmt.Errorf("%w: cannot commit", err)
 		}
 		filteredChunks = fc
-		feeManager = fm
 	}
-	b.vm.Accepted(ctx, b, feeManager, filteredChunks)
+	b.vm.Accepted(ctx, b, filteredChunks)
 	return nil
 }
 
@@ -479,7 +475,7 @@ func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
 	// TODO: this is definitely wrong, we should fix it
-	b.vm.Accepted(ctx, b, nil, nil)
+	b.vm.Accepted(ctx, b, nil)
 }
 
 // implements "snowman.Block.choices.Decidable"

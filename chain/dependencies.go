@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type (
@@ -66,9 +65,8 @@ type VM interface {
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
-	AuthVerifiers() workers.Workers
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
+	GetAuthVerifyCores() int
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -91,7 +89,7 @@ type VM interface {
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
-	Accepted(context.Context, *StatelessBlock, *FeeManager, []*FilteredChunk)
+	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
 	Executed(context.Context, uint64, *FilteredChunk, []*Result)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 

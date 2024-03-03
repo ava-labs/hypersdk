@@ -13,6 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	defaultChunks = 16
+)
+
 // TODO: move to block file?
 func BuildBlock(
 	ctx context.Context,
@@ -35,10 +39,10 @@ func BuildBlock(
 	// Attempt to add valid certs that are not expired (1 per validator)
 	//
 	// TODO: consider allowing up to N per validator
-	b.chunks = set.NewSet[ids.ID](r.GetChunksPerBlock())
-	b.AvailableChunks = make([]*ChunkCertificate, 0, r.GetChunksPerBlock())
+	b.chunks = set.NewSet[ids.ID](16)
+	b.AvailableChunks = make([]*ChunkCertificate, 0, 16)
 	restorableChunks := []*ChunkCertificate{}
-	for len(b.AvailableChunks) < r.GetChunksPerBlock() {
+	for {
 		// TODO: ensure chunk producer is in this epoch
 		// TODO: ensure only 1 chunk per producer
 		// TOOD: prefer old chunks to new chunks for a given producer

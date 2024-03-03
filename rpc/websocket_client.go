@@ -144,14 +144,14 @@ func (c *WebSocketClient) RegisterBlocks() error {
 // Listen listens for block messages from the streaming server.
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
-) (*chain.StatefulBlock, chain.Dimensions, error) {
+) (*chain.StatefulBlock, error) {
 	select {
 	case msg := <-c.pendingBlocks:
-		return UnpackBlockMessage(msg)
+		return chain.UnmarshalBlock(msg)
 	case <-c.readStopped:
-		return nil, chain.Dimensions{}, c.err
+		return nil, c.err
 	case <-ctx.Done():
-		return nil, chain.Dimensions{}, ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
