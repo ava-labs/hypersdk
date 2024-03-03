@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 var (
@@ -51,10 +50,6 @@ func (vm *VM) ValidatorState() validators.State {
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
-}
-
-func (vm *VM) AuthVerifiers() workers.Workers {
-	return vm.authVerifiers
 }
 
 func (vm *VM) Tracer() trace.Tracer {
@@ -206,7 +201,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()), zap.Uint64("height", b.Height()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock, feeManager *chain.FeeManager) {
+func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -230,7 +225,7 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock, feeManager *chain.Fe
 	}
 
 	// Send notifications as soon as transactions are executed
-	if err := vm.webSocketServer.AcceptBlock(b, feeManager); err != nil {
+	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
 	}
 
@@ -252,17 +247,17 @@ func (vm *VM) processAcceptedBlocks() {
 	// to be processed before returning as a guarantee to listeners (which may
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
-	for bw := range vm.acceptedQueue {
-		vm.processAcceptedBlock(bw.Block, bw.FeeManager)
+	for b := range vm.acceptedQueue {
+		vm.processAcceptedBlock(b)
 		vm.snowCtx.Log.Info(
 			"block async accepted",
-			zap.Stringer("blkID", bw.Block.ID()),
-			zap.Uint64("height", bw.Block.Height()),
+			zap.Stringer("blkID", b.ID()),
+			zap.Uint64("height", b.Height()),
 		)
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager *chain.FeeManager, chunks []*chain.FilteredChunk) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*chain.FilteredChunk) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -336,7 +331,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager 
 	vm.mempool.SetMinTimestamp(ctx, blkTime)
 
 	// Enqueue block for processing
-	vm.acceptedQueue <- &blockWrapper{b, feeManager}
+	vm.acceptedQueue <- b
 
 	vm.snowCtx.Log.Info(
 		"accepted block",
@@ -345,7 +340,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, feeManager 
 	)
 }
 
-func (vm *VM) FetchValidators(ctx context.Context, height uint64) {
+func (vm *VM) CacheValidators(ctx context.Context, height uint64) {
 	vm.proposerMonitor.Fetch(ctx, height)
 }
 
@@ -375,6 +370,14 @@ func (vm *VM) IterateCurrentValidators(
 	fn func(ids.NodeID, *validators.GetValidatorOutput),
 ) error {
 	return vm.proposerMonitor.IterateCurrentValidators(ctx, fn)
+}
+
+func (vm *VM) GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) {
+	return vm.proposerMonitor.GetAggregatePublicKey(ctx, height, signers, num, denom)
+}
+
+func (vm *VM) IsValidHeight(ctx context.Context, height uint64) (bool, error) {
+	return vm.proposerMonitor.IsValidHeight(ctx, height)
 }
 
 func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
@@ -452,6 +455,14 @@ func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.GetVerifyAuth()
 }
 
+func (vm *VM) GetAuthVerifyCores() int {
+	return vm.config.GetAuthVerificationCores()
+}
+
+func (vm *VM) Beneficiary() codec.Address {
+	return codec.Address{} // TODO: use config
+}
+
 func (vm *VM) RecordTxsGossiped(c int) {
 	vm.metrics.txsGossiped.Add(float64(c))
 }
@@ -476,14 +487,6 @@ func (vm *VM) RecordEmptyBlockBuilt() {
 	vm.metrics.emptyBlockBuilt.Inc()
 }
 
-func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-	bv, ok := vm.authEngine[authTypeID]
-	if !ok {
-		return nil, false
-	}
-	return bv.GetBatchVerifier(cores, count), ok
-}
-
 func (vm *VM) cacheAuth(auth chain.Auth) {
 	bv, ok := vm.authEngine[auth.GetTypeID()]
 	if !ok {
@@ -505,11 +508,7 @@ func (vm *VM) RecordClearedMempool() {
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
-	if err != nil {
-		return chain.Dimensions{}, err
-	}
-	return chain.NewFeeManager(v).UnitPrices(), nil
+	return vm.Rules(time.Now().UnixMilli()).GetUnitPrices(), nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {
@@ -526,6 +525,12 @@ func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
 
 func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
 	return vm.cm.NextChunkCertificate(ctx)
+}
+
+func (vm *VM) HasChunk(_ context.Context, slot int64, id ids.ID) bool {
+	// TODO: don't fetch from disk to check this
+	chunk, _ := vm.GetChunk(slot, id)
+	return chunk != nil
 }
 
 func (vm *VM) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {

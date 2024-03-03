@@ -108,7 +108,7 @@ type VM interface {
 	StopChan() chan struct{}
 
 	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
-	HasChunk(ctx context.Context, chunkID ids.ID) bool
+	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 
 	IsValidHeight(ctx context.Context, height uint64) (bool, error)
@@ -208,9 +208,6 @@ type FeeHandler interface {
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
-	// Reward sends [amount] to [to]. This is used to distribute fees to beneficiaries.
-	// Reward(ctx context.Context, to codec.Address, mu state.Mutable, amount uint64) error
-
 	// IsFrozen returns true if transactions from [addr] are not allowed to be submitted.
 	// IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit
 	// IsClaimed(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)   // some bond is claimed
@@ -228,13 +225,10 @@ type EpochManager interface {
 }
 
 type RewardHandler interface {
-	// Reward sends [amount] to [addr] after block execution if any fees were collected.
-	//
-	// Reward will return an error if it attempts to create any new keys. It can only
-	// modify or remove existing keys.
+	// Reward sends [amount] to [addr] after block execution if any fees or bonds were collected.
 	//
 	// Reward is only invoked if [amount] > 0.
-	Reward(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+	// Reward(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
 
 // StateManager allows [Chain] to safely store certain types of items in state

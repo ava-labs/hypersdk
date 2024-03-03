@@ -42,14 +42,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
-// TODO: clean this up
-type blockWrapper struct {
-	Block      *chain.StatelessBlock
-	FeeManager *chain.FeeManager
-}
 type executedWrapper struct {
 	Block   uint64
 	Chunk   *chain.FilteredChunk
@@ -113,15 +107,11 @@ type VM struct {
 	executorDone  chan struct{}
 
 	// Accepted block queue
-	acceptedQueue chan *blockWrapper
+	acceptedQueue chan *chain.StatelessBlock
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
 	webSocketServer *rpc.WebSocketServer
-
-	// authVerifiers are used to verify signatures in parallel
-	// with limited parallelism
-	authVerifiers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	genesisBlk   *chain.StatelessBlock
@@ -257,12 +247,6 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// Setup worker cluster for verifying signatures
-	//
-	// If [parallelism] is odd, we assign the extra
-	// core to signature verification.
-	vm.authVerifiers = workers.NewParallel(vm.config.GetAuthVerificationCores(), 100) // TODO: make job backlog a const
-
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
@@ -278,7 +262,7 @@ func (vm *VM) Initialize(
 	}
 	vm.executedQueue = make(chan *executedWrapper, vm.config.GetAcceptorSize())
 	vm.executorDone = make(chan struct{})
-	vm.acceptedQueue = make(chan *blockWrapper, vm.config.GetAcceptorSize())
+	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](
@@ -355,16 +339,6 @@ func (vm *VM) Initialize(
 			return err
 		}
 		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(genesisBlk.StatefulBlock.Timestamp))); err != nil {
-			return err
-		}
-		genesisRules := vm.c.Rules(0)
-		feeManager := chain.NewFeeManager(nil)
-		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
-			feeManager.SetUnitPrice(i, minUnitPrice[i])
-			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
-		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -595,7 +569,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
 	vm.cm.Done()
-	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
@@ -868,19 +841,19 @@ func (vm *VM) Submit(
 			}
 		}
 
-		// Check that bond is valid
+		// TODO: Check that bond is valid
 		//
 		// Outstanding tx limit is maintained in chunk builder
 		// TODO: add immutable access
-		ok, err := vm.StateManager().CanProcess(ctx, tx.Auth.Sponsor(), hutils.Epoch(tx.Base.Timestamp, r.GetEpochDuration()), nil)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if !ok {
-			errs = append(errs, errors.New("sponsor has no valid bond"))
-			continue
-		}
+		// ok, err := vm.StateManager().CanProcess(ctx, tx.Auth.Sponsor(), hutils.Epoch(tx.Base.Timestamp, r.GetEpochDuration()), nil)
+		// if err != nil {
+		// 	errs = append(errs, err)
+		// 	continue
+		// }
+		// if !ok {
+		// 	errs = append(errs, errors.New("sponsor has no valid bond"))
+		// 	continue
+		// }
 
 		errs = append(errs, nil)
 		vm.cm.HandleTx(ctx, tx)

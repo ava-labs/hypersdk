@@ -53,7 +53,7 @@ func BuildBlock(
 		}
 
 		// Check that we actually have the chunk
-		if !vm.HasChunk(ctx, cert.Chunk) {
+		if !vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
 			log.Warn("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))
 			restorableChunks = append(restorableChunks, cert)
 			continue
