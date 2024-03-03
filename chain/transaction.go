@@ -333,7 +333,6 @@ func (t *Transaction) SyntacticVerify(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	feeManager *FeeManager,
 	reads map[string]uint16,
 	s StateManager,
 	r Rules,
@@ -347,7 +346,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	fee, err := feeManager.Fee(units)
+	fee, err := MulSum(r.GetUnitPrices(), units)
 	if err != nil {
 		// Should never happen
 		return nil, err

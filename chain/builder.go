@@ -32,7 +32,9 @@ func BuildBlock(
 	}
 	b := NewBlock(vm, pHeight, parent, nextTime)
 
-	// Attempt to add valid certs that are not expired
+	// Attempt to add valid certs that are not expired (1 per validator)
+	//
+	// TODO: consider allowing up to N per validator
 	b.chunks = set.NewSet[ids.ID](r.GetChunksPerBlock())
 	b.AvailableChunks = make([]*ChunkCertificate, 0, r.GetChunksPerBlock())
 	restorableChunks := []*ChunkCertificate{}
@@ -115,33 +117,17 @@ func BuildBlock(
 	b.t = time.UnixMilli(b.StatefulBlock.Timestamp)
 	b.bytes = bytes
 	b.parent = parent
-	b.bctx = blockContext
-
-	// TODO: put into a single log message
 	epoch := utils.Epoch(nextTime, r.GetEpochDuration())
-	if b.execHeight == nil {
-		log.Info(
-			"built block",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Uint64("epoch", epoch),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Int("available chunks", len(b.AvailableChunks)),
-			zap.Stringer("start root", b.StartRoot),
-			zap.Int("executed chunks", len(b.ExecutedChunks)),
-		)
-	} else {
-		log.Info(
-			"built block",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Uint64("epoch", epoch),
-			zap.Uint64("execHeight", *b.execHeight),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Int("available chunks", len(b.AvailableChunks)),
-			zap.Stringer("start root", b.StartRoot),
-			zap.Int("executed chunks", len(b.ExecutedChunks)),
-		)
-	}
+	log.Info(
+		"built block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Uint64("epoch", epoch),
+		zap.Any("execHeight", b.execHeight),
+		zap.Stringer("parentID", b.Parent()),
+		zap.Int("available chunks", len(b.AvailableChunks)),
+		zap.Stringer("start root", b.StartRoot),
+		zap.Int("executed chunks", len(b.ExecutedChunks)),
+	)
 	return b, nil
 }

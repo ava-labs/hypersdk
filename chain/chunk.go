@@ -27,7 +27,8 @@ type Chunk struct {
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 
-	id ids.ID
+	id    ids.ID
+	units *Dimensions
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
@@ -69,7 +70,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	start := time.Now()
 	mempool := vm.Mempool()
 	mempool.StartStreaming(ctx)
-	for time.Since(start) < vm.GetTargetBuildDuration() && len(c.Txs) < 100 {
+	for time.Since(start) < vm.GetTargetBuildDuration() {
 		txs := mempool.Stream(ctx, 16)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet
@@ -186,6 +187,26 @@ func (c *Chunk) ID() (ids.ID, error) {
 
 func (c *Chunk) Size() int {
 	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+}
+
+func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {
+	if c.units != nil {
+		return *c.units, nil
+	}
+	units := Dimensions{}
+	for _, tx := range c.Txs {
+		txUnits, err := tx.Units(sm, r)
+		if err != nil {
+			return Dimensions{}, err
+		}
+		nextUnits, err := Add(units, txUnits)
+		if err != nil {
+			return Dimensions{}, err
+		}
+		units = nextUnits
+	}
+	c.units = &units
+	return units, nil
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {

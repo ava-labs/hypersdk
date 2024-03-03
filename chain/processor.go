@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -29,16 +28,15 @@ type Processor struct {
 	latestPHeight *uint64
 	epochInfo     []*EpochInfo
 
-	timestamp  int64
-	epoch      uint64
-	im         state.Immutable
-	feeManager *FeeManager
-	r          Rules
-	sm         StateManager
-	cacheLock  sync.RWMutex
-	cache      map[string]*fetchData
-	exectutor  *executor.Executor
-	ts         *tstate.TState
+	timestamp int64
+	epoch     uint64
+	im        state.Immutable
+	r         Rules
+	sm        StateManager
+	cacheLock sync.RWMutex
+	cache     map[string]*fetchData
+	exectutor *executor.Executor
+	ts        *tstate.TState
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
@@ -155,14 +153,13 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		tsv := p.ts.NewView(stateKeys, storage)
 
 		// Ensure we have enough funds to pay fees
-		// TODO: replace with epoch fees
-		// TODO: check before keys fetched
-		fee, err := p.feeManager.Fee(units)
+		fee, err := MulSum(p.r.GetUnitPrices(), units)
 		if err != nil {
 			// This is an unexpected error
 			return err
 		}
 		if tx.Base.MaxFee < fee {
+			// This should be checked by chunk producer before inclusion.
 			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			return nil
@@ -190,7 +187,9 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		warpVerified := p.verifyWarpMessage(ctx, pchainHeight, tx)
 
 		// Execute transaction
-		result, err := tx.Execute(ctx, p.feeManager, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
+		//
+		// Also deducts fees
+		result, err := tx.Execute(ctx, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
 		if err != nil {
 			p.vm.Logger().Warn("execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -200,20 +199,11 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		result.WarpVerified = warpVerified
 		p.results[chunkIndex][txIndex] = result
 
-		// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
-		// exit with an error based on which tx over the limit is processed first)
-		//
-		// TODO: we won't know this when just including certs?
-		//
-		// TODO: need to track during chunk execution to avoid unbounded compute (if we wait until end)
-		if ok, d := p.feeManager.Consume(result.Consumed, p.r.GetMaxBlockUnits()); !ok {
-			return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
-		}
-
 		// Commit results to parent [TState]
 		tsv.Commit()
 
-		// TODO: pay portion of fees to validator that included
+		// TODO: pay fees to validator that included (based on % of signatures)
+		// Should wait for end to avoid conflicts
 
 		// Update key cache
 		if len(toCache) > 0 {
@@ -275,10 +265,30 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 	// Don't wait for all transactions to finish verification to kickoff execution (should
 	// be interleaved).
 	p.results[chunkIndex] = make([]*Result, len(chunk.Txs))
-	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
+
+	// Confirm that chunk is well-formed
+	//
+	// All of these can be avoided by chunk producer.
+	cid, err := chunk.ID() // TODO: make this panic on err
 	if err != nil {
 		return err
 	}
+	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
+	if err != nil {
+		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
+		return err
+	}
+	chunkUnits, err := chunk.Units(p.sm, p.r)
+	if err != nil {
+		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
+		return err
+	}
+	if chunkUnits.Greater(p.r.GetMaxChunkUnits()) {
+		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", cid), zap.Error(err))
+		return err
+	}
+
+	// Process chunk transactions
 	for ri, rtx := range chunk.Txs {
 		// TODO: remove in go1.22
 		txIndex := ri

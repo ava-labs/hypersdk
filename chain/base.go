@@ -21,6 +21,8 @@ type Base struct {
 	// ChainID protects against replay attacks on different VM instances.
 	ChainID ids.ID `json:"chainId"`
 
+	// TODO: remove MaxFee and replace with tip % if keep fee static
+	//
 	// MaxFee is the max fee the user will pay for the transaction to be executed. The chain
 	// will charge anything up to this price if the transaction makes it on-chain.
 	//

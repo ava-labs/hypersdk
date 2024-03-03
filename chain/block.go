@@ -422,30 +422,16 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		b.execHeight = &execHeight
 	}
 	b.vm.Verified(ctx, b)
-
-	if b.execHeight == nil {
-		// TODO: create a stringer for *Uint64
-		log.Info(
-			"verified block",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Int("available chunks", len(b.AvailableChunks)),
-			zap.Stringer("start root", b.StartRoot),
-			zap.Int("executed chunks", len(b.ExecutedChunks)),
-		)
-	} else {
-		log.Info(
-			"verified block",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Uint64("execHeight", *b.execHeight),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Int("available chunks", len(b.AvailableChunks)),
-			zap.Stringer("start root", b.StartRoot),
-			zap.Int("executed chunks", len(b.ExecutedChunks)),
-		)
-	}
+	log.Info(
+		"verified block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Any("execHeight", b.execHeight),
+		zap.Stringer("parentID", b.Parent()),
+		zap.Int("available chunks", len(b.AvailableChunks)),
+		zap.Stringer("start root", b.StartRoot),
+		zap.Int("executed chunks", len(b.ExecutedChunks)),
+	)
 	return nil
 }
 
