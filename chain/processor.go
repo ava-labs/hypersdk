@@ -41,9 +41,7 @@ type Processor struct {
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
 
-	claimL         sync.Mutex
 	frozenSponsors set.Set[string]
-	claims         []*Transaction
 }
 
 type blockLoc struct {
@@ -90,11 +88,10 @@ func NewProcessor(
 		results: make([][]*Result, chunks),
 
 		frozenSponsors: set.NewSet[string](4),
-		claims:         []*Transaction{},
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, units Dimensions, tx *Transaction) {
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, fee uint64, tx *Transaction) {
 	stateKeys, err := tx.StateKeys(p.sm)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -152,34 +149,17 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		// processed
 		tsv := p.ts.NewView(stateKeys, storage)
 
-		// Ensure we have enough funds to pay fees
-		fee, err := MulSum(p.r.GetUnitPrices(), units)
-		if err != nil {
-			// This is an unexpected error
-			return err
-		}
-		if tx.Base.MaxFee < fee {
-			// This should be checked by chunk producer before inclusion.
-			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			return nil
-		}
-
 		// Deduct fees
 		sponsor := tx.Auth.Sponsor()
+		ssponsor := string(sponsor[:])
 		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, fee)
 		if err != nil {
 			return err
 		}
-		if !ok {
+		if !ok || p.frozenSponsors.Contains(ssponsor) {
 			p.vm.Logger().Warn("insufficient funds", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-
-			// Enqueue for claim filing
-			p.claimL.Lock()
-			p.claims = append(p.claims, tx)
-			p.frozenSponsors.Add(string(sponsor[:]))
-			p.claimL.Unlock()
+			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+			p.frozenSponsors.Add(ssponsor)
 			return nil
 		}
 
@@ -191,6 +171,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		// Also deducts fees
 		result, err := tx.Execute(ctx, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
 		if err != nil {
+			// TODO: this should never happen
 			p.vm.Logger().Warn("execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			return nil
@@ -201,9 +182,6 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 
 		// Commit results to parent [TState]
 		tsv.Commit()
-
-		// TODO: pay fees to validator that included (based on % of signatures)
-		// Should wait for end to avoid conflicts
 
 		// Update key cache
 		if len(toCache) > 0 {
@@ -301,7 +279,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 
 	// Process chunk transactions
 	for ri, rtx := range chunk.Txs {
-		// TODO: remove in go1.22
 		txIndex := ri
 		tx := rtx
 
@@ -316,6 +293,18 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		}
 		if tx.Base.Timestamp > chunk.Slot {
 			p.vm.Logger().Warn("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		fee, err := MulSum(p.r.GetUnitPrices(), units)
+		if err != nil {
+			p.vm.Logger().Warn("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		if tx.Base.MaxFee < fee {
+			// This should be checked by chunk producer before inclusion.
+			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
@@ -363,23 +352,14 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// Check that transaction isn't frozen (can avoid state lookups)
 		//
 		// Need to wait to enqueue until after verify signature.
-		//
-		// TODO: We still want to claim if there is an available bond for our epoch even if frozen in another.
-		var frozen bool
 		sponsor := tx.Auth.Sponsor()
+		ssponsor := string(sponsor[:])
 		ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
 		if err != nil {
 			panic(err)
 		}
 		if !ok {
-			frozen = true
-		} else {
-			// Avoid unnecessary state lookups if we already marked as frozen
-			p.claimL.Lock()
-			if p.frozenSponsors.Contains(string(sponsor[:])) {
-				frozen = true
-			}
-			p.claimL.Unlock()
+			p.frozenSponsors.Add(ssponsor)
 		}
 
 		// Enqueue transaction for execution
@@ -397,23 +377,17 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 					return func() {}
 				}
 			}
-			if frozen {
+			if p.frozenSponsors.Contains(ssponsor) {
 				p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-
-				// Enqueue for claim filing
-				p.claimL.Lock()
-				p.claims = append(p.claims, tx)
-				p.frozenSponsors.Add(string(sponsor[:]))
-				p.claimL.Unlock()
+				p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
 				return func() {}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, units, tx) }
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }
 		})
 	}
 }
 
-func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*Transaction, error) {
+func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
 	p.authStream.Wait()
-	return p.txs, p.ts, p.results, p.claims, p.exectutor.Wait()
+	return p.txs, p.ts, p.results, p.exectutor.Wait()
 }

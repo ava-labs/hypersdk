@@ -210,11 +210,14 @@ type FeeHandler interface {
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
+	// Reward sends [amount] to [to]. This is used to distribute fees to beneficiaries.
+	Reward(ctx context.Context, to codec.Address, mu state.Mutable, amount uint64) error
+
 	// IsFrozen returns true if transactions from [addr] are not allowed to be submitted.
-	IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit
-	IsClaimed(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)   // some bond is claimed
-	EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
-	ClaimBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error             // Must handle after execution to avoid conflicts, if already claimed, does nothing
+	// IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit
+	// IsClaimed(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)   // some bond is claimed
+	// EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
+	// ClaimBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error             // Must handle after execution to avoid conflicts, if already claimed, does nothing
 	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
 	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
 	//  TODO: claims handled in random order, we need to handle deterministically to get canonical epoch/epoch result

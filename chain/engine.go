@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/consts"
@@ -133,7 +134,7 @@ func (e *Engine) Run() {
 				p.Add(ctx, len(chunks), chunk)
 				chunks = append(chunks, chunk)
 			}
-			txSet, ts, chunkResults, claims, err := p.Wait()
+			txSet, ts, chunkResults, err := p.Wait()
 			if err != nil {
 				e.vm.Logger().Error("chunk processing failed", zap.Error(err))
 				panic(err)
@@ -144,17 +145,6 @@ func (e *Engine) Run() {
 			// TODO: add configuration for how much of base fee to pay (could be 100% in a payment network, however,
 			// this allows miner to drive up fees without consequence as they get their fees back)
 
-			// Submit claims
-			for _, claim := range claims {
-				// TODO: fetch previous claim to ensure don't overwrite?
-
-				// TODO: Include claims as a fee adjustment
-				err := e.vm.StateManager().ClaimBond(ctx, claim.Auth.Sponsor(), chunk.Beneficiary, utils.Epoch(claim.Base.Timestamp, r.GetEpochDuration()), nil)
-				if err != nil {
-					panic(err)
-				}
-			}
-
 			// Create FilteredChunks
 			filteredChunks := make([]*FilteredChunk, len(chunkResults))
 			for i, chunkResult := range chunkResults {
@@ -163,6 +153,7 @@ func (e *Engine) Run() {
 					chunk        = chunks[i]
 					cert         = job.blk.AvailableChunks[i]
 					txs          = make([]*Transaction, 0, len(chunkResult))
+					reward       uint64
 
 					warpResults set.Bits64
 					warpCount   uint
@@ -178,6 +169,9 @@ func (e *Engine) Run() {
 							}
 						}
 
+						// TODO: handle case where Freezable (claim bond from user + freeze user)
+						// TODO: need to ensure that mark tx in set to prevent freezable replay?
+
 						// TODO: track invalid tx count
 						continue
 					}
@@ -189,7 +183,24 @@ func (e *Engine) Run() {
 						}
 						warpCount++
 					}
+
+					// Add fee to reward
+					newReward, err := math.Add64(reward, txResult.Fee)
+					if err != nil {
+						panic(err)
+					}
+					reward = newReward
 				}
+
+				// Pay beneficiary proportion of reward
+				if reward > 0 {
+					// TODO: scale reward based on % of stake that signed cert
+					if err := p.sm.Reward(ctx, chunk.Beneficiary, ts, reward); err != nil {
+						panic(err)
+					}
+				}
+
+				// Create filtered chunk
 				filteredChunks[i] = &FilteredChunk{
 					Chunk: cert.Chunk,
 
@@ -235,10 +246,8 @@ func (e *Engine) Run() {
 					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw[:consts.Uint64Len])),
 				)
 			case err != nil && errors.Is(err, database.ErrNotFound):
-				prices := feeManager.UnitPrices()
-				value := make([]byte, consts.Uint64Len+DimensionsLen)
+				value := make([]byte, consts.Uint64Len)
 				binary.BigEndian.PutUint64(value, job.blk.PHeight)
-				copy(value[consts.Uint64Len:], prices.Bytes())
 				if err := ts.Insert(ctx, nextEpochKey, value); err != nil {
 					panic(err)
 				}
@@ -247,7 +256,6 @@ func (e *Engine) Run() {
 					"setting epoch height",
 					zap.Uint64("epoch", nextEpoch),
 					zap.Uint64("height", job.blk.PHeight),
-					zap.Any("prices", prices),
 				)
 			default:
 				e.vm.Logger().Warn(
@@ -257,14 +265,6 @@ func (e *Engine) Run() {
 				)
 			}
 
-			// TODO: need to figure out what % to burn? tip can't be burned or side deals pop up
-
-			// TODO: If epoch is stale, then will compete on out-of-protocol components
-
-			// TODO: don't need to pay to spike fees with a delayed fee structure?
-			//// Use epoch as fee to make smoother?
-			//// Have discrete epochs?
-
 			// Update chain metadata
 			if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
 				panic(err)
@@ -273,7 +273,7 @@ func (e *Engine) Run() {
 				panic(err)
 			}
 
-			// Get start root
+			// Get start root for parent
 			startRoot, err := parentView.GetMerkleRoot(ctx)
 			if err != nil {
 				panic(err)
@@ -307,7 +307,6 @@ func (e *Engine) Run() {
 				chunkResults: chunkResults,
 				startRoot:    startRoot,
 				chunks:       filteredChunks,
-				feeManager:   feeManager,
 			}
 			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
