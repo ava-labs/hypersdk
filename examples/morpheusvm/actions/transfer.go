@@ -38,7 +38,7 @@ func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 }
 
-func (*Transfer) StateKeysMaxChunks() []uint16 {
+func (*Transfer) StateKeyChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
@@ -54,20 +54,20 @@ func (t *Transfer) Execute(
 	actor codec.Address,
 	_ ids.ID,
 	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, []byte, *warp.UnsignedMessage, error) {
 	if t.Value == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, OutputValueZero, nil, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, utils.ErrBytes(err), nil, nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, utils.ErrBytes(err), nil, nil
 	}
-	return true, 1, nil, nil, nil
+	return true, nil, nil, nil
 }
 
-func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
+func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
