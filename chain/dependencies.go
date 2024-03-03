@@ -211,7 +211,7 @@ type FeeHandler interface {
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
 	// Reward sends [amount] to [to]. This is used to distribute fees to beneficiaries.
-	Reward(ctx context.Context, to codec.Address, mu state.Mutable, amount uint64) error
+	// Reward(ctx context.Context, to codec.Address, mu state.Mutable, amount uint64) error
 
 	// IsFrozen returns true if transactions from [addr] are not allowed to be submitted.
 	// IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit

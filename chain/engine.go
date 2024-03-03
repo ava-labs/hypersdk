@@ -192,13 +192,9 @@ func (e *Engine) Run() {
 					reward = newReward
 				}
 
-				// Pay beneficiary proportion of reward
-				if reward > 0 {
-					// TODO: scale reward based on % of stake that signed cert
-					if err := p.sm.Reward(ctx, chunk.Beneficiary, ts, reward); err != nil {
-						panic(err)
-					}
-				}
+				// TODO: Pay beneficiary proportion of reward
+				// TODO: scale reward based on % of stake that signed cert
+				p.vm.Logger().Info("rewarding beneficiary", zap.Uint64("reward", reward))
 
 				// Create filtered chunk
 				filteredChunks[i] = &FilteredChunk{
