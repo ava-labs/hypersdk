@@ -246,12 +246,18 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight uint64, 
 	return true
 }
 
+func (p *Processor) markChunkTxsInvalid(chunkIndex, count int) {
+	for i := 0; i < count; i++ {
+		p.results[chunkIndex][i] = &Result{Valid: false}
+	}
+}
+
 // Allows processing to start before all chunks are acquired.
 //
 // Chunks MUST be added in order.
 //
 // Add must not be called concurrently
-func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error {
+func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Add")
 	defer span.End()
 
@@ -264,28 +270,33 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 	//
 	// Don't wait for all transactions to finish verification to kickoff execution (should
 	// be interleaved).
-	p.results[chunkIndex] = make([]*Result, len(chunk.Txs))
+	chunkTxs := len(chunk.Txs)
+	p.results[chunkIndex] = make([]*Result, chunkTxs)
 
 	// Confirm that chunk is well-formed
 	//
 	// All of these can be avoided by chunk producer.
 	cid, err := chunk.ID() // TODO: make this panic on err
 	if err != nil {
-		return err
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
 	}
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
 		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
-		return err
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
 	}
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
-		return err
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
 	}
 	if chunkUnits.Greater(p.r.GetMaxChunkUnits()) {
 		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", cid), zap.Error(err))
-		return err
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
 	}
 
 	// Process chunk transactions
@@ -358,7 +369,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		sponsor := tx.Auth.Sponsor()
 		ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
 		if err != nil {
-			return err
+			panic(err)
 		}
 		if !ok {
 			frozen = true
@@ -400,7 +411,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, units, tx) }
 		})
 	}
-	return nil
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*Transaction, error) {

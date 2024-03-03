@@ -29,9 +29,8 @@ type output struct {
 	view         merkledb.View
 	chunkResults [][]*Result
 
-	startRoot  ids.ID
-	chunks     []*FilteredChunk
-	feeManager *FeeManager
+	startRoot ids.ID
+	chunks    []*FilteredChunk
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -120,7 +119,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			p := NewProcessor(e.vm, e, pHeight, epochInfo, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, feeManager, r)
+			p := NewProcessor(e.vm, e, pHeight, epochInfo, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
 				// Handle case where vm is shutting down (only case where chunk could be nil)
@@ -131,13 +130,12 @@ func (e *Engine) Run() {
 				}
 
 				// Handle fetched chunk
-				if err := p.Add(ctx, len(chunks), chunk); err != nil {
-					panic(err)
-				}
+				p.Add(ctx, len(chunks), chunk)
 				chunks = append(chunks, chunk)
 			}
 			txSet, ts, chunkResults, claims, err := p.Wait()
 			if err != nil {
+				e.vm.Logger().Error("chunk processing failed", zap.Error(err))
 				panic(err)
 			}
 
@@ -274,9 +272,6 @@ func (e *Engine) Run() {
 			if err := ts.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
 				panic(err)
 			}
-			if err := ts.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
-				panic(err)
-			}
 
 			// Get start root
 			startRoot, err := parentView.GetMerkleRoot(ctx)
@@ -364,20 +359,20 @@ func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Exe
 }
 
 // TODO: cleanup this function signautre
-func (e *Engine) Commit(ctx context.Context, height uint64) (*FeeManager, [][]*Result, []*FilteredChunk, error) {
+func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
 	// TODO: fetch results prior to commit to reduce observed finality (state won't be queryable yet but can send block/results)
 	e.outputsLock.Lock()
 	output, ok := e.outputs[height]
 	if !ok {
 		e.outputsLock.Unlock()
-		return nil, nil, nil, fmt.Errorf("%w: %d", errors.New("not outputs found at height"), height)
+		return nil, nil, fmt.Errorf("%w: %d", errors.New("not outputs found at height"), height)
 	}
 	delete(e.outputs, height)
 	if e.largestOutput != nil && *e.largestOutput == height {
 		e.largestOutput = nil
 	}
 	e.outputsLock.Unlock()
-	return output.feeManager, output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
+	return output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
 }
 
 func (e *Engine) IsRepeatTx(

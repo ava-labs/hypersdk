@@ -33,6 +33,7 @@ type Chunk struct {
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	now := time.Now().UnixMilli()
+	sm := vm.StateManager()
 	r := vm.Rules(now)
 	c := &Chunk{
 		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
@@ -67,11 +68,15 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	// Pack chunk for build duration
 	//
 	// TODO: sort mempool by priority and fit (only fetch items that can be included)
-	start := time.Now()
-	mempool := vm.Mempool()
+	var (
+		start      = time.Now()
+		chunkUnits = Dimensions{}
+		full       bool
+		mempool    = vm.Mempool()
+	)
 	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() {
-		txs := mempool.Stream(ctx, 16)
+		txs := mempool.Stream(ctx, 256)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet
 			//
@@ -96,19 +101,31 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 				continue
 			}
 
+			// Check if tx can fit in chunk
+			txUnits, err := tx.Units(sm, r)
+			if err != nil {
+				vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
+				continue
+			}
+			nextUnits, err := Add(chunkUnits, txUnits)
+			if err != nil {
+				full = true
+				// TODO: update mempool to only provide txs that can fit in chunk
+				// Want to maximize how "full" chunk is, so need to be a little complex
+				// if there are transactions with uneven usage of resources.
+
+				// Restore unused txs
+				mempool.FinishStreaming(ctx, txs[i:])
+				break
+			}
+			chunkUnits = nextUnits
+
 			// Add transaction to chunk
 			vm.IssueTx(ctx, tx)
 			c.Txs = append(c.Txs, tx)
-			if len(c.Txs) == 100 {
-				if i+1 < len(txs) {
-					// Restore remaining txs
-					mempool.FinishStreaming(ctx, txs[i+1:])
-				}
-				break
-			}
 		}
 	}
-	if len(c.Txs) < 100 {
+	if !full {
 		mempool.FinishStreaming(ctx, nil)
 	}
 
@@ -144,6 +161,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("chainID", r.ChainID()),
 		zap.Int64("slot", c.Slot),
 		zap.Uint64("epoch", epoch),
+		zap.Bool("full", full),
+		zap.Any("units", chunkUnits),
 		zap.String("digest", hex.EncodeToString(digest)),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
