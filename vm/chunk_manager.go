@@ -841,7 +841,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	msg[0] = txMsg
 	copy(msg[1:], txBytes)
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
-	c.vm.Logger().Info("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
+	c.vm.Logger().Debug("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
 }
 
 // This function should be spawned in a goroutine because it blocks

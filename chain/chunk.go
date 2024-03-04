@@ -166,7 +166,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Uint64("epoch", epoch),
 		zap.Bool("full", full),
 		zap.Any("units", chunkUnits),
-		zap.String("digest", hex.EncodeToString(digest)),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
 	)
