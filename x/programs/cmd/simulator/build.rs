@@ -2,16 +2,25 @@ use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=/build");
-    println!("cargo:rerun-if-changed=**/*.go");
+    println!("cargo:rerun-if-changed=go.mod");
+    println!("cargo:rerun-if-changed=simulator.go");
+    println!("cargo:rerun-if-changed=cmd/");
 
-    println!("cargo:warning=fetching go dependencies...");
+    let go_mod_download_output = Command::new("go").args(["mod", "download"]).output()?;
 
-    let status = Command::new("go").args(["mod", "download"]).status()?;
+    if !go_mod_download_output.status.success() {
+        println!("cargo:warning=go mod downlod stdout:");
 
-    println!("cargo:warning={status}");
+        for line in String::from_utf8_lossy(&go_mod_download_output.stdout).lines() {
+            println!("cargo:warning={line}");
+        }
 
-    println!("cargo:warning=building simulator...");
+        println!("cargo:warning=go mod download stderr:");
+
+        for line in String::from_utf8_lossy(&go_mod_download_output.stderr).lines() {
+            println!("cargo:warning={line}");
+        }
+    }
 
     let current_dir = std::env::current_dir().unwrap();
 

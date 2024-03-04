@@ -171,9 +171,19 @@ impl Default for Client {
 impl Client {
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            path: env!("SIMULATOR_PATH"),
+        let path = env!("SIMULATOR_PATH");
+
+        if !Path::new(path).exists() {
+            eprintln!("");
+            eprintln!("Simulator binary not found at path: {path}");
+            eprintln!("");
+            eprintln!("Please run `cargo clean -p simulator` and rebuild your dependent crate.");
+            eprintln!("");
+
+            panic!("Simulator binary not found, must rebuild simulator");
         }
+
+        Self { path }
     }
 
     /// Runs a `Plan` against the simulator and returns vec of result.
