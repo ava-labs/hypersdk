@@ -684,6 +684,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				zap.Int("txs", len(chunk.Txs)),
 			)
 		case <-c.vm.stop:
+			// TODO: we aren't hitting this for some reason....
+			//
+			// If engine taking too long to process message, Shutdown could not
+			// be getting called.
 			c.vm.Logger().Info("stopping chunk manager")
 			return
 		}

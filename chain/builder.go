@@ -41,62 +41,64 @@ func BuildBlock(
 	// TODO: consider allowing up to N per validator
 	b.chunks = set.NewSet[ids.ID](16)
 	b.AvailableChunks = make([]*ChunkCertificate, 0, 16)
-	restorableChunks := []*ChunkCertificate{}
-	for {
-		// TODO: ensure chunk producer is in this epoch
-		// TODO: ensure only 1 chunk per producer
-		// TOOD: prefer old chunks to new chunks for a given producer
+	if pHeight > 0 { // even if epoch is set, we use this height to verify warp messages
+		restorableChunks := []*ChunkCertificate{}
+		for {
+			// TODO: ensure chunk producer is in this epoch
+			// TODO: ensure only 1 chunk per producer
+			// TOOD: prefer old chunks to new chunks for a given producer
 
-		cert, ok := vm.NextChunkCertificate(ctx)
-		if !ok {
-			break
+			cert, ok := vm.NextChunkCertificate(ctx)
+			if !ok {
+				break
+			}
+
+			// Check that we actually have the chunk
+			if !vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
+				log.Warn("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))
+				restorableChunks = append(restorableChunks, cert)
+				continue
+			}
+
+			// Check that certificate can be in block
+			if cert.Slot < b.StatefulBlock.Timestamp {
+				log.Warn("skipping expired chunk", zap.Stringer("chunkID", cert.Chunk))
+				restorableChunks = append(restorableChunks, cert) // wait for this to get cleared via "SetMin" (may still want if reorg)
+				continue
+			}
+			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+				log.Warn("skipping chunk too far in the future", zap.Stringer("chunkID", cert.Chunk))
+				restorableChunks = append(restorableChunks, cert)
+				continue
+			}
+
+			// Check if the chunk is a repeat
+			repeats, err := parent.IsRepeatChunk(ctx, []*ChunkCertificate{cert}, set.NewBits())
+			if err != nil {
+				return nil, err
+			}
+			if repeats.Len() > 0 {
+				log.Warn("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
+				continue
+			}
+
+			// Assume chunk is valid and there are P-Chain heights for applicable epochs because it has sufficient signatures
+			//
+			// TODO: consider validating anyways
+
+			// Add chunk to block
+			b.chunks.Add(cert.Chunk)
+			b.AvailableChunks = append(b.AvailableChunks, cert)
+			b.vm.Logger().Info(
+				"included chunk in block",
+				zap.Uint64("block", b.StatefulBlock.Height),
+				zap.Stringer("chunkID", cert.Chunk),
+				zap.Uint64("epoch", utils.Epoch(cert.Slot, r.GetEpochDuration())),
+			)
+
 		}
-
-		// Check that we actually have the chunk
-		if !vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
-			log.Warn("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))
-			restorableChunks = append(restorableChunks, cert)
-			continue
-		}
-
-		// Check that certificate can be in block
-		if cert.Slot < b.StatefulBlock.Timestamp {
-			log.Warn("skipping expired chunk", zap.Stringer("chunkID", cert.Chunk))
-			restorableChunks = append(restorableChunks, cert) // wait for this to get cleared via "SetMin" (may still want if reorg)
-			continue
-		}
-		if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
-			log.Warn("skipping chunk too far in the future", zap.Stringer("chunkID", cert.Chunk))
-			restorableChunks = append(restorableChunks, cert)
-			continue
-		}
-
-		// Check if the chunk is a repeat
-		repeats, err := parent.IsRepeatChunk(ctx, []*ChunkCertificate{cert}, set.NewBits())
-		if err != nil {
-			return nil, err
-		}
-		if repeats.Len() > 0 {
-			log.Warn("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
-			continue
-		}
-
-		// Assume chunk is valid and there are P-Chain heights for applicable epochs because it has sufficient signatures
-		//
-		// TODO: consider validating anyways
-
-		// Add chunk to block
-		b.chunks.Add(cert.Chunk)
-		b.AvailableChunks = append(b.AvailableChunks, cert)
-		b.vm.Logger().Info(
-			"included chunk in block",
-			zap.Uint64("block", b.StatefulBlock.Height),
-			zap.Stringer("chunkID", cert.Chunk),
-			zap.Uint64("epoch", utils.Epoch(cert.Slot, r.GetEpochDuration())),
-		)
-
+		vm.RestoreChunkCertificates(ctx, restorableChunks)
 	}
-	vm.RestoreChunkCertificates(ctx, restorableChunks)
 
 	// Fetch executed blocks
 	depth := r.GetBlockExecutionDepth()
@@ -126,6 +128,7 @@ func BuildBlock(
 		"built block",
 		zap.Stringer("blockID", b.ID()),
 		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Uint64("pHeight", pHeight),
 		zap.Uint64("epoch", epoch),
 		zap.Any("execHeight", b.execHeight),
 		zap.Stringer("parentID", b.Parent()),

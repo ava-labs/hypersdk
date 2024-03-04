@@ -31,7 +31,7 @@ var (
 )
 
 type StatefulBlock struct {
-	PHeight uint64 `json:"pHeight"`
+	PHeight uint64 `json:"pHeight"` // 0 means no context
 
 	Parent    ids.ID `json:"parent"`
 	Height    uint64 `json:"height"`
@@ -111,9 +111,9 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	b.Timestamp = p.UnpackInt64(false)
 
 	// Parse available chunks
-	chunkCount := p.UnpackInt(false)          // can produce empty blocks
+	availableChunks := p.UnpackInt(false)     // can produce empty blocks
 	b.AvailableChunks = []*ChunkCertificate{} // don't preallocate all to avoid DoS
-	for i := 0; i < chunkCount; i++ {
+	for i := 0; i < availableChunks; i++ {
 		cert, err := UnmarshalChunkCertificatePacker(p)
 		if err != nil {
 			return nil, err
@@ -123,9 +123,9 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 
 	// Parse executed chunks
 	p.UnpackID(false, &b.StartRoot)
-	chunkCount = p.UnpackInt(false) // can produce empty blocks
-	b.ExecutedChunks = []ids.ID{}   // don't preallocate all to avoid DoS
-	for i := 0; i < chunkCount; i++ {
+	executedChunks := p.UnpackInt(false) // can produce empty blocks
+	b.ExecutedChunks = []ids.ID{}        // don't preallocate all to avoid DoS
+	for i := 0; i < executedChunks; i++ {
 		var id ids.ID
 		p.UnpackID(true, &id)
 		b.ExecutedChunks = append(b.ExecutedChunks, id)
@@ -288,7 +288,22 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		return nil
 	}
 
-	// TODO: ensure p-chain height referenced is valid
+	// Ensure p-chain height referenced is valid
+	validHeight, err := b.vm.IsValidHeight(ctx, b.PHeight)
+	if err != nil {
+		return fmt.Errorf("%w: can't determine if valid height", err)
+	}
+	if !validHeight {
+		return fmt.Errorf("invalid p-chain height: %d", b.PHeight)
+	}
+
+	// Ensure no certificates if P-Chain height is 0
+	//
+	// Even if there is an epoch, this height is used to verify warp
+	// messages.
+	if b.PHeight == 0 && len(b.AvailableChunks) > 0 {
+		return errors.New("no certificates should exist in a block without context")
+	}
 
 	// TODO: skip verification if state does not exist yet (state sync)
 

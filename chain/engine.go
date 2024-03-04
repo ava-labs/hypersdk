@@ -74,6 +74,8 @@ func (e *Engine) Run() {
 	for {
 		select {
 		case job := <-e.backlog:
+			e.vm.Logger().Info("executing block", zap.Stringer("blkID", job.blk.ID()), zap.Uint64("height", job.blk.Height()))
+
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
 
@@ -134,11 +136,13 @@ func (e *Engine) Run() {
 				p.Add(ctx, len(chunks), chunk)
 				chunks = append(chunks, chunk)
 			}
+			e.vm.Logger().Info("starting wait for processor", zap.Uint64("height", job.blk.Height()))
 			txSet, ts, chunkResults, err := p.Wait()
 			if err != nil {
 				e.vm.Logger().Error("chunk processing failed", zap.Error(err))
 				panic(err)
 			}
+			e.vm.Logger().Info("processor returned", zap.Uint64("height", job.blk.Height()))
 
 			// TODO: pay beneficiary all tips for processing chunk
 			//
@@ -215,50 +219,52 @@ func (e *Engine) Run() {
 			}
 
 			// Update tracked p-chain height as long as it is increasing
-			if shouldUpdatePHeight {
-				if err := ts.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
-					panic(err)
+			if job.blk.PHeight > 0 { // if context is not set, don't update P-Chain height in state or populate epochs
+				if shouldUpdatePHeight {
+					if err := ts.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+						panic(err)
+					}
+					e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
+				} else {
+					e.vm.Logger().Info("ignoring p-chain height update", zap.Uint64("height", job.blk.PHeight))
 				}
-				e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
-			} else {
-				e.vm.Logger().Info("ignoring p-chain height update", zap.Uint64("height", job.blk.PHeight))
-			}
 
-			// Ensure we are never stuck waiting for height information near the end of an epoch
-			//
-			// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
-			// is not populated, we need to know by e that e+1 cannot be populated. If we only set e+2 below, we may
-			// not know whether e+1 is populated unitl we wait for e-1 execution to finish (as any block in e-1 could set
-			// the epoch height). This could cause verification to stutter across the boundary when it is taking longer than
-			// expected to set to the p-chain hegiht for an epoch.
-			nextEpoch := epoch + 3
-			nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
-			epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
-			switch {
-			case err == nil:
-				e.vm.Logger().Info(
-					"height already set for epoch",
-					zap.Uint64("epoch", nextEpoch),
-					zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw[:consts.Uint64Len])),
-				)
-			case err != nil && errors.Is(err, database.ErrNotFound):
-				value := make([]byte, consts.Uint64Len)
-				binary.BigEndian.PutUint64(value, job.blk.PHeight)
-				if err := ts.Insert(ctx, nextEpochKey, value); err != nil {
-					panic(err)
+				// Ensure we are never stuck waiting for height information near the end of an epoch
+				//
+				// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either
+				// is not populated, we need to know by e that e+1 cannot be populated. If we only set e+2 below, we may
+				// not know whether e+1 is populated unitl we wait for e-1 execution to finish (as any block in e-1 could set
+				// the epoch height). This could cause verification to stutter across the boundary when it is taking longer than
+				// expected to set to the p-chain hegiht for an epoch.
+				nextEpoch := epoch + 3
+				nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
+				epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
+				switch {
+				case err == nil:
+					e.vm.Logger().Info(
+						"height already set for epoch",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw[:consts.Uint64Len])),
+					)
+				case err != nil && errors.Is(err, database.ErrNotFound):
+					value := make([]byte, consts.Uint64Len)
+					binary.BigEndian.PutUint64(value, job.blk.PHeight)
+					if err := ts.Insert(ctx, nextEpochKey, value); err != nil {
+						panic(err)
+					}
+					e.vm.CacheValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
+					e.vm.Logger().Info(
+						"setting epoch height",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Uint64("height", job.blk.PHeight),
+					)
+				default:
+					e.vm.Logger().Warn(
+						"unable to determine if should set epoch height",
+						zap.Uint64("epoch", nextEpoch),
+						zap.Error(err),
+					)
 				}
-				e.vm.CacheValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
-				e.vm.Logger().Info(
-					"setting epoch height",
-					zap.Uint64("epoch", nextEpoch),
-					zap.Uint64("height", job.blk.PHeight),
-				)
-			default:
-				e.vm.Logger().Warn(
-					"unable to determine if should set epoch height",
-					zap.Uint64("epoch", nextEpoch),
-					zap.Error(err),
-				)
 			}
 
 			// Update chain metadata

@@ -6,7 +6,6 @@ package vm
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -720,19 +719,22 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	// The first block of any ProposerVM chain is a pre-fork block: https://github.com/ava-labs/avalanchego/blob/f546ca45621061c0058887cd248cd020065cd7f9/vms/proposervm/vm.go#L233-L236
-	//
-	// TODO: support building without context for height 1
-	return nil, errors.New("must build block with context")
+	vm.snowCtx.Log.Warn("building block without context")
+	return vm.buildBlock(ctx, 0)
 }
 
 // implements "block.BuildBlockWithContextChainVM"
 func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+	return vm.buildBlock(ctx, blockContext.PChainHeight)
+}
+
+func (vm *VM) buildBlock(ctx context.Context, pChainHeight uint64) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
 	}()
 
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
+	ctx, span := vm.tracer.Start(ctx, "VM.buildBlock")
 	defer span.End()
 
 	// If the node isn't ready, we should exit.
@@ -759,7 +761,7 @@ func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.C
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Stringer("preferred", vm.preferred), zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, blockContext.PChainHeight, preferredBlk)
+	blk, err := chain.BuildBlock(ctx, vm, pChainHeight, preferredBlk)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
