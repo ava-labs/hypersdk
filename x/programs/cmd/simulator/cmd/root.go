@@ -20,8 +20,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
-
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -124,9 +122,6 @@ func (s *simulator) Init() error {
 		return err
 	}
 
-	// setup pebble and db manager
-	// pdb, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
-	pdb := memdb.New()
 	if err != nil {
 		return err
 	}
@@ -156,7 +151,7 @@ func (s *simulator) Init() error {
 	err = vm.Initialize(
 		context.TODO(),
 		snowCtx,
-		pdb,
+		nil,
 		genesisBytes,
 		nil,
 		configBytes,
