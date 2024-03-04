@@ -719,7 +719,9 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	vm.Logger().Error("cannot build block without context")
+	// The first block of any ProposerVM chain is a pre-fork block: https://github.com/ava-labs/avalanchego/blob/f546ca45621061c0058887cd248cd020065cd7f9/vms/proposervm/vm.go#L233-L236
+	//
+	// TODO: support building without context for height 1
 	return nil, errors.New("must build block with context")
 }
 
