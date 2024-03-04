@@ -146,7 +146,6 @@ func (s *simulator) Init() error {
 
 	// initialize the simulator VM
 	vm := controller.New()
-	configBytes := []byte("{\"testMode\": true}")
 
 	err = vm.Initialize(
 		context.TODO(),
@@ -154,7 +153,7 @@ func (s *simulator) Init() error {
 		nil,
 		genesisBytes,
 		nil,
-		configBytes,
+		nil,
 		toEngine,
 		nil,
 		nil,
