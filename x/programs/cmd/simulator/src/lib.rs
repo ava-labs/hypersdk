@@ -174,11 +174,11 @@ impl Client {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
-            eprintln!("");
+            eprintln!();
             eprintln!("Simulator binary not found at path: {path}");
-            eprintln!("");
+            eprintln!();
             eprintln!("Please run `cargo clean -p simulator` and rebuild your dependent crate.");
-            eprintln!("");
+            eprintln!();
 
             panic!("Simulator binary not found, must rebuild simulator");
         }
