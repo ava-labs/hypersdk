@@ -214,6 +214,7 @@ func (w *WarpManager) AppRequest(
 	requestID uint32,
 	request []byte,
 ) error {
+	// TODO: respond with AppError if can't do something rather than dropping
 	rp := codec.NewReader(request, consts.IDLen)
 	var txID ids.ID
 	rp.UnpackID(true, &txID)
