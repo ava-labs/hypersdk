@@ -18,36 +18,6 @@ const (
 	TxMode    byte = 2
 )
 
-func PackBlockMessage(b *chain.StatelessBlock, feeManager *chain.FeeManager) ([]byte, error) {
-	size := codec.BytesLen(b.Bytes()) + chain.DimensionsLen
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackBytes(b.Bytes())
-	p.PackFixedBytes(feeManager.UnitPrices().Bytes())
-	return p.Bytes(), p.Err()
-}
-
-func UnpackBlockMessage(
-	msg []byte,
-) (*chain.StatefulBlock, chain.Dimensions, error) {
-	p := codec.NewReader(msg, consts.MaxInt)
-	var blkMsg []byte
-	p.UnpackBytes(-1, true, &blkMsg)
-	blk, err := chain.UnmarshalBlock(blkMsg)
-	if err != nil {
-		return nil, chain.Dimensions{}, err
-	}
-	pricesMsg := make([]byte, chain.DimensionsLen)
-	p.UnpackFixedBytes(chain.DimensionsLen, &pricesMsg)
-	prices, err := chain.UnpackDimensions(pricesMsg)
-	if err != nil {
-		return nil, chain.Dimensions{}, err
-	}
-	if !p.Empty() {
-		return nil, chain.Dimensions{}, chain.ErrInvalidObject
-	}
-	return blk, prices, p.Err()
-}
-
 func PackChunkMessage(block uint64, c *chain.FilteredChunk, results []*chain.Result) ([]byte, error) {
 	chunkBytes, err := c.Marshal()
 	if err != nil {

@@ -41,14 +41,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
-// TODO: clean this up
-type blockWrapper struct {
-	Block      *chain.StatelessBlock
-	FeeManager *chain.FeeManager
-}
 type executedWrapper struct {
 	Block   uint64
 	Chunk   *chain.FilteredChunk
@@ -112,15 +106,11 @@ type VM struct {
 	executorDone  chan struct{}
 
 	// Accepted block queue
-	acceptedQueue chan *blockWrapper
+	acceptedQueue chan *chain.StatelessBlock
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
 	webSocketServer *rpc.WebSocketServer
-
-	// authVerifiers are used to verify signatures in parallel
-	// with limited parallelism
-	authVerifiers workers.Workers
 
 	bootstrapped utils.Atomic[bool]
 	genesisBlk   *chain.StatelessBlock
@@ -164,7 +154,7 @@ func (vm *VM) Initialize(
 	appSender common.AppSender,
 ) error {
 	vm.snowCtx = snowCtx
-	vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
+	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	vm.issuedTxs = emap.NewEMap[*chain.Transaction]()
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
@@ -256,12 +246,6 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// Setup worker cluster for verifying signatures
-	//
-	// If [parallelism] is odd, we assign the extra
-	// core to signature verification.
-	vm.authVerifiers = workers.NewParallel(vm.config.GetAuthVerificationCores(), 100) // TODO: make job backlog a const
-
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
@@ -277,7 +261,7 @@ func (vm *VM) Initialize(
 	}
 	vm.executedQueue = make(chan *executedWrapper, vm.config.GetAcceptorSize())
 	vm.executorDone = make(chan struct{})
-	vm.acceptedQueue = make(chan *blockWrapper, vm.config.GetAcceptorSize())
+	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](
@@ -356,16 +340,6 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(genesisBlk.StatefulBlock.Timestamp))); err != nil {
 			return err
 		}
-		genesisRules := vm.c.Rules(0)
-		feeManager := chain.NewFeeManager(nil)
-		minUnitPrice := genesisRules.GetMinUnitPrice()
-		for i := chain.Dimension(0); i < chain.FeeDimensions; i++ {
-			feeManager.SetUnitPrice(i, minUnitPrice[i])
-			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
-		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
-			return err
-		}
 
 		// Commit genesis block post-execution state and compute root
 		if err := sps.Commit(ctx); err != nil {
@@ -408,6 +382,7 @@ func (vm *VM) Initialize(
 		vm.Logger(),
 		"",
 		syncRegistry,
+		&version.Application{}, // TODO: populate this
 	)
 	if err != nil {
 		return err
@@ -594,7 +569,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
 	vm.cm.Done()
-	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
 	}
@@ -742,7 +716,27 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+// implements "block.ChainVM"
+func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	// The first block of any ProposerVM chain is a pre-fork block: https://github.com/ava-labs/avalanchego/blob/f546ca45621061c0058887cd248cd020065cd7f9/vms/proposervm/vm.go#L233-L236
+	vm.snowCtx.Log.Warn("building block without context")
+	return vm.buildBlock(ctx, 0)
+}
+
+// implements "block.BuildBlockWithContextChainVM"
+func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
+	return vm.buildBlock(ctx, blockContext.PChainHeight)
+}
+
+func (vm *VM) buildBlock(ctx context.Context, pChainHeight uint64) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
+	ctx, span := vm.tracer.Start(ctx, "VM.buildBlock")
+	defer span.End()
+
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -756,6 +750,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	processingBlocks := len(vm.verifiedBlocks)
 	vm.verifiedL.RUnlock()
 	if processingBlocks > vm.config.GetProcessingBuildSkip() {
+		// We specify this separately because we want a lower amount than other VMs
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
 		return nil, ErrTooManyProcessing
 	}
@@ -766,7 +761,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Stringer("preferred", vm.preferred), zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
+	blk, err := chain.BuildBlock(ctx, vm, pChainHeight, preferredBlk)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
@@ -775,32 +770,6 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *smblock.Context) (sn
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
-}
-
-// implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
-	defer span.End()
-
-	return vm.buildBlock(ctx, nil)
-}
-
-// implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
-	defer span.End()
-
-	return vm.buildBlock(ctx, blockContext)
 }
 
 func (vm *VM) Submit(
@@ -846,10 +815,8 @@ func (vm *VM) Submit(
 			continue
 		}
 
-		// TODO: check that bond is valid
-
-		// Ensure not expired and not too far in the future
-		if err := tx.Base.Execute(vm.snowCtx.ChainID, r, now); err != nil {
+		// Perform syntactic verification
+		if _, err := tx.SyntacticVerify(ctx, vm.StateManager(), r, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -880,6 +847,21 @@ func (vm *VM) Submit(
 				continue
 			}
 		}
+
+		// TODO: Check that bond is valid
+		//
+		// Outstanding tx limit is maintained in chunk builder
+		// TODO: add immutable access
+		// ok, err := vm.StateManager().CanProcess(ctx, tx.Auth.Sponsor(), hutils.Epoch(tx.Base.Timestamp, r.GetEpochDuration()), nil)
+		// if err != nil {
+		// 	errs = append(errs, err)
+		// 	continue
+		// }
+		// if !ok {
+		// 	errs = append(errs, errors.New("sponsor has no valid bond"))
+		// 	continue
+		// }
+
 		errs = append(errs, nil)
 		vm.cm.HandleTx(ctx, tx)
 	}

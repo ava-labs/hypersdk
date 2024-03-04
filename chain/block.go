@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -27,16 +26,16 @@ import (
 )
 
 var (
-	_ snowman.Block           = &StatelessBlock{}
-	_ block.WithVerifyContext = &StatelessBlock{}
-	_ block.StateSummary      = &SyncableBlock{}
+	_ snowman.Block      = &StatelessBlock{}
+	_ block.StateSummary = &SyncableBlock{}
 )
 
 type StatefulBlock struct {
-	Parent     ids.ID `json:"parent"`
-	Height     uint64 `json:"height"`
-	Timestamp  int64  `json:"timestamp"`
-	HasContext bool   `json:"hasContext"`
+	PHeight uint64 `json:"pHeight"` // 0 means no context
+
+	Parent    ids.ID `json:"parent"`
+	Height    uint64 `json:"height"`
+	Timestamp int64  `json:"timestamp"`
 
 	// AvailableChunks is a collection of valid Chunks that will be executed in
 	// the future.
@@ -57,7 +56,7 @@ type StatefulBlock struct {
 }
 
 func (b *StatefulBlock) Size() int {
-	return consts.IDLen + consts.Uint64Len + consts.Int64Len + consts.BoolLen +
+	return consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
 		consts.IntLen + codec.CummSize(b.AvailableChunks) +
 		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
 }
@@ -73,10 +72,11 @@ func (b *StatefulBlock) ID() (ids.ID, error) {
 func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p := codec.NewWriter(b.Size(), consts.NetworkSizeLimit)
 
+	p.PackUint64(b.PHeight)
+
 	p.PackID(b.Parent)
 	p.PackUint64(b.Height)
 	p.PackInt64(b.Timestamp)
-	p.PackBool(b.HasContext)
 
 	p.PackInt(len(b.AvailableChunks))
 	for _, cert := range b.AvailableChunks {
@@ -104,15 +104,16 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 		b StatefulBlock
 	)
 
+	b.PHeight = p.UnpackUint64(false) // 0 when building without context
+
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
 	b.Timestamp = p.UnpackInt64(false)
-	b.HasContext = p.UnpackBool()
 
 	// Parse available chunks
-	chunkCount := p.UnpackInt(false)          // can produce empty blocks
+	availableChunks := p.UnpackInt(false)     // can produce empty blocks
 	b.AvailableChunks = []*ChunkCertificate{} // don't preallocate all to avoid DoS
-	for i := 0; i < chunkCount; i++ {
+	for i := 0; i < availableChunks; i++ {
 		cert, err := UnmarshalChunkCertificatePacker(p)
 		if err != nil {
 			return nil, err
@@ -122,9 +123,9 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 
 	// Parse executed chunks
 	p.UnpackID(false, &b.StartRoot)
-	chunkCount = p.UnpackInt(false) // can produce empty blocks
-	b.ExecutedChunks = []ids.ID{}   // don't preallocate all to avoid DoS
-	for i := 0; i < chunkCount; i++ {
+	executedChunks := p.UnpackInt(false) // can produce empty blocks
+	b.ExecutedChunks = []ids.ID{}        // don't preallocate all to avoid DoS
+	for i := 0; i < executedChunks; i++ {
 		var id ids.ID
 		p.UnpackID(true, &id)
 		b.ExecutedChunks = append(b.ExecutedChunks, id)
@@ -132,7 +133,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+		return nil, fmt.Errorf("%w: message=%d remaining=%d extra=%x", ErrInvalidObject, len(raw), len(raw)-p.Offset(), raw[p.Offset():])
 	}
 	return &b, p.Err()
 }
@@ -147,7 +148,7 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 		//
 		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
 		// .../vms/proposervm/pre_fork_block.go#L201
-		Timestamp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+		Timestamp: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
 		// StartRoot should include all allocates made when loading the genesis file
 		StartRoot: root,
@@ -171,17 +172,15 @@ type StatelessBlock struct {
 	execHeight *uint64
 
 	chunks set.Set[ids.ID]
-
-	bctx *block.Context
 }
 
-func NewBlock(vm VM, parent snowman.Block, tmstp int64, context bool) *StatelessBlock {
+func NewBlock(vm VM, pHeight uint64, parent snowman.Block, tmstp int64) *StatelessBlock {
 	return &StatelessBlock{
 		StatefulBlock: &StatefulBlock{
-			Parent:     parent.ID(),
-			Timestamp:  tmstp,
-			Height:     parent.Height() + 1,
-			HasContext: context,
+			PHeight:   pHeight,
+			Parent:    parent.ID(),
+			Timestamp: tmstp,
+			Height:    parent.Height() + 1,
 		},
 		vm: vm,
 		st: choices.Processing,
@@ -257,47 +256,12 @@ func ParseStatefulBlock(
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	// If we build with context, we should verify with context. We may use this context
-	// to update the P-Chain height for the next epoch.
-	return b.HasContext, nil
-}
-
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
-	start := time.Now()
-	defer func() {
-		b.vm.RecordBlockVerify(time.Since(start))
-	}()
-
-	ctx, span := b.vm.Tracer().Start(
-		ctx, "StatelessBlock.VerifyWithContext",
-		oteltrace.WithAttributes(
-			attribute.Int64("height", int64(b.StatefulBlock.Height)),
-			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
-		),
-	)
-	defer span.End()
-
-	// Persist the context in case we need it during Accept
-	b.bctx = bctx
-
-	// Proceed with normal verification
-	err := b.verify(ctx)
-	if err != nil {
-		b.vm.Logger().Error(
-			"verification failed",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Error(err),
-		)
-	}
-	return err
-}
-
 // implements "snowman.Block"
+//
+// Tasks
+// 1) verify certificates (correct signatures, correct weight, not duplicates)
+// 2) verify parent state root is correct
+// 3) verify executed certificates (correct IDs)
 func (b *StatelessBlock) Verify(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
@@ -312,24 +276,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	)
 	defer span.End()
 
-	err := b.verify(ctx)
-	if err != nil {
-		b.vm.Logger().Error(
-			"verification failed",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Error(err),
-		)
-	}
-	return err
-}
-
-// Tasks
-// 1) verify certificates (correct signatures, correct weight, not duplicates)
-// 2) verify parent state root is correct
-// 3) verify executed certificates (correct IDs)
-func (b *StatelessBlock) verify(ctx context.Context) error {
 	// Skip verification if we built this block
 	if b.built {
 		b.vm.Logger().Info(
@@ -342,7 +288,24 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		return nil
 	}
 
-	// TODO: skip verification if state does not exist yet
+	// Ensure p-chain height referenced is valid
+	validHeight, err := b.vm.IsValidHeight(ctx, b.PHeight)
+	if err != nil {
+		return fmt.Errorf("%w: can't determine if valid height", err)
+	}
+	if !validHeight {
+		return fmt.Errorf("invalid p-chain height: %d", b.PHeight)
+	}
+
+	// Ensure no certificates if P-Chain height is 0
+	//
+	// Even if there is an epoch, this height is used to verify warp
+	// messages.
+	if b.PHeight == 0 && len(b.AvailableChunks) > 0 {
+		return errors.New("no certificates should exist in a block without context")
+	}
+
+	// TODO: skip verification if state does not exist yet (state sync)
 
 	var (
 		log   = b.vm.Logger()
@@ -434,30 +397,14 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 			)
 			continue
 		}
-		vdrList, totalWeight, err := b.vm.GetWarpValidators(ctx, *heights[heightIndex])
-		if err != nil {
-			panic(err)
-		}
 
-		// Verify multi-signature
-		filteredVdrs, err := warp.FilterValidators(cert.Signers, vdrList)
+		// Get the public key for the signers
+		aggrPubKey, err := b.vm.GetAggregatePublicKey(ctx, *heights[heightIndex], cert.Signers, 67, 100) // TODO: add consts
 		if err != nil {
-			return err
-		}
-		filteredWeight, err := warp.SumWeight(filteredVdrs)
-		if err != nil {
-			return err
-		}
-		// TODO: make this a const
-		if err := warp.VerifyWeight(filteredWeight, totalWeight, 67, 100); err != nil {
-			return err
-		}
-		aggrPubKey, err := warp.AggregatePublicKeys(filteredVdrs)
-		if err != nil {
-			return err
+			return fmt.Errorf("%w: can't generate aggregate public key", err)
 		}
 		if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-			return fmt.Errorf("%w: pk=%s signature=%s blkCtx=%d cert=%d certID=%s signers=%d filteredWeight=%d totalWeight=%d", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), *&b.bctx.PChainHeight, i, cert.Chunk, len(filteredVdrs), filteredWeight, totalWeight)
+			return fmt.Errorf("%w: pk=%s signature=%s pHeight=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), b.PHeight, i, cert.Chunk, cert.Signers.String())
 		}
 	}
 
@@ -490,38 +437,26 @@ func (b *StatelessBlock) verify(ctx context.Context) error {
 		b.execHeight = &execHeight
 	}
 	b.vm.Verified(ctx, b)
-
-	if b.execHeight == nil {
-		// TODO: create a stringer for *Uint64
-		log.Info(
-			"verified block",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Int("available chunks", len(b.AvailableChunks)),
-			zap.Stringer("start root", b.StartRoot),
-			zap.Int("executed chunks", len(b.ExecutedChunks)),
-		)
-	} else {
-		log.Info(
-			"verified block",
-			zap.Stringer("blockID", b.ID()),
-			zap.Uint64("height", b.StatefulBlock.Height),
-			zap.Uint64("execHeight", *b.execHeight),
-			zap.Stringer("parentID", b.Parent()),
-			zap.Int("available chunks", len(b.AvailableChunks)),
-			zap.Stringer("start root", b.StartRoot),
-			zap.Int("executed chunks", len(b.ExecutedChunks)),
-		)
-	}
+	log.Info(
+		"verified block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Any("execHeight", b.execHeight),
+		zap.Stringer("parentID", b.Parent()),
+		zap.Int("available chunks", len(b.AvailableChunks)),
+		zap.Stringer("start root", b.StartRoot),
+		zap.Int("executed chunks", len(b.ExecutedChunks)),
+	)
 	return nil
 }
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Accept(ctx context.Context) error {
+	b.vm.Logger().Info("accepting block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockAccept(time.Since(start))
+		b.vm.Logger().Info("finished accepting block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	}()
 
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
@@ -535,19 +470,15 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	}
 
 	// Collect async results (if any)
-	var (
-		filteredChunks []*FilteredChunk
-		feeManager     *FeeManager
-	)
+	var filteredChunks []*FilteredChunk
 	if b.execHeight != nil {
-		fm, _, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
+		_, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
 		if err != nil {
 			return fmt.Errorf("%w: cannot commit", err)
 		}
 		filteredChunks = fc
-		feeManager = fm
 	}
-	b.vm.Accepted(ctx, b, feeManager, filteredChunks)
+	b.vm.Accepted(ctx, b, filteredChunks)
 	return nil
 }
 
@@ -561,7 +492,7 @@ func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
 	// TODO: this is definitely wrong, we should fix it
-	b.vm.Accepted(ctx, b, nil, nil)
+	b.vm.Accepted(ctx, b, nil)
 }
 
 // implements "snowman.Block.choices.Decidable"

@@ -21,19 +21,24 @@ type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
 
-	Producer  ids.NodeID     `json:"producer"`
+	Producer    ids.NodeID    `json:"producer"`
+	Beneficiary codec.Address `json:"beneficiary"` // used for fees
+
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 
-	id ids.ID
+	id    ids.ID
+	units *Dimensions
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
-	now := time.Now().UnixMilli()
+	nowT := time.Now()
+	now := nowT.UnixMilli()
+	sm := vm.StateManager()
 	r := vm.Rules(now)
 	c := &Chunk{
 		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
-		Txs:  make([]*Transaction, 0, 100),
+		Txs:  make([]*Transaction, 0, 256),
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
 
@@ -62,11 +67,17 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Pack chunk for build duration
-	start := time.Now()
-	mempool := vm.Mempool()
+	//
+	// TODO: sort mempool by priority and fit (only fetch items that can be included)
+	var (
+		chunkUnits = Dimensions{}
+		full       bool
+		cleared    bool
+		mempool    = vm.Mempool()
+	)
 	mempool.StartStreaming(ctx)
-	for time.Since(start) < vm.GetTargetBuildDuration() && len(c.Txs) < 100 {
-		txs := mempool.Stream(ctx, 16)
+	for time.Since(nowT) < vm.GetTargetBuildDuration() {
+		txs := mempool.Stream(ctx, 256)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet
 			//
@@ -76,21 +87,50 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 				continue
 			}
 
+			// TODO: count outstanding for an account and ensure less than epoch bond
+			// if too many, just put back into mempool and try again later
+
+			// TODO: ensure tx can still be processed (bond not frozen)
+
+			// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
+			// of activity).
+
+			// TODO: check if chunk units greater than limit
+
 			// TODO: verify transactions
+			if tx.Base.Timestamp > c.Slot {
+				continue
+			}
+
+			// Check if tx can fit in chunk
+			txUnits, err := tx.Units(sm, r)
+			if err != nil {
+				vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
+				continue
+			}
+			nextUnits, err := Add(chunkUnits, txUnits)
+			if err != nil {
+				full = true
+				// TODO: update mempool to only provide txs that can fit in chunk
+				// Want to maximize how "full" chunk is, so need to be a little complex
+				// if there are transactions with uneven usage of resources.
+
+				// Restore unused txs
+				mempool.FinishStreaming(ctx, txs[i:])
+				break
+			}
+			chunkUnits = nextUnits
 
 			// Add transaction to chunk
 			vm.IssueTx(ctx, tx)
 			c.Txs = append(c.Txs, tx)
-			if len(c.Txs) == 100 {
-				if i+1 < len(txs) {
-					// Restore remaining txs
-					mempool.FinishStreaming(ctx, txs[i+1:])
-				}
-				break
-			}
+		}
+		if len(txs) < 256 {
+			cleared = true
+			break
 		}
 	}
-	if len(c.Txs) < 100 {
+	if !full {
 		mempool.FinishStreaming(ctx, nil)
 	}
 
@@ -101,6 +141,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 
 	// Setup chunk
 	c.Producer = vm.NodeID()
+	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
 
 	// Sign chunk
@@ -117,6 +158,9 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		return nil, err
 	}
 	c.Signature, err = bls.SignatureFromBytes(sig)
+	if err != nil {
+		return nil, err
+	}
 
 	vm.Logger().Info(
 		"built chunk with signature",
@@ -125,11 +169,14 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("chainID", r.ChainID()),
 		zap.Int64("slot", c.Slot),
 		zap.Uint64("epoch", epoch),
-		zap.String("digest", hex.EncodeToString(digest)),
-		zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(c.Signer))),
+		zap.Bool("cleared mempool", cleared),
+		zap.Bool("full", full),
+		zap.Any("units", chunkUnits),
+		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
+		zap.Duration("t", time.Since(nowT)),
 	)
-	return c, err
+	return c, nil
 }
 
 func (c *Chunk) Digest() ([]byte, error) {
@@ -147,7 +194,8 @@ func (c *Chunk) Digest() ([]byte, error) {
 
 	// Marshal signer
 	p.PackNodeID(c.Producer)
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackAddress(c.Beneficiary)
+	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 
 	return p.Bytes(), p.Err()
 }
@@ -166,7 +214,27 @@ func (c *Chunk) ID() (ids.ID, error) {
 }
 
 func (c *Chunk) Size() int {
-	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + bls.PublicKeyLen + bls.SignatureLen
+	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+}
+
+func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {
+	if c.units != nil {
+		return *c.units, nil
+	}
+	units := Dimensions{}
+	for _, tx := range c.Txs {
+		txUnits, err := tx.Units(sm, r)
+		if err != nil {
+			return Dimensions{}, err
+		}
+		nextUnits, err := Add(units, txUnits)
+		if err != nil {
+			return Dimensions{}, err
+		}
+		units = nextUnits
+	}
+	c.units = &units
+	return units, nil
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
@@ -183,7 +251,8 @@ func (c *Chunk) Marshal() ([]byte, error) {
 
 	// Marshal signer
 	p.PackNodeID(c.Producer)
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackAddress(c.Beneficiary)
+	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
 	return p.Bytes(), p.Err()
@@ -224,11 +293,12 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 
 	// Parse signer
 	p.UnpackNodeID(true, &c.Producer)
+	p.UnpackAddress(&c.Beneficiary)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
-	signer, err := bls.PublicKeyFromBytes(pk)
+	signer, err := bls.PublicKeyFromCompressedBytes(pk)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: unable to decompress pk=%x packerErr=%w", err, pk, p.Err())
 	}
 	c.Signer = signer
 	sig := make([]byte, bls.SignatureLen)
@@ -250,7 +320,6 @@ type ChunkSignature struct {
 	Chunk ids.ID `json:"chunk"`
 	Slot  int64  `json:"slot"` // used for builders that don't yet have the chunk being sequenced to verify not included before expiry
 
-	// TODO: may need NodeID to track weight? -> can get from the NodeID response
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 }
@@ -266,7 +335,7 @@ func (c *ChunkSignature) Marshal() ([]byte, error) {
 	p.PackID(c.Chunk)
 	p.PackInt64(c.Slot)
 
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
 	return p.Bytes(), p.Err()
@@ -305,7 +374,7 @@ func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
 	c.Slot = p.UnpackInt64(false)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
-	signer, err := bls.PublicKeyFromBytes(pk)
+	signer, err := bls.PublicKeyFromCompressedBytes(pk)
 	if err != nil {
 		return nil, err
 	}
@@ -446,8 +515,10 @@ func UnmarshalChunkCertificatePacker(p *codec.Packer) (*ChunkCertificate, error)
 
 // TODO: consider evaluating what other fields should be here (tx results bit array? so no need to sync for simple transfers)
 type FilteredChunk struct {
-	Chunk    ids.ID     `json:"chunk"`
-	Producer ids.NodeID `json:"producer"`
+	Chunk ids.ID `json:"chunk"`
+
+	Producer    ids.NodeID    `json:"producer"`
+	Beneficiary codec.Address `json:"beneficiary"` // used for fees
 
 	Txs         []*Transaction `json:"txs"`
 	WarpResults set.Bits64     `json:"warpResults"`
@@ -469,7 +540,7 @@ func (c *FilteredChunk) ID() (ids.ID, error) {
 }
 
 func (c *FilteredChunk) Size() int {
-	return consts.IDLen + consts.NodeIDLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
+	return consts.IDLen + consts.NodeIDLen + codec.AddressLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
 }
 
 func (c *FilteredChunk) Marshal() ([]byte, error) {
@@ -478,6 +549,7 @@ func (c *FilteredChunk) Marshal() ([]byte, error) {
 	// Marshal header
 	p.PackID(c.Chunk)
 	p.PackNodeID(c.Producer)
+	p.PackAddress(c.Beneficiary)
 
 	// Marshal transactions
 	p.PackInt(len(c.Txs))
@@ -499,11 +571,14 @@ func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
 	)
 	c.id = utils.ToID(raw)
 
-	// Parse transactions
+	// Parse header
 	p.UnpackID(true, &c.Chunk)
 	p.UnpackNodeID(true, &c.Producer)
-	txCount := p.UnpackInt(true) // can't produce empty blocks
-	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
+	p.UnpackAddress(&c.Beneficiary)
+
+	// Parse transactions
+	txCount := p.UnpackInt(false) // can produce empty filtered chunks
+	c.Txs = []*Transaction{}      // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
@@ -515,7 +590,7 @@ func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+		return nil, fmt.Errorf("%w: remaining=%d extra=%x err=%w", ErrInvalidObject, len(raw)-p.Offset(), raw[p.Offset():], p.Err())
 	}
 	return &c, p.Err()
 }

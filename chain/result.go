@@ -13,6 +13,8 @@ type Result struct {
 	Valid        bool
 	WarpVerified bool // incoming warp message (false if none)
 
+	Freezable bool
+
 	Success bool
 	Output  []byte
 

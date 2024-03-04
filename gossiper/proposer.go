@@ -365,7 +365,7 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 			"unable to find any proposers, falling back to all-to-all gossip",
 			zap.Error(err),
 		)
-		return g.appSender.SendAppGossip(ctx, b)
+		return g.appSender.SendAppGossip(ctx, b, 10, 0, 0)
 	}
 	recipients := set.NewSet[ids.NodeID](len(proposers))
 	for proposer := range proposers {

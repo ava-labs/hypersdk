@@ -165,7 +165,7 @@ func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidat
 			continue
 		}
 
-		pkBytes := bls.SerializePublicKey(vdr.PublicKey)
+		pkBytes := bls.PublicKeyToUncompressedBytes(vdr.PublicKey)
 		uniqueVdr, ok := vdrs[string(pkBytes)]
 		if !ok {
 			uniqueVdr = &warp.Validator{

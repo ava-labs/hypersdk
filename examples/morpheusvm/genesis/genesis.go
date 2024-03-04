@@ -36,10 +36,7 @@ type Genesis struct {
 	MinBlockGap int64 `json:"minBlockGap"` // ms
 
 	// Chain Fee Parameters
-	MinUnitPrice               chain.Dimensions `json:"minUnitPrice"`
-	UnitPriceChangeDenominator chain.Dimensions `json:"unitPriceChangeDenominator"`
-	WindowTargetUnits          chain.Dimensions `json:"windowTargetUnits"` // 10s
-	MaxBlockUnits              chain.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
+	MaxChunkUnits chain.Dimensions `json:"maxChunkUnits"` // must be possible to reach before block too large
 
 	// Tx Parameters
 	ValidityWindow int64 `json:"validityWindow"` // ms
@@ -66,13 +63,10 @@ func Default() *Genesis {
 		StateBranchFactor: merkledb.BranchFactor16,
 
 		// Chain Parameters
-		MinBlockGap: 750, // TODO: align with slot frequency
+		MinBlockGap: 250, // TODO: align with slot frequency
 
 		// Chain Fee Parameters
-		MinUnitPrice:               chain.Dimensions{100, 100, 100, 100, 100},
-		UnitPriceChangeDenominator: chain.Dimensions{48, 48, 48, 48, 48},
-		WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
-		MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
+		MaxChunkUnits: chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
 		ValidityWindow: 10 * hconsts.MillisecondsPerSecond, // ms

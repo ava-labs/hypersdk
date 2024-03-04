@@ -226,7 +226,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	for ctx.Err() == nil {
 		blk, chunk, results, err := scli.ListenChunk(ctx, parser)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: chunk is invalid", err)
 		}
 		chunkID, err := chunk.ID()
 		if err != nil {

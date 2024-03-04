@@ -174,7 +174,7 @@ func (w *WarpManager) GatherSignatures(ctx context.Context, txID ids.ID, msg []b
 			Item: &signatureJob{
 				id,
 				nodeID,
-				bls.PublicKeyToBytes(validator.PublicKey),
+				bls.PublicKeyToCompressedBytes(validator.PublicKey),
 				txID,
 				0,
 				msg,
@@ -214,6 +214,7 @@ func (w *WarpManager) AppRequest(
 	requestID uint32,
 	request []byte,
 ) error {
+	// TODO: respond with AppError if can't do something rather than dropping
 	rp := codec.NewReader(request, consts.IDLen)
 	var txID ids.ID
 	rp.UnpackID(true, &txID)
@@ -290,7 +291,7 @@ func (w *WarpManager) HandleResponse(requestID uint32, msg []byte) error {
 	}
 
 	// Check signature validity
-	pk, err := bls.PublicKeyFromBytes(publicKey)
+	pk, err := bls.PublicKeyFromCompressedBytes(publicKey)
 	if err != nil {
 		w.vm.snowCtx.Log.Warn("could not decode public key", zap.Error(err))
 		return nil

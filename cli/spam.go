@@ -111,7 +111,7 @@ func (h *Handler) Spam(
 		return err
 	}
 	action := getTransfer(keys[0].Address, 0)
-	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
+	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
 	if err != nil {
 		return err
 	}

@@ -20,7 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/workers"
 )
 
 type (
@@ -66,9 +65,8 @@ type VM interface {
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
-	AuthVerifiers() workers.Workers
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
+	GetAuthVerifyCores() int
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -91,7 +89,7 @@ type VM interface {
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
-	Accepted(context.Context, *StatelessBlock, *FeeManager, []*FilteredChunk)
+	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
 	Executed(context.Context, uint64, *FilteredChunk, []*Result)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
@@ -102,21 +100,22 @@ type VM interface {
 	StateReady() bool
 
 	// TODO: cleanup
-	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
-	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
+	Beneficiary() codec.Address
+
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
-	FetchValidators(ctx context.Context, height uint64)
-	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)         // TODO: filter based on being part of whole epoch
-	GetWarpValidators(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) // cached
-	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
-}
 
-type VerifyContext interface {
-	View(ctx context.Context, verify bool) (state.View, error)
-	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
+	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
+	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+
+	IsValidHeight(ctx context.Context, height uint64) (bool, error)
+	CacheValidators(ctx context.Context, height uint64)
+	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
+	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
+	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -144,15 +143,12 @@ type Rules interface {
 
 	GetBlockExecutionDepth() uint64
 	GetEpochDuration() int64
-	GetChunksPerBlock() int
 
 	GetMinBlockGap() int64    // in milliseconds
 	GetValidityWindow() int64 // in milliseconds
 
-	GetMinUnitPrice() Dimensions
-	GetUnitPriceChangeDenominator() Dimensions
-	GetWindowTargetUnits() Dimensions
-	GetMaxBlockUnits() Dimensions
+	GetUnitPrices() Dimensions // TODO: make this dynamic if we want to burn fees?
+	GetMaxChunkUnits() Dimensions
 
 	GetBaseComputeUnits() uint64
 	GetBaseWarpComputeUnits() uint64
@@ -171,7 +167,7 @@ type Rules interface {
 	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
 	// * If a key is removed and then re-created with the same value during a transaction,
 	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
-	GetSponsorStateKeysMaxChunks() []uint16
+	GetSponsorStateKeyChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk
 	GetStorageKeyAllocateUnits() uint64
@@ -188,7 +184,6 @@ type MetadataManager interface {
 	HeightKey() []byte
 	PHeightKey() []byte
 	TimestampKey() []byte
-	FeeKey() []byte
 }
 
 type WarpManager interface {
@@ -198,7 +193,9 @@ type WarpManager interface {
 
 type FeeHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
-	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
+	// by [addr] or during bond check/claim.
+	//
+	// This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
@@ -206,25 +203,32 @@ type FeeHandler interface {
 	SponsorStateKeys(addr codec.Address) state.Keys
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
-	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
+	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) (bool, error)
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 
-	// Refund returns [amount] to [addr] after transaction execution if any fees were
-	// not used.
-	//
-	// Refund will return an error if it attempts to create any new keys. It can only
-	// modify or remove existing keys.
-	//
-	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+	// IsFrozen returns true if transactions from [addr] are not allowed to be submitted.
+	// IsFrozen(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)    // account can submit
+	// IsClaimed(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (bool, error)   // some bond is claimed
+	// EpochBond(ctx context.Context, addr codec.Address, epoch uint64, im state.Immutable) (uint64, error) // total locked is this value * 2
+	// ClaimBond(ctx context.Context, addr codec.Address, epoch uint64, mu state.Mutable) error             // Must handle after execution to avoid conflicts, if already claimed, does nothing
+	// TODO: can't attempt to unfreeze until latest claim key + 2 (to give time for all claims to be processed) and/or until a new bond takes effect claims:<[epoch][epoch]> balance:<[balance][bond][epoch][new bond]>
+	//  when unfrozen, we delete the claim key and then set [bond]=0 and [epoch][new bond]
+	//  TODO: claims handled in random order, we need to handle deterministically to get canonical epoch/epoch result
 }
 
 type EpochManager interface {
 	// EpochKey is the key that corresponds to the height of the P-Chain to use for
-	// validation of a given epoch.
+	// validation of a given epoch and the fees to use for verifying transactions.
 	EpochKey(epoch uint64) []byte
+}
+
+type RewardHandler interface {
+	// Reward sends [amount] to [addr] after block execution if any fees or bonds were collected.
+	//
+	// Reward is only invoked if [amount] > 0.
+	// Reward(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
 
 // StateManager allows [Chain] to safely store certain types of items in state
@@ -238,6 +242,7 @@ type StateManager interface {
 	WarpManager
 	FeeHandler
 	EpochManager
+	RewardHandler
 }
 
 type Object interface {
@@ -261,18 +266,14 @@ type Object interface {
 type Action interface {
 	Object
 
-	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
-	// used to determine whether the [Action] can be included in a given block and to compute
-	// the required fee to execute.
-	//
-	// Developers should make every effort to bound this as tightly to the actual max so that
-	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
-	MaxComputeUnits(Rules) uint64
+	// ComputeUnits is the amount of compute an [Action] uses. This is used to determine whether the
+	// [Action] can be included in a given block and to compute the required fee to execute.
+	ComputeUnits(Rules) uint64
 
-	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
-	// chunks each state key could use without requiring the state keys to actually be provided (may
-	// not be known until execution).
-	StateKeysMaxChunks() []uint16
+	// StateKeyChunks is used to estimate the fee a transaction should pay. It includes the chunks each
+	// state key could use without requiring the state keys to actually be provided (may not be known
+	// until execution).
+	StateKeyChunks() []uint16
 
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
@@ -288,7 +289,7 @@ type Action interface {
 	// be done here.
 	//
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
-	// will revert and the max fee will be charged.
+	// will revert.
 	//
 	// An error should only be returned if a fatal error was encountered, otherwise [success] should
 	// be marked as false and fees will still be charged.
@@ -300,7 +301,7 @@ type Action interface {
 		actor codec.Address,
 		txID ids.ID,
 		warpVerified bool,
-	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
+	) (success bool, output []byte, warpMessage *warp.UnsignedMessage, err error)
 
 	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
 	// of any warp message is [MaxOutgoingWarpChunks].

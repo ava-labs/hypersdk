@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -48,6 +49,21 @@ func (ts *TState) PendingChanges() int {
 	defer ts.l.RUnlock()
 
 	return len(ts.changedKeys)
+}
+
+// Insert should only be called if you know what you are doing (updates
+// here may not be reflected in get calls in tstate views and/or may overwrite
+// identical keys on disk).
+func (ts *TState) Insert(ctx context.Context, key, value []byte) error {
+	if !keys.VerifyValue(key, value) {
+		return ErrInvalidKeyValue
+	}
+
+	ts.l.Lock()
+	defer ts.l.Unlock()
+	ts.changedKeys[string(key)] = maybe.Some(value) // we don't care if key is equivalent to key on-disk or in `changedKeys`
+	ts.ops++
+	return nil
 }
 
 // OpIndex returns the number of operations done on ts.

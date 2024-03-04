@@ -70,10 +70,18 @@ type Handler interface {
 		requestID uint32,
 		response []byte,
 	) error
+	AppError(
+		ctx context.Context,
+		nodeID ids.NodeID,
+		requestID uint32,
+		errorCode int32,
+		errorMessage string,
+	) error
 
 	CrossChainAppRequest(context.Context, ids.ID, uint32, time.Time, []byte) error
 	CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error
 	CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error
+	CrossChainAppError(context.Context, ids.ID, uint32, int32, string) error
 }
 
 func (n *Manager) Register() (uint8, common.AppSender) {
@@ -235,6 +243,26 @@ func (n *Manager) AppResponse(
 	return handler.AppResponse(ctx, nodeID, cRequestID, response)
 }
 
+// implements "block.ChainVM.commom.VM.AppHandler"
+func (n *Manager) AppError(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	errorCode int32,
+	errorMessage string,
+) error {
+	handler, cRequestID, ok := n.handleSharedRequestID(nodeID, requestID)
+	if !ok {
+		n.log.Debug(
+			"could not handle incoming AppError",
+			zap.Stringer("nodeID", nodeID),
+			zap.Uint32("requestID", requestID),
+		)
+		return nil
+	}
+	return handler.AppError(ctx, nodeID, cRequestID, errorCode, errorMessage)
+}
+
 // implements "block.ChainVM.commom.VM.validators.Connector"
 func (n *Manager) Connected(
 	ctx context.Context,
@@ -327,6 +355,25 @@ func (n *Manager) CrossChainAppResponse(
 	return handler.CrossChainAppResponse(ctx, chainID, cRequestID, response)
 }
 
+func (n *Manager) CrossChainAppError(
+	ctx context.Context,
+	chainID ids.ID,
+	requestID uint32,
+	errorCode int32,
+	errorMessage string,
+) error {
+	handler, cRequestID, ok := n.handleSharedRequestID(n.nodeID, requestID)
+	if !ok {
+		n.log.Debug(
+			"could not handle incoming CrossChainAppError",
+			zap.Stringer("chainID", chainID),
+			zap.Uint32("requestID", requestID),
+		)
+		return nil
+	}
+	return handler.CrossChainAppError(ctx, chainID, cRequestID, errorCode, errorMessage)
+}
+
 // WrappedAppSender is used to get a shared requestID and to prepend messages
 // with the handler identifier.
 type WrappedAppSender struct {
@@ -382,12 +429,33 @@ func (w *WrappedAppSender) SendAppResponse(
 	)
 }
 
+func (w *WrappedAppSender) SendAppError(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	errorCode int32,
+	errorMessage string,
+) error {
+	// We don't need to wrap this response because the sender should know what
+	// requestID is associated with which handler.
+	return w.n.sender.SendAppError(
+		ctx,
+		nodeID,
+		requestID,
+		errorCode,
+		errorMessage,
+	)
+}
+
 // Gossip an application-level message.
 // A non-nil error should be considered fatal.
-func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
+func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte, validators, nonValidators, peers int) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
 		w.createMessageBytes(appGossipBytes),
+		validators,
+		nonValidators,
+		peers,
 	)
 }
 
@@ -444,6 +512,18 @@ func (w *WrappedAppSender) SendCrossChainAppResponse(
 	// We don't need to wrap this response because the sender should know what
 	// requestID is associated with which handler.
 	return w.n.sender.SendCrossChainAppResponse(ctx, chainID, requestID, appResponseBytes)
+}
+
+func (w *WrappedAppSender) SendCrossChainAppError(
+	ctx context.Context,
+	chainID ids.ID,
+	requestID uint32,
+	errorCode int32,
+	errorMessage string,
+) error {
+	// We don't need to wrap this response because the sender should know what
+	// requestID is associated with which handler.
+	return w.n.sender.SendCrossChainAppError(ctx, chainID, requestID, errorCode, errorMessage)
 }
 
 func (w *WrappedAppSender) createMessageBytes(src []byte) []byte {

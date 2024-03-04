@@ -27,6 +27,7 @@ import (
 const (
 	refreshTime            = 30 * time.Second
 	proposerMonitorLRUSize = 60
+	aggrPubKeyLRUSize      = 1024
 )
 
 type proposerInfo struct {
@@ -36,6 +37,7 @@ type proposerInfo struct {
 	totalWeight  uint64
 }
 
+// TODO: change to PChainManager (or something like it)
 type ProposerMonitor struct {
 	vm *VM
 
@@ -44,16 +46,21 @@ type ProposerMonitor struct {
 
 	currentLock        sync.Mutex
 	lastFetchedPHeight time.Time
+	currentHeight      uint64
 	currentValidators  map[ids.NodeID]*validators.GetValidatorOutput
+
+	aggrCache *cache.LRU[string, *bls.PublicKey]
 }
 
 func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	return &ProposerMonitor{
 		vm:        vm,
 		proposers: &cache.LRU[uint64, *proposerInfo]{Size: proposerMonitorLRUSize},
+		aggrCache: &cache.LRU[string, *bls.PublicKey]{Size: aggrPubKeyLRUSize},
 	}
 }
 
+// TODO: don't add validators that won't be validators for the entire epoch
 func (p *ProposerMonitor) fetch(ctx context.Context, height uint64) *proposerInfo {
 	validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
 		ctx,
@@ -139,6 +146,26 @@ func (p *ProposerMonitor) GetValidatorSet(ctx context.Context, height uint64, in
 	return vdrSet, nil
 }
 
+func (p *ProposerMonitor) refreshCurrent(ctx context.Context) error {
+	pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
+	if err != nil {
+		p.currentLock.Unlock()
+		return err
+	}
+	p.currentHeight = pHeight
+	validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
+		ctx,
+		pHeight,
+		p.vm.snowCtx.SubnetID,
+	)
+	if err != nil {
+		return err
+	}
+	p.lastFetchedPHeight = time.Now()
+	p.currentValidators = validators
+	return nil
+}
+
 // Prevent unnecessary map copies
 func (p *ProposerMonitor) IterateCurrentValidators(
 	ctx context.Context,
@@ -147,22 +174,10 @@ func (p *ProposerMonitor) IterateCurrentValidators(
 	// Refresh P-Chain height if [refreshTime] has elapsed
 	p.currentLock.Lock()
 	if time.Since(p.lastFetchedPHeight) > refreshTime {
-		pHeight, err := p.vm.snowCtx.ValidatorState.GetCurrentHeight(ctx)
-		if err != nil {
+		if err := p.refreshCurrent(ctx); err != nil {
 			p.currentLock.Unlock()
 			return err
 		}
-		validators, err := p.vm.snowCtx.ValidatorState.GetValidatorSet(
-			ctx,
-			pHeight,
-			p.vm.snowCtx.SubnetID,
-		)
-		if err != nil {
-			p.currentLock.Unlock()
-			return err
-		}
-		p.lastFetchedPHeight = time.Now()
-		p.currentValidators = validators
 	}
 	validators := p.currentValidators
 	p.currentLock.Unlock()
@@ -172,6 +187,19 @@ func (p *ProposerMonitor) IterateCurrentValidators(
 		f(k, v)
 	}
 	return nil
+}
+
+func (p *ProposerMonitor) IsValidHeight(ctx context.Context, height uint64) (bool, error) {
+	p.currentLock.Lock()
+	defer p.currentLock.Unlock()
+
+	if height <= p.currentHeight {
+		return true, nil
+	}
+	if err := p.refreshCurrent(ctx); err != nil {
+		return false, err
+	}
+	return height <= p.currentHeight, nil
 }
 
 // Prevent unnecessary map copies
@@ -234,4 +262,43 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, a
 	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
 	indexInt := int(index.Int64())
 	return info.partitionSet[indexInt], nil
+}
+
+func (p *ProposerMonitor) GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) {
+	// Confirm signing weight is sufficient
+	vdrSet, totalWeight, err := p.GetWarpValidatorSet(ctx, height)
+	if err != nil {
+		return nil, err
+	}
+	filtered, err := warp.FilterValidators(signers, vdrSet)
+	if err != nil {
+		return nil, err
+	}
+	filteredWeight, err := warp.SumWeight(filtered)
+	if err != nil {
+		return nil, err
+	}
+	if err := warp.VerifyWeight(filteredWeight, totalWeight, num, denom); err != nil {
+		return nil, err
+	}
+
+	// Attempt to load aggregate public key from cache
+	bitSetBytes := signers.Bytes()
+	k := make([]byte, consts.Uint64Len+len(bitSetBytes))
+	binary.BigEndian.PutUint64(k, height)
+	copy(k[consts.Uint64Len:], bitSetBytes)
+	sk := string(k)
+	v, ok := p.aggrCache.Get(sk) // we may perform duplicate aggregations because we don't lock here
+	if !ok {
+		aggrPubKey, err := warp.AggregatePublicKeys(filtered)
+		if err != nil {
+			return nil, err
+		}
+		p.aggrCache.Put(sk, aggrPubKey)
+		v = aggrPubKey
+		p.vm.Logger().Info("caching aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
+	} else {
+		p.vm.Logger().Info("found cached aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
+	}
+	return v, nil
 }

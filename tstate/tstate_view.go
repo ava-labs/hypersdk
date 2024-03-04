@@ -47,9 +47,8 @@ type TStateView struct {
 	scopeStorage map[string][]byte
 
 	// Store which keys are modified and how large their values were.
-	canAllocate bool
-	allocates   map[string]uint16
-	writes      map[string]uint16
+	allocates map[string]uint16
+	writes    map[string]uint16
 }
 
 func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
@@ -62,9 +61,8 @@ func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateVi
 		scope:        scope,
 		scopeStorage: storage,
 
-		canAllocate: true, // default to allowing allocation
-		allocates:   make(map[string]uint16, len(scope)),
-		writes:      make(map[string]uint16, len(scope)),
+		allocates: make(map[string]uint16, len(scope)),
+		writes:    make(map[string]uint16, len(scope)),
 	}
 }
 
@@ -130,24 +128,6 @@ func (ts *TStateView) Rollback(_ context.Context, restorePoint int) {
 // OpIndex returns the number of operations done on ts.
 func (ts *TStateView) OpIndex() int {
 	return len(ts.ops)
-}
-
-// DisableAllocation causes [Insert] to return an error if
-// it would create a new key. This can be useful for constraining
-// what a transaction can do during block execution (to allow for
-// cheaper fees).
-//
-// Note, creation defaults to true.
-func (ts *TStateView) DisableAllocation() {
-	ts.canAllocate = false
-}
-
-// EnableAllocation removes the forcer error case in [Insert]
-// if a new key is created.
-//
-// Note, creation defaults to true.
-func (ts *TStateView) EnableAllocation() {
-	ts.canAllocate = true
 }
 
 // KeyOperations returns the number of operations performed since the scope
@@ -236,9 +216,6 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
-		if !ts.canAllocate {
-			return ErrAllocationDisabled
-		}
 		op.t = createOp
 		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
 		ts.allocates[k] = keyChunks

@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -27,21 +26,22 @@ type Processor struct {
 	authStream *stream.Stream
 
 	latestPHeight *uint64
-	pchainHeights []*uint64
+	epochHeights  []*uint64
 
-	timestamp  int64
-	epoch      uint64
-	im         state.Immutable
-	feeManager *FeeManager
-	r          Rules
-	sm         StateManager
-	cacheLock  sync.RWMutex
-	cache      map[string]*fetchData
-	exectutor  *executor.Executor
-	ts         *tstate.TState
+	timestamp int64
+	epoch     uint64
+	im        state.Immutable
+	r         Rules
+	sm        StateManager
+	cacheLock sync.RWMutex
+	cache     map[string]*fetchData
+	exectutor *executor.Executor
+	ts        *tstate.TState
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
+
+	frozenSponsors set.Set[string]
 }
 
 type blockLoc struct {
@@ -59,11 +59,11 @@ type fetchData struct {
 // Only run one processor at once
 func NewProcessor(
 	vm VM, eng *Engine,
-	latestPHeight *uint64, pchainHeights []*uint64,
-	chunks int, timestamp int64, im state.Immutable, feeManager *FeeManager, r Rules,
+	latestPHeight *uint64, epochHeights []*uint64,
+	chunks int, timestamp int64, im state.Immutable, r Rules,
 ) *Processor {
 	stream := stream.New()
-	stream.WithMaxGoroutines(10) // TODO: use config
+	stream.WithMaxGoroutines(vm.GetAuthVerifyCores())
 	return &Processor{
 		vm:  vm,
 		eng: eng,
@@ -71,15 +71,14 @@ func NewProcessor(
 		authStream: stream,
 
 		latestPHeight: latestPHeight,
-		pchainHeights: pchainHeights,
+		epochHeights:  epochHeights,
 
-		timestamp:  timestamp,
-		epoch:      utils.Epoch(timestamp, r.GetEpochDuration()),
-		im:         im,
-		feeManager: feeManager,
-		r:          r,
-		sm:         vm.StateManager(),
-		cache:      make(map[string]*fetchData, numTxs),
+		timestamp: timestamp,
+		epoch:     utils.Epoch(timestamp, r.GetEpochDuration()),
+		im:        im,
+		r:         r,
+		sm:        vm.StateManager(),
+		cache:     make(map[string]*fetchData, numTxs),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
 		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorVerifyRecorder()),
@@ -87,10 +86,12 @@ func NewProcessor(
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
+
+		frozenSponsors: set.NewSet[string](4),
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, tx *Transaction) {
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, fee uint64, tx *Transaction) {
 	stateKeys, err := tx.StateKeys(p.sm)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -148,11 +149,17 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		// processed
 		tsv := p.ts.NewView(stateKeys, storage)
 
-		// Ensure we have enough funds to pay fees
-		if err := tx.PreExecute(ctx, p.feeManager, p.sm, p.r, tsv, p.timestamp); err != nil {
-			// TODO: freeze account and pay bond
-			p.vm.Logger().Warn("pre-execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+		// Deduct fees
+		sponsor := tx.Auth.Sponsor()
+		ssponsor := string(sponsor[:])
+		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, fee)
+		if err != nil {
+			return err
+		}
+		if !ok || p.frozenSponsors.Contains(ssponsor) {
+			p.vm.Logger().Warn("insufficient funds", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+			p.frozenSponsors.Add(ssponsor)
 			return nil
 		}
 
@@ -160,8 +167,11 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		warpVerified := p.verifyWarpMessage(ctx, pchainHeight, tx)
 
 		// Execute transaction
-		result, err := tx.Execute(ctx, p.feeManager, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
+		//
+		// Also deducts fees
+		result, err := tx.Execute(ctx, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
 		if err != nil {
+			// TODO: this should never happen
 			p.vm.Logger().Warn("execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			return nil
@@ -170,18 +180,8 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		result.WarpVerified = warpVerified
 		p.results[chunkIndex][txIndex] = result
 
-		// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
-		// exit with an error based on which tx over the limit is processed first)
-		//
-		// TODO: we won't know this when just including certs?
-		if ok, d := p.feeManager.Consume(result.Consumed, p.r.GetMaxBlockUnits()); !ok {
-			return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
-		}
-
 		// Commit results to parent [TState]
 		tsv.Commit()
-
-		// TODO: pay portion of fees to validator that included
 
 		// Update key cache
 		if len(toCache) > 0 {
@@ -224,12 +224,18 @@ func (p *Processor) verifyWarpMessage(ctx context.Context, pchainHeight uint64, 
 	return true
 }
 
+func (p *Processor) markChunkTxsInvalid(chunkIndex, count int) {
+	for i := 0; i < count; i++ {
+		p.results[chunkIndex][i] = &Result{Valid: false}
+	}
+}
+
 // Allows processing to start before all chunks are acquired.
 //
 // Chunks MUST be added in order.
 //
 // Add must not be called concurrently
-func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error {
+func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Add")
 	defer span.End()
 
@@ -242,26 +248,63 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 	//
 	// Don't wait for all transactions to finish verification to kickoff execution (should
 	// be interleaved).
-	p.results[chunkIndex] = make([]*Result, len(chunk.Txs))
+	chunkTxs := len(chunk.Txs)
+	p.results[chunkIndex] = make([]*Result, chunkTxs)
+
+	// Confirm that chunk is well-formed
+	//
+	// All of these can be avoided by chunk producer.
+	cid, err := chunk.ID() // TODO: make this panic on err
+	if err != nil {
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
+	}
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
-		return err
+		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
 	}
+	chunkUnits, err := chunk.Units(p.sm, p.r)
+	if err != nil {
+		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
+	}
+	if chunkUnits.Greater(p.r.GetMaxChunkUnits()) {
+		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", cid), zap.Error(err))
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
+	}
+
+	// Process chunk transactions
 	for ri, rtx := range chunk.Txs {
-		// TODO: remove in go1.22
 		txIndex := ri
 		tx := rtx
 
-		// Perform basic verification (also performed inside of PreExecute)
+		// Perform syntactic verification
 		//
 		// We don't care whether this transaction is in the current epoch or the next.
-		if err := tx.Base.Execute(p.r.ChainID(), p.r, p.timestamp); err != nil { // checks timestamp vs validity window
-			p.vm.Logger().Warn("base transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
+		if err != nil {
+			p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
 		if tx.Base.Timestamp > chunk.Slot {
 			p.vm.Logger().Warn("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		fee, err := MulSum(p.r.GetUnitPrices(), units)
+		if err != nil {
+			p.vm.Logger().Warn("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		if tx.Base.MaxFee < fee {
+			// This should be checked by chunk producer before inclusion.
+			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
@@ -276,8 +319,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 
 		// Check that height is set for epoch
 		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
-		pchainHeight := p.pchainHeights[txEpoch-p.epoch]
-		if pchainHeight == nil {
+		epochHeight := p.epochHeights[txEpoch-p.epoch]
+		if epochHeight == nil {
 			// We can't verify tx partition if this is the case
 			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -286,7 +329,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, *pchainHeight, tx.Auth.Sponsor())
+		parition, err := p.vm.AddressPartition(ctx, *epochHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
@@ -306,6 +349,20 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 		// from ever being executed).
 		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
+		// Check that transaction isn't frozen (can avoid state lookups)
+		//
+		// Need to wait to enqueue until after verify signature.
+		sponsor := tx.Auth.Sponsor()
+		ssponsor := string(sponsor[:])
+		// ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		frozen := false
+		if frozen {
+			p.frozenSponsors.Add(ssponsor)
+		}
+
 		// Enqueue transaction for execution
 		p.authStream.Go(func() stream.Callback {
 			msg, err := tx.Digest()
@@ -321,10 +378,14 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) error
 					return func() {}
 				}
 			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, tx) }
+			if p.frozenSponsors.Contains(ssponsor) {
+				p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+				return func() {}
+			}
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }
 		})
 	}
-	return nil
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
