@@ -836,6 +836,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	// If we are not the issuer, send to the correct issuer
 	//
 	// TODO: batch tx issuance
+	// TODO: track how much this blocks chunk processing
 	txBytes, err := chain.MarshalTxs([]*chain.Transaction{tx})
 	if err != nil {
 		panic(err)
