@@ -122,10 +122,6 @@ func (s *simulator) Init() error {
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
-
 	genesisBytes, err := json.Marshal(genesis.Default())
 	if err != nil {
 		return err
