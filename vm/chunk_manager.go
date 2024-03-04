@@ -947,7 +947,9 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				}
 			})
 		}
+		c.vm.Logger().Info("waiting for fetch stream")
 		fetchStream.Wait()
+		c.vm.Logger().Info("done waiting for fetch stream")
 		close(chunks)
 
 		// Invoke next waiter

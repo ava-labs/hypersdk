@@ -133,7 +133,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+		return nil, fmt.Errorf("%w: message=%d remaining=%d extra=%x", ErrInvalidObject, len(raw), len(raw)-p.Offset(), raw[p.Offset():])
 	}
 	return &b, p.Err()
 }
@@ -452,9 +452,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Accept(ctx context.Context) error {
+	b.vm.Logger().Info("accepting block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockAccept(time.Since(start))
+		b.vm.Logger().Info("finished accepting block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	}()
 
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")

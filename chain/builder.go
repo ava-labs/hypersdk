@@ -135,6 +135,7 @@ func BuildBlock(
 		zap.Int("available chunks", len(b.AvailableChunks)),
 		zap.Stringer("start root", b.StartRoot),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
+		zap.Int("size", len(b.bytes)),
 	)
 	return b, nil
 }
