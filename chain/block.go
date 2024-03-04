@@ -104,7 +104,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 		b StatefulBlock
 	)
 
-	b.PHeight = p.UnpackUint64(true)
+	b.PHeight = p.UnpackUint64(false) // 0 when building without context
 
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
