@@ -148,7 +148,7 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 		//
 		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
 		// .../vms/proposervm/pre_fork_block.go#L201
-		Timestamp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
+		Timestamp: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
 		// StartRoot should include all allocates made when loading the genesis file
 		StartRoot: root,

@@ -718,6 +718,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 
 // implements "block.ChainVM"
 func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	vm.Logger().Error("cannot build block without context")
 	return nil, errors.New("must build block with context")
 }
 
@@ -744,6 +745,7 @@ func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *smblock.C
 	processingBlocks := len(vm.verifiedBlocks)
 	vm.verifiedL.RUnlock()
 	if processingBlocks > vm.config.GetProcessingBuildSkip() {
+		// We specify this separately because we want a lower amount than other VMs
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
 		return nil, ErrTooManyProcessing
 	}
