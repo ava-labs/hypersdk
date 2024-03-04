@@ -535,6 +535,7 @@ func (c *ChunkManager) AppRequest(
 				zap.Stringer("chunkID", id),
 				zap.Error(err),
 			)
+			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
 			return nil
 		}
 		chunkBytes, err := chunk.Marshal()
@@ -557,6 +558,7 @@ func (c *ChunkManager) AppRequest(
 				zap.Stringer("chunkID", id),
 				zap.Error(err),
 			)
+			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
 			return nil
 		}
 		chunkBytes, err := chunk.Marshal()
@@ -583,6 +585,26 @@ func (w *ChunkManager) AppRequestFailed(
 		w.vm.Logger().Warn("dropping unknown response", zap.Stringer("nodeID", nodeID), zap.Uint32("requestID", requestID))
 		return nil
 	}
+	callback(nil)
+	return nil
+}
+
+func (w *ChunkManager) AppError(
+	_ context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	_ int32,
+	err string,
+) error {
+	w.callbacksL.Lock()
+	callback, ok := w.callbacks[requestID]
+	delete(w.callbacks, requestID)
+	w.callbacksL.Unlock()
+	if !ok {
+		w.vm.Logger().Warn("dropping unknown response", zap.Stringer("nodeID", nodeID), zap.Uint32("requestID", requestID))
+		return nil
+	}
+	w.vm.Logger().Warn("dropping request with error", zap.Stringer("nodeID", nodeID), zap.Uint32("requestID", requestID), zap.String("error", err))
 	callback(nil)
 	return nil
 }
@@ -614,6 +636,10 @@ func (*ChunkManager) CrossChainAppRequestFailed(context.Context, ids.ID, uint32)
 }
 
 func (*ChunkManager) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+	return nil
+}
+
+func (*ChunkManager) CrossChainAppError(context.Context, ids.ID, uint32, int32, string) error {
 	return nil
 }
 

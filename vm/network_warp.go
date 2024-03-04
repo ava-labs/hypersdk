@@ -49,6 +49,16 @@ func (w *WarpHandler) AppRequestFailed(
 	return w.vm.warpManager.HandleRequestFailed(requestID)
 }
 
+func (w *WarpHandler) AppError(
+	_ context.Context,
+	_ ids.NodeID,
+	requestID uint32,
+	_ int32,
+	_ string,
+) error {
+	return w.vm.warpManager.HandleRequestFailed(requestID)
+}
+
 func (w *WarpHandler) AppResponse(
 	_ context.Context,
 	_ ids.NodeID,
@@ -63,6 +73,10 @@ func (*WarpHandler) CrossChainAppRequest(context.Context, ids.ID, uint32, time.T
 }
 
 func (*WarpHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uint32) error {
+	return nil
+}
+
+func (*WarpHandler) CrossChainAppError(context.Context, ids.ID, uint32, int32, string) error {
 	return nil
 }
 

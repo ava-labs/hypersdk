@@ -56,6 +56,16 @@ func (s *StateSyncHandler) AppRequestFailed(
 	return s.vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
 }
 
+func (s *StateSyncHandler) AppError(
+	ctx context.Context,
+	nodeID ids.NodeID,
+	requestID uint32,
+	_ int32,
+	_ string,
+) error {
+	return s.vm.stateSyncNetworkClient.AppRequestFailed(ctx, nodeID, requestID)
+}
+
 func (s *StateSyncHandler) AppResponse(
 	ctx context.Context,
 	nodeID ids.NodeID,
@@ -80,5 +90,15 @@ func (*StateSyncHandler) CrossChainAppRequestFailed(context.Context, ids.ID, uin
 }
 
 func (*StateSyncHandler) CrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+	return nil
+}
+
+func (s *StateSyncHandler) CrossChainAppError(
+	context.Context,
+	ids.ID,
+	uint32,
+	int32,
+	string,
+) error {
 	return nil
 }
