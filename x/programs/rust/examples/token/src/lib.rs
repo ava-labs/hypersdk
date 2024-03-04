@@ -138,8 +138,7 @@ mod tests {
         ResultAssertion, Step,
     };
 
-    // TODO: find a better way to do this
-    const PROGRAM_PATH: &str = "./build/wasm32-unknown-unknown/debug/token.wasm";
+    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     #[serial]

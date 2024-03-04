@@ -7,17 +7,11 @@ const RELEASE_PROFILE: &str = "release";
 #[allow(clippy::missing_panics_doc, clippy::module_name_repetitions)]
 /// Put this in your build.rs file. It currently relies on `/build` directory to be in your crate root.
 pub fn build_wasm_on_test() {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=/build");
-
     let target = std::env::var("TARGET").unwrap();
     let profile = std::env::var("PROFILE").unwrap();
 
     if target != WASM_TARGET {
         let package_name = std::env::var("CARGO_PKG_NAME").unwrap();
-
-        println!("cargo:warning=building `{package_name}` wasm file");
-
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
 
         let profile = if profile == RELEASE_PROFILE {
@@ -60,6 +54,11 @@ pub fn build_wasm_on_test() {
 
         println!("cargo:warning=`.wasm` file at {target_dir:?}");
 
+        let target_dir = target_dir
+            .to_str()
+            .expect("crate name must not contain any non-utf8 characters");
+        println!("cargo:rustc-env=PROGRAM_PATH={target_dir}");
+
         if !cargo_build_output.status.success() {
             let stdout = String::from_utf8_lossy(&cargo_build_output.stdout);
             let stderr = String::from_utf8_lossy(&cargo_build_output.stderr);
@@ -78,5 +77,9 @@ pub fn build_wasm_on_test() {
 
             println!("cargo:warning=exit-status={}", cargo_build_output.status);
         }
+
+        println!(
+            r#"cargo:warning=If the simulator fails to find the "{package_name}" program, try running `cargo clean -p {package_name}` followed by `cargo test` again."#
+        );
     }
 }
