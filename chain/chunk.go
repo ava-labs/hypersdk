@@ -577,8 +577,8 @@ func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
 	p.UnpackAddress(&c.Beneficiary)
 
 	// Parse transactions
-	txCount := p.UnpackInt(true) // can't produce empty blocks
-	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
+	txCount := p.UnpackInt(false) // can produce empty filtered chunks
+	c.Txs = []*Transaction{}      // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
@@ -590,7 +590,7 @@ func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
-		return nil, fmt.Errorf("%w: remaining=%d", ErrInvalidObject, len(raw)-p.Offset())
+		return nil, fmt.Errorf("%w: remaining=%d extra=%x err=%w", ErrInvalidObject, len(raw)-p.Offset(), raw[p.Offset():], p.Err())
 	}
 	return &c, p.Err()
 }

@@ -151,6 +151,7 @@ func (e *Engine) Run() {
 			// this allows miner to drive up fees without consequence as they get their fees back)
 
 			// Create FilteredChunks
+			txCount := 0
 			filteredChunks := make([]*FilteredChunk, len(chunkResults))
 			for i, chunkResult := range chunkResults {
 				var (
@@ -164,6 +165,7 @@ func (e *Engine) Run() {
 					warpCount   uint
 				)
 				for j, txResult := range chunkResult {
+					txCount++
 					tx := chunk.Txs[j]
 					if !txResult.Valid {
 						// Remove txID from txSet if it was invalid and
@@ -216,6 +218,8 @@ func (e *Engine) Run() {
 				// can notify subscribers.
 				//
 				// TODO: handle restart case where block may be sent twice?
+				//
+				// TODO: send during processing instead of here
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 			}
 
@@ -303,6 +307,7 @@ func (e *Engine) Run() {
 			}()
 
 			// Store and update parent view
+			validTxs := len(txSet)
 			e.outputsLock.Lock()
 			e.outputs[job.blk.StatefulBlock.Height] = &output{
 				txs:          txSet,
@@ -319,6 +324,9 @@ func (e *Engine) Run() {
 				"executed block",
 				zap.Stringer("blkID", job.blk.ID()),
 				zap.Uint64("height", job.blk.StatefulBlock.Height),
+				zap.Int("valid txs", validTxs),
+				zap.Int("total txs", txCount),
+				zap.Int("chunks", len(filteredChunks)),
 				zap.Duration("t", time.Since(estart)),
 			)
 

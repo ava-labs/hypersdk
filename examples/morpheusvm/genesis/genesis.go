@@ -63,7 +63,7 @@ func Default() *Genesis {
 		StateBranchFactor: merkledb.BranchFactor16,
 
 		// Chain Parameters
-		MinBlockGap: 750, // TODO: align with slot frequency
+		MinBlockGap: 250, // TODO: align with slot frequency
 
 		// Chain Fee Parameters
 		MaxChunkUnits: chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
