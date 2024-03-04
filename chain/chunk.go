@@ -32,12 +32,13 @@ type Chunk struct {
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
-	now := time.Now().UnixMilli()
+	nowT := time.Now()
+	now := nowT.UnixMilli()
 	sm := vm.StateManager()
 	r := vm.Rules(now)
 	c := &Chunk{
 		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
-		Txs:  make([]*Transaction, 0, 100),
+		Txs:  make([]*Transaction, 0, 256),
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
 
@@ -69,13 +70,13 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	//
 	// TODO: sort mempool by priority and fit (only fetch items that can be included)
 	var (
-		start      = time.Now()
 		chunkUnits = Dimensions{}
 		full       bool
+		cleared    bool
 		mempool    = vm.Mempool()
 	)
 	mempool.StartStreaming(ctx)
-	for time.Since(start) < vm.GetTargetBuildDuration() {
+	for time.Since(nowT) < vm.GetTargetBuildDuration() {
 		txs := mempool.Stream(ctx, 256)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet
@@ -124,6 +125,10 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			vm.IssueTx(ctx, tx)
 			c.Txs = append(c.Txs, tx)
 		}
+		if len(txs) < 256 {
+			cleared = true
+			break
+		}
 	}
 	if !full {
 		mempool.FinishStreaming(ctx, nil)
@@ -164,10 +169,12 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("chainID", r.ChainID()),
 		zap.Int64("slot", c.Slot),
 		zap.Uint64("epoch", epoch),
+		zap.Bool("cleared mempool", cleared),
 		zap.Bool("full", full),
 		zap.Any("units", chunkUnits),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
+		zap.Duration("t", time.Since(nowT)),
 	)
 	return c, nil
 }

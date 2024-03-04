@@ -205,6 +205,7 @@ func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig
 }
 
 func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+	start := time.Now()
 	if len(msg) == 0 {
 		c.vm.Logger().Warn("dropping empty message", zap.Stringer("nodeID", nodeID))
 		return nil
@@ -306,6 +307,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 		c.PushSignature(ctx, nodeID, chunkSignature)
+		c.vm.Logger().Info("received chunk from gossip", zap.Stringer("chunkID", cid), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
 	case chunkSignatureMsg:
 		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
 		if err != nil {
@@ -417,6 +419,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Stringer("chunkID", chunkSignature.Chunk),
 			zap.Uint64("weight", weight),
 			zap.Uint64("totalWeight", totalWeight),
+			zap.Duration("t", time.Since(start)),
 		)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
@@ -465,6 +468,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey))),
 			zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
 			zap.String("signers", cert.Signers.String()),
+			zap.Duration("t", time.Since(start)),
 		)
 		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 
@@ -690,10 +694,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				zap.Int("txs", len(chunk.Txs)),
 			)
 		case <-c.vm.stop:
-			// TODO: we aren't hitting this for some reason....
-			//
-			// If engine taking too long to process message, Shutdown could not
-			// be getting called.
+			// If engine taking too long to process message, Shutdown will not
+			// be called.
 			c.vm.Logger().Info("stopping chunk manager")
 			return
 		}

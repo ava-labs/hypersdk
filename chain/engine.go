@@ -125,10 +125,11 @@ func (e *Engine) Run() {
 			p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
-				// Handle case where vm is shutting down (only case where chunk could be nil)
+				// TODO: Handle case where vm is shutting down (only case where chunk could be nil)
 				//
 				// We will continue trying to fetch chunk until we find it on the network layer.
 				if chunk == nil {
+					e.vm.Logger().Warn("received nil chunk from job, exiting engine")
 					return
 				}
 
