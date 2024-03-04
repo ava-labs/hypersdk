@@ -48,3 +48,4 @@ func (c *Config) GetBuildFrequency() time.Duration                { return 750 *
 func (c *Config) GetProcessingBuildSkip() int                     { return 16 }
 func (c *Config) GetBlockCompactionFrequency() int                { return 32 } // 64 MB of deletion if 2 MB blocks
 func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 75 } // out of 100 (more weight == more fees)
+func (c *Config) GetBeneficiary() codec.Address                   { return codec.EmptyAddress }

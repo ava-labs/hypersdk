@@ -459,8 +459,9 @@ func (vm *VM) GetAuthVerifyCores() int {
 	return vm.config.GetAuthVerificationCores()
 }
 
+// This must be non-nil or the VM won't be able to produce chunks
 func (vm *VM) Beneficiary() codec.Address {
-	return codec.Address{} // TODO: use config
+	return vm.config.GetBeneficiary()
 }
 
 func (vm *VM) RecordTxsGossiped(c int) {

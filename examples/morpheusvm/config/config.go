@@ -138,3 +138,6 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 func (c *Config) GetVerifyAuth() bool        { return c.VerifyAuth }
 func (c *Config) GetStoreTransactions() bool { return c.StoreTransactions }
 func (c *Config) Loaded() bool               { return c.loaded }
+func (c *Config) GetBeneficiary() codec.Address {
+	return codec.BlackholeAddress
+}

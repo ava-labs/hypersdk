@@ -153,6 +153,9 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		return nil, err
 	}
 	c.Signature, err = bls.SignatureFromBytes(sig)
+	if err != nil {
+		return nil, err
+	}
 
 	vm.Logger().Info(
 		"built chunk with signature",
@@ -164,10 +167,10 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Bool("full", full),
 		zap.Any("units", chunkUnits),
 		zap.String("digest", hex.EncodeToString(digest)),
-		zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(c.Signer))),
+		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
 	)
-	return c, err
+	return c, nil
 }
 
 func (c *Chunk) Digest() ([]byte, error) {
@@ -186,7 +189,7 @@ func (c *Chunk) Digest() ([]byte, error) {
 	// Marshal signer
 	p.PackNodeID(c.Producer)
 	p.PackAddress(c.Beneficiary)
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 
 	return p.Bytes(), p.Err()
 }
@@ -243,7 +246,7 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	// Marshal signer
 	p.PackNodeID(c.Producer)
 	p.PackAddress(c.Beneficiary)
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
 	return p.Bytes(), p.Err()
@@ -287,9 +290,9 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	p.UnpackAddress(&c.Beneficiary)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
-	signer, err := bls.PublicKeyFromBytes(pk)
+	signer, err := bls.PublicKeyFromCompressedBytes(pk)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: unable to decompress pk=%x packerErr=%w", err, pk, p.Err())
 	}
 	c.Signer = signer
 	sig := make([]byte, bls.SignatureLen)
@@ -326,7 +329,7 @@ func (c *ChunkSignature) Marshal() ([]byte, error) {
 	p.PackID(c.Chunk)
 	p.PackInt64(c.Slot)
 
-	p.PackFixedBytes(bls.PublicKeyToBytes(c.Signer))
+	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
 	return p.Bytes(), p.Err()
@@ -365,7 +368,7 @@ func UnmarshalChunkSignature(raw []byte) (*ChunkSignature, error) {
 	c.Slot = p.UnpackInt64(false)
 	pk := make([]byte, bls.PublicKeyLen)
 	p.UnpackFixedBytes(bls.PublicKeyLen, &pk)
-	signer, err := bls.PublicKeyFromBytes(pk)
+	signer, err := bls.PublicKeyFromCompressedBytes(pk)
 	if err != nil {
 		return nil, err
 	}

@@ -30,6 +30,7 @@ type Config interface {
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
+	GetBeneficiary() codec.Address
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
 	GetStreamingBacklogSize() int

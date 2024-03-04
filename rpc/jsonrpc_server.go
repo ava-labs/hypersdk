@@ -170,7 +170,7 @@ func (j *JSONRPCServer) GetWarpSignatures(
 			Weight: out.Weight,
 		}
 		if out.PublicKey != nil {
-			wv.PublicKey = bls.PublicKeyToBytes(out.PublicKey)
+			wv.PublicKey = bls.PublicKeyToCompressedBytes(out.PublicKey)
 			publicKeys.Add(string(wv.PublicKey))
 		}
 		warpValidators = append(warpValidators, wv)

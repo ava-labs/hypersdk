@@ -24,6 +24,13 @@ const (
 type Address [AddressLen]byte
 
 var EmptyAddress = [AddressLen]byte{}
+var BlackholeAddress = [AddressLen]byte{}
+
+func init() {
+	a := make([]byte, AddressLen)
+	a[AddressLen-1] = 0x01
+	BlackholeAddress = Address(a)
+}
 
 // CreateAddress returns [Address] made from concatenating
 // [typeID] with [id].

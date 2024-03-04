@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
@@ -212,7 +213,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 	case chunkMsg:
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
-			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
 			return nil
 		}
 
@@ -237,7 +238,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
-		if signerKey == nil || !bytes.Equal(bls.PublicKeyToBytes(chunk.Signer), bls.PublicKeyToBytes(signerKey)) {
+		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunk.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
 			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
@@ -254,7 +255,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 				zap.Uint32("networkID", c.vm.snowCtx.NetworkID),
 				zap.Stringer("chainID", c.vm.snowCtx.ChainID),
 				zap.String("digest", hex.EncodeToString(dig)),
-				zap.String("signer", hex.EncodeToString(bls.PublicKeyToBytes(chunk.Signer))),
+				zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(chunk.Signer))),
 				zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(chunk.Signature))),
 			)
 			return nil
@@ -334,7 +335,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("dropping chunk signature from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
-		if signerKey == nil || !bytes.Equal(bls.PublicKeyToBytes(chunkSignature.Signer), bls.PublicKeyToBytes(signerKey)) {
+		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunkSignature.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
 			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
@@ -347,7 +348,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store signature for chunk
 		cw.l.Lock()
-		cw.signatures[string(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
+		cw.signatures[string(bls.PublicKeyToCompressedBytes(chunkSignature.Signer))] = chunkSignature // canonical validator set requires fetching signature by bls public key
 
 		// Count pending weight
 		var weight uint64
@@ -356,7 +357,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			panic(err)
 		}
 		for _, vdr := range vdrList {
-			k := string(bls.PublicKeyToBytes(vdr.PublicKey))
+			k := string(bls.PublicKeyToCompressedBytes(vdr.PublicKey))
 			if _, ok := cw.signatures[k]; ok {
 				weight += vdr.Weight // cannot overflow
 			}
@@ -381,7 +382,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		orderedSignatures := []*bls.Signature{}
 		cw.l.Lock()
 		for i, vdr := range canonicalValidators {
-			sig, ok := cw.signatures[string(bls.PublicKeyToBytes(vdr.PublicKey))]
+			sig, ok := cw.signatures[string(bls.PublicKeyToCompressedBytes(vdr.PublicKey))]
 			if !ok {
 				continue
 			}
@@ -450,7 +451,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Binary("bitset", cert.Signers.Bytes()),
-				zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
+				zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey))),
 				zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
 				zap.Error(errors.New("invalid signature")),
 			)
@@ -461,7 +462,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("nodeID", nodeID),
 			zap.Stringer("chunkID", cert.Chunk),
-			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToBytes(aggrPubKey))),
+			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey))),
 			zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
 			zap.String("signers", cert.Signers.String()),
 		)
@@ -645,9 +646,14 @@ func (*ChunkManager) CrossChainAppError(context.Context, ids.ID, uint32, int32, 
 
 func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
-
-	c.vm.Logger().Info("starting chunk manager")
 	defer close(c.done)
+
+	beneficiary := c.vm.Beneficiary()
+	if bytes.Equal(beneficiary[:], codec.EmptyAddress[:]) {
+		c.vm.Logger().Warn("no beneficiary set, not building chunks")
+		return
+	}
+	c.vm.Logger().Info("starting chunk manager", zap.Any("beneficiary", beneficiary))
 
 	t := time.NewTicker(c.vm.config.GetBuildFrequency())
 	defer t.Stop()
@@ -753,7 +759,8 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	if err != nil {
 		panic(err)
 	}
-	cw.signatures[string(bls.PublicKeyToBytes(chunkSignature.Signer))] = chunkSignature
+	// TODO: can probably use uncompressed bytes here
+	cw.signatures[string(bls.PublicKeyToCompressedBytes(chunkSignature.Signer))] = chunkSignature
 	c.built.Add([]*chunkWrapper{cw})
 
 	// Send chunk to all validators
