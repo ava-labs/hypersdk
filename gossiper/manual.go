@@ -72,7 +72,7 @@ func (g *Manual) Force(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := g.appSender.SendAppGossip(ctx, b); err != nil {
+	if err := g.appSender.SendAppGossip(ctx, b, 10, 0, 0); err != nil {
 		g.vm.Logger().Warn(
 			"GossipTxs failed",
 			zap.Error(err),
