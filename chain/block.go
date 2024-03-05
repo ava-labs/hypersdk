@@ -52,7 +52,8 @@ type StatefulBlock struct {
 	StartRoot      ids.ID   `json:"startRoot"`
 	ExecutedChunks []ids.ID `json:"executedChunks"`
 
-	built bool
+	built         bool
+	startWaitExec time.Time
 }
 
 func (b *StatefulBlock) Size() int {
@@ -418,9 +419,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		execHeight := b.StatefulBlock.Height - depth
 		root, executed, err := b.vm.Engine().Results(execHeight)
 		if err != nil {
-			// TODO: add stat for tracking how often this happens
-			// TODOL handle case where we state synced and don't have results
+			// TODO: handle case where we state synced and don't have results
 			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+			if b.startWaitExec.IsZero() {
+				b.startWaitExec = time.Now()
+			}
 			return fmt.Errorf("%w: no results for execHeight", err)
 		}
 		if b.StartRoot != root {
@@ -435,6 +438,9 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			}
 		}
 		b.execHeight = &execHeight
+		if !b.startWaitExec.IsZero() {
+			b.vm.RecordWaitExec(time.Since(b.startWaitExec))
+		}
 	}
 	b.vm.Verified(ctx, b)
 	log.Info(
@@ -452,11 +458,9 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Accept(ctx context.Context) error {
-	b.vm.Logger().Info("accepting block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockAccept(time.Since(start))
-		b.vm.Logger().Info("finished accepting block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	}()
 
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
@@ -479,6 +483,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		filteredChunks = fc
 	}
 	b.vm.Accepted(ctx, b, filteredChunks)
+	b.vm.Logger().Info("accepted block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
 	return nil
 }
 

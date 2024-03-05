@@ -127,6 +127,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		}
 		if len(txs) < 256 {
 			cleared = true
+			vm.RecordClearedMempool()
 			break
 		}
 	}

@@ -439,8 +439,8 @@ func (vm *VM) RecordWaitRoot(t time.Duration) {
 	vm.metrics.waitRoot.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitSignatures(t time.Duration) {
-	vm.metrics.waitSignatures.Observe(float64(t))
+func (vm *VM) RecordWaitExec(t time.Duration) {
+	vm.metrics.waitExec.Observe(float64(t))
 }
 
 func (vm *VM) RecordStateChanges(c int) {
@@ -472,20 +472,16 @@ func (vm *VM) RecordTxsReceived(c int) {
 	vm.metrics.txsReceived.Add(float64(c))
 }
 
-func (vm *VM) RecordSeenTxsReceived(c int) {
-	vm.metrics.seenTxsReceived.Add(float64(c))
+func (vm *VM) RecordTxsIncluded(c int) {
+	vm.metrics.txsIncluded.Add(float64(c))
 }
 
-func (vm *VM) RecordBuildCapped() {
-	vm.metrics.buildCapped.Inc()
+func (vm *VM) RecordTxsValid(c int) {
+	vm.metrics.txsValid.Add(float64(c))
 }
 
 func (vm *VM) GetTargetBuildDuration() time.Duration {
 	return vm.config.GetTargetBuildDuration()
-}
-
-func (vm *VM) RecordEmptyBlockBuilt() {
-	vm.metrics.emptyBlockBuilt.Inc()
 }
 
 func (vm *VM) cacheAuth(auth chain.Auth) {
@@ -504,6 +500,10 @@ func (vm *VM) RecordBlockAccept(t time.Duration) {
 	vm.metrics.blockAccept.Observe(float64(t))
 }
 
+func (vm *VM) RecordBlockExecute(t time.Duration) {
+	vm.metrics.blockExecute.Observe(float64(t))
+}
+
 func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
@@ -516,12 +516,8 @@ func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
 }
 
-func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {
-	return vm.metrics.executorBuildRecorder
-}
-
-func (vm *VM) GetExecutorVerifyRecorder() executor.Metrics {
-	return vm.metrics.executorVerifyRecorder
+func (vm *VM) GetExecutorRecorder() executor.Metrics {
+	return vm.metrics.executorRecorder
 }
 
 func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {

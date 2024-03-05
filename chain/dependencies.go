@@ -33,19 +33,21 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordRootCalculated(time.Duration) // only called in Verify
-	RecordWaitRoot(time.Duration)       // only called in Verify
-	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordRootCalculated(time.Duration)
+	RecordWaitExec(time.Duration)
+	RecordWaitRoot(time.Duration)
+
+	RecordClearedMempool()
 
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+
+	GetExecutorRecorder() executor.Metrics
+	RecordBlockExecute(time.Duration)
+	RecordTxsIncluded(int)
+	RecordTxsValid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
-	RecordBuildCapped()
-	RecordEmptyBlockBuilt()
-	RecordClearedMempool()
-	GetExecutorBuildRecorder() executor.Metrics
-	GetExecutorVerifyRecorder() executor.Metrics
 }
 
 type Monitoring interface {

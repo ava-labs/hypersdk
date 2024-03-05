@@ -212,6 +212,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 	}
 	switch msg[0] {
 	case chunkMsg:
+		c.vm.metrics.chunksReceived.Inc()
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
 			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
@@ -307,8 +308,14 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 		c.PushSignature(ctx, nodeID, chunkSignature)
-		c.vm.Logger().Info("received chunk from gossip", zap.Stringer("chunkID", cid), zap.Stringer("nodeID", nodeID), zap.Duration("t", time.Since(start)))
+		c.vm.Logger().Info(
+			"received chunk from gossip",
+			zap.Stringer("chunkID", cid),
+			zap.Stringer("nodeID", nodeID),
+			zap.Duration("t", time.Since(start)),
+		)
 	case chunkSignatureMsg:
+		c.vm.metrics.sigsReceived.Inc()
 		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
 		if err != nil {
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
@@ -370,7 +377,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		//
 		// Fees are proportional to the weight of the chunk, so we may want to wait until it has more than the minimum.
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
-			c.vm.Logger().Warn("chunk does not have sufficient weight to crete certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
+			c.vm.Logger().Debug("chunk does not have sufficient weight to create certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
 		}
 
@@ -422,6 +429,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkCertificateMsg:
+		c.vm.metrics.certsReceived.Inc()
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
@@ -477,6 +485,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Store chunk certificate for building
 		c.certs.Update(cert)
 	case txMsg:
+		c.vm.RecordTxsReceived(1)
 		// TODO: is high speed of gossip destroying ability to process other artifacts?
 		_, txs, err := chain.UnmarshalTxs(msg[1:], 1, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
@@ -678,9 +687,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			}
 
 			// Attempt to build a chunk
+			chunkStart := time.Now()
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
-				c.vm.Logger().Warn("unable to build chunk", zap.Error(err))
+				c.vm.Logger().Debug("unable to build chunk", zap.Error(err))
 				continue
 			}
 			c.PushChunk(context.TODO(), chunk)
@@ -694,6 +704,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				zap.Stringer("id", cid),
 				zap.Int("txs", len(chunk.Txs)),
 			)
+			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
 		case <-c.vm.stop:
 			// If engine taking too long to process message, Shutdown will not
 			// be called.
@@ -836,6 +847,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	// If we are not the issuer, send to the correct issuer
 	//
 	// TODO: batch tx issuance
+	// TODO: track how much this blocks chunk processing
 	txBytes, err := chain.MarshalTxs([]*chain.Transaction{tx})
 	if err != nil {
 		panic(err)
@@ -845,6 +857,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	copy(msg[1:], txBytes)
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
 	c.vm.Logger().Debug("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
+	c.vm.RecordTxsGossiped(1)
 }
 
 // This function should be spawned in a goroutine because it blocks
@@ -957,9 +970,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				}
 			})
 		}
-		c.vm.Logger().Info("waiting for fetch stream")
 		fetchStream.Wait()
-		c.vm.Logger().Info("done waiting for fetch stream")
 		close(chunks)
 
 		// Invoke next waiter

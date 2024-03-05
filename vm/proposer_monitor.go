@@ -298,7 +298,7 @@ func (p *ProposerMonitor) GetAggregatePublicKey(ctx context.Context, height uint
 		v = aggrPubKey
 		p.vm.Logger().Info("caching aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
 	} else {
-		p.vm.Logger().Info("found cached aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
+		p.vm.Logger().Debug("found cached aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
 	}
 	return v, nil
 }
