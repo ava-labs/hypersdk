@@ -166,35 +166,24 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			if pt.blocking == nil {
 				pt.blocking = set.NewSet[int](defaultSetSize)
 			}
-			// key has ONLY a Read permission
-			if v == state.Read {
+
+			switch {
+			case v == state.Read:
 				key.concurrentReads.Add(id)
-				// If the first read hasn't executed for some reason, and
-				// we're doing a bunch of Reads with no conflicts like
-				// R->R->R->..., we don't want to record any dependencies
+				// Only record non-Read dependencies (Allocate/Write)
 				if key.permissions != state.Read {
-					// Last blocked transaction was a Allocate/Write
 					pt.blocking.Add(id)
 					t.dependencies.Add(key.id)
 				}
-				continue
-			}
-
-			// key contains an Allocate/Write permission
-			if v.Has(state.Allocate) || v.Has(state.Write) {
-				// This may occur if we're doing a lot of W->W->W->...,
-				// we still want to record that we're blocked
+			case v.Has(state.Allocate) || v.Has(state.Write):
 				if key.concurrentReads.Len() == 0 {
+					// We are blocked on write-after-writes
 					pt.blocking.Add(id)
 					t.dependencies.Add(key.id)
 				} else {
-					// With a bunch of reads before our write,
-					// we need to update that we're blocked by
-					// all of these reads
+					// We are blocked when attempting write-after-reads
+					// by all of the reads preceding the write
 					e.updateConcurrentReads(key, t)
-					// Any subsequent reads will now be blocked by this
-					// task, if it hasn't executed yet.
-					key.concurrentReads.Clear()
 				}
 				e.updateKey(key, id, v)
 			}
@@ -207,8 +196,8 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		if v.Has(state.Allocate) || v.Has(state.Write) {
 			e.updateConcurrentReads(key, t)
 		}
-		key.concurrentReads.Clear()
 		if v == state.Read {
+			key.concurrentReads.Clear()
 			key.concurrentReads.Add(id)
 		}
 		e.updateKey(key, id, v)
@@ -246,6 +235,8 @@ func (e *Executor) updateConcurrentReads(key *keyData, t *task) {
 			t.dependencies.Add(b)
 		}
 	}
+	// Any read(s)-after-write will now be blocked by this task
+	key.concurrentReads.Clear()
 }
 
 func (e *Executor) Stop() {
