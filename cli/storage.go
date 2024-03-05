@@ -205,8 +205,8 @@ func (h *Handler) DeleteChains() ([]ids.ID, error) {
 	}
 	chainIDs := make([]ids.ID, 0, len(chains))
 	for chainID, rpcs := range chains {
-		for _, rpc := range rpcs {
-			k := rpcKey(chainID, rpc)
+		for name := range rpcs {
+			k := rpcKey(chainID, name)
 			if err := h.db.Delete(k); err != nil {
 				return nil, err
 			}
