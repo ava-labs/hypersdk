@@ -37,6 +37,9 @@ type Metrics struct {
 	blocksHeightsFromDisk prometheus.Counter
 	executorBlocked       prometheus.Counter
 	executorExecutable    prometheus.Counter
+	chunksReceived        prometheus.Counter
+	sigsReceived          prometheus.Counter
+	certsReceived         prometheus.Counter
 	rootCalculated        metric.Averager
 	waitRoot              metric.Averager
 	waitExec              metric.Averager
@@ -211,6 +214,21 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "executor_executable",
 			Help:      "executor tasks executable during processing",
 		}),
+		chunksReceived: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunks_received",
+			Help:      "chunks received from validators",
+		}),
+		sigsReceived: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "sigs_received",
+			Help:      "signatures received from validators",
+		}),
+		certsReceived: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "certs_received",
+			Help:      "certificates received from validators",
+		}),
 		rootCalculated: rootCalculated,
 		waitRoot:       waitRoot,
 		waitExec:       waitExec,
@@ -239,6 +257,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.blocksHeightsFromDisk),
 		r.Register(m.executorBlocked),
 		r.Register(m.executorExecutable),
+		r.Register(m.chunksReceived),
+		r.Register(m.sigsReceived),
+		r.Register(m.certsReceived),
 	)
 	return r, m, errs.Err
 }

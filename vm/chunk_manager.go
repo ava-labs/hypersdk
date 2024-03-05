@@ -212,6 +212,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 	}
 	switch msg[0] {
 	case chunkMsg:
+		c.vm.metrics.chunksReceived.Inc()
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
 			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
@@ -314,6 +315,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkSignatureMsg:
+		c.vm.metrics.sigsReceived.Inc()
 		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
 		if err != nil {
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
@@ -427,6 +429,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkCertificateMsg:
+		c.vm.metrics.certsReceived.Inc()
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
@@ -482,6 +485,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Store chunk certificate for building
 		c.certs.Update(cert)
 	case txMsg:
+		c.vm.RecordTxsReceived(1)
 		// TODO: is high speed of gossip destroying ability to process other artifacts?
 		_, txs, err := chain.UnmarshalTxs(msg[1:], 1, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
@@ -509,7 +513,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Submit txs
 		c.vm.Submit(ctx, true, txs)
 		c.vm.Logger().Debug("received tx from gossip", zap.Stringer("txID", tx.ID()), zap.Stringer("nodeID", nodeID))
-		c.vm.RecordTxsReceived(1)
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
