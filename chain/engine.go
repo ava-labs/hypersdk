@@ -302,7 +302,7 @@ func (e *Engine) Run() {
 			}
 			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
-			e.latestView = view
+			e.latestView = state.View(e.vm.ForceState()) // Don't offer views that will be discarded
 
 			log.Info(
 				"executed block",

@@ -408,15 +408,29 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			return errors.New("no execution result should exist")
 		}
 	} else {
-		execHeight := b.StatefulBlock.Height - depth
-		root, executed, err := b.vm.Engine().Results(execHeight)
-		if err != nil {
-			// TODO: handle case where we state synced and don't have results
-			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
-			if b.startWaitExec.IsZero() {
-				b.startWaitExec = time.Now()
+		var (
+			execHeight = b.StatefulBlock.Height - depth
+			root       ids.ID
+			executed   []ids.ID
+		)
+		for {
+			root, executed, err = b.vm.Engine().Results(execHeight)
+			if err != nil {
+				// TODO: handle case where we state synced and don't have results
+				log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+				if b.startWaitExec.IsZero() {
+					b.startWaitExec = time.Now()
+				}
+				if b.vm.IsBootstrapped() {
+					return fmt.Errorf("%w: no results for execHeight", err)
+				}
+				// If we haven't finished bootstrapping, we can't fail.
+				//
+				// TODO: we should actually not verify any of this (long p-chain lookbacks)
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
-			return fmt.Errorf("%w: no results for execHeight", err)
+			break
 		}
 		if b.Root != root {
 			return errors.New("root mismatch")
