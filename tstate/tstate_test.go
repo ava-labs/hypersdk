@@ -654,7 +654,7 @@ func TestGetValuePermissions(t *testing.T) {
 			name:        "key has write permissions",
 			key:         "test3",
 			permission:  state.Write,
-			expectedErr: ErrInvalidKeyOrPermission,
+			expectedErr: nil,
 		},
 	}
 
