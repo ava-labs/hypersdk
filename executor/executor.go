@@ -166,33 +166,29 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			if pt.blocking == nil {
 				pt.blocking = set.NewSet[int](defaultSetSize)
 			}
-
 			switch {
 			case v == state.Read:
 				key.concurrentReads.Add(id)
-				// Only record non-Read dependencies (Allocate/Write)
 				if key.permissions != state.Read {
-					pt.blocking.Add(id)
-					t.dependencies.Add(key.id)
+					// Only record non-Read dependencies
+					updateBlocking(pt, t, key.id)
 				}
 			case v.Has(state.Allocate) || v.Has(state.Write):
 				if key.concurrentReads.Len() == 0 {
-					// We are blocked on write-after-writes
-					pt.blocking.Add(id)
-					t.dependencies.Add(key.id)
+					// Blocked on write-after-writes
+					updateBlocking(pt, t, key.id)
 				} else {
-					// We are blocked when attempting write-after-reads
+					// Blocked when attempting write-after-reads
 					// by all of the reads preceding the write
 					e.updateConcurrentReads(key, t)
 				}
-				e.updateKey(key, id, v)
+				updateKey(key, id, v)
 			}
 			continue
 		}
-		// We don't need to record the case of W->W->W->...,
-		// since that parent write already executed. We
-		// consider any outstanding reads that still need
-		// to be executed once its parent write ran.
+		// We don't record write-after-write, since the parent Write
+		// has already executed. We consider any outstanding read(s)-
+		// after-write that still need to be executed.
 		if v.Has(state.Allocate) || v.Has(state.Write) {
 			e.updateConcurrentReads(key, t)
 		}
@@ -200,7 +196,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			key.concurrentReads.Clear()
 			key.concurrentReads.Add(id)
 		}
-		e.updateKey(key, id, v)
+		updateKey(key, id, v)
 	}
 
 	// Start execution if there are no blocking dependencies
@@ -217,8 +213,14 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	}
 }
 
+// Occurs when trying to write-after-read or write-after-write
+func updateBlocking(pt *task, t *task, keyID int) {
+	pt.blocking.Add(t.id)
+	t.dependencies.Add(keyID)
+}
+
 // Update id everytime it's a Allocate/Write key or if the last blocked txn ran
-func (e *Executor) updateKey(key *keyData, id int, v state.Permissions) {
+func updateKey(key *keyData, id int, v state.Permissions) {
 	key.id = id
 	key.permissions = v
 }
