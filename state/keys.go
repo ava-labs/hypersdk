@@ -33,8 +33,3 @@ func (k Keys) Add(name string, permission Permissions) {
 func (p Permissions) Has(require Permissions) bool {
 	return require&^p == 0
 }
-
-// Contains returns true if [p] has any subset of provided
-func (p Permissions) Contains(provided Permissions) bool {
-	return p&provided == provided
-}

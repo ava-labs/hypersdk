@@ -163,7 +163,7 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
 func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
-	return ts.scope[string(k)].Contains(perm)
+	return ts.scope[string(k)].Has(perm)
 }
 
 // GetValue returns the value associated from tempStorage with the
@@ -213,8 +213,8 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 // Insert allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	// To insert, the key needs to have Allocate or Write permissions, or both
-	if !ts.checkScope(ctx, key, state.Allocate&state.Write) {
+	// Inserting requires a Write Permissions, so we pass state.Write
+	if !ts.checkScope(ctx, key, state.Write) {
 		return ErrInvalidKeyOrPermission
 	}
 	if !keys.VerifyValue(key, value) {
@@ -232,10 +232,6 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		pastWrites:    chunks(ts.writes, k),
 	}
 	if exists {
-		// Updating just requires a Write permission
-		if !ts.checkScope(ctx, key, state.Write) {
-			return ErrInvalidKeyOrPermission
-		}
 		if bytes.Equal(past, value) {
 			// No change, so this isn't an op.
 			return nil
@@ -243,8 +239,11 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
-		// New entry requires Write and Allocate
-		if !ts.checkScope(ctx, key, state.Allocate|state.Write) {
+		// New entry requires Allocate
+		// TODO: we assume any allocate is a write too, but we should
+		// make this invariant more clear. Do we require Write,
+		// Allocate|Write, and never Allocate alone?
+		if !ts.checkScope(ctx, key, state.Allocate) {
 			return ErrInvalidKeyOrPermission
 		}
 		if !ts.canAllocate {
