@@ -29,7 +29,8 @@ func BuildBlock(
 	log := vm.Logger()
 
 	// Select next timestamp
-	nextTime := time.Now().UnixMilli()
+	next := time.Now()
+	nextTime := next.UnixMilli()
 	r := vm.Rules(nextTime)
 	if nextTime < parent.StatefulBlock.Timestamp+r.GetMinBlockGap() {
 		return nil, ErrTimestampTooEarly
@@ -55,19 +56,19 @@ func BuildBlock(
 
 			// Check that we actually have the chunk
 			if !vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
-				log.Warn("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))
+				log.Debug("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))
 				restorableChunks = append(restorableChunks, cert)
 				continue
 			}
 
 			// Check that certificate can be in block
 			if cert.Slot < b.StatefulBlock.Timestamp {
-				log.Warn("skipping expired chunk", zap.Stringer("chunkID", cert.Chunk))
+				log.Debug("skipping expired chunk", zap.Stringer("chunkID", cert.Chunk))
 				restorableChunks = append(restorableChunks, cert) // wait for this to get cleared via "SetMin" (may still want if reorg)
 				continue
 			}
 			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
-				log.Warn("skipping chunk too far in the future", zap.Stringer("chunkID", cert.Chunk))
+				log.Debug("skipping chunk too far in the future", zap.Stringer("chunkID", cert.Chunk))
 				restorableChunks = append(restorableChunks, cert)
 				continue
 			}
@@ -78,7 +79,7 @@ func BuildBlock(
 				return nil, err
 			}
 			if repeats.Len() > 0 {
-				log.Warn("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
+				log.Debug("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
 				continue
 			}
 
@@ -89,7 +90,7 @@ func BuildBlock(
 			// Add chunk to block
 			b.chunks.Add(cert.Chunk)
 			b.AvailableChunks = append(b.AvailableChunks, cert)
-			b.vm.Logger().Info(
+			b.vm.Logger().Debug(
 				"included chunk in block",
 				zap.Uint64("block", b.StatefulBlock.Height),
 				zap.Stringer("chunkID", cert.Chunk),
@@ -137,5 +138,6 @@ func BuildBlock(
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
 		zap.Int("size", len(b.bytes)),
 	)
+	vm.RecordBlockBuild(time.Since(next))
 	return b, nil
 }

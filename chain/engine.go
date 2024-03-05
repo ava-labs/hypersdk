@@ -74,8 +74,6 @@ func (e *Engine) Run() {
 	for {
 		select {
 		case job := <-e.backlog:
-			e.vm.Logger().Info("executing block", zap.Stringer("blkID", job.blk.ID()), zap.Uint64("height", job.blk.Height()))
-
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
 
@@ -137,13 +135,11 @@ func (e *Engine) Run() {
 				p.Add(ctx, len(chunks), chunk)
 				chunks = append(chunks, chunk)
 			}
-			e.vm.Logger().Info("starting wait for processor", zap.Uint64("height", job.blk.Height()))
 			txSet, ts, chunkResults, err := p.Wait()
 			if err != nil {
 				e.vm.Logger().Error("chunk processing failed", zap.Error(err))
 				panic(err)
 			}
-			e.vm.Logger().Info("processor returned", zap.Uint64("height", job.blk.Height()))
 
 			// TODO: pay beneficiary all tips for processing chunk
 			//
@@ -231,7 +227,7 @@ func (e *Engine) Run() {
 					}
 					e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
 				} else {
-					e.vm.Logger().Info("ignoring p-chain height update", zap.Uint64("height", job.blk.PHeight))
+					e.vm.Logger().Debug("ignoring p-chain height update", zap.Uint64("height", job.blk.PHeight))
 				}
 
 				// Ensure we are never stuck waiting for height information near the end of an epoch
@@ -246,7 +242,7 @@ func (e *Engine) Run() {
 				epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
 				switch {
 				case err == nil:
-					e.vm.Logger().Info(
+					e.vm.Logger().Debug(
 						"height already set for epoch",
 						zap.Uint64("epoch", nextEpoch),
 						zap.Uint64("height", binary.BigEndian.Uint64(epochValueRaw[:consts.Uint64Len])),
@@ -281,12 +277,16 @@ func (e *Engine) Run() {
 			}
 
 			// Get start root for parent
+			parentStart := time.Now()
 			startRoot, err := parentView.GetMerkleRoot(ctx)
 			if err != nil {
 				panic(err)
 			}
+			e.vm.RecordWaitRoot(time.Since(parentStart))
 
 			// Create new view and kickoff generation
+			e.vm.RecordStateChanges(ts.PendingChanges())
+			e.vm.RecordStateOperations(ts.OpIndex())
 			view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 			if err != nil {
 				panic(err)
@@ -304,6 +304,7 @@ func (e *Engine) Run() {
 					zap.Stringer("root", root),
 					zap.Duration("t", time.Since(start)),
 				)
+				e.vm.RecordRootCalculated(time.Since(start))
 			}()
 
 			// Store and update parent view
@@ -329,6 +330,7 @@ func (e *Engine) Run() {
 				zap.Int("chunks", len(filteredChunks)),
 				zap.Duration("t", time.Since(estart)),
 			)
+			e.vm.RecordBlockExecute(time.Since(estart))
 
 		case <-e.vm.StopChan():
 			return

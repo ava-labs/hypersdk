@@ -287,24 +287,24 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// We don't care whether this transaction is in the current epoch or the next.
 		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
 		if err != nil {
-			p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
 		if tx.Base.Timestamp > chunk.Slot {
-			p.vm.Logger().Warn("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
+			p.vm.Logger().Debug("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
 		fee, err := MulSum(p.r.GetUnitPrices(), units)
 		if err != nil {
-			p.vm.Logger().Warn("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.vm.Logger().Debug("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
 		if tx.Base.MaxFee < fee {
 			// This should be checked by chunk producer before inclusion.
-			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
+			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}

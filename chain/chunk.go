@@ -127,6 +127,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		}
 		if len(txs) < 256 {
 			cleared = true
+			vm.RecordClearedMempool()
 			break
 		}
 	}
@@ -176,6 +177,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
 		zap.Duration("t", time.Since(nowT)),
 	)
+	vm.RecordChunkBuild(time.Since(nowT))
 	return c, nil
 }
 
@@ -214,7 +216,7 @@ func (c *Chunk) ID() (ids.ID, error) {
 }
 
 func (c *Chunk) Size() int {
-	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+	return consts.Int64Len + consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
 }
 
 func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {

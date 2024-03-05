@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -33,19 +32,20 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordRootCalculated(time.Duration) // only called in Verify
-	RecordWaitRoot(time.Duration)       // only called in Verify
-	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordRootCalculated(time.Duration)
+	RecordWaitResults()
+	RecordWaitRoot(time.Duration)
 
+	RecordClearedMempool()
+	RecordChunkBuild(time.Duration)
+
+	RecordBlockBuild(time.Duration)
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordBlockExecute(time.Duration)
+
 	RecordStateChanges(int)
 	RecordStateOperations(int)
-	RecordBuildCapped()
-	RecordEmptyBlockBuilt()
-	RecordClearedMempool()
-	GetExecutorBuildRecorder() executor.Metrics
-	GetExecutorVerifyRecorder() executor.Metrics
 }
 
 type Monitoring interface {
