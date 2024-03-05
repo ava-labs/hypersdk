@@ -524,12 +524,6 @@ func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate
 	return vm.cm.NextChunkCertificate(ctx)
 }
 
-func (vm *VM) HasChunk(_ context.Context, slot int64, id ids.ID) bool {
-	// TODO: don't fetch from disk to check this
-	chunk, _ := vm.GetChunk(slot, id)
-	return chunk != nil
-}
-
 func (vm *VM) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	vm.cm.RestoreChunkCertificates(ctx, certs)
 }

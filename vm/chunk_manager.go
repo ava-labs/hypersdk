@@ -887,13 +887,15 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 			fetchStream.Go(func() stream.Callback {
 				// Look for chunk
 				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-				if err == nil {
+				if chunk != nil && err == nil {
+					// TODO: return normal error if chunk is invalid
 					return func() { chunks <- chunk }
 				}
 
 				// Fetch missing chunk
 				attempts := 0
 				for {
+					start := time.Now()
 					c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
 					// Look for chunk epoch
@@ -966,6 +968,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					if err := c.vm.StoreChunk(chunk); err != nil {
 						panic(err)
 					}
+					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
 					return func() { chunks <- chunk }
 				}
 			})
