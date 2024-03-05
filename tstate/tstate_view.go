@@ -162,17 +162,8 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 }
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
-func (ts *TStateView) checkScope(_ context.Context, k []byte, perms ...state.Permissions) bool {
-	// At most only 2 key permissions are passed that we need to check. The case of
-	// 1 permission may be a single key permission or a combination (i.e., Allocate|Write).
-	switch len(perms) {
-	case 1:
-		return ts.scope[string(k)].Has(perms[0])
-	case 2:
-		return ts.scope[string(k)].Has(perms[0]) || ts.scope[string(k)].Has(perms[1])
-	default:
-		return false
-	}
+func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
+	return ts.scope[string(k)]&perm == perm
 }
 
 // GetValue returns the value associated from tempStorage with the
@@ -223,7 +214,7 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
 	// To insert, the key needs to have Allocate or Write permissions, or both
-	if !ts.checkScope(ctx, key, state.Allocate, state.Write) {
+	if !ts.checkScope(ctx, key, state.Allocate&state.Write) {
 		return ErrInvalidKeyOrPermission
 	}
 	if !keys.VerifyValue(key, value) {
