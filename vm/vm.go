@@ -49,6 +49,11 @@ type executedWrapper struct {
 	Results []*chain.Result
 }
 
+type acceptedWrapper struct {
+	Block          *chain.StatelessBlock
+	FilteredChunks []*chain.FilteredChunk
+}
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -106,7 +111,7 @@ type VM struct {
 	executorDone  chan struct{}
 
 	// Accepted block queue
-	acceptedQueue chan *chain.StatelessBlock
+	acceptedQueue chan *acceptedWrapper
 	acceptorDone  chan struct{}
 
 	// Transactions that streaming users are currently subscribed to
@@ -261,7 +266,7 @@ func (vm *VM) Initialize(
 	}
 	vm.executedQueue = make(chan *executedWrapper, vm.config.GetAcceptorSize())
 	vm.executorDone = make(chan struct{})
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
+	vm.acceptedQueue = make(chan *acceptedWrapper, vm.config.GetAcceptorSize())
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](
