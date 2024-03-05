@@ -1,6 +1,6 @@
 use crate::{
     errors::StateError,
-    host::{get_bytes, put_bytes},
+    host::{delete_bytes, get_bytes, put_bytes},
     memory::from_host_ptr,
     program::Program,
 };
@@ -52,6 +52,17 @@ impl State {
 
         // Wrap in OK for now, change from_raw_ptr to return Result
         unsafe { from_host_ptr(val_ptr) }
+    }
+
+    /// Delete a value from the hosts's storage.
+    /// # Errors
+    /// Returns an `StateError` if the key cannot be serialized
+    /// or if the host fails to delete the key and the associated value
+    pub fn delete<K>(&self, key: K) -> Result<(), StateError>
+    where
+        K: Into<Key>,
+    {
+        unsafe { delete_bytes(&self.program, &key.into()) }
     }
 }
 

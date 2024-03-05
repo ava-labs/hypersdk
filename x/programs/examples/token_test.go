@@ -8,11 +8,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/tests"
@@ -20,6 +23,69 @@ import (
 
 // go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func TestTokenProgram(t *testing.T) {
+	t.Run("BurnUserTokens", func(t *testing.T) {
+		wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
+		require := require.New(t)
+		maxUnits := uint64(80000)
+		eng := engine.New(engine.NewConfig())
+		program := newTokenProgram(maxUnits, eng, runtime.NewConfig(), wasmBytes)
+		require.NoError(program.Run(context.Background()))
+
+		rt := runtime.New(program.log, program.engine, program.imports, program.cfg)
+		ctx := context.Background()
+		err := rt.Initialize(ctx, program.programBytes, program.maxUnits)
+		require.NoError(err)
+
+		// simulate create program transaction
+		programID := ids.GenerateTestID()
+		err = storage.SetProgram(ctx, program.db, programID, program.programBytes)
+		require.NoError(err)
+
+		mem, err := rt.Memory()
+		require.NoError(err)
+
+		programIDPtr, err := argumentToSmartPtr(programID, mem)
+		require.NoError(err)
+
+		// initialize program
+		_, err = rt.Call(ctx, "init", programIDPtr)
+		require.NoError(err, "failed to initialize program")
+
+		// generate alice keys
+		alicePublicKey, err := newKey()
+		require.NoError(err)
+
+		// write alice's key to stack and get pointer
+		alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+		require.NoError(err)
+
+		// mint 100 tokens to alice
+		mintAlice := int64(1000)
+		mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+		require.NoError(err)
+
+		_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlicePtr)
+		require.NoError(err)
+
+		// check balance of alice
+		result, err := rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+		require.NoError(err)
+		require.Equal(int64(1000), result[0])
+
+		// read alice balance from state db
+		aliceBalance, err := program.GetUserBalanceFromState(ctx, programID, alicePublicKey)
+		require.NoError(err)
+		require.Equal(int64(1000), aliceBalance)
+
+		// burn alice tokens
+		_, err = rt.Call(ctx, "burn_from", programIDPtr, alicePtr)
+		require.NoError(err)
+
+		// check balance of alice from state db
+		_, err = program.GetUserBalanceFromState(ctx, programID, alicePublicKey)
+		require.ErrorIs(err, database.ErrNotFound)
+	})
+
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
 	require := require.New(t)
 	maxUnits := uint64(80000)
