@@ -325,7 +325,7 @@ mod tests {
                         Param::new(ParamType::Id, program_id.as_ref()),
                         Param::new(ParamType::Key(Key::Ed25519), "alice_key"),
                     ],
-                    max_units: 10000,
+                    max_units: 1000000,
                     require: None,
                 },
                 owner_key,
