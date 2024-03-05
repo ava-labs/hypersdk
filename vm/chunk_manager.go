@@ -684,6 +684,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			}
 
 			// Attempt to build a chunk
+			chunkStart := time.Now()
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
 				c.vm.Logger().Debug("unable to build chunk", zap.Error(err))
@@ -700,6 +701,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				zap.Stringer("id", cid),
 				zap.Int("txs", len(chunk.Txs)),
 			)
+			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
 		case <-c.vm.stop:
 			// If engine taking too long to process message, Shutdown will not
 			// be called.
@@ -852,7 +854,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	copy(msg[1:], txBytes)
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
 	c.vm.Logger().Debug("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
-	c.vm.RecordTxsGossipped(1)
+	c.vm.RecordTxsGossiped(1)
 }
 
 // This function should be spawned in a goroutine because it blocks

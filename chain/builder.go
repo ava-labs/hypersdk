@@ -138,6 +138,5 @@ func BuildBlock(
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
 		zap.Int("size", len(b.bytes)),
 	)
-	vm.RecordBlockBuild(time.Since(next))
 	return b, nil
 }

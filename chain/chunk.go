@@ -177,7 +177,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
 		zap.Duration("t", time.Since(nowT)),
 	)
-	vm.RecordChunkBuild(time.Since(nowT))
 	return c, nil
 }
 

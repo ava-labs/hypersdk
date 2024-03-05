@@ -24,41 +24,31 @@ func (em *executorMetrics) RecordExecutable() {
 }
 
 type Metrics struct {
-	txsSubmitted             prometheus.Counter // includes gossip
-	txsReceived              prometheus.Counter
-	seenTxsReceived          prometheus.Counter
-	txsGossiped              prometheus.Counter
-	txsVerified              prometheus.Counter
-	txsAccepted              prometheus.Counter
-	stateChanges             prometheus.Counter
-	stateOperations          prometheus.Counter
-	buildCapped              prometheus.Counter
-	emptyBlockBuilt          prometheus.Counter
-	clearedMempool           prometheus.Counter
-	deletedBlocks            prometheus.Counter
-	blocksFromDisk           prometheus.Counter
-	blocksHeightsFromDisk    prometheus.Counter
-	executorBuildBlocked     prometheus.Counter
-	executorBuildExecutable  prometheus.Counter
-	executorVerifyBlocked    prometheus.Counter
-	executorVerifyExecutable prometheus.Counter
-	mempoolSize              prometheus.Gauge
-	bandwidthPrice           prometheus.Gauge
-	computePrice             prometheus.Gauge
-	storageReadPrice         prometheus.Gauge
-	storageAllocatePrice     prometheus.Gauge
-	storageWritePrice        prometheus.Gauge
-	rootCalculated           metric.Averager
-	waitRoot                 metric.Averager
-	waitSignatures           metric.Averager
-	blockBuild               metric.Averager
-	blockParse               metric.Averager
-	blockVerify              metric.Averager
-	blockAccept              metric.Averager
-	blockProcess             metric.Averager
+	txsSubmitted          prometheus.Counter // includes gossip
+	txsReceived           prometheus.Counter
+	txsGossiped           prometheus.Counter
+	txsIncluded           prometheus.Counter
+	txsValid              prometheus.Counter
+	stateChanges          prometheus.Counter
+	stateOperations       prometheus.Counter
+	clearedMempool        prometheus.Counter
+	deletedBlocks         prometheus.Counter
+	blocksFromDisk        prometheus.Counter
+	blocksHeightsFromDisk prometheus.Counter
+	executorBlocked       prometheus.Counter
+	executorExecutable    prometheus.Counter
+	rootCalculated        metric.Averager
+	waitRoot              metric.Averager
+	waitExec              metric.Averager
+	chunkBuild            metric.Averager
+	blockBuild            metric.Averager
+	blockParse            metric.Averager
+	blockVerify           metric.Averager
+	blockAccept           metric.Averager
+	blockProcess          metric.Averager
+	blockExecute          metric.Averager
 
-	executorBuildRecorder  executor.Metrics
-	executorVerifyRecorder executor.Metrics
+	executorRecorder executor.Metrics
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -82,10 +72,19 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	waitSignatures, err := metric.NewAverager(
+	waitExec, err := metric.NewAverager(
 		"chain",
-		"wait_signatures",
-		"time spent waiting for signature verification in verify",
+		"wait_exec",
+		"time spent waiting for execution in verify",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunkBuild, err := metric.NewAverager(
+		"chain",
+		"chunk_build",
+		"time spent building chunks",
 		r,
 	)
 	if err != nil {
@@ -136,6 +135,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	blockExecute, err := metric.NewAverager(
+		"chain",
+		"block_execute",
+		"time spent executing blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	m := &Metrics{
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
@@ -143,30 +151,25 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_submitted",
 			Help:      "number of txs submitted to vm",
 		}),
-		txsReceived: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "txs_received",
-			Help:      "number of txs received over gossip",
-		}),
-		seenTxsReceived: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "vm",
-			Name:      "seen_txs_received",
-			Help:      "number of txs received over gossip that we've already seen",
-		}),
 		txsGossiped: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_gossiped",
 			Help:      "number of txs gossiped by vm",
 		}),
-		txsVerified: prometheus.NewCounter(prometheus.CounterOpts{
+		txsReceived: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
-			Name:      "txs_verified",
-			Help:      "number of txs verified by vm",
+			Name:      "txs_received",
+			Help:      "number of txs received over gossip",
 		}),
-		txsAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+		txsIncluded: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
-			Name:      "txs_accepted",
-			Help:      "number of txs accepted by vm",
+			Name:      "txs_included",
+			Help:      "number of txs included in accepted blocks",
+		}),
+		txsValid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "txs_valid",
+			Help:      "number of valid txs included in accepted blocks",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -177,16 +180,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "state_operations",
 			Help:      "number of state operations",
-		}),
-		buildCapped: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "build_capped",
-			Help:      "number of times build capped by target duration",
-		}),
-		emptyBlockBuilt: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "empty_block_built",
-			Help:      "number of times empty block built",
 		}),
 		clearedMempool: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -208,94 +201,44 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "block_heights_from_disk",
 			Help:      "number of block heights attempted to load from disk",
 		}),
-		executorBuildBlocked: prometheus.NewCounter(prometheus.CounterOpts{
+		executorBlocked: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
-			Name:      "executor_build_blocked",
-			Help:      "executor tasks blocked during build",
+			Name:      "executor_blocked",
+			Help:      "executor tasks blocked during processing",
 		}),
-		executorBuildExecutable: prometheus.NewCounter(prometheus.CounterOpts{
+		executorExecutable: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
-			Name:      "executor_build_executable",
-			Help:      "executor tasks executable during build",
-		}),
-		executorVerifyBlocked: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "executor_verify_blocked",
-			Help:      "executor tasks blocked during verify",
-		}),
-		executorVerifyExecutable: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "executor_verify_executable",
-			Help:      "executor tasks executable during verify",
-		}),
-		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "mempool_size",
-			Help:      "number of transactions in the mempool",
-		}),
-		bandwidthPrice: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "bandwidth_price",
-			Help:      "unit price of bandwidth",
-		}),
-		computePrice: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "compute_price",
-			Help:      "unit price of compute",
-		}),
-		storageReadPrice: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "storage_read_price",
-			Help:      "unit price of storage reads",
-		}),
-		storageAllocatePrice: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "storage_create_price",
-			Help:      "unit price of storage creates",
-		}),
-		storageWritePrice: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "storage_modify_price",
-			Help:      "unit price of storage modifications",
+			Name:      "executor_executable",
+			Help:      "executor tasks executable during processing",
 		}),
 		rootCalculated: rootCalculated,
 		waitRoot:       waitRoot,
-		waitSignatures: waitSignatures,
+		waitExec:       waitExec,
+		chunkBuild:     chunkBuild,
 		blockBuild:     blockBuild,
 		blockParse:     blockParse,
 		blockVerify:    blockVerify,
 		blockAccept:    blockAccept,
 		blockProcess:   blockProcess,
+		blockExecute:   blockExecute,
 	}
-	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
-	m.executorVerifyRecorder = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
+	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
 	errs := wrappers.Errs{}
 	errs.Add(
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsReceived),
-		r.Register(m.seenTxsReceived),
 		r.Register(m.txsGossiped),
-		r.Register(m.txsVerified),
-		r.Register(m.txsAccepted),
+		r.Register(m.txsIncluded),
+		r.Register(m.txsValid),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
-		r.Register(m.mempoolSize),
-		r.Register(m.buildCapped),
-		r.Register(m.emptyBlockBuilt),
 		r.Register(m.clearedMempool),
 		r.Register(m.deletedBlocks),
 		r.Register(m.blocksFromDisk),
 		r.Register(m.blocksHeightsFromDisk),
-		r.Register(m.executorBuildBlocked),
-		r.Register(m.executorBuildExecutable),
-		r.Register(m.executorVerifyBlocked),
-		r.Register(m.executorVerifyExecutable),
-		r.Register(m.bandwidthPrice),
-		r.Register(m.computePrice),
-		r.Register(m.storageReadPrice),
-		r.Register(m.storageAllocatePrice),
-		r.Register(m.storageWritePrice),
+		r.Register(m.executorBlocked),
+		r.Register(m.executorExecutable),
 	)
 	return r, m, errs.Err
 }

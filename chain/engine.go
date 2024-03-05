@@ -331,6 +331,8 @@ func (e *Engine) Run() {
 				zap.Duration("t", time.Since(estart)),
 			)
 			e.vm.RecordBlockExecute(time.Since(estart))
+			e.vm.RecordTxsValid(validTxs)
+			e.vm.RecordTxsIncluded(txCount)
 
 		case <-e.vm.StopChan():
 			return

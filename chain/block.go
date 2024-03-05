@@ -52,7 +52,8 @@ type StatefulBlock struct {
 	StartRoot      ids.ID   `json:"startRoot"`
 	ExecutedChunks []ids.ID `json:"executedChunks"`
 
-	built bool
+	built         bool
+	startWaitExec time.Time
 }
 
 func (b *StatefulBlock) Size() int {
@@ -420,7 +421,9 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		if err != nil {
 			// TODO: handle case where we state synced and don't have results
 			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
-			b.vm.RecordWaitingResults()
+			if b.startWaitExec.IsZero() {
+				b.startWaitExec = time.Now()
+			}
 			return fmt.Errorf("%w: no results for execHeight", err)
 		}
 		if b.StartRoot != root {
@@ -435,6 +438,9 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			}
 		}
 		b.execHeight = &execHeight
+		if !b.startWaitExec.IsZero() {
+			b.vm.RecordWaitExec(time.Since(b.startWaitExec))
+		}
 	}
 	b.vm.Verified(ctx, b)
 	log.Info(
