@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
@@ -25,6 +26,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -147,6 +149,18 @@ type ChunkManager struct {
 	// connected includes all connected nodes, not just those that are validators (we use
 	// this for sending txs/requesting chunks from only connected nodes)
 	connected set.Set[ids.NodeID]
+
+	txL     sync.Mutex
+	txQueue buffer.Deque[*txGossip]
+	txNodes map[ids.NodeID]*txGossip
+}
+
+type txGossip struct {
+	nodeID ids.NodeID
+	txs    map[ids.ID]*chain.Transaction
+	size   int
+	expiry time.Time
+	sent   bool
 }
 
 func NewChunkManager(vm *VM) *ChunkManager {
@@ -166,6 +180,10 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		callbacks: make(map[uint32]func([]byte)),
 
 		connected: set.NewSet[ids.NodeID](64), // TODO: make a const
+
+		// TODO: move to separate package
+		txQueue: buffer.NewUnboundedDeque[*txGossip](64), // TODO: make a const
+		txNodes: make(map[ids.NodeID]*txGossip),
 	}
 }
 
@@ -485,42 +503,47 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Store chunk certificate for building
 		c.certs.Update(cert)
 	case txMsg:
-		c.vm.RecordTxsReceived(1)
-		// TODO: is high speed of gossip destroying ability to process other artifacts?
-		_, txs, err := chain.UnmarshalTxs(msg[1:], 1, c.vm.actionRegistry, c.vm.authRegistry)
+		_, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
-		tx := txs[0]
+		c.vm.RecordTxsReceived(len(txs))
 
-		// Check that we are the partition for the tx
-		epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
-		if err != nil {
-			c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
-			return nil
-		}
-		partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
-		if err != nil {
-			c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
-			return nil
-		}
-		if partition != c.vm.snowCtx.NodeID {
-			c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
-			return nil
+		// Check that we are the partition for the txs
+		validTxs := make([]*chain.Transaction, 0, len(txs))
+		for _, tx := range txs {
+			epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+			if err != nil {
+				c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+				continue
+			}
+			partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+			if err != nil {
+				c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+				continue
+			}
+			if partition != c.vm.snowCtx.NodeID {
+				c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
+				continue
+			}
+			validTxs = append(validTxs, tx)
 		}
 
 		// Submit txs
-		c.vm.Submit(ctx, true, txs)
-		c.vm.Logger().Debug("received tx from gossip", zap.Stringer("txID", tx.ID()), zap.Stringer("nodeID", nodeID))
+		c.vm.Submit(ctx, true, validTxs)
+		c.vm.Logger().Info(
+			"received txs from gossip",
+			zap.Int("txs", len(txs)),
+			zap.Stringer("nodeID", nodeID),
+			zap.Duration("t", time.Since(start)),
+		)
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
 	return nil
 }
 
-// TODO: support returning an error to the sender instead of just timing out (will make
-// miss handling MUCH faster)
 func (c *ChunkManager) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
@@ -663,19 +686,25 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	defer close(c.done)
 
 	beneficiary := c.vm.Beneficiary()
+	skipChunks := false
 	if bytes.Equal(beneficiary[:], codec.EmptyAddress[:]) {
 		c.vm.Logger().Warn("no beneficiary set, not building chunks")
-		return
+		skipChunks = true
 	}
 	c.vm.Logger().Info("starting chunk manager", zap.Any("beneficiary", beneficiary))
 
-	t := time.NewTicker(c.vm.config.GetBuildFrequency())
-	defer t.Stop()
+	ct := time.NewTicker(c.vm.config.GetBuildFrequency())
+	defer ct.Stop()
+	gt := time.NewTicker(50 * time.Millisecond)
+	defer gt.Stop()
 	for {
 		select {
-		case <-t.C:
+		case <-ct.C:
 			if !c.vm.isReady() {
 				c.vm.Logger().Info("skipping chunk loop because vm isn't ready")
+				continue
+			}
+			if skipChunks {
 				continue
 			}
 
@@ -705,6 +734,29 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				zap.Int("txs", len(chunk.Txs)),
 			)
 			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
+		case <-gt.C:
+			now := time.Now()
+			gossipable := []*txGossip{}
+			c.txL.Lock()
+			for {
+				gossip, ok := c.txQueue.PopLeft()
+				if !ok {
+					break
+				}
+				if !gossip.expiry.Before(now) {
+					c.txQueue.PushLeft(gossip)
+					break
+				}
+				delete(c.txNodes, gossip.nodeID)
+				if gossip.sent {
+					continue
+				}
+				gossipable = append(gossipable, gossip)
+			}
+			c.txL.Unlock()
+			for _, gossip := range gossipable {
+				c.sendTxGossip(context.TODO(), gossip)
+			}
 		case <-c.vm.stop:
 			// If engine taking too long to process message, Shutdown will not
 			// be called.
@@ -844,20 +896,61 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 		return
 	}
 
-	// If we are not the issuer, send to the correct issuer
-	//
-	// TODO: batch tx issuance
-	// TODO: track how much this blocks chunk processing
-	txBytes, err := chain.MarshalTxs([]*chain.Transaction{tx})
+	// Handle gossip addition
+	txSize := tx.Size()
+	txID := tx.ID()
+	c.txL.Lock()
+	var gossipable *txGossip
+	gossip, ok := c.txNodes[partition]
+	if ok {
+		if gossip.size+txSize > consts.NetworkSizeLimit {
+			delete(c.txNodes, partition)
+			gossip.sent = true
+			gossipable = gossip
+		} else {
+			if _, ok := gossip.txs[txID]; !ok {
+				gossip.txs[txID] = tx
+				gossip.size += txSize
+			}
+			c.txL.Unlock()
+			return
+		}
+	}
+	gossip = &txGossip{
+		nodeID: partition,
+		txs:    make(map[ids.ID]*chain.Transaction, 128),
+		expiry: time.Now().Add(100 * time.Millisecond), // TODO: make const
+		size:   txSize,
+	}
+	gossip.txs[txID] = tx
+	c.txNodes[partition] = gossip
+	c.txQueue.PushRight(gossip)
+	c.txL.Unlock()
+
+	// Send any gossip if exit early
+	if gossipable == nil {
+		return
+	}
+	c.sendTxGossip(ctx, gossipable)
+}
+
+func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
+	txs := maps.Values(gossip.txs)
+	txBytes, err := chain.MarshalTxs(txs)
 	if err != nil {
 		panic(err)
 	}
 	msg := make([]byte, 1+len(txBytes))
 	msg[0] = txMsg
 	copy(msg[1:], txBytes)
-	c.appSender.SendAppGossipSpecific(ctx, set.Of(partition), msg)
-	c.vm.Logger().Debug("sending tx to partition", zap.Stringer("txID", tx.ID()), zap.Stringer("partition", partition))
-	c.vm.RecordTxsGossiped(1)
+	c.appSender.SendAppGossipSpecific(ctx, set.Of(gossip.nodeID), msg)
+	c.vm.Logger().Info(
+		"sending txs to partition",
+		zap.Int("txs", len(txs)),
+		zap.Stringer("partition", gossip.nodeID),
+		zap.Int("size", len(msg)),
+	)
+	c.vm.RecordTxsGossiped(len(txs))
 }
 
 // This function should be spawned in a goroutine because it blocks
