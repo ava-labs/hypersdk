@@ -352,6 +352,13 @@ func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 	return chain.UnmarshalChunk(b, vm)
 }
 
+func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
+	// TODO: add error
+	k := PrefixChunkKey(slot, chunk)
+	has, _ := vm.vmDB.Has(k)
+	return has
+}
+
 // TODO: add function to clear chunks
 
 func PrefixFilteredChunkKey(chunk ids.ID) []byte {

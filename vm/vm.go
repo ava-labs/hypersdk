@@ -765,7 +765,7 @@ func (vm *VM) buildBlock(ctx context.Context, pChainHeight uint64) (snowman.Bloc
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
-		vm.snowCtx.Log.Error("BuildBlock failed", zap.Error(err))
+		vm.snowCtx.Log.Debug("BuildBlock failed", zap.Error(err))
 		return nil, err
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)

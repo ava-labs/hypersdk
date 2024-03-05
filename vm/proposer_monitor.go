@@ -106,7 +106,10 @@ func (p *ProposerMonitor) IsValidator(ctx context.Context, height uint64, nodeID
 		return false, nil, 0, errors.New("could not get validator set for height")
 	}
 	output, exists := info.validators[nodeID]
-	return exists, output.PublicKey, output.Weight, nil
+	if exists {
+		return true, output.PublicKey, output.Weight, nil
+	}
+	return false, nil, 0, nil
 }
 
 // GetWarpValidatorSet returns the validator set of [subnetID] in a canonical ordering.

@@ -61,8 +61,8 @@ func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startProm
 	if err := h.CloseDatabase(); err != nil {
 		return err
 	}
-	endpoints := make([]string, len(uris))
-	for i, uri := range uris {
+	endpoints := make([]string, 0, len(uris))
+	for _, uri := range uris {
 		host, err := utils.GetHost(uri)
 		if err != nil {
 			return err
@@ -71,7 +71,7 @@ func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startProm
 		if err != nil {
 			return err
 		}
-		endpoints[i] = fmt.Sprintf("%s:%s", host, port)
+		endpoints = append(endpoints, fmt.Sprintf("%s:%s", host, port))
 	}
 
 	// Create Prometheus YAML

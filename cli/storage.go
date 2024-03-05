@@ -48,7 +48,7 @@ func (h *Handler) StoreDefaultChain(chainID ids.ID) error {
 	return h.StoreDefault(defaultChainKey, chainID[:])
 }
 
-func (h *Handler) GetDefaultChain(log bool) (ids.ID, []string, error) {
+func (h *Handler) GetDefaultChain(log bool) (ids.ID, map[string]string, error) {
 	v, err := h.GetDefault(defaultChainKey)
 	if err != nil {
 		return ids.Empty, nil, err
@@ -140,13 +140,17 @@ func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	return addr, priv, nil
 }
 
-func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
-	k := make([]byte, 1+consts.IDLen*2)
+func rpcKey(chainID ids.ID, name string) []byte {
+	bname := []byte(name)
+	k := make([]byte, 1+consts.IDLen+len(bname))
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
-	brpc := []byte(rpc)
-	rpcID := utils.ToID(brpc)
-	copy(k[1+consts.IDLen:], rpcID[:])
+	copy(k[1+consts.IDLen:], bname)
+	return k
+}
+
+func (h *Handler) StoreChain(chainID ids.ID, name, rpc string) error {
+	k := rpcKey(chainID, name)
 	has, err := h.db.Has(k)
 	if err != nil {
 		return err
@@ -154,40 +158,41 @@ func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
 	if has {
 		return ErrDuplicate
 	}
-	return h.db.Put(k, brpc)
+	return h.db.Put(k, []byte(rpc))
 }
 
-func (h *Handler) GetChain(chainID ids.ID) ([]string, error) {
+func (h *Handler) GetChain(chainID ids.ID) (map[string]string, error) {
 	k := make([]byte, 1+consts.IDLen)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
 
-	rpcs := []string{}
+	rpcs := map[string]string{}
 	iter := h.db.NewIteratorWithPrefix(k)
 	defer iter.Release()
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
-		rpcs = append(rpcs, string(iter.Value()))
+		rpcs[string(iter.Key()[1+consts.IDLen:])] = string(iter.Value())
 	}
 	return rpcs, iter.Error()
 }
 
-func (h *Handler) GetChains() (map[ids.ID][]string, error) {
+func (h *Handler) GetChains() (map[ids.ID]map[string]string, error) {
 	iter := h.db.NewIteratorWithPrefix([]byte{chainPrefix})
 	defer iter.Release()
 
-	chains := map[ids.ID][]string{}
+	chains := map[ids.ID]map[string]string{}
 	for iter.Next() {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
 		k := iter.Key()
 		chainID := ids.ID(k[1 : 1+consts.IDLen])
+		name := string(k[1+consts.IDLen:])
 		rpcs, ok := chains[chainID]
 		if !ok {
-			rpcs = []string{}
+			rpcs = map[string]string{}
 		}
-		rpcs = append(rpcs, string(iter.Value()))
+		rpcs[name] = string(iter.Value())
 		chains[chainID] = rpcs
 	}
 	return chains, iter.Error()
@@ -201,12 +206,7 @@ func (h *Handler) DeleteChains() ([]ids.ID, error) {
 	chainIDs := make([]ids.ID, 0, len(chains))
 	for chainID, rpcs := range chains {
 		for _, rpc := range rpcs {
-			k := make([]byte, 1+consts.IDLen*2)
-			k[0] = chainPrefix
-			copy(k[1:], chainID[:])
-			brpc := []byte(rpc)
-			rpcID := utils.ToID(brpc)
-			copy(k[1+consts.IDLen:], rpcID[:])
+			k := rpcKey(chainID, rpc)
 			if err := h.db.Delete(k); err != nil {
 				return nil, err
 			}

@@ -276,7 +276,7 @@ func (*Handler) PromptID(label string) (ids.ID, error) {
 	return id, nil
 }
 
-func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
+func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, map[string]string, error) {
 	chains, err := h.GetChains()
 	if err != nil {
 		return ids.Empty, nil, err

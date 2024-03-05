@@ -62,6 +62,8 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+	uriNames := onlyAPIs(uris)
+	baseName := uriNames[0]
 
 	// Select root key
 	keys, err := h.GetKeys()
@@ -72,13 +74,13 @@ func (h *Handler) Spam(
 		return ErrNoKeys
 	}
 	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-	cli := rpc.NewJSONRPCClient(uris[0])
+	cli := rpc.NewJSONRPCClient(uris[baseName])
 	networkID, _, _, err := cli.Network(ctx)
 	if err != nil {
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	if err := createClient(uris[0], networkID, chainID); err != nil {
+	if err := createClient(uris[baseName], networkID, chainID); err != nil {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {
@@ -152,7 +154,7 @@ func (h *Handler) Spam(
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
-	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	dcli, err := rpc.NewWebSocketClient(uris[baseName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
@@ -197,14 +199,15 @@ func (h *Handler) Spam(
 
 	// Kickoff txs
 	clients := []*txIssuer{}
-	for i := 0; i < len(uris); i++ {
+	for i := 0; i < len(uriNames); i++ {
 		for j := 0; j < numClients; j++ {
-			cli := rpc.NewJSONRPCClient(uris[i])
-			dcli, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			name := uriNames[i]
+			cli := rpc.NewJSONRPCClient(uris[name])
+			dcli, err := rpc.NewWebSocketClient(uris[name], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
-			clients = append(clients, &txIssuer{c: cli, d: dcli, uri: i})
+			clients = append(clients, &txIssuer{c: cli, d: dcli, name: name, uri: i})
 		}
 	}
 	signals := make(chan os.Signal, 2)
@@ -330,7 +333,7 @@ func (h *Handler) Spam(
 								}
 								// recreate issuer
 								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
-								dcli, err := rpc.NewWebSocketClient(uris[issuer.uri], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+								dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 								if err != nil {
 									issuer.abandoned = err
 									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
@@ -462,6 +465,7 @@ type txIssuer struct {
 	d *rpc.WebSocketClient
 
 	l              sync.Mutex
+	name           string
 	uri            int
 	abandoned      error
 	outstandingTxs int

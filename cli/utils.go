@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/ava-labs/hypersdk/consts"
@@ -52,4 +53,15 @@ func (*Handler) SubmitDummy(
 		return nil
 	}
 	return ctx.Err()
+}
+
+func onlyAPIs(m map[string]string) []string {
+	apis := make([]string, 0, len(m))
+	for k := range m {
+		if !strings.Contains(k, "API") {
+			continue
+		}
+		apis = append(apis, k)
+	}
+	return apis
 }

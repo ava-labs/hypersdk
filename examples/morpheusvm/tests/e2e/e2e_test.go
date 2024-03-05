@@ -67,6 +67,7 @@ var (
 	trackSubnetsOpt runner_sdk.OpOption
 
 	numValidators uint
+	numAPIs       uint
 )
 
 func init() {
@@ -156,8 +157,15 @@ func init() {
 	flag.UintVar(
 		&numValidators,
 		"num-validators",
-		5,
+		4,
 		"number of validators per blockchain",
+	)
+
+	flag.UintVar(
+		&numAPIs,
+		"num-apis",
+		2,
+		"number of APIs per blockchain",
 	)
 }
 
@@ -242,7 +250,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"consensus-on-accept-gossip-validator-size":"10",
 				"consensus-on-accept-gossip-peer-size":"10",
 				"network-compression-type":"zstd",
-				"consensus-app-concurrency":"512",
+				"consensus-app-concurrency":"4",
 				"profile-continuous-enabled":true,
 				"profile-continuous-freq":"1m",
 				"http-host":"",
@@ -370,6 +378,22 @@ var _ = ginkgo.AfterSuite(func() {
 
 	case modeRun:
 		utils.Outf("{{yellow}}skipping cluster shutdown{{/}}\n\n")
+
+		utils.Outf("{{green}}creating API nodes{{/}}\n")
+		for i := 0; i < int(numAPIs); i++ {
+			_, err := anrCli.AddNode(
+				context.Background(),
+				fmt.Sprintf("API-%d", i),
+				execPath,
+				trackSubnetsOpt,
+				runner_sdk.WithChainConfigs(map[string]string{
+					blockchainID: vmConfig,
+				}),
+			)
+			gomega.Expect(err).To(gomega.BeNil())
+			awaitHealthy(anrCli)
+		}
+
 		utils.Outf("{{cyan}}Blockchain:{{/}} %s\n", blockchainID)
 		for _, member := range instances {
 			utils.Outf("%s URI: %s\n", member.nodeID, member.uri)

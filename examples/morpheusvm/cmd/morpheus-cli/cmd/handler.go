@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+	"golang.org/x/exp/maps"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -62,12 +63,13 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	jcli := rpc.NewJSONRPCClient(uris[0])
+	uriName := maps.Keys(uris)[0]
+	jcli := rpc.NewJSONRPCClient(uris[uriName])
 	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := rpc.NewWebSocketClient(uris[uriName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -77,7 +79,7 @@ func (h *Handler) DefaultActor() (
 			Bytes:   priv,
 		}, factory, jcli,
 		brpc.NewJSONRPCClient(
-			uris[0],
+			uris[uriName],
 			networkID,
 			chainID,
 		), ws, nil
