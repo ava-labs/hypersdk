@@ -386,6 +386,7 @@ func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*Fil
 		e.largestOutput = nil
 	}
 	e.outputsLock.Unlock()
+	// TODO: consider committing this in execution queue
 	return output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
 }
 

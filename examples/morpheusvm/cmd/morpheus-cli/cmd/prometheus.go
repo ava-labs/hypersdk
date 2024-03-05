@@ -49,6 +49,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_valid[5s])/5", chainID))
 			utils.Outf("{{yellow}}valid transactions executed per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("(increase(avalanche_%s_vm_hypersdk_vm_txs_valid[5s])/5)/(increase(avalanche_%s_vm_hypersdk_vm_txs_included[5s])/5) * 100", chainID, chainID))
+			utils.Outf("{{yellow}}valid transactions executed (%):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_operations[5s])/5", chainID))
 			utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])
 
@@ -64,6 +67,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_exec_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}exec wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("(increase(avalanche_%s_vm_hypersdk_chain_wait_exec_count[5s])/5)/(increase(avalanche_%s_vm_hypersdk_chain_block_verify_count[5s])/5) * 100", chainID, chainID))
+			utils.Outf("{{yellow}}execution waits per verified block (%):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_cleared_mempool[5s])/5", chainID))
 			utils.Outf("{{yellow}}cleared mempool per second:{{/}} %s\n", panels[len(panels)-1])
 
@@ -78,6 +84,15 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[5s])/1000000/5 + increase(avalanche_%s_handler_notify_sum[5s])/1000000/5 + increase(avalanche_%s_handler_get_sum[5s])/1000000/5 + increase(avalanche_%s_handler_push_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_put_sum[5s])/1000000/5 + increase(avalanche_%s_handler_pull_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_query_failed_sum[5s])/1000000/5", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 			utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_build_count[5s])/5", chainID))
+			utils.Outf("{{yellow}}chunks built per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_build_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}chunk build (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_build_count[5s])/5", chainID))
+			utils.Outf("{{yellow}}blocks built per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_build_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}block build (ms/s):{{/}} %s\n", panels[len(panels)-1])
@@ -105,6 +120,21 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executor_executable[5s]) / (increase(avalanche_%s_vm_hypersdk_chain_executor_blocked[5s]) + increase(avalanche_%s_vm_hypersdk_chain_executor_executable[5s]))", chainID, chainID, chainID))
 			utils.Outf("{{yellow}}txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_handler_unprocessed_msgs_len", chainID))
+			utils.Outf("{{yellow}}unprocessed messages:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_handler_async_unprocessed_msgs_len", chainID))
+			utils.Outf("{{yellow}}async unprocessed messages:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_app_gossip_msg_handling_count[5s])/5", chainID))
+			utils.Outf("{{yellow}}app gossip messages processed per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_go_goroutines", chainID))
+			utils.Outf("{{yellow}}goroutines:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, "avalanche_go_goroutines")
+			utils.Outf("{{yellow}}avalanchego goroutines:{{/}} %s\n", panels[len(panels)-1])
 
 			return panels
 		})

@@ -215,7 +215,7 @@ func (c *Chunk) ID() (ids.ID, error) {
 }
 
 func (c *Chunk) Size() int {
-	return consts.Int64Len + consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
 }
 
 func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {
