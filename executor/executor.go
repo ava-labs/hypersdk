@@ -172,12 +172,11 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				// If the first read hasn't executed for some reason, and
 				// we're doing a bunch of Reads with no conflicts like
 				// R->R->R->..., we don't want to record any dependencies
-				if key.permissions == state.Read {
-					continue
+				if key.permissions != state.Read {
+					// Last blocked transaction was a Allocate/Write
+					pt.blocking.Add(id)
+					t.dependencies.Add(key.id)
 				}
-				// Last blocked transaction was a Allocate/Write
-				pt.blocking.Add(id)
-				t.dependencies.Add(key.id)
 				continue
 			}
 
@@ -197,23 +196,22 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					// task, if it hasn't executed yet.
 					key.concurrentReads.Clear()
 				}
+				e.updateKey(key, id, v)
 			}
-		} else {
-			// We don't need to record the case of W->W->W->...,
-			// since that parent write already executed. We
-			// consider any outstanding reads that still need
-			// to be executed once its parent write ran.
-			if v.Has(state.Allocate) || v.Has(state.Write) {
-				e.updateConcurrentReads(key, t)
-			}
-			key.concurrentReads.Clear()
-			if v == state.Read {
-				key.concurrentReads.Add(id)
-			}
+			continue
 		}
-		// Update id everytime it's a Allocate/Write key or if the parent ran
-		key.id = id
-		key.permissions = v
+		// We don't need to record the case of W->W->W->...,
+		// since that parent write already executed. We
+		// consider any outstanding reads that still need
+		// to be executed once its parent write ran.
+		if v.Has(state.Allocate) || v.Has(state.Write) {
+			e.updateConcurrentReads(key, t)
+		}
+		key.concurrentReads.Clear()
+		if v == state.Read {
+			key.concurrentReads.Add(id)
+		}
+		e.updateKey(key, id, v)
 	}
 
 	// Start execution if there are no blocking dependencies
@@ -228,6 +226,12 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	if e.metrics != nil {
 		e.metrics.RecordBlocked()
 	}
+}
+
+// Update id everytime it's a Allocate/Write key or if the last blocked txn ran
+func (e *Executor) updateKey(key *keyData, id int, v state.Permissions) {
+	key.id = id
+	key.permissions = v
 }
 
 // Update concurrentReads when we encounter a Allocate/Write key
