@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
+	"golang.org/x/exp/maps"
 	"gopkg.in/yaml.v2"
 )
 
@@ -29,11 +30,15 @@ func (h *Handler) ImportChain() error {
 	if err != nil {
 		return err
 	}
+	name, err := h.PromptString("name", 0, consts.MaxInt)
+	if err != nil {
+		return err
+	}
 	uri, err := h.PromptString("uri", 0, consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	if err := h.StoreChain(chainID, uri); err != nil {
+	if err := h.StoreChain(chainID, name, uri); err != nil {
 		return err
 	}
 	if err := h.StoreDefaultChain(chainID); err != nil {
@@ -88,6 +93,7 @@ func (h *Handler) ImportANR() error {
 		if len(nodeInfo.WhitelistedSubnets) == 0 {
 			continue
 		}
+		name := nodeInfo.GetName()
 		trackedSubnets := strings.Split(nodeInfo.WhitelistedSubnets, ",")
 		for _, subnet := range trackedSubnets {
 			subnetID, err := ids.FromString(subnet)
@@ -96,11 +102,12 @@ func (h *Handler) ImportANR() error {
 			}
 			for _, chainID := range subnets[subnetID] {
 				uri := fmt.Sprintf("%s/ext/bc/%s", nodeInfo.Uri, chainID)
-				if err := h.StoreChain(chainID, uri); err != nil {
+				if err := h.StoreChain(chainID, name, uri); err != nil {
 					return err
 				}
 				utils.Outf(
-					"{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+					"{{yellow}}[%s] stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+					name,
 					chainID,
 					uri,
 				)
@@ -149,13 +156,15 @@ func (h *Handler) ImportOps(opsPath string) error {
 	}
 
 	// Add chains
-	for _, node := range opsConfig.Resources.CreatedNodes {
+	for i, node := range opsConfig.Resources.CreatedNodes {
+		name := fmt.Sprintf("node-%d", i)
 		uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
-		if err := h.StoreChain(chainID, uri); err != nil {
+		if err := h.StoreChain(chainID, name, uri); err != nil {
 			return err
 		}
 		utils.Outf(
-			"{{yellow}}stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+			"{{yellow}}[%s] stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+			name,
 			chainID,
 			uri,
 		)
@@ -176,7 +185,8 @@ func (h *Handler) PrintChainInfo() error {
 	if err != nil {
 		return err
 	}
-	cli := rpc.NewJSONRPCClient(uris[0])
+	uriName := maps.Keys(uris)[0]
+	cli := rpc.NewJSONRPCClient(uris[uriName])
 	networkID, subnetID, chainID, err := cli.Network(context.Background())
 	if err != nil {
 		return err
@@ -199,17 +209,18 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	if err := h.CloseDatabase(); err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[0])
-	rcli := rpc.NewJSONRPCClient(uris[0])
+	uriName := onlyAPIs(uris)[0]
+	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[uriName])
+	rcli := rpc.NewJSONRPCClient(uris[uriName])
 	networkID, _, _, err := rcli.Network(context.TODO())
 	if err != nil {
 		return err
 	}
-	parser, err := getParser(uris[0], networkID, chainID)
+	parser, err := getParser(uris[uriName], networkID, chainID)
 	if err != nil {
 		return err
 	}
-	scli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	scli, err := rpc.NewWebSocketClient(uris[uriName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
