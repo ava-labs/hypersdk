@@ -40,8 +40,7 @@ type Metrics struct {
 	chunksReceived        prometheus.Counter
 	sigsReceived          prometheus.Counter
 	certsReceived         prometheus.Counter
-	rootCalculated        metric.Averager
-	waitRoot              metric.Averager
+	waitCommit            metric.Averager
 	waitExec              metric.Averager
 	chunkBuild            metric.Averager
 	blockBuild            metric.Averager
@@ -57,19 +56,10 @@ type Metrics struct {
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
-	rootCalculated, err := metric.NewAverager(
+	waitCommit, err := metric.NewAverager(
 		"chain",
-		"root_calculated",
-		"time spent calculating the state root in verify",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitRoot, err := metric.NewAverager(
-		"chain",
-		"wait_root",
-		"time spent waiting for root calculation in verify",
+		"wait_commit",
+		"time spent waiting to commit state in execution",
 		r,
 	)
 	if err != nil {
@@ -229,16 +219,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "certs_received",
 			Help:      "certificates received from validators",
 		}),
-		rootCalculated: rootCalculated,
-		waitRoot:       waitRoot,
-		waitExec:       waitExec,
-		chunkBuild:     chunkBuild,
-		blockBuild:     blockBuild,
-		blockParse:     blockParse,
-		blockVerify:    blockVerify,
-		blockAccept:    blockAccept,
-		blockProcess:   blockProcess,
-		blockExecute:   blockExecute,
+		waitCommit:   waitCommit,
+		waitExec:     waitExec,
+		chunkBuild:   chunkBuild,
+		blockBuild:   blockBuild,
+		blockParse:   blockParse,
+		blockVerify:  blockVerify,
+		blockAccept:  blockAccept,
+		blockProcess: blockProcess,
+		blockExecute: blockExecute,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 

@@ -33,9 +33,8 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordRootCalculated(time.Duration)
 	RecordWaitExec(time.Duration)
-	RecordWaitRoot(time.Duration)
+	RecordWaitCommit(time.Duration)
 
 	RecordClearedMempool()
 

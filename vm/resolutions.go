@@ -431,12 +431,8 @@ func (vm *VM) StateManager() chain.StateManager {
 	return vm.c.StateManager()
 }
 
-func (vm *VM) RecordRootCalculated(t time.Duration) {
-	vm.metrics.rootCalculated.Observe(float64(t))
-}
-
-func (vm *VM) RecordWaitRoot(t time.Duration) {
-	vm.metrics.waitRoot.Observe(float64(t))
+func (vm *VM) RecordWaitCommit(t time.Duration) {
+	vm.metrics.waitCommit.Observe(float64(t))
 }
 
 func (vm *VM) RecordWaitExec(t time.Duration) {

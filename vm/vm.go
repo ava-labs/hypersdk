@@ -309,15 +309,23 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
+
+		// Update chain metadata
+		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+			return err
+		}
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
+			return err
+		}
+
+		// Commit genesis block post-execution state and compute root
 		if err := sps.Commit(ctx); err != nil {
 			return err
 		}
 		root, err := vm.stateDB.GetMerkleRoot(ctx)
 		if err != nil {
-			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
 			return err
 		}
-		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Create genesis block
 		genesisBlk, err := chain.ParseStatefulBlock(
@@ -332,25 +340,6 @@ func (vm *VM) Initialize(
 			return err
 		}
 
-		// Update chain metadata
-		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
-			return err
-		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(genesisBlk.StatefulBlock.Timestamp))); err != nil {
-			return err
-		}
-
-		// Commit genesis block post-execution state and compute root
-		if err := sps.Commit(ctx); err != nil {
-			return err
-		}
-		genesisRoot, err := vm.stateDB.GetMerkleRoot(ctx)
-		if err != nil {
-			snowCtx.Log.Error("could not get merkle root", zap.Error(err))
-			return err
-		}
-
 		// Update last accepted and preferred block
 		vm.genesisBlk = genesisBlk
 		if err := vm.UpdateLastAccepted(genesisBlk); err != nil {
@@ -361,8 +350,7 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis",
 			zap.Stringer("block", gBlkID),
-			zap.Stringer("pre-execution root", genesisBlk.StartRoot),
-			zap.Stringer("post-execution root", genesisRoot),
+			zap.Stringer("root", root),
 		)
 	}
 	go vm.processExecutedChunks()
