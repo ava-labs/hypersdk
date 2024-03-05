@@ -163,7 +163,7 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
 func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
-	return ts.scope[string(k)]&perm == perm
+	return ts.scope[string(k)].Contains(perm)
 }
 
 // GetValue returns the value associated from tempStorage with the

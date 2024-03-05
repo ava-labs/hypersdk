@@ -78,3 +78,50 @@ func TestUnionPermissions(t *testing.T) {
 		})
 	}
 }
+
+func TestContains(t *testing.T) {
+	tests := []struct {
+		name        string
+		permission1 Permissions
+		permission2 Permissions
+		result      bool
+	}{
+		{
+			name:        "check if it has read and write",
+			permission1: None,
+			permission2: Read | Write,
+			result:      false,
+		},
+		{
+			name:        "check if it has allocate and write ",
+			permission1: Read | Allocate,
+			permission2: Allocate | Write,
+			result:      false,
+		},
+		{
+			name:        "check if it has allocate",
+			permission1: Read | Allocate,
+			permission2: Allocate & Write,
+			result:      true,
+		},
+		{
+			name:        "check if it has write",
+			permission1: Read | Write,
+			permission2: Allocate & Write,
+			result:      true,
+		},
+		{
+			name:        "check if it has both write and allocate",
+			permission1: Allocate | Write,
+			permission2: Allocate & Write,
+			result:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			require.Equal(tt.result, tt.permission1.Contains(tt.permission2))
+		})
+	}
+}
