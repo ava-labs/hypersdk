@@ -192,17 +192,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					// With a bunch of reads before our write,
 					// we need to update that we're blocked by
 					// all of these reads
-					for b := range key.concurrentReads {
-						bt := e.tasks[b]
-						// In the case one of the concurrent reads have
-						// executed and we're at this stage of the code,
-						// we only want to record that we're blocked on
-						// the concurrent reads that are not yet executed.
-						if !bt.executed {
-							bt.blocking.Add(id)
-							t.dependencies.Add(b)
-						}
-					}
+					e.updateConcurrentReads(key, t)
 					// Any subsequent reads will now be blocked by this
 					// task, if it hasn't executed yet.
 					key.concurrentReads.Clear()
@@ -214,13 +204,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			// consider any outstanding reads that still need
 			// to be executed once its parent write ran.
 			if v.Has(state.Allocate) || v.Has(state.Write) {
-				for b := range key.concurrentReads {
-					bt := e.tasks[b]
-					if !bt.executed {
-						bt.blocking.Add(id)
-						t.dependencies.Add(b)
-					}
-				}
+				e.updateConcurrentReads(key, t)
 			}
 			key.concurrentReads.Clear()
 			if v == state.Read {
@@ -243,6 +227,20 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	}
 	if e.metrics != nil {
 		e.metrics.RecordBlocked()
+	}
+}
+
+// Update concurrentReads when we encounter a Allocate/Write key
+// or when the last blocked transaction has been executed
+func (e *Executor) updateConcurrentReads(key *keyData, t *task) {
+	for b := range key.concurrentReads {
+		bt := e.tasks[b]
+		// Record that we're blocked on the concurrent reads
+		// that are not yet executed.
+		if !bt.executed {
+			bt.blocking.Add(t.id)
+			t.dependencies.Add(b)
+		}
 	}
 }
 
