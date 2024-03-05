@@ -140,12 +140,17 @@ func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	return addr, priv, nil
 }
 
-func (h *Handler) StoreChain(chainID ids.ID, name, rpc string) error {
+func rpcKey(chainID ids.ID, name string) []byte {
 	bname := []byte(name)
 	k := make([]byte, 1+consts.IDLen+len(bname))
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
 	copy(k[1+consts.IDLen:], bname)
+	return k
+}
+
+func (h *Handler) StoreChain(chainID ids.ID, name, rpc string) error {
+	k := rpcKey(chainID, name)
 	has, err := h.db.Has(k)
 	if err != nil {
 		return err
@@ -201,12 +206,7 @@ func (h *Handler) DeleteChains() ([]ids.ID, error) {
 	chainIDs := make([]ids.ID, 0, len(chains))
 	for chainID, rpcs := range chains {
 		for _, rpc := range rpcs {
-			k := make([]byte, 1+consts.IDLen*2)
-			k[0] = chainPrefix
-			copy(k[1:], chainID[:])
-			brpc := []byte(rpc)
-			rpcID := utils.ToID(brpc)
-			copy(k[1+consts.IDLen:], rpcID[:])
+			k := rpcKey(chainID, rpc)
 			if err := h.db.Delete(k); err != nil {
 				return nil, err
 			}
