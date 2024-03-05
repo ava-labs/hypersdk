@@ -231,6 +231,8 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	valueChunks, _ := keys.NumChunks(value) // not possible to fail
 	k := string(key)
+	// Invariant: [getValue] is safe to call here because with [state.Write], it
+	// will provide exclusive access to the state
 	past, exists := ts.getValue(ctx, k)
 	op := &op{
 		k:             k,
