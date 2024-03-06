@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -96,5 +97,51 @@ func BenchmarkFileDBConcurrent(b *testing.B) {
 				b.Fatal(err)
 			}
 		})
+	}
+}
+
+func BenchmarkPebbleDB(b *testing.B) {
+	b.StopTimer()
+	db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+
+	msg := make([]byte, 1.5*units.MiB)
+	if _, err := rand.Read(msg); err != nil {
+		b.Fatal(err)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		if err := db.Put([]byte(fmt.Sprintf("test-%d", i)), msg); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPebbleDBConcurrent(b *testing.B) {
+	b.StopTimer()
+	db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+
+	msg := make([]byte, 1.5*units.MiB)
+	if _, err := rand.Read(msg); err != nil {
+		b.Fatal(err)
+	}
+	b.StartTimer()
+	g, _ := errgroup.WithContext(context.TODO())
+	g.SetLimit(runtime.NumCPU())
+	for i := 0; i < b.N; i++ {
+		ti := i
+		g.Go(func() error {
+			return db.Put([]byte(fmt.Sprintf("test-%d", ti)), msg)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		b.Fatal(err)
 	}
 }
