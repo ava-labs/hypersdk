@@ -46,30 +46,30 @@ func (i *ImportAsset) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	if i.warpTransfer.Return {
 		assetID = i.warpTransfer.Asset
 		keys = state.Keys{
-			string(storage.AssetKey(i.warpTransfer.Asset)):                             state.All,
-			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)): state.All,
-			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)):        state.All,
+			string(storage.AssetKey(i.warpTransfer.Asset)):                             state.Read | state.Write,
+			string(storage.LoanKey(i.warpTransfer.Asset, i.warpMessage.SourceChainID)): state.Read | state.Write,
+			string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.Asset)):        state.Read | state.Write,
 		}
 	} else {
 		assetID = ImportedAssetID(i.warpTransfer.Asset, i.warpMessage.SourceChainID)
 		keys = state.Keys{
-			string(storage.AssetKey(assetID)):                      state.All,
-			string(storage.BalanceKey(i.warpTransfer.To, assetID)): state.All,
+			string(storage.AssetKey(assetID)):                      state.Read | state.Write,
+			string(storage.BalanceKey(i.warpTransfer.To, assetID)): state.Read | state.Write,
 		}
 	}
 
 	// If the [warpTransfer] specified a reward, we add the state key to make
 	// sure it is paid.
 	if i.warpTransfer.Reward > 0 {
-		keys.Add(string(storage.BalanceKey(actor, assetID)), state.All)
+		keys.Add(string(storage.BalanceKey(actor, assetID)), state.Read|state.Write)
 	}
 
 	// If the [warpTransfer] requests a swap, we add the state keys to transfer
 	// the required balances.
 	if i.Fill && i.warpTransfer.SwapIn > 0 {
-		keys.Add(string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), state.All)
-		keys.Add(string(storage.BalanceKey(actor, assetID)), state.All)
-		keys.Add(string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), state.All)
+		keys.Add(string(storage.BalanceKey(actor, i.warpTransfer.AssetOut)), state.Read|state.Write)
+		keys.Add(string(storage.BalanceKey(actor, assetID)), state.Read|state.Write)
+		keys.Add(string(storage.BalanceKey(i.warpTransfer.To, i.warpTransfer.AssetOut)), state.Read|state.Write)
 	}
 	return keys
 }
