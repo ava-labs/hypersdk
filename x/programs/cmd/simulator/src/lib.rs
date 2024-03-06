@@ -1,18 +1,16 @@
-//! A client and types for the VM simulator. This feature allows for Rust
+//! A client and types for the VM simulator. This crate allows for Rust
 //! developers to construct tests for their programs completely in Rust.
 //! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
+use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     ffi::OsStr,
     io::Write,
+    path::Path,
     process::{Command, Output, Stdio},
 };
-
-pub const PATH_KEY: &str = "SIMULATOR_PATH";
-
-use serde::{Deserialize, Serialize};
 
 /// Converts the step index to a string identifier. This is used to populate Ids
 /// created in previous inline plan steps.
@@ -159,17 +157,32 @@ pub struct PlanResult {
     pub response: Option<Vec<i64>>,
 }
 
-pub struct Client<P> {
+pub struct Client {
     /// Path to the simulator binary
-    path: P,
+    path: &'static str,
 }
 
-impl<P> Client<P>
-where
-    P: AsRef<OsStr>,
-{
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Client {
     #[must_use]
-    pub fn new(path: P) -> Self {
+    pub fn new() -> Self {
+        let path = env!("SIMULATOR_PATH");
+
+        if !Path::new(path).exists() {
+            eprintln!();
+            eprintln!("Simulator binary not found at path: {path}");
+            eprintln!();
+            eprintln!("Please run `cargo clean -p simulator` and rebuild your dependent crate.");
+            eprintln!();
+
+            panic!("Simulator binary not found, must rebuild simulator");
+        }
+
         Self { path }
     }
 
@@ -181,23 +194,20 @@ where
     where
         T: serde::de::DeserializeOwned + serde::Serialize,
     {
-        run_steps(&self.path, plan)
+        run_steps(self.path, plan)
     }
 
     /// Performs a `ReadOnly` step against the simulator and returns the result.
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn read_only<T>(
+    pub fn read_only(
         &self,
         key: &str,
         method: &str,
         params: Vec<Param>,
         require: Option<Require>,
-    ) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
+    ) -> Result<PlanResponse, Box<dyn Error>> {
         let step = Step {
             endpoint: Endpoint::ReadOnly,
             method: method.into(),
@@ -210,7 +220,7 @@ where
             steps: vec![step],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, plan)
     }
 
     /// Performs a single `Execute` step against the simulator and returns the result.
@@ -226,7 +236,7 @@ where
             steps: vec![step],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, plan)
     }
 
     /// Creates a key in a single step.
@@ -251,29 +261,33 @@ where
             }],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, plan)
     }
 
     /// Creates a program in a single step.
     /// # Errors
     ///
     /// Returns an error if the if serialization or plan fails.
-    pub fn program_create<T>(&self, key: &str, path: &str) -> Result<T, Box<dyn Error>>
-    where
-        T: serde::de::DeserializeOwned + serde::Serialize,
-    {
-        let plan = &Plan {
+    pub fn create_program<P: AsRef<Path>>(
+        &self,
+        key: &str,
+        path: P,
+    ) -> Result<PlanResponse, Box<dyn Error>> {
+        let path = path.as_ref();
+        let path = path.to_string_lossy();
+
+        let plan = Plan {
             caller_key: key.into(),
             steps: vec![Step {
                 endpoint: Endpoint::Execute,
                 method: "program_create".into(),
                 max_units: 0,
-                params: vec![Param::new(ParamType::String, path)],
+                params: vec![Param::new(ParamType::String, &path)],
                 require: None,
             }],
         };
 
-        run_step(&self.path, plan)
+        run_step(self.path, &plan)
     }
 }
 
@@ -311,6 +325,14 @@ where
     let mut items: Vec<T> = Vec::new();
 
     if !output.status.success() {
+        println!("stderr");
+        for line in String::from_utf8_lossy(&output.stderr).lines() {
+            println!("{line}");
+        }
+        println!("stdout");
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            println!("{line}");
+        }
         return Err(String::from_utf8(output.stdout)?.into());
     }
 
@@ -334,6 +356,14 @@ where
     let output = cmd_output(path, plan)?;
 
     if !output.status.success() {
+        println!("stderr");
+        for line in String::from_utf8_lossy(&output.stderr).lines() {
+            println!("{line}");
+        }
+        println!("stdout");
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            println!("{line}");
+        }
         return Err(String::from_utf8(output.stdout)?.into());
     }
 

@@ -6,13 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
+wasmlanche-sdk = { path = "../../wasmlanche-sdk" }
 borsh = { version = "1.2.0", features = ["derive"] }
 
 [dev-dependencies]
-wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk", features = ["simulator"] }
 serde_json = "1.0.68"
-serial_test = "2.0.0"
+serial_test = "3.0.0"
+simulator = { path = "../../../cmd/simulator" }
+
+[build-dependencies]
+wasmlanche-sdk = { path = "../../wasmlanche-sdk", features = ["build"] }
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)

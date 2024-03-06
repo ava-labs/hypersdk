@@ -133,21 +133,35 @@ pub fn get_balance(program: Program, recipient: Address) -> i64 {
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use std::env;
-    use wasmlanche_sdk::simulator::{
-        self, id_from_step, Key, Operator, PlanResponse, Require, ResultAssertion,
+    use simulator::{
+        id_from_step, Endpoint, Key, Operator, Param, ParamType, Plan, PlanResponse, Require,
+        ResultAssertion, Step,
     };
 
-    // export SIMULATOR_PATH=/path/to/simulator
-    // export PROGRAM_PATH=/path/to/program.wasm
-    // cargo cargo test --package token --lib nocapture -- tests::test_token_plan --exact --nocapture --ignored
+    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+
     #[test]
     #[serial]
-    #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
-    fn test_token_plan() {
-        use wasmlanche_sdk::simulator::{self, Endpoint, Key, Param, ParamType, Plan, Step};
-        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
-        let simulator = simulator::Client::new(s_path);
+    fn create_program() {
+        let simulator = simulator::Client::new();
+
+        let owner_key = "owner";
+        // create owner key in single step
+        let resp = simulator
+            .key_create::<PlanResponse>(owner_key, Key::Ed25519)
+            .unwrap();
+        assert_eq!(resp.error, None);
+
+        // create a new program on chain.
+        let resp = simulator.create_program(owner_key, PROGRAM_PATH).unwrap();
+        assert_eq!(resp.error, None);
+        assert!(resp.result.id.is_some());
+    }
+
+    #[test]
+    #[serial]
+    fn mint_and_transfer() {
+        let simulator = simulator::Client::new();
 
         let owner_key = "owner";
         // create owner key in single step
@@ -160,12 +174,11 @@ mod tests {
         let mut plan = Plan::new(owner_key);
 
         // step 0: create program
-        let p_path = env::var("PROGRAM_PATH").expect("PROGRAM_PATH not set");
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 0,
-            params: vec![Param::new(ParamType::String, p_path.as_ref())],
+            params: vec![Param::new(ParamType::String, PROGRAM_PATH)],
             require: None,
         });
 
@@ -193,7 +206,7 @@ mod tests {
             method: "init".into(),
             // program was created in step 0 so we can reference its id using the step_N identifier
             params: vec![Param::new(ParamType::Id, id_from_step(0).as_ref())],
-            max_units: 10000,
+            max_units: 1000000,
             require: None,
         });
 
@@ -206,7 +219,7 @@ mod tests {
                 Param::new(ParamType::Key(Key::Ed25519), "alice_key"),
                 Param::new(ParamType::U64, "1000"),
             ],
-            max_units: 10000,
+            max_units: 1000000,
             require: None,
         });
 
@@ -220,7 +233,7 @@ mod tests {
                 Param::new(ParamType::Key(Key::Ed25519), "bob_key"),
                 Param::new(ParamType::U64, "100"),
             ],
-            max_units: 10000,
+            max_units: 1000000,
             require: None,
         });
 
@@ -245,7 +258,7 @@ mod tests {
 
         // get total supply and assert result is expected
         let resp = simulator
-            .read_only::<PlanResponse>(
+            .read_only(
                 "owner",
                 "get_total_supply",
                 vec![Param::new(ParamType::Id, program_id.as_ref())],
@@ -261,7 +274,7 @@ mod tests {
 
         // verify alice balance is 900
         let resp = simulator
-            .read_only::<PlanResponse>(
+            .read_only(
                 "owner",
                 "get_balance",
                 vec![
@@ -280,7 +293,7 @@ mod tests {
 
         // verify bob balance is 100
         let resp = simulator
-            .read_only::<PlanResponse>(
+            .read_only(
                 "owner",
                 "get_balance",
                 vec![
@@ -312,35 +325,12 @@ mod tests {
                         Param::new(ParamType::Id, program_id.as_ref()),
                         Param::new(ParamType::Key(Key::Ed25519), "alice_key"),
                     ],
-                    max_units: 10000,
+                    max_units: 1000000,
                     require: None,
                 },
                 owner_key,
             )
             .expect("failed to burn alice tokens");
         assert_eq!(resp.error, None);
-    }
-
-    #[test]
-    #[serial]
-    #[ignore = "requires SIMULATOR_PATH and PROGRAM_PATH to be set"]
-    fn test_create_program() {
-        let s_path = env::var(simulator::PATH_KEY).expect("SIMULATOR_PATH not set");
-        let simulator = simulator::Client::new(s_path);
-
-        let owner_key = "owner";
-        // create owner key in single step
-        let resp = simulator
-            .key_create::<PlanResponse>(owner_key, Key::Ed25519)
-            .unwrap();
-        assert_eq!(resp.error, None);
-
-        let p_path = env::var("PROGRAM_PATH").expect("PROGRAM_PATH not set");
-        // create a new program on chain.
-        let resp = simulator
-            .program_create::<PlanResponse>("owner", p_path.as_ref())
-            .unwrap();
-        assert_eq!(resp.error, None);
-        assert!(resp.result.id.is_some());
     }
 }

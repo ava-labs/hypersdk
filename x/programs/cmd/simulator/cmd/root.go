@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/pebble"
+
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -89,7 +89,7 @@ func NewRootCmd() *cobra.Command {
 func (s *simulator) Init() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil
+		return err
 	}
 	basePath := path.Join(homeDir, simulatorFolder)
 	dbPath := path.Join(basePath, "db")
@@ -114,23 +114,17 @@ func (s *simulator) Init() error {
 	s.log, err = logFactory.Make("simulator")
 	if err != nil {
 		logFactory.Close()
-		return nil
+		return err
 	}
 
 	sk, err := bls.NewSecretKey()
 	if err != nil {
-		return nil
-	}
-
-	// setup pebble and db manager
-	pdb, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
-	if err != nil {
-		return nil
+		return err
 	}
 
 	genesisBytes, err := json.Marshal(genesis.Default())
 	if err != nil {
-		return nil
+		return err
 	}
 
 	snowCtx := &snow.Context{
@@ -148,10 +142,11 @@ func (s *simulator) Init() error {
 
 	// initialize the simulator VM
 	vm := controller.New()
+
 	err = vm.Initialize(
 		context.TODO(),
 		snowCtx,
-		pdb,
+		nil,
 		genesisBytes,
 		nil,
 		nil,
