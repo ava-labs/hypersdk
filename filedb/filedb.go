@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/lockmap"
-	"github.com/ava-labs/hypersdk/utils"
+	"lukechampine.com/blake3"
 )
 
 type FileDB struct {
@@ -42,7 +42,7 @@ func (f *FileDB) Put(key string, value []byte) error {
 	}
 	defer file.Close()
 
-	vid := utils.ToID(value)
+	vid := ids.ID(blake3.Sum256(value))
 	_, err = file.Write(vid[:])
 	if err != nil {
 		return fmt.Errorf("%w: unable to write to file", err)
@@ -88,7 +88,7 @@ func (f *FileDB) Get(key string) ([]byte, error) {
 		return nil, fmt.Errorf("%w: less than IDLen found=%d", ErrCorrupt, len(diskValue))
 	}
 	value := diskValue[consts.IDLen:]
-	vid := utils.ToID(value)
+	vid := ids.ID(blake3.Sum256(value))
 	did := ids.ID(diskValue[:consts.IDLen])
 	if vid != did {
 		return nil, fmt.Errorf("%w: found=%s expected=%s", ErrCorrupt, vid, did)
