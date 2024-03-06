@@ -44,7 +44,7 @@ func TestFileDB(t *testing.T) {
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Empty(v)
 
-	require.Empty(db.files)
+	require.Empty(db.usedFiles)
 }
 
 func BenchmarkFileDB(b *testing.B) {

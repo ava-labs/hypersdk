@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 )
 
-type fileLock struct {
+type holderLock struct {
 	holders int
 	lock    sync.RWMutex
 }
@@ -19,8 +19,8 @@ type FileDB struct {
 	baseDir string
 	sync    bool
 
-	filesLock sync.Mutex
-	files     map[string]*fileLock
+	usedFilesLock sync.Mutex
+	usedFiles     map[string]*holderLock
 
 	fileCache cache.Cacher[string, []byte]
 }
@@ -29,48 +29,48 @@ func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
 	return &FileDB{
 		baseDir:   baseDir,
 		sync:      sync,
-		files:     make(map[string]*fileLock),
+		usedFiles: make(map[string]*holderLock),
 		fileCache: cache.NewSizedLRU[string, []byte](dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
 	}
 }
 
 func (f *FileDB) lockFile(path string, write bool) {
-	f.filesLock.Lock()
-	fl, exists := f.files[path]
-	if !exists {
-		fl := &fileLock{holders: 1}
-		f.files[path] = fl
+	f.usedFilesLock.Lock()
+	hl, exists := f.usedFiles[path]
+	if exists {
+		hl.holders++
+		f.usedFilesLock.Unlock()
 		if write {
-			fl.lock.Lock()
+			hl.lock.Lock()
 		} else {
-			fl.lock.RLock()
+			hl.lock.RLock()
 		}
-		f.filesLock.Unlock()
 		return
 	}
-	fl.holders++
-	f.filesLock.Unlock()
-
+	hl = &holderLock{holders: 1}
 	if write {
-		fl.lock.Lock()
+		hl.lock.Lock()
 	} else {
-		fl.lock.RLock()
+		hl.lock.RLock()
 	}
+	f.usedFiles[path] = hl
+	f.usedFilesLock.Unlock()
 }
 
 func (f *FileDB) releaseFile(path string, write bool) {
-	f.filesLock.Lock()
-	fl := f.files[path]
-	fl.holders--
-	if write {
-		fl.lock.Unlock()
+	f.usedFilesLock.Lock()
+	hl := f.usedFiles[path]
+	if hl.holders > 1 {
+		hl.holders--
+		if write {
+			hl.lock.Unlock()
+		} else {
+			hl.lock.RUnlock()
+		}
 	} else {
-		fl.lock.RUnlock()
+		delete(f.usedFiles, path)
 	}
-	if fl.holders == 0 {
-		delete(f.files, path)
-	}
-	f.filesLock.Unlock()
+	f.usedFilesLock.Unlock()
 }
 
 func (f *FileDB) Put(key string, value []byte) error {
