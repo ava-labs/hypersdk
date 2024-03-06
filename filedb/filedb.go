@@ -89,8 +89,9 @@ func (f *FileDB) Get(key string) ([]byte, error) {
 	}
 	value := diskValue[consts.IDLen:]
 	vid := utils.ToID(value)
-	if vid != ids.ID(diskValue[:consts.IDLen]) {
-		return nil, fmt.Errorf("%w: found=%x expected=%x", ErrCorrupt, vid, diskValue[:consts.IDLen])
+	did := ids.ID(diskValue[:consts.IDLen])
+	if vid != did {
+		return nil, fmt.Errorf("%w: found=%s expected=%s", ErrCorrupt, vid, did)
 	}
 	f.fileCache.Put(filePath, value)
 	return value, nil
