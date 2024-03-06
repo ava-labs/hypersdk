@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
@@ -45,6 +48,44 @@ func TestFileDB(t *testing.T) {
 	require.Empty(v)
 
 	require.Zero(db.lm.Locks())
+}
+
+func TestFileDBCorruption(t *testing.T) {
+	require := require.New(t)
+	dbDir := t.TempDir()
+	db := New(dbDir, true, 1024, 2*units.MiB)
+
+	v, err := db.Get("1")
+	require.ErrorIs(err, database.ErrNotFound)
+	require.Empty(v)
+
+	require.NoError(db.Put("1", []byte("2")))
+
+	v, err = db.Get("1")
+	require.NoError(err)
+	require.Equal([]byte("2"), v)
+
+	// Corrupt file with invalid length
+	f, err := os.Create(filepath.Join(dbDir, "1"))
+	require.NoError(err)
+	_, err = f.Write([]byte("corrupted"))
+	require.NoError(err)
+	require.NoError(f.Close())
+
+	db.fileCache.Flush()
+	v, err = db.Get("1")
+	require.ErrorIs(err, ErrCorrupt)
+
+	// Corrupt file with invalid data
+	f, err = os.Create(filepath.Join(dbDir, "1"))
+	require.NoError(err)
+	tid := ids.GenerateTestID()
+	_, err = f.Write(append(tid[:], tid[:]...))
+	require.NoError(err)
+	require.NoError(f.Close())
+
+	v, err = db.Get("1")
+	require.ErrorIs(err, ErrCorrupt)
 }
 
 func BenchmarkFileDB(b *testing.B) {

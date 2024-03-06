@@ -7,7 +7,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/lockmap"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 type FileDB struct {
@@ -39,7 +42,11 @@ func (f *FileDB) Put(key string, value []byte) error {
 	}
 	defer file.Close()
 
-	_, err = file.Write(value)
+	diskValue := make([]byte, consts.IDLen+len(value))
+	vid := utils.ToID(value)
+	copy(diskValue, vid[:])
+	copy(diskValue[consts.IDLen:], value)
+	_, err = file.Write(diskValue)
 	if err != nil {
 		return fmt.Errorf("%w: unable to write to file", err)
 	}
@@ -72,9 +79,17 @@ func (f *FileDB) Get(key string) ([]byte, error) {
 		return nil, fmt.Errorf("%w: unable to stat file", err)
 	}
 
-	value := make([]byte, stat.Size())
-	if _, err = file.Read(value); err != nil {
+	diskValue := make([]byte, stat.Size())
+	if _, err = file.Read(diskValue); err != nil {
 		return nil, fmt.Errorf("%w: unable to read from file", err)
+	}
+	if len(diskValue) < consts.IDLen {
+		return nil, fmt.Errorf("%w: less than IDLen found=%d", ErrCorrupt, len(diskValue))
+	}
+	value := diskValue[consts.IDLen:]
+	vid := utils.ToID(value)
+	if vid != ids.ID(diskValue[:consts.IDLen]) {
+		return nil, fmt.Errorf("%w: found=%x expected=%x", ErrCorrupt, vid, diskValue[:consts.IDLen])
 	}
 	f.fileCache.Put(filePath, value)
 	return value, nil
