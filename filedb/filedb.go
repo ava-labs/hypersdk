@@ -14,9 +14,6 @@ type FileDB struct {
 	baseDir string
 	sync    bool
 
-	dirLock            sync.Mutex
-	createdDirectories *cache.LRU[string, struct{}]
-
 	fileLock sync.Mutex
 	files    map[string]chan struct{}
 
@@ -25,26 +22,11 @@ type FileDB struct {
 
 func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
 	return &FileDB{
-		baseDir:            baseDir,
-		sync:               sync,
-		createdDirectories: &cache.LRU[string, struct{}]{Size: directoryCache},
-		files:              make(map[string]chan struct{}),
-		fileCache:          cache.NewSizedLRU[string, []byte](dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
+		baseDir:   baseDir,
+		sync:      sync,
+		files:     make(map[string]chan struct{}),
+		fileCache: cache.NewSizedLRU[string, []byte](dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
 	}
-}
-
-func (f *FileDB) createDirectories(directory string) error {
-	f.dirLock.Lock()
-	defer f.dirLock.Unlock()
-
-	_, exists := f.createdDirectories.Get(directory)
-	if !exists {
-		if err := os.MkdirAll(filepath.Join(f.baseDir, directory), os.ModePerm); err != nil {
-			return err
-		}
-		f.createdDirectories.Put(directory, struct{}{})
-	}
-	return nil
 }
 
 func (f *FileDB) lockFile(path string) {
@@ -68,12 +50,8 @@ func (f *FileDB) releaseFile(path string) {
 	close(waiter)
 }
 
-func (f *FileDB) Put(directory string, key string, value []byte) error {
-	if err := f.createDirectories(directory); err != nil {
-		return err
-	}
-
-	filePath := filepath.Join(f.baseDir, directory, key)
+func (f *FileDB) Put(key string, value []byte) error {
+	filePath := filepath.Join(f.baseDir, key)
 	f.lockFile(filePath)
 	defer f.releaseFile(filePath)
 
@@ -96,8 +74,8 @@ func (f *FileDB) Put(directory string, key string, value []byte) error {
 	return nil
 }
 
-func (f *FileDB) Get(directory string, key string) ([]byte, error) {
-	filePath := filepath.Join(f.baseDir, directory, key)
+func (f *FileDB) Get(key string) ([]byte, error) {
+	filePath := filepath.Join(f.baseDir, key)
 	f.lockFile(filePath)
 	defer f.releaseFile(filePath)
 
@@ -124,8 +102,8 @@ func (f *FileDB) Get(directory string, key string) ([]byte, error) {
 	return value, nil
 }
 
-func (f *FileDB) Has(directory string, key string) (bool, error) {
-	filePath := filepath.Join(f.baseDir, directory, key)
+func (f *FileDB) Has(key string) (bool, error) {
+	filePath := filepath.Join(f.baseDir, key)
 	f.lockFile(filePath)
 	defer f.releaseFile(filePath)
 
@@ -149,21 +127,6 @@ func (f *FileDB) Has(directory string, key string) (bool, error) {
 // Remove can be called on the same directory multiple times (not concurrently).
 //
 // The caller should not read from or write to a directory that is being removed.
-func (f *FileDB) Remove(directory string) ([]string, error) {
-	entries, err := os.ReadDir(filepath.Join(f.baseDir, directory))
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, len(entries))
-	for i, entry := range entries {
-		name := entry.Name()
-		if err := os.Remove(filepath.Join(f.baseDir, directory, name)); err != nil {
-			return nil, fmt.Errorf("%w: unable to remove file", err)
-		}
-		names[i] = name
-	}
-	return names, os.Remove(filepath.Join(f.baseDir, directory))
+func (f *FileDB) Remove(key string) error {
+	return os.Remove(filepath.Join(f.baseDir, key))
 }

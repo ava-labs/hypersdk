@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
@@ -88,9 +89,6 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 //
 // Blocks written to disk are only used when restarting the node. During normal
 // operation, we only fetch blocks from memory.
-//
-// We store blocks by height because it doesn't cause nearly as much
-// compaction as storing blocks randomly on-disk (when using [block.ID]).
 func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	if err := vm.PutDiskBlock(blk); err != nil {
 		return fmt.Errorf("%w: unable to store block", err)
@@ -149,11 +147,11 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 }
 
 func BlockDirectory(height uint64) string {
-	return fmt.Sprintf("b%d", utils.RoundUint64(height, blockHeightRounding))
+	return fmt.Sprintf("b%s", strconv.FormatUint(utils.RoundUint64(height, blockHeightRounding), 10))
 }
 
 func BlockFile(height uint64) string {
-	return fmt.Sprintf("%d", height)
+	return strconv.FormatUint(height, 10)
 }
 
 func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
@@ -172,8 +170,20 @@ func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
 	return vm.blobDB.Has(BlockDirectory(height), BlockFile(height))
 }
 
-func (vm *VM) RemoveDiskBlocks(height uint64) error {
-	return vm.blobDB.Remove(BlockDirectory(height))
+func (vm *VM) RemoveDiskBlocks(height uint64) ([]uint64, error) {
+	names, err := vm.blobDB.Remove(BlockDirectory(height))
+	if err != nil {
+		return nil, err
+	}
+	nums := make([]uint64, len(names))
+	for i, name := range names {
+		num, err := strconv.ParseUint(name, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		nums[i] = num
+	}
+	return nums, nil
 }
 
 func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
@@ -305,7 +315,7 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 
 // TODO: read directories on restart to determine if should clean
 func ChunkDirectory(slot int64) string {
-	return fmt.Sprintf("c%d", slot)
+	return fmt.Sprintf("c%s", strconv.FormatInt(slot, 10))
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
@@ -337,12 +347,16 @@ func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
 	return has
 }
 
-func (vm *VM) RemoveChunks(slot int64) error {
-	return vm.blobDB.Remove(ChunkDirectory(slot))
+func (vm *VM) RemoveChunks(slot int64) ([]ids.ID, error) {
+	names, err := vm.blobDB.Remove(ChunkDirectory(slot))
+	if err != nil {
+		return nil, err
+	}
+	return parseIDs(names)
 }
 
 func FilteredChunkDirectory(slot int64) string {
-	return fmt.Sprintf("fc%d", slot)
+	return fmt.Sprintf("fc%s", strconv.FormatInt(slot, 10))
 }
 
 func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
@@ -368,6 +382,22 @@ func (vm *VM) GetFilteredChunk(slot int64, chunk ids.ID) (*chain.FilteredChunk, 
 	return chain.UnmarshalFilteredChunk(b, vm)
 }
 
-func (vm *VM) RemoveFilteredChunks(slot int64) error {
-	return vm.blobDB.Remove(FilteredChunkDirectory(slot))
+func (vm *VM) RemoveFilteredChunks(slot int64) ([]ids.ID, error) {
+	names, err := vm.blobDB.Remove(FilteredChunkDirectory(slot))
+	if err != nil {
+		return nil, err
+	}
+	return parseIDs(names)
+}
+
+func parseIDs(strings []string) ([]ids.ID, error) {
+	idsArr := make([]ids.ID, len(strings))
+	for i, id := range strings {
+		pid, err := ids.FromString(id)
+		if err != nil {
+			return nil, err
+		}
+		idsArr[i] = pid
+	}
+	return idsArr, nil
 }
