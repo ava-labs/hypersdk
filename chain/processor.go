@@ -103,7 +103,7 @@ func (b *StatelessBlock) Execute(
 	}
 	if err := f.HandleErrors(); err != nil {
 		return nil, nil, err
-	}	
+	}
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
