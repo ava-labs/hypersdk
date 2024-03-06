@@ -98,12 +98,12 @@ func (b *StatelessBlock) Execute(
 			return nil
 		})
 	}
-	if err := f.HandleErrors(); err != nil {
-		return nil, nil, err
-	}
 	if err := e.Wait(); err != nil {
 		return nil, nil, err
 	}
+	if err := f.HandleErrors(); err != nil {
+		return nil, nil, err
+	}	
 
 	// Return tstate that can be used to add block-level keys to state
 	return results, ts, nil
