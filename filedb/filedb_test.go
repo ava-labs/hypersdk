@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
@@ -68,7 +67,7 @@ func TestFileDBCorruption(t *testing.T) {
 	// Corrupt file with invalid length
 	f, err := os.Create(filepath.Join(dbDir, "1"))
 	require.NoError(err)
-	_, err = f.Write([]byte("corrupted"))
+	_, err = f.Write([]byte{})
 	require.NoError(err)
 	require.NoError(f.Close())
 
@@ -79,8 +78,10 @@ func TestFileDBCorruption(t *testing.T) {
 	// Corrupt file with invalid data
 	f, err = os.Create(filepath.Join(dbDir, "1"))
 	require.NoError(err)
-	tid := ids.GenerateTestID()
-	_, err = f.Write(append(tid[:], tid[:]...))
+	msg := make([]byte, 1.5*units.MiB)
+	_, err = rand.Read(msg)
+	require.NoError(err)
+	_, err = f.Write(msg)
 	require.NoError(err)
 	require.NoError(f.Close())
 
