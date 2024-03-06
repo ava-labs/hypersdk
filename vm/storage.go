@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
@@ -136,18 +137,25 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
-	if err := vm.RemoveDiskBlock(expiryHeight); err != nil {
-		return err
-	}
+	g, _ := errgroup.WithContext(context.TODO())
+	g.SetLimit(diskConcurrency)
+	g.Go(func() error {
+		return vm.RemoveDiskBlock(expiryHeight)
+	})
 	for _, cert := range blk.AvailableChunks {
-		if err := vm.RemoveChunk(cert.Slot, cert.Chunk); err != nil {
-			return err
-		}
+		tcert := cert
+		g.Go(func() error {
+			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
+		})
 	}
 	for _, chunk := range blk.ExecutedChunks {
-		if err := vm.RemoveFilteredChunk(chunk); err != nil {
-			return err
-		}
+		tchunk := chunk
+		g.Go(func() error {
+			return vm.RemoveFilteredChunk(tchunk)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	vm.metrics.deletedBlocks.Inc()
 	vm.metrics.deletedChunks.Add(float64(len(blk.AvailableChunks)))

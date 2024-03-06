@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"golang.org/x/sync/errgroup"
 
 	"go.uber.org/zap"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 )
+
+const diskConcurrency = 8
 
 var (
 	_ chain.VM                           = (*VM)(nil)
@@ -249,12 +252,16 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for aw := range vm.acceptedQueue {
 		// Commit filtered chunks
-		//
-		// TODO: make concurrent?
+		g, _ := errgroup.WithContext(context.Background())
+		g.SetLimit(diskConcurrency)
 		for _, fc := range aw.FilteredChunks {
-			if err := vm.StoreFilteredChunk(fc); err != nil {
-				vm.Fatal("unable to store filtered chunk", zap.Error(err))
-			}
+			tfc := fc
+			g.Go(func() error {
+				return vm.StoreFilteredChunk(tfc)
+			})
+		}
+		if err := g.Wait(); err != nil {
+			vm.Fatal("unable to store filtered chunk", zap.Error(err))
 		}
 
 		// Process block
