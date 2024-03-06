@@ -146,16 +146,24 @@ func (f *FileDB) Has(directory string, key string) (bool, error) {
 // Remove removes the directory and all of its contents. It opts for speed
 // rather than completeness and will not clear any caches.
 //
+// Remove can be called on the same directory multiple times (not concurrently).
+//
 // The caller should not read from or write to a directory that is being removed.
 func (f *FileDB) Remove(directory string) ([]string, error) {
-	d, err := os.Open(filepath.Join(f.baseDir, directory))
+	entries, err := os.ReadDir(filepath.Join(f.baseDir, directory))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	names, err := d.Readdirnames(-1)
-	d.Close()
-	if err != nil {
-		return nil, fmt.Errorf("%w: unable to read directory names", err)
+	names := make([]string, len(entries))
+	for i, entry := range entries {
+		name := entry.Name()
+		if err := os.Remove(filepath.Join(f.baseDir, directory, name)); err != nil {
+			return nil, fmt.Errorf("%w: unable to remove file", err)
+		}
+		names[i] = name
 	}
-	return names, os.RemoveAll(filepath.Join(f.baseDir, directory))
+	return names, os.Remove(filepath.Join(f.baseDir, directory))
 }

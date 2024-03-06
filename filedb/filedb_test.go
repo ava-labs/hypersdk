@@ -38,6 +38,11 @@ func TestFileDB(t *testing.T) {
 	require.NoError(err)
 	require.EqualValues([]string{"1", "2"}, names)
 
+	// Remove empty directory
+	names, err = db.Remove("test")
+	require.NoError(err)
+	require.Empty(names)
+
 	// Cache still works
 	v, err = db.Get("test", "1")
 	require.NoError(err)
