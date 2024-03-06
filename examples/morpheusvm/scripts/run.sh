@@ -171,7 +171,7 @@ rm -f "${TMPDIR}"/morpheusvm.subnet
 cat <<EOF > "${TMPDIR}"/morpheusvm.subnet
 {
   "proposerMinBlockDelay": 0,
-  "proposerNumHistoricalBlocks": 50000
+  "proposerNumHistoricalBlocks": 2048
 }
 EOF
 

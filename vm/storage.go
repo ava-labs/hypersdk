@@ -26,16 +26,11 @@ import (
 	"github.com/ava-labs/hypersdk/keys"
 )
 
-const blockHeightRounding = 128
-
 const (
-	blockPrefix         = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
-	blockIDHeightPrefix = 0x1 // ID -> Height
-	blockHeightIDPrefix = 0x2 // Height -> ID (don't always need full block from disk)
-	warpSignaturePrefix = 0x3
-	warpFetchPrefix     = 0x4
-	chunkPrefix         = 0x5 // pruneable chunks (sort by slot)
-	filteredChunkPrefix = 0x6 // long-term persistence chunks (TODO: move to flat files or external storage)
+	blockIDHeightPrefix = 0x0 // ID -> Height
+	blockHeightIDPrefix = 0x1 // Height -> ID (don't always need full block from disk)
+	warpSignaturePrefix = 0x2
+	warpFetchPrefix     = 0x3
 )
 
 var (
