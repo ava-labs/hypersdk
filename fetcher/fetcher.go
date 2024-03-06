@@ -23,7 +23,7 @@ type Fetcher struct {
 	cacheLock sync.RWMutex
 	cache     map[string]*fetchData
 
-	keysToFetch map[string][]ids.ID        // Number of txns waiting for a key
+	keysToFetch map[string]*keyData        // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
 	keyLock     sync.RWMutex
 	txnLock     sync.Mutex
@@ -46,12 +46,17 @@ type fetchData struct {
 	chunks uint16
 }
 
+// Data pertaining to whether a key was fetched or which txns are waiting
+type keyData struct {
+	fetched bool
+	queue   []ids.ID
+}
+
 // Holds the information that a worker needs to fetch values
 type task struct {
 	ctx context.Context
 	id  ids.ID
 	key string
-	wg  *sync.WaitGroup
 }
 
 // New creates a new [Fetcher]
@@ -59,7 +64,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher{
 		im:          im,
 		cache:       make(map[string]*fetchData, numTxs),
-		keysToFetch: make(map[string][]ids.ID),
+		keysToFetch: make(map[string]*keyData),
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task),
 		stop:        make(chan struct{}),
@@ -92,7 +97,10 @@ func (f *Fetcher) runWorker() {
 			// Doesn't exist in cache, check if we were the first to
 			// request the key.
 			f.keyLock.RLock()
-			firstTx := f.keysToFetch[t.key][0]
+			var firstTx ids.ID
+			if len(f.keysToFetch[t.key].queue) > 0 {
+				firstTx = f.keysToFetch[t.key].queue[0]
+			}
 			f.keyLock.RUnlock()
 			if firstTx != t.id {
 				// Fetch other keys instead
@@ -155,19 +163,23 @@ func (f *Fetcher) updateDependencies(k string) {
 	f.keyLock.Lock()
 	defer f.keyLock.Unlock()
 
-	txIDs := f.keysToFetch[k]
+	txIDs := f.keysToFetch[k].queue
 	f.txnLock.Lock()
 	for _, id := range txIDs {
 		f.txnsToFetch[id].Done() // Notify all other txs
 	}
 	f.txnLock.Unlock()
-	f.keysToFetch[k] = nil
+	f.keysToFetch[k].queue = nil
+
+	// When the cache check calls this, it should already be true
+	if !f.keysToFetch[k].fetched {
+		f.keysToFetch[k].fetched = true
+	}
 }
 
 // Lookup enqueues keys for the workers to fetch
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
-	wg.Add(len(stateKeys))
 	f.txnLock.Lock()
 	f.txnsToFetch[txID] = wg
 	f.txnLock.Unlock()
@@ -176,18 +188,24 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	tasks := make([]*task, 0, len(stateKeys))
 	for k := range stateKeys {
 		if _, ok := f.keysToFetch[k]; !ok {
-			f.keysToFetch[k] = make([]ids.ID, 0)
+			f.keysToFetch[k] = &keyData{fetched: false, queue: make([]ids.ID, 0)}
 		}
-		f.keysToFetch[k] = append(f.keysToFetch[k], txID)
+		// Don't requeue keys that were already fetched
+		if f.keysToFetch[k].fetched {
+			continue
+		}
+		f.keysToFetch[k].queue = append(f.keysToFetch[k].queue, txID)
 		t := &task{
 			ctx: ctx,
 			id:  txID,
 			key: k,
-			wg:  wg,
 		}
 		tasks = append(tasks, t)
 	}
 	f.keyLock.Unlock()
+
+	// Create wg based on number of keys we need to wait on
+	wg.Add(len(tasks))
 
 	for _, t := range tasks {
 		f.fetchable <- t
