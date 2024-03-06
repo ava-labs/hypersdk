@@ -35,15 +35,17 @@ type Import struct {
 	engine  *engine.Engine
 	meter   *engine.Meter
 	imports host.SupportedImports
+	ctx     *program.Context
 }
 
 // New returns a new program invoke host module which can perform program to program calls.
-func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config) *Import {
+func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config, ctx *program.Context) *Import {
 	return &Import{
 		cfg:    cfg,
 		mu:     mu,
 		log:    log,
 		engine: engine,
+		ctx:    ctx,
 	}
 }
 

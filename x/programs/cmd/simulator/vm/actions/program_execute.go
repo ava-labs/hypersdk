@@ -112,7 +112,7 @@ func (t *ProgramExecute) Execute(
 		Actor:            [32]byte(actor[1:]),
 		OriginatingActor: [32]byte(actor[1:])}
 	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg)
+		return importProgram.New(logging.NoLog{}, eng, mu, cfg, &callContext)
 	})
 	imports := importsBuilder.Build()
 
