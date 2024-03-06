@@ -95,7 +95,7 @@ func (f *Fetcher) runWorker() {
 			firstTx := f.keysToFetch[t.key][0]
 			f.keyLock.RUnlock()
 			if firstTx != t.id {
-				t.wg.Wait()
+				// Fetch other keys instead
 				continue
 			}
 
