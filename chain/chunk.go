@@ -517,6 +517,7 @@ func UnmarshalChunkCertificatePacker(p *codec.Packer) (*ChunkCertificate, error)
 // TODO: consider evaluating what other fields should be here (tx results bit array? so no need to sync for simple transfers)
 type FilteredChunk struct {
 	Chunk ids.ID `json:"chunk"`
+	Slot  int64  `json:"slot"`
 
 	Producer    ids.NodeID    `json:"producer"`
 	Beneficiary codec.Address `json:"beneficiary"` // used for fees
@@ -541,7 +542,7 @@ func (c *FilteredChunk) ID() (ids.ID, error) {
 }
 
 func (c *FilteredChunk) Size() int {
-	return consts.IDLen + consts.NodeIDLen + codec.AddressLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
+	return consts.IDLen + consts.Int64Len + consts.NodeIDLen + codec.AddressLen + consts.IntLen + codec.CummSize(c.Txs) + consts.Uint64Len
 }
 
 func (c *FilteredChunk) Marshal() ([]byte, error) {
@@ -549,6 +550,7 @@ func (c *FilteredChunk) Marshal() ([]byte, error) {
 
 	// Marshal header
 	p.PackID(c.Chunk)
+	p.PackInt64(c.Slot)
 	p.PackNodeID(c.Producer)
 	p.PackAddress(c.Beneficiary)
 
@@ -574,6 +576,7 @@ func UnmarshalFilteredChunk(raw []byte, parser Parser) (*FilteredChunk, error) {
 
 	// Parse header
 	p.UnpackID(true, &c.Chunk)
+	c.Slot = p.UnpackInt64(false)
 	p.UnpackNodeID(true, &c.Producer)
 	p.UnpackAddress(&c.Beneficiary)
 

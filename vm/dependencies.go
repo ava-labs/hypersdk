@@ -17,6 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
 )
@@ -76,9 +77,8 @@ type Controller interface {
 	) (
 		config Config,
 		genesis Genesis,
-		// TODO: consider splitting out blockDB for use with more experimental
-		// databases
 		vmDB database.Database,
+		blobDB *filedb.FileDB,
 		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,

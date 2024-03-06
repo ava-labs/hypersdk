@@ -319,12 +319,9 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 	return int64(binary.BigEndian.Uint64(v)), nil
 }
 
-func PrefixChunkKey(slot int64, chunk ids.ID) []byte {
-	k := make([]byte, 1+consts.Int64Len+consts.IDLen)
-	k[0] = chunkPrefix
-	binary.BigEndian.PutUint64(k[1:], uint64(slot))
-	copy(k[1+consts.Int64Len:], chunk[:])
-	return k
+// TODO: read directories on restart to determine if should clean
+func ChunkDirectory(slot int64) string {
+	return fmt.Sprintf("c%d", slot)
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
@@ -332,17 +329,15 @@ func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
 	if err != nil {
 		return err
 	}
-	k := PrefixChunkKey(chunk.Slot, cid)
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.vmDB.Put(k, b)
+	return vm.blobDB.Put(ChunkDirectory(chunk.Slot), cid.String(), b)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
-	k := PrefixChunkKey(slot, chunk)
-	b, err := vm.vmDB.Get(k)
+	b, err := vm.blobDB.Get(ChunkDirectory(slot), chunk.String())
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -354,18 +349,16 @@ func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
 	// TODO: add error
-	k := PrefixChunkKey(slot, chunk)
-	has, _ := vm.vmDB.Has(k)
+	has, _ := vm.blobDB.Has(ChunkDirectory(slot), chunk.String())
 	return has
 }
 
-// TODO: add function to clear chunks
+func (vm *VM) RemoveChunks(slot int64) error {
+	return vm.blobDB.Remove(ChunkDirectory(slot))
+}
 
-func PrefixFilteredChunkKey(chunk ids.ID) []byte {
-	k := make([]byte, 1+consts.IDLen)
-	k[0] = filteredChunkPrefix
-	copy(k[1:], chunk[:])
-	return k
+func FilteredChunkDirectory(slot int64) string {
+	return fmt.Sprintf("fc%d", slot)
 }
 
 func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
@@ -373,17 +366,15 @@ func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
 	if err != nil {
 		return err
 	}
-	k := PrefixFilteredChunkKey(cid)
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.vmDB.Put(k, b)
+	return vm.blobDB.Put(FilteredChunkDirectory(chunk.Slot), cid.String(), b)
 }
 
-func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
-	k := PrefixFilteredChunkKey(chunk)
-	b, err := vm.vmDB.Get(k)
+func (vm *VM) GetFilteredChunk(slot int64, chunk ids.ID) (*chain.FilteredChunk, error) {
+	b, err := vm.blobDB.Get(FilteredChunkDirectory(slot), chunk.String())
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -391,4 +382,8 @@ func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
 		return nil, err
 	}
 	return chain.UnmarshalFilteredChunk(b, vm)
+}
+
+func (vm *VM) RemoveFilteredChunks(slot int64) error {
+	return vm.blobDB.Remove(FilteredChunkDirectory(slot))
 }

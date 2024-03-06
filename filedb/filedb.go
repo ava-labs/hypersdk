@@ -124,6 +124,25 @@ func (f *FileDB) Get(directory string, key string) ([]byte, error) {
 	return value, nil
 }
 
+func (f *FileDB) Has(directory string, key string) (bool, error) {
+	filePath := filepath.Join(f.baseDir, directory, key)
+	f.lockFile(filePath)
+	defer f.releaseFile(filePath)
+
+	if _, exists := f.fileCache.Get(filePath); exists {
+		return true, nil
+	}
+
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Remove removes the directory and all of its contents. It opts for speed
 // rather than completeness and will not clear any caches.
 //
