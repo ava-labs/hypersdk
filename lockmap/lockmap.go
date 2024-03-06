@@ -37,42 +37,42 @@ func (l *Lockmap) RUnlock(key string) {
 func (l *Lockmap) lock(key string, write bool) {
 	l.l.Lock()
 	hl, ok := l.m[key]
-	if ok {
-		hl.holders++
-		l.l.Unlock()
-
-		if write {
-			hl.mu.Lock()
-		} else {
-			hl.mu.RLock()
-		}
-		return
+	if !ok {
+		hl = &holderLock{}
+		l.m[key] = hl
 	}
-	hl = &holderLock{holders: 1}
+	hl.holders++
+	l.l.Unlock()
+
+	// Another caller may grab this lock before we do, however,
+	// that's fine.
 	if write {
 		hl.mu.Lock()
 	} else {
 		hl.mu.RLock()
 	}
-	l.m[key] = hl
-	l.l.Unlock()
 }
 
 func (l *Lockmap) unlock(key string, write bool) {
 	l.l.Lock()
+	defer l.l.Unlock()
+
 	hl := l.m[key]
-	if hl.holders > 1 {
-		hl.holders--
-		l.l.Unlock()
-		if write {
-			hl.mu.Unlock()
-		} else {
-			hl.mu.RUnlock()
-		}
+
+	// While unlocking these mutexes isn't required
+	// if we are the last holder, we still do it as
+	// a best practice.
+	if write {
+		hl.mu.Unlock()
 	} else {
-		delete(l.m, key)
+		hl.mu.RUnlock()
 	}
-	l.l.Unlock()
+
+	if hl.holders == 1 {
+		delete(l.m, key)
+	} else {
+		hl.holders--
+	}
 }
 
 func (l *Lockmap) Locks() int {
