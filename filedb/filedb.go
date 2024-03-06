@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/cache"
+	"github.com/ava-labs/avalanchego/database"
 )
 
 type FileDB struct {
@@ -67,7 +68,7 @@ func (f *FileDB) releaseFile(path string) {
 	close(waiter)
 }
 
-func (f *FileDB) Store(directory string, key string, value []byte) error {
+func (f *FileDB) Put(directory string, key string, value []byte) error {
 	if err := f.createDirectories(directory); err != nil {
 		return err
 	}
@@ -106,7 +107,7 @@ func (f *FileDB) Get(directory string, key string) ([]byte, error) {
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("%w: unable to open file", err)
+		return nil, database.ErrNotFound
 	}
 	defer file.Close()
 
@@ -124,8 +125,9 @@ func (f *FileDB) Get(directory string, key string) ([]byte, error) {
 }
 
 // Remove removes the directory and all of its contents. It opts for speed
-// rather than completeness and will not clear any caches or acquire any write locks (it
-// is assumed this is handled by the caller).
+// rather than completeness and will not clear any caches.
+//
+// The caller should not read from or write to a directory that is being removed.
 func (f *FileDB) Remove(directory string) error {
 	return os.RemoveAll(filepath.Join(f.baseDir, directory))
 }
