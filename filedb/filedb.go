@@ -147,6 +147,15 @@ func (f *FileDB) Has(directory string, key string) (bool, error) {
 // rather than completeness and will not clear any caches.
 //
 // The caller should not read from or write to a directory that is being removed.
-func (f *FileDB) Remove(directory string) error {
-	return os.RemoveAll(filepath.Join(f.baseDir, directory))
+func (f *FileDB) Remove(directory string) ([]string, error) {
+	d, err := os.Open(filepath.Join(f.baseDir, directory))
+	if err != nil {
+		return nil, err
+	}
+	names, err := d.Readdirnames(-1)
+	d.Close()
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to read directory names", err)
+	}
+	return names, os.RemoveAll(filepath.Join(f.baseDir, directory))
 }

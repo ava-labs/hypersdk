@@ -105,6 +105,10 @@ func UnixRMilli(now, add int64) int64 {
 	return t - t%consts.MillisecondsPerSecond
 }
 
+func RoundUint64(x, r uint64) uint64 {
+	return x + -x%r
+}
+
 // UnixRDeci returns the current unix time in milliseconds, rounded
 // down to the nearsest decisecond.
 //

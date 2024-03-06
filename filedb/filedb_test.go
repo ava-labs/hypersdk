@@ -34,7 +34,9 @@ func TestFileDB(t *testing.T) {
 	require.Nil(err)
 	require.Equal([]byte("3"), v)
 
-	require.NoError(db.Remove("test"))
+	names, err := db.Remove("test")
+	require.NoError(err)
+	require.EqualValues([]string{"1", "2"}, names)
 
 	// Cache still works
 	v, err = db.Get("test", "1")

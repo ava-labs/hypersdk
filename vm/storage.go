@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
@@ -23,16 +22,10 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
-// compactionOffset is used to randomize the height that we compact
-// deleted blocks. This prevents all nodes on the network from deleting
-// data from disk at the same time.
-var compactionOffset int = -1
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+const blockHeightRounding = 128
 
 const (
 	blockPrefix         = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
@@ -50,13 +43,6 @@ var (
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
 )
-
-func PrefixBlockKey(height uint64) []byte {
-	k := make([]byte, 1+consts.Uint64Len)
-	k[0] = blockPrefix
-	binary.BigEndian.PutUint64(k[1:], height)
-	return k
-}
 
 func PrefixBlockIDHeightKey(id ids.ID) []byte {
 	k := make([]byte, 1+consts.IDLen)
@@ -96,14 +82,6 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) shouldComapct(expiryHeight uint64) bool {
-	if compactionOffset == -1 {
-		compactionOffset = rand.Intn(vm.config.GetBlockCompactionFrequency()) //nolint:gosec
-		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
-	}
-	return expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == uint64(compactionOffset)
-}
-
 // UpdateLastAccepted updates the [lastAccepted] index, stores [blk] on-disk,
 // adds [blk] to the [acceptedCache], and deletes any expired blocks from
 // disk.
@@ -114,12 +92,12 @@ func (vm *VM) shouldComapct(expiryHeight uint64) bool {
 // We store blocks by height because it doesn't cause nearly as much
 // compaction as storing blocks randomly on-disk (when using [block.ID]).
 func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
+	if err := vm.PutDiskBlock(blk); err != nil {
+		return fmt.Errorf("%w: unable to store block", err)
+	}
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
-		return err
-	}
-	if err := batch.Put(PrefixBlockKey(blk.Height()), blk.Bytes()); err != nil {
 		return err
 	}
 	if err := batch.Put(PrefixBlockIDHeightKey(blk.ID()), bigEndianHeight); err != nil {
@@ -170,8 +148,20 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	return nil
 }
 
+func BlockDirectory(height uint64) string {
+	return fmt.Sprintf("b%d", utils.RoundUint64(height, blockHeightRounding))
+}
+
+func BlockFile(height uint64) string {
+	return fmt.Sprintf("%d", height)
+}
+
+func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
+	return vm.blobDB.Put(BlockDirectory(blk.Height()), BlockFile(blk.Height()), blk.Bytes())
+}
+
 func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	b, err := vm.vmDB.Get(PrefixBlockKey(height))
+	b, err := vm.blobDB.Get(BlockDirectory(height), BlockFile(height))
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +169,11 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
-	return vm.vmDB.Has(PrefixBlockKey(height))
+	return vm.blobDB.Has(BlockDirectory(height), BlockFile(height))
+}
+
+func (vm *VM) RemoveDiskBlocks(height uint64) error {
+	return vm.blobDB.Remove(BlockDirectory(height))
 }
 
 func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
@@ -196,16 +190,6 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(b), nil
-}
-
-// CompactDiskBlocks forces compaction on the entire range of blocks up to [lastExpired].
-//
-// This can be used to ensure we clean up all large tombstoned keys on a regular basis instead
-// of waiting for the database to run a compaction (and potentially delete GBs of data at once).
-//
-// TODO: change this to be WS driven as well
-func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
-	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockKey(lastExpired))
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
