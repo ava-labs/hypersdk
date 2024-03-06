@@ -166,10 +166,10 @@ func (f *Fetcher) updateDependencies(k string) {
 
 // Lookup enqueues keys for the workers to fetch
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
-	f.txnLock.Lock()
 	wg := &sync.WaitGroup{}
+	wg.Add(len(stateKeys))
+	f.txnLock.Lock()
 	f.txnsToFetch[txID] = wg
-	f.txnsToFetch[txID].Add(len(stateKeys))
 	f.txnLock.Unlock()
 
 	f.keyLock.Lock()
