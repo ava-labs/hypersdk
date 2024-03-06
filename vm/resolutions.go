@@ -249,6 +249,8 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for aw := range vm.acceptedQueue {
 		// Commit filtered chunks
+		//
+		// TODO: make concurrent?
 		for _, fc := range aw.FilteredChunks {
 			if err := vm.StoreFilteredChunk(fc); err != nil {
 				vm.Fatal("unable to store filtered chunk", zap.Error(err))
@@ -262,6 +264,11 @@ func (vm *VM) processAcceptedBlocks() {
 			zap.Stringer("blkID", aw.Block.ID()),
 			zap.Uint64("height", aw.Block.Height()),
 		)
+
+		// Delete old blocks and chunks
+		if err := vm.PruneBlockAndChunks(aw.Block.Height()); err != nil {
+			vm.Fatal("unable to prune block and chunks", zap.Error(err))
+		}
 	}
 }
 

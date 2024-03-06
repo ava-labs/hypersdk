@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 const blockHeightRounding = 128
@@ -105,61 +104,74 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	if err := batch.Put(PrefixBlockHeightIDKey(blk.Height()), blkID[:]); err != nil {
 		return err
 	}
-	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
-	var expired bool
-	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
-		if err := batch.Delete(PrefixBlockKey(expiryHeight)); err != nil {
-			return err
-		}
-		blkID, err := vm.vmDB.Get(PrefixBlockHeightIDKey(expiryHeight))
-		if err == nil {
-			if err := batch.Delete(PrefixBlockIDHeightKey(ids.ID(blkID))); err != nil {
-				return err
-			}
-		} else {
-			vm.Logger().Warn("unable to delete blkID", zap.Uint64("height", expiryHeight), zap.Error(err))
-		}
-		if err := batch.Delete(PrefixBlockHeightIDKey(expiryHeight)); err != nil {
-			return err
-		}
-		expired = true
-		vm.metrics.deletedBlocks.Inc()
-		vm.Logger().Info("deleted block", zap.Uint64("height", expiryHeight))
-	}
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
 	vm.lastAccepted = blk
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-	if expired && vm.shouldComapct(expiryHeight) {
-		go func() {
-			start := time.Now()
-			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
-				vm.Logger().Error("unable to compact blocks", zap.Error(err))
-				return
-			}
-			vm.Logger().Info("compacted disk blocks", zap.Uint64("end", expiryHeight), zap.Duration("t", time.Since(start)))
-		}()
-	}
-	// TODO: clean up expired chunks
 	return nil
 }
 
-func BlockDirectory(height uint64) string {
-	return fmt.Sprintf("b%s", strconv.FormatUint(utils.RoundUint64(height, blockHeightRounding), 10))
+func (vm *VM) PruneBlockAndChunks(height uint64) error {
+	start := time.Now()
+	abw := vm.config.GetAcceptedBlockWindow()
+	if height < uint64(abw) {
+		vm.Logger().Info("not pruning any blocks", zap.Int("minHeight", abw+1))
+		return nil
+	}
+	expiryHeight := height - uint64(abw)
+	blk, err := vm.GetDiskBlock(context.TODO(), expiryHeight)
+	if errors.Is(err, database.ErrNotFound) {
+		vm.Logger().Info("not pruning missing block", zap.Uint64("height", expiryHeight))
+		return nil
+	}
+	batch := vm.vmDB.NewBatch()
+	if err := batch.Delete(PrefixBlockIDHeightKey(blk.ID())); err != nil {
+		return err
+	}
+	if err := batch.Delete(PrefixBlockHeightIDKey(expiryHeight)); err != nil {
+		return err
+	}
+	if err := batch.Write(); err != nil {
+		return fmt.Errorf("%w: unable to update last accepted", err)
+	}
+	if err := vm.RemoveDiskBlock(expiryHeight); err != nil {
+		return err
+	}
+	for _, cert := range blk.AvailableChunks {
+		if err := vm.RemoveChunk(cert.Slot, cert.Chunk); err != nil {
+			return err
+		}
+	}
+	for _, chunk := range blk.ExecutedChunks {
+		if err := vm.RemoveFilteredChunk(chunk); err != nil {
+			return err
+		}
+	}
+	vm.metrics.deletedBlocks.Inc()
+	vm.metrics.deletedChunks.Add(float64(len(blk.AvailableChunks)))
+	vm.metrics.deletedFilteredChunks.Add(float64(len(blk.ExecutedChunks)))
+	vm.Logger().Info(
+		"deleted block",
+		zap.Uint64("height", expiryHeight),
+		zap.Int("availableChunks", len(blk.AvailableChunks)),
+		zap.Int("executedChunks", len(blk.ExecutedChunks)),
+		zap.Duration("t", time.Since(start)),
+	)
+	return nil
 }
 
 func BlockFile(height uint64) string {
-	return strconv.FormatUint(height, 10)
+	return fmt.Sprintf("b-%s", strconv.FormatUint(height, 10))
 }
 
 func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
-	return vm.blobDB.Put(BlockDirectory(blk.Height()), BlockFile(blk.Height()), blk.Bytes())
+	return vm.blobDB.Put(BlockFile(blk.Height()), blk.Bytes())
 }
 
 func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	b, err := vm.blobDB.Get(BlockDirectory(height), BlockFile(height))
+	b, err := vm.blobDB.Get(BlockFile(height))
 	if err != nil {
 		return nil, err
 	}
@@ -167,23 +179,11 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
-	return vm.blobDB.Has(BlockDirectory(height), BlockFile(height))
+	return vm.blobDB.Has(BlockFile(height))
 }
 
-func (vm *VM) RemoveDiskBlocks(height uint64) ([]uint64, error) {
-	names, err := vm.blobDB.Remove(BlockDirectory(height))
-	if err != nil {
-		return nil, err
-	}
-	nums := make([]uint64, len(names))
-	for i, name := range names {
-		num, err := strconv.ParseUint(name, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		nums[i] = num
-	}
-	return nums, nil
+func (vm *VM) RemoveDiskBlock(height uint64) error {
+	return vm.blobDB.Remove(BlockFile(height))
 }
 
 func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
@@ -315,7 +315,7 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 
 // TODO: read blobDB on restart to determine what should clean
 func ChunkFile(slot int64, id ids.ID) string {
-	return fmt.Sprintf("c-%s-%s", strconv.FormatInt(slot, 10), id.String())
+	return fmt.Sprintf("c-%s-%s", strconv.FormatInt(slot, 10), id)
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
@@ -331,7 +331,7 @@ func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
-	b, err := vm.blobDB.Get(ChunkDirectory(slot), chunk.String())
+	b, err := vm.blobDB.Get(ChunkFile(slot, chunk))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -343,20 +343,16 @@ func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
 	// TODO: add error
-	has, _ := vm.blobDB.Has(ChunkDirectory(slot), chunk.String())
+	has, _ := vm.blobDB.Has(ChunkFile(slot, chunk))
 	return has
 }
 
-func (vm *VM) RemoveChunks(slot int64) ([]ids.ID, error) {
-	names, err := vm.blobDB.Remove(ChunkDirectory(slot))
-	if err != nil {
-		return nil, err
-	}
-	return parseIDs(names)
+func (vm *VM) RemoveChunk(slot int64, chunk ids.ID) error {
+	return vm.blobDB.Remove(ChunkFile(slot, chunk))
 }
 
-func FilteredChunkDirectory(slot int64) string {
-	return fmt.Sprintf("fc%s", strconv.FormatInt(slot, 10))
+func FilteredChunkFile(chunk ids.ID) string {
+	return fmt.Sprintf("fc-%s", chunk)
 }
 
 func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
@@ -368,11 +364,11 @@ func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(FilteredChunkDirectory(chunk.Slot), cid.String(), b)
+	return vm.blobDB.Put(FilteredChunkFile(cid), b)
 }
 
-func (vm *VM) GetFilteredChunk(slot int64, chunk ids.ID) (*chain.FilteredChunk, error) {
-	b, err := vm.blobDB.Get(FilteredChunkDirectory(slot), chunk.String())
+func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
+	b, err := vm.blobDB.Get(FilteredChunkFile(chunk))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -382,22 +378,6 @@ func (vm *VM) GetFilteredChunk(slot int64, chunk ids.ID) (*chain.FilteredChunk, 
 	return chain.UnmarshalFilteredChunk(b, vm)
 }
 
-func (vm *VM) RemoveFilteredChunks(slot int64) ([]ids.ID, error) {
-	names, err := vm.blobDB.Remove(FilteredChunkDirectory(slot))
-	if err != nil {
-		return nil, err
-	}
-	return parseIDs(names)
-}
-
-func parseIDs(strings []string) ([]ids.ID, error) {
-	idsArr := make([]ids.ID, len(strings))
-	for i, id := range strings {
-		pid, err := ids.FromString(id)
-		if err != nil {
-			return nil, err
-		}
-		idsArr[i] = pid
-	}
-	return idsArr, nil
+func (vm *VM) RemoveFilteredChunk(chunk ids.ID) error {
+	return vm.blobDB.Remove(FilteredChunkFile(chunk))
 }
