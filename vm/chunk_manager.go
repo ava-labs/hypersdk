@@ -533,7 +533,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Submit txs
 		c.vm.Submit(ctx, true, validTxs)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"received txs from gossip",
 			zap.Int("txs", len(txs)),
 			zap.Stringer("nodeID", nodeID),
@@ -945,7 +945,7 @@ func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
 	msg[0] = txMsg
 	copy(msg[1:], txBytes)
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(gossip.nodeID), msg)
-	c.vm.Logger().Info(
+	c.vm.Logger().Debug(
 		"sending txs to partition",
 		zap.Int("txs", len(txs)),
 		zap.Stringer("partition", gossip.nodeID),
@@ -993,7 +993,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				attempts := 0
 				for {
 					start := time.Now()
-					c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
+					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
 					// Look for chunk epoch
 					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)

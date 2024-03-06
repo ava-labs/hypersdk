@@ -129,7 +129,7 @@ func (vm *VM) processExecutedChunks() {
 	// closed.
 	for ew := range vm.executedQueue {
 		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
-		vm.snowCtx.Log.Info(
+		vm.snowCtx.Log.Debug(
 			"chunk async executed",
 			zap.Uint64("blk", ew.Block),
 			zap.Stringer("chunkID", ew.Chunk.Chunk),
@@ -349,12 +349,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 
 	// Enqueue block for processing
 	vm.acceptedQueue <- &acceptedWrapper{b, chunks}
-
-	vm.snowCtx.Log.Info(
-		"accepted block",
-		zap.Stringer("blkID", b.ID()),
-		zap.Uint64("height", b.Height()),
-	)
 }
 
 func (vm *VM) CacheValidators(ctx context.Context, height uint64) {

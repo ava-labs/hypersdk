@@ -195,7 +195,7 @@ func (e *Engine) Run() {
 
 				// TODO: Pay beneficiary proportion of reward
 				// TODO: scale reward based on % of stake that signed cert
-				p.vm.Logger().Info("rewarding beneficiary", zap.Uint64("reward", reward))
+				p.vm.Logger().Debug("rewarding beneficiary", zap.Uint64("reward", reward))
 
 				// Create filtered chunk
 				filteredChunks[i] = &FilteredChunk{

@@ -132,6 +132,8 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
+	// Because fileDB operates directly over an SSD, we can take advantage of the ability
+	// to perform concurrent file operations (which are not possible in PebbleDB).
 	g, _ := errgroup.WithContext(context.TODO())
 	g.SetLimit(diskConcurrency)
 	g.Go(func() error {
