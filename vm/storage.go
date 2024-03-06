@@ -9,7 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/ava-labs/avalanchego/cache"
@@ -19,29 +19,18 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
 )
 
-// compactionOffset is used to randomize the height that we compact
-// deleted blocks. This prevents all nodes on the network from deleting
-// data from disk at the same time.
-var compactionOffset int = -1
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 const (
-	blockPrefix         = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
-	blockIDHeightPrefix = 0x1 // ID -> Height
-	blockHeightIDPrefix = 0x2 // Height -> ID (don't always need full block from disk)
-	warpSignaturePrefix = 0x3
-	warpFetchPrefix     = 0x4
-	chunkPrefix         = 0x5 // pruneable chunks (sort by slot)
-	filteredChunkPrefix = 0x6 // long-term persistence chunks (TODO: move to flat files or external storage)
+	blockIDHeightPrefix = 0x0 // ID -> Height
+	blockHeightIDPrefix = 0x1 // Height -> ID (don't always need full block from disk)
+	warpSignaturePrefix = 0x2
+	warpFetchPrefix     = 0x3
 )
 
 var (
@@ -50,13 +39,6 @@ var (
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
 )
-
-func PrefixBlockKey(height uint64) []byte {
-	k := make([]byte, 1+consts.Uint64Len)
-	k[0] = blockPrefix
-	binary.BigEndian.PutUint64(k[1:], height)
-	return k
-}
 
 func PrefixBlockIDHeightKey(id ids.ID) []byte {
 	k := make([]byte, 1+consts.IDLen)
@@ -96,30 +78,19 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) shouldComapct(expiryHeight uint64) bool {
-	if compactionOffset == -1 {
-		compactionOffset = rand.Intn(vm.config.GetBlockCompactionFrequency()) //nolint:gosec
-		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
-	}
-	return expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == uint64(compactionOffset)
-}
-
 // UpdateLastAccepted updates the [lastAccepted] index, stores [blk] on-disk,
 // adds [blk] to the [acceptedCache], and deletes any expired blocks from
 // disk.
 //
 // Blocks written to disk are only used when restarting the node. During normal
 // operation, we only fetch blocks from memory.
-//
-// We store blocks by height because it doesn't cause nearly as much
-// compaction as storing blocks randomly on-disk (when using [block.ID]).
 func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
+	if err := vm.PutDiskBlock(blk); err != nil {
+		return fmt.Errorf("%w: unable to store block", err)
+	}
 	batch := vm.vmDB.NewBatch()
 	bigEndianHeight := binary.BigEndian.AppendUint64(nil, blk.Height())
 	if err := batch.Put(lastAccepted, bigEndianHeight); err != nil {
-		return err
-	}
-	if err := batch.Put(PrefixBlockKey(blk.Height()), blk.Bytes()); err != nil {
 		return err
 	}
 	if err := batch.Put(PrefixBlockIDHeightKey(blk.ID()), bigEndianHeight); err != nil {
@@ -129,49 +100,83 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	if err := batch.Put(PrefixBlockHeightIDKey(blk.Height()), blkID[:]); err != nil {
 		return err
 	}
-	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
-	var expired bool
-	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
-		if err := batch.Delete(PrefixBlockKey(expiryHeight)); err != nil {
-			return err
-		}
-		blkID, err := vm.vmDB.Get(PrefixBlockHeightIDKey(expiryHeight))
-		if err == nil {
-			if err := batch.Delete(PrefixBlockIDHeightKey(ids.ID(blkID))); err != nil {
-				return err
-			}
-		} else {
-			vm.Logger().Warn("unable to delete blkID", zap.Uint64("height", expiryHeight), zap.Error(err))
-		}
-		if err := batch.Delete(PrefixBlockHeightIDKey(expiryHeight)); err != nil {
-			return err
-		}
-		expired = true
-		vm.metrics.deletedBlocks.Inc()
-		vm.Logger().Info("deleted block", zap.Uint64("height", expiryHeight))
-	}
 	if err := batch.Write(); err != nil {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
 	vm.lastAccepted = blk
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-	if expired && vm.shouldComapct(expiryHeight) {
-		go func() {
-			start := time.Now()
-			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
-				vm.Logger().Error("unable to compact blocks", zap.Error(err))
-				return
-			}
-			vm.Logger().Info("compacted disk blocks", zap.Uint64("end", expiryHeight), zap.Duration("t", time.Since(start)))
-		}()
-	}
-	// TODO: clean up expired chunks
 	return nil
 }
 
+func (vm *VM) PruneBlockAndChunks(height uint64) error {
+	start := time.Now()
+	abw := vm.config.GetAcceptedBlockWindow()
+	if height < uint64(abw) {
+		vm.Logger().Info("not pruning any blocks", zap.Int("minHeight", abw+1))
+		return nil
+	}
+	expiryHeight := height - uint64(abw)
+	blk, err := vm.GetDiskBlock(context.TODO(), expiryHeight)
+	if errors.Is(err, database.ErrNotFound) {
+		vm.Logger().Info("not pruning missing block", zap.Uint64("height", expiryHeight))
+		return nil
+	}
+	batch := vm.vmDB.NewBatch()
+	if err := batch.Delete(PrefixBlockIDHeightKey(blk.ID())); err != nil {
+		return err
+	}
+	if err := batch.Delete(PrefixBlockHeightIDKey(expiryHeight)); err != nil {
+		return err
+	}
+	if err := batch.Write(); err != nil {
+		return fmt.Errorf("%w: unable to update last accepted", err)
+	}
+	// Because fileDB operates directly over an SSD, we can take advantage of the ability
+	// to perform concurrent file operations (which are not possible in PebbleDB).
+	g, _ := errgroup.WithContext(context.TODO())
+	g.SetLimit(diskConcurrency)
+	g.Go(func() error {
+		return vm.RemoveDiskBlock(expiryHeight)
+	})
+	for _, cert := range blk.AvailableChunks {
+		tcert := cert
+		g.Go(func() error {
+			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
+		})
+	}
+	for _, chunk := range blk.ExecutedChunks {
+		tchunk := chunk
+		g.Go(func() error {
+			return vm.RemoveFilteredChunk(tchunk)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	vm.metrics.deletedBlocks.Inc()
+	vm.metrics.deletedChunks.Add(float64(len(blk.AvailableChunks)))
+	vm.metrics.deletedFilteredChunks.Add(float64(len(blk.ExecutedChunks)))
+	vm.Logger().Info(
+		"deleted block",
+		zap.Uint64("height", expiryHeight),
+		zap.Int("availableChunks", len(blk.AvailableChunks)),
+		zap.Int("executedChunks", len(blk.ExecutedChunks)),
+		zap.Duration("t", time.Since(start)),
+	)
+	return nil
+}
+
+func BlockFile(height uint64) string {
+	return fmt.Sprintf("b-%s", strconv.FormatUint(height, 10))
+}
+
+func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
+	return vm.blobDB.Put(BlockFile(blk.Height()), blk.Bytes())
+}
+
 func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	b, err := vm.vmDB.Get(PrefixBlockKey(height))
+	b, err := vm.blobDB.Get(BlockFile(height))
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +184,11 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
-	return vm.vmDB.Has(PrefixBlockKey(height))
+	return vm.blobDB.Has(BlockFile(height))
+}
+
+func (vm *VM) RemoveDiskBlock(height uint64) error {
+	return vm.blobDB.Remove(BlockFile(height))
 }
 
 func (vm *VM) GetBlockHeightID(height uint64) (ids.ID, error) {
@@ -196,16 +205,6 @@ func (vm *VM) GetBlockIDHeight(blkID ids.ID) (uint64, error) {
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(b), nil
-}
-
-// CompactDiskBlocks forces compaction on the entire range of blocks up to [lastExpired].
-//
-// This can be used to ensure we clean up all large tombstoned keys on a regular basis instead
-// of waiting for the database to run a compaction (and potentially delete GBs of data at once).
-//
-// TODO: change this to be WS driven as well
-func (vm *VM) CompactDiskBlocks(lastExpired uint64) error {
-	return vm.vmDB.Compact([]byte{blockPrefix}, PrefixBlockKey(lastExpired))
 }
 
 func (vm *VM) GetDiskIsSyncing() (bool, error) {
@@ -319,12 +318,9 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 	return int64(binary.BigEndian.Uint64(v)), nil
 }
 
-func PrefixChunkKey(slot int64, chunk ids.ID) []byte {
-	k := make([]byte, 1+consts.Int64Len+consts.IDLen)
-	k[0] = chunkPrefix
-	binary.BigEndian.PutUint64(k[1:], uint64(slot))
-	copy(k[1+consts.Int64Len:], chunk[:])
-	return k
+// TODO: read blobDB on restart to determine what should clean
+func ChunkFile(slot int64, id ids.ID) string {
+	return fmt.Sprintf("c-%s-%s", strconv.FormatInt(slot, 10), id)
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
@@ -332,17 +328,15 @@ func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
 	if err != nil {
 		return err
 	}
-	k := PrefixChunkKey(chunk.Slot, cid)
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.vmDB.Put(k, b)
+	return vm.blobDB.Put(ChunkFile(chunk.Slot, cid), b)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
-	k := PrefixChunkKey(slot, chunk)
-	b, err := vm.vmDB.Get(k)
+	b, err := vm.blobDB.Get(ChunkFile(slot, chunk))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -354,18 +348,16 @@ func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
 	// TODO: add error
-	k := PrefixChunkKey(slot, chunk)
-	has, _ := vm.vmDB.Has(k)
+	has, _ := vm.blobDB.Has(ChunkFile(slot, chunk))
 	return has
 }
 
-// TODO: add function to clear chunks
+func (vm *VM) RemoveChunk(slot int64, chunk ids.ID) error {
+	return vm.blobDB.Remove(ChunkFile(slot, chunk))
+}
 
-func PrefixFilteredChunkKey(chunk ids.ID) []byte {
-	k := make([]byte, 1+consts.IDLen)
-	k[0] = filteredChunkPrefix
-	copy(k[1:], chunk[:])
-	return k
+func FilteredChunkFile(chunk ids.ID) string {
+	return fmt.Sprintf("fc-%s", chunk)
 }
 
 func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
@@ -373,17 +365,15 @@ func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
 	if err != nil {
 		return err
 	}
-	k := PrefixFilteredChunkKey(cid)
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.vmDB.Put(k, b)
+	return vm.blobDB.Put(FilteredChunkFile(cid), b)
 }
 
 func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
-	k := PrefixFilteredChunkKey(chunk)
-	b, err := vm.vmDB.Get(k)
+	b, err := vm.blobDB.Get(FilteredChunkFile(chunk))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -391,4 +381,8 @@ func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
 		return nil, err
 	}
 	return chain.UnmarshalFilteredChunk(b, vm)
+}
+
+func (vm *VM) RemoveFilteredChunk(chunk ids.ID) error {
+	return vm.blobDB.Remove(FilteredChunkFile(chunk))
 }

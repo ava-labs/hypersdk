@@ -29,6 +29,7 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	hcache "github.com/ava-labs/hypersdk/cache"
+	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
@@ -68,6 +69,7 @@ type VM struct {
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
 	vmDB           database.Database
+	blobDB         *filedb.FileDB
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
@@ -185,7 +187,7 @@ func (vm *VM) Initialize(
 
 	// Always initialize implementation first
 	vm.baseDB = baseDB
-	vm.config, vm.genesis, vm.vmDB,
+	vm.config, vm.genesis, vm.vmDB, vm.blobDB,
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,

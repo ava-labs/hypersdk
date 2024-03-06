@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 )
 
@@ -22,8 +21,6 @@ const numTxs = 50000 // TODO: somehow estimate this (needed to ensure no backlog
 type Processor struct {
 	vm  VM
 	eng *Engine
-
-	authStream *stream.Stream
 
 	latestPHeight *uint64
 	epochHeights  []*uint64
@@ -62,13 +59,9 @@ func NewProcessor(
 	latestPHeight *uint64, epochHeights []*uint64,
 	chunks int, timestamp int64, im state.Immutable, r Rules,
 ) *Processor {
-	stream := stream.New()
-	stream.WithMaxGoroutines(vm.GetAuthVerifyCores())
 	return &Processor{
 		vm:  vm,
 		eng: eng,
-
-		authStream: stream,
 
 		latestPHeight: latestPHeight,
 		epochHeights:  epochHeights,
@@ -364,31 +357,30 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		}
 
 		// Enqueue transaction for execution
-		p.authStream.Go(func() stream.Callback {
-			msg, err := tx.Digest()
-			if err != nil {
-				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
+		//
+		// TODO: consider putting in a goroutine
+		msg, err := tx.Digest()
+		if err != nil {
+			p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		if p.vm.GetVerifyAuth() {
+			if err := tx.Auth.Verify(ctx, msg); err != nil {
+				p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
 				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				return func() {}
+				continue
 			}
-			if p.vm.GetVerifyAuth() {
-				if err := tx.Auth.Verify(ctx, msg); err != nil {
-					p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
-					p.results[chunkIndex][txIndex] = &Result{Valid: false}
-					return func() {}
-				}
-			}
-			if p.frozenSponsors.Contains(ssponsor) {
-				p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-				return func() {}
-			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }
-		})
+		}
+		if p.frozenSponsors.Contains(ssponsor) {
+			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+			continue
+		}
+		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
 	}
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
-	p.authStream.Wait()
 	return p.txs, p.ts, p.results, p.exectutor.Wait()
 }

@@ -142,6 +142,18 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, "avalanche_go_goroutines")
 			utils.Outf("{{yellow}}avalanchego goroutines:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_deleted_blocks[5s])/5", chainID))
+			utils.Outf("{{yellow}}blocks deleted per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_deleted_chunks[5s])/5", chainID))
+			utils.Outf("{{yellow}}chunks deleted per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_deleted_filtered_chunks[5s])/5", chainID))
+			utils.Outf("{{yellow}}filtered chunks deleted per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_statedb_pebble_l0_compactions[5s])/5 + increase(avalanche_%s_vm_statedb_pebble_other_compactions[5s])/5", chainID, chainID))
+			utils.Outf("{{yellow}}statedb compactions per second:{{/}} %s\n", panels[len(panels)-1])
+
 			return panels
 		})
 	},

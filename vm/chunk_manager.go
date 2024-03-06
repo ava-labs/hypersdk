@@ -23,10 +23,11 @@ import (
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/list"
+	"github.com/ava-labs/hypersdk/ochannel"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -330,6 +331,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			"received chunk from gossip",
 			zap.Stringer("chunkID", cid),
 			zap.Stringer("nodeID", nodeID),
+			zap.Int("size", len(msg)-1),
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkSignatureMsg:
@@ -532,7 +534,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Submit txs
 		c.vm.Submit(ctx, true, validTxs)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"received txs from gossip",
 			zap.Int("txs", len(txs)),
 			zap.Stringer("nodeID", nodeID),
@@ -944,7 +946,7 @@ func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
 	msg[0] = txMsg
 	copy(msg[1:], txBytes)
 	c.appSender.SendAppGossipSpecific(ctx, set.Of(gossip.nodeID), msg)
-	c.vm.Logger().Info(
+	c.vm.Logger().Debug(
 		"sending txs to partition",
 		zap.Int("txs", len(txs)),
 		zap.Stringer("partition", gossip.nodeID),
@@ -973,23 +975,26 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
-		fetchStream := stream.New()
-		fetchStream.WithMaxGoroutines(2) // TODO: use config
-		for _, rcert := range certs {
+		oc := ochannel.New(chunks)
+		g, _ := errgroup.WithContext(context.Background())
+		g.SetLimit(4) // TODO: use config
+		for ri, rcert := range certs {
+			i := ri
 			cert := rcert
-			fetchStream.Go(func() stream.Callback {
+			g.Go(func() error {
 				// Look for chunk
 				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-				if chunk != nil && err == nil {
-					// TODO: return normal error if chunk is invalid
-					return func() { chunks <- chunk }
+				if chunk != nil {
+					oc.Add(chunk, i)
+					return nil
 				}
+				c.vm.Logger().Debug("could not fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
 
 				// Fetch missing chunk
 				attempts := 0
 				for {
 					start := time.Now()
-					c.vm.Logger().Warn("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
+					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
 					// Look for chunk epoch
 					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)
@@ -1015,7 +1020,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						// TODO: consider using cert to select validators?
 						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background(), epochHeight)
 						if err != nil {
-							panic(err)
+							return err
 						}
 						if c.connected.Contains(randomValidator) {
 							validator = randomValidator
@@ -1038,7 +1043,8 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					select {
 					case bytes = <-bytesChan:
 					case <-c.vm.stop:
-						return func() { chunks <- nil }
+						oc.Add(nil, i)
+						return errors.New("stopping")
 					}
 					if len(bytes) == 0 {
 						continue
@@ -1052,21 +1058,25 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					}
 					chunkID, err := chunk.ID()
 					if err != nil {
-						panic(err)
+						return err
 					}
 					if chunkID != cert.Chunk {
 						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
 						continue
 					}
 					if err := c.vm.StoreChunk(chunk); err != nil {
-						panic(err)
+						return err
 					}
 					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
-					return func() { chunks <- chunk }
+					oc.Add(chunk, i)
+					return nil
 				}
 			})
 		}
-		fetchStream.Wait()
+		if err := g.Wait(); err != nil {
+			c.vm.Logger().Error("failed to fetch chunks", zap.Error(err))
+			return
+		}
 		close(chunks)
 
 		// Invoke next waiter

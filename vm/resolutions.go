@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"golang.org/x/sync/errgroup"
 
 	"go.uber.org/zap"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 )
+
+const diskConcurrency = 8
 
 var (
 	_ chain.VM                           = (*VM)(nil)
@@ -126,7 +129,7 @@ func (vm *VM) processExecutedChunks() {
 	// closed.
 	for ew := range vm.executedQueue {
 		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
-		vm.snowCtx.Log.Info(
+		vm.snowCtx.Log.Debug(
 			"chunk async executed",
 			zap.Uint64("blk", ew.Block),
 			zap.Stringer("chunkID", ew.Chunk.Chunk),
@@ -249,10 +252,16 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for aw := range vm.acceptedQueue {
 		// Commit filtered chunks
+		g, _ := errgroup.WithContext(context.Background())
+		g.SetLimit(diskConcurrency)
 		for _, fc := range aw.FilteredChunks {
-			if err := vm.StoreFilteredChunk(fc); err != nil {
-				vm.Fatal("unable to store filtered chunk", zap.Error(err))
-			}
+			tfc := fc
+			g.Go(func() error {
+				return vm.StoreFilteredChunk(tfc)
+			})
+		}
+		if err := g.Wait(); err != nil {
+			vm.Fatal("unable to store filtered chunk", zap.Error(err))
 		}
 
 		// Process block
@@ -262,6 +271,11 @@ func (vm *VM) processAcceptedBlocks() {
 			zap.Stringer("blkID", aw.Block.ID()),
 			zap.Uint64("height", aw.Block.Height()),
 		)
+
+		// Delete old blocks and chunks
+		if err := vm.PruneBlockAndChunks(aw.Block.Height()); err != nil {
+			vm.Fatal("unable to prune block and chunks", zap.Error(err))
+		}
 	}
 }
 
@@ -335,12 +349,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 
 	// Enqueue block for processing
 	vm.acceptedQueue <- &acceptedWrapper{b, chunks}
-
-	vm.snowCtx.Log.Info(
-		"accepted block",
-		zap.Stringer("blkID", b.ID()),
-		zap.Uint64("height", b.Height()),
-	)
 }
 
 func (vm *VM) CacheValidators(ctx context.Context, height uint64) {

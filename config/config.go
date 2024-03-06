@@ -34,9 +34,9 @@ func (c *Config) GetStateSyncServerDelay() time.Duration    { return 0 } // used
 
 func (c *Config) GetParsedBlockCacheSize() int     { return 128 }
 func (c *Config) GetStateHistoryLength() int       { return 256 }
-func (c *Config) GetAcceptedBlockWindowCache() int { return 128 }    // 256MB at 2MB blocks
-func (c *Config) GetAcceptedBlockWindow() int      { return 50_000 } // ~3.5hr with 250ms block time (100GB at 2MB)
-func (c *Config) GetStateSyncMinBlocks() uint64    { return 768 }    // set to max int for archive nodes to ensure no skips
+func (c *Config) GetAcceptedBlockWindowCache() int { return 128 } // 256MB at 2MB blocks
+func (c *Config) GetAcceptedBlockWindow() int      { return 512 } // TODO: make this longer for prod
+func (c *Config) GetStateSyncMinBlocks() uint64    { return 768 } // set to max int for archive nodes to ensure no skips
 func (c *Config) GetAcceptorSize() int             { return 64 }
 
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
