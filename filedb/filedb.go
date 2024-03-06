@@ -10,12 +10,17 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 )
 
+type fileLock struct {
+	holders int
+	lock    sync.RWMutex
+}
+
 type FileDB struct {
 	baseDir string
 	sync    bool
 
-	fileLock sync.Mutex
-	files    map[string]chan struct{}
+	filesLock sync.Mutex
+	files     map[string]*fileLock
 
 	fileCache cache.Cacher[string, []byte]
 }
@@ -24,36 +29,54 @@ func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
 	return &FileDB{
 		baseDir:   baseDir,
 		sync:      sync,
-		files:     make(map[string]chan struct{}),
+		files:     make(map[string]*fileLock),
 		fileCache: cache.NewSizedLRU[string, []byte](dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
 	}
 }
 
-func (f *FileDB) lockFile(path string) {
-	f.fileLock.Lock()
-	waiter, exists := f.files[path]
+func (f *FileDB) lockFile(path string, write bool) {
+	f.filesLock.Lock()
+	fl, exists := f.files[path]
 	if !exists {
-		f.files[path] = make(chan struct{})
-		f.fileLock.Unlock()
+		fl := &fileLock{holders: 1}
+		f.files[path] = fl
+		if write {
+			fl.lock.Lock()
+		} else {
+			fl.lock.RLock()
+		}
+		f.filesLock.Unlock()
 		return
 	}
-	f.fileLock.Unlock()
-	<-waiter
+	fl.holders++
+	f.filesLock.Unlock()
+
+	if write {
+		fl.lock.Lock()
+	} else {
+		fl.lock.RLock()
+	}
 }
 
-func (f *FileDB) releaseFile(path string) {
-	f.fileLock.Lock()
-	waiter := f.files[path]
-	delete(f.files, path)
-	f.fileLock.Unlock()
-
-	close(waiter)
+func (f *FileDB) releaseFile(path string, write bool) {
+	f.filesLock.Lock()
+	fl := f.files[path]
+	fl.holders--
+	if write {
+		fl.lock.Unlock()
+	} else {
+		fl.lock.RUnlock()
+	}
+	if fl.holders == 0 {
+		delete(f.files, path)
+	}
+	f.filesLock.Unlock()
 }
 
 func (f *FileDB) Put(key string, value []byte) error {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath)
-	defer f.releaseFile(filePath)
+	f.lockFile(filePath, true)
+	defer f.releaseFile(filePath, true)
 
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -76,8 +99,8 @@ func (f *FileDB) Put(key string, value []byte) error {
 
 func (f *FileDB) Get(key string) ([]byte, error) {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath)
-	defer f.releaseFile(filePath)
+	f.lockFile(filePath, false)
+	defer f.releaseFile(filePath, false)
 
 	if value, exists := f.fileCache.Get(filePath); exists {
 		return value, nil
@@ -104,8 +127,8 @@ func (f *FileDB) Get(key string) ([]byte, error) {
 
 func (f *FileDB) Has(key string) (bool, error) {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath)
-	defer f.releaseFile(filePath)
+	f.lockFile(filePath, false)
+	defer f.releaseFile(filePath, false)
 
 	if _, exists := f.fileCache.Get(filePath); exists {
 		return true, nil
@@ -121,12 +144,14 @@ func (f *FileDB) Has(key string) (bool, error) {
 	return true, nil
 }
 
-// Remove removes the directory and all of its contents. It opts for speed
-// rather than completeness and will not clear any caches.
-//
-// Remove can be called on the same directory multiple times (not concurrently).
-//
-// The caller should not read from or write to a directory that is being removed.
 func (f *FileDB) Remove(key string) error {
-	return os.Remove(filepath.Join(f.baseDir, key))
+	filePath := filepath.Join(f.baseDir, key)
+	f.lockFile(filePath, true)
+	defer f.releaseFile(filePath, true)
+
+	if err := os.Remove(filePath); err != nil {
+		return err
+	}
+	f.fileCache.Evict(filePath)
+	return nil
 }

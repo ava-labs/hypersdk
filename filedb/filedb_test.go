@@ -37,22 +37,14 @@ func TestFileDB(t *testing.T) {
 	require.NoError(db.Remove("1"))
 	require.NoError(db.Remove("2"))
 
-	// Cache still works
 	v, err = db.Get("1")
-	require.NoError(err)
-	require.Equal([]byte("2"), v)
+	require.ErrorIs(err, database.ErrNotFound)
+	require.Empty(v)
 	v, err = db.Get("2")
-	require.Nil(err)
-	require.Equal([]byte("3"), v)
+	require.ErrorIs(err, database.ErrNotFound)
+	require.Empty(v)
 
-	// Clear cache
-	db.fileCache.Flush()
-	v, err = db.Get("1")
-	require.ErrorIs(err, database.ErrNotFound)
-	require.Empty(v)
-	v, err = db.Get("2")
-	require.ErrorIs(err, database.ErrNotFound)
-	require.Empty(v)
+	require.Empty(db.files)
 }
 
 func BenchmarkFileDB(b *testing.B) {
