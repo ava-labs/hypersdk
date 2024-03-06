@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -27,11 +26,10 @@ type engineJob struct {
 
 type output struct {
 	txs          map[ids.ID]*blockLoc
-	view         merkledb.View
 	chunkResults [][]*Result
 
-	startRoot ids.ID
-	chunks    []*FilteredChunk
+	chunks []*FilteredChunk
+	root   ids.ID
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -276,50 +274,35 @@ func (e *Engine) Run() {
 				panic(err)
 			}
 
-			// Get start root for parent
-			parentStart := time.Now()
-			startRoot, err := parentView.GetMerkleRoot(ctx)
-			if err != nil {
-				panic(err)
-			}
-			e.vm.RecordWaitRoot(time.Since(parentStart))
-
-			// Create new view and kickoff generation
+			// Create new view and persist to disk
 			e.vm.RecordStateChanges(ts.PendingChanges())
 			e.vm.RecordStateOperations(ts.OpIndex())
 			view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 			if err != nil {
 				panic(err)
 			}
-			go func() {
-				start := time.Now()
-				root, err := view.GetMerkleRoot(ctx)
-				if err != nil {
-					log.Error("merkle root generation failed", zap.Error(err))
-					return
-				}
-				log.Info("merkle root generated",
-					zap.Uint64("height", job.blk.StatefulBlock.Height),
-					zap.Stringer("blkID", job.blk.ID()),
-					zap.Stringer("root", root),
-					zap.Duration("t", time.Since(start)),
-				)
-				e.vm.RecordRootCalculated(time.Since(start))
-			}()
+			commitStart := time.Now()
+			if err := view.CommitToDB(ctx); err != nil {
+				panic(err)
+			}
+			root, err := view.GetMerkleRoot(ctx)
+			if err != nil {
+				panic(err)
+			}
+			e.vm.RecordWaitCommit(time.Since(commitStart))
 
 			// Store and update parent view
 			validTxs := len(txSet)
 			e.outputsLock.Lock()
 			e.outputs[job.blk.StatefulBlock.Height] = &output{
 				txs:          txSet,
-				view:         view,
 				chunkResults: chunkResults,
-				startRoot:    startRoot,
+				root:         root,
 				chunks:       filteredChunks,
 			}
 			e.largestOutput = &job.blk.StatefulBlock.Height
 			e.outputsLock.Unlock()
-			e.latestView = view
+			e.latestView = state.View(e.vm.ForceState()) // Don't offer views that will be discarded
 
 			log.Info(
 				"executed block",
@@ -328,6 +311,7 @@ func (e *Engine) Run() {
 				zap.Int("valid txs", validTxs),
 				zap.Int("total txs", txCount),
 				zap.Int("chunks", len(filteredChunks)),
+				zap.Stringer("root", root),
 				zap.Duration("t", time.Since(estart)),
 			)
 			e.vm.RecordBlockExecute(time.Since(estart))
@@ -353,7 +337,7 @@ func (e *Engine) Execute(blk *StatelessBlock) {
 	}
 }
 
-func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Executed Chunks */, error) {
+func (e *Engine) Results(height uint64) (ids.ID /* Root */, []ids.ID /* Executed Chunks */, error) {
 	// TODO: handle case where never started execution (state sync)
 	e.outputsLock.RLock()
 	defer e.outputsLock.RUnlock()
@@ -367,7 +351,7 @@ func (e *Engine) Results(height uint64) (ids.ID /* StartRoot */, []ids.ID /* Exe
 			}
 			filteredIDs[i] = id
 		}
-		return output.startRoot, filteredIDs, nil
+		return output.root, filteredIDs, nil
 	}
 	return ids.Empty, nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
@@ -386,8 +370,7 @@ func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*Fil
 		e.largestOutput = nil
 	}
 	e.outputsLock.Unlock()
-	// TODO: consider committing this in execution queue
-	return output.chunkResults, output.chunks, output.view.CommitToDB(ctx)
+	return output.chunkResults, output.chunks, nil
 }
 
 func (e *Engine) IsRepeatTx(

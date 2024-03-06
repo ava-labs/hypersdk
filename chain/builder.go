@@ -110,7 +110,7 @@ func BuildBlock(
 			return nil, err
 		}
 		b.execHeight = &execHeight
-		b.StartRoot = root
+		b.Root = root
 		b.ExecutedChunks = executed
 	}
 
@@ -134,8 +134,8 @@ func BuildBlock(
 		zap.Any("execHeight", b.execHeight),
 		zap.Stringer("parentID", b.Parent()),
 		zap.Int("available chunks", len(b.AvailableChunks)),
-		zap.Stringer("start root", b.StartRoot),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
+		zap.Stringer("root", b.Root),
 		zap.Int("size", len(b.bytes)),
 	)
 	return b, nil

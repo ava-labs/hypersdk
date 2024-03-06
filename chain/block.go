@@ -25,6 +25,16 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+// We set the genesis block timestamp to be after the ProposerVM fork activation.
+//
+// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
+// where the child timestamp is rounded down to the nearest second (which may be before
+// the timestamp of its parent, which is denoted in milliseconds).
+//
+// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
+// .../vms/proposervm/pre_fork_block.go#L201
+var GenesisTime = time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+
 var (
 	_ snowman.Block      = &StatelessBlock{}
 	_ block.StateSummary = &SyncableBlock{}
@@ -41,16 +51,8 @@ type StatefulBlock struct {
 	// the future.
 	AvailableChunks []*ChunkCertificate `json:"availableChunks"`
 
-	// StartRoot is the root of the post-execution state
-	// of [Parent].
-	//
-	// This "deferred root" design allows for merklization
-	// to be done asynchronously instead of during [Build]
-	// or [Verify], which reduces the amount of time we are
-	// blocking the consensus engine from voting on the block,
-	// starting the verification of another block, etc.
-	StartRoot      ids.ID   `json:"startRoot"`
 	ExecutedChunks []ids.ID `json:"executedChunks"`
+	Root           ids.ID   `json:"root"`
 
 	built         bool
 	startWaitExec time.Time
@@ -59,7 +61,7 @@ type StatefulBlock struct {
 func (b *StatefulBlock) Size() int {
 	return consts.Uint64Len + consts.IDLen + consts.Uint64Len + consts.Int64Len +
 		consts.IntLen + codec.CummSize(b.AvailableChunks) +
-		consts.IDLen + consts.IntLen + len(b.ExecutedChunks)*consts.IDLen
+		consts.IntLen + len(b.ExecutedChunks)*consts.IDLen + consts.IDLen
 }
 
 func (b *StatefulBlock) ID() (ids.ID, error) {
@@ -86,11 +88,11 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 		}
 	}
 
-	p.PackID(b.StartRoot)
 	p.PackInt(len(b.ExecutedChunks))
 	for _, chunk := range b.ExecutedChunks {
 		p.PackID(chunk)
 	}
+	p.PackID(b.Root)
 
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
@@ -123,7 +125,6 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	}
 
 	// Parse executed chunks
-	p.UnpackID(false, &b.StartRoot)
 	executedChunks := p.UnpackInt(false) // can produce empty blocks
 	b.ExecutedChunks = []ids.ID{}        // don't preallocate all to avoid DoS
 	for i := 0; i < executedChunks; i++ {
@@ -131,6 +132,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 		p.UnpackID(true, &id)
 		b.ExecutedChunks = append(b.ExecutedChunks, id)
 	}
+	p.UnpackID(false, &b.Root)
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
@@ -141,18 +143,8 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 
 func NewGenesisBlock(root ids.ID) *StatefulBlock {
 	return &StatefulBlock{
-		// We set the genesis block timestamp to be after the ProposerVM fork activation.
-		//
-		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
-		// where the child timestamp is rounded down to the nearest second (which may be before
-		// the timestamp of its parent, which is denoted in milliseconds).
-		//
-		// Link: https://github.com/ava-labs/avalanchego/blob/0ec52a9c6e5b879e367688db01bb10174d70b212
-		// .../vms/proposervm/pre_fork_block.go#L201
-		Timestamp: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
-
-		// StartRoot should include all allocates made when loading the genesis file
-		StartRoot: root,
+		Timestamp: GenesisTime,
+		Root:      root,
 	}
 }
 
@@ -412,22 +404,36 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	// Verify start root and execution results
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height <= depth {
-		if b.StartRoot != ids.Empty || len(b.ExecutedChunks) > 0 {
+		if b.Root != ids.Empty || len(b.ExecutedChunks) > 0 {
 			return errors.New("no execution result should exist")
 		}
 	} else {
-		execHeight := b.StatefulBlock.Height - depth
-		root, executed, err := b.vm.Engine().Results(execHeight)
-		if err != nil {
-			// TODO: handle case where we state synced and don't have results
-			log.Warn("could not get results for block", zap.Uint64("height", execHeight))
-			if b.startWaitExec.IsZero() {
-				b.startWaitExec = time.Now()
+		var (
+			execHeight = b.StatefulBlock.Height - depth
+			root       ids.ID
+			executed   []ids.ID
+		)
+		for {
+			root, executed, err = b.vm.Engine().Results(execHeight)
+			if err != nil {
+				// TODO: handle case where we state synced and don't have results
+				log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+				if b.startWaitExec.IsZero() {
+					b.startWaitExec = time.Now()
+				}
+				if b.vm.IsBootstrapped() {
+					return fmt.Errorf("%w: no results for execHeight", err)
+				}
+				// If we haven't finished bootstrapping, we can't fail.
+				//
+				// TODO: we should actually not verify any of this (long p-chain lookbacks)
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
-			return fmt.Errorf("%w: no results for execHeight", err)
+			break
 		}
-		if b.StartRoot != root {
-			return errors.New("start root mismatch")
+		if b.Root != root {
+			return errors.New("root mismatch")
 		}
 		if len(b.ExecutedChunks) != len(executed) {
 			return errors.New("executed chunks count mismatch")
@@ -450,7 +456,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		zap.Any("execHeight", b.execHeight),
 		zap.Stringer("parentID", b.Parent()),
 		zap.Int("available chunks", len(b.AvailableChunks)),
-		zap.Stringer("start root", b.StartRoot),
+		zap.Stringer("root", b.Root),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
 	)
 	return nil
@@ -557,5 +563,5 @@ func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
 }
 
 func (sb *SyncableBlock) String() string {
-	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StartRoot)
+	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.Root)
 }

@@ -247,12 +247,20 @@ func (vm *VM) processAcceptedBlocks() {
 	// to be processed before returning as a guarantee to listeners (which may
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
-	for b := range vm.acceptedQueue {
-		vm.processAcceptedBlock(b)
+	for aw := range vm.acceptedQueue {
+		// Commit filtered chunks
+		for _, fc := range aw.FilteredChunks {
+			if err := vm.StoreFilteredChunk(fc); err != nil {
+				vm.Fatal("unable to store filtered chunk", zap.Error(err))
+			}
+		}
+
+		// Process block
+		vm.processAcceptedBlock(aw.Block)
 		vm.snowCtx.Log.Info(
 			"block async accepted",
-			zap.Stringer("blkID", b.ID()),
-			zap.Uint64("height", b.Height()),
+			zap.Stringer("blkID", aw.Block.ID()),
+			zap.Uint64("height", aw.Block.Height()),
 		)
 	}
 }
@@ -261,12 +269,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
-	// Update accepted blocks on-disk and caches
-	for _, fc := range chunks {
-		if err := vm.StoreFilteredChunk(fc); err != nil {
-			vm.Fatal("unable to store filtered chunk", zap.Error(err))
-		}
-	}
+	// Update accepted block on-disk and caches
 	if err := vm.UpdateLastAccepted(b); err != nil {
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
@@ -331,7 +334,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	vm.mempool.SetMinTimestamp(ctx, blkTime)
 
 	// Enqueue block for processing
-	vm.acceptedQueue <- b
+	vm.acceptedQueue <- &acceptedWrapper{b, chunks}
 
 	vm.snowCtx.Log.Info(
 		"accepted block",
@@ -431,12 +434,8 @@ func (vm *VM) StateManager() chain.StateManager {
 	return vm.c.StateManager()
 }
 
-func (vm *VM) RecordRootCalculated(t time.Duration) {
-	vm.metrics.rootCalculated.Observe(float64(t))
-}
-
-func (vm *VM) RecordWaitRoot(t time.Duration) {
-	vm.metrics.waitRoot.Observe(float64(t))
+func (vm *VM) RecordWaitCommit(t time.Duration) {
+	vm.metrics.waitCommit.Observe(float64(t))
 }
 
 func (vm *VM) RecordWaitExec(t time.Duration) {
