@@ -331,6 +331,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			"received chunk from gossip",
 			zap.Stringer("chunkID", cid),
 			zap.Stringer("nodeID", nodeID),
+			zap.Int("size", len(msg)-1),
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkSignatureMsg:
