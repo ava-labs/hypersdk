@@ -23,7 +23,7 @@ MODE=${MODE:-run}
 AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
+MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-500}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
@@ -171,7 +171,7 @@ rm -f "${TMPDIR}"/morpheusvm.subnet
 cat <<EOF > "${TMPDIR}"/morpheusvm.subnet
 {
   "proposerMinBlockDelay": 0,
-  "proposerNumHistoricalBlocks": 2048
+  "proposerNumHistoricalBlocks": 512
 }
 EOF
 

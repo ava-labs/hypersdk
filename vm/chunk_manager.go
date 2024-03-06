@@ -23,10 +23,11 @@ import (
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/list"
+	"github.com/ava-labs/hypersdk/ochannel"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/sourcegraph/conc/stream"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -973,17 +974,20 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
-		fetchStream := stream.New()
-		fetchStream.WithMaxGoroutines(2) // TODO: use config
-		for _, rcert := range certs {
+		oc := ochannel.New(chunks)
+		g, _ := errgroup.WithContext(context.Background())
+		g.SetLimit(4) // TODO: use config
+		for ri, rcert := range certs {
+			i := ri
 			cert := rcert
-			fetchStream.Go(func() stream.Callback {
+			g.Go(func() error {
 				// Look for chunk
 				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-				if chunk != nil && err == nil {
-					// TODO: return normal error if chunk is invalid
-					return func() { chunks <- chunk }
+				if chunk != nil {
+					oc.Add(chunk, i)
+					return nil
 				}
+				c.vm.Logger().Debug("could not fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
 
 				// Fetch missing chunk
 				attempts := 0
@@ -1015,7 +1019,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						// TODO: consider using cert to select validators?
 						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background(), epochHeight)
 						if err != nil {
-							panic(err)
+							return err
 						}
 						if c.connected.Contains(randomValidator) {
 							validator = randomValidator
@@ -1038,7 +1042,8 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					select {
 					case bytes = <-bytesChan:
 					case <-c.vm.stop:
-						return func() { chunks <- nil }
+						oc.Add(nil, i)
+						return errors.New("stopping")
 					}
 					if len(bytes) == 0 {
 						continue
@@ -1052,21 +1057,25 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					}
 					chunkID, err := chunk.ID()
 					if err != nil {
-						panic(err)
+						return err
 					}
 					if chunkID != cert.Chunk {
 						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
 						continue
 					}
 					if err := c.vm.StoreChunk(chunk); err != nil {
-						panic(err)
+						return err
 					}
 					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
-					return func() { chunks <- chunk }
+					oc.Add(chunk, i)
+					return nil
 				}
 			})
 		}
-		fetchStream.Wait()
+		if err := g.Wait(); err != nil {
+			c.vm.Logger().Error("failed to fetch chunks", zap.Error(err))
+			return
+		}
 		close(chunks)
 
 		// Invoke next waiter

@@ -23,7 +23,6 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rs/cors v1.7.0
-	github.com/sourcegraph/conc v0.3.0
 	github.com/stretchr/testify v1.8.4
 	go.opentelemetry.io/otel v1.22.0
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
