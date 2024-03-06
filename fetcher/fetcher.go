@@ -75,6 +75,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 // Workers fetch individual keys
 func (f *Fetcher) runWorker() {
 	defer f.wg.Done()
+
 	for {
 		select {
 		case t, ok := <-f.fetchable:
@@ -135,6 +136,7 @@ func (f *Fetcher) runWorker() {
 func (f *Fetcher) has(k string) bool {
 	f.cacheLock.RLock()
 	defer f.cacheLock.RUnlock()
+
 	_, exists := f.cache[k]
 	return exists
 }
@@ -143,6 +145,7 @@ func (f *Fetcher) has(k string) bool {
 func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
 	f.cacheLock.Lock()
 	defer f.cacheLock.Unlock()
+
 	f.cache[k] = &fetchData{v, exists, chunks}
 }
 
