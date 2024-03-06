@@ -54,39 +54,47 @@ func TestFileDB(t *testing.T) {
 }
 
 func BenchmarkFileDB(b *testing.B) {
-	b.StopTimer()
-	db := New(b.TempDir(), true, 1024, 32*units.MiB)
-	msg := make([]byte, 1.5*units.MiB)
-	_, err := rand.Read(msg)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		if err := db.Put("test", fmt.Sprintf("%d", i), msg); err != nil {
-			b.Fatal(err)
-		}
+	for _, sync := range []bool{true, false} {
+		b.Run(fmt.Sprintf("sync=%v", sync), func(b *testing.B) {
+			b.StopTimer()
+			db := New(b.TempDir(), sync, 1024, 32*units.MiB)
+			msg := make([]byte, 1.5*units.MiB)
+			_, err := rand.Read(msg)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+			for i := 0; i < b.N; i++ {
+				if err := db.Put("test", fmt.Sprintf("%d", i), msg); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
 
 func BenchmarkFileDBConcurrent(b *testing.B) {
-	b.StopTimer()
-	db := New(b.TempDir(), true, 1024, 32*units.MiB)
-	msg := make([]byte, 1.5*units.MiB)
-	_, err := rand.Read(msg)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.StartTimer()
-	g, _ := errgroup.WithContext(context.TODO())
-	g.SetLimit(runtime.NumCPU())
-	for i := 0; i < b.N; i++ {
-		ti := i
-		g.Go(func() error {
-			return db.Put("test", fmt.Sprintf("%d", ti), msg)
+	for _, sync := range []bool{true, false} {
+		b.Run(fmt.Sprintf("sync=%v", sync), func(b *testing.B) {
+			b.StopTimer()
+			db := New(b.TempDir(), sync, 1024, 32*units.MiB)
+			msg := make([]byte, 1.5*units.MiB)
+			_, err := rand.Read(msg)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+			g, _ := errgroup.WithContext(context.TODO())
+			g.SetLimit(runtime.NumCPU())
+			for i := 0; i < b.N; i++ {
+				ti := i
+				g.Go(func() error {
+					return db.Put("test", fmt.Sprintf("%d", ti), msg)
+				})
+			}
+			if err := g.Wait(); err != nil {
+				b.Fatal(err)
+			}
 		})
-	}
-	if err := g.Wait(); err != nil {
-		b.Fatal(err)
 	}
 }
