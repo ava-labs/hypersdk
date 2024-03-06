@@ -1,19 +1,13 @@
 extern crate proc_macro;
 
-use core::panic;
-
 use proc_macro::TokenStream;
-use proc_macro2::Span;
 use quote::quote;
 use syn::{
-    parse_macro_input, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Type, Visibility,
+    parse_macro_input, parse_str, spanned::Spanned, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat,
+    PatType, Path, Type, Visibility,
 };
 
-fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
-    quote! {
-        unsafe { wasmlanche_sdk::memory::from_host_ptr(#param_name).expect("error serializing ptr") }
-    }
-}
+const PROGRAM_TYPE: &str = "wasmlanche_sdk::program::Program";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
@@ -24,50 +18,125 @@ fn convert_param(param_name: &Ident) -> proc_macro2::TokenStream {
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
 
-    if !matches!(input.vis, Visibility::Public(_)) {
-        let name = &input.sig.ident;
-        panic!("Function `{name}` must be pub to be marked with the `#[public]` attribute.");
-    }
+    let vis_err = if !matches!(input.vis, Visibility::Public(_)) {
+        let err = syn::Error::new(
+            input.sig.span(),
+            "Functions with the `#[public]` attribute must have `pub` visibility.",
+        );
+
+        Some(err)
+    } else {
+        None
+    };
 
     let name = &input.sig.ident;
     let input_args = &input.sig.inputs;
-    let new_name = Ident::new(&format!("{}_guest", name), name.span()); // Create a new name for the generated function(name that will be called by the host)
-    let empty_param = Ident::new("ctx", Span::call_site()); // Create an empty parameter for the generated function
-    let full_params = input_args.iter().enumerate().map(|(index, fn_arg)| {
-        // A typed argument is a parameter. An untyped (receiver) argument is a `self` parameter.
-        if let FnArg::Typed(PatType { pat, ty, .. }) = fn_arg {
-            // ensure first parameter type is Program
-            if index == 0 && !is_program(ty) {
-                panic!("First parameter must be Program.");
-            }
-            if let Pat::Ident(ref pat_ident) = **pat {
-                return (&pat_ident.ident, quote! { i64 });
-            }
-            // add unused variable
-            if let Pat::Wild(_) = **pat {
-                if is_program(ty) {
-                    return (&empty_param, quote! { i64 });
-                } else {
-                    panic!("Unused variables only supported for Program.")
+    // TODO:
+    // prefix with an underscore
+    let new_name = Ident::new(&format!("{name}_guest"), name.span());
+
+    // to be used as the result below
+    let first_arg_err = match input_args.first() {
+        Some(FnArg::Typed(PatType { ty, .. })) if is_program(ty) => None,
+        arg => {
+            let err = match arg {
+                Some(FnArg::Typed(PatType { ty, .. })) => {
+                    syn::Error::new(
+                        ty.span(),
+                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{PROGRAM_TYPE}`"),
+                    )
                 }
-            }
+                Some(_) => {
+                    syn::Error::new(
+                        arg.span(),
+                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{PROGRAM_TYPE}`"),
+                    )
+                }
+                None => {
+                    syn::Error::new(
+                        input.sig.paren_token.span.join(),
+                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{PROGRAM_TYPE}`"),
+                    )
+                }
+            };
+
+            Some(err)
         }
-        panic!("Unsupported function parameter format.");
+    };
+
+    let param_idents = input_args
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(i, fn_arg)| match fn_arg {
+            FnArg::Receiver(_) => Err(syn::Error::new(
+                fn_arg.span(),
+                "Functions with the `#[public]` attribute cannot have a `self` parameter.",
+            )),
+            FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
+                // TODO:
+                // we should likely remove this constraint. If we provide upgradability
+                // in the future, we may not want to change the function signature
+                // which means we might want wildcards in order to help produce stable APIs
+                Pat::Wild(_) => Err(syn::Error::new(
+                    fn_arg.span(),
+                    "Functions with the `#[public]` attribute can only ignore the first parameter.",
+                )),
+                _ => Ok(Ident::new(&format!("param_{i}"), fn_arg.span())),
+            },
+        });
+
+    let result = match (vis_err, first_arg_err) {
+        (None, None) => Ok(vec![]),
+        (Some(err), None) | (None, Some(err)) => Err(err),
+        (Some(mut vis_err), Some(first_arg_err)) => {
+            vis_err.combine(first_arg_err);
+            Err(vis_err)
+        }
+    };
+
+    let param_names_or_err = param_idents.fold(result, |result, param| match (result, param) {
+        // ignore Ok or first error encountered
+        (Err(errors), Ok(_)) | (Ok(_), Err(errors)) => Err(errors),
+        // combine errors
+        (Err(mut errors), Err(e)) => {
+            errors.combine(e);
+            Err(errors)
+        }
+        // collect results
+        (Ok(mut names), Ok(name)) => {
+            names.push(name);
+            Ok(names)
+        }
     });
 
-    let (param_names, param_types): (Vec<_>, Vec<_>) = full_params.unzip();
-    let converted_params = param_names
-        .iter()
-        .map(|param_name| convert_param(param_name));
+    let param_names = match param_names_or_err {
+        Ok(param_names) => param_names,
+        Err(errors) => return errors.to_compile_error().into(),
+    };
+
+    let converted_params = param_names.iter().map(|param_name| {
+        quote! {
+            unsafe {
+                wasmlanche_sdk::memory::from_host_ptr(#param_name).expect("error serializing ptr")
+            }
+        }
+    });
+
+    let param_types = std::iter::repeat(quote! { i64 }).take(param_names.len());
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
+    let program_type: Path = parse_str(PROGRAM_TYPE).unwrap();
     let output = quote! {
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
-        pub extern "C" fn #new_name(#(#param_names: #param_types), *) #return_type {
-            #name(#(#converted_params),*) // pass in the converted parameters
+        pub extern "C" fn #new_name(param_0: i64, #(#param_names: #param_types), *) #return_type {
+            let param_0: #program_type = unsafe {
+                wasmlanche_sdk::memory::from_host_ptr(param_0).expect("error serializing ptr")
+            };
+            #name(param_0, #(#converted_params),*)
         }
     };
 
@@ -150,10 +219,8 @@ fn generate_to_vec(
 
 /// Returns whether the type_path represents a Program type.
 fn is_program(type_path: &std::boxed::Box<Type>) -> bool {
-    if let Type::Path(ref type_path) = **type_path {
-        let ident = &type_path.path.segments[0].ident;
-        let ident_str = ident.to_string();
-        ident_str == "Program"
+    if let Type::Path(type_path) = type_path.as_ref() {
+        type_path.path.segments.last() == parse_str::<Path>(PROGRAM_TYPE).unwrap().segments.last()
     } else {
         false
     }

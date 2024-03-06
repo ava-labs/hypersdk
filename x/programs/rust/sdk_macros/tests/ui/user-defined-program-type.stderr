@@ -1,0 +1,25 @@
+error[E0308]: mismatched types
+ --> tests/ui/user-defined-program-type.rs:5:1
+  |
+5 | #[public]
+  | ^^^^^^^^^ expected `Program`, found `wasmlanche_sdk::program::Program`
+6 | pub fn test(_: Program) {}
+  |        ---- arguments to this function are incorrect
+  |
+  = note: `wasmlanche_sdk::program::Program` and `Program` have similar names, but are actually distinct types
+note: `wasmlanche_sdk::program::Program` is defined in crate `wasmlanche_sdk`
+ --> $WORKSPACE/x/programs/rust/wasmlanche-sdk/src/program.rs
+  |
+  | pub struct Program([u8; Self::LEN]);
+  | ^^^^^^^^^^^^^^^^^^
+note: `Program` is defined in the current crate
+ --> tests/ui/user-defined-program-type.rs:3:1
+  |
+3 | struct Program;
+  | ^^^^^^^^^^^^^^
+note: function defined here
+ --> tests/ui/user-defined-program-type.rs:6:8
+  |
+6 | pub fn test(_: Program) {}
+  |        ^^^^ ----------
+  = note: this error originates in the attribute macro `public` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,5 @@
+error: Functions with the `#[public]` attribute can only ignore the first parameter.
+ --> tests/ui/wild.rs:6:25
+  |
+6 | pub fn test(_: Program, _: usize) {}
+  |                         ^
