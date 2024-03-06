@@ -313,9 +313,9 @@ func (vm *VM) GetWarpFetch(txID ids.ID) (int64, error) {
 	return int64(binary.BigEndian.Uint64(v)), nil
 }
 
-// TODO: read directories on restart to determine if should clean
-func ChunkDirectory(slot int64) string {
-	return fmt.Sprintf("c%s", strconv.FormatInt(slot, 10))
+// TODO: read blobDB on restart to determine what should clean
+func ChunkFile(slot int64, id ids.ID) string {
+	return fmt.Sprintf("c-%s-%s", strconv.FormatInt(slot, 10), id.String())
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
@@ -327,7 +327,7 @@ func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(ChunkDirectory(chunk.Slot), cid.String(), b)
+	return vm.blobDB.Put(ChunkFile(chunk.Slot, cid), b)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
