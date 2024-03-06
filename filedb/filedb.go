@@ -42,11 +42,12 @@ func (f *FileDB) Put(key string, value []byte) error {
 	}
 	defer file.Close()
 
-	diskValue := make([]byte, consts.IDLen+len(value))
 	vid := utils.ToID(value)
-	copy(diskValue, vid[:])
-	copy(diskValue[consts.IDLen:], value)
-	_, err = file.Write(diskValue)
+	_, err = file.Write(vid[:])
+	if err != nil {
+		return fmt.Errorf("%w: unable to write to file", err)
+	}
+	_, err = file.Write(value)
 	if err != nil {
 		return fmt.Errorf("%w: unable to write to file", err)
 	}
