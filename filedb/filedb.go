@@ -1,4 +1,4 @@
-package flatdb
+package filedb
 
 import (
 	"fmt"
