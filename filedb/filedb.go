@@ -4,23 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/hypersdk/lockmap"
 )
-
-type holderLock struct {
-	holders int
-	lock    sync.RWMutex
-}
 
 type FileDB struct {
 	baseDir string
 	sync    bool
 
-	usedFilesLock sync.Mutex
-	usedFiles     map[string]*holderLock
+	lm *lockmap.Lockmap
 
 	fileCache cache.Cacher[string, []byte]
 }
@@ -29,54 +23,15 @@ func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
 	return &FileDB{
 		baseDir:   baseDir,
 		sync:      sync,
-		usedFiles: make(map[string]*holderLock),
+		lm:        lockmap.New(16), // concurrent locks
 		fileCache: cache.NewSizedLRU[string, []byte](dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
 	}
 }
 
-func (f *FileDB) lockFile(path string, write bool) {
-	f.usedFilesLock.Lock()
-	hl, exists := f.usedFiles[path]
-	if exists {
-		hl.holders++
-		f.usedFilesLock.Unlock()
-		if write {
-			hl.lock.Lock()
-		} else {
-			hl.lock.RLock()
-		}
-		return
-	}
-	hl = &holderLock{holders: 1}
-	if write {
-		hl.lock.Lock()
-	} else {
-		hl.lock.RLock()
-	}
-	f.usedFiles[path] = hl
-	f.usedFilesLock.Unlock()
-}
-
-func (f *FileDB) releaseFile(path string, write bool) {
-	f.usedFilesLock.Lock()
-	hl := f.usedFiles[path]
-	if hl.holders > 1 {
-		hl.holders--
-		if write {
-			hl.lock.Unlock()
-		} else {
-			hl.lock.RUnlock()
-		}
-	} else {
-		delete(f.usedFiles, path)
-	}
-	f.usedFilesLock.Unlock()
-}
-
 func (f *FileDB) Put(key string, value []byte) error {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath, true)
-	defer f.releaseFile(filePath, true)
+	f.lm.Lock(filePath)
+	defer f.lm.Unlock(filePath)
 
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -99,8 +54,8 @@ func (f *FileDB) Put(key string, value []byte) error {
 
 func (f *FileDB) Get(key string) ([]byte, error) {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath, false)
-	defer f.releaseFile(filePath, false)
+	f.lm.RLock(filePath)
+	defer f.lm.RUnlock(filePath)
 
 	if value, exists := f.fileCache.Get(filePath); exists {
 		return value, nil
@@ -127,8 +82,8 @@ func (f *FileDB) Get(key string) ([]byte, error) {
 
 func (f *FileDB) Has(key string) (bool, error) {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath, false)
-	defer f.releaseFile(filePath, false)
+	f.lm.RLock(filePath)
+	defer f.lm.RUnlock(filePath)
 
 	if _, exists := f.fileCache.Get(filePath); exists {
 		return true, nil
@@ -146,8 +101,8 @@ func (f *FileDB) Has(key string) (bool, error) {
 
 func (f *FileDB) Remove(key string) error {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lockFile(filePath, true)
-	defer f.releaseFile(filePath, true)
+	f.lm.Lock(filePath)
+	defer f.lm.Unlock(filePath)
 
 	if err := os.Remove(filePath); err != nil {
 		return err
