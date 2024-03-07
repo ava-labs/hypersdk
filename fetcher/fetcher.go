@@ -90,7 +90,7 @@ func (f *Fetcher) runWorker() {
 
 			// Allows concurrent reads to cache.
 			if exists := f.has(t.key); exists {
-				f.updateDependencies(t.key)
+				// If it's in cache, the queue will already be empty
 				continue
 			}
 
