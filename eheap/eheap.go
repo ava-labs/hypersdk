@@ -42,6 +42,10 @@ func (eh *ExpiryHeap[T]) Add(item T) {
 	eh.mu.Lock()
 	defer eh.mu.Unlock()
 
+	eh.add(item)
+}
+
+func (eh *ExpiryHeap[T]) add(item T) {
 	itemID := item.ID()
 	poolLen := eh.minHeap.Len()
 	eh.minHeap.Push(&heap.Entry[T, int64]{
@@ -72,7 +76,7 @@ func (eh *ExpiryHeap[T]) Update(item T) {
 	itemID := item.ID()
 	minEntry, ok := eh.minHeap.Get(itemID) // O(1)
 	if !ok {
-		eh.Add(item)
+		eh.add(item)
 		return
 	}
 	minEntry.Item = item
@@ -112,7 +116,7 @@ func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
 			break
 		}
 		if min.Expiry() < val {
-			eh.PopMin() // Assumes that there is not concurrent access to [ExpiryHeap]
+			eh.popMin() // Assumes that there is not concurrent access to [ExpiryHeap]
 			removed = append(removed, min)
 			continue
 		}
@@ -142,6 +146,10 @@ func (eh *ExpiryHeap[T]) PopMin() (T, bool) {
 	eh.mu.Lock()
 	defer eh.mu.Unlock()
 
+	return eh.popMin()
+}
+
+func (eh *ExpiryHeap[T]) popMin() (T, bool) {
 	first := eh.minHeap.First()
 	if first == nil {
 		return *new(T), false
