@@ -807,6 +807,7 @@ func (c *ChunkManager) SetBuildableMin(ctx context.Context, t int64) {
 	c.certs.SetMin(ctx, t)
 }
 
+// Remove chunks we included in a block to accurately account for unused chunks
 func (c *ChunkManager) RemoveStored(chunk ids.ID) {
 	c.stored.Remove(chunk)
 }
