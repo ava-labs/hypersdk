@@ -31,8 +31,9 @@ type Fetcher struct {
 	stop      chan struct{}
 	err       error
 	fetchable chan *task
-	l         sync.Mutex
+	l         sync.RWMutex
 	wg        sync.WaitGroup
+	done      bool
 
 	completed int
 	numTxs    int
@@ -88,7 +89,7 @@ func (f *Fetcher) runWorker() {
 			}
 
 			// Allows concurrent reads to cache.
-			if exists := f.check(t); exists {
+			if ok = f.check(t); ok {
 				continue
 			}
 
@@ -115,7 +116,6 @@ func (f *Fetcher) runWorker() {
 				})
 				return
 			}
-
 			f.update(t.key, v, true, numChunks)
 		case <-f.stop:
 			return
@@ -123,8 +123,8 @@ func (f *Fetcher) runWorker() {
 	}()
 }
 
-// Checks if a key is in the cache or if it's not in cache, if we
-// were the first to request the key.
+// Checks if a key is in the cache. If it's not in cache, check
+// if we were the first to request the key.
 func (f *Fetcher) check(t *task) bool {
 	f.keyLock.RLock()
 	defer f.keyLock.RUnlock()
@@ -189,9 +189,12 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	}
 	f.keyLock.Unlock()
 
+	if done := f.stopped(); done {
+		return wg // counter is zero
+	}
+
 	// Create wg based on number of keys we need to wait on
 	wg.Add(len(tasks))
-
 	for _, t := range tasks {
 		f.fetchable <- t
 	}
@@ -205,6 +208,7 @@ func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uin
 	f.l.Lock()
 	f.completed++
 	if f.completed == f.numTxs {
+		f.done = true
 		close(f.fetchable)
 	}
 	f.l.Unlock()
@@ -228,9 +232,18 @@ func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uin
 	return reads, storage
 }
 
+// Check if fetcher is stopped
+func (f *Fetcher) stopped() bool {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
+	return f.done || f.err != nil
+}
+
 func (f *Fetcher) Stop() {
 	f.stopOnce.Do(func() {
 		f.err = ErrStopped
+		f.done = true
 		close(f.fetchable)
 		close(f.stop)
 	})
