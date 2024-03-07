@@ -33,6 +33,7 @@ type Parser interface {
 }
 
 type Metrics interface {
+	RecordWaitAuth(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitCommit(time.Duration)
 

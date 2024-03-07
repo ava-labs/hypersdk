@@ -58,6 +58,12 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
 			utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_auth_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}auth wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_auth_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_auth_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}auth wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_commit_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}commit wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
@@ -106,8 +112,8 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_process_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}block process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/5", chainID))
-			utils.Outf("{{yellow}}block execute [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_block_execute_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}block execute [async] (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s]))", chainID, chainID, chainID))
 			utils.Outf("{{yellow}}intermediate node cache hit rate:{{/}} %s\n", panels[len(panels)-1])

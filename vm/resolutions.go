@@ -442,6 +442,10 @@ func (vm *VM) StateManager() chain.StateManager {
 	return vm.c.StateManager()
 }
 
+func (vm *VM) RecordWaitAuth(t time.Duration) {
+	vm.metrics.waitAuth.Observe(float64(t))
+}
+
 func (vm *VM) RecordWaitCommit(t time.Duration) {
 	vm.metrics.waitCommit.Observe(float64(t))
 }

@@ -42,6 +42,7 @@ type Metrics struct {
 	chunksReceived        prometheus.Counter
 	sigsReceived          prometheus.Counter
 	certsReceived         prometheus.Counter
+	waitAuth              metric.Averager
 	waitCommit            metric.Averager
 	waitExec              metric.Averager
 	chunkBuild            metric.Averager
@@ -58,6 +59,15 @@ type Metrics struct {
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
+	waitAuth, err := metric.NewAverager(
+		"chain",
+		"wait_auth",
+		"time spent waiting for auth",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	waitCommit, err := metric.NewAverager(
 		"chain",
 		"wait_commit",
@@ -231,6 +241,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "certs_received",
 			Help:      "certificates received from validators",
 		}),
+		waitAuth:     waitAuth,
 		waitCommit:   waitCommit,
 		waitExec:     waitExec,
 		chunkBuild:   chunkBuild,

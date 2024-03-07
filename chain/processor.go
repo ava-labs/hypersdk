@@ -3,7 +3,9 @@ package chain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -39,6 +41,8 @@ type Processor struct {
 	results [][]*Result
 
 	frozenSponsors set.Set[string]
+
+	authWait time.Duration
 }
 
 type blockLoc struct {
@@ -359,6 +363,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// Enqueue transaction for execution
 		//
 		// TODO: consider putting in a goroutine
+		authStart := time.Now()
 		msg, err := tx.Digest()
 		if err != nil {
 			p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -377,10 +382,15 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
 			continue
 		}
+		p.authWait += time.Since(authStart)
 		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
 	}
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
-	return p.txs, p.ts, p.results, p.exectutor.Wait()
+	if err := p.exectutor.Wait(); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
+	}
+	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting
+	return p.txs, p.ts, p.results, nil
 }
