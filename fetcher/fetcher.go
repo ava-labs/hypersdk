@@ -19,9 +19,8 @@ import (
 // a value is only fetched from disk once. Subsequent
 // requests can be retrieved from cache.
 type Fetcher struct {
-	im        state.Immutable
-	cacheLock sync.RWMutex
-	cache     map[string]*fetchData
+	im    state.Immutable
+	cache map[string]*fetchData
 
 	keysToFetch map[string]*keyData        // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
@@ -89,29 +88,14 @@ func (f *Fetcher) runWorker() {
 			}
 
 			// Allows concurrent reads to cache.
-			if exists := f.has(t.key); exists {
-				// If it's in cache, the queue will already be empty
-				continue
-			}
-
-			// Doesn't exist in cache, check if we were the first to
-			// request the key.
-			f.keyLock.RLock()
-			var firstTx ids.ID
-			if len(f.keysToFetch[t.key].queue) > 0 {
-				firstTx = f.keysToFetch[t.key].queue[0]
-			}
-			f.keyLock.RUnlock()
-			if firstTx != t.id {
-				// Fetch other keys instead
+			if exists := f.check(t); exists {
 				continue
 			}
 
 			// Fetch from disk once if key isn't already in cache
 			v, err := f.im.GetValue(t.ctx, []byte(t.key))
 			if errors.Is(err, database.ErrNotFound) {
-				f.updateCache(t.key, nil, false, 0)
-				f.updateDependencies(t.key)
+				f.update(t.key, nil, false, 0)
 				continue
 			} else if err != nil {
 				f.stopOnce.Do(func() {
@@ -132,36 +116,37 @@ func (f *Fetcher) runWorker() {
 				return
 			}
 
-			f.updateCache(t.key, v, true, numChunks)
-			f.updateDependencies(t.key)
+			f.update(t.key, v, true, numChunks)
 		case <-f.stop:
 			return
 		}
 	}()
 }
 
-// Checks if a key is in the cache.
-func (f *Fetcher) has(k string) bool {
-	f.cacheLock.RLock()
-	defer f.cacheLock.RUnlock()
+// Checks if a key is in the cache or if it's not in cache, if we
+// were the first to request the key.
+func (f *Fetcher) check(t *task) bool {
+	f.keyLock.RLock()
+	defer f.keyLock.RUnlock()
 
-	_, exists := f.cache[k]
+	_, exists := f.cache[t.key]
+	if !exists {
+		queue := f.keysToFetch[t.key].queue
+		if len(queue) > 0 && queue[0] != t.id {
+			// Fetch other keys instead
+			return true
+		}
+	}
 	return exists
 }
 
-// Puts a key that was fetched from disk into cache
-func (f *Fetcher) updateCache(k string, v []byte, exists bool, chunks uint16) {
-	f.cacheLock.Lock()
-	defer f.cacheLock.Unlock()
-
-	f.cache[k] = &fetchData{v, exists, chunks}
-}
-
-// After fetching a key, decrement the tx count that was waiting on the key.
-// This function is only called by the worker.
-func (f *Fetcher) updateDependencies(k string) {
+// Updates the cache and dependencies
+func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 	f.keyLock.Lock()
 	defer f.keyLock.Unlock()
+
+	// Puts a key that was fetched from disk into cache
+	f.cache[k] = &fetchData{v, exists, chunks}
 
 	txIDs := f.keysToFetch[k].queue
 	f.txnLock.Lock()
@@ -224,8 +209,8 @@ func (f *Fetcher) Wait(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uin
 	}
 	f.l.Unlock()
 
-	f.cacheLock.Lock()
-	defer f.cacheLock.Unlock()
+	f.keyLock.Lock()
+	defer f.keyLock.Unlock()
 
 	// Fetch keys from cache
 	var (
