@@ -106,8 +106,6 @@ func (f *Fetcher) runWorker() {
 				return
 			}
 
-			// We verify that the [NumChunks] is already less than the number
-			// added on the write path, so we don't need to do so again here.
 			numChunks, ok := keys.NumChunks(v)
 			if !ok {
 				f.stopOnce.Do(func() {
@@ -148,18 +146,13 @@ func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 	// Puts a key that was fetched from disk into cache
 	f.cache[k] = &fetchData{v, exists, chunks}
 
-	txIDs := f.keysToFetch[k].queue
 	f.txnLock.Lock()
-	for _, id := range txIDs {
+	for _, id := range f.keysToFetch[k].queue {
 		f.txnsToFetch[id].Done() // Notify all other txs
 	}
 	f.txnLock.Unlock()
 	f.keysToFetch[k].queue = nil
-
-	// When the cache check calls this, it should already be true
-	if !f.keysToFetch[k].fetched {
-		f.keysToFetch[k].fetched = true
-	}
+	f.keysToFetch[k].fetched = true
 }
 
 // Lookup enqueues keys for the workers to fetch
