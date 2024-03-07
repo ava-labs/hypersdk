@@ -65,7 +65,7 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		cache:       make(map[string]*fetchData, numTxs),
 		keysToFetch: make(map[string]*keyData),
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
-		fetchable:   make(chan *task),
+		fetchable:   make(chan *task, numTxs),
 		stop:        make(chan struct{}),
 		numTxs:      numTxs,
 	}
