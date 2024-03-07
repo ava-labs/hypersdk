@@ -134,7 +134,10 @@ type ChunkManager struct {
 
 	txs *cache.FIFO[ids.ID, any]
 
-	built *emap.EMap[*chunkWrapper]
+	built   *emap.EMap[*chunkWrapper]
+	pending *eheap.ExpiryHeap[*chunkWrapper] // tracks all chunks we've stored, so we can delete them if not used
+
+	// TODO: track which chunks we've received per nodeID per slot
 
 	certs *CertStore
 
@@ -175,8 +178,9 @@ func NewChunkManager(vm *VM) *ChunkManager {
 
 		txs: cache,
 
-		built: emap.NewEMap[*chunkWrapper](),
-		certs: NewCertStore(),
+		built:   emap.NewEMap[*chunkWrapper](),
+		pending: eheap.New[*chunkWrapper](64),
+		certs:   NewCertStore(),
 
 		callbacks: make(map[uint32]func([]byte)),
 
@@ -238,6 +242,23 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
+		// Check if we already received
+		cid, err := chunk.ID()
+		if err != nil {
+			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		if c.pending.Has(cid) {
+			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cid))
+			return nil
+		}
+
+		// Check if chunk < slot
+		if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
+			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cid))
+			return nil
+		}
+
 		// Check that producer is the sender
 		if chunk.Producer != nodeID {
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
@@ -292,13 +313,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("unable to persist chunk to disk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
+		c.pending.Add(&chunkWrapper{chunk: chunk})
 
 		// Sign chunk
-		cid, err := chunk.ID()
-		if err != nil {
-			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
-			return nil
-		}
 		chunkSignature := &chain.ChunkSignature{
 			Chunk: cid,
 			Slot:  chunk.Slot,
@@ -769,9 +786,22 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 }
 
 // Drop all chunks material that can no longer be included anymore (may have already been included).
-func (c *ChunkManager) SetMin(ctx context.Context, t int64) {
-	c.built.SetMin(t) // discarded chunks will be cleaned up async
+//
+// This functions returns an array of chunkIDs that can be used to delete unused chunks from persistent storage.
+func (c *ChunkManager) SetMin(ctx context.Context, t int64) []ids.ID {
+	c.built.SetMin(t)
 	c.certs.SetMin(ctx, t)
+	chunkWrappers := c.pending.SetMin(t)
+	chunks := make([]ids.ID, 0, len(chunkWrappers))
+	for _, cw := range chunkWrappers {
+		chunks = append(chunks, cw.ID())
+	}
+	return chunks
+}
+
+// SetUsed ensures we don't remove the chunk from storage when it expires
+func (c *ChunkManager) SetUsed(chunk ids.ID) {
+	c.pending.Remove(chunk)
 }
 
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
@@ -830,6 +860,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	// TODO: can probably use uncompressed bytes here
 	cw.signatures[string(bls.PublicKeyToCompressedBytes(chunkSignature.Signer))] = chunkSignature
 	c.built.Add([]*chunkWrapper{cw})
+	c.pending.Add(&chunkWrapper{chunk: chunk})
 
 	// Send chunk to all validators
 	//
@@ -1067,6 +1098,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					if err := c.vm.StoreChunk(chunk); err != nil {
 						return err
 					}
+					c.pending.Add(&chunkWrapper{chunk: chunk})
 					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
 					oc.Add(chunk, i)
 					return nil

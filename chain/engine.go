@@ -75,6 +75,9 @@ func (e *Engine) Run() {
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
 
+			// TODO: pending could be added to the chunk manager after cleared
+
+			// Setup state
 			parentView := e.latestView
 			r := e.vm.Rules(job.blk.StatefulBlock.Timestamp)
 
