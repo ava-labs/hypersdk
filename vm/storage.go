@@ -140,6 +140,7 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 		return vm.RemoveDiskBlock(expiryHeight)
 	})
 	for _, cert := range blk.AvailableChunks {
+		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
 		tcert := cert
 		g.Go(func() error {
 			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
@@ -151,15 +152,24 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 			return vm.RemoveFilteredChunk(tchunk)
 		})
 	}
+	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
+	for _, chunk := range uselessChunks {
+		tchunk := chunk
+		g.Go(func() error {
+			return vm.RemoveChunk(tchunk.slot, tchunk.chunk)
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return err
 	}
 	vm.metrics.deletedBlocks.Inc()
-	vm.metrics.deletedChunks.Add(float64(len(blk.AvailableChunks)))
+	vm.metrics.deletedUselessChunks.Add(float64(len(uselessChunks)))
+	vm.metrics.deletedIncludedChunks.Add(float64(len(blk.AvailableChunks)))
 	vm.metrics.deletedFilteredChunks.Add(float64(len(blk.ExecutedChunks)))
 	vm.Logger().Info(
 		"deleted block",
 		zap.Uint64("height", expiryHeight),
+		zap.Int("uselessChunks", len(uselessChunks)),
 		zap.Int("availableChunks", len(blk.AvailableChunks)),
 		zap.Int("executedChunks", len(blk.ExecutedChunks)),
 		zap.Duration("t", time.Since(start)),

@@ -289,7 +289,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	}
 
 	// Cleanup expired chunks we are tracking and chunk certificates
-	vm.cm.SetMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
+	vm.cm.SetBuildableMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
 
 	// Remove from verified caches
 	//

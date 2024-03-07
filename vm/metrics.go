@@ -33,7 +33,8 @@ type Metrics struct {
 	stateOperations       prometheus.Counter
 	clearedMempool        prometheus.Counter
 	deletedBlocks         prometheus.Counter
-	deletedChunks         prometheus.Counter
+	deletedUselessChunks  prometheus.Counter
+	deletedIncludedChunks prometheus.Counter
 	deletedFilteredChunks prometheus.Counter
 	blocksFromDisk        prometheus.Counter
 	blocksHeightsFromDisk prometheus.Counter
@@ -196,10 +197,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "deleted_blocks",
 			Help:      "number of blocks deleted",
 		}),
-		deletedChunks: prometheus.NewCounter(prometheus.CounterOpts{
+		deletedUselessChunks: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
-			Name:      "deleted_chunks",
-			Help:      "number of chunks deleted",
+			Name:      "deleted_useless_chunks",
+			Help:      "number of useless chunks deleted",
+		}),
+		deletedIncludedChunks: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vm",
+			Name:      "deleted_included_chunks",
+			Help:      "number of included chunks deleted",
 		}),
 		deletedFilteredChunks: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
@@ -265,7 +271,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.stateOperations),
 		r.Register(m.clearedMempool),
 		r.Register(m.deletedBlocks),
-		r.Register(m.deletedChunks),
+		r.Register(m.deletedUselessChunks),
+		r.Register(m.deletedIncludedChunks),
 		r.Register(m.deletedFilteredChunks),
 		r.Register(m.blocksFromDisk),
 		r.Register(m.blocksHeightsFromDisk),

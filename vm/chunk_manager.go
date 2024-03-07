@@ -43,6 +43,19 @@ const (
 	weightDenominator  = 100
 )
 
+type simpleChunkWrapper struct {
+	chunk ids.ID
+	slot  int64
+}
+
+func (scw *simpleChunkWrapper) ID() ids.ID {
+	return scw.chunk
+}
+
+func (scw *simpleChunkWrapper) Expiry() int64 {
+	return scw.slot
+}
+
 type chunkWrapper struct {
 	l sync.Mutex
 
@@ -135,6 +148,10 @@ type ChunkManager struct {
 	txs *cache.FIFO[ids.ID, any]
 
 	built *emap.EMap[*chunkWrapper]
+	// TODO: rebuild stored on startup
+	stored *eheap.ExpiryHeap[*simpleChunkWrapper] // tracks all chunks we've stored, so we can ensure even unused are deleted
+
+	// TODO: track which chunks we've received per nodeID per slot
 
 	certs *CertStore
 
@@ -175,8 +192,9 @@ func NewChunkManager(vm *VM) *ChunkManager {
 
 		txs: cache,
 
-		built: emap.NewEMap[*chunkWrapper](),
-		certs: NewCertStore(),
+		built:  emap.NewEMap[*chunkWrapper](),
+		stored: eheap.New[*simpleChunkWrapper](64),
+		certs:  NewCertStore(),
 
 		callbacks: make(map[uint32]func([]byte)),
 
@@ -238,6 +256,23 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
+		// Check if we already received
+		cid, err := chunk.ID()
+		if err != nil {
+			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		if c.stored.Has(cid) {
+			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cid))
+			return nil
+		}
+
+		// Check if chunk < slot
+		if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
+			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cid))
+			return nil
+		}
+
 		// Check that producer is the sender
 		if chunk.Producer != nodeID {
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
@@ -292,13 +327,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("unable to persist chunk to disk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
+		c.stored.Add(&simpleChunkWrapper{chunk: cid, slot: chunk.Slot})
 
 		// Sign chunk
-		cid, err := chunk.ID()
-		if err != nil {
-			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
-			return nil
-		}
 		chunkSignature := &chain.ChunkSignature{
 			Chunk: cid,
 			Slot:  chunk.Slot,
@@ -769,9 +800,21 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 }
 
 // Drop all chunks material that can no longer be included anymore (may have already been included).
-func (c *ChunkManager) SetMin(ctx context.Context, t int64) {
-	c.built.SetMin(t) // discarded chunks will be cleaned up async
+//
+// This functions returns an array of chunkIDs that can be used to delete unused chunks from persistent storage.
+func (c *ChunkManager) SetBuildableMin(ctx context.Context, t int64) {
+	c.built.SetMin(t)
 	c.certs.SetMin(ctx, t)
+}
+
+// Remove chunks we included in a block to accurately account for unused chunks
+func (c *ChunkManager) RemoveStored(chunk ids.ID) {
+	c.stored.Remove(chunk)
+}
+
+// We keep track of all chunks we've stored, so we can delete them later.
+func (c *ChunkManager) SetStoredMin(t int64) []*simpleChunkWrapper {
+	return c.stored.SetMin(t)
 }
 
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
@@ -830,6 +873,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	// TODO: can probably use uncompressed bytes here
 	cw.signatures[string(bls.PublicKeyToCompressedBytes(chunkSignature.Signer))] = chunkSignature
 	c.built.Add([]*chunkWrapper{cw})
+	c.stored.Add(&simpleChunkWrapper{chunk: cid, slot: chunk.Slot})
 
 	// Send chunk to all validators
 	//
@@ -1067,6 +1111,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					if err := c.vm.StoreChunk(chunk); err != nil {
 						return err
 					}
+					c.stored.Add(&simpleChunkWrapper{chunk: chunkID, slot: cert.Slot})
 					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
 					oc.Add(chunk, i)
 					return nil

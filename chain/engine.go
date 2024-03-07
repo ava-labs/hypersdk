@@ -75,6 +75,7 @@ func (e *Engine) Run() {
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
 
+			// Setup state
 			parentView := e.latestView
 			r := e.vm.Rules(job.blk.StatefulBlock.Timestamp)
 

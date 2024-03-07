@@ -4,6 +4,8 @@
 package eheap
 
 import (
+	"sync"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/heap"
@@ -21,9 +23,9 @@ type Item interface {
 // items can be removed (ExpiryHeap must store each item in the heap
 // instead of grouping by expiry to support this feature, which makes it
 // less efficient).
-//
-// Concurrent access to [ExpiryHeap] is not supported.
 type ExpiryHeap[T Item] struct {
+	mu sync.RWMutex
+
 	minHeap *heap.Heap[T, int64]
 }
 
@@ -37,6 +39,13 @@ func New[T Item](items int) *ExpiryHeap[T] {
 
 // Add pushes [item] to eh.
 func (eh *ExpiryHeap[T]) Add(item T) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+
+	eh.add(item)
+}
+
+func (eh *ExpiryHeap[T]) add(item T) {
 	itemID := item.ID()
 	poolLen := eh.minHeap.Len()
 	eh.minHeap.Push(&heap.Entry[T, int64]{
@@ -48,6 +57,9 @@ func (eh *ExpiryHeap[T]) Add(item T) {
 }
 
 func (eh *ExpiryHeap[T]) Get(id ids.ID) (T, bool) {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
+
 	entry, ok := eh.minHeap.Get(id)
 	if !ok {
 		return *new(T), false
@@ -58,10 +70,13 @@ func (eh *ExpiryHeap[T]) Get(id ids.ID) (T, bool) {
 // Update adds [item] to eh if it does not exist, otherwise it updates the
 // value of [item] in eh.
 func (eh *ExpiryHeap[T]) Update(item T) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+
 	itemID := item.ID()
 	minEntry, ok := eh.minHeap.Get(itemID) // O(1)
 	if !ok {
-		eh.Add(item)
+		eh.add(item)
 		return
 	}
 	minEntry.Item = item
@@ -71,6 +86,13 @@ func (eh *ExpiryHeap[T]) Update(item T) {
 
 // Remove removes [id] from eh. If the id does not exist, Remove returns.
 func (eh *ExpiryHeap[T]) Remove(id ids.ID) (T, bool) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+
+	return eh.remove(id)
+}
+
+func (eh *ExpiryHeap[T]) remove(id ids.ID) (T, bool) {
 	minEntry, ok := eh.minHeap.Get(id) // O(1)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
@@ -84,14 +106,17 @@ func (eh *ExpiryHeap[T]) Remove(id ids.ID) (T, bool) {
 // SetMin removes all elements in eh with a value less than [val]. Returns
 // the list of removed elements.
 func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+
 	removed := []T{}
 	for {
-		min, ok := eh.PeekMin()
+		min, ok := eh.peekMin()
 		if !ok {
 			break
 		}
 		if min.Expiry() < val {
-			eh.PopMin() // Assumes that there is not concurrent access to [ExpiryHeap]
+			eh.popMin() // Assumes that there is not concurrent access to [ExpiryHeap]
 			removed = append(removed, min)
 			continue
 		}
@@ -102,6 +127,13 @@ func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
 
 // PeekMin returns the minimum value in eh.
 func (eh *ExpiryHeap[T]) PeekMin() (T, bool) {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
+
+	return eh.peekMin()
+}
+
+func (eh *ExpiryHeap[T]) peekMin() (T, bool) {
 	first := eh.minHeap.First()
 	if first == nil {
 		return *new(T), false
@@ -111,21 +143,34 @@ func (eh *ExpiryHeap[T]) PeekMin() (T, bool) {
 
 // PopMin removes the minimum value in eh.
 func (eh *ExpiryHeap[T]) PopMin() (T, bool) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+
+	return eh.popMin()
+}
+
+func (eh *ExpiryHeap[T]) popMin() (T, bool) {
 	first := eh.minHeap.First()
 	if first == nil {
 		return *new(T), false
 	}
 	item := first.Item
-	eh.Remove(item.ID())
+	eh.remove(item.ID())
 	return item, true
 }
 
 // Has returns if [item] is in eh.
 func (eh *ExpiryHeap[T]) Has(item ids.ID) bool {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
+
 	return eh.minHeap.Has(item)
 }
 
 // Len returns the number of elements in eh.
 func (eh *ExpiryHeap[T]) Len() int {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
+
 	return eh.minHeap.Len()
 }
