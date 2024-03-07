@@ -85,6 +85,10 @@ func (eh *ExpiryHeap[T]) Remove(id ids.ID) (T, bool) {
 	eh.mu.Lock()
 	defer eh.mu.Unlock()
 
+	return eh.remove(id)
+}
+
+func (eh *ExpiryHeap[T]) remove(id ids.ID) (T, bool) {
 	minEntry, ok := eh.minHeap.Get(id) // O(1)
 	if !ok {
 		// This should never happen, as that would mean the heaps are out of
@@ -103,7 +107,7 @@ func (eh *ExpiryHeap[T]) SetMin(val int64) []T {
 
 	removed := []T{}
 	for {
-		min, ok := eh.PeekMin()
+		min, ok := eh.peekMin()
 		if !ok {
 			break
 		}
@@ -122,6 +126,10 @@ func (eh *ExpiryHeap[T]) PeekMin() (T, bool) {
 	eh.mu.RLock()
 	defer eh.mu.RUnlock()
 
+	return eh.peekMin()
+}
+
+func (eh *ExpiryHeap[T]) peekMin() (T, bool) {
 	first := eh.minHeap.First()
 	if first == nil {
 		return *new(T), false
@@ -139,7 +147,7 @@ func (eh *ExpiryHeap[T]) PopMin() (T, bool) {
 		return *new(T), false
 	}
 	item := first.Item
-	eh.Remove(item.ID())
+	eh.remove(item.ID())
 	return item, true
 }
 
