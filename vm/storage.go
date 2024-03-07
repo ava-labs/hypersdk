@@ -140,7 +140,7 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 		return vm.RemoveDiskBlock(expiryHeight)
 	})
 	for _, cert := range blk.AvailableChunks {
-		vm.cm.RemovePruneable(cert.Chunk)
+		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
 		tcert := cert
 		g.Go(func() error {
 			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
@@ -152,7 +152,7 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 			return vm.RemoveFilteredChunk(tchunk)
 		})
 	}
-	uselessChunks := vm.cm.SetPruneableMin(blk.StatefulBlock.Timestamp)
+	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
 	for _, chunk := range uselessChunks {
 		tchunk := chunk
 		g.Go(func() error {
