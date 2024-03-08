@@ -127,13 +127,7 @@ func (f *Fetcher) shouldFetch(t *task) bool {
 	if f.keysToFetch[t.key].cache != nil {
 		return false
 	}
-
-	queue := f.keysToFetch[t.key].queue
-	if queue[0] != t.id {
-		// Fetch other keys instead
-		return false
-	}
-	return true
+	return f.keysToFetch[t.key].queue[0] == t.id
 }
 
 // Updates the cache and dependencies
