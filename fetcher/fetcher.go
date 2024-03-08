@@ -32,7 +32,6 @@ type Fetcher struct {
 	fetchable chan *task
 	l         sync.RWMutex
 	wg        sync.WaitGroup
-	done      bool
 
 	completed int
 	numTxs    int
@@ -189,9 +188,6 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 
 	f.l.Lock()
 	f.completed++
-	if f.completed == f.numTxs {
-		f.done = true
-	}
 	f.l.Unlock()
 
 	f.keyLock.Lock()
@@ -216,7 +212,6 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 func (f *Fetcher) Stop() {
 	f.stopOnce.Do(func() {
 		f.err = ErrStopped
-		//close(f.fetchable)
 		close(f.stop)
 	})
 }
@@ -224,11 +219,10 @@ func (f *Fetcher) Stop() {
 // Wait until all the workers are done and return any errors
 func (f *Fetcher) Wait() error {
 	f.l.Lock()
-	if f.done {
+	if f.completed == f.numTxs {
 		close(f.fetchable)
 	}
 	f.l.Unlock()
-
 	f.wg.Wait()
 	return f.err
 }

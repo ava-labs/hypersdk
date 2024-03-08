@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-	//"time"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -82,7 +82,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 	require.Equal(numTxs, f.completed)
 }
 
-/*func TestFetchSameKeys(t *testing.T) {
+func TestFetchSameKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
@@ -108,11 +108,11 @@ func TestFetchDifferentKeys(t *testing.T) {
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
+	require.NoError(f.Wait())
 
 	l := len(f.keysToFetch)
 	require.Equal(numTxs, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.Wait())
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
@@ -141,11 +141,11 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
+	require.NoError(f.Wait())
 
 	l := len(f.keysToFetch)
 	require.Equal(numTxs, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.Wait())
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
@@ -171,11 +171,11 @@ func TestFetchKeysWithValues(t *testing.T) {
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
+	require.NoError(f.Wait())
 
 	l := len(f.keysToFetch)
 	require.Equal(numTxs, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.Wait())
 }
 
 func TestFetcherStop(t *testing.T) {
@@ -195,7 +195,7 @@ func TestFetcherStop(t *testing.T) {
 		wg := f.Lookup(ctx, txID, stateKeys)
 		_, _ = f.Get(wg, stateKeys)
 	}
+	require.Equal(ErrStopped, f.Wait())
 	require.Less(len(f.keysToFetch), 4)
 	require.Equal(3, f.completed)
-	require.Equal(ErrStopped, f.Wait())
-}*/
+}
