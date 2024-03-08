@@ -119,6 +119,7 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
+			startProcessor := time.Now()
 			p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
@@ -135,6 +136,7 @@ func (e *Engine) Run() {
 				e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
 				return
 			}
+			e.vm.RecordWaitProcessor(time.Since(startProcessor))
 
 			// TODO: pay beneficiary all tips for processing chunk
 			//

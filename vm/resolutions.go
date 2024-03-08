@@ -448,12 +448,16 @@ func (vm *VM) RecordWaitAuth(t time.Duration) {
 	vm.metrics.waitAuth.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitCommit(t time.Duration) {
-	vm.metrics.waitCommit.Observe(float64(t))
-}
-
 func (vm *VM) RecordWaitExec(t time.Duration) {
 	vm.metrics.waitExec.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitProcessor(t time.Duration) {
+	vm.metrics.waitProcessor.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitCommit(t time.Duration) {
+	vm.metrics.waitCommit.Observe(float64(t))
 }
 
 func (vm *VM) RecordStateChanges(c int) {

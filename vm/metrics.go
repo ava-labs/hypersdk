@@ -45,6 +45,7 @@ type Metrics struct {
 	certsReceived         prometheus.Counter
 	waitAuth              metric.Averager
 	waitExec              metric.Averager
+	waitProcessor         metric.Averager
 	waitCommit            metric.Averager
 	chunkBuild            metric.Averager
 	blockBuild            metric.Averager
@@ -74,6 +75,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_exec",
 		"time spent waiting for execution after auth finishes",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitProcessor, err := metric.NewAverager(
+		"chain",
+		"wait_processor",
+		"time spent waiting for processor (auth + exec)",
 		r,
 	)
 	if err != nil {
@@ -257,17 +267,18 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "certs_received",
 			Help:      "certificates received from validators",
 		}),
-		waitAuth:     waitAuth,
-		waitExec:     waitExec,
-		waitCommit:   waitCommit,
-		chunkBuild:   chunkBuild,
-		blockBuild:   blockBuild,
-		blockParse:   blockParse,
-		blockVerify:  blockVerify,
-		blockAccept:  blockAccept,
-		blockProcess: blockProcess,
-		blockExecute: blockExecute,
-		chunkProcess: chunkProcess,
+		waitAuth:      waitAuth,
+		waitExec:      waitExec,
+		waitProcessor: waitProcessor,
+		waitCommit:    waitCommit,
+		chunkBuild:    chunkBuild,
+		blockBuild:    blockBuild,
+		blockParse:    blockParse,
+		blockVerify:   blockVerify,
+		blockAccept:   blockAccept,
+		blockProcess:  blockProcess,
+		blockExecute:  blockExecute,
+		chunkProcess:  chunkProcess,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
