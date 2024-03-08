@@ -156,9 +156,6 @@ func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 // Invariant: Don't call [Lookup] afer calling [Stop]
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
-	f.txnLock.Lock()
-	f.txnsToFetch[txID] = wg
-	f.txnLock.Unlock()
 
 	f.keyLock.Lock()
 	tasks := make([]*task, 0, len(stateKeys))
@@ -178,10 +175,13 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		}
 		tasks = append(tasks, t)
 	}
+	wg.Add(len(tasks))
 	f.keyLock.Unlock()
 
-	// Create wg based on number of keys we need to wait on
-	wg.Add(len(tasks))
+	f.txnLock.Lock()
+	f.txnsToFetch[txID] = wg
+	f.txnLock.Unlock()
+
 	for _, t := range tasks {
 		f.fetchable <- t
 	}
