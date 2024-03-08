@@ -44,8 +44,8 @@ type Metrics struct {
 	sigsReceived          prometheus.Counter
 	certsReceived         prometheus.Counter
 	waitAuth              metric.Averager
-	waitCommit            metric.Averager
 	waitExec              metric.Averager
+	waitCommit            metric.Averager
 	chunkBuild            metric.Averager
 	blockBuild            metric.Averager
 	blockParse            metric.Averager
@@ -69,19 +69,19 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	waitCommit, err := metric.NewAverager(
+	waitExec, err := metric.NewAverager(
 		"chain",
-		"wait_commit",
-		"time spent waiting to commit state in execution",
+		"wait_exec",
+		"time spent waiting for execution after auth finishes",
 		r,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	waitExec, err := metric.NewAverager(
+	waitCommit, err := metric.NewAverager(
 		"chain",
-		"wait_exec",
-		"time spent waiting for execution in verify",
+		"wait_commit",
+		"time spent waiting to commit state after execution",
 		r,
 	)
 	if err != nil {
@@ -248,8 +248,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "certificates received from validators",
 		}),
 		waitAuth:     waitAuth,
-		waitCommit:   waitCommit,
 		waitExec:     waitExec,
+		waitCommit:   waitCommit,
 		chunkBuild:   chunkBuild,
 		blockBuild:   blockBuild,
 		blockParse:   blockParse,
