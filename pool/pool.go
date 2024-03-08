@@ -9,7 +9,7 @@ import (
 
 type task struct {
 	i int
-	f func() (func() error, error)
+	f func() (func(), error)
 }
 
 type Pool struct {
@@ -22,7 +22,7 @@ type Pool struct {
 	workClose sync.Once
 
 	processedL sync.Mutex
-	processedM map[int]func() error
+	processedM map[int]func()
 	toProcess  int
 
 	err uatomic.Error
@@ -34,7 +34,7 @@ func New(maxWorkers int) *Pool {
 	return &Pool{
 		workerSpawner: make(chan struct{}, maxWorkers),
 		work:          make(chan *task),
-		processedM:    make(map[int]func() error),
+		processedM:    make(map[int]func()),
 	}
 }
 
@@ -52,7 +52,7 @@ func (p *Pool) runTask(t *task) {
 	// Run available functions
 	p.processedL.Lock()
 	defer p.processedL.Unlock()
-	funcs := []func() error{}
+	funcs := []func(){}
 	if t.i != p.toProcess {
 		p.processedM[t.i] = f
 	} else {
@@ -74,10 +74,7 @@ func (p *Pool) runTask(t *task) {
 		if f == nil {
 			continue
 		}
-		if err := f(); err != nil {
-			p.err.CompareAndSwap(nil, err)
-			return
-		}
+		f()
 	}
 }
 
@@ -109,7 +106,7 @@ func (p *Pool) startWorker(t *task) {
 //
 // If the pool has errored, Go will not execute the function and will return immediately.
 // This means that enqueued functions may never be executed.
-func (p *Pool) Go(f func() (func() error, error)) {
+func (p *Pool) Go(f func() (func(), error)) {
 	if p.err.Load() != nil {
 		return
 	}
