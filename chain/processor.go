@@ -259,12 +259,14 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
+	rstart := time.Now()
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
 		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
+	p.vm.Logger().Info("repeat tx check", zap.Duration("duration", time.Since(rstart)))
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
@@ -394,8 +396,10 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 		return nil, nil, nil, fmt.Errorf("%w: auth pool failed", err)
 	}
 	p.vm.RecordWaitAuth(time.Since(authStart)) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
+	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
+	p.vm.Logger().Info("executor wait", zap.Duration("duration", time.Since(exectutorStart)))
 	return p.txs, p.ts, p.results, nil
 }
