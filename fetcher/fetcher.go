@@ -32,7 +32,6 @@ type Fetcher struct {
 	fetchable chan *task
 	l         sync.RWMutex
 	wg        sync.WaitGroup
-	done      bool
 
 	completed int
 	numTxs    int
@@ -154,6 +153,7 @@ func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 }
 
 // Lookup enqueues keys for the workers to fetch
+// Invariant: Don't call [Lookup] afer calling [Stop]
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
 	f.txnLock.Lock()
@@ -180,10 +180,6 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	}
 	f.keyLock.Unlock()
 
-	if done := f.stopped(); done {
-		return wg // counter is zero
-	}
-
 	// Create wg based on number of keys we need to wait on
 	wg.Add(len(tasks))
 	for _, t := range tasks {
@@ -199,7 +195,6 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 	f.l.Lock()
 	f.completed++
 	if f.completed == f.numTxs {
-		f.done = true
 		close(f.fetchable)
 	}
 	f.l.Unlock()
@@ -223,18 +218,9 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 	return reads, storage
 }
 
-// Check if fetcher is stopped
-func (f *Fetcher) stopped() bool {
-	f.l.RLock()
-	defer f.l.RUnlock()
-
-	return f.done || f.err != nil
-}
-
 func (f *Fetcher) Stop() {
 	f.stopOnce.Do(func() {
 		f.err = ErrStopped
-		f.done = true
 		close(f.fetchable)
 		close(f.stop)
 	})
