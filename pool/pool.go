@@ -3,11 +3,13 @@ package pool
 import (
 	"sync"
 	"sync/atomic"
+
+	uatomic "go.uber.org/atomic"
 )
 
 type task struct {
 	i int
-	f func() func()
+	f func() (func() error, error)
 }
 
 type Pool struct {
@@ -20,8 +22,10 @@ type Pool struct {
 	workClose sync.Once
 
 	processedL sync.Mutex
-	processedM map[int]func()
+	processedM map[int]func() error
 	toProcess  int
+
+	err uatomic.Error
 }
 
 // New returns an instance of [Pool] that
@@ -30,16 +34,25 @@ func New(maxWorkers int) *Pool {
 	return &Pool{
 		workerSpawner: make(chan struct{}, maxWorkers),
 		work:          make(chan *task),
-		processedM:    make(map[int]func()),
+		processedM:    make(map[int]func() error),
 	}
 }
 
 func (p *Pool) runTask(t *task) {
-	f := t.f()
+	if p.err.Load() != nil {
+		return
+	}
+
+	f, err := t.f()
+	if err != nil {
+		p.err.CompareAndSwap(nil, err)
+		return
+	}
 
 	// Run available functions
-	funcs := []func(){}
 	p.processedL.Lock()
+	defer p.processedL.Unlock()
+	funcs := []func() error{}
 	if t.i != p.toProcess {
 		p.processedM[t.i] = f
 	} else {
@@ -58,11 +71,14 @@ func (p *Pool) runTask(t *task) {
 	// We must execute these functions with the lock held
 	// to ensure they are executed in the correct order.
 	for _, f := range funcs {
-		if f != nil {
-			f()
+		if f == nil {
+			continue
+		}
+		if err := f(); err != nil {
+			p.err.CompareAndSwap(nil, err)
+			return
 		}
 	}
-	p.processedL.Unlock()
 }
 
 // startWorker creates a new goroutine to execute [f] immediately and then keeps the goroutine
@@ -90,7 +106,14 @@ func (p *Pool) startWorker(t *task) {
 // Go must not be called after Wait, otherwise it might panic.
 //
 // Go should not be called concurrently from multiple goroutines.
-func (p *Pool) Go(f func() func()) {
+//
+// If the pool has errored, Go will not execute the function and will return immediately.
+// This means that enqueued functions may never be executed.
+func (p *Pool) Go(f func() (func() error, error)) {
+	if p.err.Load() != nil {
+		return
+	}
+
 	t := &task{i: p.enqueued, f: f}
 	p.enqueued++
 
@@ -122,5 +145,5 @@ func (p *Pool) Wait() (int, error) {
 		close(p.work)
 	})
 	p.outstandingWorkers.Wait()
-	return int(p.workerCount.Load()), nil
+	return int(p.workerCount.Load()), p.err.Load()
 }
