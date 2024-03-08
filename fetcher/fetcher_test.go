@@ -54,9 +54,9 @@ func TestFetchDifferentKeys(t *testing.T) {
 		numTxs  = 100
 		f       = New(numTxs, 4, newTestDB())
 		ctx     = context.TODO()
-		//wg      sync.WaitGroup
+		wg      sync.WaitGroup
 	)
-	//wg.Add(numTxs)
+	wg.Add(numTxs)
 
 	for i := 0; i < numTxs; i++ {
 		stateKeys := make(state.Keys, (i + 1))
@@ -69,11 +69,11 @@ func TestFetchDifferentKeys(t *testing.T) {
 		// fetch each key from disk
 		fwg := f.Lookup(ctx, txID, stateKeys)
 		go func(sk state.Keys, fwg *sync.WaitGroup) {
-			//defer wg.Done()
+			defer wg.Done()
 			_, _ = f.Get(fwg, sk)
 		}(stateKeys, fwg)
 	}
-	//wg.Wait()
+	wg.Wait()
 	require.NoError(f.Wait())
 
 	// There should be 5050 different keys now in the cache
