@@ -1018,7 +1018,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
-		f := pool.New(4) // TODO: use config
+		f := pool.New(4, len(certs)) // TODO: use config
 		for _, rcert := range certs {
 			cert := rcert
 			f.Go(func() (func(), error) {

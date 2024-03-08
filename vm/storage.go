@@ -134,12 +134,15 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 	}
 	// Because fileDB operates directly over an SSD, we can take advantage of the ability
 	// to perform concurrent file operations (which are not possible in PebbleDB).
-	w := pool.New(diskConcurrency)
+	for _, cert := range blk.AvailableChunks {
+		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
+	}
+	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
+	w := pool.New(diskConcurrency, len(blk.AvailableChunks)+len(blk.ExecutedChunks)+len(uselessChunks))
 	w.Go(func() (func(), error) {
 		return nil, vm.RemoveDiskBlock(expiryHeight)
 	})
 	for _, cert := range blk.AvailableChunks {
-		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
 		tcert := cert
 		w.Go(func() (func(), error) {
 			return nil, vm.RemoveChunk(tcert.Slot, tcert.Chunk)
@@ -151,7 +154,6 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 			return nil, vm.RemoveFilteredChunk(tchunk)
 		})
 	}
-	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
 	for _, chunk := range uselessChunks {
 		tchunk := chunk
 		w.Go(func() (func(), error) {

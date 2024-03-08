@@ -13,13 +13,14 @@ type task struct {
 }
 
 type Pool struct {
+	enqueued   int
+	queue      chan *task
+	queueClose sync.Once
+
 	workerCount        atomic.Int32
 	workerSpawner      chan struct{}
 	outstandingWorkers sync.WaitGroup
-
-	enqueued  int
-	work      chan *task
-	workClose sync.Once
+	work               chan *task
 
 	processedL sync.Mutex
 	processedM map[int]func()
@@ -30,11 +31,35 @@ type Pool struct {
 
 // New returns an instance of [Pool] that
 // will spawn up to [max] goroutines.
-func New(maxWorkers int) *Pool {
-	return &Pool{
-		workerSpawner: make(chan struct{}, maxWorkers),
+func New(workers, backlog int) *Pool {
+	p := &Pool{
+		queue:         make(chan *task, backlog),
+		workerSpawner: make(chan struct{}, workers),
 		work:          make(chan *task),
 		processedM:    make(map[int]func()),
+	}
+	go p.run()
+	return p
+}
+
+func (p *Pool) run() {
+	defer close(p.work)
+
+	for t := range p.queue {
+		// Ensure we feed idle workers first
+		select {
+		case p.work <- t:
+			return
+		default:
+		}
+
+		// Fallback to waiting for an idle worker or allocating
+		// a new worker (if we aren't yet at max concurrency)
+		select {
+		case p.work <- t:
+		case p.workerSpawner <- struct{}{}:
+			p.startWorker(t)
+		}
 	}
 }
 
@@ -113,21 +138,7 @@ func (p *Pool) Go(f func() (func(), error)) {
 
 	t := &task{i: p.enqueued, f: f}
 	p.enqueued++
-
-	// Ensure we feed idle workers first
-	select {
-	case p.work <- t:
-		return
-	default:
-	}
-
-	// Fallback to waiting for an idle worker or allocating
-	// a new worker (if we aren't yet at max concurrency)
-	select {
-	case p.work <- t:
-	case p.workerSpawner <- struct{}{}:
-		p.startWorker(t)
-	}
+	p.queue <- t
 }
 
 // Wait returns after all enqueued work finishes and all goroutines to exit.
@@ -138,8 +149,8 @@ func (p *Pool) Go(f func() (func(), error)) {
 // It is safe to call Wait multiple times but not safe to call [Execute]
 // after [Wait] has been called.
 func (p *Pool) Wait() (int, error) {
-	p.workClose.Do(func() {
-		close(p.work)
+	p.queueClose.Do(func() {
+		close(p.queue)
 	})
 	p.outstandingWorkers.Wait()
 	return int(p.workerCount.Load()), p.err.Load()

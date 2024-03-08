@@ -87,7 +87,7 @@ func NewProcessor(
 
 		frozenSponsors: set.NewSet[string](4),
 
-		authPool: pool.New(vm.GetAuthVerifyCores()),
+		authPool: pool.New(vm.GetAuthVerifyCores(), numTxs),
 	}
 }
 
@@ -280,6 +280,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	}
 
 	// Process chunk transactions
+	txLoopStart := time.Now()
 	for ri, rtx := range chunk.Txs {
 		txIndex := ri
 		tx := rtx
@@ -388,6 +389,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }, nil
 		})
 	}
+	p.vm.Logger().Info("transaction loop", zap.Duration("duration", time.Since(txLoopStart)))
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {

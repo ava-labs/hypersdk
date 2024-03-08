@@ -252,7 +252,7 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for aw := range vm.acceptedQueue {
 		// Commit filtered chunks
-		w := pool.New(diskConcurrency)
+		w := pool.New(diskConcurrency, len(aw.FilteredChunks))
 		for _, fc := range aw.FilteredChunks {
 			tfc := fc
 			w.Go(func() (func(), error) {
