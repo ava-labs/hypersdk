@@ -6,11 +6,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-type task struct {
-	i int
-	f func() (func(), error)
-}
-
 // OPool is a pool of goroutines that can execute functions in parallel
 // but invoke callbacks (if provided) in the order they are enqueued.
 type OPool struct {
@@ -29,7 +24,7 @@ type OPool struct {
 }
 
 // New returns an instance of [OPool] that
-// will spawn up to [max] goroutines.
+// has [worker] goroutines.
 func New(workers, backlog int) *OPool {
 	p := &OPool{
 		work:       make(chan *task, backlog),
@@ -41,6 +36,23 @@ func New(workers, backlog int) *OPool {
 		p.startWorker()
 	}
 	return p
+}
+
+func (p *OPool) startWorker() {
+	p.outstandingWorkers.Add(1)
+
+	go func() {
+		defer p.outstandingWorkers.Done()
+
+		for t := range p.work {
+			p.run(t)
+		}
+	}()
+}
+
+type task struct {
+	i int
+	f func() (func(), error)
 }
 
 func (p *OPool) run(t *task) {
@@ -83,23 +95,10 @@ func (p *OPool) run(t *task) {
 	}
 }
 
-func (p *OPool) startWorker() {
-	p.outstandingWorkers.Add(1)
-
-	go func() {
-		defer p.outstandingWorkers.Done()
-
-		for t := range p.work {
-			p.run(t)
-		}
-	}()
-}
-
-// Go executes the given function on an existing goroutine waiting for more work or spawn
-// a new goroutine. If [f] returns a function, it will be executed in the order
-// it was enqueued. Returned functions are executed serially by the pool (blocking
-// the further computation of a worker until complete), so it is important to
-// minimize the returned function complexity.
+// Go executes the given function on an existing goroutine waiting for more work. If
+// [f] returns a function, it will be executed in the order it was enqueued. Returned
+// functions are executed by the worker directly (blocking processing of other callbacks
+// and other tasks by the worker), so it is important to minimize the returned function complexity.
 //
 // Go must not be called after Wait, otherwise it might panic.
 //

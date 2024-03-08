@@ -119,7 +119,6 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-			processorStart := time.Now()
 			p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
@@ -136,7 +135,6 @@ func (e *Engine) Run() {
 				e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
 				return
 			}
-			processorDur := time.Since(processorStart)
 
 			// TODO: pay beneficiary all tips for processing chunk
 			//
@@ -274,7 +272,6 @@ func (e *Engine) Run() {
 			// Create new view and persist to disk
 			e.vm.RecordStateChanges(ts.PendingChanges())
 			e.vm.RecordStateOperations(ts.OpIndex())
-			elapsedBeforeCommit := time.Since(estart)
 			view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 			if err != nil {
 				panic(err)
@@ -310,8 +307,6 @@ func (e *Engine) Run() {
 				zap.Int("total txs", txCount),
 				zap.Int("chunks", len(filteredChunks)),
 				zap.Stringer("root", root),
-				zap.Duration("t(processor)", processorDur),
-				zap.Duration("t(< commit)", elapsedBeforeCommit),
 				zap.Duration("t", time.Since(estart)),
 			)
 			e.vm.RecordBlockExecute(time.Since(estart))
