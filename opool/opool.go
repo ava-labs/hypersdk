@@ -2,9 +2,8 @@ package pool
 
 import (
 	"sync"
-	"sync/atomic"
 
-	uatomic "go.uber.org/atomic"
+	"go.uber.org/atomic"
 )
 
 type task struct {
@@ -12,65 +11,39 @@ type task struct {
 	f func() (func(), error)
 }
 
-type Pool struct {
-	enqueued   int
-	queue      chan *task
-	queueClose sync.Once
+// OPool is a pool of goroutines that can execute functions in parallel
+// but invoke callbacks (if provided) in the order they are enqueued.
+type OPool struct {
+	added int
 
-	workerCount        atomic.Int32
-	workerSpawner      chan struct{}
+	work      chan *task
+	workClose sync.Once
+
 	outstandingWorkers sync.WaitGroup
-	work               chan *task
 
 	processedL sync.Mutex
 	processedM map[int]func()
 	toProcess  int
 
-	err uatomic.Error
+	err atomic.Error
 }
 
-// New returns an instance of [Pool] that
+// New returns an instance of [OPool] that
 // will spawn up to [max] goroutines.
-func New(workers, backlog int) *Pool {
-	p := &Pool{
-		queue:         make(chan *task, backlog),
-		workerSpawner: make(chan struct{}, workers),
-		work:          make(chan *task),
-		processedM:    make(map[int]func()),
+func New(workers, backlog int) *OPool {
+	p := &OPool{
+		work:       make(chan *task, backlog),
+		processedM: make(map[int]func()),
 	}
-
-	// Start queue handler (allows for backlog)
-	go p.run()
-
-	// Start first worker (will always need
-	// at least 1)
-	p.workerSpawner <- struct{}{}
-	p.startWorker(nil)
+	for i := 0; i < workers; i++ {
+		// We assume all workers will be required and start
+		// them immediately.
+		p.startWorker()
+	}
 	return p
 }
 
-func (p *Pool) run() {
-	defer close(p.work)
-
-	for t := range p.queue {
-		// Ensure we feed idle workers first
-		select {
-		case p.work <- t:
-			continue
-		default:
-		}
-
-		// Fallback to waiting for an idle worker or allocating
-		// a new worker (if we aren't yet at max concurrency)
-		select {
-		case p.work <- t:
-		case p.workerSpawner <- struct{}{}:
-			p.startWorker(t)
-		}
-	}
-}
-
-func (p *Pool) runTask(t *task) {
+func (p *OPool) run(t *task) {
 	if p.err.Load() != nil {
 		return
 	}
@@ -110,20 +83,14 @@ func (p *Pool) runTask(t *task) {
 	}
 }
 
-// startWorker creates a new goroutine to execute [f] immediately and then keeps the goroutine
-// alive to continue executing new work.
-func (p *Pool) startWorker(t *task) {
-	p.workerCount.Add(1)
+func (p *OPool) startWorker() {
 	p.outstandingWorkers.Add(1)
 
 	go func() {
 		defer p.outstandingWorkers.Done()
 
-		if t != nil {
-			p.runTask(t)
-		}
-		for nt := range p.work {
-			p.runTask(nt)
+		for t := range p.work {
+			p.run(t)
 		}
 	}()
 }
@@ -140,14 +107,14 @@ func (p *Pool) startWorker(t *task) {
 //
 // If the pool has errored, Go will not execute the function and will return immediately.
 // This means that enqueued functions may never be executed.
-func (p *Pool) Go(f func() (func(), error)) {
+func (p *OPool) Go(f func() (func(), error)) {
 	if p.err.Load() != nil {
 		return
 	}
 
-	t := &task{i: p.enqueued, f: f}
-	p.enqueued++
-	p.queue <- t
+	t := &task{i: p.added, f: f}
+	p.added++
+	p.work <- t
 }
 
 // Wait returns after all enqueued work finishes and all goroutines to exit.
@@ -157,10 +124,10 @@ func (p *Pool) Go(f func() (func(), error)) {
 //
 // It is safe to call Wait multiple times but not safe to call [Execute]
 // after [Wait] has been called.
-func (p *Pool) Wait() (int, error) {
-	p.queueClose.Do(func() {
-		close(p.queue)
+func (p *OPool) Wait() error {
+	p.workClose.Do(func() {
+		close(p.work)
 	})
 	p.outstandingWorkers.Wait()
-	return int(p.workerCount.Load()), p.err.Load()
+	return p.err.Load()
 }
