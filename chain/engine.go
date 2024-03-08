@@ -272,6 +272,7 @@ func (e *Engine) Run() {
 			// Create new view and persist to disk
 			e.vm.RecordStateChanges(ts.PendingChanges())
 			e.vm.RecordStateOperations(ts.OpIndex())
+			elapsedBeforeCommit := time.Since(estart)
 			view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 			if err != nil {
 				panic(err)
@@ -307,6 +308,7 @@ func (e *Engine) Run() {
 				zap.Int("total txs", txCount),
 				zap.Int("chunks", len(filteredChunks)),
 				zap.Stringer("root", root),
+				zap.Duration("t before commit", elapsedBeforeCommit),
 				zap.Duration("t", time.Since(estart)),
 			)
 			e.vm.RecordBlockExecute(time.Since(estart))

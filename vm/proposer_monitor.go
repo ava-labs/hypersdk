@@ -87,6 +87,8 @@ func (p *ProposerMonitor) fetch(ctx context.Context, height uint64) *proposerInf
 }
 
 // Fetch is used to pre-cache sets that will be used later
+//
+// TODO: remove lock?
 func (p *ProposerMonitor) Fetch(ctx context.Context, height uint64) *proposerInfo {
 	p.fetchLock.Lock()
 	defer p.fetchLock.Unlock()
@@ -95,9 +97,6 @@ func (p *ProposerMonitor) Fetch(ctx context.Context, height uint64) *proposerInf
 }
 
 func (p *ProposerMonitor) IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, *bls.PublicKey, uint64, error) {
-	p.fetchLock.Lock()
-	defer p.fetchLock.Unlock()
-
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -115,9 +114,6 @@ func (p *ProposerMonitor) IsValidator(ctx context.Context, height uint64, nodeID
 // GetWarpValidatorSet returns the validator set of [subnetID] in a canonical ordering.
 // Also returns the total weight on [subnetID].
 func (p *ProposerMonitor) GetWarpValidatorSet(ctx context.Context, height uint64) ([]*warp.Validator, uint64, error) {
-	p.fetchLock.Lock()
-	defer p.fetchLock.Unlock()
-
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -129,9 +125,6 @@ func (p *ProposerMonitor) GetWarpValidatorSet(ctx context.Context, height uint64
 }
 
 func (p *ProposerMonitor) GetValidatorSet(ctx context.Context, height uint64, includeMe bool) (set.Set[ids.NodeID], error) {
-	p.fetchLock.Lock()
-	defer p.fetchLock.Unlock()
-
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -211,9 +204,6 @@ func (p *ProposerMonitor) IterateValidators(
 	height uint64,
 	f func(ids.NodeID, *validators.GetValidatorOutput),
 ) error {
-	p.fetchLock.Lock()
-	defer p.fetchLock.Unlock()
-
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -228,9 +218,6 @@ func (p *ProposerMonitor) IterateValidators(
 }
 
 func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (ids.NodeID, error) {
-	p.fetchLock.Lock()
-	defer p.fetchLock.Unlock()
-
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -245,9 +232,6 @@ func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (i
 }
 
 func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error) {
-	p.fetchLock.Lock()
-	defer p.fetchLock.Unlock()
-
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
