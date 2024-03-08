@@ -243,7 +243,7 @@ func (f *Fetcher) Stop() {
 }
 
 // Wait until all the workers are done and return any errors
-func (f *Fetcher) HandleErrors() error {
+func (f *Fetcher) Wait() error {
 	f.wg.Wait()
 	return f.err
 }
