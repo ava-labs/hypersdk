@@ -143,6 +143,11 @@ func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChu
 }
 
 func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.chunkProcess.Observe(float64(time.Since(start)))
+	}()
+
 	// Remove any executed transactions
 	vm.mempool.Remove(context.TODO(), chunk.Txs)
 

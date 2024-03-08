@@ -149,7 +149,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],
-  "authVerificationCores": 2,
+  "authVerificationCores": 4,
   "transactionExecutionCores": 2,
   "rootGenerationCores": 4,
   "verifyAuth":true,
