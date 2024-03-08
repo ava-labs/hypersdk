@@ -23,7 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/list"
-	"github.com/ava-labs/hypersdk/pool"
+	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
@@ -1018,7 +1018,8 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
-		f := pool.New(4, len(certs)) // TODO: use config
+		workers := min(len(certs), c.vm.config.GetMissingChunkFetchers())
+		f := opool.New(workers, len(certs))
 		for _, rcert := range certs {
 			cert := rcert
 			f.Go(func() (func(), error) {
@@ -1111,7 +1112,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				}
 			})
 		}
-		if _, err := f.Wait(); err != nil {
+		if err := f.Wait(); err != nil {
 			c.vm.Logger().Error("failed to fetch chunks", zap.Error(err))
 			return
 		}

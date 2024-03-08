@@ -19,11 +19,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/pool"
 )
 
 const (
@@ -134,33 +134,31 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 	}
 	// Because fileDB operates directly over an SSD, we can take advantage of the ability
 	// to perform concurrent file operations (which are not possible in PebbleDB).
-	for _, cert := range blk.AvailableChunks {
-		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
-	}
-	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
-	w := pool.New(diskConcurrency, len(blk.AvailableChunks)+len(blk.ExecutedChunks)+len(uselessChunks))
-	w.Go(func() (func(), error) {
-		return nil, vm.RemoveDiskBlock(expiryHeight)
+	g, _ := errgroup.WithContext(context.TODO())
+	g.Go(func() error {
+		return vm.RemoveDiskBlock(expiryHeight)
 	})
 	for _, cert := range blk.AvailableChunks {
+		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
 		tcert := cert
-		w.Go(func() (func(), error) {
-			return nil, vm.RemoveChunk(tcert.Slot, tcert.Chunk)
+		g.Go(func() error {
+			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
 		})
 	}
 	for _, chunk := range blk.ExecutedChunks {
 		tchunk := chunk
-		w.Go(func() (func(), error) {
-			return nil, vm.RemoveFilteredChunk(tchunk)
+		g.Go(func() error {
+			return vm.RemoveFilteredChunk(tchunk)
 		})
 	}
+	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
 	for _, chunk := range uselessChunks {
 		tchunk := chunk
-		w.Go(func() (func(), error) {
-			return nil, vm.RemoveChunk(tchunk.slot, tchunk.chunk)
+		g.Go(func() error {
+			return vm.RemoveChunk(tchunk.slot, tchunk.chunk)
 		})
 	}
-	if _, err := w.Wait(); err != nil {
+	if err := g.Wait(); err != nil {
 		return err
 	}
 	vm.metrics.deletedBlocks.Inc()
