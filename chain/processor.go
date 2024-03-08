@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -42,7 +43,7 @@ type Processor struct {
 
 	frozenSponsors set.Set[string]
 
-	authWait time.Duration
+	authPool *opool.OPool
 }
 
 type blockLoc struct {
@@ -85,6 +86,8 @@ func NewProcessor(
 		results: make([][]*Result, chunks),
 
 		frozenSponsors: set.NewSet[string](4),
+
+		authPool: opool.New(vm.GetAuthVerifyCores(), numTxs),
 	}
 }
 
@@ -361,36 +364,40 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		}
 
 		// Enqueue transaction for execution
-		//
-		// TODO: consider putting in a goroutine
-		authStart := time.Now()
-		msg, err := tx.Digest()
-		if err != nil {
-			p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
-		}
-		if p.vm.GetVerifyAuth() {
-			if err := tx.Auth.Verify(ctx, msg); err != nil {
-				p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
+		p.authPool.Go(func() (func(), error) {
+			msg, err := tx.Digest()
+			if err != nil {
+				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
 				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				continue
+				return nil, nil
 			}
-		}
-		if p.frozenSponsors.Contains(ssponsor) {
-			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-			continue
-		}
-		p.authWait += time.Since(authStart)
-		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
+			if p.vm.GetVerifyAuth() {
+				if err := tx.Auth.Verify(ctx, msg); err != nil {
+					p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
+					p.results[chunkIndex][txIndex] = &Result{Valid: false}
+					return nil, nil
+				}
+			}
+			if p.frozenSponsors.Contains(ssponsor) {
+				p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+				return nil, nil
+			}
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }, nil
+		})
 	}
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
+	authStart := time.Now()
+	if err := p.authPool.Wait(); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: auth pool failed", err)
+	}
+	p.vm.RecordWaitAuth(time.Since(authStart)) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
+	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
-	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting
+	p.vm.RecordWaitExec(time.Since(exectutorStart))
 	return p.txs, p.ts, p.results, nil
 }

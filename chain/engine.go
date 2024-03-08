@@ -119,17 +119,10 @@ func (e *Engine) Run() {
 			// Process chunks
 			//
 			// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
+			startProcessor := time.Now()
 			p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
 			chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 			for chunk := range job.chunks {
-				// TODO: Handle case where vm is shutting down (only case where chunk could be nil)
-				//
-				// We will continue trying to fetch chunk until we find it on the network layer.
-				if chunk == nil {
-					e.vm.Logger().Warn("received nil chunk from job, exiting engine")
-					return
-				}
-
 				// Handle fetched chunk
 				p.Add(ctx, len(chunks), chunk)
 				chunks = append(chunks, chunk)
@@ -139,6 +132,11 @@ func (e *Engine) Run() {
 				e.vm.Logger().Error("chunk processing failed", zap.Error(err))
 				panic(err)
 			}
+			if len(chunks) != len(job.blk.AvailableChunks) {
+				e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
+				return
+			}
+			e.vm.RecordWaitProcessor(time.Since(startProcessor))
 
 			// TODO: pay beneficiary all tips for processing chunk
 			//
@@ -146,6 +144,8 @@ func (e *Engine) Run() {
 			// this allows miner to drive up fees without consequence as they get their fees back)
 
 			// Create FilteredChunks
+			//
+			// TODO: send chunk material here as soon as processed to speed up confirmation latency
 			txCount := 0
 			filteredChunks := make([]*FilteredChunk, len(chunkResults))
 			for i, chunkResult := range chunkResults {
@@ -211,10 +211,6 @@ func (e *Engine) Run() {
 
 				// As soon as execution of transactions is finished, let the VM know so that it
 				// can notify subscribers.
-				//
-				// TODO: handle restart case where block may be sent twice?
-				//
-				// TODO: send during processing instead of here
 				e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 			}
 

@@ -26,8 +26,6 @@ import (
 	"github.com/ava-labs/hypersdk/executor"
 )
 
-const diskConcurrency = 8
-
 var (
 	_ chain.VM                           = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
@@ -145,6 +143,11 @@ func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChu
 }
 
 func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.chunkProcess.Observe(float64(time.Since(start)))
+	}()
+
 	// Remove any executed transactions
 	vm.mempool.Remove(context.TODO(), chunk.Txs)
 
@@ -252,8 +255,7 @@ func (vm *VM) processAcceptedBlocks() {
 	// closed.
 	for aw := range vm.acceptedQueue {
 		// Commit filtered chunks
-		g, _ := errgroup.WithContext(context.Background())
-		g.SetLimit(diskConcurrency)
+		g, _ := errgroup.WithContext(context.TODO())
 		for _, fc := range aw.FilteredChunks {
 			tfc := fc
 			g.Go(func() error {
@@ -446,12 +448,16 @@ func (vm *VM) RecordWaitAuth(t time.Duration) {
 	vm.metrics.waitAuth.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitCommit(t time.Duration) {
-	vm.metrics.waitCommit.Observe(float64(t))
-}
-
 func (vm *VM) RecordWaitExec(t time.Duration) {
 	vm.metrics.waitExec.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitProcessor(t time.Duration) {
+	vm.metrics.waitProcessor.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitCommit(t time.Duration) {
+	vm.metrics.waitCommit.Observe(float64(t))
 }
 
 func (vm *VM) RecordStateChanges(c int) {

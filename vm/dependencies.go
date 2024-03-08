@@ -31,6 +31,7 @@ type Config interface {
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
+	GetMissingChunkFetchers() int
 	GetBeneficiary() codec.Address
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address

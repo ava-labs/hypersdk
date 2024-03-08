@@ -23,11 +23,10 @@ import (
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/list"
-	"github.com/ava-labs/hypersdk/ochannel"
+	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1019,18 +1018,15 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
-		oc := ochannel.New(chunks)
-		g, _ := errgroup.WithContext(context.Background())
-		g.SetLimit(4) // TODO: use config
-		for ri, rcert := range certs {
-			i := ri
+		workers := min(len(certs), c.vm.config.GetMissingChunkFetchers())
+		f := opool.New(workers, len(certs))
+		for _, rcert := range certs {
 			cert := rcert
-			g.Go(func() error {
+			f.Go(func() (func(), error) {
 				// Look for chunk
 				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
 				if chunk != nil {
-					oc.Add(chunk, i)
-					return nil
+					return func() { chunks <- chunk }, nil
 				}
 				c.vm.Logger().Debug("could not fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
 
@@ -1064,7 +1060,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						// TODO: consider using cert to select validators?
 						randomValidator, err := c.vm.proposerMonitor.RandomValidator(context.Background(), epochHeight)
 						if err != nil {
-							return err
+							return nil, err
 						}
 						if c.connected.Contains(randomValidator) {
 							validator = randomValidator
@@ -1087,8 +1083,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					select {
 					case bytes = <-bytesChan:
 					case <-c.vm.stop:
-						oc.Add(nil, i)
-						return errors.New("stopping")
+						return nil, errors.New("stopping")
 					}
 					if len(bytes) == 0 {
 						continue
@@ -1102,23 +1097,22 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 					}
 					chunkID, err := chunk.ID()
 					if err != nil {
-						return err
+						return nil, err
 					}
 					if chunkID != cert.Chunk {
 						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
 						continue
 					}
 					if err := c.vm.StoreChunk(chunk); err != nil {
-						return err
+						return nil, err
 					}
 					c.stored.Add(&simpleChunkWrapper{chunk: chunkID, slot: cert.Slot})
 					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
-					oc.Add(chunk, i)
-					return nil
+					return func() { chunks <- chunk }, nil
 				}
 			})
 		}
-		if err := g.Wait(); err != nil {
+		if err := f.Wait(); err != nil {
 			c.vm.Logger().Error("failed to fetch chunks", zap.Error(err))
 			return
 		}

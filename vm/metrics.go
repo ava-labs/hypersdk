@@ -44,8 +44,9 @@ type Metrics struct {
 	sigsReceived          prometheus.Counter
 	certsReceived         prometheus.Counter
 	waitAuth              metric.Averager
-	waitCommit            metric.Averager
 	waitExec              metric.Averager
+	waitProcessor         metric.Averager
+	waitCommit            metric.Averager
 	chunkBuild            metric.Averager
 	blockBuild            metric.Averager
 	blockParse            metric.Averager
@@ -53,6 +54,7 @@ type Metrics struct {
 	blockAccept           metric.Averager
 	blockProcess          metric.Averager
 	blockExecute          metric.Averager
+	chunkProcess          metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -69,19 +71,28 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	waitCommit, err := metric.NewAverager(
+	waitExec, err := metric.NewAverager(
 		"chain",
-		"wait_commit",
-		"time spent waiting to commit state in execution",
+		"wait_exec",
+		"time spent waiting for execution after auth finishes",
 		r,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	waitExec, err := metric.NewAverager(
+	waitProcessor, err := metric.NewAverager(
 		"chain",
-		"wait_exec",
-		"time spent waiting for execution in verify",
+		"wait_processor",
+		"time spent waiting for processor (auth + exec)",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitCommit, err := metric.NewAverager(
+		"chain",
+		"wait_commit",
+		"time spent waiting to commit state after execution",
 		r,
 	)
 	if err != nil {
@@ -135,7 +146,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	blockProcess, err := metric.NewAverager(
 		"chain",
 		"block_process",
-		"time spent processing blocks",
+		"time spent processing accepted blocks",
 		r,
 	)
 	if err != nil {
@@ -145,6 +156,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"block_execute",
 		"time spent executing blocks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunkProcess, err := metric.NewAverager(
+		"chain",
+		"chunk_process",
+		"time spent processing executed chunks",
 		r,
 	)
 	if err != nil {
@@ -247,16 +267,18 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "certs_received",
 			Help:      "certificates received from validators",
 		}),
-		waitAuth:     waitAuth,
-		waitCommit:   waitCommit,
-		waitExec:     waitExec,
-		chunkBuild:   chunkBuild,
-		blockBuild:   blockBuild,
-		blockParse:   blockParse,
-		blockVerify:  blockVerify,
-		blockAccept:  blockAccept,
-		blockProcess: blockProcess,
-		blockExecute: blockExecute,
+		waitAuth:      waitAuth,
+		waitExec:      waitExec,
+		waitProcessor: waitProcessor,
+		waitCommit:    waitCommit,
+		chunkBuild:    chunkBuild,
+		blockBuild:    blockBuild,
+		blockParse:    blockParse,
+		blockVerify:   blockVerify,
+		blockAccept:   blockAccept,
+		blockProcess:  blockProcess,
+		blockExecute:  blockExecute,
+		chunkProcess:  chunkProcess,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
