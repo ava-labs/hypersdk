@@ -89,7 +89,7 @@ func (f *Fetcher) runWorker() {
 			}
 
 			// Allows concurrent reads to cache.
-			if ok = f.shouldFetch(t); ok {
+			if ok = f.shouldFetch(t); !ok {
 				continue
 			}
 
@@ -128,14 +128,16 @@ func (f *Fetcher) shouldFetch(t *task) bool {
 	defer f.keyLock.RUnlock()
 
 	_, exists := f.cache[t.key]
-	if !exists {
-		queue := f.keysToFetch[t.key].queue
-		if len(queue) > 0 && queue[0] != t.id {
-			// Fetch other keys instead
-			return true
-		}
+	if exists {
+		return false
 	}
-	return exists
+
+	queue := f.keysToFetch[t.key].queue
+	if queue[0] != t.id {
+		// Fetch other keys instead
+		return false
+	}
+	return true
 }
 
 // Updates the cache and dependencies
