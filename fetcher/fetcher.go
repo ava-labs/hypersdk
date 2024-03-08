@@ -89,7 +89,7 @@ func (f *Fetcher) runWorker() {
 			}
 
 			// Allows concurrent reads to cache.
-			if ok = f.check(t); ok {
+			if ok = f.shouldFetch(t); ok {
 				continue
 			}
 
@@ -123,7 +123,7 @@ func (f *Fetcher) runWorker() {
 
 // Checks if a key is in the cache. If it's not in cache, check
 // if we were the first to request the key.
-func (f *Fetcher) check(t *task) bool {
+func (f *Fetcher) shouldFetch(t *task) bool {
 	f.keyLock.RLock()
 	defer f.keyLock.RUnlock()
 
