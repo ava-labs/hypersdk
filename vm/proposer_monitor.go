@@ -88,7 +88,7 @@ func (p *ProposerMonitor) fetch(ctx context.Context, height uint64) *proposerInf
 
 // Fetch is used to pre-cache sets that will be used later
 //
-// TODO: remove lock?
+// TODO: remove lock? replace with lockmap?
 func (p *ProposerMonitor) Fetch(ctx context.Context, height uint64) *proposerInfo {
 	p.fetchLock.Lock()
 	defer p.fetchLock.Unlock()
