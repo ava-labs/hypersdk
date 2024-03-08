@@ -58,7 +58,7 @@ func (b *StatelessBlock) Execute(
 		// Fetch keys from disk or check if it's in cache
 		wg := f.Lookup(ctx, tx.ID(), stateKeys)
 		e.Run(stateKeys, func() error {
-			reads, storage := f.Wait(wg, stateKeys)
+			reads, storage := f.Get(wg, stateKeys)
 
 			// Execute transaction
 			//
