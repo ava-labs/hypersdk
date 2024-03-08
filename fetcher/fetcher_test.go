@@ -70,7 +70,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 		fwg := f.Lookup(ctx, txID, stateKeys)
 		go func(sk state.Keys, fwg *sync.WaitGroup) {
 			defer wg.Done()
-			_, _ = f.Wait(fwg, sk)
+			_, _ = f.Get(fwg, sk)
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
@@ -79,7 +79,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 	l := len(f.cache)
 	require.Equal(5050, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.HandleErrors())
+	require.NoError(f.Wait())
 }
 
 func TestFetchSameKeys(t *testing.T) {
@@ -104,7 +104,7 @@ func TestFetchSameKeys(t *testing.T) {
 		fwg := f.Lookup(ctx, txID, stateKeys)
 		go func(sk state.Keys, fwg *sync.WaitGroup) {
 			defer wg.Done()
-			_, _ = f.Wait(fwg, sk)
+			_, _ = f.Get(fwg, sk)
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
@@ -112,7 +112,7 @@ func TestFetchSameKeys(t *testing.T) {
 	l := len(f.cache)
 	require.Equal(numTxs, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.HandleErrors())
+	require.NoError(f.Wait())
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
@@ -137,7 +137,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		fwg := f.Lookup(ctx, txID, stateKeys)
 		go func(sk state.Keys, fwg *sync.WaitGroup) {
 			defer wg.Done()
-			_, _ = f.Wait(fwg, sk)
+			_, _ = f.Get(fwg, sk)
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
@@ -145,7 +145,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 	l := len(f.cache)
 	require.Equal(numTxs, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.HandleErrors())
+	require.NoError(f.Wait())
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
@@ -167,7 +167,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 		fwg := f.Lookup(ctx, txID, stateKeys)
 		go func(sk state.Keys, fwg *sync.WaitGroup) {
 			defer wg.Done()
-			_, _ = f.Wait(fwg, sk)
+			_, _ = f.Get(fwg, sk)
 		}(stateKeys, fwg)
 	}
 	wg.Wait()
@@ -175,7 +175,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 	l := len(f.cache)
 	require.Equal(numTxs, l)
 	require.Equal(numTxs, f.completed)
-	require.NoError(f.HandleErrors())
+	require.NoError(f.Wait())
 }
 
 func TestFetcherStop(t *testing.T) {
@@ -193,9 +193,9 @@ func TestFetcherStop(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Wait(wg, stateKeys)
+		_, _ = f.Get(wg, stateKeys)
 	}
 	require.Less(len(f.cache), 4)
 	require.Equal(3, f.completed)
-	require.Equal(ErrStopped, f.HandleErrors())
+	require.Equal(ErrStopped, f.Wait())
 }
