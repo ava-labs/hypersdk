@@ -19,8 +19,7 @@ import (
 // a value is only fetched from disk once. Subsequent
 // requests can be retrieved from cache.
 type Fetcher struct {
-	im    state.Immutable
-	cache map[string]*fetchData
+	im state.Immutable
 
 	keysToFetch map[string]*keyData        // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
@@ -48,8 +47,8 @@ type fetchData struct {
 
 // Data pertaining to whether a key was fetched or which txns are waiting
 type keyData struct {
-	fetched bool
-	queue   []ids.ID
+	cache *fetchData
+	queue []ids.ID
 }
 
 // Holds the information that a worker needs to fetch values
@@ -63,7 +62,6 @@ type task struct {
 func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 	f := &Fetcher{
 		im:          im,
-		cache:       make(map[string]*fetchData, numTxs),
 		keysToFetch: make(map[string]*keyData),
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task, numTxs),
@@ -127,8 +125,7 @@ func (f *Fetcher) shouldFetch(t *task) bool {
 	f.keyLock.RLock()
 	defer f.keyLock.RUnlock()
 
-	_, exists := f.cache[t.key]
-	if exists {
+	if f.keysToFetch[t.key].cache != nil {
 		return false
 	}
 
@@ -144,13 +141,13 @@ func (f *Fetcher) shouldFetch(t *task) bool {
 func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 	f.keyLock.Lock()
 	// Puts a key that was fetched from disk into cache
-	f.cache[k] = &fetchData{v, exists, chunks}
+	f.keysToFetch[k].cache = &fetchData{v, exists, chunks}
+	queue := f.keysToFetch[k].queue
 	f.keysToFetch[k].queue = nil
-	f.keysToFetch[k].fetched = true
 	f.keyLock.Unlock()
 
 	f.txnLock.Lock()
-	for _, id := range f.keysToFetch[k].queue {
+	for _, id := range queue {
 		f.txnsToFetch[id].Done() // Notify all other txs
 	}
 	f.txnLock.Unlock()
@@ -167,10 +164,10 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	tasks := make([]*task, 0, len(stateKeys))
 	for k := range stateKeys {
 		if _, ok := f.keysToFetch[k]; !ok {
-			f.keysToFetch[k] = &keyData{fetched: false, queue: make([]ids.ID, 0)}
+			f.keysToFetch[k] = &keyData{cache: nil, queue: make([]ids.ID, 0)}
 		}
 		// Don't requeue keys that were already fetched
-		if f.keysToFetch[k].fetched {
+		if f.keysToFetch[k].cache != nil {
 			continue
 		}
 		f.keysToFetch[k].queue = append(f.keysToFetch[k].queue, txID)
@@ -216,7 +213,7 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 		storage = make(map[string][]byte, len(stateKeys))
 	)
 	for k := range stateKeys {
-		if v, ok := f.cache[k]; ok {
+		if v := f.keysToFetch[k].cache; v != nil {
 			reads[k] = v.chunks
 			if v.exists {
 				storage[k] = v.v
