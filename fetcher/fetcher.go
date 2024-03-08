@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -32,6 +33,7 @@ type Fetcher struct {
 	fetchable chan *task
 	l         sync.RWMutex
 	wg        sync.WaitGroup
+	done bool
 
 	completed int
 	numTxs    int
@@ -188,7 +190,9 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 
 	f.l.Lock()
 	f.completed++
-	if f.completed == f.numTxs {
+	fmt.Printf("get %v\n", f.completed)
+	if f.done && f.completed == f.numTxs {
+		fmt.Printf("real\n")
 		close(f.fetchable)
 	}
 	f.l.Unlock()
@@ -222,6 +226,14 @@ func (f *Fetcher) Stop() {
 
 // Wait until all the workers are done and return any errors
 func (f *Fetcher) Wait() error {
+	f.l.Lock()
+	f.done = true
+	fmt.Printf("yeah? %v\n", f.completed)
+	if f.completed == f.numTxs {
+		close(f.fetchable)
+	}
+	f.l.Unlock()
 	f.wg.Wait()
+	fmt.Printf("hi\n")	
 	return f.err
 }
