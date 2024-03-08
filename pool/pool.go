@@ -38,7 +38,14 @@ func New(workers, backlog int) *Pool {
 		work:          make(chan *task),
 		processedM:    make(map[int]func()),
 	}
+
+	// Start queue handler (allows for backlog)
 	go p.run()
+
+	// Start first worker (will always need
+	// at least 1)
+	p.workerSpawner <- struct{}{}
+	p.startWorker(nil)
 	return p
 }
 
@@ -49,7 +56,7 @@ func (p *Pool) run() {
 		// Ensure we feed idle workers first
 		select {
 		case p.work <- t:
-			return
+			continue
 		default:
 		}
 
@@ -112,7 +119,9 @@ func (p *Pool) startWorker(t *task) {
 	go func() {
 		defer p.outstandingWorkers.Done()
 
-		p.runTask(t)
+		if t != nil {
+			p.runTask(t)
+		}
 		for nt := range p.work {
 			p.runTask(nt)
 		}
