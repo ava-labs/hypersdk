@@ -73,8 +73,8 @@ EOF
 
 cat <<EOF > "${TMPDIR}"/node.config
 {
-  "log-level":"%s",
-  "log-display-level":"%s",
+  "log-level":"INFO",
+  "log-display-level":"INFO",
   "proposervm-use-current-height":true,
   "throttler-inbound-validator-alloc-size":"10737418240",
   "throttler-inbound-at-large-alloc-size":"10737418240",
