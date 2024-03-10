@@ -6,9 +6,16 @@ set -e
 
 # Check that avalanche-cli is installed
 if ! [ -x "$(command -v avalanche)" ]; then
-  echo 'avalanche is not installed' >&2
+  echo 'avalanche-cli is not installed' >&2
   exit 1
 fi
+
+# Check that AWS is configured
+if ! [ -x "$(aws sts get-caller-identity)" ]; then
+  echo 'AWS is not configured' >&2
+  exit 1
+fi
+
 
 # Set the CGO flags to use the portable version of BLST
 #
