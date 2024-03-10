@@ -99,9 +99,9 @@ EOF
 
 # Setup devnet
 CLUSTER="vryxTest1"
-SUBNET="vryxTest1"
+SUBNET="morpheusvm"
 function cleanup {
-  echo "to kill the devnet, run: avalanche node stop ${CLUSTER}"
+  echo "to destroy the devnet, run: avalanche node stop ${CLUSTER}"
 }
 trap cleanup EXIT
 rm -rf "~/.avalanche-cli/vms/${SUBNET}" # always build fresh vm
