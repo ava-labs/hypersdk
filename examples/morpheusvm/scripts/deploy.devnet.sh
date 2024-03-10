@@ -10,13 +10,6 @@ if ! [ -x "$(command -v avalanche)" ]; then
   exit 1
 fi
 
-# Check that AWS is configured
-if ! [ -x "$(aws sts get-caller-identity)" ]; then
-  echo 'AWS is not configured' >&2
-  exit 1
-fi
-
-
 # Set the CGO flags to use the portable version of BLST
 #
 # We use "export" here instead of just setting a bash variable because we need
@@ -104,4 +97,6 @@ cat <<EOF > "${TMPDIR}"/node.config
 }
 EOF
 
-avalanche node devnet wiz vryxTest1 pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7 --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --node-type c5.4xlarge --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch devnet-deploy --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
+# Setup devnet
+rm -rf "~/.avalanche-cli/vms/pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7" # always build fresh vm
+avalanche node devnet wiz vryxTest1 pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7 --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip false --node-type c5.4xlarge --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch devnet-deploy --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
