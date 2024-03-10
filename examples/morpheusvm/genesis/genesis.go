@@ -36,6 +36,7 @@ type Genesis struct {
 	MinBlockGap int64 `json:"minBlockGap"` // ms
 
 	// Chain Fee Parameters
+	MinUnitPrice  chain.Dimensions `json:"minUnitPrice"`
 	MaxChunkUnits chain.Dimensions `json:"maxChunkUnits"` // must be possible to reach before block too large
 
 	// Tx Parameters
@@ -66,6 +67,7 @@ func Default() *Genesis {
 		MinBlockGap: 1_000, // min block gap / chunk frequency = chunks per node per block
 
 		// Chain Fee Parameters
+		MinUnitPrice:  chain.Dimensions{1, 1, 1, 1, 1},
 		MaxChunkUnits: chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters

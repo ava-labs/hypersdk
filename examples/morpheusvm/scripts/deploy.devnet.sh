@@ -17,7 +17,7 @@ fi
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
 # Ensure that the script is being run from the repository root
-if ! [[ "$0" =~ scripts/devnet.sh ]]; then
+if ! [[ "$0" =~ scripts/deploy.devnet.sh ]]; then
   echo "must be run from repository root"
   exit 255
 fi
@@ -34,6 +34,7 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 # Generate genesis file and configs
 ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
 MIN_BLOCK_GAP=1000
+MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
 echo "creating allocations file"
 cat <<EOF > "${TMPDIR}"/allocations.json
@@ -43,6 +44,7 @@ cat <<EOF > "${TMPDIR}"/allocations.json
 EOF
 
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+--min-unit-price "${MIN_UNIT_PRICE}" \
 --max-chunk-units "${MAX_CHUNK_UNITS}" \
 --min-block-gap "${MIN_BLOCK_GAP}" \
 --genesis-file "${TMPDIR}"/morpheusvm.genesis

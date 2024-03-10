@@ -108,6 +108,6 @@ func (*Rules) GetSponsorStateKeyChunks() []uint16 {
 	return []uint16{storage.BalanceChunks}
 }
 
-func (*Rules) GetUnitPrices() chain.Dimensions {
-	return chain.Dimensions{1, 1, 1, 1, 1}
+func (r *Rules) GetUnitPrices() chain.Dimensions {
+	return r.g.MinUnitPrice
 }

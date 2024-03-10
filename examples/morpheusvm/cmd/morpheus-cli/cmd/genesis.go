@@ -10,6 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 )
 
@@ -31,20 +32,20 @@ var genGenesisCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		g := genesis.Default()
-		// if len(minUnitPrice) > 0 {
-		// 	d, err := chain.ParseDimensions(minUnitPrice)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	g.MinUnitPrice = d
-		// }
-		// if len(maxBlockUnits) > 0 {
-		// 	d, err := chain.ParseDimensions(maxBlockUnits)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	g.MaxBlockUnits = d
-		// }
+		if len(minUnitPrice) > 0 {
+			d, err := chain.ParseDimensions(minUnitPrice)
+			if err != nil {
+				return err
+			}
+			g.MinUnitPrice = d
+		}
+		if len(maxChunkUnits) > 0 {
+			d, err := chain.ParseDimensions(maxChunkUnits)
+			if err != nil {
+				return err
+			}
+			g.MaxChunkUnits = d
+		}
 		if minBlockGap >= 0 {
 			g.MinBlockGap = minBlockGap
 		}
