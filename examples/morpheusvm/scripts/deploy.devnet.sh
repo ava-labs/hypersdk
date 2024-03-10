@@ -106,3 +106,7 @@ function cleanup {
 trap cleanup EXIT
 rm -rf "~/.avalanche-cli/vms/${SUBNET}" # always build fresh vm
 avalanche node devnet wiz ${CLUSTER} ${SUBNET} --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --node-type c5.4xlarge --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch devnet-deploy --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
+
+# TODO: Hook up to APIs to morpheus-cli for local testing
+
+# TODO: Spin up load testing on monitoring cluster
