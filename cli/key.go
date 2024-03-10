@@ -74,7 +74,8 @@ func (h *Handler) Balance(checkAllChains bool, promptAsset bool, printBalance fu
 	if !checkAllChains {
 		max = 1
 	}
-	for _, uri := range uriNames[:max] {
+	for _, uriName := range uriNames[:max] {
+		uri := uris[uriName]
 		utils.Outf("{{yellow}}uri:{{/}} %s\n", uri)
 		rcli := rpc.NewJSONRPCClient(uri)
 		networkID, _, _, err := rcli.Network(context.TODO())
