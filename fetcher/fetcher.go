@@ -153,7 +153,7 @@ func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) 
 			continue
 		}
 
-		// Don't attempt to fetch keys that were already fetched
+		// Don't register that we are blocked if the key has already been fetched
 		if d.cache != nil {
 			continue
 		}
