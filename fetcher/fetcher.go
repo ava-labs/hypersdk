@@ -63,7 +63,6 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		stop:        make(chan struct{}),
 	}
 	for i := 0; i < concurrency; i++ {
-		f.wg.Add(1)
 		go f.runWorker()
 	}
 	return f
@@ -71,17 +70,16 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 
 // Workers fetch individual keys
 func (f *Fetcher) runWorker() {
-	defer f.wg.Done()
-
 	for {
 		select {
-		case t, ok := <-f.fetchable:
-			if !ok {
+		case t := <-f.fetchable:
+			if t == nil {
 				return
 			}
 
 			if ok := f.shouldFetch(t); !ok {
 				// Fetch another key
+				f.wg.Done()
 				continue
 			}
 
@@ -95,6 +93,7 @@ func (f *Fetcher) runWorker() {
 					f.err = err
 					close(f.stop)
 				})
+				f.wg.Done()
 				return
 			}
 
@@ -104,6 +103,7 @@ func (f *Fetcher) runWorker() {
 					f.err = ErrInvalidKeyValue
 					close(f.stop)
 				})
+				f.wg.Done()
 				return
 			}
 			f.update(t.key, v, true, numChunks)
@@ -137,6 +137,7 @@ func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 	for _, id := range queue {
 		f.txnsToFetch[id].Done() // Notify all other txs
 	}
+	f.wg.Done()
 }
 
 // Lookup enqueues keys for the workers to fetch
@@ -164,6 +165,7 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 	}
 	wg.Add(len(tasks))
 	f.txnsToFetch[txID] = wg
+	f.wg.Add(len(tasks))
 	f.fetchLock.Unlock()
 
 	for _, t := range tasks {
@@ -207,9 +209,9 @@ func (f *Fetcher) Stop() {
 //
 // You should not call [Lookup] after [Wait] is called.
 func (f *Fetcher) Wait() error {
+	f.wg.Wait()
 	f.l.Lock()
 	close(f.fetchable)
 	f.l.Unlock()
-	f.wg.Wait()
 	return f.err
 }
