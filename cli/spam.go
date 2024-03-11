@@ -40,6 +40,7 @@ var (
 
 	l            sync.Mutex
 	confirmedTxs uint64
+	expiredTxs   uint64
 	totalTxs     uint64
 
 	inflight atomic.Int64
@@ -243,9 +244,10 @@ func (h *Handler) Spam(
 						continue
 					}
 					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% (expired: %.2f%%) {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
+						float64(expiredTxs)/float64(totalTxs)*100,
 						inflight.Load(),
 						current-psent,
 						ParseDimensions(unitPrices),
@@ -523,6 +525,8 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				// We can't error match here because we receive it over the wire.
 				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
 					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
+				} else {
+					expiredTxs++
 				}
 			}
 			totalTxs++
