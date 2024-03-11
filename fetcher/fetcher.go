@@ -23,8 +23,7 @@ type Fetcher struct {
 
 	keysToFetch map[string]*keyData        // Number of txns waiting for a key
 	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
-	keyLock     sync.RWMutex
-	txnLock     sync.Mutex
+	fetchLock   sync.RWMutex
 
 	stopOnce  sync.Once
 	stop      chan struct{}
@@ -121,8 +120,8 @@ func (f *Fetcher) runWorker() {
 // Checks if a key is in the cache. If it's not in cache, check
 // if we were the first to request the key.
 func (f *Fetcher) shouldFetch(t *task) bool {
-	f.keyLock.RLock()
-	defer f.keyLock.RUnlock()
+	f.fetchLock.RLock()
+	defer f.fetchLock.RUnlock()
 
 	if f.keysToFetch[t.key].cache != nil {
 		return false
@@ -132,18 +131,16 @@ func (f *Fetcher) shouldFetch(t *task) bool {
 
 // Updates the cache and dependencies
 func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
-	f.keyLock.Lock()
+	f.fetchLock.Lock()
+	defer f.fetchLock.Unlock()
+
 	// Puts a key that was fetched from disk into cache
 	f.keysToFetch[k].cache = &fetchData{v, exists, chunks}
 	queue := f.keysToFetch[k].queue
 	f.keysToFetch[k].queue = nil
-	f.keyLock.Unlock()
-
-	f.txnLock.Lock()
 	for _, id := range queue {
 		f.txnsToFetch[id].Done() // Notify all other txs
 	}
-	f.txnLock.Unlock()
 }
 
 // Lookup enqueues keys for the workers to fetch
@@ -151,7 +148,7 @@ func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
 func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
 
-	f.keyLock.Lock()
+	f.fetchLock.Lock()
 	tasks := make([]*task, 0, len(stateKeys))
 	for k := range stateKeys {
 		if _, ok := f.keysToFetch[k]; !ok {
@@ -170,11 +167,8 @@ func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys)
 		tasks = append(tasks, t)
 	}
 	wg.Add(len(tasks))
-	f.keyLock.Unlock()
-
-	f.txnLock.Lock()
 	f.txnsToFetch[txID] = wg
-	f.txnLock.Unlock()
+	f.fetchLock.Unlock()
 
 	for _, t := range tasks {
 		f.fetchable <- t
@@ -190,8 +184,8 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 	f.completed++
 	f.l.Unlock()
 
-	f.keyLock.RLock()
-	defer f.keyLock.Unlock()
+	f.fetchLock.RLock()
+	defer f.fetchLock.RUnlock()
 
 	// Fetch keys from cache
 	var (
