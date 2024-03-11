@@ -109,7 +109,7 @@ cat <<EOF > "${TMPDIR}"/node.config
 EOF
 
 # Setup devnet
-CLUSTER="vryx-$RANDOM"
+CLUSTER="vryx-$(date +%s)"
 VMID="morpheusvm"
 VM_COMMIT=devnet-deploy
 function cleanup {
