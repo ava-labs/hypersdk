@@ -22,6 +22,7 @@ type MessageBuffer struct {
 	pending      [][]byte
 	pendingSize  int
 	maxSize      int
+	maxPackSize  int
 	timeout      time.Duration
 	pendingTimer *timer.Timer
 	closed       bool
@@ -31,10 +32,11 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 	m := &MessageBuffer{
 		Queue: make(chan []byte, pending),
 
-		log:     log,
-		pending: [][]byte{},
-		maxSize: maxSize - consts.IntLen, // account for message count in batch
-		timeout: timeout,
+		log:         log,
+		pending:     [][]byte{},
+		maxSize:     maxSize,
+		maxPackSize: maxSize - consts.IntLen, // account for message count in batch
+		timeout:     timeout,
 	}
 	m.pendingTimer = timer.NewTimer(func() {
 		m.l.Lock()
@@ -106,12 +108,12 @@ func (m *MessageBuffer) Send(msg []byte) error {
 	}
 
 	l := len(msg)
-	if l > m.maxSize {
+	if l > m.maxPackSize {
 		return ErrMessageTooLarge
 	}
 
 	// Clear existing buffer if too large
-	if m.pendingSize+l > m.maxSize {
+	if m.pendingSize+l > m.maxPackSize {
 		m.pendingTimer.Cancel()
 		if err := m.clearPending(); err != nil {
 			return err
