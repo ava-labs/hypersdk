@@ -62,7 +62,7 @@ func New(im state.Immutable, concurrency, txs int) *Fetcher {
 	f := &Fetcher{
 		im: im,
 
-		keys: make(map[string]*key),
+		keys: make(map[string]*key, txs*2),
 		txs:  make(map[ids.ID]*tx, txs),
 
 		tasks: make(chan *task, txs),
