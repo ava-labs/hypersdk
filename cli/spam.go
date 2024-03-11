@@ -154,7 +154,8 @@ func (h *Handler) Spam(
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
-	dcli, err := rpc.NewWebSocketClient(uris[baseName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	maxPendingMessages := max(pubsub.MaxPendingMessages, numTxsPerAccount*numAccounts)
+	dcli, err := rpc.NewWebSocketClient(uris[baseName], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
@@ -203,7 +204,7 @@ func (h *Handler) Spam(
 		for j := 0; j < numClients; j++ {
 			name := uriNames[i]
 			cli := rpc.NewJSONRPCClient(uris[name])
-			dcli, err := rpc.NewWebSocketClient(uris[name], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			dcli, err := rpc.NewWebSocketClient(uris[name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
@@ -333,7 +334,7 @@ func (h *Handler) Spam(
 								}
 								// recreate issuer
 								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
-								dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+								dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 								if err != nil {
 									issuer.abandoned = err
 									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
