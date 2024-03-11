@@ -345,6 +345,9 @@ func (h *Handler) Spam(
 								droppedConfirmations := issuer.outstandingTxs
 								issuer.outstandingTxs = 0
 								issuer.l.Unlock()
+								l.Lock()
+								totalTxs += uint64(droppedConfirmations) // ensure stats are updated
+								l.Unlock()
 								inflight.Add(-int64(droppedConfirmations))
 								utils.Outf("{{green}}re-created closed issuer:{{/}} %d {{yellow}}dropped:{{/}} %d\n", issuerIndex, droppedConfirmations)
 							}
