@@ -129,9 +129,9 @@ func (f *Fetcher) handleErr(err error) {
 		f.l.Lock()
 		if !f.done {
 			f.err = err
+			close(f.stop) // we only stop if not done to ensure we don't accidentally error during [Get]
 		}
 		f.l.Unlock()
-		close(f.stop)
 	})
 }
 
