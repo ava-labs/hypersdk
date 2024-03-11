@@ -29,11 +29,8 @@ type Fetcher struct {
 	stop      chan struct{}
 	err       error
 	fetchable chan *task
-	l         sync.RWMutex
+	l         sync.Mutex
 	wg        sync.WaitGroup
-
-	completed int
-	numTxs    int
 }
 
 // Data to insert into the cache
@@ -64,7 +61,6 @@ func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
 		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
 		fetchable:   make(chan *task, numTxs),
 		stop:        make(chan struct{}),
-		numTxs:      numTxs,
 	}
 	for i := 0; i < concurrency; i++ {
 		f.wg.Add(1)
@@ -180,10 +176,6 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 	// Block until all keys for the tx are fetched
 	wg.Wait()
 
-	f.l.Lock()
-	f.completed++
-	f.l.Unlock()
-
 	f.fetchLock.RLock()
 	defer f.fetchLock.RUnlock()
 
@@ -210,12 +202,13 @@ func (f *Fetcher) Stop() {
 	})
 }
 
-// Wait until all the workers are done and return any errors
+// Wait returns as soon as all enqueued items are fetched and
+// returns any errors.
+//
+// You should not call [Lookup] after [Wait] is called.
 func (f *Fetcher) Wait() error {
 	f.l.Lock()
-	if f.completed == f.numTxs {
-		close(f.fetchable)
-	}
+	close(f.fetchable)
 	f.l.Unlock()
 	f.wg.Wait()
 	return f.err
