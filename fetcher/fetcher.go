@@ -46,15 +46,15 @@ type task struct {
 	key string
 }
 
+type key struct {
+	cache   *data
+	blocked []ids.ID
+}
+
 type data struct {
 	v      []byte
 	exists bool
 	chunks uint16
-}
-
-type key struct {
-	cache   *data
-	blocked []ids.ID
 }
 
 // New creates a new [Fetcher]
