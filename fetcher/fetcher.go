@@ -126,12 +126,18 @@ func (f *Fetcher) set(k string, v []byte, exists bool, chunks uint16) {
 
 func (f *Fetcher) handleErr(err error) {
 	f.stopOnce.Do(func() {
+		var shouldStop bool
 		f.l.Lock()
 		if !f.done {
 			f.err = err
-			close(f.stop) // we only stop if not done to ensure we don't accidentally error during [Get]
+			shouldStop = true
 		}
 		f.l.Unlock()
+
+		// We only stop if not [done] to ensure we don't error during [Get]
+		if shouldStop {
+			close(f.stop)
+		}
 	})
 }
 
