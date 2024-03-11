@@ -34,8 +34,8 @@ var importANRChainCmd = &cobra.Command{
 	},
 }
 
-var importAvalancheOpsChainCmd = &cobra.Command{
-	Use: "import-ops [path]",
+var importAvalancheCliChainCmd = &cobra.Command{
+	Use: "import-cli [path]",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return ErrInvalidArgs
@@ -43,7 +43,7 @@ var importAvalancheOpsChainCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		return handler.Root().ImportOps(args[0])
+		return handler.Root().ImportCLI(args[0])
 	},
 }
 

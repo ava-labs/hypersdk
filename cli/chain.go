@@ -118,18 +118,7 @@ func (h *Handler) ImportANR() error {
 	return h.StoreDefaultChain(filledChainID)
 }
 
-type AvalancheOpsConfig struct {
-	Resources struct {
-		CreatedNodes []struct {
-			HTTPEndpoint string `yaml:"httpEndpoint"`
-		} `yaml:"created_nodes"`
-	} `yaml:"resource"`
-	VMInstall struct {
-		ChainID string `yaml:"chain_id"`
-	} `yaml:"vm_install"`
-}
-
-func (h *Handler) ImportOps(opsPath string) error {
+func (h *Handler) ImportCLI(cliPath string) error {
 	oldChains, err := h.DeleteChains()
 	if err != nil {
 		return err
@@ -139,35 +128,41 @@ func (h *Handler) ImportOps(opsPath string) error {
 	}
 
 	// Load yaml file
-	var opsConfig AvalancheOpsConfig
-	yamlFile, err := os.ReadFile(opsPath)
+	yamlFile, err := os.ReadFile(cliPath)
 	if err != nil {
 		return err
 	}
-	err = yaml.Unmarshal(yamlFile, &opsConfig)
+	yamlContents := make(map[string]string)
+	err = yaml.Unmarshal(yamlFile, &yamlContents)
 	if err != nil {
 		return err
 	}
 
 	// Load chainID
-	chainID, err := ids.FromString(opsConfig.VMInstall.ChainID)
+	chainID, err := ids.FromString(yamlContents["CHAIN_ID"])
 	if err != nil {
 		return err
 	}
 
 	// Add chains
-	for i, node := range opsConfig.Resources.CreatedNodes {
-		name := fmt.Sprintf("node-%d", i)
-		uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
-		if err := h.StoreChain(chainID, name, uri); err != nil {
-			return err
+	for _, t := range []string{"API", "VALIDATOR"} {
+		for i := 0; i < consts.MaxInt; i++ {
+			ip, ok := yamlContents[fmt.Sprintf("IP_%s_%d", t, i)]
+			if !ok {
+				break
+			}
+			name := fmt.Sprintf("%s-%d", t, i)
+			uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", ip, chainID)
+			if err := h.StoreChain(chainID, name, uri); err != nil {
+				return err
+			}
+			utils.Outf(
+				"{{yellow}}[%s] stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+				name,
+				chainID,
+				uri,
+			)
 		}
-		utils.Outf(
-			"{{yellow}}[%s] stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
-			name,
-			chainID,
-			uri,
-		)
 	}
 	return h.StoreDefaultChain(chainID)
 }
