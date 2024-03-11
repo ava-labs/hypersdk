@@ -85,12 +85,12 @@ func (f *Fetcher) runWorker() {
 				return
 			}
 
-			// Allows concurrent reads to cache.
 			if ok := f.shouldFetch(t); !ok {
+				// Fetch another key
 				continue
 			}
 
-			// Fetch from disk once if key isn't already in cache
+			// Fetch from disk once
 			v, err := f.im.GetValue(t.ctx, []byte(t.key))
 			if errors.Is(err, database.ErrNotFound) {
 				f.update(t.key, nil, false, 0)
@@ -190,7 +190,7 @@ func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint
 	f.completed++
 	f.l.Unlock()
 
-	f.keyLock.Lock()
+	f.keyLock.RLock()
 	defer f.keyLock.Unlock()
 
 	// Fetch keys from cache
