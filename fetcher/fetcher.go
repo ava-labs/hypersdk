@@ -58,7 +58,7 @@ type data struct {
 }
 
 // New creates a new [Fetcher]
-func New(im state.Immutable, concurrency, txs int) *Fetcher {
+func New(im state.Immutable, txs, concurrency int) *Fetcher {
 	f := &Fetcher{
 		im: im,
 

@@ -38,7 +38,7 @@ func (b *StatelessBlock) Execute(
 		numTxs = len(b.Txs)
 		t      = b.GetTimestamp()
 
-		f       = fetcher.New(im, b.vm.GetStateFetchConcurrency(), numTxs)
+		f       = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
