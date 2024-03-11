@@ -351,6 +351,9 @@ func (h *Handler) Spam(
 								l.Unlock()
 								inflight.Add(-int64(droppedConfirmations))
 								utils.Outf("{{green}}re-created closed issuer:{{/}} %d {{yellow}}dropped:{{/}} %d\n", issuerIndex, droppedConfirmations)
+							} else {
+								issuer.l.Unlock()
+								utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 							}
 							continue
 						}
