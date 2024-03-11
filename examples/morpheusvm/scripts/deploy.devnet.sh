@@ -65,9 +65,9 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],
-  "authVerificationCores": 10,
+  "authVerificationCores": 30,
   "transactionExecutionCores": 4,
-  "rootGenerationCores": 14,
+  "rootGenerationCores": 34,
   "verifyAuth":true,
   "storeTransactions": false,
   "streamingBacklogSize": 10000000,
@@ -119,7 +119,7 @@ function cleanup {
 }
 trap cleanup EXIT
 rm -rf "~/.avalanche-cli/vms/${VMID}" # always build fresh vm
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --node-type c5.4xlarge --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --node-type c5.9xlarge --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
 
 # TODO: Hook up to APIs to morpheus-cli for local testing
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
