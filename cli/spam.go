@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -45,6 +46,7 @@ var (
 
 	inflight atomic.Int64
 	sent     atomic.Int64
+	bytes    atomic.Int64
 )
 
 func (h *Handler) Spam(
@@ -232,11 +234,13 @@ func (h *Handler) Spam(
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
 	var psent int64
+	var pbytes int64
 	go func() {
 		for {
 			select {
 			case <-t.C:
-				current := sent.Load()
+				csent := sent.Load()
+				cbytes := bytes.Load()
 				l.Lock()
 				if totalTxs > 0 {
 					unitPrices, err = clients[0].c.UnitPrices(ctx, false)
@@ -244,17 +248,19 @@ func (h *Handler) Spam(
 						continue
 					}
 					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% (expired: %.2f%%) {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
+						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% (expired: %.2f%%) {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d (bytes: %.2fKB/s) {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						inflight.Load(),
-						current-psent,
+						csent-psent,
+						float64(cbytes-pbytes)/units.KiB,
 						ParseDimensions(unitPrices),
 					)
 				}
 				l.Unlock()
-				psent = current
+				psent = csent
+				pbytes = cbytes
 			case <-cctx.Done():
 				return
 			}
@@ -370,12 +376,14 @@ func (h *Handler) Spam(
 							}
 							continue
 						}
+
 						balance -= (fee + uint64(v))
 						issuer.l.Lock()
 						issuer.outstandingTxs++
 						issuer.l.Unlock()
 						inflight.Add(1)
 						sent.Add(1)
+						bytes.Add(int64(len(tx.Bytes())))
 					}
 
 					// Determine how long to sleep
