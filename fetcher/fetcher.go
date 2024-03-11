@@ -217,7 +217,7 @@ func (f *Fetcher) Stop() {
 
 // Wait until all the workers are done and return any errors.
 //
-// [Wait] can be called multiple times, however, [Lookup] should never be
+// [Wait] can be called multiple times, however, [Fetch] should never be
 // called after [Wait] is called.
 func (f *Fetcher) Wait() error {
 	f.waitOnce.Do(func() {
