@@ -114,7 +114,7 @@ VMID="morpheusvm"
 function cleanup {
   RED='\033[0;31m'
   NC='\033[0m'
-  echo -e "${RED}To destroy the devnet, run: \"avalanche node stop ${CLUSTER}\"${NC}"
+  echo -e "${RED}To destroy the devnet, run: \"${TMPDIR}/avalanche node stop ${CLUSTER}\"${NC}"
 }
 trap cleanup EXIT
 rm -rf "~/.avalanche-cli/vms/${VMID}" # always build fresh vm
