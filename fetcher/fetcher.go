@@ -6,6 +6,7 @@ package fetcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -16,52 +17,57 @@ import (
 )
 
 // Fetcher retrieves values on-the-fly and ensures that
-// a value is only fetched from disk once. Subsequent
+// a value is only fetched from data once. Subsequent
 // requests can be retrieved from cache.
 type Fetcher struct {
 	im state.Immutable
 
-	l           sync.RWMutex
-	keysToFetch map[string]*keyData        // Number of txns waiting for a key
-	txnsToFetch map[ids.ID]*sync.WaitGroup // Number of keys a txn is waiting on
+	l    sync.RWMutex
+	keys map[string]*key
+	txs  map[ids.ID]*tx
+	err  error
 
-	stopOnce sync.Once
+	wg       sync.WaitGroup
+	tasks    chan *task
+	waitOnce sync.Once
+
 	stop     chan struct{}
-	err      error
-
-	wg        sync.WaitGroup
-	waitOnce  sync.Once
-	fetchable chan *task
+	stopOnce sync.Once
 }
 
-// Data to insert into the cache
-type fetchData struct {
-	v      []byte
-	exists bool
-	chunks uint16
+type tx struct {
+	wg   *sync.WaitGroup
+	keys state.Keys
 }
 
-// Data pertaining to whether a key was fetched or which txns are waiting
-type keyData struct {
-	cache *fetchData
-	queue []ids.ID
-}
-
-// Holds the information that a worker needs to fetch values
 type task struct {
 	ctx context.Context
 	id  ids.ID
 	key string
 }
 
+type data struct {
+	v      []byte
+	exists bool
+	chunks uint16
+}
+
+type key struct {
+	cache   *data
+	blocked []ids.ID
+}
+
 // New creates a new [Fetcher]
-func New(numTxs int, concurrency int, im state.Immutable) *Fetcher {
+func New(im state.Immutable, concurrency, txs int) *Fetcher {
 	f := &Fetcher{
-		im:          im,
-		keysToFetch: make(map[string]*keyData),
-		txnsToFetch: make(map[ids.ID]*sync.WaitGroup, numTxs),
-		fetchable:   make(chan *task, numTxs),
-		stop:        make(chan struct{}),
+		im: im,
+
+		keys: make(map[string]*key),
+		txs:  make(map[ids.ID]*tx, txs),
+
+		tasks: make(chan *task, txs),
+
+		stop: make(chan struct{}),
 	}
 	f.wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -76,129 +82,137 @@ func (f *Fetcher) runWorker() {
 
 	for {
 		select {
-		case t, ok := <-f.fetchable:
+		case t, ok := <-f.tasks:
 			if !ok {
 				return
 			}
 
-			if ok := f.shouldFetch(t); !ok {
-				// Fetch another key
-				continue
-			}
-
-			// Fetch from disk once
 			v, err := f.im.GetValue(t.ctx, []byte(t.key))
 			if errors.Is(err, database.ErrNotFound) {
-				f.update(t.key, nil, false, 0)
+				f.set(t.key, nil, false, 0)
 				continue
 			} else if err != nil {
-				f.stopOnce.Do(func() {
-					f.err = err
-					close(f.stop)
-				})
+				f.handleErr(err)
 				return
 			}
-
 			numChunks, ok := keys.NumChunks(v)
 			if !ok {
-				f.stopOnce.Do(func() {
-					f.err = ErrInvalidKeyValue
-					close(f.stop)
-				})
+				f.handleErr(ErrInvalidKeyValue)
 				return
 			}
-			f.update(t.key, v, true, numChunks)
+			f.set(t.key, v, true, numChunks)
 		case <-f.stop:
 			return
 		}
 	}
 }
 
-// Checks if a key is in the cache. If it's not in cache, check
-// if we were the first to request the key.
-func (f *Fetcher) shouldFetch(t *task) bool {
-	f.l.RLock()
-	defer f.l.RUnlock()
-
-	if f.keysToFetch[t.key].cache != nil {
-		return false
-	}
-	return f.keysToFetch[t.key].queue[0] == t.id
+func (f *Fetcher) handleErr(err error) {
+	f.stopOnce.Do(func() {
+		f.l.Lock()
+		f.err = err
+		f.l.Unlock()
+		close(f.stop)
+	})
 }
 
-// Updates the cache and dependencies
-func (f *Fetcher) update(k string, v []byte, exists bool, chunks uint16) {
+func (f *Fetcher) set(k string, v []byte, exists bool, chunks uint16) {
 	f.l.Lock()
 	defer f.l.Unlock()
 
-	// Puts a key that was fetched from disk into cache
-	f.keysToFetch[k].cache = &fetchData{v, exists, chunks}
-	for _, id := range f.keysToFetch[k].queue {
-		f.txnsToFetch[id].Done() // Notify all other txs
+	// Puts a key that was fetched from data into cache
+	f.keys[k].cache = &data{v, exists, chunks}
+	for _, id := range f.keys[k].blocked {
+		f.txs[id].wg.Done() // Notify all other txs
 	}
-	f.keysToFetch[k].queue = nil
+	f.keys[k].blocked = nil
 }
 
-// Lookup enqueues keys for the workers to fetch
-// Invariant: Don't call [Lookup] afer calling [Stop]
-func (f *Fetcher) Lookup(ctx context.Context, txID ids.ID, stateKeys state.Keys) *sync.WaitGroup {
+// Fetch enqueues a set of [stateKeys] to be fetched from disk. Duplicate keys
+// are only fetched once and fetch priority is done in the order [Fetch] is called.
+//
+// Fetch can be called concurrently.
+//
+// Invariant: Don't call [Fetch] afer calling [Stop] or [Wait]
+func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) error {
 	f.l.Lock()
+	if fErr := f.err; fErr != nil {
+		f.l.Unlock()
+		return fErr // ensures we don't deadlock if encountering an error
+	}
 	tasks := make([]*task, 0, len(stateKeys))
 	for k := range stateKeys {
-		if _, ok := f.keysToFetch[k]; !ok {
-			f.keysToFetch[k] = &keyData{cache: nil, queue: make([]ids.ID, 0)}
-		}
-		// Don't attempt to fetch keys that were already fetched
-		if f.keysToFetch[k].cache != nil {
+		d, ok := f.keys[k]
+		if !ok {
+			f.keys[k] = &key{blocked: []ids.ID{txID}}
+			tasks = append(tasks, &task{
+				ctx: ctx,
+				id:  txID,
+				key: k,
+			})
 			continue
 		}
-		f.keysToFetch[k].queue = append(f.keysToFetch[k].queue, txID)
-		t := &task{
-			ctx: ctx,
-			id:  txID,
-			key: k,
+
+		// Don't attempt to fetch keys that were already fetched
+		if d.cache != nil {
+			continue
 		}
-		tasks = append(tasks, t)
+
+		// Register to get notified when the key is fetched
+		d.blocked = append(d.blocked, txID)
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(len(tasks))
-	f.txnsToFetch[txID] = wg
+	f.txs[txID] = &tx{wg, stateKeys}
 	f.l.Unlock()
 
+	// Send fetch tasks to the workers
 	for _, t := range tasks {
-		f.fetchable <- t
+		f.tasks <- t
 	}
-	return wg
+	return nil
 }
 
-func (f *Fetcher) Get(wg *sync.WaitGroup, stateKeys state.Keys) (map[string]uint16, map[string][]byte) {
-	// Block until all keys for the tx are fetched
-	wg.Wait()
-
+// Get will return the state keys fetched for the txID or return the error
+// that caused fetching to fail.
+//
+// Get can be called concurrently.
+func (f *Fetcher) Get(txID ids.ID) (map[string]uint16, map[string][]byte, error) {
+	// Block until all keys for the tx are fetched or if the fetcher errored
 	f.l.RLock()
-	defer f.l.RUnlock()
+	tx, ok := f.txs[txID]
+	fErr := f.err // allows us to avoid deadlock when [tx.wg] will never be cleared
+	f.l.RUnlock()
+	if !ok {
+		return nil, nil, fmt.Errorf("%w: unable to get keys for transaction %s", ErrMissingTx, txID)
+	}
+	if fErr != nil {
+		return nil, nil, fErr
+	}
+	tx.wg.Wait()
 
 	// Fetch keys from cache
+	f.l.RLock()
+	defer f.l.RUnlock()
 	var (
-		reads   = make(map[string]uint16, len(stateKeys))
-		storage = make(map[string][]byte, len(stateKeys))
+		stateKeys = tx.keys
+		reads     = make(map[string]uint16, len(stateKeys))
+		storage   = make(map[string][]byte, len(stateKeys))
 	)
 	for k := range stateKeys {
-		if v := f.keysToFetch[k].cache; v != nil {
+		if v := f.keys[k].cache; v != nil {
 			reads[k] = v.chunks
 			if v.exists {
 				storage[k] = v.v
 			}
 		}
 	}
-	return reads, storage
+	return reads, storage, nil
 }
 
+// Stop terminates the fetcher before all keys have been fetched.
 func (f *Fetcher) Stop() {
-	f.stopOnce.Do(func() {
-		f.err = ErrStopped
-		close(f.stop)
-	})
+	f.handleErr(ErrStopped)
 }
 
 // Wait until all the workers are done and return any errors.
@@ -207,7 +221,7 @@ func (f *Fetcher) Stop() {
 // called after [Wait] is called.
 func (f *Fetcher) Wait() error {
 	f.waitOnce.Do(func() {
-		close(f.fetchable)
+		close(f.tasks)
 	})
 	f.wg.Wait()
 	return f.err

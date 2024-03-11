@@ -38,7 +38,7 @@ func (b *StatelessBlock) Execute(
 		numTxs = len(b.Txs)
 		t      = b.GetTimestamp()
 
-		f       = fetcher.New(numTxs, b.vm.GetStateFetchConcurrency(), im)
+		f       = fetcher.New(im, b.vm.GetStateFetchConcurrency(), numTxs)
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
@@ -55,10 +55,18 @@ func (b *StatelessBlock) Execute(
 			e.Stop()
 			return nil, nil, err
 		}
-		// Fetch keys from disk or check if it's in cache
-		wg := f.Lookup(ctx, tx.ID(), stateKeys)
+
+		// Prefetch state keys from disk
+		txID := tx.ID()
+		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
+			return nil, nil, err
+		}
 		e.Run(stateKeys, func() error {
-			reads, storage := f.Get(wg, stateKeys)
+			// Wait for stateKeys to be read from disk
+			reads, storage, err := f.Get(txID)
+			if err != nil {
+				return err
+			}
 
 			// Execute transaction
 			//
