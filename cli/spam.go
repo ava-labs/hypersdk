@@ -6,6 +6,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -347,13 +348,23 @@ func (h *Handler) Spam(
 								issuer.outstandingTxs = 0
 								issuer.l.Unlock()
 								l.Lock()
-								totalTxs += uint64(droppedConfirmations) // ensure stats are updated
+								totalTxs += uint64(droppedConfirmations) + 1 // ensure stats are updated
 								l.Unlock()
 								inflight.Add(-int64(droppedConfirmations))
 								utils.Outf("{{green}}re-created closed issuer:{{/}} %d {{yellow}}dropped:{{/}} %d\n", issuerIndex, droppedConfirmations)
 							} else {
+								// This typically happens when the issuer errors and is replaced by a new one in
+								// a different goroutine.
 								issuer.l.Unlock()
-								utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+
+								// Ensure we track all failures
+								l.Lock()
+								totalTxs++
+								l.Unlock()
+
+								if !errors.Is(err, rpc.ErrClosed) {
+									utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+								}
 							}
 							continue
 						}
