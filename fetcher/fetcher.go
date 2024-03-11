@@ -44,7 +44,6 @@ type tx struct {
 
 type task struct {
 	ctx context.Context
-	id  ids.ID
 	key string
 }
 
@@ -160,7 +159,6 @@ func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) 
 			f.keys[k] = &key{blocked: []ids.ID{txID}}
 			tasks = append(tasks, &task{
 				ctx: ctx,
-				id:  txID,
 				key: k,
 			})
 			continue
