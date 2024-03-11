@@ -342,8 +342,11 @@ func (h *Handler) Spam(
 								}
 								issuer.d = dcli
 								startIssuer(cctx, issuer)
+								droppedConfirmations := issuer.outstandingTxs
+								issuer.outstandingTxs = 0
 								issuer.l.Unlock()
-								utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
+								inflight.Add(-int64(droppedConfirmations))
+								utils.Outf("{{green}}re-created closed issuer:{{/}} %d {{yellow}}dropped:{{/}} %d\n", issuerIndex, droppedConfirmations)
 							}
 							continue
 						}
