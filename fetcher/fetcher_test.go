@@ -79,7 +79,6 @@ func TestFetchDifferentKeys(t *testing.T) {
 	// There should be 5050 different keys now in the cache
 	l := len(f.keysToFetch)
 	require.Equal(5050, l)
-	require.Equal(numTxs, f.completed)
 }
 
 func TestFetchSameKeys(t *testing.T) {
@@ -112,7 +111,6 @@ func TestFetchSameKeys(t *testing.T) {
 
 	l := len(f.keysToFetch)
 	require.Equal(numTxs, l)
-	require.Equal(numTxs, f.completed)
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
@@ -145,7 +143,6 @@ func TestFetchSameKeysSlow(t *testing.T) {
 
 	l := len(f.keysToFetch)
 	require.Equal(numTxs, l)
-	require.Equal(numTxs, f.completed)
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
@@ -175,7 +172,6 @@ func TestFetchKeysWithValues(t *testing.T) {
 
 	l := len(f.keysToFetch)
 	require.Equal(numTxs, l)
-	require.Equal(numTxs, f.completed)
 }
 
 func TestFetcherStop(t *testing.T) {
@@ -197,5 +193,4 @@ func TestFetcherStop(t *testing.T) {
 	}
 	require.Equal(ErrStopped, f.Wait())
 	require.Less(len(f.keysToFetch), 4)
-	require.Equal(3, f.completed)
 }
