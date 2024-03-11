@@ -35,12 +35,10 @@ if [[ ${MODE} != "run" ]]; then
   UNLIMITED_USAGE=true
 fi
 
-WINDOW_TARGET_UNITS="40000000,450000,450000,450000,450000"
-MAX_BLOCK_UNITS="1800000,15000,15000,2500,15000"
+MAX_CHUNK_UNITS="1800000,15000,15000,2500,15000"
 if ${UNLIMITED_USAGE}; then
-  WINDOW_TARGET_UNITS="${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
   # If we don't limit the block size, AvalancheGo will reject the block.
-  MAX_BLOCK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
+  MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}"
 fi
 
 echo "Running with:"
@@ -52,8 +50,7 @@ echo LOG LEVEL: "${LOGLEVEL}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
 echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
 echo STORE_TXS: "${STORE_TXS}"
-echo WINDOW_TARGET_UNITS: "${WINDOW_TARGET_UNITS}"
-echo MAX_BLOCK_UNITS: "${MAX_BLOCK_UNITS}"
+echo MAX_CHUNK_UNITS: "${MAX_CHUNK_UNITS}"
 echo ADDRESS: "${ADDRESS}"
 
 ############################
@@ -127,8 +124,7 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f "${TMPDIR}"/morpheusvm.genesis
   "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
-  --window-target-units "${WINDOW_TARGET_UNITS}" \
-  --max-block-units "${MAX_BLOCK_UNITS}" \
+  --max-chunk-units "${MAX_CHUNK_UNITS}" \
   --min-block-gap "${MIN_BLOCK_GAP}" \
   --genesis-file "${TMPDIR}"/morpheusvm.genesis
 else
