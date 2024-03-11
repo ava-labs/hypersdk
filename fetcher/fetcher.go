@@ -26,6 +26,7 @@ type Fetcher struct {
 	keys map[string]*key
 	txs  map[ids.ID]*tx
 	err  error
+	done bool
 
 	wg       sync.WaitGroup
 	tasks    chan *task
@@ -110,10 +111,25 @@ func (f *Fetcher) runWorker() {
 func (f *Fetcher) handleErr(err error) {
 	f.stopOnce.Do(func() {
 		f.l.Lock()
-		f.err = err
+		if !f.done {
+			f.err = err
+		}
 		f.l.Unlock()
 		close(f.stop)
 	})
+}
+
+// handleDone ensures that [err] cannot change after [Wait]
+// returns.
+//
+// This gracefully handles the case where [Stop] is called while waiting
+// for results but results are returned at the same time.
+func (f *Fetcher) handleDone() error {
+	f.l.Lock()
+	f.done = true
+	fErr := f.err
+	f.l.Unlock()
+	return fErr
 }
 
 func (f *Fetcher) set(k string, v []byte, exists bool, chunks uint16) {
@@ -224,5 +240,5 @@ func (f *Fetcher) Wait() error {
 		close(f.tasks)
 	})
 	f.wg.Wait()
-	return f.err
+	return f.handleDone()
 }
