@@ -107,7 +107,7 @@ func (m *MessageBuffer) Send(msg []byte) error {
 		return ErrClosed
 	}
 
-	l := len(msg)
+	l := codec.BytesLen(msg)
 	if l > m.maxPackSize {
 		return ErrMessageTooLarge
 	}
