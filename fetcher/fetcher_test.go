@@ -55,6 +55,9 @@ func TestFetchDifferentKeys(t *testing.T) {
 		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 
@@ -70,16 +73,21 @@ func TestFetchDifferentKeys(t *testing.T) {
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _, err := f.Get(txID)
+			reads, storage, err := f.Get(txID)
 			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
 		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	// There should be 5050 different keys now in the cache
-	l := len(f.keys)
-	require.Equal(5050, l)
+	require.Len(cache, 5050)
 }
 
 func TestFetchSameKeys(t *testing.T) {
@@ -89,6 +97,9 @@ func TestFetchSameKeys(t *testing.T) {
 		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 
@@ -104,14 +115,21 @@ func TestFetchSameKeys(t *testing.T) {
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _, err := f.Get(txID)
+			reads, storage, err := f.Get(txID)
 			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
 		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	l := len(f.keys)
-	require.Equal(numTxs, l)
+	require.Len(cache, 100)
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
@@ -121,6 +139,9 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -136,14 +157,21 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _, err := f.Get(txID)
+			reads, storage, err := f.Get(txID)
 			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
 		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	l := len(f.keys)
-	require.Equal(numTxs, l)
+	require.Len(cache, 25)
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
@@ -153,6 +181,9 @@ func TestFetchKeysWithValues(t *testing.T) {
 		f       = New(newTestDBWithValue(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -165,14 +196,21 @@ func TestFetchKeysWithValues(t *testing.T) {
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _, err := f.Get(txID)
+			reads, storage, err := f.Get(txID)
 			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
 		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	l := len(f.keys)
-	require.Equal(numTxs, l)
+	require.Len(cache, 100)
 }
 
 func TestFetcherStop(t *testing.T) {
@@ -182,6 +220,9 @@ func TestFetcherStop(t *testing.T) {
 		f       = New(newTestDBWithValue(), numTxs, 10)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -194,10 +235,18 @@ func TestFetcherStop(t *testing.T) {
 		_ = f.Fetch(ctx, txID, stateKeys)
 		go func(txID ids.ID, i int) {
 			defer wg.Done()
-			_, _, err := f.Get(txID)
+			reads, storage, err := f.Get(txID)
 			if err != nil {
 				return
 			}
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
 			if i == 3 {
 				f.Stop()
 			}
@@ -205,5 +254,5 @@ func TestFetcherStop(t *testing.T) {
 	}
 	wg.Wait()
 	require.Equal(ErrStopped, f.Wait())
-	require.Less(len(f.keys), numTxs)
+	require.Less(len(cache), 100)
 }
