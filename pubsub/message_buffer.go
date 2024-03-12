@@ -89,9 +89,6 @@ func (m *MessageBuffer) clearPending() error {
 	if err != nil {
 		return err
 	}
-	if _, err := ParseBatchMessage(m.maxSize, bm); err != nil {
-		panic(err)
-	}
 	select {
 	case m.Queue <- bm:
 	default:
