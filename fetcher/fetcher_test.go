@@ -52,9 +52,12 @@ func TestFetchDifferentKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 4, newTestDB())
+		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 
@@ -67,27 +70,36 @@ func TestFetchDifferentKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// Since these are all different keys, we will
 		// fetch each key from disk
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			reads, storage, err := f.Get(txID)
+			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	// There should be 5050 different keys now in the cache
-	l := len(f.keysToFetch)
-	require.Equal(5050, l)
+	require.Len(cache, 5050)
 }
 
 func TestFetchSameKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 4, newTestDB())
+		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 
@@ -100,26 +112,36 @@ func TestFetchSameKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
 		// be getting subsequnt requests from cache
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			reads, storage, err := f.Get(txID)
+			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	l := len(f.keysToFetch)
-	require.Equal(numTxs, l)
+	require.Len(cache, 100)
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 25
-		f       = New(numTxs, 4, newTestDB())
+		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -132,26 +154,36 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		if i%2 == 0 {
 			time.Sleep(1 * time.Second)
 		}
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			reads, storage, err := f.Get(txID)
+			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	l := len(f.keysToFetch)
-	require.Equal(numTxs, l)
+	require.Len(cache, 25)
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 4, newTestDBWithValue())
+		f       = New(newTestDBWithValue(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -161,36 +193,66 @@ func TestFetchKeysWithValues(t *testing.T) {
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			reads, storage, err := f.Get(txID)
+			require.NoError(err)
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	l := len(f.keysToFetch)
-	require.Equal(numTxs, l)
+	require.Len(cache, 100)
 }
 
 func TestFetcherStop(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 10, newTestDBWithValue())
+		f       = New(newTestDBWithValue(), numTxs, 10)
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
+
+		l     sync.Mutex
+		cache = make(map[string]interface{})
 	)
+	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, 1)
-		if i == 3 {
-			f.Stop()
-			break
+		stateKeys := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			// Generate the same keys
+			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Get(wg, stateKeys)
+		_ = f.Fetch(ctx, txID, stateKeys)
+		go func(txID ids.ID, i int) {
+			defer wg.Done()
+			reads, storage, err := f.Get(txID)
+			if err != nil {
+				return
+			}
+			l.Lock()
+			for k := range reads {
+				cache[k] = nil
+			}
+			for k := range storage {
+				cache[k] = nil
+			}
+			l.Unlock()
+			if i == 3 {
+				f.Stop()
+			}
+		}(txID, i)
 	}
+	wg.Wait()
 	require.Equal(ErrStopped, f.Wait())
-	require.Less(len(f.keysToFetch), 4)
+	require.Less(len(cache), 100)
 }
