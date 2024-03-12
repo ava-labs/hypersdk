@@ -36,7 +36,7 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 		log:         log,
 		pending:     [][]byte{},
 		maxSize:     maxSize,
-		maxPackSize: maxSize - (consts.IntLen * 2), // account for message count in batch
+		maxPackSize: maxSize - (consts.IntLen * 2) - consts.IDLen, // account for message count in batch
 		timeout:     timeout,
 	}
 	m.pendingTimer = timer.NewTimer(func() {

@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
@@ -97,7 +99,18 @@ func (c *Connection) readPump() {
 			)
 			return
 		}
-		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, responseBytes)
+		msg := responseBytes[ids.IDLen:]
+		msgHash := utils.ToID(msg)
+		expected := ids.ID(responseBytes[:ids.IDLen])
+		if msgHash != expected {
+			c.s.log.Error("unexpected error reading bytes from websockets",
+				zap.String("reason", "message hash mismatch"),
+				zap.Stringer("found", msgHash),
+				zap.Stringer("expected", expected),
+			)
+			return
+		}
+		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, msg)
 		if err != nil {
 			c.s.log.Error("unable to read websockets message",
 				zap.Int("size", len(responseBytes)),
@@ -130,7 +143,7 @@ func (c *Connection) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.mb.Queue:
+		case rmessage, ok := <-c.mb.Queue:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Error("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
@@ -146,6 +159,8 @@ func (c *Connection) writePump() {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 				return
 			}
+			msgHash := utils.ToID(rmessage)
+			message := append(msgHash[:], rmessage...)
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
 				c.s.log.Error("closing the connection",
 					zap.String("reason", "failed to write message"),
