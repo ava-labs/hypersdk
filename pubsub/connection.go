@@ -141,6 +141,8 @@ func (c *Connection) writePump() {
 			if !ok {
 				// The hub closed the channel. Attempt to close the connection
 				// gracefully.
+				//
+				// TODO: move to defer
 				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 				return
 			}
