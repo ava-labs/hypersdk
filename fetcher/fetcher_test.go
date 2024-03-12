@@ -52,7 +52,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 4, newTestDB())
+		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
 	)
@@ -67,26 +67,25 @@ func TestFetchDifferentKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// Since these are all different keys, we will
 		// fetch each key from disk
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			_, _, err := f.Get(txID)
+			require.NoError(err)
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
 
 	// There should be 5050 different keys now in the cache
-	l := len(f.keysToFetch)
-	require.Equal(5050, l)
-	require.Equal(numTxs, f.completed)
+	require.Equal(5050, len(f.keys))
 }
 
 func TestFetchSameKeys(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 4, newTestDB())
+		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
 	)
@@ -101,25 +100,23 @@ func TestFetchSameKeys(t *testing.T) {
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
 		// be getting subsequnt requests from cache
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			_, _, err := f.Get(txID)
+			require.NoError(err)
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	l := len(f.keysToFetch)
-	require.Equal(numTxs, l)
-	require.Equal(numTxs, f.completed)
+	require.Equal(numTxs, len(f.keys))
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 25
-		f       = New(numTxs, 4, newTestDB())
+		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
 	)
@@ -134,25 +131,23 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		if i%2 == 0 {
 			time.Sleep(1 * time.Second)
 		}
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			_, _, err := f.Get(txID)
+			require.NoError(err)
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	l := len(f.keysToFetch)
-	require.Equal(numTxs, l)
-	require.Equal(numTxs, f.completed)
+	require.Equal(numTxs, len(f.keys))
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 4, newTestDBWithValue())
+		f       = New(newTestDBWithValue(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
 	)
@@ -164,38 +159,47 @@ func TestFetchKeysWithValues(t *testing.T) {
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		fwg := f.Lookup(ctx, txID, stateKeys)
-		go func(sk state.Keys, fwg *sync.WaitGroup) {
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func(txID ids.ID) {
 			defer wg.Done()
-			_, _ = f.Get(fwg, sk)
-		}(stateKeys, fwg)
+			_, _, err := f.Get(txID)
+			require.NoError(err)
+		}(txID)
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-
-	l := len(f.keysToFetch)
-	require.Equal(numTxs, l)
-	require.Equal(numTxs, f.completed)
+	require.Equal(numTxs, len(f.keys))
 }
 
 func TestFetcherStop(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(numTxs, 10, newTestDBWithValue())
+		f       = New(newTestDBWithValue(), numTxs, 10)
 		ctx     = context.TODO()
+		wg      sync.WaitGroup
 	)
+	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, 1)
-		if i == 3 {
-			f.Stop()
-			break
+		stateKeys := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			// Generate the same keys
+			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		wg := f.Lookup(ctx, txID, stateKeys)
-		_, _ = f.Get(wg, stateKeys)
+		_ = f.Fetch(ctx, txID, stateKeys)
+		go func(txID ids.ID, i int) {
+			defer wg.Done()
+			_, _, err := f.Get(txID)
+			if err != nil {
+				return
+			}
+			if i == 3 {
+				f.Stop()
+			}
+		}(txID, i)
 	}
+	wg.Wait()
 	require.Equal(ErrStopped, f.Wait())
-	require.Less(len(f.keysToFetch), 4)
-	require.Equal(3, f.completed)
+	require.Less(len(f.keys), numTxs)
 }
