@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/gorilla/websocket"
@@ -110,6 +111,9 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 			case msg, ok := <-wc.mb.Queue:
 				if !ok {
 					return
+				}
+				if len(msg) > consts.NetworkSizeLimit {
+					utils.Outf("sending too large message: len=%d\n", len(msg))
 				}
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 					wc.errl.Do(func() {

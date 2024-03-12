@@ -110,7 +110,7 @@ EOF
 
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
-VMID="morpheusvm"
+VMID="blah"
 VM_COMMIT=test-websocket
 function cleanup {
   RED='\033[0;31m'
