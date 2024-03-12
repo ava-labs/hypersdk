@@ -519,6 +519,17 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 		for {
 			_, dErr, result, err := issuer.d.ListenTx(context.TODO())
 			if err != nil {
+				issuer.l.Lock()
+				// prevents issuer on other thread from handling at the same time
+				// needed in case all are stuck
+				droppedConfirmations := issuer.outstandingTxs
+				issuer.outstandingTxs = 0
+				issuer.l.Unlock()
+				l.Lock()
+				totalTxs += uint64(droppedConfirmations)
+				l.Unlock()
+				inflight.Add(-int64(droppedConfirmations))
+				utils.Outf("{{orange}}listen tx failure:{{/}} %v\n", err)
 				return
 			}
 			inflight.Add(-1)
