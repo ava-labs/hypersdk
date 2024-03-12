@@ -22,17 +22,16 @@ import (
 type Fetcher struct {
 	im state.Immutable
 
-	l    sync.RWMutex
-	keys map[string]*key
-	txs  map[ids.ID]*tx
-	err  error
+	l      sync.RWMutex
+	keys   map[string]*key
+	txs    map[ids.ID]*tx
+	err    error
+	setErr sync.Once
 
 	wg       sync.WaitGroup
 	tasks    chan *task
 	waitOnce sync.Once
 	stop     chan struct{}
-
-	done sync.Once
 }
 
 type tx struct {
@@ -124,18 +123,18 @@ func (f *Fetcher) set(k string, v []byte, exists bool, chunks uint16) {
 }
 
 func (f *Fetcher) handleErr(err error) {
-	f.done.Do(func() {
+	f.setErr.Do(func() {
 		f.l.Lock()
 		f.err = err
 		f.l.Unlock()
 
-		// We only stop if not [done] to ensure we don't error during [Get]
+		// We only stop if not done to ensure we don't error during [Get]
 		close(f.stop)
 	})
 }
 
 // Fetch enqueues a set of [stateKeys] to be fetched from disk. Duplicate keys
-// are only fetched once and fetch priority is done in the order [Fetch] is called.
+// are only fetched once and fetch priority is setErr in the order [Fetch] is called.
 //
 // Fetch can be called concurrently.
 //
@@ -224,7 +223,7 @@ func (f *Fetcher) Stop() {
 	f.handleErr(ErrStopped)
 }
 
-// Wait until all the workers are done and return any errors.
+// Wait until all the workers are done and return any error.
 //
 // [Wait] can be called multiple times, however, [Fetch] should never be
 // called after [Wait] is called.
@@ -233,6 +232,6 @@ func (f *Fetcher) Wait() error {
 		close(f.tasks)
 	})
 	f.wg.Wait()
-	f.done.Do(func() {}) // ensures an error can never be set if work is done
+	f.setErr.Do(func() {}) // ensures an error can never be set if work is done
 	return f.err
 }
