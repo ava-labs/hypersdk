@@ -201,7 +201,7 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			// Submit will remove from [txWaiters] if it is not added
 			txID := tx.ID()
 			if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-				log.Error("failed to submit tx",
+				log.Debug("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)

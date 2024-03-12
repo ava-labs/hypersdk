@@ -68,7 +68,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authVerificationCores": 30,
   "transactionExecutionCores": 4,
   "rootGenerationCores": 34,
-  "verifyAuth":true,
+  "verifyAuth":false,
   "storeTransactions": false,
   "streamingBacklogSize": 10000000,
   "logLevel": "INFO"

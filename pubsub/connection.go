@@ -48,7 +48,7 @@ func (c *Connection) Send(msg []byte) bool {
 		return false
 	}
 	if err := c.mb.Send(msg); err != nil {
-		c.s.log.Debug("unable to send message", zap.Error(err))
+		c.s.log.Error("unable to send message", zap.Error(err))
 		return false
 	}
 	return true
@@ -85,7 +85,7 @@ func (c *Connection) readPump() {
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure,
 			) {
-				c.s.log.Debug("unexpected close in websockets",
+				c.s.log.Error("unexpected close in websockets",
 					zap.Error(err),
 				)
 			}
@@ -96,14 +96,14 @@ func (c *Connection) readPump() {
 		}
 		responseBytes, err := io.ReadAll(reader)
 		if err != nil {
-			c.s.log.Debug("unexpected error reading bytes from websockets",
+			c.s.log.Error("unexpected error reading bytes from websockets",
 				zap.Error(err),
 			)
 			return
 		}
 		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, responseBytes)
 		if err != nil {
-			c.s.log.Debug("unable to read websockets message",
+			c.s.log.Error("unable to read websockets message",
 				zap.Error(err),
 			)
 			return
@@ -134,7 +134,7 @@ func (c *Connection) writePump() {
 		select {
 		case message, ok := <-c.mb.Queue:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
-				c.s.log.Debug("closing the connection",
+				c.s.log.Error("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
 				)
@@ -147,7 +147,7 @@ func (c *Connection) writePump() {
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
-				c.s.log.Debug("closing the connection",
+				c.s.log.Error("closing the connection",
 					zap.String("reason", "failed to write message"),
 					zap.Error(err),
 				)
@@ -155,13 +155,17 @@ func (c *Connection) writePump() {
 			}
 		case <-ticker.C:
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
-				c.s.log.Debug("closing the connection",
+				c.s.log.Error("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
 				)
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				c.s.log.Error("closing the connection",
+					zap.String("reason", "failed to write ping"),
+					zap.Error(err),
+				)
 				return
 			}
 		}
