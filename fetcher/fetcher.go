@@ -77,8 +77,6 @@ func New(im state.Immutable, txs, concurrency int) *Fetcher {
 
 // Workers fetch individual keys
 func (f *Fetcher) runWorker() {
-	defer f.wg.Done()
-
 	for {
 		select {
 		case t, ok := <-f.tasks:
