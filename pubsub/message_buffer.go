@@ -4,6 +4,7 @@
 package pubsub
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -88,6 +89,9 @@ func (m *MessageBuffer) clearPending() error {
 	if err != nil {
 		return err
 	}
+	if _, err := ParseBatchMessage(m.maxSize, bm); err != nil {
+		panic(err)
+	}
 	select {
 	case m.Queue <- bm:
 	default:
@@ -149,9 +153,9 @@ func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 		var nextMsg []byte
 		msgBatch.UnpackBytes(-1, true, &nextMsg)
 		if err := msgBatch.Err(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: unable to unpack %d/%d objectOffset=%d msgLen=%d", err, i, msgLen, msgBatch.Offset(), len(msg))
 		}
 		msgs = append(msgs, nextMsg)
 	}
-	return msgs, msgBatch.Err()
+	return msgs, nil
 }

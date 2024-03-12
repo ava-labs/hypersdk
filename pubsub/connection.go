@@ -99,6 +99,7 @@ func (c *Connection) readPump() {
 		if err != nil {
 			c.s.log.Error("unable to read websockets message",
 				zap.Int("size", len(responseBytes)),
+				zap.Int("max", c.s.config.MaxReadMessageSize),
 				zap.Error(err),
 			)
 			return
