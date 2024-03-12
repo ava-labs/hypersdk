@@ -334,6 +334,9 @@ func (h *Handler) Spam(
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
 						}
+						// TODO: addWriteDeadline to messages to recreate if bad mask
+						//
+						// Won't be able to recreate if we are full (never test connection)
 						if err := issuer.d.RegisterTx(tx); err != nil {
 							issuer.l.Lock()
 							if issuer.d.Closed() {
