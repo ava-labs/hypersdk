@@ -80,15 +80,9 @@ func (c *Connection) readPump() {
 	for {
 		_, reader, err := c.conn.NextReader()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(
-				err,
-				websocket.CloseGoingAway,
-				websocket.CloseAbnormalClosure,
-			) {
-				c.s.log.Error("unexpected close in websockets",
-					zap.Error(err),
-				)
-			}
+			c.s.log.Error("unexpected close in websockets",
+				zap.Error(err),
+			)
 			return
 		}
 		if c.s.callback == nil {

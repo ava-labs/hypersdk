@@ -6,7 +6,6 @@ package pubsub
 import (
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -17,7 +16,7 @@ const (
 	PongWait            = 60 * time.Second
 	PingPeriod          = (PongWait * 9) / 10
 	MaxReadMessageSize  = consts.NetworkSizeLimit
-	MaxWriteMessageSize = 16 * units.MiB
+	MaxWriteMessageSize = consts.NetworkSizeLimit
 	MaxMessageWait      = 50 * time.Millisecond
 	MaxPendingMessages  = 1024
 )

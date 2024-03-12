@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -73,7 +74,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.errl.Do(func() {
-					wc.err = err
+					wc.err = fmt.Errorf("%w: unable to read message", err)
 				})
 				return
 			}
@@ -112,7 +113,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				}
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 					wc.errl.Do(func() {
-						wc.err = err
+						wc.err = fmt.Errorf("%w: unable to write message", err)
 					})
 					_ = wc.conn.Close()
 					return
