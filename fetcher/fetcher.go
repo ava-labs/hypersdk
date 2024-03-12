@@ -22,16 +22,17 @@ import (
 type Fetcher struct {
 	im state.Immutable
 
-	l      sync.RWMutex
-	keys   map[string]*key
-	txs    map[ids.ID]*tx
-	err    error
-	setErr sync.Once
+	l    sync.RWMutex
+	keys map[string]*key
+	txs  map[ids.ID]*tx
+	err  error
 
 	wg       sync.WaitGroup
 	tasks    chan *task
 	waitOnce sync.Once
-	stop     chan struct{}
+
+	stop   chan struct{}
+	setErr sync.Once
 }
 
 type tx struct {
@@ -134,7 +135,7 @@ func (f *Fetcher) handleErr(err error) {
 }
 
 // Fetch enqueues a set of [stateKeys] to be fetched from disk. Duplicate keys
-// are only fetched once and fetch priority is setErr in the order [Fetch] is called.
+// are only fetched once and fetch priority is done in the order [Fetch] is called.
 //
 // Fetch can be called concurrently.
 //
