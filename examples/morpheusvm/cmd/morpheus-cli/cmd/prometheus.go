@@ -124,6 +124,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_block_execute_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}block execute [async] (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_engine_backlog", chainID))
+			utils.Outf("{{yellow}}block execution backlog:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_process_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}chunk process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
 

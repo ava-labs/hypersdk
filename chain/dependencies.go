@@ -49,6 +49,7 @@ type Metrics interface {
 	RecordTxsValid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
+	RecordEngineBacklog(int)
 }
 
 type Monitoring interface {

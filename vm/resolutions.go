@@ -568,3 +568,7 @@ func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 func (vm *VM) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
 	vm.cm.RequestChunks(certs, chunks)
 }
+
+func (vm *VM) RecordEngineBacklog(c int) {
+	vm.metrics.engineBacklog.Add(float64(c))
+}

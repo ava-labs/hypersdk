@@ -44,6 +44,7 @@ type Metrics struct {
 	chunksReceived        prometheus.Counter
 	sigsReceived          prometheus.Counter
 	certsReceived         prometheus.Counter
+	engineBacklog         prometheus.Gauge
 	waitAuth              metric.Averager
 	waitExec              metric.Averager
 	waitProcessor         metric.Averager
@@ -273,6 +274,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "certs_received",
 			Help:      "certificates received from validators",
 		}),
+		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "engine_backlog",
+			Help:      "number of blocks waiting to be executed",
+		}),
 		waitAuth:      waitAuth,
 		waitExec:      waitExec,
 		waitProcessor: waitProcessor,
@@ -310,6 +316,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunksReceived),
 		r.Register(m.sigsReceived),
 		r.Register(m.certsReceived),
+		r.Register(m.engineBacklog),
 	)
 	return r, m, errs.Err
 }

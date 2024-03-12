@@ -72,6 +72,8 @@ func (e *Engine) Run() {
 	for {
 		select {
 		case job := <-e.backlog:
+			e.vm.RecordEngineBacklog(-1)
+
 			estart := time.Now()
 			ctx := context.Background() // TODO: cleanup
 
@@ -327,6 +329,7 @@ func (e *Engine) Execute(blk *StatelessBlock) {
 	e.vm.RequestChunks(blk.AvailableChunks, chunks) // spawns a goroutine
 
 	// Enqueue job
+	e.vm.RecordEngineBacklog(1)
 	e.backlog <- &engineJob{
 		parentTimestamp: blk.parent.StatefulBlock.Timestamp,
 		blk:             blk,
