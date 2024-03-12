@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"strings"
@@ -83,14 +84,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			msg := msgBatch[ids.IDLen:]
-			msgHash := utils.ToID(msg)
-			expected := ids.ID(msgBatch[:ids.IDLen])
-			if msgHash != expected {
-				utils.Outf("{{orange}}received invalid message:{{/}} expected=%s, got=%s\n", expected, msgHash)
-				continue
-			}
-			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msg)
+			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
 				continue
@@ -119,11 +113,13 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				if !ok {
 					return
 				}
-				if len(rmsg) > consts.NetworkSizeLimit {
-					utils.Outf("sending too large message: len=%d\n", len(rmsg))
-				}
+				msg := binary.BigEndian.AppendUint32(nil, uint32(len(rmsg)))
 				msgHash := utils.ToID(rmsg)
-				msg := append(msgHash[:], rmsg...)
+				msg = append(msg, msgHash[:]...)
+				msg = append(msg, rmsg...)
+				if len(msg) > consts.NetworkSizeLimit {
+					utils.Outf("sending too large message: len=%d\n", len(msg))
+				}
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 					wc.errl.Do(func() {
 						wc.err = fmt.Errorf("%w: unable to write message", err)
