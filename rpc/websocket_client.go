@@ -83,7 +83,14 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
+			msg := msgBatch[ids.IDLen:]
+			msgHash := utils.ToID(msg)
+			expected := ids.ID(msgBatch[:ids.IDLen])
+			if msgHash != expected {
+				utils.Outf("{{orange}}received invalid message:{{/}} expected=%s, got=%s\n", expected, msgHash)
+				continue
+			}
+			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msg)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
 				continue
@@ -108,13 +115,15 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		defer close(wc.writeStopped)
 		for {
 			select {
-			case msg, ok := <-wc.mb.Queue:
+			case rmsg, ok := <-wc.mb.Queue:
 				if !ok {
 					return
 				}
-				if len(msg) > consts.NetworkSizeLimit {
-					utils.Outf("sending too large message: len=%d\n", len(msg))
+				if len(rmsg) > consts.NetworkSizeLimit {
+					utils.Outf("sending too large message: len=%d\n", len(rmsg))
 				}
+				msgHash := utils.ToID(rmsg)
+				msg := append(msgHash[:], rmsg...)
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 					wc.errl.Do(func() {
 						wc.err = fmt.Errorf("%w: unable to write message", err)
