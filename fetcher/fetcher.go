@@ -26,14 +26,13 @@ type Fetcher struct {
 	keys map[string]*key
 	txs  map[ids.ID]*tx
 	err  error
-	done bool
 
 	wg       sync.WaitGroup
 	tasks    chan *task
 	waitOnce sync.Once
-
 	stop     chan struct{}
-	stopOnce sync.Once
+
+	done sync.Once
 }
 
 type tx struct {
@@ -67,8 +66,7 @@ func New(im state.Immutable, txs, concurrency int) *Fetcher {
 		txs:  make(map[ids.ID]*tx, txs),
 
 		tasks: make(chan *task, txs),
-
-		stop: make(chan struct{}),
+		stop:  make(chan struct{}),
 	}
 	f.wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -113,23 +111,21 @@ func (f *Fetcher) set(k string, v []byte, exists bool, chunks uint16) {
 	defer f.l.Unlock()
 
 	// Puts a key that was fetched from data into cache
-	f.keys[k].cache = &data{v, exists, chunks}
-	for _, id := range f.keys[k].blocked {
-		f.txs[id].blockers--
-		if f.txs[id].blockers == 0 {
-			close(f.txs[id].waiter)
+	key := f.keys[k]
+	key.cache = &data{v, exists, chunks}
+	for _, id := range key.blocked {
+		tx := f.txs[id]
+		tx.blockers--
+		if tx.blockers == 0 {
+			close(tx.waiter)
 		}
 	}
-	f.keys[k].blocked = nil
+	key.blocked = nil
 }
 
 func (f *Fetcher) handleErr(err error) {
-	f.stopOnce.Do(func() {
+	f.done.Do(func() {
 		f.l.Lock()
-		if f.done {
-			f.l.Unlock()
-			return
-		}
 		f.err = err
 		f.l.Unlock()
 
@@ -146,9 +142,9 @@ func (f *Fetcher) handleErr(err error) {
 // Invariant: Don't call [Fetch] afer calling [Stop] or [Wait]
 func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) error {
 	f.l.Lock()
-	if fErr := f.err; fErr != nil {
+	if f.err != nil {
 		f.l.Unlock()
-		return fErr // ensures we don't deadlock if encountering an error
+		return f.err
 	}
 	tasks := make([]*task, 0, len(stateKeys))
 	for k := range stateKeys {
@@ -237,8 +233,6 @@ func (f *Fetcher) Wait() error {
 		close(f.tasks)
 	})
 	f.wg.Wait()
-	f.l.Lock()
-	f.done = true
-	f.l.Unlock()
+	f.done.Do(func() {}) // ensures an error can never be set if work is done
 	return f.err
 }
