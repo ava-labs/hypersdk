@@ -118,6 +118,7 @@ func (c *Connection) readPump() {
 				zap.String("reason", "message hash mismatch"),
 				zap.Stringer("found", msgHash),
 				zap.Stringer("expected", expectedHash),
+				zap.Int("len", len(msg)),
 			)
 			return
 		}

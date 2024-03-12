@@ -38,8 +38,8 @@ type ServerConfig struct {
 
 func NewDefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		ReadBufferSize:      0,
-		WriteBufferSize:     0,
+		ReadBufferSize:      1,
+		WriteBufferSize:     1,
 		MaxPendingMessages:  MaxPendingMessages,
 		MaxReadMessageSize:  MaxReadMessageSize,
 		MaxWriteMessageSize: MaxWriteMessageSize,
@@ -76,8 +76,8 @@ func New(
 			CheckOrigin: func(*http.Request) bool {
 				return true
 			},
-			ReadBufferSize:  0,
-			WriteBufferSize: 0,
+			ReadBufferSize:  1,
+			WriteBufferSize: 1,
 		},
 		conns: NewConnections(),
 	}
