@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type ServerConfig struct {
@@ -38,8 +39,8 @@ type ServerConfig struct {
 
 func NewDefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		ReadBufferSize:      1,
-		WriteBufferSize:     1,
+		ReadBufferSize:      consts.NetworkSizeLimit * 2,
+		WriteBufferSize:     consts.NetworkSizeLimit * 2,
 		MaxPendingMessages:  MaxPendingMessages,
 		MaxReadMessageSize:  MaxReadMessageSize,
 		MaxWriteMessageSize: MaxWriteMessageSize,
@@ -76,8 +77,8 @@ func New(
 			CheckOrigin: func(*http.Request) bool {
 				return true
 			},
-			ReadBufferSize:  1,
-			WriteBufferSize: 1,
+			ReadBufferSize:  config.ReadBufferSize,
+			WriteBufferSize: config.WriteBufferSize,
 		},
 		conns: NewConnections(),
 	}

@@ -53,8 +53,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
 		HandshakeTimeout: handshakeTimeout,
-		ReadBufferSize:   1,
-		WriteBufferSize:  1,
+		ReadBufferSize:   consts.NetworkSizeLimit * 2,
+		WriteBufferSize:  consts.NetworkSizeLimit * 2,
 	}
 	conn, resp, err := dialer.Dial(uri, nil)
 	if err != nil {
