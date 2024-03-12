@@ -59,6 +59,8 @@ func (c *Connection) Send(msg []byte) bool {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
+//
+// TODO: close gracefully on read error
 func (c *Connection) readPump() {
 	defer func() {
 		c.s.removeConnection(c)
