@@ -111,7 +111,7 @@ EOF
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
-VM_COMMIT=$(git rev-parse HEAD)
+VM_COMMIT=test-websocket
 function cleanup {
   RED='\033[0;31m'
   NC='\033[0m'
