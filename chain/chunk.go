@@ -29,6 +29,7 @@ type Chunk struct {
 
 	id    ids.ID
 	units *Dimensions
+	bytes []byte
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
@@ -137,7 +138,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 
 	// Discard chunk if nothing produced
 	if len(c.Txs) == 0 {
-		return nil, errors.New("no transactions")
+		return nil, ErrNoTxs
 	}
 
 	// Setup chunk
@@ -239,6 +240,10 @@ func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
+	if c.bytes != nil {
+		return c.bytes, nil
+	}
+
 	p := codec.NewWriter(c.Size(), consts.NetworkSizeLimit)
 
 	// Marshal transactions
@@ -255,8 +260,12 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	p.PackAddress(c.Beneficiary)
 	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
-
-	return p.Bytes(), p.Err()
+	bytes, err := p.Bytes(), p.Err()
+	if err != nil {
+		return nil, err
+	}
+	c.bytes = bytes
+	return bytes, nil
 }
 
 func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {

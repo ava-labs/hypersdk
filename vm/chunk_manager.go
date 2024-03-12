@@ -760,12 +760,15 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				// TODO: pre-calc ID
 				panic(err)
 			}
+			chunkBytes := chunk.Size()
 			c.vm.Logger().Info(
 				"built chunk",
 				zap.Stringer("id", cid),
 				zap.Int("txs", len(chunk.Txs)),
+				zap.Int("size", chunkBytes),
 			)
 			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
+			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
 		case <-gt.C:
 			now := time.Now()
 			gossipable := []*txGossip{}
