@@ -99,7 +99,7 @@ cat <<EOF > "${TMPDIR}"/node.config
   "consensus-on-accept-gossip-validator-size":"10",
   "consensus-on-accept-gossip-peer-size":"10",
   "network-compression-type":"zstd",
-  "consensus-app-concurrency":"16",
+  "consensus-app-concurrency":"128",
   "profile-continuous-enabled":true,
   "profile-continuous-freq":"1m",
   "http-host":"",
