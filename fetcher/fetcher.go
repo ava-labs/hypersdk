@@ -146,7 +146,11 @@ func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) 
 		f.l.Unlock()
 		return f.err
 	}
-	tasks := make([]*task, 0, len(stateKeys))
+	var (
+		tx       = &tx{keys: stateKeys}
+		tasks    = make([]*task, 0, len(stateKeys))
+		blockers = 0
+	)
 	for k := range stateKeys {
 		d, ok := f.keys[k]
 		if !ok {
@@ -155,6 +159,7 @@ func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) 
 				ctx: ctx,
 				key: k,
 			})
+			blockers++
 			continue
 		}
 
@@ -165,8 +170,13 @@ func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) 
 
 		// Register to get notified when the key is fetched
 		d.blocked = append(d.blocked, txID)
+		blockers++
 	}
-	f.txs[txID] = &tx{blockers: len(tasks), waiter: make(chan struct{}), keys: stateKeys}
+	if blockers > 0 {
+		tx.blockers = blockers
+		tx.waiter = make(chan struct{})
+	}
+	f.txs[txID] = tx
 	f.l.Unlock()
 
 	// Send fetch tasks to the workers or exit
@@ -192,12 +202,14 @@ func (f *Fetcher) Get(txID ids.ID) (map[string]uint16, map[string][]byte, error)
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: unable to get keys for transaction %s", ErrMissingTx, txID)
 	}
-	select {
-	case <-tx.waiter:
-	case <-f.stop:
-		// While waiting, the fetcher may error. Handling this case
-		// prevents a deadlock.
-		return nil, nil, f.err
+	if tx.waiter != nil { // if there are no blockers, waiter is nil
+		select {
+		case <-tx.waiter:
+		case <-f.stop:
+			// While waiting, the fetcher may error. Handling this case
+			// prevents a deadlock.
+			return nil, nil, f.err
+		}
 	}
 
 	// Fetch keys from cache
