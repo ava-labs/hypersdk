@@ -36,7 +36,7 @@ func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time
 		log:         log,
 		pending:     [][]byte{},
 		maxSize:     maxSize,
-		maxPackSize: maxSize - consts.IntLen, // account for message count in batch
+		maxPackSize: maxSize - (consts.IntLen * 2), // account for message count in batch
 		timeout:     timeout,
 	}
 	m.pendingTimer = timer.NewTimer(func() {
@@ -130,11 +130,12 @@ func (m *MessageBuffer) Send(msg []byte) error {
 }
 
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
-	size := consts.IntLen
+	size := consts.IntLen * 2
 	for _, msg := range msgs {
 		size += codec.BytesLen(msg)
 	}
 	msgBatch := codec.NewWriter(size, maxSize)
+	msgBatch.PackInt(size)
 	msgBatch.PackInt(len(msgs))
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)
@@ -144,6 +145,10 @@ func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 
 func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 	msgBatch := codec.NewReader(msg, maxSize)
+	msgSize := msgBatch.UnpackInt(true)
+	if len(msg) != msgSize {
+		return nil, fmt.Errorf("invalid message size: expected %d, got %d", msgSize, len(msg))
+	}
 	msgLen := msgBatch.UnpackInt(true)
 	msgs := [][]byte{}
 	for i := 0; i < msgLen; i++ {
