@@ -29,7 +29,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo "working directory: $TMPDIR"
 
 # Install avalanche-cli
-CLI_COMMIT=b7dc9509075d8bab20d5ef5bcfc8ebfd756e456d
+CLI_COMMIT=eb28ecb595dc581a25e75e176da5ce1f4a04e1ae
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
@@ -111,14 +111,15 @@ EOF
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
-VM_COMMIT=devnet-deploy
+VM_COMMIT=$(git rev-parse HEAD)
 function cleanup {
   RED='\033[0;31m'
   NC='\033[0m'
-  echo -e "${RED}To destroy the devnet, run: \"${TMPDIR}/avalanche node stop ${CLUSTER}\"${NC}"
+  echo -e "${RED}To destroy the devnet, run: \"${TMPDIR}/avalanche node destroy ${CLUSTER}\"${NC}"
 }
 trap cleanup EXIT
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --node-type c5.9xlarge --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
+# TODO: re-add monitoring when properly configure grafana/add load tester to it
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --node-type c5.9xlarge --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --skip-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk/" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
 
 # TODO: Hook up to APIs to morpheus-cli for local testing
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
