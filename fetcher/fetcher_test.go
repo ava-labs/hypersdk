@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -150,12 +149,18 @@ func TestFetchSameKeysSlow(t *testing.T) {
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		if i%2 == 0 {
-			time.Sleep(1 * time.Second)
-		}
-		require.NoError(f.Fetch(ctx, txID, stateKeys))
-		go func(txID ids.ID) {
+
+		delay := make(chan struct{})
+		go func(txID ids.ID, i int) {
 			defer wg.Done()
+			if i%2 == 0 {
+				// do some work to minimic timeout
+				for i := 0; i < 10000000; i++ {
+				}
+				close(delay)
+			}
+			require.NoError(f.Fetch(ctx, txID, stateKeys))
+
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
 			l.Lock()
@@ -166,7 +171,11 @@ func TestFetchSameKeysSlow(t *testing.T) {
 				cache.Add(k)
 			}
 			l.Unlock()
-		}(txID)
+		}(txID, i)
+		if i%2 != 0 {
+			continue
+		}
+		<-delay
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
@@ -233,6 +242,7 @@ func TestFetcherStop(t *testing.T) {
 		txID := ids.GenerateTestID()
 		err := f.Fetch(ctx, txID, stateKeys)
 		if err != nil {
+			// Some [Fetch] may return an error.
 			// This happens after we called [Stop]
 			require.Equal(ErrStopped, err)
 		}
