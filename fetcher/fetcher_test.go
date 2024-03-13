@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -32,10 +33,8 @@ func newTestDB() *testDB {
 
 func newTestDBWithValue() *testDB {
 	db := testDB{storage: make(map[string][]byte)}
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			db.storage[strconv.Itoa(i)] = []byte("value")
-		}
+	for i := 0; i < 100; i += 2 {
+		db.storage[strconv.Itoa(i)] = []byte("value")
 	}
 	return &db
 }
@@ -57,7 +56,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 		wg      sync.WaitGroup
 
 		l     sync.Mutex
-		cache = make(map[string]interface{})
+		cache = set.Set[string]{}
 	)
 	wg.Add(numTxs)
 
@@ -77,10 +76,10 @@ func TestFetchDifferentKeys(t *testing.T) {
 			require.NoError(err)
 			l.Lock()
 			for k := range reads {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			for k := range storage {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			l.Unlock()
 		}(txID)
@@ -99,7 +98,7 @@ func TestFetchSameKeys(t *testing.T) {
 		wg      sync.WaitGroup
 
 		l     sync.Mutex
-		cache = make(map[string]interface{})
+		cache = set.Set[string]{}
 	)
 	wg.Add(numTxs)
 
@@ -111,7 +110,7 @@ func TestFetchSameKeys(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
-		// be getting subsequnt requests from cache
+		// be getting subsequent requests from cache
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func(txID ids.ID) {
 			defer wg.Done()
@@ -119,10 +118,10 @@ func TestFetchSameKeys(t *testing.T) {
 			require.NoError(err)
 			l.Lock()
 			for k := range reads {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			for k := range storage {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			l.Unlock()
 		}(txID)
@@ -141,7 +140,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		wg      sync.WaitGroup
 
 		l     sync.Mutex
-		cache = make(map[string]interface{})
+		cache = set.Set[string]{}
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -161,10 +160,10 @@ func TestFetchSameKeysSlow(t *testing.T) {
 			require.NoError(err)
 			l.Lock()
 			for k := range reads {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			for k := range storage {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			l.Unlock()
 		}(txID)
@@ -183,7 +182,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 		wg      sync.WaitGroup
 
 		l     sync.Mutex
-		cache = make(map[string]interface{})
+		cache = set.Set[string]{}
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -200,10 +199,10 @@ func TestFetchKeysWithValues(t *testing.T) {
 			require.NoError(err)
 			l.Lock()
 			for k := range reads {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			for k := range storage {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			l.Unlock()
 		}(txID)
@@ -222,7 +221,7 @@ func TestFetcherStop(t *testing.T) {
 		wg      sync.WaitGroup
 
 		l     sync.Mutex
-		cache = make(map[string]interface{})
+		cache = set.Set[string]{}
 	)
 	wg.Add(numTxs)
 	for i := 0; i < numTxs; i++ {
@@ -232,7 +231,11 @@ func TestFetcherStop(t *testing.T) {
 			stateKeys.Add(strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
-		_ = f.Fetch(ctx, txID, stateKeys)
+		err := f.Fetch(ctx, txID, stateKeys)
+		if err != nil {
+			// This happens after we called [Stop]
+			require.Equal(ErrStopped, err)
+		}
 		go func(txID ids.ID, i int) {
 			defer wg.Done()
 			reads, storage, err := f.Get(txID)
@@ -241,10 +244,10 @@ func TestFetcherStop(t *testing.T) {
 			}
 			l.Lock()
 			for k := range reads {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			for k := range storage {
-				cache[k] = nil
+				cache.Add(k)
 			}
 			l.Unlock()
 			if i == 3 {

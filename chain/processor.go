@@ -106,10 +106,10 @@ func (b *StatelessBlock) Execute(
 			return nil
 		})
 	}
-	if err := e.Wait(); err != nil {
+	if err := f.Wait(); err != nil {
 		return nil, nil, err
 	}
-	if err := f.Wait(); err != nil {
+	if err := e.Wait(); err != nil {
 		return nil, nil, err
 	}
 
