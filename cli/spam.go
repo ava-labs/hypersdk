@@ -52,7 +52,7 @@ var (
 func (h *Handler) Spam(
 	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
 	numAccounts int, numTxsPerAccount int, numClients int,
-	clusterInfo string, privateKey string,
+	clusterInfo string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),
@@ -64,7 +64,16 @@ func (h *Handler) Spam(
 	ctx := context.Background()
 
 	// Select chain
-	chainID, uris, err := h.PromptChain("select chainID", nil)
+	var (
+		chainID ids.ID
+		uris    map[string]string
+		err     error
+	)
+	if len(clusterInfo) == 0 {
+		chainID, uris, err = h.PromptChain("select chainID", nil)
+	} else {
+		chainID, uris, err = ReadCLIFile(clusterInfo)
+	}
 	if err != nil {
 		return err
 	}
@@ -72,37 +81,49 @@ func (h *Handler) Spam(
 	baseName := uriNames[0]
 
 	// Select root key
-	keys, err := h.GetKeys()
-	if err != nil {
-		return err
-	}
-	if len(keys) == 0 {
-		return ErrNoKeys
-	}
-	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
 	cli := rpc.NewJSONRPCClient(uris[baseName])
 	networkID, _, _, err := cli.Network(ctx)
 	if err != nil {
 		return err
 	}
-	balances := make([]uint64, len(keys))
 	if err := createClient(uris[baseName], networkID, chainID); err != nil {
 		return err
 	}
-	for i := 0; i < len(keys); i++ {
-		address := h.c.Address(keys[i].Address)
-		balance, err := lookupBalance(i, address)
+	var (
+		key     *PrivateKey
+		balance uint64
+	)
+	if privateKey == nil {
+		keys, err := h.GetKeys()
 		if err != nil {
 			return err
 		}
-		balances[i] = balance
+		if len(keys) == 0 {
+			return ErrNoKeys
+		}
+		utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
+		balances := make([]uint64, len(keys))
+		for i := 0; i < len(keys); i++ {
+			address := h.c.Address(keys[i].Address)
+			balance, err := lookupBalance(i, address)
+			if err != nil {
+				return err
+			}
+			balances[i] = balance
+		}
+		keyIndex, err := h.PromptChoice("select root key", len(keys))
+		if err != nil {
+			return err
+		}
+		key = keys[keyIndex]
+		balance = balances[keyIndex]
+	} else {
+		balance, err = lookupBalance(-1, h.c.Address(privateKey.Address))
+		if err != nil {
+			return err
+		}
+		key = privateKey
 	}
-	keyIndex, err := h.PromptChoice("select root key", len(keys))
-	if err != nil {
-		return err
-	}
-	key := keys[keyIndex]
-	balance := balances[keyIndex]
 	factory, err := getFactory(key)
 	if err != nil {
 		return err
@@ -118,24 +139,30 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(keys[0].Address, 0)
+	action := getTransfer(key.Address, 0)
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
 	if err != nil {
 		return err
 	}
 
 	// Distribute funds
-	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
-	if err != nil {
-		return err
+	if numAccounts == 0 {
+		numAccounts, err = h.PromptInt("number of accounts", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
-	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second", consts.MaxInt)
-	if err != nil {
-		return err
+	if numTxsPerAccount == 0 {
+		numTxsPerAccount, err = h.PromptInt("number of transactions per account per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
-	numClients, err := h.PromptInt("number of clients per node", consts.MaxInt)
-	if err != nil {
-		return err
+	if numClients == 0 {
+		numClients, err = h.PromptInt("number of clients per node", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {

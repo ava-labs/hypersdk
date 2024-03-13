@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
@@ -63,8 +64,19 @@ var runSpamCmd = &cobra.Command{
 			v := uint64(maxFee)
 			maxFeeParsed = &v
 		}
+		var pk *cli.PrivateKey
+		if len(privateKey) > 0 {
+			b, err := hex.DecodeString(privateKey)
+			if err != nil {
+				return err
+			}
+			pk = &cli.PrivateKey{
+				Address: auth.NewED25519Address(ed25519.PrivateKey(b).PublicKey()),
+				Bytes:   b,
+			}
+		}
 		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
-			numAccounts, numTxs, numClients, clusterInfo, privateKey,
+			numAccounts, numTxs, numClients, clusterInfo, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
@@ -83,13 +95,15 @@ var runSpamCmd = &cobra.Command{
 				if err != nil {
 					return 0, err
 				}
-				utils.Outf(
-					"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-					choice,
-					address,
-					utils.FormatBalance(balance, consts.Decimals),
-					consts.Symbol,
-				)
+				if choice != -1 {
+					utils.Outf(
+						"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
+						choice,
+						address,
+						utils.FormatBalance(balance, consts.Decimals),
+						consts.Symbol,
+					)
+				}
 				return balance, err
 			},
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
