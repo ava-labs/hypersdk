@@ -130,5 +130,25 @@ echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 echo "Spin up monitoring: ${TMPDIR}/morpheus-cli prometheus generate"
 
+# Wait for user to confirm that they want to launch load test
+echo "Start load test (y/n)?:"
+
+# Wait for the user to press a key
+read -s -n 1 key
+
+# Check which key was pressed
+case $key in
+    y|Y)
+        echo "You typed 'y'. Starting..."
+        ;;
+    n|N)
+        echo "You typed 'n'. Exiting..."
+        exit 1
+        ;;
+    *)
+        echo "Invalid input. Please type 'y' or 'n'."
+        ;;
+esac
+
 # Start load test on dedicated machine
 /bin/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="./home/ubuntu/simulator spam run ed25519 --"
