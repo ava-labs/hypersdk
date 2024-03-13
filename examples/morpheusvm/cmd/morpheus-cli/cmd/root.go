@@ -29,6 +29,11 @@ var (
 	hideTxs               bool
 	randomRecipient       bool
 	maxTxBacklog          int
+	numAccounts           int
+	numTxs                int
+	numClients            int
+	clusterInfo           string
+	privateKey            string
 	checkAllChains        bool
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
@@ -157,6 +162,36 @@ func init() {
 		"max-fee",
 		-1,
 		"max fee per tx",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&numAccounts,
+		"num-accounts",
+		-1,
+		"number of accounts submitting txs",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&numTxs,
+		"num-txs",
+		-1,
+		"number of txs per account",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&numClients,
+		"num-clients",
+		-1,
+		"number of clients per host",
+	)
+	runSpamCmd.PersistentFlags().StringVar(
+		&clusterInfo,
+		"cluster-info",
+		"",
+		"output from avalanche-cli with cluster info",
+	)
+	runSpamCmd.PersistentFlags().StringVar(
+		&privateKey,
+		"private-key",
+		"",
+		"ed25519 private key for root account",
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,
