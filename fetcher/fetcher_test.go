@@ -153,11 +153,8 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		delay := make(chan struct{})
 		go func(i int) {
 			defer wg.Done()
-			if i%2 == 0 {
-				close(delay)
-			}
 			require.NoError(f.Fetch(ctx, txID, stateKeys))
-
+			close(delay)
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
 			l.Lock()
@@ -169,9 +166,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 			}
 			l.Unlock()
 		}(i)
-		if i%2 == 0 {
-			<-delay
-		}
+		<-delay
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
