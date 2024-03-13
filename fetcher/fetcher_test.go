@@ -69,7 +69,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 		// Since these are all different keys, we will
 		// fetch each key from disk
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
-		go func(txID ids.ID) {
+		go func() {
 			defer wg.Done()
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
@@ -81,7 +81,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 				cache.Add(k)
 			}
 			l.Unlock()
-		}(txID)
+		}()
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
@@ -111,7 +111,7 @@ func TestFetchSameKeys(t *testing.T) {
 		// We are fetching the same keys, so we should
 		// be getting subsequent requests from cache
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
-		go func(txID ids.ID) {
+		go func() {
 			defer wg.Done()
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
@@ -123,7 +123,7 @@ func TestFetchSameKeys(t *testing.T) {
 				cache.Add(k)
 			}
 			l.Unlock()
-		}(txID)
+		}()
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
@@ -151,7 +151,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		txID := ids.GenerateTestID()
 
 		delay := make(chan struct{})
-		go func(txID ids.ID, i int) {
+		go func(i int) {
 			defer wg.Done()
 			if i%2 == 0 {
 				close(delay)
@@ -168,7 +168,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 				cache.Add(k)
 			}
 			l.Unlock()
-		}(txID, i)
+		}(i)
 		if i%2 == 0 {
 			<-delay
 		}
@@ -198,7 +198,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
-		go func(txID ids.ID) {
+		go func() {
 			defer wg.Done()
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
@@ -210,7 +210,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 				cache.Add(k)
 			}
 			l.Unlock()
-		}(txID)
+		}()
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
@@ -242,7 +242,7 @@ func TestFetcherStop(t *testing.T) {
 			// This happens after we called [Stop]
 			require.Equal(ErrStopped, err)
 		}
-		go func(txID ids.ID, i int) {
+		go func(i int) {
 			defer wg.Done()
 			reads, storage, err := f.Get(txID)
 			if err != nil {
@@ -259,7 +259,7 @@ func TestFetcherStop(t *testing.T) {
 			if i == 3 {
 				f.Stop()
 			}
-		}(txID, i)
+		}(i)
 	}
 	wg.Wait()
 	require.Equal(ErrStopped, f.Wait())
