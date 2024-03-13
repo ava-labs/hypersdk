@@ -4,7 +4,6 @@
 package pubsub
 
 import (
-	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -75,11 +74,13 @@ func (c *Connection) readPump() {
 	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
 		return
 	}
-	c.conn.SetPingHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); return nil }) //
+	c.conn.SetPongHandler(func(string) error {
+		return c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait))
+	})
 
 	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
 	for {
-		_, reader, err := c.conn.NextReader()
+		messageType, response, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,
@@ -92,17 +93,19 @@ func (c *Connection) readPump() {
 			}
 			return
 		}
+		if messageType != websocket.BinaryMessage {
+			c.s.log.Debug("dropping non-binary message", zap.Int("messageType", messageType))
+			continue
+		}
 		if c.s.callback == nil {
 			continue
 		}
-		responseBytes, err := io.ReadAll(reader)
-		if err != nil {
-			c.s.log.Debug("unexpected error reading bytes from websockets",
-				zap.Error(err),
-			)
-			return
+		if len(response) == 0 {
+			// TODO: disconnect here?
+			c.s.log.Debug("dropping empty message")
+			continue
 		}
-		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, responseBytes)
+		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, response)
 		if err != nil {
 			c.s.log.Debug("unable to read websockets message",
 				zap.Error(err),
@@ -121,7 +124,10 @@ func (c *Connection) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Connection) writePump() {
+	ticker := time.NewTicker(PingPeriod)
 	defer func() {
+		ticker.Stop()
+
 		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 		_ = c.conn.Close()
 
@@ -144,6 +150,21 @@ func (c *Connection) writePump() {
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to write message"),
+					zap.Error(err),
+				)
+				return
+			}
+		case <-ticker.C:
+			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
+				c.s.log.Debug("closing the connection",
+					zap.String("reason", "failed to set the write deadline"),
+					zap.Error(err),
+				)
+				return
+			}
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				c.s.log.Debug("closing the connection",
+					zap.String("reason", "failed to write ping"),
 					zap.Error(err),
 				)
 				return

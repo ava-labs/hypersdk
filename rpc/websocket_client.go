@@ -18,7 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// TODO: move client connection logic to pubsub
+// TODO: move client connection logic to pubsub (so much shared with connection, it is a bit silly)
 type WebSocketClient struct {
 	cl   sync.Once
 	conn *websocket.Conn
@@ -72,19 +72,27 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, max
 		defer close(wc.readStopped)
 
 		// Ensure connection stays open as long as we get pings
+		//
+		// Note: the server is doing the same thing to prune connections...we
+		// should unify this logic in the future.
 		if err := wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); err != nil {
 			return
 		}
-		wc.conn.SetPongHandler(func(string) error { wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); return nil })
+		wc.conn.SetPongHandler(func(string) error {
+			return wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait))
+		})
 
 		// TODO: add ReadLimit
 		for {
-			_, msgBatch, err := conn.ReadMessage()
+			messageType, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.errl.Do(func() {
 					wc.err = err
 				})
 				return
+			}
+			if messageType != websocket.BinaryMessage {
+				continue
 			}
 			if len(msgBatch) == 0 {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
