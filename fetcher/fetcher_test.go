@@ -71,8 +71,11 @@ func TestFetchDifferentKeys(t *testing.T) {
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func() {
 			defer wg.Done()
+			// Get keys from cache
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
+
+			// Add to cache
 			l.Lock()
 			for k := range reads {
 				cache.Add(k)
@@ -133,7 +136,7 @@ func TestFetchSameKeys(t *testing.T) {
 func TestFetchSameKeysSlow(t *testing.T) {
 	var (
 		require = require.New(t)
-		numTxs  = 25
+		numTxs  = 1000 // More txns trying to fetch same key
 		f       = New(newTestDB(), numTxs, 4)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
@@ -150,13 +153,19 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		}
 		txID := ids.GenerateTestID()
 
+		// Empty chan to mimic timing out
 		delay := make(chan struct{})
-		go func(i int) {
+
+		// Fetch the key
+		require.NoError(f.Fetch(ctx, txID, stateKeys))
+		go func() {
 			defer wg.Done()
-			require.NoError(f.Fetch(ctx, txID, stateKeys))
-			close(delay)
+			// Get the keys from cache
 			reads, storage, err := f.Get(txID)
 			require.NoError(err)
+
+			// Notify we're done
+			close(delay)
 			l.Lock()
 			for k := range reads {
 				cache.Add(k)
@@ -165,12 +174,13 @@ func TestFetchSameKeysSlow(t *testing.T) {
 				cache.Add(k)
 			}
 			l.Unlock()
-		}(i)
+		}()
+		// Wait a little to try to mimic the "stampede"
 		<-delay
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	require.Len(cache, 25)
+	require.Len(cache, 1000)
 }
 
 func TestFetchKeysWithValues(t *testing.T) {
