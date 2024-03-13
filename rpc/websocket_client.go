@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// TODO: move client connection logic to pubsub
 type WebSocketClient struct {
 	cl   sync.Once
 	conn *websocket.Conn
@@ -69,6 +70,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	}
 	go func() {
 		defer close(wc.readStopped)
+		wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait))
+		wc.conn.SetPongHandler(func(string) error { wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); return nil })
 		for {
 			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
@@ -103,14 +106,28 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		}
 	}()
 	go func() {
-		defer close(wc.writeStopped)
+		ticker := time.NewTicker(pubsub.PingPeriod)
+		defer func() {
+			ticker.Stop()
+			close(wc.writeStopped)
+		}()
 		for {
 			select {
 			case msg, ok := <-wc.mb.Queue:
 				if !ok {
 					return
 				}
+				wc.conn.SetWriteDeadline(time.Now().Add(pubsub.WriteWait))
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					wc.errl.Do(func() {
+						wc.err = err
+					})
+					_ = wc.conn.Close()
+					return
+				}
+			case <-ticker.C:
+				wc.conn.SetWriteDeadline(time.Now().Add(pubsub.WriteWait))
+				if err := wc.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					wc.errl.Do(func() {
 						wc.err = err
 					})
@@ -205,6 +222,13 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 
 // Close closes [c]'s connection to the decision rpc server.
 func (c *WebSocketClient) Close() error {
+	// Check if we already exited
+	select {
+	case <-c.readStopped:
+		return c.err
+	default:
+	}
+
 	var err error
 	c.cl.Do(func() {
 		c.startedClose = true
@@ -214,6 +238,7 @@ func (c *WebSocketClient) Close() error {
 		<-c.writeStopped
 
 		// Close connection and stop reading
+		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 		err = c.conn.Close()
 	})
 	return err
