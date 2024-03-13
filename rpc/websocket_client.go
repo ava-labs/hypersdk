@@ -39,7 +39,7 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int, maxSize int) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, maxWrite int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -51,8 +51,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
 		HandshakeTimeout: handshakeTimeout,
-		ReadBufferSize:   maxSize,
-		WriteBufferSize:  maxSize,
+		ReadBufferSize:   pubsub.MaxWriteMessageSize, // we assume we are reading from server (TODO: make generic)
+		WriteBufferSize:  maxWrite,
 	}
 	conn, resp, err := dialer.Dial(uri, nil)
 	if err != nil {
@@ -61,7 +61,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxSize, pubsub.MaxMessageWait),
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxWrite, pubsub.MaxMessageWait),
 		readStopped:   make(chan struct{}),
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
