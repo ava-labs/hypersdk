@@ -46,7 +46,7 @@ func NewDefaultServerConfig() *ServerConfig {
 		MaxMessageWait:      MaxMessageWait,
 		WriteWait:           WriteWait,
 		PongWait:            PongWait,
-		PingPeriod:          (9 * PongWait) / 10,
+		PingPeriod:          PongWait / 2, // don't wait until end of [PongWait] to send ping
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// TODO: move client connection logic to pubsub (so much shared with connection, it is a bit silly)
 type WebSocketClient struct {
 	cl   sync.Once
 	conn *websocket.Conn
@@ -38,7 +39,7 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int, maxSize int) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, maxWrite int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -50,8 +51,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
 		HandshakeTimeout: handshakeTimeout,
-		ReadBufferSize:   maxSize,
-		WriteBufferSize:  maxSize,
+		ReadBufferSize:   pubsub.MaxWriteMessageSize, // we assume we are reading from server (TODO: make generic)
+		WriteBufferSize:  maxWrite,
 	}
 	conn, resp, err := dialer.Dial(uri, nil)
 	if err != nil {
@@ -60,7 +61,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxSize, pubsub.MaxMessageWait),
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxWrite, pubsub.MaxMessageWait),
 		readStopped:   make(chan struct{}),
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
@@ -69,13 +70,29 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	}
 	go func() {
 		defer close(wc.readStopped)
+
+		// Ensure connection stays open as long as we get pings
+		//
+		// Note: the server is doing the same thing to prune connections...we
+		// should unify this logic in the future.
+		if err := wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); err != nil {
+			return
+		}
+		wc.conn.SetPongHandler(func(string) error {
+			return wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait))
+		})
+
+		// TODO: add ReadLimit
 		for {
-			_, msgBatch, err := conn.ReadMessage()
+			messageType, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.errl.Do(func() {
 					wc.err = err
 				})
 				return
+			}
+			if messageType != websocket.BinaryMessage {
+				continue
 			}
 			if len(msgBatch) == 0 {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
@@ -103,14 +120,28 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		}
 	}()
 	go func() {
-		defer close(wc.writeStopped)
+		ticker := time.NewTicker(pubsub.PingPeriod)
+		defer func() {
+			ticker.Stop()
+			close(wc.writeStopped)
+		}()
 		for {
 			select {
 			case msg, ok := <-wc.mb.Queue:
 				if !ok {
 					return
 				}
+				wc.conn.SetWriteDeadline(time.Now().Add(pubsub.WriteWait))
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					wc.errl.Do(func() {
+						wc.err = err
+					})
+					_ = wc.conn.Close()
+					return
+				}
+			case <-ticker.C:
+				wc.conn.SetWriteDeadline(time.Now().Add(pubsub.WriteWait))
+				if err := wc.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					wc.errl.Do(func() {
 						wc.err = err
 					})
@@ -205,6 +236,13 @@ func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.R
 
 // Close closes [c]'s connection to the decision rpc server.
 func (c *WebSocketClient) Close() error {
+	// Check if we already exited
+	select {
+	case <-c.readStopped:
+		return c.err
+	default:
+	}
+
 	var err error
 	c.cl.Do(func() {
 		c.startedClose = true
@@ -214,6 +252,7 @@ func (c *WebSocketClient) Close() error {
 		<-c.writeStopped
 
 		// Close connection and stop reading
+		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 		err = c.conn.Close()
 	})
 	return err
