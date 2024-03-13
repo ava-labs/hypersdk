@@ -154,9 +154,6 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		go func(txID ids.ID, i int) {
 			defer wg.Done()
 			if i%2 == 0 {
-				// do some work to minimic timeout
-				for i := 0; i < 10000000; i++ {
-				}
 				close(delay)
 			}
 			require.NoError(f.Fetch(ctx, txID, stateKeys))
@@ -172,10 +169,9 @@ func TestFetchSameKeysSlow(t *testing.T) {
 			}
 			l.Unlock()
 		}(txID, i)
-		if i%2 != 0 {
-			continue
+		if i%2 == 0 {
+			<-delay
 		}
-		<-delay
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
