@@ -51,6 +51,8 @@ var (
 
 func (h *Handler) Spam(
 	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
+	numAccounts int, numTxsPerAccount int, numClients int,
+	clusterInfo string, privateKey string,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),

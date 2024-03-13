@@ -118,6 +118,40 @@ func (h *Handler) ImportANR() error {
 	return h.StoreDefaultChain(filledChainID)
 }
 
+func ReadCLIFile(cliPath string) (ids.ID, map[string]string, error) {
+	// Load yaml file
+	yamlFile, err := os.ReadFile(cliPath)
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	yamlContents := make(map[string]string)
+	err = yaml.Unmarshal(yamlFile, &yamlContents)
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+
+	// Load chainID
+	chainID, err := ids.FromString(yamlContents["CHAIN_ID"])
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+
+	// Load nodes
+	nodes := make(map[string]string)
+	for _, t := range []string{"API", "VALIDATOR"} {
+		for i := 0; i < consts.MaxInt; i++ {
+			ip, ok := yamlContents[fmt.Sprintf("IP_%s_%d", t, i)]
+			if !ok {
+				break
+			}
+			name := fmt.Sprintf("%s-%d", t, i)
+			uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", ip, chainID)
+			nodes[name] = uri
+		}
+	}
+	return chainID, nodes, nil
+}
+
 func (h *Handler) ImportCLI(cliPath string) error {
 	oldChains, err := h.DeleteChains()
 	if err != nil {
@@ -128,41 +162,17 @@ func (h *Handler) ImportCLI(cliPath string) error {
 	}
 
 	// Load yaml file
-	yamlFile, err := os.ReadFile(cliPath)
-	if err != nil {
-		return err
-	}
-	yamlContents := make(map[string]string)
-	err = yaml.Unmarshal(yamlFile, &yamlContents)
-	if err != nil {
-		return err
-	}
-
-	// Load chainID
-	chainID, err := ids.FromString(yamlContents["CHAIN_ID"])
-	if err != nil {
-		return err
-	}
-
-	// Add chains
-	for _, t := range []string{"API", "VALIDATOR"} {
-		for i := 0; i < consts.MaxInt; i++ {
-			ip, ok := yamlContents[fmt.Sprintf("IP_%s_%d", t, i)]
-			if !ok {
-				break
-			}
-			name := fmt.Sprintf("%s-%d", t, i)
-			uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", ip, chainID)
-			if err := h.StoreChain(chainID, name, uri); err != nil {
-				return err
-			}
-			utils.Outf(
-				"{{yellow}}[%s] stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
-				name,
-				chainID,
-				uri,
-			)
+	chainID, nodes, err := ReadCLIFile(cliPath)
+	for name, uri := range nodes {
+		if err := h.StoreChain(chainID, name, uri); err != nil {
+			return err
 		}
+		utils.Outf(
+			"{{yellow}}[%s] stored chainID:{{/}} %s {{yellow}}uri:{{/}} %s\n",
+			name,
+			chainID,
+			uri,
+		)
 	}
 	return h.StoreDefaultChain(chainID)
 }

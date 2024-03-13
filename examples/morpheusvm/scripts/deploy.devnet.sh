@@ -128,7 +128,7 @@ cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 # Import the cluster into morpheus-cli
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-echo "Run this command to launch monitoring: ${TMPDIR}/morpheus-cli prometheus generate"
+echo "Run this command in a separate window to monitor cluster: ${TMPDIR}/morpheus-cli prometheus generate"
 
 # Wait for user to confirm that they want to launch load test
 echo "Start load test (y/n)?:"

@@ -191,7 +191,7 @@ func init() {
 		&privateKey,
 		"private-key",
 		"",
-		"ed25519 private key for root account",
+		"ed25519 private key for root account (hex)",
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,
