@@ -74,6 +74,9 @@ func (c *Connection) readPump() {
 	defer c.cleanup()
 
 	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
+	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
+		return
+	}
 	for {
 		_, reader, err := c.conn.NextReader()
 		if err != nil {
