@@ -278,6 +278,9 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	}
 
 	// Process chunk transactions
+	//
+	// TODO: run batch verifier by chunk (invalid all items in chunk if any fail)
+	// TODO: if tx invalid drop chunk entirely rather than keeping
 	for ri, rtx := range chunk.Txs {
 		txIndex := ri
 		tx := rtx
@@ -374,6 +377,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			if p.vm.GetVerifyAuth() {
 				if err := tx.Auth.Verify(ctx, msg); err != nil {
 					p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
+					// TODO: mark chunk invalid if this happens?
 					p.results[chunkIndex][txIndex] = &Result{Valid: false}
 					return nil, nil
 				}
