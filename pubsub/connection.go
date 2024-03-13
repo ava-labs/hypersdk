@@ -60,8 +60,6 @@ func (c *Connection) cleanup() {
 	c.closer.Do(func() {
 		c.s.removeConnection(c)
 		c.deactivate()
-		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
-		_ = c.conn.Close()
 	})
 }
 
@@ -73,10 +71,13 @@ func (c *Connection) cleanup() {
 func (c *Connection) readPump() {
 	defer c.cleanup()
 
-	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
+	// Ensure connection stays open as long as we get pings
 	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
 		return
 	}
+	c.conn.SetPingHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); return nil }) //
+
+	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
 	for {
 		_, reader, err := c.conn.NextReader()
 		if err != nil {
@@ -120,7 +121,12 @@ func (c *Connection) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Connection) writePump() {
-	defer c.cleanup()
+	defer func() {
+		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
+		_ = c.conn.Close()
+
+		c.cleanup()
+	}()
 
 	for {
 		select {

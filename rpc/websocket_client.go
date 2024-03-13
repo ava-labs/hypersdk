@@ -70,8 +70,14 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, max
 	}
 	go func() {
 		defer close(wc.readStopped)
-		wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait))
+
+		// Ensure connection stays open as long as we get pings
+		if err := wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); err != nil {
+			return
+		}
 		wc.conn.SetPongHandler(func(string) error { wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); return nil })
+
+		// TODO: add ReadLimit
 		for {
 			_, msgBatch, err := conn.ReadMessage()
 			if err != nil {
