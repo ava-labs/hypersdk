@@ -7,14 +7,15 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/workers"
+	"golang.org/x/sync/errgroup"
 )
 
 const authWorkerBacklog = 16_384
 
 type AuthVM interface {
 	Logger() logging.Logger
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	GetAuthVerifyCores() int
+	GetAuthBatchVerifier(authTypeID uint8, count int) (AuthBatchVerifier, bool)
 }
 
 // Adding a signature to a verification batch
@@ -23,20 +24,22 @@ type AuthVM interface {
 // not require each batch package to re-implement this logic.
 type AuthBatch struct {
 	vm  AuthVM
-	job workers.Job
+	g   *errgroup.Group
 	bvs map[uint8]*authBatchWorker
 }
 
-func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatch {
+func NewAuthBatch(vm AuthVM, authTypes map[uint8]int) *AuthBatch {
+	g, _ := errgroup.WithContext(context.TODO())
+	g.SetLimit(vm.GetAuthVerifyCores())
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
-		bv, ok := vm.GetAuthBatchVerifier(t, job.Workers(), count)
+		bv, ok := vm.GetAuthBatchVerifier(t, count)
 		if !ok {
 			continue
 		}
 		bw := &authBatchWorker{
 			vm,
-			job,
+			g,
 			bv,
 			make(chan *authBatchObject, authWorkerBacklog),
 			make(chan struct{}),
@@ -44,7 +47,7 @@ func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatc
 		go bw.start()
 		bvs[t] = bw
 	}
-	return &AuthBatch{vm, job, bvs}
+	return &AuthBatch{vm, g, bvs}
 }
 
 func (a *AuthBatch) Add(digest []byte, auth Auth) {
@@ -52,23 +55,23 @@ func (a *AuthBatch) Add(digest []byte, auth Auth) {
 	// processing.
 	bv, ok := a.bvs[auth.GetTypeID()]
 	if !ok {
-		a.job.Go(func() error { return auth.Verify(context.TODO(), digest) })
+		a.g.Go(func() error { return auth.Verify(context.TODO(), digest) })
 		return
 	}
 	bv.items <- &authBatchObject{digest, auth}
 }
 
-func (a *AuthBatch) Done(f func()) {
+func (a *AuthBatch) Wait() error {
 	for _, bw := range a.bvs {
 		close(bw.items)
 		<-bw.done
 
 		for _, item := range bw.bv.Done() {
-			a.job.Go(item)
+			a.g.Go(item)
 			a.vm.Logger().Debug("enqueued batch for processing during done")
 		}
 	}
-	a.job.Done(f)
+	return a.g.Wait()
 }
 
 type authBatchObject struct {
@@ -78,7 +81,7 @@ type authBatchObject struct {
 
 type authBatchWorker struct {
 	vm    AuthVM
-	job   workers.Job
+	g     *errgroup.Group
 	bv    AuthBatchVerifier
 	items chan *authBatchObject
 	done  chan struct{}
@@ -90,7 +93,7 @@ func (b *authBatchWorker) start() {
 	for object := range b.items {
 		if j := b.bv.Add(object.digest, object.auth); j != nil {
 			// May finish parts of batch early, let's start computing them as soon as possible
-			b.job.Go(j)
+			b.g.Go(j)
 			b.vm.Logger().Debug("enqueued batch for processing during add")
 		}
 	}

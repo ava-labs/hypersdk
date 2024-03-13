@@ -572,3 +572,11 @@ func (vm *VM) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.
 func (vm *VM) RecordEngineBacklog(c int) {
 	vm.metrics.engineBacklog.Add(float64(c))
 }
+
+func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	bv, ok := vm.authEngine[authTypeID]
+	if !ok {
+		return nil, false
+	}
+	return bv.GetBatchVerifier(cores, count), ok
+}

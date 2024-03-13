@@ -27,9 +27,10 @@ type Chunk struct {
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 
-	id    ids.ID
-	units *Dimensions
-	bytes []byte
+	id         ids.ID
+	units      *Dimensions
+	bytes      []byte
+	authCounts map[uint8]int
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {

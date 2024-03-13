@@ -281,6 +281,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	//
 	// TODO: run batch verifier by chunk (invalid all items in chunk if any fail)
 	// TODO: if tx invalid drop chunk entirely rather than keeping
+	authCounts := make(map[uint8]int)
+	batchVerifier := NewAuthBatch(p.vm, authCounts)
 	for ri, rtx := range chunk.Txs {
 		txIndex := ri
 		tx := rtx
@@ -291,22 +293,24 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
 		if err != nil {
 			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 		if tx.Base.Timestamp > chunk.Slot {
 			p.vm.Logger().Debug("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 		fee, err := MulSum(p.r.GetUnitPrices(), units)
 		if err != nil {
 			p.vm.Logger().Debug("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 		if tx.Base.MaxFee < fee {
 			// This should be checked by chunk producer before inclusion.
+			//
+			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
 			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
@@ -316,8 +320,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		_, seen := p.txs[tx.ID()]
 		if repeats.Contains(txIndex) || seen {
 			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 
 		// Check that height is set for epoch
@@ -326,8 +330,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		if epochHeight == nil {
 			// We can't verify tx partition if this is the case
 			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 		// If this passes, we know that latest pHeight must be non-nil
 
@@ -335,13 +339,13 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		parition, err := p.vm.AddressPartition(ctx, *epochHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 		if parition != chunk.Producer {
 			p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
 		}
 
 		// If this is the first instance of a transaction in this block,
@@ -367,29 +371,29 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		}
 
 		// Enqueue transaction for execution
-		p.authPool.Go(func() (func(), error) {
-			msg, err := tx.Digest()
-			if err != nil {
-				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				return nil, nil
-			}
-			if p.vm.GetVerifyAuth() {
-				if err := tx.Auth.Verify(ctx, msg); err != nil {
-					p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
-					// TODO: mark chunk invalid if this happens?
-					p.results[chunkIndex][txIndex] = &Result{Valid: false}
-					return nil, nil
-				}
-			}
-			if p.frozenSponsors.Contains(ssponsor) {
-				p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-				return nil, nil
-			}
-			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }, nil
-		})
+		msg, err := tx.Digest()
+		if err != nil {
+			p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
+		}
+		authCounts[tx.Auth.GetTypeID()]++
 	}
+	//		if p.vm.GetVerifyAuth() {
+	//			if err := tx.Auth.Verify(ctx, msg); err != nil {
+	//				p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
+	//				// TODO: mark chunk invalid if this happens?
+	//				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+	//				return nil, nil
+	//			}
+	//		}
+	//		if p.frozenSponsors.Contains(ssponsor) {
+	//			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+	//			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+	//			return nil, nil
+	//		}
+	//		return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }, nil
+	//	}
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
