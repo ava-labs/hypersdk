@@ -21,6 +21,7 @@ func (c *Config) GetLogLevel() logging.Level                { return logging.Inf
 func (c *Config) GetAuthVerificationCores() int             { return 1 }
 func (c *Config) GetRootGenerationCores() int               { return 1 }
 func (c *Config) GetTransactionExecutionCores() int         { return 1 }
+func (c *Config) GetStateFetchConcurrency() int             { return 1 }
 func (c *Config) GetMempoolSize() int                       { return 2_048 }
 func (c *Config) GetMempoolSponsorSize() int                { return 32 }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return nil }
