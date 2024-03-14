@@ -306,14 +306,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
 		}
-		if tx.Base.MaxFee < fee {
-			// This should be checked by chunk producer before inclusion.
-			//
-			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
-			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
-		}
 
 		// Check that transaction isn't a duplicate
 		_, seen := p.txs[tx.ID()]
@@ -368,12 +360,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		if frozen {
 			p.frozenSponsors.Add(ssponsor)
 		}
-		if p.frozenSponsors.Contains(ssponsor) {
-			// We drop this result if the signature is invalid, so we optimisiatically add here
-			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-			continue
-		}
 
 		// Enqueue transaction for execution
 		msg, err := tx.Digest()
@@ -382,6 +368,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
 		}
+		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
 		if p.vm.GetVerifyAuth() {
 			batchVerifier.Add(msg, tx.Auth)
 		}
@@ -398,7 +385,23 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		if p.results[chunkIndex][txIndex] != nil {
 			continue
 		}
-		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fees[txIndex], tx)
+		sponsor := tx.Auth.Sponsor()
+		ssponsor := string(sponsor[:])
+		fee := fees[txIndex]
+		if p.frozenSponsors.Contains(ssponsor) {
+			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+			continue
+		}
+		if tx.Base.MaxFee < fee {
+			// This should be checked by chunk producer before inclusion.
+			//
+			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
+			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
+		}
+		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
 	}
 }
 
