@@ -70,7 +70,8 @@ type VM interface {
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
 	GetVerifyAuth() bool
-	GetAuthVerifyCores() int
+	GetAuthExecutionCores() int
+	GetAuthBatchVerifier(authTypeID uint8, cores, count int) (AuthBatchVerifier, bool)
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -89,7 +90,7 @@ type VM interface {
 
 	Mempool() Mempool
 	GetTargetBuildDuration() time.Duration
-	GetTransactionExecutionCores() int
+	GetActionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)

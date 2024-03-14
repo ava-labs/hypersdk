@@ -26,16 +26,15 @@ var _ vm.Config = (*Config)(nil)
 const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
-	defaultStoreTransactions           = true
 )
 
 type Config struct {
 	*config.Config
 
 	// Concurrency
-	AuthVerificationCores     int `json:"authVerificationCores"`
-	RootGenerationCores       int `json:"rootGenerationCores"`
-	TransactionExecutionCores int `json:"transactionExecutionCores"`
+	AuthExecutionCores   int `json:"authExecutionCores"`
+	RootGenerationCores  int `json:"rootGenerationCores"`
+	ActionExecutionCores int `json:"actionExecutionCores"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -91,22 +90,21 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
-	c.AuthVerificationCores = c.Config.GetAuthVerificationCores()
+	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
-	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
+	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifyAuth = c.Config.GetVerifyAuth()
-	c.StoreTransactions = defaultStoreTransactions
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
 func (c *Config) GetTestMode() bool                         { return c.TestMode }
-func (c *Config) GetAuthVerificationCores() int             { return c.AuthVerificationCores }
+func (c *Config) GetAuthExecutionCores() int                { return c.AuthExecutionCores }
 func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
-func (c *Config) GetTransactionExecutionCores() int         { return c.TransactionExecutionCores }
+func (c *Config) GetActionExecutionCores() int              { return c.ActionExecutionCores }
 func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
 func (c *Config) GetMempoolSponsorSize() int                { return c.MempoolSponsorSize }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return c.parsedExemptSponsors }
