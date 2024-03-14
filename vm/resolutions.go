@@ -589,3 +589,19 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	}
 	return bv.GetBatchVerifier(cores, count), ok
 }
+
+func (vm *VM) RecordOptimisticChunkVerify(t time.Duration) {
+	vm.metrics.optimisticChunkVerify.Observe(float64(t))
+}
+
+func (vm *VM) RecordAlreadyVerifiedChunk() {
+	vm.metrics.chunksAlreadyVerified.Inc()
+}
+
+func (vm *VM) RecordExecutedChunks(c int) {
+	vm.metrics.chunksExecuted.Add(float64(c))
+}
+
+func (vm *VM) RecordUnusedVerifiedChunks(c int) {
+	vm.metrics.unusedChunkVerifications.Add(float64(c))
+}

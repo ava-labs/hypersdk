@@ -100,6 +100,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_build_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}chunk build (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_build_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_chunk_build_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}chunk build (ms/chunk):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_bytes_built[5s])/5", chainID))
 			utils.Outf("{{yellow}}chunk bytes built per second:{{/}} %s\n", panels[len(panels)-1])
 
@@ -123,6 +126,24 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_block_execute_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}block execute [async] (ms/block):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_executed[5s])/increase(avalanche_%s_vm_hypersdk_chain_block_execute_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}chunks per executed block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_verify_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_verify_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}optimistic chunk verify [async] (ms/chunk):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_verify_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}optimistic chunk verify [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_verify_sum[5s])/1000000/5 + increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/5", chainID, chainID))
+			utils.Outf("{{yellow}}executor busy (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_already_verified[5s])/increase(avalanche_%s_vm_hypersdk_chain_chunks_executed[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}chunks pre-verified:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_unused_chunk_verifications[5s])/5", chainID))
+			utils.Outf("{{yellow}}unused chunk verifications per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_engine_backlog", chainID))
 			utils.Outf("{{yellow}}block execution backlog:{{/}} %s\n", panels[len(panels)-1])

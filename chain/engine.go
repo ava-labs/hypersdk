@@ -143,17 +143,14 @@ func (e *Engine) processJob(job *engineJob) {
 			panic(err)
 		}
 		cw, _ := e.verified.Remove(cid)
-		if cw != nil {
-			e.vm.Logger().Info("already verified signature for chunk", zap.Stringer("chunkID", cid))
-		}
 		p.Add(ctx, len(chunks), chunk, cw)
 		chunks = append(chunks, chunk)
 	}
 	uselessVerification := len(e.verified.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
 	if uselessVerification > 0 {
 		e.vm.Logger().Warn("performed useless verification", zap.Int("count", uselessVerification))
-		// TODO: make a metric
 	}
+	e.vm.RecordUnusedVerifiedChunks(uselessVerification)
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Error("chunk processing failed", zap.Error(err))
@@ -163,6 +160,7 @@ func (e *Engine) processJob(job *engineJob) {
 		e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
 		return
 	}
+	e.vm.RecordExecutedChunks(len(chunks))
 	e.vm.RecordWaitProcessor(time.Since(startProcessor))
 
 	// TODO: pay beneficiary all tips for processing chunk
@@ -388,7 +386,9 @@ func (e *Engine) Run() {
 				slot:    cert.Slot,
 				success: result,
 			})
-			e.vm.Logger().Info("optimistically verified chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", time.Since(start)))
+			dur := time.Since(start)
+			e.vm.Logger().Debug("optimistically verified chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", dur))
+			e.vm.RecordOptimisticChunkVerify(dur)
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():

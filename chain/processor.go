@@ -256,9 +256,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
-	if cw != nil && !cw.success {
-		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-		return
+	if cw != nil {
+		p.vm.RecordAlreadyVerifiedChunk()
+		if !cw.success {
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
+		}
 	}
 
 	// Verify chunk signatures
