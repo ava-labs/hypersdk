@@ -21,8 +21,9 @@ import (
 
 // TODO: unify with chunk wrapper
 type simpleChunkWrapper struct {
-	chunk ids.ID
-	slot  int64
+	chunk   ids.ID
+	slot    int64
+	success bool
 }
 
 func (scw *simpleChunkWrapper) ID() ids.ID {
@@ -141,8 +142,8 @@ func (e *Engine) processJob(job *engineJob) {
 		if err != nil {
 			panic(err)
 		}
-		_, ok := e.verified.Remove(cid)
-		p.Add(ctx, len(chunks), chunk, !ok)
+		cw, _ := e.verified.Remove(cid)
+		p.Add(ctx, len(chunks), chunk, cw)
 		chunks = append(chunks, chunk)
 	}
 	uselessVerification := len(e.verified.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
