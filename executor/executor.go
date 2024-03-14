@@ -78,6 +78,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 type task struct {
 	id int
 	f  func() error
+	keys state.Keys
 
 	dependencies set.Set[int]
 	blocking     set.Set[int]
@@ -103,6 +104,23 @@ func (e *Executor) runWorker() {
 			}
 
 			e.l.Lock()
+			for k, v := range t.keys {
+				if v.Has(state.Allocate) || v.Has(state.Write) {
+					for b := range key.concurrentReads {
+						bt := e.tasks[b]
+						if !bt.executed {
+							bt.blocking.Add(t.id)
+							t.dependencies.Add(b)
+						}
+					}
+					key.concurrentReads.Clear()
+				}
+				if v == state.Read {
+					key.concurrentReads.Clear()
+					key.concurrentReads.Add(id)
+				}
+			}
+
 			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
 				bt.dependencies.Remove(t.id)
@@ -137,6 +155,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	t := &task{
 		id: id,
 		f:  f,
+		keys: conflicts,
 	}
 	e.tasks[id] = t
 
@@ -187,12 +206,19 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		// has already executed. We consider any outstanding read(s)-
 		// after-write that still need to be executed.
 		if v.Has(state.Allocate) || v.Has(state.Write) {
-			e.updateConcurrentReads(key, t)
+			for b := range key.concurrentReads {
+				bt := e.tasks[b]
+				if !bt.executed {
+					bt.blocking.Add(t.id)
+					t.dependencies.Add(b)
+				}
+			}
+			key.concurrentReads.Clear()
 		}
 		if v == state.Read {
 			key.concurrentReads.Clear()
 			key.concurrentReads.Add(id)
-		}
+		}		
 		updateKey(key, id, v)
 	}
 
