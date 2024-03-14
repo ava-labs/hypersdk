@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/hypersdk/list"
 	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 )
@@ -535,36 +536,75 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Store chunk certificate for building
 		c.certs.Update(cert)
 	case txMsg:
-		// TODO: batch verify txs
-		_, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
+		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
 		c.vm.RecordTxsReceived(len(txs))
 
+		// Add incoming transactions to our caches to prevent useless gossip and perform
+		// batch signature verification.
+		//
+		// We rely on AppGossipConcurrency to regulate concurrency here, so we don't create
+		// a separate pool of workers for this verification.
+		job, err := workers.NewSerial().NewJob(len(txs))
+		if err != nil {
+			c.vm.Logger().Warn(
+				"unable to spawn new worker",
+				zap.Stringer("peerID", nodeID),
+				zap.Error(err),
+			)
+			return nil
+		}
+
 		// Check that we are the partition for the txs
-		validTxs := make([]*chain.Transaction, 0, len(txs))
+		batchVerifier := chain.NewAuthBatch(c.vm, job, authCounts)
 		for _, tx := range txs {
 			epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
 			if err != nil {
 				c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
-				continue
+				batchVerifier.Done(nil)
+				return nil
 			}
 			partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
 			if err != nil {
 				c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
-				continue
+				batchVerifier.Done(nil)
+				return nil
 			}
 			if partition != c.vm.snowCtx.NodeID {
 				c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
-				continue
+				batchVerifier.Done(nil)
+				return nil
 			}
-			validTxs = append(validTxs, tx)
+			// Verify signature async
+			msg, err := tx.Digest()
+			if err != nil {
+				c.vm.Logger().Warn(
+					"unable to compute tx digest",
+					zap.Stringer("peerID", nodeID),
+					zap.Error(err),
+				)
+				batchVerifier.Done(nil)
+				return nil
+			}
+			batchVerifier.Add(msg, tx.Auth)
+		}
+		batchVerifier.Done(nil)
+
+		// Wait for signature verification to finish
+		if err := job.Wait(); err != nil {
+			c.vm.Logger().Warn(
+				"received invalid gossip",
+				zap.Stringer("peerID", nodeID),
+				zap.Error(err),
+			)
+			return nil
 		}
 
 		// Submit txs
-		c.vm.Submit(ctx, true, validTxs)
+		c.vm.Submit(ctx, false, txs)
 		c.vm.Logger().Debug(
 			"received txs from gossip",
 			zap.Int("txs", len(txs)),

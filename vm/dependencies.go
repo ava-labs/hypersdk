@@ -27,10 +27,10 @@ type Handlers map[string]http.Handler
 type Config interface {
 	GetTraceConfig() *trace.Config
 	GetMempoolSize() int
-	GetAuthVerificationCores() int
+	GetAuthExecutionCores() int
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
-	GetTransactionExecutionCores() int
+	GetActionExecutionCores() int
 	GetMissingChunkFetchers() int
 	GetBeneficiary() codec.Address
 	GetMempoolSponsorSize() int

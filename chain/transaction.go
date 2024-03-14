@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -511,11 +512,17 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
+	txsSeen := set.Set[ids.ID]{}
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
 		}
+		txID := tx.ID()
+		if txsSeen.Contains(txID) {
+			return nil, nil, ErrDuplicateTx
+		}
+		txsSeen.Add(tx.ID())
 		txs = append(txs, tx)
 		authCounts[tx.Auth.GetTypeID()]++
 	}

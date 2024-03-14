@@ -33,9 +33,9 @@ type Config struct {
 	*config.Config
 
 	// Concurrency
-	AuthVerificationCores     int `json:"authVerificationCores"`
-	RootGenerationCores       int `json:"rootGenerationCores"`
-	TransactionExecutionCores int `json:"transactionExecutionCores"`
+	AuthVerificationCores int `json:"authExecutionCores"`
+	RootGenerationCores   int `json:"rootGenerationCores"`
+	ActionExecutionCores  int `json:"actionExecutionCores"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
