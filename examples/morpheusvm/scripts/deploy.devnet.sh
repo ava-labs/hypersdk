@@ -114,8 +114,9 @@ VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
 function cleanup {
   RED='\033[0;31m'
+  YELLOw='\033[1;33m'
   NC='\033[0m'
-  echo -e "${RED}To destroy the devnet, run: \"${TMPDIR}/avalanche node destroy ${CLUSTER}\"${NC}"
+  echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
 }
 trap cleanup EXIT
 # TODO: re-add monitoring when properly configure grafana/add load tester to it
@@ -127,27 +128,31 @@ cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 # Import the cluster into morpheus-cli for local interaction
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-echo "Run this command in a separate window to monitor cluster: ${TMPDIR}/morpheus-cli prometheus generate"
+echo -e "${YELLOW}Run this command in a separate window to monitor cluster:${NC} \"${TMPDIR}/morpheus-cli prometheus generate\""
 
 # Wait for user to confirm that they want to launch load test
-echo "Start load test (y/n)?:"
+while true
+do
+  echo -n "Start load test (y/n)?: "
 
-# Wait for the user to press a key
-read -s -n 1 key
+  # Wait for the user to press a key
+  read -s -n 1 key
 
-# Check which key was pressed
-case $key in
-    y|Y)
-        echo "You typed 'y'. Starting..."
-        ;;
-    n|N)
-        echo "You typed 'n'. Exiting..."
-        exit 1
-        ;;
-    *)
-        echo "Invalid input. Please type 'y' or 'n'."
-        ;;
-esac
+  # Check which key was pressed
+  case $key in
+      y|Y)
+          printf "y\nStarting...\n"
+          break
+          ;;
+      n|N)
+          printf "n\nExiting...\n"
+          exit 1
+          ;;
+      *)
+          printf "\nInvalid input. Please type 'y' or 'n'.\n"
+          ;;
+  esac
+done
 
 # Start load test on dedicated machine
 $TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="./home/ubuntu/simulator spam run ed25519 --max-tx-backlog=600000 --num-accounts=2500 --num-txs=20 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7" --remote-cli-version $CLI_COMMIT
