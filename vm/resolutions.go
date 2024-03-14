@@ -472,8 +472,8 @@ func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.GetVerifyAuth()
 }
 
-func (vm *VM) GetAuthVerifyCores() int {
-	return vm.config.GetAuthVerificationCores()
+func (vm *VM) GetAuthExecutionCores() int {
+	return vm.config.GetAuthExecutionCores()
 }
 
 // This must be non-nil or the VM won't be able to produce chunks
@@ -529,8 +529,8 @@ func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
 	return vm.Rules(time.Now().UnixMilli()).GetUnitPrices(), nil
 }
 
-func (vm *VM) GetTransactionExecutionCores() int {
-	return vm.config.GetTransactionExecutionCores()
+func (vm *VM) GetActionExecutionCores() int {
+	return vm.config.GetActionExecutionCores()
 }
 
 func (vm *VM) GetExecutorRecorder() executor.Metrics {

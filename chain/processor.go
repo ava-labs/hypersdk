@@ -80,7 +80,7 @@ func NewProcessor(
 		cache:     make(map[string]*fetchData, numTxs),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
-		exectutor: executor.New(numTxs, vm.GetTransactionExecutionCores(), vm.GetExecutorRecorder()),
+		exectutor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
 		ts:        tstate.New(numTxs * 2),
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
@@ -88,7 +88,7 @@ func NewProcessor(
 
 		frozenSponsors: set.NewSet[string](4),
 
-		authWorkers: workers.NewParallel(vm.GetAuthVerifyCores(), 4), // should never have more than 1 here
+		authWorkers: workers.NewParallel(vm.GetAuthExecutionCores(), 4), // should never have more than 1 here
 	}
 }
 

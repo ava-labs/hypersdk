@@ -511,8 +511,9 @@ func UnmarshalTxs(
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
-	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	txsSeen := set.Set[ids.ID]{}
+	capacity := min(txCount, initialCapacity)
+	txs := make([]*Transaction, 0, capacity) // DoS to set size to txCount
+	txsSeen := set.NewSet[ids.ID](capacity)
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
