@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 )
 
@@ -42,7 +43,8 @@ type Processor struct {
 
 	frozenSponsors set.Set[string]
 
-	authWait time.Duration
+	authWorkers workers.Workers
+	authWait    time.Duration
 }
 
 type blockLoc struct {
@@ -85,6 +87,8 @@ func NewProcessor(
 		results: make([][]*Result, chunks),
 
 		frozenSponsors: set.NewSet[string](4),
+
+		authWorkers: workers.NewParallel(vm.GetAuthVerifyCores(), 4), // should never have more than 1 here
 	}
 }
 
@@ -275,15 +279,17 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	}
 
 	// Process chunk transactions
-	gctx, gcancel := context.WithCancel(ctx)
-	defer gcancel()
-	batchVerifier := NewAuthBatch(gctx, p.vm, p.vm.GetAuthVerifyCores(), chunk.authCounts)
+	authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
+	if err != nil {
+		panic(err)
+	}
+	batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
 	fees := make([]uint64, chunkTxs)
 	for txIndex, tx := range chunk.Txs {
 		// Perform syntactic verification
 		//
 		// We don't care whether this transaction is in the current epoch or the next.
-		units, err := tx.SyntacticVerify(gctx, p.sm, p.r, p.timestamp)
+		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
 		if err != nil {
 			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
@@ -329,7 +335,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(gctx, *epochHeight, tx.Auth.Sponsor())
+		parition, err := p.vm.AddressPartition(ctx, *epochHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
@@ -382,12 +388,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		fees[txIndex] = fee
 	}
 	authStart := time.Now()
-	if err := batchVerifier.Wait(); err != nil {
+	authJob.Done(func() { p.authWait += time.Since(authStart) })
+	if err := authJob.Wait(); err != nil {
 		p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", cid), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
-	p.authWait += time.Since(authStart)
 	for txIndex, tx := range chunk.Txs {
 		if p.results[chunkIndex][txIndex] != nil {
 			continue

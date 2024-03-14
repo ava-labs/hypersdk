@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"golang.org/x/sync/errgroup"
+	"github.com/ava-labs/hypersdk/workers"
 )
 
 const authWorkerBacklog = 16_384
@@ -23,22 +23,20 @@ type AuthVM interface {
 // not require each batch package to re-implement this logic.
 type AuthBatch struct {
 	vm  AuthVM
-	g   *errgroup.Group
+	job workers.Job
 	bvs map[uint8]*authBatchWorker
 }
 
-func NewAuthBatch(ctx context.Context, vm AuthVM, cores int, authTypes map[uint8]int) *AuthBatch {
-	g, _ := errgroup.WithContext(ctx)
-	g.SetLimit(cores)
+func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatch {
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
-		bv, ok := vm.GetAuthBatchVerifier(t, cores, count)
+		bv, ok := vm.GetAuthBatchVerifier(t, job.Workers(), count)
 		if !ok {
 			continue
 		}
 		bw := &authBatchWorker{
 			vm,
-			g,
+			job,
 			bv,
 			make(chan *authBatchObject, authWorkerBacklog),
 			make(chan struct{}),
@@ -46,7 +44,7 @@ func NewAuthBatch(ctx context.Context, vm AuthVM, cores int, authTypes map[uint8
 		go bw.start()
 		bvs[t] = bw
 	}
-	return &AuthBatch{vm, g, bvs}
+	return &AuthBatch{vm, job, bvs}
 }
 
 func (a *AuthBatch) Add(digest []byte, auth Auth) {
@@ -54,23 +52,23 @@ func (a *AuthBatch) Add(digest []byte, auth Auth) {
 	// processing.
 	bv, ok := a.bvs[auth.GetTypeID()]
 	if !ok {
-		a.g.Go(func() error { return auth.Verify(context.TODO(), digest) })
+		a.job.Go(func() error { return auth.Verify(context.TODO(), digest) })
 		return
 	}
 	bv.items <- &authBatchObject{digest, auth}
 }
 
-func (a *AuthBatch) Wait() error {
+func (a *AuthBatch) Done(f func()) {
 	for _, bw := range a.bvs {
 		close(bw.items)
 		<-bw.done
 
 		for _, item := range bw.bv.Done() {
-			a.g.Go(item)
+			a.job.Go(item)
 			a.vm.Logger().Debug("enqueued batch for processing during done")
 		}
 	}
-	return a.g.Wait()
+	a.job.Done(f)
 }
 
 type authBatchObject struct {
@@ -80,7 +78,7 @@ type authBatchObject struct {
 
 type authBatchWorker struct {
 	vm    AuthVM
-	g     *errgroup.Group
+	job   workers.Job
 	bv    AuthBatchVerifier
 	items chan *authBatchObject
 	done  chan struct{}
@@ -92,7 +90,7 @@ func (b *authBatchWorker) start() {
 	for object := range b.items {
 		if j := b.bv.Add(object.digest, object.auth); j != nil {
 			// May finish parts of batch early, let's start computing them as soon as possible
-			b.g.Go(j)
+			b.job.Go(j)
 			b.vm.Logger().Debug("enqueued batch for processing during add")
 		}
 	}
