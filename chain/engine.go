@@ -342,6 +342,7 @@ func (e *Engine) Run() {
 			// TODO: use VM recently accepted chunks to check if should skip
 			// TODO: need to verify signatures first before checking tx accuracy if
 			// we want this early feature (otherwise, non-deterministic verification)
+			// -> pretty easy to include all valid signatures that can't pay fees anyways (useless) so this is fine
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():
