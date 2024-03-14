@@ -29,7 +29,7 @@ func (s *StateKeyTracer) GetValue(ctx context.Context, key []byte) ([]byte, erro
 }
 
 func (s *StateKeyTracer) Insert(ctx context.Context, key, value []byte) error {
-	s.Keys.Add(string(key), state.Write) // TODO: Handle Allocate permission
+	s.Keys.Add(string(key), state.Write|state.Allocate) // TODO: Handle Allocate permission
 	return s.Mutable.Insert(ctx, key, value)
 }
 
