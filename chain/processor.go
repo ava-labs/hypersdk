@@ -251,15 +251,47 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	// be interleaved).
 	chunkTxs := len(chunk.Txs)
 	p.results[chunkIndex] = make([]*Result, chunkTxs)
-
-	// Confirm that chunk is well-formed
-	//
-	// All of these can be avoided by chunk producer.
 	cid, err := chunk.ID() // TODO: make this panic on err
 	if err != nil {
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
+
+	// Verify chunk signatures
+	//
+	// We need to do this before we check basic chunk correctness to support
+	// optimistic chunk signature verification.
+	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
+		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
+		if err != nil {
+			panic(err)
+		}
+		batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
+		for _, tx := range chunk.Txs {
+			// Enqueue transaction for execution
+			msg, err := tx.Digest()
+			if err != nil {
+				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+				return
+			}
+			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
+			if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
+				batchVerifier.Add(msg, tx.Auth)
+			}
+		}
+		authStart := time.Now()
+		batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
+		if err := authJob.Wait(); err != nil {
+			p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", cid), zap.Error(err))
+			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+			return
+		}
+	}
+
+	// Confirm that chunk is well-formed
+	//
+	// All of these can be avoided by chunk producer.
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
 		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
@@ -278,13 +310,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		return
 	}
 
-	// Process chunk transactions
-	authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
-	if err != nil {
-		panic(err)
-	}
-	batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
-	fees := make([]uint64, chunkTxs)
 	for txIndex, tx := range chunk.Txs {
 		// Perform syntactic verification
 		//
@@ -305,6 +330,14 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			p.vm.Logger().Debug("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
+		}
+		if tx.Base.MaxFee < fee {
+			// This should be checked by chunk producer before inclusion.
+			//
+			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
+			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
 		}
 
 		// Check that transaction isn't a duplicate
@@ -360,45 +393,9 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		if frozen {
 			p.frozenSponsors.Add(ssponsor)
 		}
-
-		// Enqueue transaction for execution
-		msg, err := tx.Digest()
-		if err != nil {
-			p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-		if p.vm.GetVerifyAuth() {
-			batchVerifier.Add(msg, tx.Auth)
-		}
-		fees[txIndex] = fee
-	}
-	authStart := time.Now()
-	batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
-	if err := authJob.Wait(); err != nil {
-		p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", cid), zap.Error(err))
-		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-		return
-	}
-	for txIndex, tx := range chunk.Txs {
-		if p.results[chunkIndex][txIndex] != nil {
-			continue
-		}
-		sponsor := tx.Auth.Sponsor()
-		ssponsor := string(sponsor[:])
-		fee := fees[txIndex]
 		if p.frozenSponsors.Contains(ssponsor) {
 			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-			continue
-		}
-		if tx.Base.MaxFee < fee {
-			// This should be checked by chunk producer before inclusion.
-			//
-			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
-			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
 		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)

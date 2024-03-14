@@ -336,6 +336,8 @@ func (e *Engine) Run() {
 				continue
 			}
 			// TODO: how to persist verification status if we don't keep in memory?
+			// -> eheap with verification status
+			// -> re-add chunk to channel if not yet on-disk?
 			e.vm.GetChunk(
 			// TODO: use VM recently accepted chunks to check if should skip
 			// TODO: need to verify signatures first before checking tx accuracy if
