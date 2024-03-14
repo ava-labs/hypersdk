@@ -14,8 +14,7 @@ const authWorkerBacklog = 16_384
 
 type AuthVM interface {
 	Logger() logging.Logger
-	GetAuthVerifyCores() int
-	GetAuthBatchVerifier(authTypeID uint8, count int) (AuthBatchVerifier, bool)
+	GetAuthBatchVerifier(authTypeID uint8, cores, count int) (AuthBatchVerifier, bool)
 }
 
 // Adding a signature to a verification batch
@@ -28,12 +27,12 @@ type AuthBatch struct {
 	bvs map[uint8]*authBatchWorker
 }
 
-func NewAuthBatch(vm AuthVM, authTypes map[uint8]int) *AuthBatch {
-	g, _ := errgroup.WithContext(context.TODO())
-	g.SetLimit(vm.GetAuthVerifyCores())
+func NewAuthBatch(ctx context.Context, vm AuthVM, cores int, authTypes map[uint8]int) *AuthBatch {
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(cores)
 	bvs := map[uint8]*authBatchWorker{}
 	for t, count := range authTypes {
-		bv, ok := vm.GetAuthBatchVerifier(t, count)
+		bv, ok := vm.GetAuthBatchVerifier(t, cores, count)
 		if !ok {
 			continue
 		}

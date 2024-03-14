@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -43,7 +42,7 @@ type Processor struct {
 
 	frozenSponsors set.Set[string]
 
-	authPool *opool.OPool
+	authWait time.Duration
 }
 
 type blockLoc struct {
@@ -86,8 +85,6 @@ func NewProcessor(
 		results: make([][]*Result, chunks),
 
 		frozenSponsors: set.NewSet[string](4),
-
-		authPool: opool.New(vm.GetAuthVerifyCores(), numTxs),
 	}
 }
 
@@ -278,19 +275,15 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	}
 
 	// Process chunk transactions
-	//
-	// TODO: run batch verifier by chunk (invalid all items in chunk if any fail)
-	// TODO: if tx invalid drop chunk entirely rather than keeping
-	authCounts := make(map[uint8]int)
-	batchVerifier := NewAuthBatch(p.vm, authCounts)
-	for ri, rtx := range chunk.Txs {
-		txIndex := ri
-		tx := rtx
-
+	gctx, gcancel := context.WithCancel(ctx)
+	defer gcancel()
+	batchVerifier := NewAuthBatch(gctx, p.vm, p.vm.GetAuthVerifyCores(), chunk.authCounts)
+	fees := make([]uint64, chunkTxs)
+	for txIndex, tx := range chunk.Txs {
 		// Perform syntactic verification
 		//
 		// We don't care whether this transaction is in the current epoch or the next.
-		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
+		units, err := tx.SyntacticVerify(gctx, p.sm, p.r, p.timestamp)
 		if err != nil {
 			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
@@ -336,7 +329,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, *epochHeight, tx.Auth.Sponsor())
+		parition, err := p.vm.AddressPartition(gctx, *epochHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
@@ -369,6 +362,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		if frozen {
 			p.frozenSponsors.Add(ssponsor)
 		}
+		if p.frozenSponsors.Contains(ssponsor) {
+			// We drop this result if the signature is invalid, so we optimisiatically add here
+			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+			continue
+		}
 
 		// Enqueue transaction for execution
 		msg, err := tx.Digest()
@@ -377,31 +376,28 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
 		}
-		authCounts[tx.Auth.GetTypeID()]++
+		if p.vm.GetVerifyAuth() {
+			batchVerifier.Add(msg, tx.Auth)
+		}
+		fees[txIndex] = fee
 	}
-	//		if p.vm.GetVerifyAuth() {
-	//			if err := tx.Auth.Verify(ctx, msg); err != nil {
-	//				p.vm.Logger().Warn("auth verification failed", zap.Stringer("txID", tx.ID()), zap.Error(err))
-	//				// TODO: mark chunk invalid if this happens?
-	//				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-	//				return nil, nil
-	//			}
-	//		}
-	//		if p.frozenSponsors.Contains(ssponsor) {
-	//			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-	//			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-	//			return nil, nil
-	//		}
-	//		return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx) }, nil
-	//	}
+	authStart := time.Now()
+	if err := batchVerifier.Wait(); err != nil {
+		p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", cid), zap.Error(err))
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
+	}
+	p.authWait += time.Since(authStart)
+	for txIndex, tx := range chunk.Txs {
+		if p.results[chunkIndex][txIndex] != nil {
+			continue
+		}
+		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fees[txIndex], tx)
+	}
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
-	authStart := time.Now()
-	if err := p.authPool.Wait(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: auth pool failed", err)
-	}
-	p.vm.RecordWaitAuth(time.Since(authStart)) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
+	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)

@@ -76,6 +76,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		full       bool
 		cleared    bool
 		mempool    = vm.Mempool()
+		authCounts = make(map[uint8]int)
 	)
 	mempool.StartStreaming(ctx)
 	for time.Since(nowT) < vm.GetTargetBuildDuration() {
@@ -126,6 +127,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			// Add transaction to chunk
 			vm.IssueTx(ctx, tx)
 			c.Txs = append(c.Txs, tx)
+			authCounts[tx.Auth.GetTypeID()]++
 		}
 		if len(txs) < 256 {
 			cleared = true
@@ -146,6 +148,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	c.Producer = vm.NodeID()
 	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
+	c.units = &chunkUnits
+	c.authCounts = authCounts
 
 	// Sign chunk
 	digest, err := c.Digest()
@@ -287,6 +291,7 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 		actionRegistry, authRegistry = parser.Registry()
 		p                            = codec.NewReader(raw, consts.NetworkSizeLimit)
 		c                            Chunk
+		authCounts                   = make(map[uint8]int)
 	)
 	c.id = utils.ToID(raw)
 
@@ -300,7 +305,9 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 			return nil, err
 		}
 		c.Txs = append(c.Txs, tx)
+		authCounts[tx.Auth.GetTypeID()]++
 	}
+	c.authCounts = authCounts
 
 	// Parse signer
 	p.UnpackNodeID(true, &c.Producer)

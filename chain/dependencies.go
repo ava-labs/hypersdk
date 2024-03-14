@@ -71,6 +71,7 @@ type VM interface {
 	// by any client of the hypersdk.
 	GetVerifyAuth() bool
 	GetAuthVerifyCores() int
+	GetAuthBatchVerifier(authTypeID uint8, cores, count int) (AuthBatchVerifier, bool)
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
