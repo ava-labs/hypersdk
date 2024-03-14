@@ -381,12 +381,14 @@ func (e *Engine) Run() {
 				// Don't verify chunks if not verifying
 				continue
 			}
+			start := time.Now()
+			result := VerifyChunkSignatures(e.vm, chunk)
 			e.verified.Add(&simpleChunkWrapper{
 				chunk:   cert.Chunk,
 				slot:    cert.Slot,
-				success: VerifyChunkSignatures(e.vm, chunk),
+				success: result,
 			})
-			e.vm.Logger().Info("optimistically verified chunk", zap.Stringer("chunkID", cert.Chunk))
+			e.vm.Logger().Info("optimistically verified chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", time.Since(start)))
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():
