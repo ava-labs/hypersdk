@@ -143,6 +143,9 @@ func (e *Engine) processJob(job *engineJob) {
 			panic(err)
 		}
 		cw, _ := e.verified.Remove(cid)
+		if cw != nil {
+			e.vm.Logger().Info("already verified signature for chunk", zap.Stringer("chunkID", cid))
+		}
 		p.Add(ctx, len(chunks), chunk, cw)
 		chunks = append(chunks, chunk)
 	}
@@ -365,6 +368,14 @@ func (e *Engine) Run() {
 				// Will process during execution loop or already processed
 				continue
 			}
+			if e.vm.NodeID() == cert.Producer {
+				// Don't verify own chunks
+				continue
+			}
+			if !e.vm.GetVerifyAuth() {
+				// Don't verify chunks if not verifying
+				continue
+			}
 			// TODO: how to persist verification status if we don't keep in memory?
 			// -> eheap with verification status
 			// -> re-add chunk to channel if not yet on-disk?
@@ -372,7 +383,7 @@ func (e *Engine) Run() {
 			// TODO: need to verify signatures first before checking tx accuracy if
 			// we want this early feature (otherwise, non-deterministic verification)
 			// -> pretty easy to include all valid signatures that can't pay fees anyways (useless) so this is fine
-			e.verified.Add(&simpleChunkWrapper{})
+			e.verified.Add(&simpleChunkWrapper{Success: VerifyChunkSignature(e.vm, chunk)})
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():

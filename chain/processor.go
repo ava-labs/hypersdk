@@ -416,3 +416,26 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
 	return p.txs, p.ts, p.results, nil
 }
+
+func VerifyChunkSignatures(vm VM, chunk *Chunk) bool {
+	authWorkers := workers.NewParallel(vm.GetAuthExecutionCores(), 4) // should never have more than 1 here
+	defer authWorkers.Stop()
+
+	authJob, err := authWorkers.NewJob(len(chunk.Txs))
+	if err != nil {
+		panic(err)
+	}
+	batchVerifier := NewAuthBatch(vm, authJob, chunk.authCounts)
+	for _, tx := range chunk.Txs {
+		// Enqueue transaction for execution
+		msg, err := tx.Digest()
+		if err != nil {
+			return false
+		}
+
+		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
+		batchVerifier.Add(msg, tx.Auth)
+	}
+	batchVerifier.Done(nil)
+	return authJob.Wait() == nil
+}
