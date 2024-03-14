@@ -46,7 +46,7 @@ func (e *ExportAsset) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	}
 	return state.Keys{
 		string(storage.AssetKey(e.Asset)):               state.Read | state.Write,
-		string(storage.LoanKey(e.Asset, e.Destination)): state.Read | state.Write,
+		string(storage.LoanKey(e.Asset, e.Destination)): state.All,
 		string(storage.BalanceKey(actor, e.Asset)):      state.Read | state.Write,
 	}
 }

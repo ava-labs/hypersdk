@@ -1,19 +1,17 @@
-# extend if new rust crates are added so rust analyzer isnt confused
 [workspace]
 members = [
+    "x/programs/cmd/simulator",
     "x/programs/rust/sdk_macros",
-    "x/programs/rust/wasmlanche_sdk",
+    "x/programs/rust/wasmlanche-sdk",
     "x/programs/rust/examples/token",
     "x/programs/rust/examples/counter",
 ]
 resolver = "2"
 
 [profile.release]
-# https://rustwasm.github.io/docs/book/reference/code-size.html#tell-llvm-to-optimize-for-size-instead-of-speed
 opt-level = "s"
 lto = true
 codegen-units = 1
 overflow-checks = true
-# https://doc.rust-lang.org/book/ch09-01-unrecoverable-errors-with-panic.html#unwinding-the-stack-or-aborting-in-response-to-a-panic
 panic = 'abort'
 strip = true

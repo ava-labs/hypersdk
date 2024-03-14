@@ -9,4 +9,8 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0.67"
 quote = "1.0.33"
-syn = { version = "2.0.37", features = ["full"] }
+syn = { version = "2.0.37", features = ["full", "extra-traits"] }
+
+[dev-dependencies]
+trybuild = "1.0.89"
+wasmlanche-sdk = { path = "../wasmlanche-sdk" }

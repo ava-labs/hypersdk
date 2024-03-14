@@ -12,6 +12,9 @@ extern "C" {
 
     #[link_name = "get"]
     fn _get(caller: i64, key: i64) -> i64;
+
+    #[link_name = "delete"]
+    fn _delete(caller: i64, key: i64) -> i64;
 }
 
 /// Persists the bytes at `value_ptr` to the bytes at key ptr on the host storage.
@@ -37,4 +40,14 @@ pub(crate) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, State
     let caller = to_host_ptr(caller.id())?;
     let key = to_host_ptr(key)?;
     Ok(unsafe { _get(caller, key) })
+}
+
+/// Deletes the bytes at key ptr from the host storage
+pub(crate) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), StateError> {
+    let caller = to_host_ptr(caller.id())?;
+    let key = to_host_ptr(key)?;
+    match unsafe { _delete(caller, key) } {
+        0 => Ok(()),
+        _ => Err(StateError::Delete),
+    }
 }
