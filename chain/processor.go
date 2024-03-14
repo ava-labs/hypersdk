@@ -236,7 +236,7 @@ func (p *Processor) markChunkTxsInvalid(chunkIndex, count int) {
 // Chunks MUST be added in order.
 //
 // Add must not be called concurrently
-func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
+func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, verifySigs bool) {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Add")
 	defer span.End()
 
@@ -261,7 +261,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	//
 	// We need to do this before we check basic chunk correctness to support
 	// optimistic chunk signature verification.
-	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
+	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer && verifySigs { // trust ourselves
 		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
 		if err != nil {
 			panic(err)

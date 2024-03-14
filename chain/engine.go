@@ -13,10 +13,25 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
+
+// TODO: unify with chunk wrapper
+type simpleChunkWrapper struct {
+	chunk ids.ID
+	slot  int64
+}
+
+func (scw *simpleChunkWrapper) ID() ids.ID {
+	return scw.chunk
+}
+
+func (scw *simpleChunkWrapper) Expiry() int64 {
+	return scw.slot
+}
 
 type engineJob struct {
 	parentTimestamp int64
@@ -47,6 +62,8 @@ type Engine struct {
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
+
+	verified *eheap.ExpiryHeap[*simpleChunkWrapper]
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -59,6 +76,8 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 		backlog: make(chan *engineJob, maxBacklog),
 
 		outputs: make(map[uint64]*output),
+
+		verified: eheap.New[*simpleChunkWrapper](64),
 	}
 }
 
@@ -118,7 +137,11 @@ func (e *Engine) processJob(job *engineJob) {
 	chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 	for chunk := range job.chunks {
 		// Handle fetched chunk
-		p.Add(ctx, len(chunks), chunk)
+		cid, err := chunk.ID()
+		if err != nil {
+			panic(err)
+		}
+		p.Add(ctx, len(chunks), chunk, !e.verified.Has(cid))
 		chunks = append(chunks, chunk)
 	}
 	txSet, ts, chunkResults, err := p.Wait()
@@ -338,11 +361,11 @@ func (e *Engine) Run() {
 			// TODO: how to persist verification status if we don't keep in memory?
 			// -> eheap with verification status
 			// -> re-add chunk to channel if not yet on-disk?
-			e.vm.GetChunk(
 			// TODO: use VM recently accepted chunks to check if should skip
 			// TODO: need to verify signatures first before checking tx accuracy if
 			// we want this early feature (otherwise, non-deterministic verification)
 			// -> pretty easy to include all valid signatures that can't pay fees anyways (useless) so this is fine
+			e.verified.Add(&simpleChunkWrapper{})
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():
