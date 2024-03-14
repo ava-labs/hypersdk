@@ -118,36 +118,48 @@ func (h *Handler) ImportANR() error {
 	return h.StoreDefaultChain(filledChainID)
 }
 
+type ClusterInfo struct {
+	ChainID  string `yaml:"CHAIN_ID"` // ids.ID requires "first and last characters to be quotes"
+	SubnetID string `yaml:"SUBNET_ID"`
+	APIs     []struct {
+		CloudID string `yaml:"CLOUD_ID"`
+		IP      string `yaml:"IP"`
+		Region  string `yaml:"REGION"`
+	} `yaml:"API"`
+	Validators []struct {
+		CloudID string `yaml:"CLOUD_ID"`
+		IP      string `yaml:"IP"`
+		Region  string `yaml:"REGION"`
+		NodeID  string `yaml:"NODE_ID"`
+	} `yaml:"VALIDATOR"`
+}
+
 func ReadCLIFile(cliPath string) (ids.ID, map[string]string, error) {
 	// Load yaml file
 	yamlFile, err := os.ReadFile(cliPath)
 	if err != nil {
 		return ids.Empty, nil, err
 	}
-	yamlContents := make(map[string]string)
-	err = yaml.Unmarshal(yamlFile, &yamlContents)
-	if err != nil {
-		return ids.Empty, nil, err
+	var yamlContents ClusterInfo
+	if err := yaml.Unmarshal(yamlFile, &yamlContents); err != nil {
+		return ids.Empty, nil, fmt.Errorf("%w: unable to unmarshal YAML", err)
 	}
-
-	// Load chainID
-	chainID, err := ids.FromString(yamlContents["CHAIN_ID"])
+	chainID, err := ids.FromString(yamlContents.ChainID)
 	if err != nil {
 		return ids.Empty, nil, err
 	}
 
 	// Load nodes
 	nodes := make(map[string]string)
-	for _, t := range []string{"API", "VALIDATOR"} {
-		for i := 0; i < consts.MaxInt; i++ {
-			ip, ok := yamlContents[fmt.Sprintf("IP_%s_%d", t, i)]
-			if !ok {
-				break
-			}
-			name := fmt.Sprintf("%s-%d", t, i)
-			uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", ip, chainID)
-			nodes[name] = uri
-		}
+	for i, api := range yamlContents.APIs {
+		name := fmt.Sprintf("%s-%d (%s)", "API", i, api.Region)
+		uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", api.IP, chainID)
+		nodes[name] = uri
+	}
+	for i, validator := range yamlContents.Validators {
+		name := fmt.Sprintf("%s-%d (%s)", "Validator", i, validator.Region)
+		uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", validator.IP, chainID)
+		nodes[name] = uri
 	}
 	return chainID, nodes, nil
 }
@@ -163,6 +175,9 @@ func (h *Handler) ImportCLI(cliPath string) error {
 
 	// Load yaml file
 	chainID, nodes, err := ReadCLIFile(cliPath)
+	if err != nil {
+		return err
+	}
 	for name, uri := range nodes {
 		if err := h.StoreChain(chainID, name, uri); err != nil {
 			return err

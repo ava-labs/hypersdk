@@ -33,7 +33,7 @@ CLI_COMMIT=v1.4.3-rc.0
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
-git checkout $CLI_COMMIT
+git checkout 3f928aa8559a6b16d127caf0a4a57feeb3721adc
 ./scripts/build.sh
 mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
