@@ -44,6 +44,12 @@ type Processor struct {
 
 	authWorkers workers.Workers
 	authWait    time.Duration
+
+	serialChecks          time.Duration
+	chunkUnits            time.Duration
+	addProcess            time.Duration
+	frozenChecks          time.Duration
+	syntacticVerification time.Duration
 }
 
 type blockLoc struct {
@@ -257,6 +263,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	// Confirm that chunk is well-formed
 	//
 	// All of these can be avoided by chunk producer.
+	serialStart := time.Now()
 	repeatStart := time.Now()
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
@@ -265,6 +272,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		return
 	}
 	p.repeatWait += time.Since(repeatStart)
+	unitsStart := time.Now()
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
@@ -276,11 +284,13 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
+	p.chunkUnits += time.Since(unitsStart)
 
 	for txIndex, tx := range chunk.Txs {
 		// Perform syntactic verification
 		//
 		// We don't care whether this transaction is in the current epoch or the next.
+		syntacticStart := time.Now()
 		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
 		if err != nil {
 			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -306,6 +316,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
+		p.syntacticVerification += time.Since(syntacticStart)
 
 		// Check that transaction isn't a duplicate
 		_, seen := p.txs[tx.ID()]
@@ -356,6 +367,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		// if err != nil {
 		// 	panic(err)
 		// }
+		frozenStart := time.Now()
 		frozen := false
 		if frozen {
 			p.frozenSponsors.Add(ssponsor)
@@ -365,8 +377,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
 			continue
 		}
+		p.frozenChecks += time.Since(frozenStart)
+		processStart := time.Now()
 		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
+		p.addProcess += time.Since(processStart)
 	}
+	p.serialChecks += time.Since(serialStart)
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
@@ -383,6 +399,14 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
+	p.vm.Logger().Info(
+		"times",
+		zap.Duration("serial checks", p.serialChecks),
+		zap.Duration("chunk units", p.chunkUnits),
+		zap.Duration("add process", p.addProcess),
+		zap.Duration("frozen checks", p.frozenChecks),
+		zap.Duration("syntactic verification", p.syntacticVerification),
+	)
 	return p.txs, p.ts, p.results, nil
 }
 
