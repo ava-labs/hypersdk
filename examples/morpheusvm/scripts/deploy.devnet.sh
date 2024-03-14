@@ -29,7 +29,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo "working directory: $TMPDIR"
 
 # Install avalanche-cli
-CLI_COMMIT=eb28ecb595dc581a25e75e176da5ce1f4a04e1ae
+CLI_COMMIT=v1.4.3-rc.0
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
@@ -119,13 +119,12 @@ function cleanup {
 }
 trap cleanup EXIT
 # TODO: re-add monitoring when properly configure grafana/add load tester to it
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --node-type c5.9xlarge --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --skip-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --node-type c5.9xlarge --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --aws --use-static-ip=false --skip-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
 
-# TODO: Hook up to APIs to morpheus-cli for local testing
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
 cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 
-# Import the cluster into morpheus-cli
+# Import the cluster into morpheus-cli for local interaction
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 echo "Run this command in a separate window to monitor cluster: ${TMPDIR}/morpheus-cli prometheus generate"
@@ -151,4 +150,4 @@ case $key in
 esac
 
 # Start load test on dedicated machine
-/bin/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="./home/ubuntu/simulator spam run ed25519 --max-tx-backlog=600000 --num-accounts=2500 --num-txs=20 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+/bin/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="./home/ubuntu/simulator spam run ed25519 --max-tx-backlog=600000 --num-accounts=2500 --num-txs=20 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7" --remote-cli-version $CLI_COMMIT
