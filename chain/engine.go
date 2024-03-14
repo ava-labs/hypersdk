@@ -141,10 +141,15 @@ func (e *Engine) processJob(job *engineJob) {
 		if err != nil {
 			panic(err)
 		}
-		p.Add(ctx, len(chunks), chunk, !e.verified.Has(cid))
+		_, ok := e.verified.Remove(cid)
+		p.Add(ctx, len(chunks), chunk, !ok)
 		chunks = append(chunks, chunk)
 	}
-	e.verified.SetMin(job.blk.StatefulBlock.Timestamp) // cleanup unneeded verification statuses
+	uselessVerification := len(e.verified.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
+	if uselessVerification > 0 {
+		e.vm.Logger().Warn("performed useless verification", zap.Int("count", uselessVerification))
+		// TODO: make a metric
+	}
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Error("chunk processing failed", zap.Error(err))
