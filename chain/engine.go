@@ -331,11 +331,12 @@ func (e *Engine) Run() {
 		select {
 		case cert := <-e.chunks:
 			// Need to ensure this stream is deduped (can't just send as soon as a chunk is ready)
-			if e.vm.IsSeenChunk(context.TODO(), chunkID) {
+			if e.vm.IsSeenChunk(context.TODO(), cert.Chunk) {
 				// Will process during execution loop or already processed
 				continue
 			}
-			e.vm.GetChunk
+			// TODO: how to persist verification status if we don't keep in memory?
+			e.vm.GetChunk(
 			// TODO: use VM recently accepted chunks to check if should skip
 			// TODO: need to verify signatures first before checking tx accuracy if
 			// we want this early feature (otherwise, non-deterministic verification)
