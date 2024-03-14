@@ -94,6 +94,7 @@ type VM struct {
 	startSeenTime          int64
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
+	validCerts             chan *chain.ChunkCertificate
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessBlock]
@@ -170,6 +171,7 @@ func (vm *VM) Initialize(
 	vm.seenTxs = emap.NewEMap[*chain.Transaction]()
 	vm.seenChunks = emap.NewEMap[*chain.ChunkCertificate]()
 	vm.seenValidityWindow = make(chan struct{})
+	vm.validCerts = make(chan *chain.ChunkCertificate, 256) // TODO: make a const
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()

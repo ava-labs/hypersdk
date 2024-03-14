@@ -360,15 +360,20 @@ func (e *Engine) Run() {
 		default:
 		}
 
-		// Check to see if any chunks are ready for signature verification (if there is nothing else to do)
+		// Check to see if any chunks are ready for optimistic signature verification (if there is nothing else to do)
 		select {
-		case cert := <-e.chunks:
+		case cert := <-e.vm.CertChan():
 			// Need to ensure this stream is deduped (can't just send as soon as a chunk is ready)
 			if e.vm.IsSeenChunk(context.TODO(), cert.Chunk) {
 				// Will process during execution loop or already processed
 				continue
 			}
-			if e.vm.NodeID() == cert.Producer {
+			chunk, err := e.vm.GetChunk(cert.Slot, cert.Chunk)
+			if chunk == nil || err != nil {
+				e.vm.Logger().Warn("chunk not available for optimistic verification", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
+				continue
+			}
+			if e.vm.NodeID() == chunk.Producer {
 				// Don't verify own chunks
 				continue
 			}
@@ -376,14 +381,12 @@ func (e *Engine) Run() {
 				// Don't verify chunks if not verifying
 				continue
 			}
-			// TODO: how to persist verification status if we don't keep in memory?
-			// -> eheap with verification status
-			// -> re-add chunk to channel if not yet on-disk?
-			// TODO: use VM recently accepted chunks to check if should skip
-			// TODO: need to verify signatures first before checking tx accuracy if
-			// we want this early feature (otherwise, non-deterministic verification)
-			// -> pretty easy to include all valid signatures that can't pay fees anyways (useless) so this is fine
-			e.verified.Add(&simpleChunkWrapper{Success: VerifyChunkSignature(e.vm, chunk)})
+			e.verified.Add(&simpleChunkWrapper{
+				chunk:   cert.Chunk,
+				slot:    cert.Slot,
+				success: VerifyChunkSignatures(e.vm, chunk),
+			})
+			e.vm.Logger().Info("optimistically verified chunk", zap.Stringer("chunkID", cert.Chunk))
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():

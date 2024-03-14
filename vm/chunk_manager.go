@@ -465,9 +465,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signers:   signers,
 			Signature: aggSignature,
 		}
-		if !c.certs.Update(cert) {
-			// TODO: send to optimistic signature verification
-		}
+		// We don't send our own certs to the optimistic verifier because we
+		// don't verify the signatures in those chunks anyways.
+		c.certs.Update(cert)
 
 		// Broadcast certificate
 		//
@@ -538,7 +538,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store chunk certificate for building
 		if !c.certs.Update(cert) {
-			// TODO: send to optimistic signature verification
+			select {
+			case c.vm.validCerts <- cert:
+				// Send to optimistic signature verification
+			default:
+				// If optimistic queue is full, just drop this cert
+			}
 		}
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
