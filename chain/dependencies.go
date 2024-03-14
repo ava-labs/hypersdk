@@ -34,7 +34,7 @@ type Parser interface {
 
 type Metrics interface {
 	RecordOptimisticChunkVerify(time.Duration)
-	RecordAlreadyVerifiedChunk()
+	RecordNotVerifiedChunk()
 	RecordExecutedChunks(int)
 	RecordUnusedVerifiedChunks(int)
 

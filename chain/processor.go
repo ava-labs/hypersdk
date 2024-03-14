@@ -213,11 +213,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		return
 	}
 	if cw != nil {
-		p.vm.RecordAlreadyVerifiedChunk()
 		if !cw.success {
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
 		}
+	} else {
+		p.vm.RecordNotVerifiedChunk()
 	}
 
 	// Verify chunk signatures

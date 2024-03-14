@@ -594,8 +594,8 @@ func (vm *VM) RecordOptimisticChunkVerify(t time.Duration) {
 	vm.metrics.optimisticChunkVerify.Observe(float64(t))
 }
 
-func (vm *VM) RecordAlreadyVerifiedChunk() {
-	vm.metrics.chunksAlreadyVerified.Inc()
+func (vm *VM) RecordNotVerifiedChunk() {
+	vm.metrics.chunksNotVerified.Inc()
 }
 
 func (vm *VM) RecordExecutedChunks(c int) {

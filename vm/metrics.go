@@ -45,7 +45,7 @@ type Metrics struct {
 	sigsReceived             prometheus.Counter
 	certsReceived            prometheus.Counter
 	chunksExecuted           prometheus.Counter
-	chunksAlreadyVerified    prometheus.Counter
+	chunksNotVerified        prometheus.Counter
 	unusedChunkVerifications prometheus.Counter
 	engineBacklog            prometheus.Gauge
 	waitAuth                 metric.Averager
@@ -302,10 +302,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "chunks_executed",
 			Help:      "chunks executed by the engine",
 		}),
-		chunksAlreadyVerified: prometheus.NewCounter(prometheus.CounterOpts{
+		chunksNotVerified: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
-			Name:      "chunks_already_verified",
-			Help:      "chunks already verified by the time they are executed",
+			Name:      "chunks_not_verified",
+			Help:      "chunks with signatures not verified by the time they are executed",
 		}),
 		unusedChunkVerifications: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -357,7 +357,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.sigsReceived),
 		r.Register(m.certsReceived),
 		r.Register(m.chunksExecuted),
-		r.Register(m.chunksAlreadyVerified),
+		r.Register(m.chunksNotVerified),
 		r.Register(m.unusedChunkVerifications),
 		r.Register(m.engineBacklog),
 	)

@@ -133,8 +133,8 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_verify_sum[5s])/1000000/5 + increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/5", chainID, chainID))
 			utils.Outf("{{yellow}}executor busy (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_already_verified[5s])/increase(avalanche_%s_vm_hypersdk_chain_chunks_executed[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}chunks pre-verified:{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_not_verified[5s])/5", chainID))
+			utils.Outf("{{yellow}}executed chunks not pre-verified per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_unused_chunk_verifications[5s])/5", chainID))
 			utils.Outf("{{yellow}}unused chunk verifications per second:{{/}} %s\n", panels[len(panels)-1])
