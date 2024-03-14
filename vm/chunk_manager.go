@@ -96,7 +96,7 @@ func NewCertStore() *CertStore {
 // more signers.
 //
 // TODO: update if more weight rather than using signer heuristic?
-func (c *CertStore) Update(cert *chain.ChunkCertificate) {
+func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
 	c.l.Lock()
 	defer c.l.Unlock()
 
@@ -107,10 +107,11 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 		// If the existing certificate has more signers than the
 		// new certificate, don't update.
 		if elem.Value().Signers.Len() > cert.Signers.Len() {
-			return
+			return true
 		}
 	}
 	c.eh.Update(elem)
+	return ok
 }
 
 // Called when a block is accepted with valid certs.
@@ -464,7 +465,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signers:   signers,
 			Signature: aggSignature,
 		}
-		c.certs.Update(cert)
+		if !c.certs.Update(cert) {
+			// TODO: send to optimistic signature verification
+		}
 
 		// Broadcast certificate
 		//
@@ -534,7 +537,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		c.certs.Update(cert)
+		if !c.certs.Update(cert) {
+			// TODO: send to optimistic signature verification
+		}
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
