@@ -330,6 +330,17 @@ func (e *Engine) Run() {
 		// Check to see if any chunks are ready for signature verification (if there is nothing else to do)
 		select {
 		case chunk := <-e.chunks:
+			chunkID, err := chunk.ID()
+			if err != nil {
+				panic(err)
+			}
+			if e.vm.IsSeenChunk(context.TODO(), chunkID) {
+				// Will process during execution loop or already processed
+				continue
+			}
+			// TODO: use VM recently accepted chunks to check if should skip
+			// TODO: need to verify signatures first before checking tx accuracy if
+			// we want this early feature (otherwise, non-deterministic verification)
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():

@@ -104,6 +104,10 @@ func (vm *VM) IsRepeatChunk(ctx context.Context, certs []*chain.ChunkCertificate
 	return vm.seenChunks.Contains(certs, marker, false)
 }
 
+func (vm *VM) IsSeenChunk(ctx context.Context, chunkID ids.ID) bool {
+	return vm.seenChunks.HasID(chunkID)
+}
+
 func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
