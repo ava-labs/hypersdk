@@ -40,6 +40,8 @@ type Processor struct {
 
 	frozenSponsors set.Set[string]
 
+	repeatWait time.Duration
+
 	authWorkers workers.Workers
 	authWait    time.Duration
 }
@@ -255,12 +257,14 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	// Confirm that chunk is well-formed
 	//
 	// All of these can be avoided by chunk producer.
+	repeatStart := time.Now()
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
 		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
+	p.repeatWait += time.Since(repeatStart)
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
@@ -366,6 +370,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
+	p.vm.RecordWaitRepeat(p.repeatWait)
 	p.authWorkers.Stop()            // must be stopped, otherwise goroutines grow indefinitely
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	fetcherStart := time.Now()

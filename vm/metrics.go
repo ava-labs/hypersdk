@@ -48,6 +48,7 @@ type Metrics struct {
 	chunksNotVerified        prometheus.Counter
 	unusedChunkVerifications prometheus.Counter
 	engineBacklog            prometheus.Gauge
+	waitRepeat               metric.Averager
 	waitAuth                 metric.Averager
 	waitFetcher              metric.Averager
 	waitExec                 metric.Averager
@@ -69,6 +70,15 @@ type Metrics struct {
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
+	waitRepeat, err := metric.NewAverager(
+		"chain",
+		"wait_repeat",
+		"time spent waiting for repeat",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	waitAuth, err := metric.NewAverager(
 		"chain",
 		"wait_auth",
@@ -317,6 +327,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "engine_backlog",
 			Help:      "number of blocks waiting to be executed",
 		}),
+		waitRepeat:            waitRepeat,
 		waitAuth:              waitAuth,
 		waitFetcher:           waitFetcher,
 		waitExec:              waitExec,

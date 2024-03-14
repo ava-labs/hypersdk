@@ -613,3 +613,7 @@ func (vm *VM) RecordWaitFetcher(t time.Duration) {
 func (vm *VM) GetStateFetchConcurrency() int {
 	return vm.config.GetStateFetchConcurrency()
 }
+
+func (vm *VM) RecordWaitRepeat(t time.Duration) {
+	vm.metrics.waitRepeat.Observe(float64(t))
+}

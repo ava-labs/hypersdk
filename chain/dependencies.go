@@ -38,6 +38,7 @@ type Metrics interface {
 	RecordExecutedChunks(int)
 	RecordUnusedVerifiedChunks(int)
 
+	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)
 	RecordWaitFetcher(time.Duration)
 	RecordWaitExec(time.Duration)
