@@ -347,12 +347,17 @@ func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 	b, err := vm.blobDB.Get(ChunkFile(slot, chunk))
 	if errors.Is(err, database.ErrNotFound) {
+		// TODO: remove this pattern
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	return chain.UnmarshalChunk(b, vm)
+}
+
+func (vm *VM) GetChunkBytes(slot int64, chunk ids.ID) ([]byte, error) {
+	return vm.blobDB.Get(ChunkFile(slot, chunk))
 }
 
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
@@ -390,6 +395,10 @@ func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
 		return nil, err
 	}
 	return chain.UnmarshalFilteredChunk(b, vm)
+}
+
+func (vm *VM) GetFilteredChunkBytes(chunk ids.ID) ([]byte, error) {
+	return vm.blobDB.Get(FilteredChunkFile(chunk))
 }
 
 func (vm *VM) RemoveFilteredChunk(chunk ids.ID) error {

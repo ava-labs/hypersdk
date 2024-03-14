@@ -642,8 +642,8 @@ func (c *ChunkManager) AppRequest(
 		}
 		slot := int64(binary.BigEndian.Uint64(rid[:consts.Uint64Len]))
 		id := ids.ID(rid[consts.Uint64Len:])
-		chunk, err := c.vm.GetChunk(slot, id)
-		if err != nil {
+		chunk, err := c.vm.GetChunkBytes(slot, id)
+		if chunk == nil || err != nil {
 			c.vm.Logger().Warn(
 				"unable to fetch chunk",
 				zap.Stringer("nodeID", nodeID),
@@ -654,11 +654,7 @@ func (c *ChunkManager) AppRequest(
 			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
 			return nil
 		}
-		chunkBytes, err := chunk.Marshal()
-		if err != nil {
-			panic(err)
-		}
-		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunkBytes)
+		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	case filteredChunkReq:
 		rid := request[1:]
 		if len(rid) != ids.IDLen {
@@ -666,8 +662,8 @@ func (c *ChunkManager) AppRequest(
 			return nil
 		}
 		id := ids.ID(rid)
-		chunk, err := c.vm.GetFilteredChunk(id)
-		if err != nil {
+		chunk, err := c.vm.GetFilteredChunkBytes(id)
+		if chunk == nil || err != nil {
 			c.vm.Logger().Warn(
 				"unable to fetch filtered chunk",
 				zap.Stringer("nodeID", nodeID),
@@ -677,11 +673,7 @@ func (c *ChunkManager) AppRequest(
 			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
 			return nil
 		}
-		chunkBytes, err := chunk.Marshal()
-		if err != nil {
-			panic(err)
-		}
-		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunkBytes)
+		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
