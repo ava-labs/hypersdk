@@ -33,6 +33,11 @@ type Parser interface {
 }
 
 type Metrics interface {
+	RecordOptimisticChunkVerify(time.Duration)
+	RecordAlreadyVerifiedChunk()
+	RecordExecutedChunks(int)
+	RecordUnusedVerifiedChunks(int)
+
 	RecordWaitAuth(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitProcessor(time.Duration)
@@ -115,6 +120,9 @@ type VM interface {
 	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
 	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+	IsSeenChunk(context.Context, ids.ID) bool
+	CertChan() chan *ChunkCertificate
+	GetChunk(int64, ids.ID) (*Chunk, error)
 
 	IsValidHeight(ctx context.Context, height uint64) (bool, error)
 	CacheValidators(ctx context.Context, height uint64)

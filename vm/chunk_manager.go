@@ -96,7 +96,7 @@ func NewCertStore() *CertStore {
 // more signers.
 //
 // TODO: update if more weight rather than using signer heuristic?
-func (c *CertStore) Update(cert *chain.ChunkCertificate) {
+func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
 	c.l.Lock()
 	defer c.l.Unlock()
 
@@ -107,10 +107,11 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 		// If the existing certificate has more signers than the
 		// new certificate, don't update.
 		if elem.Value().Signers.Len() > cert.Signers.Len() {
-			return
+			return true
 		}
 	}
 	c.eh.Update(elem)
+	return ok
 }
 
 // Called when a block is accepted with valid certs.
@@ -464,6 +465,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signers:   signers,
 			Signature: aggSignature,
 		}
+		// We don't send our own certs to the optimistic verifier because we
+		// don't verify the signatures in those chunks anyways.
 		c.certs.Update(cert)
 
 		// Broadcast certificate
@@ -534,7 +537,14 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		c.certs.Update(cert)
+		if !c.certs.Update(cert) {
+			select {
+			case c.vm.validCerts <- cert:
+				// Send to optimistic signature verification
+			default:
+				// If optimistic queue is full, just drop this cert
+			}
+		}
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
@@ -637,8 +647,8 @@ func (c *ChunkManager) AppRequest(
 		}
 		slot := int64(binary.BigEndian.Uint64(rid[:consts.Uint64Len]))
 		id := ids.ID(rid[consts.Uint64Len:])
-		chunk, err := c.vm.GetChunk(slot, id)
-		if err != nil {
+		chunk, err := c.vm.GetChunkBytes(slot, id)
+		if chunk == nil || err != nil {
 			c.vm.Logger().Warn(
 				"unable to fetch chunk",
 				zap.Stringer("nodeID", nodeID),
@@ -649,11 +659,7 @@ func (c *ChunkManager) AppRequest(
 			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
 			return nil
 		}
-		chunkBytes, err := chunk.Marshal()
-		if err != nil {
-			panic(err)
-		}
-		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunkBytes)
+		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	case filteredChunkReq:
 		rid := request[1:]
 		if len(rid) != ids.IDLen {
@@ -661,8 +667,8 @@ func (c *ChunkManager) AppRequest(
 			return nil
 		}
 		id := ids.ID(rid)
-		chunk, err := c.vm.GetFilteredChunk(id)
-		if err != nil {
+		chunk, err := c.vm.GetFilteredChunkBytes(id)
+		if chunk == nil || err != nil {
 			c.vm.Logger().Warn(
 				"unable to fetch filtered chunk",
 				zap.Stringer("nodeID", nodeID),
@@ -672,11 +678,7 @@ func (c *ChunkManager) AppRequest(
 			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
 			return nil
 		}
-		chunkBytes, err := chunk.Marshal()
-		if err != nil {
-			panic(err)
-		}
-		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunkBytes)
+		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}

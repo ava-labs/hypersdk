@@ -104,6 +104,10 @@ func (vm *VM) IsRepeatChunk(ctx context.Context, certs []*chain.ChunkCertificate
 	return vm.seenChunks.Contains(certs, marker, false)
 }
 
+func (vm *VM) IsSeenChunk(ctx context.Context, chunkID ids.ID) bool {
+	return vm.seenChunks.HasID(chunkID)
+}
+
 func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
@@ -409,6 +413,11 @@ func (vm *VM) StopChan() chan struct{} {
 	return vm.stop
 }
 
+func (vm *VM) CertChan() chan *chain.ChunkCertificate {
+	// Used for optimistic cert verification
+	return vm.validCerts
+}
+
 func (vm *VM) EngineChan() chan<- common.Message {
 	return vm.toEngine
 }
@@ -579,4 +588,20 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 		return nil, false
 	}
 	return bv.GetBatchVerifier(cores, count), ok
+}
+
+func (vm *VM) RecordOptimisticChunkVerify(t time.Duration) {
+	vm.metrics.optimisticChunkVerify.Observe(float64(t))
+}
+
+func (vm *VM) RecordAlreadyVerifiedChunk() {
+	vm.metrics.chunksAlreadyVerified.Inc()
+}
+
+func (vm *VM) RecordExecutedChunks(c int) {
+	vm.metrics.chunksExecuted.Add(float64(c))
+}
+
+func (vm *VM) RecordUnusedVerifiedChunks(c int) {
+	vm.metrics.unusedChunkVerifications.Add(float64(c))
 }
