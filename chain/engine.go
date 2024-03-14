@@ -144,6 +144,7 @@ func (e *Engine) processJob(job *engineJob) {
 		p.Add(ctx, len(chunks), chunk, !e.verified.Has(cid))
 		chunks = append(chunks, chunk)
 	}
+	e.verified.SetMin(job.blk.StatefulBlock.Timestamp) // cleanup unneeded verification statuses
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Error("chunk processing failed", zap.Error(err))
