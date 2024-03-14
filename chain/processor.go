@@ -388,7 +388,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		fees[txIndex] = fee
 	}
 	authStart := time.Now()
-	authJob.Done(func() { p.authWait += time.Since(authStart) })
+	batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
 	if err := authJob.Wait(); err != nil {
 		p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", cid), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
