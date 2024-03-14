@@ -217,8 +217,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
 		}
-	} else {
-		p.vm.RecordNotVerifiedChunk()
 	}
 
 	// Verify chunk signatures
@@ -226,6 +224,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	// We need to do this before we check basic chunk correctness to support
 	// optimistic chunk signature verification.
 	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer && cw == nil { // trust ourselves
+		p.vm.RecordNotVerifiedChunk()
 		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
 		if err != nil {
 			panic(err)
