@@ -2,16 +2,13 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/fetcher"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -33,10 +30,10 @@ type Processor struct {
 	im        state.Immutable
 	r         Rules
 	sm        StateManager
-	cacheLock sync.RWMutex
-	cache     map[string]*fetchData
 	exectutor *executor.Executor
 	ts        *tstate.TState
+
+	f *fetcher.Fetcher
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
@@ -77,7 +74,7 @@ func NewProcessor(
 		im:        im,
 		r:         r,
 		sm:        vm.StateManager(),
-		cache:     make(map[string]*fetchData, numTxs),
+		f:         fetcher.New(im, numTxs, vm.GetStateFetchConcurrency()),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
 		exectutor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
@@ -99,49 +96,17 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		p.results[chunkIndex][txIndex] = &Result{Valid: false}
 		return
 	}
-	p.exectutor.Run(stateKeys, func() error {
-		// Fetch keys from cache
-		var (
-			reads    = make(map[string]uint16, len(stateKeys))
-			storage  = make(map[string][]byte, len(stateKeys))
-			toLookup = make([]string, 0, len(stateKeys))
-		)
-		p.cacheLock.RLock()
-		for k := range stateKeys {
-			if v, ok := p.cache[k]; ok {
-				reads[k] = v.chunks
-				if v.exists {
-					storage[k] = v.v
-				}
-				continue
-			}
-			toLookup = append(toLookup, k)
-		}
-		p.cacheLock.RUnlock()
 
-		// Fetch keys from disk
-		var toCache map[string]*fetchData
-		if len(toLookup) > 0 {
-			toCache = make(map[string]*fetchData, len(toLookup))
-			for _, k := range toLookup {
-				v, err := p.im.GetValue(ctx, []byte(k))
-				if errors.Is(err, database.ErrNotFound) {
-					reads[k] = 0
-					toCache[k] = &fetchData{nil, false, 0}
-					continue
-				} else if err != nil {
-					return err
-				}
-				// We verify that the [NumChunks] is already less than the number
-				// added on the write path, so we don't need to do so again here.
-				numChunks, ok := keys.NumChunks(v)
-				if !ok {
-					return ErrInvalidKeyValue
-				}
-				reads[k] = numChunks
-				toCache[k] = &fetchData{v, true, numChunks}
-				storage[k] = v
-			}
+	// Prefetch state keys from disk
+	txID := tx.ID()
+	if err := p.f.Fetch(ctx, txID, stateKeys); err != nil {
+		panic(err)
+	}
+	p.exectutor.Run(stateKeys, func() error {
+		// Wait for stateKeys to be read from disk
+		reads, storage, err := p.f.Get(txID)
+		if err != nil {
+			return err
 		}
 
 		// Execute transaction
@@ -183,15 +148,6 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 
 		// Commit results to parent [TState]
 		tsv.Commit()
-
-		// Update key cache
-		if len(toCache) > 0 {
-			p.cacheLock.Lock()
-			for k := range toCache {
-				p.cache[k] = toCache[k]
-			}
-			p.cacheLock.Unlock()
-		}
 		return nil
 	})
 }
@@ -412,6 +368,11 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
 	p.authWorkers.Stop()            // must be stopped, otherwise goroutines grow indefinitely
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
+	fetcherStart := time.Now()
+	if err := p.f.Wait(); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: fetcher failed", err)
+	}
+	p.vm.RecordWaitFetcher(time.Since(fetcherStart))
 	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)

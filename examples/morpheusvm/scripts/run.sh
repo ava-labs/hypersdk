@@ -146,6 +146,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],
   "authExecutionCores": 4,
+  "stateFetchConcurrency": 2,
   "actionExecutionCores": 2,
   "rootGenerationCores": 4,
   "verifyAuth":true,

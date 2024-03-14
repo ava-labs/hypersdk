@@ -49,6 +49,7 @@ type Metrics struct {
 	unusedChunkVerifications prometheus.Counter
 	engineBacklog            prometheus.Gauge
 	waitAuth                 metric.Averager
+	waitFetcher              metric.Averager
 	waitExec                 metric.Averager
 	waitProcessor            metric.Averager
 	waitCommit               metric.Averager
@@ -72,6 +73,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_auth",
 		"time spent waiting for auth",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitFetcher, err := metric.NewAverager(
+		"chain",
+		"wait_fetcher",
+		"time spent waiting for fetcher",
 		r,
 	)
 	if err != nil {
@@ -308,6 +318,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "number of blocks waiting to be executed",
 		}),
 		waitAuth:              waitAuth,
+		waitFetcher:           waitFetcher,
 		waitExec:              waitExec,
 		waitProcessor:         waitProcessor,
 		waitCommit:            waitCommit,
