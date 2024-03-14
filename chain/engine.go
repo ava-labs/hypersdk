@@ -330,6 +330,7 @@ func (e *Engine) Run() {
 		// Check to see if any chunks are ready for signature verification (if there is nothing else to do)
 		select {
 		case chunk := <-e.chunks:
+			// TODO: need to ensure this stream is deduped (can't just send as soon as a chunk is ready)
 			chunkID, err := chunk.ID()
 			if err != nil {
 				panic(err)
