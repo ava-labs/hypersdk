@@ -73,7 +73,7 @@ func Default() *Genesis {
 
 		// Tx Parameters
 		EpochDuration:  30 * hconsts.MillisecondsPerSecond, // ms
-		ValidityWindow: 30 * hconsts.MillisecondsPerSecond, // ms
+		ValidityWindow: 25 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Compute Parameters
 		BaseComputeUnits:          1,
