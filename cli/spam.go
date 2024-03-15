@@ -316,8 +316,6 @@ func (h *Handler) Spam(
 			start := time.Now()
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
-			var txSendersL sync.Mutex
-			txSenders := map[uint64]int{}
 			for i := 0; i < txsPerSecond; i++ {
 				// Ensure we aren't too backlogged
 				if inflight.Load() > int64(maxTxBacklog) {
@@ -405,9 +403,6 @@ func (h *Handler) Spam(
 					inflight.Add(1)
 					sent.Add(1)
 					bytes.Add(int64(len(tx.Bytes())))
-					txSendersL.Lock()
-					txSenders[senderIndex]++
-					txSendersL.Unlock()
 					return nil
 				})
 			}
@@ -417,13 +412,6 @@ func (h *Handler) Spam(
 					cancel()
 				})
 				stop = true
-			}
-
-			// Log sent distribution
-			for i := uint64(0); i < uint64(numAccounts); i++ {
-				if count, ok := txSenders[i]; ok {
-					utils.Outf("{{yellow}}[%d]sent:{{/}} %d\n", i, count)
-				}
 			}
 
 			// Determine how long to sleep
