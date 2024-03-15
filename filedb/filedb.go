@@ -127,3 +127,6 @@ func (f *FileDB) Remove(key string) error {
 	f.fileCache.Evict(filePath)
 	return nil
 }
+
+// Close doesn't do anything but is canonical for a database to provide.
+func (f *FileDB) Close() error { return nil }

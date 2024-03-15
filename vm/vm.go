@@ -25,11 +25,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
+	"github.com/ava-labs/hypersdk/storage"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
@@ -62,7 +64,6 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
@@ -153,7 +154,7 @@ func New(c Controller, v *version.Semantic) *VM {
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	baseDB database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -187,10 +188,8 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 
-	// Always initialize implementation first
-	vm.baseDB = baseDB
-	vm.config, vm.genesis, vm.vmDB, vm.blobDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	// Initialize the user-provided VM
+	vm.config, vm.genesis, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
 		gatherer,
@@ -233,6 +232,10 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
+	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
+	if err != nil {
+		return err
+	}
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
@@ -254,6 +257,8 @@ func (vm *VM) Initialize(
 	if err := gatherer.Register("state", merkleRegistry); err != nil {
 		return err
 	}
+
+	// TODO: Compare stateDB with vmDB to determine if any reprocessing is necessary
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -455,11 +460,6 @@ func (vm *VM) isReady() bool {
 	}
 }
 
-// TODO: remove?
-func (vm *VM) BaseDB() database.Database {
-	return vm.baseDB
-}
-
 // ReadState reads the latest executed state
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
 	if !vm.isReady() {
@@ -580,13 +580,14 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if vm.snowCtx == nil {
 		return nil
 	}
-	if err := vm.vmDB.Close(); err != nil {
-		return err
-	}
-	if err := vm.stateDB.Close(); err != nil {
-		return err
-	}
-	return vm.rawStateDB.Close()
+	errs := wrappers.Errs{}
+	errs.Add(
+		vm.vmDB.Close(),
+		vm.stateDB.Close(),
+		vm.rawStateDB.Close(),
+		vm.blobDB.Close(),
+	)
+	return errs.Err
 }
 
 // implements "block.ChainVM.common.VM"

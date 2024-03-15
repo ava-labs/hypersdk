@@ -13,50 +13,42 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-// TODO: add option to use a single DB with prefixes to allow for atomic writes
-func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database, *filedb.FileDB, database.Database, database.Database, error) {
-	// TODO: tune Pebble config based on each sub-db focus
-	cfg := pebble.NewDefaultConfig()
+// New creates a VM database, a Blob database, and a State database. The VM and Blob databases fsync all writes to
+// disk whereas the State database does not. If there is an unclean shutdown, we can recover the State database
+// by reprocessing data from the Blob database. The VM database stores which blocks we have already accepted
+// and consensus integrity depends on that being correct (can't be recovered using other mechanisms).
+func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database, *filedb.FileDB, database.Database, error) {
+	vmCfg := pebble.NewDefaultConfig()
+	vmCfg.Sync = true
 	vmPath, err := utils.InitSubDirectory(chainDataDir, vm)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
-	vmDB, vmDBRegistry, err := pebble.New(vmPath, cfg)
+	vmDB, vmDBRegistry, err := pebble.New(vmPath, vmCfg)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 	if gatherer != nil {
 		if err := gatherer.Register(vm, vmDBRegistry); err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 	blobPath, err := utils.InitSubDirectory(chainDataDir, blob)
 	blobDB := filedb.New(blobPath, true, 1024, 512*units.MiB) // TODO: make configurable
 	statePath, err := utils.InitSubDirectory(chainDataDir, state)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
-	stateDB, stateDBRegistry, err := pebble.New(statePath, cfg)
+	stateCfg := pebble.NewDefaultConfig()
+	stateCfg.Sync = false // this is the default but we explicitly set it here for clarity
+	stateDB, stateDBRegistry, err := pebble.New(statePath, stateCfg)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 	if gatherer != nil {
 		if err := gatherer.Register(state, stateDBRegistry); err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
-	metaPath, err := utils.InitSubDirectory(chainDataDir, metadata)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	metaDB, metaDBRegistry, err := pebble.New(metaPath, cfg)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	if gatherer != nil {
-		if err := gatherer.Register(metadata, metaDBRegistry); err != nil {
-			return nil, nil, nil, nil, err
-		}
-	}
-	return corruptabledb.New(vmDB), blobDB, corruptabledb.New(stateDB), corruptabledb.New(metaDB), nil
+	return corruptabledb.New(vmDB), blobDB, corruptabledb.New(stateDB), nil
 }
