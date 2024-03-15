@@ -312,6 +312,7 @@ func (h *Handler) Spam(
 	defer t.Stop()
 	var (
 		iters       int
+		lastIter    int
 		lastTxCount uint64
 		psent       int64
 		pbytes      int64
@@ -320,16 +321,17 @@ func (h *Handler) Spam(
 		for {
 			select {
 			case <-t.C:
+				iters++
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
 				ctxs := confirmedTxs - lastTxCount
 				lastTxCount = confirmedTxs
-				if totalTxs > 0 {
+				if totalTxs > 0 && ctxs > 0 {
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f (instant=%d) {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f (latest=%.2f) {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
 						float64(totalTxs)/float64(iters),
-						ctxs,
+						float64(ctxs)/float64(iters-lastIter),
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
@@ -341,7 +343,7 @@ func (h *Handler) Spam(
 				l.Unlock()
 				psent = csent
 				pbytes = cbytes
-				iters++
+				lastIter = iters
 			case <-cctx.Done():
 				return
 			}
