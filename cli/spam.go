@@ -44,8 +44,6 @@ const (
 	distBarWidth   = 10
 	distOverhead   = 10
 	distHeight     = 25
-	zs             = 1.1
-	zv             = 2.0
 )
 
 // TODO: we should NEVER use globals, remove this
@@ -67,8 +65,9 @@ var (
 )
 
 func (h *Handler) Spam(
-	maxTxBacklog int, numAccounts int, txsPerSecond int, numClients int,
-	clusterInfo string, privateKey *PrivateKey,
+	maxTxBacklog int, numAccounts int, txsPerSecond int,
+	sZipf float64, vZipf float64, showZipf bool,
+	numClients int, clusterInfo string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),
@@ -79,34 +78,35 @@ func (h *Handler) Spam(
 ) error {
 	ctx := context.Background()
 
-	// Setup UI
-	if err := ui.Init(); err != nil {
-		return err
-	}
+	if showZipf {
+		// Setup UI
+		if err := ui.Init(); err != nil {
+			return err
+		}
 
-	// Print distribution
-	zb := rand.NewZipf(rand.New(rand.NewSource(0)), zs, zv, distIdentities-1) //nolint:gosec
-	distribution := make([]float64, distIdentities)
-	for i := 0; i < distSamples; i++ {
-		distribution[zb.Uint64()]++
+		// Print distribution
+		zb := rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, distIdentities-1) //nolint:gosec
+		distribution := make([]float64, distIdentities)
+		for i := 0; i < distSamples; i++ {
+			distribution[zb.Uint64()]++
+		}
+		labels := make([]string, distIdentities)
+		for i := 0; i < distIdentities; i++ {
+			labels[i] = fmt.Sprintf("%d", i)
+		}
+		bc := widgets.NewBarChart()
+		bc.Title = fmt.Sprintf("Account Issuance Distribution (s=%.2f v=%.2f [(v+k)^(-s)])", sZipf, vZipf)
+		bc.Data = distribution
+		bc.Labels = labels
+		bc.BarWidth = distBarWidth
+		bc.SetRect(0, 0, distOverhead+distBarWidth*distIdentities, distHeight)
+		ui.Render(bc)
+		utils.Outf("\ntype any character to continue...\n")
+		for range ui.PollEvents() {
+			break
+		}
+		ui.Close()
 	}
-	labels := make([]string, distIdentities)
-	for i := 0; i < distIdentities; i++ {
-		labels[i] = fmt.Sprintf("%d", i)
-	}
-	bc := widgets.NewBarChart()
-	bc.Title = fmt.Sprintf("Account Issuance Distribution (s=%.2f v=%.2f [(v+k)^(-s)])", zs, zv)
-	bc.Data = distribution
-	bc.Labels = labels
-	bc.BarWidth = distBarWidth
-	bc.SetRect(0, 0, distOverhead+distBarWidth*distIdentities, distHeight)
-	ui.Render(bc)
-	utils.Outf("\ntype any character to continue...\n")
-	// TODO: add option to skip this
-	for range ui.PollEvents() {
-		break
-	}
-	ui.Close()
 
 	// Select chain
 	var (
@@ -348,7 +348,7 @@ func (h *Handler) Spam(
 	var (
 		it = time.NewTimer(0)
 		// TODO: make configurable
-		z    = rand.NewZipf(rand.New(rand.NewSource(0)), zs, zv, uint64(numAccounts)-1) //nolint:gosec
+		z    = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1) //nolint:gosec
 		stop bool
 	)
 	// TODO: log plot of distribution
