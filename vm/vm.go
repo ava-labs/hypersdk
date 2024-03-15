@@ -30,6 +30,7 @@ import (
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
+	"github.com/ava-labs/hypersdk/storage"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"go.uber.org/zap"
@@ -189,8 +190,11 @@ func (vm *VM) Initialize(
 
 	// Always initialize implementation first
 	vm.baseDB = baseDB
-	vm.config, vm.genesis, vm.vmDB, vm.blobDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
+	if err != nil {
+		return err
+	}
+	vm.config, vm.genesis, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
 		gatherer,

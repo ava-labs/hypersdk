@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/filedb"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
-	hstorage "github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
@@ -92,13 +91,6 @@ func (c *Controller) Initialize(
 		)
 	}
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
-
-	// Create DBs
-	vmDB, blobDB, stateDB, metaDB, err := hstorage.New(snowCtx.ChainDataDir, gatherer)
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
-	c.metaDB = metaDB
 
 	// Create handlers
 	//
