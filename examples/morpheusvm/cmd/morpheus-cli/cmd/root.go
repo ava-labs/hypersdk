@@ -156,7 +156,7 @@ func init() {
 		"number of accounts submitting txs",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
-		&numTxs,
+		&txsPerSecond,
 		"txs-per-second",
 		-1,
 		"number of txs issued per second (under backlog)",

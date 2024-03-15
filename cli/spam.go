@@ -187,6 +187,7 @@ func (h *Handler) Spam(
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
+	factories := make([]chain.AuthFactory, numAccounts)
 	maxPendingMessages := max(pubsub.MaxPendingMessages, txsPerSecond*2)                                                            // ensure we don't block
 	dcli, err := rpc.NewWebSocketClient(uris[baseName], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
@@ -201,6 +202,13 @@ func (h *Handler) Spam(
 			return err
 		}
 		accounts[i] = pk
+
+		// Create Factory
+		f, err := getFactory(pk)
+		if err != nil {
+			return err
+		}
+		factories[i] = f
 
 		// Send funds
 		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount, uniqueBytes()), factory, feePerTx)
@@ -316,10 +324,7 @@ func (h *Handler) Spam(
 					senderIndex := z.Uint64()
 					sender := accounts[senderIndex]
 					issuerIndex, issuer := getRandomIssuer(clients)
-					factory, err := getFactory(sender)
-					if err != nil {
-						return err
-					}
+					factory := factories[senderIndex]
 					fundsL.Lock()
 					balance := funds[sender.Address]
 					if feePerTx > balance {
