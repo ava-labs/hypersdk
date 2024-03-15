@@ -109,7 +109,7 @@ func (b *StatelessBlock) Execute(
 			}
 
 			// Commit results to parent [TState]
-			tsv.LogChangedKeys(b.vm.Logger())
+			// tsv.LogChangedKeys(b.vm.Logger())
 			tsv.Commit()
 			return nil
 		})
