@@ -24,7 +24,7 @@ AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 EPOCH_DURATION=${EPOCH_DURATION:-30000}
-VALIDITY_WINDOW=${VALIDITY_WINDOW:-30000}
+VALIDITY_WINDOW=${VALIDITY_WINDOW:-25000}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
@@ -260,6 +260,11 @@ echo "running e2e tests"
 
 ############################
 if [[ ${MODE} == "run" ]]; then
+  SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
+  echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
+  echo "We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value."
+  
+sleep $SLEEP_DUR
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true

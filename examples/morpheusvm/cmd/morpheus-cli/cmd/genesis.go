@@ -50,6 +50,8 @@ var genGenesisCmd = &cobra.Command{
 			g.MinBlockGap = minBlockGap
 		}
 
+		// TODO: ensure validity < epoch
+
 		a, err := os.ReadFile(args[0])
 		if err != nil {
 			return err

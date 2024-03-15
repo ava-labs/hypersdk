@@ -43,9 +43,14 @@ echo "building morpheus-cli"
 go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # Generate genesis file and configs
+#
+# We use a shorter EPOCH_DURATION and VALIDITY_WINDOW to speed up devnet
+# startup. In a production environment, these should be set to longer values.
+#
+# TODO: print this out while waiting for network as well.
 ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
 EPOCH_DURATION=30000
-VALIDITY_WINDOW=30000
+VALIDITY_WINDOW=25000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
@@ -158,6 +163,12 @@ do
           ;;
   esac
 done
+
+# Wait for epoch initialization
+SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
+echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
+echo "We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value."
+sleep $SLEEP_DUR
 
 # Start load test on dedicated machine
 $TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="/home/ubuntu/simulator spam run ed25519 --max-tx-backlog=600000 --num-accounts=50000 --txs-per-second=50000 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
