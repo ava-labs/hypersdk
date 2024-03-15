@@ -232,7 +232,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 				return
 			}
 			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-			if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
+			if p.vm.GetVerifyAuth() && !p.vm.IsRPCAuthorized(tx.ID()) {
 				batchVerifier.Add(msg, tx.Auth)
 			}
 		}
@@ -407,7 +407,9 @@ func VerifyChunkSignatures(vm VM, chunk *Chunk) bool {
 		}
 
 		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-		batchVerifier.Add(msg, tx.Auth)
+		if !vm.IsRPCAuthorized(tx.ID()) {
+			batchVerifier.Add(msg, tx.Auth)
+		}
 	}
 	batchVerifier.Done(nil)
 	return authJob.Wait() == nil

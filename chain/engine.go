@@ -236,7 +236,7 @@ func (e *Engine) processJob(job *engineJob) {
 
 		// As soon as execution of transactions is finished, let the VM know so that it
 		// can notify subscribers.
-		e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
+		e.vm.ExecutedChunk(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 	}
 
 	// Update tracked p-chain height as long as it is increasing
@@ -339,6 +339,7 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordBlockExecute(time.Since(estart))
 	e.vm.RecordTxsValid(validTxs)
 	e.vm.RecordTxsIncluded(txCount)
+	e.vm.ExecutedBlock(ctx, job.blk)
 }
 
 func (e *Engine) Run() {

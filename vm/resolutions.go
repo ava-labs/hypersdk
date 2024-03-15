@@ -139,11 +139,21 @@ func (vm *VM) processExecutedChunks() {
 	}
 }
 
-func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Executed")
+func (vm *VM) ExecutedChunk(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
 	vm.executedQueue <- &executedWrapper{blk, chunk, results}
+}
+
+func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatelessBlock) {
+	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
+	defer span.End()
+
+	// We need to wait until we may not try to verify the signature of a tx again.
+	//
+	// TODO: add a queue
+	vm.rpcAuthorizedTxs.SetMin(blk.StatefulBlock.Timestamp)
 }
 
 func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
@@ -620,4 +630,12 @@ func (vm *VM) GetAuthRPCBacklog() int {
 
 func (vm *VM) RecordRPCTxBacklog(c int64) {
 	vm.metrics.rpcTxBacklog.Set(float64(c))
+}
+
+func (vm *VM) AddRPCAuthorized(tx *chain.Transaction) {
+	vm.rpcAuthorizedTxs.Add([]*chain.Transaction{tx})
+}
+
+func (vm *VM) IsRPCAuthorized(txID ids.ID) bool {
+	return vm.rpcAuthorizedTxs.HasID(txID)
 }

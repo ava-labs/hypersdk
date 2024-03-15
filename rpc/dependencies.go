@@ -37,5 +37,6 @@ type VM interface {
 	GetAuthRPCCores() int
 	GetAuthRPCBacklog() int
 	RecordRPCTxBacklog(int64)
+	AddRPCAuthorized(tx *chain.Transaction)
 	StopChan() chan struct{}
 }
