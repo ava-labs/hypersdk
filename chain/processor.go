@@ -8,7 +8,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/fetcher"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -32,8 +31,6 @@ type Processor struct {
 	sm        StateManager
 	exectutor *executor.Executor
 	ts        *tstate.TState
-
-	f *fetcher.Fetcher
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
@@ -82,7 +79,6 @@ func NewProcessor(
 		im:        im,
 		r:         r,
 		sm:        vm.StateManager(),
-		f:         fetcher.New(im, numTxs, vm.GetStateFetchConcurrency()),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
 		exectutor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
@@ -105,23 +101,12 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		return
 	}
 
-	// Prefetch state keys from disk
-	txID := tx.ID()
-	if err := p.f.Fetch(ctx, txID, stateKeys); err != nil {
-		panic(err)
-	}
 	p.exectutor.Run(stateKeys, func() error {
-		// Wait for stateKeys to be read from disk
-		reads, storage, err := p.f.Get(txID)
-		if err != nil {
-			return err
-		}
-
 		// Execute transaction
 		//
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		tsv := p.ts.NewView(stateKeys, storage)
+		tsv := p.ts.NewView(p.im, stateKeys)
 
 		// Deduct fees
 		sponsor := tx.Auth.Sponsor()
@@ -143,7 +128,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		// Execute transaction
 		//
 		// Also deducts fees
-		result, err := tx.Execute(ctx, reads, p.sm, p.r, tsv, p.timestamp, warpVerified)
+		result, err := tx.Execute(ctx, p.sm, p.r, tsv, p.timestamp, warpVerified)
 		if err != nil {
 			// TODO: this should never happen
 			p.vm.Logger().Warn("execution failure", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -389,11 +374,6 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 	p.vm.RecordWaitRepeat(p.repeatWait)
 	p.authWorkers.Stop()            // must be stopped, otherwise goroutines grow indefinitely
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
-	fetcherStart := time.Now()
-	if err := p.f.Wait(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: fetcher failed", err)
-	}
-	p.vm.RecordWaitFetcher(time.Since(fetcherStart))
 	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)

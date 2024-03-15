@@ -43,23 +43,23 @@ type TStateView struct {
 	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
 	// key, see issue below)
 	// https://github.com/ava-labs/hypersdk/issues/709
-	scope        state.Keys
-	scopeStorage map[string][]byte
+	scope state.Keys
+	im    state.Immutable
 
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
+func (ts *TState) NewView(im state.Immutable, scope state.Keys) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 
 		ops: make([]*op, 0, defaultOps),
 
-		scope:        scope,
-		scopeStorage: storage,
+		scope: scope,
+		im:    im,
 
 		allocates: make(map[string]uint16, len(scope)),
 		writes:    make(map[string]uint16, len(scope)),
@@ -171,7 +171,7 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return v, exists
 	}
-	if v, ok := ts.scopeStorage[key]; ok {
+	if v, err := ts.im.GetValue(ctx, []byte(key)); err == nil {
 		return v, true
 	}
 	return nil, false
@@ -183,7 +183,7 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
 	}
-	if v, ok := ts.scopeStorage[key]; ok {
+	if v, err := ts.im.GetValue(ctx, []byte(key)); err == nil {
 		return nexists && bytes.Equal(v, nval)
 	}
 	return !nexists
