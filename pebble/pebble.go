@@ -28,6 +28,7 @@ var (
 
 type Database struct {
 	db      *pebble.DB
+	wo      *pebble.WriteOptions
 	metrics *metrics
 
 	// We use an atomic bool for most
@@ -38,6 +39,7 @@ type Database struct {
 }
 
 type Config struct {
+	Sync                        bool
 	CacheSize                   int // B
 	BytesPerSync                int // B
 	MemTableStopWritesThreshold int // num tables
@@ -48,6 +50,7 @@ type Config struct {
 
 func NewDefaultConfig() Config {
 	return Config{
+		Sync:                        false, // explicitly specified for clarity
 		CacheSize:                   1024 * 1024 * 1024,
 		BytesPerSync:                4 * 1024 * 1024, // block size is usually at least 2MB
 		MemTableStopWritesThreshold: 8,
@@ -59,7 +62,13 @@ func NewDefaultConfig() Config {
 
 func New(file string, cfg Config) (database.Database, *prometheus.Registry, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
-	d := &Database{closing: make(chan struct{})}
+	//
+	// TODO: migrate to avalanchego impl
+	wo := pebble.NoSync
+	if cfg.Sync {
+		wo = pebble.Sync
+	}
+	d := &Database{wo: wo, closing: make(chan struct{})}
 	opts := &pebble.Options{
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
 		BytesPerSync:                cfg.BytesPerSync,
@@ -143,12 +152,12 @@ func (db *Database) Get(key []byte) ([]byte, error) {
 
 // Put sets the value of the provided key to the provided value
 func (db *Database) Put(key []byte, value []byte) error {
-	return updateError(db.db.Set(key, value, pebble.Sync))
+	return updateError(db.db.Set(key, value, db.wo))
 }
 
 // Delete removes the key from the database
 func (db *Database) Delete(key []byte) error {
-	return updateError(db.db.Delete(key, pebble.Sync))
+	return updateError(db.db.Delete(key, db.wo))
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {
@@ -157,24 +166,25 @@ func (db *Database) Compact(start []byte, limit []byte) error {
 
 // batch is a wrapper around a pebbleDB batch to contain sizes.
 type batch struct {
+	db    *Database
 	batch *pebble.Batch
 	size  int
 }
 
 // NewBatch creates a write/delete-only buffer that is atomically committed to
 // the database when write is called
-func (db *Database) NewBatch() database.Batch { return &batch{batch: db.db.NewBatch()} }
+func (db *Database) NewBatch() database.Batch { return &batch{db: db, batch: db.db.NewBatch()} }
 
 // Put the value into the batch for later writing
 func (b *batch) Put(key, value []byte) error {
 	b.size += len(key) + len(value) + 8 // TODO: find byte overhead
-	return b.batch.Set(key, value, pebble.Sync)
+	return b.batch.Set(key, value, b.db.wo)
 }
 
 // Delete the key during writing
 func (b *batch) Delete(key []byte) error {
 	b.size += len(key) + 8 // TODO: find byte overhead
-	return b.batch.Delete(key, pebble.Sync)
+	return b.batch.Delete(key, b.db.wo)
 }
 
 // Size retrieves the amount of data queued up for writing.
@@ -183,7 +193,7 @@ func (b *batch) Size() int { return b.size }
 // Write flushes any accumulated data to disk.
 func (b *batch) Write() error {
 	defer b.batch.Close()
-	return updateError(b.batch.Commit(pebble.Sync))
+	return updateError(b.batch.Commit(b.db.wo))
 }
 
 // Reset resets the batch for reuse.
