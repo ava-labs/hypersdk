@@ -104,8 +104,11 @@ func (w *WebSocketServer) startWorker() {
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)
-				return
+				continue
 			}
+
+			// Prevent duplicate signature verification during block processing
+			w.vm.AddRPCAuthorized(tx)
 		case <-w.vm.StopChan():
 			return
 		}
