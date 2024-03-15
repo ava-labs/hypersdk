@@ -32,7 +32,7 @@ impl Program {
     /// Attempts to call a function `name` with `args` on the given program. This method
     /// is used to call functions on external programs.
     /// # Errors
-    /// Returns a `StateError` if the call fails.
+    /// Returns a [`StateError`] if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     pub fn call_function(

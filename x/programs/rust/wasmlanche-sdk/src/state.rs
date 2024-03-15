@@ -7,7 +7,7 @@ pub enum Error {
     #[error("an unclassified error has occurred: {0}")]
     Other(String),
 
-    #[error("invalid byte format.")]
+    #[error("invalid byte format")]
     InvalidBytes,
 
     #[error("invalid byte length: {0}")]
@@ -48,7 +48,7 @@ impl State {
     /// Store a key and value to the host storage. If the key already exists,
     /// the value will be overwritten.
     /// # Errors
-    /// Returns an `StateError` if the key or value cannot be
+    /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
     pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), Error>
     where
@@ -64,7 +64,7 @@ impl State {
     /// function call. This function will take ownership of the pointer and free it.
     ///
     /// # Errors
-    /// Returns an `StateError` if the key cannot be serialized or if
+    /// Returns an [Error] if the key cannot be serialized or if
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
@@ -84,7 +84,7 @@ impl State {
 
     /// Delete a value from the hosts's storage.
     /// # Errors
-    /// Returns an `StateError` if the key cannot be serialized
+    /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
     pub fn delete<K>(&self, key: K) -> Result<(), Error>
     where
@@ -130,7 +130,7 @@ mod host {
         fn _delete(caller: i64, key: i64) -> i64;
     }
 
-    /// Persists the bytes at `value_ptr` to the bytes at key ptr on the host storage.
+    /// Persists the bytes at `value` at key on the host storage.
     pub(super) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), Error>
     where
         V: BorshSerialize,

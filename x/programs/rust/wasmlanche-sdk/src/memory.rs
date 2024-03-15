@@ -37,7 +37,7 @@ pub type HostPtr = i64;
 /// Converts a pointer to a i64 with the first 4 bytes of the pointer
 /// representing the length of the memory block.
 /// # Errors
-/// Returns an `StateError` if the pointer or length of `args` exceeds
+/// Returns an [`StateError`] if the pointer or length of `args` exceeds
 /// the maximum size of a u32.
 #[allow(clippy::cast_possible_truncation)]
 pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
@@ -76,7 +76,7 @@ pub fn split_host_ptr(arg: HostPtr) -> (i64, usize) {
 /// # Safety
 /// This function is unsafe because it dereferences raw pointers.
 /// # Errors
-/// Returns an `StateError` if the bytes cannot be deserialized.
+/// Returns an [`StateError`] if the bytes cannot be deserialized.
 pub unsafe fn from_host_ptr<V>(ptr: HostPtr) -> Result<V, StateError>
 where
     V: BorshDeserialize,
