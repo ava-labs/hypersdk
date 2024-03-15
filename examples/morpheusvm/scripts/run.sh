@@ -23,7 +23,7 @@ MODE=${MODE:-run}
 AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
-MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
+MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-750}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
 if [[ ${MODE} != "run" ]]; then
@@ -139,6 +139,9 @@ rm -f "${TMPDIR}"/morpheusvm.config
 rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
+  "chunkBuildFrequency": 200,
+  "targetChunkBuildDuration": 100,
+  "blockBuildFrequency": 250,
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],

@@ -44,7 +44,7 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # Generate genesis file and configs
 ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
-MIN_BLOCK_GAP=1000
+MIN_BLOCK_GAP=750
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
 echo "creating allocations file"
@@ -62,6 +62,9 @@ EOF
 
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
+  "chunkBuildFrequency": 200,
+  "targetChunkBuildDuration": 100,
+  "blockBuildFrequency": 250,
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],

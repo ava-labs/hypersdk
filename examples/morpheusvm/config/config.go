@@ -31,6 +31,11 @@ const (
 type Config struct {
 	*config.Config
 
+	// Building
+	ChunkBuildFrequency      int64 `json:"chunkBuildFrequency"`      // in milliseconds
+	TargetChunkBuildDuration int64 `json:"targetChunkBuildDuration"` // in milliseconds
+	BlockBuildFrequency      int64 `json:"blockBuildFrequency"`      // in milliseconds
+
 	// Concurrency
 	AuthExecutionCores   int `json:"authExecutionCores"`
 	RootGenerationCores  int `json:"rootGenerationCores"`
@@ -89,6 +94,9 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
+	c.ChunkBuildFrequency = c.Config.GetChunkBuildFrequency().Milliseconds()
+	c.TargetChunkBuildDuration = c.Config.GetTargetChunkBuildDuration().Milliseconds()
+	c.BlockBuildFrequency = c.Config.GetBlockBuildFrequency().Milliseconds()
 	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
@@ -136,4 +144,16 @@ func (c *Config) GetVerifyAuth() bool { return c.VerifyAuth }
 func (c *Config) Loaded() bool        { return c.loaded }
 func (c *Config) GetBeneficiary() codec.Address {
 	return codec.BlackholeAddress
+}
+
+func (c *Config) GetChunkBuildFrequency() time.Duration {
+	return time.Duration(c.ChunkBuildFrequency) * time.Millisecond
+}
+
+func (c *Config) GetTargetChunkBuildDuration() time.Duration {
+	return time.Duration(c.TargetChunkBuildDuration) * time.Millisecond
+}
+
+func (c *Config) GetBlockBuildFrequency() time.Duration {
+	return time.Duration(c.BlockBuildFrequency) * time.Millisecond
 }
