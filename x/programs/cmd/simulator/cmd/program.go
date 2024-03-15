@@ -144,6 +144,10 @@ func programExecuteFunc(
 ) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
+
+	// print program-tx-id to stderr
+	fmt.Fprintf(os.Stderr, "\nprogram-tx-id: %+v\n", programTxID)
+
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
@@ -155,8 +159,17 @@ func programExecuteFunc(
 		Log:      log,
 	}
 
+	// print the whole `programExecuteAction` object to stderr
+	// fmt.Fprintf(os.Stderr, "programExecuteAction: %+v\n", programExecuteAction)
+
 	// execute the action
 	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID, false)
+
+	// print `success` to stderr
+	fmt.Fprintf(os.Stderr, "\nsuccess: %+v\n", success)
+	// print `err` to stderr
+	fmt.Fprintf(os.Stderr, "\nerr: %+v\n", err)
+
 	if !success {
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}

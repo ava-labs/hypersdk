@@ -25,3 +25,8 @@ pub enum Error {
     #[error("Param error: {0}")]
     Param(#[from] std::io::Error),
 }
+
+#[derive(Clone, Copy, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct Context {
+    pub program: program::Program,
+}

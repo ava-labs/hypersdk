@@ -171,9 +171,9 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 
 		function_name := string(functionBytes)
 		res, err := rt.Call(ctx, function_name, program.Context{
-			ProgramID:        ids.ID(programIDBytes),
-			Actor:            callContext.ProgramID,
-			OriginatingActor: callContext.OriginatingActor,
+			ProgramID: ids.ID(programIDBytes),
+			// Actor:            callContext.ProgramID,
+			// OriginatingActor: callContext.OriginatingActor,
 		}, params...)
 		if err != nil {
 			i.log.Error("failed to call entry function",

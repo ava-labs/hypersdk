@@ -5,7 +5,7 @@ import (
 )
 
 type Context struct {
-	ProgramID        ids.ID   `json:"program"`
-	Actor            [32]byte `json:"actor"`
-	OriginatingActor [32]byte `json:"originating_actor"`
+	ProgramID ids.ID `json:"program"`
+	// Actor            [32]byte `json:"actor"`
+	// OriginatingActor [32]byte `json:"originating_actor"`
 }

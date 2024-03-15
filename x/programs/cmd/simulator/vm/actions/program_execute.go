@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/near/borsh-go"
 
@@ -108,9 +109,14 @@ func (t *ProgramExecute) Execute(
 		return pstate.New(logging.NoLog{}, mu)
 	})
 	callContext := program.Context{
-		ProgramID:        programID,
-		Actor:            [32]byte(actor[1:]),
-		OriginatingActor: [32]byte(actor[1:])}
+		ProgramID: programID,
+		// Actor:            [32]byte(actor[1:]),
+		// OriginatingActor: [32]byte(actor[1:])
+	}
+
+	// print callContext to stderr
+	fmt.Fprintf(os.Stderr, "\ncallContext: %+v\n", callContext)
+
 	importsBuilder.Register("program", func() host.Import {
 		return importProgram.New(logging.NoLog{}, eng, mu, cfg, &callContext)
 	})
@@ -132,8 +138,13 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
+	// print callContext to stderr
+	fmt.Fprintf(os.Stderr, "\ncallContext: %+v\n", callContext)
+
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
+		// print err to stderr
+		fmt.Fprintf(os.Stderr, "\nerr: %+v\n", err)
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 

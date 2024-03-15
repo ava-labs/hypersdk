@@ -16,3 +16,6 @@ serde_json = { version = "1.0.64", optional = true }
 
 [features]
 build = ["serde_json"]
+
+[dev-dependencies]
+wasmtime = "14"
