@@ -460,27 +460,23 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
+	utils.Outf("{{yellow}}returning funds (1k batch):{{/}} %s\n", h.c.Address(key.Address))
 	var (
 		returnedBalance uint64
 		returnsSent     int
 	)
+	lastConf = 0
 	for i := 0; i < numAccounts; i++ {
 		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
 		returnsSent++
+
 		// Send funds
 		returnAmt := balance - feePerTx
-		f, err := getFactory(accounts[i])
-		if err != nil {
-			return err
-		}
+		f := factories[i]
 		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt, uniqueBytes()), f, feePerTx)
-		if err != nil {
-			return err
-		}
 		if err != nil {
 			return err
 		}
@@ -488,19 +484,19 @@ func (h *Handler) Spam(
 			return err
 		}
 		returnedBalance += returnAmt
+
+		// Pace the return of funds
+		if i != 0 && i%1000 == 0 && i != numAccounts {
+			if err := confirmTxs(ctx, dcli, 1000); err != nil {
+				return err
+			}
+			utils.Outf("{{yellow}}returned funds:{{/}} %d/%d accounts\n", i, numAccounts)
+			lastConf = i
+		}
 	}
-	for i := 0; i < returnsSent; i++ {
-		_, dErr, result, err := dcli.ListenTx(ctx)
-		if err != nil {
-			return err
-		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
-			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
-		}
+	// Confirm remaining
+	if err := confirmTxs(ctx, dcli, numAccounts-lastConf); err != nil {
+		return err
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
