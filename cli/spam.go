@@ -29,11 +29,23 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+
+	ui "github.com/gizak/termui/v3"
+	"github.com/gizak/termui/v3/widgets"
 )
 
 const (
 	defaultRange          = 32
 	issuerShutdownTimeout = 60 * time.Second
+
+	// TODO: make params
+	distSamples    = 1000
+	distIdentities = 10
+	distBarWidth   = 10
+	distOverhead   = 10
+	distHeight     = 25
+	zs             = 1.1
+	zv             = 2.0
 )
 
 // TODO: we should NEVER use globals, remove this
@@ -66,6 +78,35 @@ func (h *Handler) Spam(
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
+
+	// Setup UI
+	if err := ui.Init(); err != nil {
+		return err
+	}
+
+	// Print distribution
+	zb := rand.NewZipf(rand.New(rand.NewSource(0)), zs, zv, distIdentities-1) //nolint:gosec
+	distribution := make([]float64, distIdentities)
+	for i := 0; i < distSamples; i++ {
+		distribution[zb.Uint64()]++
+	}
+	labels := make([]string, distIdentities)
+	for i := 0; i < distIdentities; i++ {
+		labels[i] = fmt.Sprintf("%d", i)
+	}
+	bc := widgets.NewBarChart()
+	bc.Title = fmt.Sprintf("Account Issuance Distribution (s=%.2f v=%.2f [(v+k)^(-s)])", zs, zv)
+	bc.Data = distribution
+	bc.Labels = labels
+	bc.BarWidth = distBarWidth
+	bc.SetRect(0, 0, distOverhead+distBarWidth*distIdentities, distHeight)
+	ui.Render(bc)
+	utils.Outf("\ntype any character to continue...\n")
+	// TODO: add option to skip this
+	for range ui.PollEvents() {
+		break
+	}
+	ui.Close()
 
 	// Select chain
 	var (
@@ -307,9 +348,10 @@ func (h *Handler) Spam(
 	var (
 		it = time.NewTimer(0)
 		// TODO: make configurable
-		z    = rand.NewZipf(rand.New(rand.NewSource(0)), 1.1, 2.0, uint64(numAccounts)-1) //nolint:gosec
+		z    = rand.NewZipf(rand.New(rand.NewSource(0)), zs, zv, uint64(numAccounts)-1) //nolint:gosec
 		stop bool
 	)
+	// TODO: log plot of distribution
 	for !stop {
 		select {
 		case <-it.C:
