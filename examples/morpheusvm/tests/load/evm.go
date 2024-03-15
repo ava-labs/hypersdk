@@ -12,10 +12,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ava-labs/coreth/accounts/abi"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/subnet-evm/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
 
