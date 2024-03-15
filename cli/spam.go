@@ -182,7 +182,7 @@ func (h *Handler) Spam(
 	}
 	distAmount := (balance - witholding) / uint64(numAccounts)
 	utils.Outf(
-		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
+		"{{yellow}}distributing funds to accounts (1k batch):{{/}} %s %s\n",
 		utils.FormatBalance(distAmount, h.c.Decimals()),
 		h.c.Symbol(),
 	)
@@ -193,8 +193,11 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	funds := map[codec.Address]uint64{}
-	var fundsL sync.Mutex
+	var (
+		funds    = map[codec.Address]uint64{}
+		fundsL   sync.Mutex
+		lastConf int
+	)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
 		pk, err := createAccount()
@@ -219,21 +222,21 @@ func (h *Handler) Spam(
 			return fmt.Errorf("%w: failed to register tx", err)
 		}
 		funds[pk.Address] = distAmount
-	}
-	for i := 0; i < numAccounts; i++ {
-		_, dErr, result, err := dcli.ListenTx(ctx)
-		if err != nil {
-			return err
-		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
-			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+
+		// Pace the creation of accounts
+		if i != 0 && i%1000 == 0 && i != numAccounts {
+			if err := confirmTxs(ctx, dcli, 1000); err != nil {
+				return err
+			}
+			utils.Outf("{{yellow}}distributed funds:{{/}} %d/%d accounts\n", i, numAccounts)
+			lastConf = i
 		}
 	}
-	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
+	// Confirm remaining
+	if err := confirmTxs(ctx, dcli, numAccounts-lastConf); err != nil {
+		return err
+	}
+	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", numAccounts)
 
 	// Kickoff txs
 	clients := []*txIssuer{}
@@ -426,7 +429,7 @@ func (h *Handler) Spam(
 			// Determine how long to sleep
 			dur := time.Since(start)
 			sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
-			t.Reset(time.Duration(sleep) * time.Millisecond)
+			it.Reset(time.Duration(sleep) * time.Millisecond)
 		case <-cctx.Done():
 			stop = true
 		case <-signals:
@@ -610,4 +613,21 @@ func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 
 func uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(issuedTxs.Add(1)))
+}
+
+func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error {
+	for i := 0; i < numTxs; i++ {
+		_, dErr, result, err := cli.ListenTx(ctx)
+		if err != nil {
+			return err
+		}
+		if dErr != nil {
+			return dErr
+		}
+		if !result.Success {
+			// Should never happen
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+		}
+	}
+	return nil
 }
