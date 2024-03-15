@@ -379,7 +379,7 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
-	p.vm.Logger().Info(
+	p.vm.Logger().Debug(
 		"times",
 		zap.Duration("serial checks", p.serialChecks),
 		zap.Duration("chunk units", p.chunkUnits),
