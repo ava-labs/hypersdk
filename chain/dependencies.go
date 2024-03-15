@@ -40,7 +40,6 @@ type Metrics interface {
 
 	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)
-	RecordWaitFetcher(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
@@ -73,7 +72,6 @@ type VM interface {
 	Engine() *Engine
 	RequestChunks([]*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
-	GetStateFetchConcurrency() int
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.

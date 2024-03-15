@@ -32,10 +32,9 @@ type Config struct {
 	*config.Config
 
 	// Concurrency
-	AuthExecutionCores    int `json:"authExecutionCores"`
-	StateFetchConcurrency int `json:"stateFetchConcurrency"`
-	RootGenerationCores   int `json:"rootGenerationCores"`
-	ActionExecutionCores  int `json:"actionExecutionCores"`
+	AuthExecutionCores   int `json:"authExecutionCores"`
+	RootGenerationCores  int `json:"rootGenerationCores"`
+	ActionExecutionCores int `json:"actionExecutionCores"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -92,7 +91,6 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
 	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
-	c.StateFetchConcurrency = c.Config.GetStateFetchConcurrency()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
 	c.MempoolSize = c.Config.GetMempoolSize()
@@ -105,7 +103,6 @@ func (c *Config) setDefault() {
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
 func (c *Config) GetTestMode() bool                         { return c.TestMode }
 func (c *Config) GetAuthExecutionCores() int                { return c.AuthExecutionCores }
-func (c *Config) GetStateFetchConcurrency() int             { return c.StateFetchConcurrency }
 func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
 func (c *Config) GetActionExecutionCores() int              { return c.ActionExecutionCores }
 func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }

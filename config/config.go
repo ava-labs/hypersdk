@@ -18,7 +18,6 @@ type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
 func (c *Config) GetAuthExecutionCores() int                { return 1 }
-func (c *Config) GetStateFetchConcurrency() int             { return 1 }
 func (c *Config) GetRootGenerationCores() int               { return 1 }
 func (c *Config) GetActionExecutionCores() int              { return 1 }
 func (c *Config) GetMissingChunkFetchers() int              { return 4 }

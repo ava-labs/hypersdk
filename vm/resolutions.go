@@ -606,14 +606,6 @@ func (vm *VM) RecordUnusedVerifiedChunks(c int) {
 	vm.metrics.unusedChunkVerifications.Add(float64(c))
 }
 
-func (vm *VM) RecordWaitFetcher(t time.Duration) {
-	vm.metrics.waitFetcher.Observe(float64(t))
-}
-
-func (vm *VM) GetStateFetchConcurrency() int {
-	return vm.config.GetStateFetchConcurrency()
-}
-
 func (vm *VM) RecordWaitRepeat(t time.Duration) {
 	vm.metrics.waitRepeat.Observe(float64(t))
 }
