@@ -25,6 +25,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
@@ -579,13 +580,14 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if vm.snowCtx == nil {
 		return nil
 	}
-	if err := vm.vmDB.Close(); err != nil {
-		return err
-	}
-	if err := vm.stateDB.Close(); err != nil {
-		return err
-	}
-	return vm.rawStateDB.Close()
+	errs := wrappers.Errs{}
+	errs.Add(
+		vm.vmDB.Close(),
+		vm.stateDB.Close(),
+		vm.rawStateDB.Close(),
+		vm.blobDB.Close(),
+	)
+	return errs.Err
 }
 
 // implements "block.ChainVM.common.VM"
