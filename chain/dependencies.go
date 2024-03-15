@@ -95,7 +95,7 @@ type VM interface {
 	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
 
 	Mempool() Mempool
-	GetTargetBuildDuration() time.Duration
+	GetTargetChunkBuildDuration() time.Duration
 	GetActionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)
