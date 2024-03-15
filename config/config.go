@@ -18,13 +18,15 @@ type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
 func (c *Config) GetAuthExecutionCores() int                { return 1 }
+func (c *Config) GetAuthRPCCores() int                      { return 1 }
+func (c *Config) GetAuthRPCBacklog() int                    { return 1_024 } // TODO: add same for p2p gossip
 func (c *Config) GetRootGenerationCores() int               { return 1 }
 func (c *Config) GetActionExecutionCores() int              { return 1 }
 func (c *Config) GetMissingChunkFetchers() int              { return 4 }
 func (c *Config) GetMempoolSize() int                       { return 2_048 }
 func (c *Config) GetMempoolSponsorSize() int                { return 32 }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return nil }
-func (c *Config) GetStreamingBacklogSize() int              { return 1024 }
+func (c *Config) GetStreamingBacklogSize() int              { return 1_024 }
 func (c *Config) GetIntermediateNodeCacheSize() int         { return 4 * units.GiB }
 func (c *Config) GetStateIntermediateWriteBufferSize() int  { return 32 * units.MiB }
 func (c *Config) GetStateIntermediateWriteBatchSize() int   { return 4 * units.MiB }

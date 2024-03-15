@@ -609,3 +609,15 @@ func (vm *VM) RecordUnusedVerifiedChunks(c int) {
 func (vm *VM) RecordWaitRepeat(t time.Duration) {
 	vm.metrics.waitRepeat.Observe(float64(t))
 }
+
+func (vm *VM) GetAuthRPCCores() int {
+	return vm.config.GetAuthRPCCores()
+}
+
+func (vm *VM) GetAuthRPCBacklog() int {
+	return vm.config.GetAuthRPCBacklog()
+}
+
+func (vm *VM) RecordRPCTxBacklog(c int64) {
+	vm.metrics.rpcTxBacklog.Set(float64(c))
+}

@@ -32,5 +32,10 @@ type VM interface {
 	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)
 	IterateCurrentValidators(context.Context, func(ids.NodeID, *validators.GetValidatorOutput)) error
 	GatherSignatures(context.Context, ids.ID, []byte)
+
 	GetVerifyAuth() bool
+	GetAuthRPCCores() int
+	GetAuthRPCBacklog() int
+	RecordRPCTxBacklog(int64)
+	StopChan() chan struct{}
 }

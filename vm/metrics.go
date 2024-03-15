@@ -48,6 +48,7 @@ type Metrics struct {
 	chunksNotVerified        prometheus.Counter
 	unusedChunkVerifications prometheus.Counter
 	engineBacklog            prometheus.Gauge
+	rpcTxBacklog             prometheus.Gauge
 	waitRepeat               metric.Averager
 	waitAuth                 metric.Averager
 	waitExec                 metric.Averager
@@ -317,6 +318,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "engine_backlog",
 			Help:      "number of blocks waiting to be executed",
 		}),
+		rpcTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "rpc_tx_backlog",
+			Help:      "number of transactions waiting to be processed by RPC",
+		}),
 		waitRepeat:            waitRepeat,
 		waitAuth:              waitAuth,
 		waitExec:              waitExec,
@@ -360,6 +366,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunksNotVerified),
 		r.Register(m.unusedChunkVerifications),
 		r.Register(m.engineBacklog),
+		r.Register(m.rpcTxBacklog),
 	)
 	return r, m, errs.Err
 }
