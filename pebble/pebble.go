@@ -50,9 +50,9 @@ type Config struct {
 
 func NewDefaultConfig() Config {
 	return Config{
-		Sync:                        false, // explicitly specified for clarity
-		CacheSize:                   1024 * 1024 * 1024,
-		BytesPerSync:                4 * 1024 * 1024, // block size is usually at least 2MB
+		Sync:                        false,              // explicitly specified for clarity
+		CacheSize:                   1024 * 1024 * 1024, // TODO: use memory for MerkleDB cache instead?
+		BytesPerSync:                1024 * 1024,
 		MemTableStopWritesThreshold: 8,
 		MemTableSize:                16 * 1024 * 1024,
 		MaxOpenFiles:                4_096,
