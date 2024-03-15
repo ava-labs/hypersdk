@@ -412,7 +412,7 @@ func (h *Handler) Spam(
 			}
 
 			// Log sent distribution
-			for i := uint64(0); i < numAccounts; i++ {
+			for i := uint64(0); i < uint64(numAccounts); i++ {
 				if count, ok := txSenders[i]; ok {
 					utils.Outf("{{yellow}}[%d]sent:{{/}} %d\n", i, count)
 				}

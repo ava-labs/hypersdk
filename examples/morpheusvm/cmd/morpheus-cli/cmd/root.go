@@ -27,10 +27,9 @@ var (
 	maxChunkUnits         []string
 	minBlockGap           int64
 	hideTxs               bool
-	randomRecipient       bool
 	maxTxBacklog          int
 	numAccounts           int
-	numTxs                int
+	txsPerSecond          int
 	numClients            int
 	clusterInfo           string
 	privateKey            string
@@ -40,7 +39,6 @@ var (
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-	maxFee                int64
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -145,23 +143,11 @@ func init() {
 	)
 
 	// spam
-	runSpamCmd.PersistentFlags().BoolVar(
-		&randomRecipient,
-		"random-recipient",
-		false,
-		"random recipient",
-	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&maxTxBacklog,
 		"max-tx-backlog",
 		72_000,
 		"max tx backlog",
-	)
-	runSpamCmd.PersistentFlags().Int64Var(
-		&maxFee,
-		"max-fee",
-		-1,
-		"max fee per tx",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numAccounts,
@@ -171,9 +157,9 @@ func init() {
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numTxs,
-		"num-txs",
+		"txs-per-second",
 		-1,
-		"number of txs per account",
+		"number of txs issued per second (under backlog)",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numClients,

@@ -59,11 +59,6 @@ var runSpamCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		var bclient *brpc.JSONRPCClient
 		var wclient *rpc.WebSocketClient
-		var maxFeeParsed *uint64
-		if maxFee >= 0 {
-			v := uint64(maxFee)
-			maxFeeParsed = &v
-		}
 		var pk *cli.PrivateKey
 		if len(privateKey) > 0 {
 			b, err := hex.DecodeString(privateKey)
@@ -75,8 +70,8 @@ var runSpamCmd = &cobra.Command{
 				Bytes:   b,
 			}
 		}
-		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
-			numAccounts, numTxs, numClients, clusterInfo, pk,
+		return handler.Root().Spam(maxTxBacklog,
+			numAccounts, txsPerSecond, numClients, clusterInfo, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
