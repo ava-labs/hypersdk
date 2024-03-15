@@ -25,6 +25,9 @@ type Transfer struct {
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
+
+	// Memo is an optional field that can be used to store arbitrary data.
+	Memo []byte `json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -71,19 +74,21 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (*Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (t *Transfer) Size() int {
+	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackAddress(t.To)
 	p.PackUint64(t.Value)
+	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
+	p.UnpackBytes(consts.NetworkSizeLimit, false, &transfer.Memo)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

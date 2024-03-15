@@ -99,9 +99,8 @@ func (*Rules) GetBlockExecutionDepth() uint64 {
 	return 5
 }
 
-func (*Rules) GetEpochDuration() int64 {
-	// TODO: ensure this is greater than validity window
-	return 15000 // 15s
+func (r *Rules) GetEpochDuration() int64 {
+	return r.g.EpochDuration
 }
 
 func (*Rules) GetSponsorStateKeyChunks() []uint16 {

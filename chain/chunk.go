@@ -79,7 +79,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		authCounts = make(map[uint8]int)
 	)
 	mempool.StartStreaming(ctx)
-	for time.Since(nowT) < vm.GetTargetBuildDuration() {
+	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
 		txs := mempool.Stream(ctx, 256)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet

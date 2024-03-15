@@ -768,8 +768,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	}
 	c.vm.Logger().Info("starting chunk manager", zap.Any("beneficiary", beneficiary))
 
-	ct := time.NewTicker(c.vm.config.GetBuildFrequency())
+	ct := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
 	defer ct.Stop()
+	bt := time.NewTicker(c.vm.config.GetBlockBuildFrequency())
+	defer bt.Stop()
 	gt := time.NewTicker(50 * time.Millisecond)
 	defer gt.Stop()
 	for {
@@ -781,13 +783,6 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			}
 			if skipChunks {
 				continue
-			}
-
-			// Attempt to build a block
-			// TODO: move this simple time trigger elsewhere
-			select {
-			case c.vm.EngineChan() <- common.PendingTxs:
-			default:
 			}
 
 			// Attempt to build a chunk
@@ -812,6 +807,17 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			)
 			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
 			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
+		case <-bt.C:
+			if !c.vm.isReady() {
+				c.vm.Logger().Info("skipping block loop because vm isn't ready")
+				continue
+			}
+
+			// Attempt to build a block
+			select {
+			case c.vm.EngineChan() <- common.PendingTxs:
+			default:
+			}
 		case <-gt.C:
 			now := time.Now()
 			gossipable := []*txGossip{}

@@ -26,11 +26,15 @@ var (
 	minUnitPrice          []string
 	maxChunkUnits         []string
 	minBlockGap           int64
+	epochDuration         int64
+	validityWindow        int64
 	hideTxs               bool
-	randomRecipient       bool
 	maxTxBacklog          int
 	numAccounts           int
-	numTxs                int
+	txsPerSecond          int
+	sZipf                 float64
+	vZipf                 float64
+	plotZipf              bool
 	numClients            int
 	clusterInfo           string
 	privateKey            string
@@ -40,7 +44,6 @@ var (
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-	maxFee                int64
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -105,6 +108,18 @@ func init() {
 		-1,
 		"minimum block gap (ms)",
 	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&epochDuration,
+		"epoch-duration",
+		-1,
+		"epoch duration (ms)",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&validityWindow,
+		"validity-window",
+		-1,
+		"validity window (ms)",
+	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,
 	)
@@ -145,23 +160,29 @@ func init() {
 	)
 
 	// spam
+	runSpamCmd.PersistentFlags().Float64Var(
+		&sZipf,
+		"s-zipf",
+		1.2,
+		"Zipf distribution = [(v+k)^(-s)]",
+	)
+	runSpamCmd.PersistentFlags().Float64Var(
+		&vZipf,
+		"v-zipf",
+		2.0,
+		"Zipf distribution = [(v+k)^(-s)]",
+	)
 	runSpamCmd.PersistentFlags().BoolVar(
-		&randomRecipient,
-		"random-recipient",
+		&plotZipf,
+		"plot-zipf",
 		false,
-		"random recipient",
+		"plot zipf distribution",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&maxTxBacklog,
 		"max-tx-backlog",
 		72_000,
 		"max tx backlog",
-	)
-	runSpamCmd.PersistentFlags().Int64Var(
-		&maxFee,
-		"max-fee",
-		-1,
-		"max fee per tx",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numAccounts,
@@ -170,10 +191,10 @@ func init() {
 		"number of accounts submitting txs",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
-		&numTxs,
-		"num-txs",
+		&txsPerSecond,
+		"txs-per-second",
 		-1,
-		"number of txs per account",
+		"number of txs issued per second (under backlog)",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numClients,

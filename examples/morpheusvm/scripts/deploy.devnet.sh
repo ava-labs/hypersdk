@@ -29,11 +29,11 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo "working directory: $TMPDIR"
 
 # Install avalanche-cli
-CLI_COMMIT=v1.4.3-rc.0
+CLI_COMMIT=v1.4.3-rc.1
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
-git checkout 3f928aa8559a6b16d127caf0a4a57feeb3721adc
+git checkout ef0a7b748fdd5d6d91fa52b2cfe822f08008d4fe # TODO: replace with CLI_COMMIT
 ./scripts/build.sh
 mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
@@ -43,7 +43,14 @@ echo "building morpheus-cli"
 go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # Generate genesis file and configs
+#
+# We use a shorter EPOCH_DURATION and VALIDITY_WINDOW to speed up devnet
+# startup. In a production environment, these should be set to longer values.
+#
+# TODO: print this out while waiting for network as well.
 ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+EPOCH_DURATION=30000
+VALIDITY_WINDOW=25000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
@@ -55,6 +62,8 @@ cat <<EOF > "${TMPDIR}"/allocations.json
 EOF
 
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+--epoch-duration "${EPOCH_DURATION}" \
+--validity-window "${VALIDITY_WINDOW}" \
 --min-unit-price "${MIN_UNIT_PRICE}" \
 --max-chunk-units "${MAX_CHUNK_UNITS}" \
 --min-block-gap "${MIN_BLOCK_GAP}" \
@@ -62,12 +71,15 @@ EOF
 
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
+  "chunkBuildFrequency": 250,
+  "targetChunkBuildDuration": 100,
+  "blockBuildFrequency": 100,
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],
-  "authExecutionCores": 30,
-  "actionExecutionCores": 4,
-  "rootGenerationCores": 34,
+  "authExecutionCores": 24,
+  "actionExecutionCores": 8,
+  "rootGenerationCores": 32,
   "verifyAuth":true,
   "streamingBacklogSize": 10000000,
   "logLevel": "INFO"
@@ -118,7 +130,7 @@ function cleanup {
   echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
 }
 trap cleanup EXIT
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c5.9xlarge --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --use-static-ip=false --separate-monitoring-instance --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --num-apis 1,1 --num-validators 2,2 --region us-east-1,us-east-2 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
 cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
@@ -126,7 +138,7 @@ cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 # Import the cluster into morpheus-cli for local interaction
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-echo -e "${YELLOW}Run this command in a separate window to monitor cluster:${NC} \"${TMPDIR}/morpheus-cli prometheus generate\""
+echo -e "\n${YELLOW}Run this command in a separate window to monitor cluster:${NC} \"${TMPDIR}/morpheus-cli prometheus generate\""
 
 # Wait for user to confirm that they want to launch load test
 while true
@@ -139,7 +151,7 @@ do
   # Check which key was pressed
   case $key in
       y|Y)
-          printf "y\nStarting...\n"
+          printf "y\n"
           break
           ;;
       n|N)
@@ -152,5 +164,11 @@ do
   esac
 done
 
+# Wait for epoch initialization
+SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
+echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
+echo -e "${YELLOW}We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value.${NC}"
+sleep $SLEEP_DUR
+
 # Start load test on dedicated machine
-$TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="/home/ubuntu/simulator spam run ed25519 --max-tx-backlog=600000 --num-accounts=2500 --num-txs=20 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+$TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="/home/ubuntu/simulator spam run ed25519 --max-tx-backlog=600000 --num-accounts=75000 --txs-per-second=50000 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"

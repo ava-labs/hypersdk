@@ -506,8 +506,8 @@ func (vm *VM) RecordTxsValid(c int) {
 	vm.metrics.txsValid.Add(float64(c))
 }
 
-func (vm *VM) GetTargetBuildDuration() time.Duration {
-	return vm.config.GetTargetBuildDuration()
+func (vm *VM) GetTargetChunkBuildDuration() time.Duration {
+	return vm.config.GetTargetChunkBuildDuration()
 }
 
 func (vm *VM) cacheAuth(auth chain.Auth) {
