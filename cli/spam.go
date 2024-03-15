@@ -336,7 +336,7 @@ func (h *Handler) Spam(
 						nextTime = ut + 1
 					}
 					ut = nextTime
-					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - 5*consts.MillisecondsPerSecond}
+					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early */}
 
 					// Send transaction
 					start := time.Now()
