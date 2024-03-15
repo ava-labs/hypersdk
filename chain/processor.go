@@ -223,6 +223,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 			panic(err)
 		}
 		batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
+
 		for _, tx := range chunk.Txs {
 			// Enqueue transaction for execution
 			msg, err := tx.Digest()
@@ -231,10 +232,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 				return
 			}
-			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-			if p.vm.GetVerifyAuth() && !p.vm.IsRPCAuthorized(tx.ID()) {
-				batchVerifier.Add(msg, tx.Auth)
+			if p.vm.IsRPCAuthorized(tx.ID()) {
+				p.vm.RecordTxRPCAuthorized()
+				continue
 			}
+			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
+			batchVerifier.Add(msg, tx.Auth)
 		}
 		authStart := time.Now()
 		batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
@@ -246,6 +249,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	}
 
 	// Confirm that chunk is well-formed
+	//
 	//
 	// All of these can be avoided by chunk producer.
 	serialStart := time.Now()
@@ -339,7 +343,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		// record it in the set.
 		//
 		// Remove any invalid transactions from this set when all chunks are done processing (otherwise
-		// it would be trivial for a dishonest producer to include a tx in a bad chunk and prevent it
 		// from ever being executed).
 		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
@@ -405,11 +408,13 @@ func VerifyChunkSignatures(vm VM, chunk *Chunk) bool {
 		if err != nil {
 			return false
 		}
+		if vm.IsRPCAuthorized(tx.ID()) {
+			vm.RecordTxRPCAuthorized()
+			continue
+		}
 
 		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-		if !vm.IsRPCAuthorized(tx.ID()) {
-			batchVerifier.Add(msg, tx.Auth)
-		}
+		batchVerifier.Add(msg, tx.Auth)
 	}
 	batchVerifier.Done(nil)
 	return authJob.Wait() == nil

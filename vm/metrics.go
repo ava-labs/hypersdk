@@ -47,6 +47,7 @@ type Metrics struct {
 	chunksExecuted           prometheus.Counter
 	chunksNotVerified        prometheus.Counter
 	unusedChunkVerifications prometheus.Counter
+	txRPCAuthorized          prometheus.Counter
 	engineBacklog            prometheus.Gauge
 	rpcTxBacklog             prometheus.Gauge
 	waitRepeat               metric.Averager
@@ -313,6 +314,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "unused_chunk_verifications",
 			Help:      "chunks verified but not executed",
 		}),
+		txRPCAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "tx_rpc_authorized",
+			Help:      "number of txs authorized during RPC processing",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -365,6 +371,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunksExecuted),
 		r.Register(m.chunksNotVerified),
 		r.Register(m.unusedChunkVerifications),
+		r.Register(m.txRPCAuthorized),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 	)

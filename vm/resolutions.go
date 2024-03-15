@@ -639,3 +639,7 @@ func (vm *VM) AddRPCAuthorized(tx *chain.Transaction) {
 func (vm *VM) IsRPCAuthorized(txID ids.ID) bool {
 	return vm.rpcAuthorizedTxs.HasID(txID)
 }
+
+func (vm *VM) RecordTxRPCAuthorized() {
+	vm.metrics.txRPCAuthorized.Inc()
+}
