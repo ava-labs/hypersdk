@@ -70,8 +70,10 @@ var runSpamCmd = &cobra.Command{
 				Bytes:   b,
 			}
 		}
-		return handler.Root().Spam(maxTxBacklog,
-			numAccounts, txsPerSecond, numClients, clusterInfo, pk,
+		return handler.Root().Spam(
+			maxTxBacklog, numAccounts, txsPerSecond,
+			sZipf, vZipf, plotZipf,
+			numClients, clusterInfo, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)

@@ -277,6 +277,9 @@ func (h *Handler) Spam(
 	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", numAccounts)
 
 	// Kickoff txs
+	utils.Outf("{{yellow}}starting load test...{{/}}\n")
+	utils.Outf("{{yellow}}target TPS:{{/}} %d\n", txsPerSecond)
+	utils.Outf("{{yellow}}Zipf distribution [(v+k)^(-s)] s:{{/}} %.2f {{yellow}}v:{{/}} %.2f\n", sZipf, vZipf)
 	clients := []*txIssuer{}
 	for i := 0; i < len(uriNames); i++ {
 		for j := 0; j < numClients; j++ {

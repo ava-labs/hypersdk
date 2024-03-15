@@ -32,7 +32,7 @@ var (
 	txsPerSecond          int
 	sZipf                 float64
 	vZipf                 float64
-	skipZipfPlot          bool
+	plotZipf              bool
 	numClients            int
 	clusterInfo           string
 	privateKey            string
@@ -146,6 +146,24 @@ func init() {
 	)
 
 	// spam
+	runSpamCmd.PersistentFlags().Float64Var(
+		&sZipf,
+		"s-zipf",
+		1.2,
+		"Zipf distribution = [(v+k)^(-s)]",
+	)
+	runSpamCmd.PersistentFlags().Float64Var(
+		&vZipf,
+		"v-zipf",
+		2.0,
+		"Zipf distribution = [(v+k)^(-s)]",
+	)
+	runSpamCmd.PersistentFlags().BoolVar(
+		&plotZipf,
+		"plot-zipf",
+		false,
+		"plot zipf distribution",
+	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&maxTxBacklog,
 		"max-tx-backlog",
