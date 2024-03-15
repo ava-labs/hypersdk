@@ -138,7 +138,7 @@ cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 # Import the cluster into morpheus-cli for local interaction
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-echo -e "${YELLOW}Run this command in a separate window to monitor cluster:${NC} \"${TMPDIR}/morpheus-cli prometheus generate\""
+echo -e "\n${YELLOW}Run this command in a separate window to monitor cluster:${NC} \"${TMPDIR}/morpheus-cli prometheus generate\""
 
 # Wait for user to confirm that they want to launch load test
 while true
@@ -151,7 +151,7 @@ do
   # Check which key was pressed
   case $key in
       y|Y)
-          printf "y\nStarting...\n"
+          printf "y\n"
           break
           ;;
       n|N)
@@ -167,7 +167,7 @@ done
 # Wait for epoch initialization
 SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
 echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-echo "We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value."
+echo -e "${YELLOW}We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value.${NC}"
 sleep $SLEEP_DUR
 
 # Start load test on dedicated machine
