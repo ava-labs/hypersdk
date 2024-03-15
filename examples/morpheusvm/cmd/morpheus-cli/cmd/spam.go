@@ -109,10 +109,11 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return bclient.Parser(ctx)
 			},
-			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
+			func(addr codec.Address, amount uint64, memo []byte) chain.Action { // getTransfer
 				return &actions.Transfer{
 					To:    addr,
 					Value: amount,
+					Memo:  memo,
 				}
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
