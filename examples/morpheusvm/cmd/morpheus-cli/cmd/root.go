@@ -26,6 +26,8 @@ var (
 	minUnitPrice          []string
 	maxChunkUnits         []string
 	minBlockGap           int64
+	epochDuration         int64
+	validityWindow        int64
 	hideTxs               bool
 	maxTxBacklog          int
 	numAccounts           int
@@ -105,6 +107,18 @@ func init() {
 		"min-block-gap",
 		-1,
 		"minimum block gap (ms)",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&epochDuration,
+		"epoch-duration",
+		-1,
+		"epoch duration (ms)",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&validityWindow,
+		"validity-window",
+		-1,
+		"validity window (ms)",
 	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,
