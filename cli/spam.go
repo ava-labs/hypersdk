@@ -299,6 +299,11 @@ func (h *Handler) Spam(
 	// broadcast txs
 	g, gctx := errgroup.WithContext(ctx)
 	for ri := 0; ri < numAccounts; ri++ {
+		// TODO: add memo field to transfer to allow for duplicates (then can do zipf)
+		//
+		// z = rand.NewZipf(rand.New(rand.NewSource(0)), 1.1, 2.0, uint64(accts)-1) //nolint:gosec
+		// return senders[z.Uint64()]
+
 		i := ri
 		g.Go(func() error {
 			t := time.NewTimer(0) // ensure no duplicates created
