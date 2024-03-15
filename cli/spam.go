@@ -6,6 +6,7 @@ package cli
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -35,6 +36,7 @@ const (
 	issuerShutdownTimeout = 60 * time.Second
 )
 
+// TODO: we should NEVER use globals, remove this
 var (
 	issuerWg sync.WaitGroup
 	exiting  sync.Once
@@ -44,9 +46,10 @@ var (
 	expiredTxs   uint64
 	totalTxs     uint64
 
-	inflight atomic.Int64
-	sent     atomic.Int64
-	bytes    atomic.Int64
+	issuedTxs atomic.Int64
+	inflight  atomic.Int64
+	sent      atomic.Int64
+	bytes     atomic.Int64
 )
 
 func (h *Handler) Spam(
@@ -58,7 +61,7 @@ func (h *Handler) Spam(
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64) chain.Action,
+	getTransfer func(codec.Address, uint64, []byte) chain.Action, // []byte prevents duplicate txs
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
@@ -139,7 +142,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(key.Address, 0)
+	action := getTransfer(key.Address, 0, uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
 	if err != nil {
 		return err
@@ -203,7 +206,7 @@ func (h *Handler) Spam(
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount, uniqueBytes()), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -322,7 +325,6 @@ func (h *Handler) Spam(
 				funds[accounts[i].Address] = balance
 				fundsL.Unlock()
 			}()
-			ut := time.Now().Unix()
 			for {
 				select {
 				case <-t.C:
@@ -333,14 +335,7 @@ func (h *Handler) Spam(
 					}
 
 					// Select tx time
-					//
-					// Needed to prevent duplicates if called within the same
-					// unix second.
 					nextTime := time.Now().Unix()
-					if nextTime <= ut {
-						nextTime = ut + 1
-					}
-					ut = nextTime
 					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early */}
 
 					// Send transaction
@@ -354,7 +349,7 @@ func (h *Handler) Spam(
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
-						action := getTransfer(recipient, uint64(v))
+						action := getTransfer(recipient, uint64(v), uniqueBytes())
 						fee, err := chain.MulSum(unitPrices, maxUnits)
 						if err != nil {
 							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
@@ -492,7 +487,7 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt, uniqueBytes()), f, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -633,4 +628,8 @@ func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys 
 func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 	index := rand.Int() % len(issuers)
 	return index, issuers[index]
+}
+
+func uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(issuedTxs.Add(1)))
 }
