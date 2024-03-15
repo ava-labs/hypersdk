@@ -24,14 +24,12 @@ AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
-STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
 if [[ ${MODE} != "run" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
-  STORE_TXS=true
   UNLIMITED_USAGE=true
 fi
 
@@ -49,7 +47,6 @@ echo MODE: "${MODE}"
 echo LOG LEVEL: "${LOGLEVEL}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
 echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
-echo STORE_TXS: "${STORE_TXS}"
 echo MAX_CHUNK_UNITS: "${MAX_CHUNK_UNITS}"
 echo ADDRESS: "${ADDRESS}"
 
@@ -149,7 +146,6 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "actionExecutionCores": 2,
   "rootGenerationCores": 4,
   "verifyAuth":true,
-  "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",

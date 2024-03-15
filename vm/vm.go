@@ -63,7 +63,6 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
@@ -154,7 +153,7 @@ func New(c Controller, v *version.Semantic) *VM {
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	baseDB database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -188,12 +187,7 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 
-	// Always initialize implementation first
-	vm.baseDB = baseDB
-	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
-	if err != nil {
-		return err
-	}
+	// Initialize the user-provided VM
 	vm.config, vm.genesis, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
@@ -237,6 +231,10 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
+	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
+	if err != nil {
+		return err
+	}
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
@@ -258,6 +256,8 @@ func (vm *VM) Initialize(
 	if err := gatherer.Register("state", merkleRegistry); err != nil {
 		return err
 	}
+
+	// TODO: Compare stateDB with vmDB to determine if any reprocessing is necessary
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -457,11 +457,6 @@ func (vm *VM) isReady() bool {
 		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
-}
-
-// TODO: remove?
-func (vm *VM) BaseDB() database.Database {
-	return vm.baseDB
 }
 
 // ReadState reads the latest executed state

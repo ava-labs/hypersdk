@@ -52,10 +52,9 @@ type Config struct {
 	MempoolExemptSponsors []string `json:"mempoolExemptSponsors"`
 
 	// Misc
-	VerifyAuth        bool          `json:"verifyAuth"`
-	StoreTransactions bool          `json:"storeTransactions"`
-	TestMode          bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel          logging.Level `json:"logLevel"`
+	VerifyAuth bool          `json:"verifyAuth"`
+	TestMode   bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel   logging.Level `json:"logLevel"`
 
 	// State Sync
 	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
@@ -133,9 +132,8 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetVerifyAuth() bool        { return c.VerifyAuth }
-func (c *Config) GetStoreTransactions() bool { return false }
-func (c *Config) Loaded() bool               { return c.loaded }
+func (c *Config) GetVerifyAuth() bool { return c.VerifyAuth }
+func (c *Config) Loaded() bool        { return c.loaded }
 func (c *Config) GetBeneficiary() codec.Address {
 	return codec.BlackholeAddress
 }
