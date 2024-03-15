@@ -310,8 +310,12 @@ func (h *Handler) Spam(
 	// log stats
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
-	var psent int64
-	var pbytes int64
+	var (
+		iters       int
+		lastTxCount uint64
+		psent       int64
+		pbytes      int64
+	)
 	go func() {
 		for {
 			select {
@@ -319,25 +323,25 @@ func (h *Handler) Spam(
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
+				ctxs := confirmedTxs - lastTxCount
+				lastTxCount = confirmedTxs
 				if totalTxs > 0 {
-					unitPrices, err = clients[0].c.UnitPrices(ctx, false)
-					if err != nil {
-						continue
-					}
 					utils.Outf(
-						"{{yellow}}txs seen:{{/}} %d {{yellow}}success rate:{{/}} %.2f%% (expired: %.2f%%) {{yellow}}inflight:{{/}} %d {{yellow}}issued/s:{{/}} %d (bytes: %.2fKB/s) {{yellow}}unit prices:{{/}} [%s]\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f (instant=%d) {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						float64(totalTxs)/float64(iters),
+						ctxs,
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
-						inflight.Load(),
 						csent-psent,
+						inflight.Load(),
 						float64(cbytes-pbytes)/units.KiB,
-						ParseDimensions(unitPrices),
 					)
 				}
 				l.Unlock()
 				psent = csent
 				pbytes = cbytes
+				iters++
 			case <-cctx.Done():
 				return
 			}
