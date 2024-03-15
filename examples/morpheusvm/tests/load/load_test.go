@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
+	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -388,6 +391,164 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			}
 		})
 
+		ginkgo.By("deploy contracts", func() {
+			requiredTxs := map[ids.ID]struct{}{}
+
+			evmTxBuilder := &evmTxBuilder{
+				actor: root.rsender,
+				bcli:  instances[0].tcli,
+			}
+			ctx := context.TODO()
+
+			produceAndAcceptBlock := func() {
+				for {
+					blk, accept := produceBlock(instances[0])
+					if blk == nil {
+						break
+					}
+					accept()
+					log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
+					for _, result := range blk.Results() {
+						if !result.Success {
+							unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
+							fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
+						}
+						gomega.Ω(result.Success).Should(gomega.BeTrue())
+					}
+					for _, tx := range blk.Txs {
+						delete(requiredTxs, tx.ID())
+					}
+					for _, instance := range instances[1:] {
+						accept := addBlock(instance, blk)
+						accept()
+					}
+				}
+				gomega.Ω(len(requiredTxs)).To(gomega.BeZero())
+			}
+
+			// parse all the contracts
+			abis := make(map[string]*parsedABI)
+			for name, fn := range map[string]string{
+				"TokenA":  "../../contracts/artifacts/contracts/TokenA.sol/TokenA.json",
+				"TokenB":  "../../contracts/artifacts/contracts/TokenB.sol/TokenB.json",
+				"WETH9":   "../../contracts/node_modules/@uniswap/v2-periphery/build/WETH9.json",
+				"Factory": "../../contracts/node_modules/@uniswap/v2-core/build/UniswapV2Factory.json",
+				"Router":  "../../contracts/node_modules/@uniswap/v2-periphery/build/UniswapV2Router02.json",
+			} {
+				abi, err := NewABI(fn)
+				gomega.Ω(err).Should(gomega.BeNil())
+				abis[name] = abi
+			}
+
+			type step struct {
+				abi    string
+				args   func() []interface{}
+				method string
+				to     func() *ethCommon.Address
+			}
+
+			owner := actions.ToEVMAddress(root.rsender)
+			deployed := make(map[string]ethCommon.Address, len(abis))
+			approvedAmount := big.NewInt(1_000_000_000_000_000_000)
+			minLiquidity := big.NewInt(1)
+			maxLiquidty := big.NewInt(1_000_000)
+			deadline := big.NewInt(time.Now().Unix() + 1000)
+
+			steps := []step{
+				{
+					abi: "TokenA",
+				},
+				{
+					abi: "TokenB",
+				},
+				{
+					abi: "WETH9",
+				},
+				{
+					abi: "Factory",
+					args: func() []interface{} {
+						return []interface{}{owner}
+					},
+				},
+				{
+					abi: "Router",
+					args: func() []interface{} {
+						return []interface{}{deployed["Factory"], deployed["WETH9"]}
+					},
+				},
+				{
+					abi:    "Factory",
+					method: "createPair",
+					args: func() []interface{} {
+						return []interface{}{deployed["TokenA"], deployed["TokenB"]}
+					},
+				},
+				{
+					abi:    "TokenA",
+					method: "approve",
+					args: func() []interface{} {
+						return []interface{}{deployed["Router"], approvedAmount}
+					},
+				},
+				{
+					abi:    "TokenB",
+					method: "approve",
+					args: func() []interface{} {
+						return []interface{}{deployed["Router"], approvedAmount}
+					},
+				},
+				{
+					abi:    "Router",
+					method: "addLiquidity",
+					args: func() []interface{} {
+						return []interface{}{
+							deployed["TokenA"],
+							deployed["TokenB"],
+							maxLiquidty,
+							maxLiquidty,
+							minLiquidity,
+							minLiquidity,
+							owner,
+							deadline,
+						}
+					},
+				},
+			}
+
+			for _, step := range steps {
+				isDeploy := step.method == ""
+				var args []interface{}
+				if step.args != nil {
+					args = step.args()
+				}
+				calldata, err := abis[step.abi].calldata(step.method, args...)
+				gomega.Ω(err).Should(gomega.BeNil())
+
+				var to *ethCommon.Address
+				if step.to != nil {
+					to = step.to()
+				} else if !isDeploy {
+					addr := deployed[step.abi]
+					to = &addr
+				}
+				action, err := evmTxBuilder.evmCall(ctx, &Args{
+					To:        to,
+					Data:      calldata,
+					FillNonce: true, // TODO: change to isDeploy
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+
+				if isDeploy {
+					deployed[step.abi] = crypto.CreateAddress(owner, action.Nonce)
+				}
+
+				id, err := issueTx(instances[0], action, root.factory)
+				gomega.Ω(err).Should(gomega.BeNil())
+				requiredTxs[id] = struct{}{}
+				produceAndAcceptBlock()
+			}
+		})
+
 		ginkgo.By("load accounts", func() {
 			// sending 1 tx to each account
 			remainder := uint64(accts)*maxFee + uint64(1_000_000)
@@ -505,8 +666,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 	ginkgo.It("verifies blocks", func() {
 		for i, instance := range instances[1:] {
-			log.Warn("sleeping 10s before starting verification", zap.Int("instance", i+1))
-			time.Sleep(10 * time.Second)
+			//log.Warn("sleeping 10s before starting verification", zap.Int("instance", i+1))
+			//time.Sleep(10 * time.Second)
 
 			acceptCalls := []func(){}
 			ginkgo.By(fmt.Sprintf("sync instance %d", i+1), func() {
@@ -536,6 +697,18 @@ func issueSimpleTx(
 	amount uint64,
 	factory chain.AuthFactory,
 ) (ids.ID, error) {
+	action := &actions.Transfer{
+		To:    to,
+		Value: amount,
+	}
+	return issueTx(i, action, factory)
+}
+
+func issueTx(
+	i *instance,
+	action chain.Action,
+	factory chain.AuthFactory,
+) (ids.ID, error) {
 	tx := chain.NewTx(
 		&chain.Base{
 			Timestamp: hutils.UnixRMilli(-1, 100*hconsts.MillisecondsPerSecond),
@@ -543,10 +716,7 @@ func issueSimpleTx(
 			MaxFee:    maxFee,
 		},
 		nil,
-		&actions.Transfer{
-			To:    to,
-			Value: amount,
-		},
+		action,
 	)
 	tx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
 	gomega.Ω(err).To(gomega.BeNil())
