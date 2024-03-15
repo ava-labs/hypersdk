@@ -12,7 +12,7 @@ on:
 
 jobs:
   morpheusvm-load-tests:
-    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run all ci') }}
+    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run all ci') || contains(github.event.pull_request.labels.*.name, 'run load test ci')}}
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
@@ -31,6 +31,9 @@ jobs:
           cache-dependency-path: |
             go.sum
             examples/morpheusvm/go.sum
+      - name: NPM clean install
+        working-directory: ./examples/morpheusvm/contracts
+        run: npm ci
       - name: Run load tests
         working-directory: ./examples/morpheusvm
         shell: bash
