@@ -250,7 +250,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 
 	// Confirm that chunk is well-formed
 	//
-	//
 	// All of these can be avoided by chunk producer.
 	serialStart := time.Now()
 	repeatStart := time.Now()
@@ -343,6 +342,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		// record it in the set.
 		//
 		// Remove any invalid transactions from this set when all chunks are done processing (otherwise
+		// it would be trivial for a dishonest producer to include a tx in a bad chunk and prevent it
 		// from ever being executed).
 		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
