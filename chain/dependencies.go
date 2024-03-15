@@ -34,10 +34,11 @@ type Parser interface {
 
 type Metrics interface {
 	RecordOptimisticChunkVerify(time.Duration)
-	RecordAlreadyVerifiedChunk()
+	RecordNotVerifiedChunk()
 	RecordExecutedChunks(int)
 	RecordUnusedVerifiedChunks(int)
 
+	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitProcessor(time.Duration)

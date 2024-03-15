@@ -58,26 +58,20 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
 			utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_auth_sum[5s])/1000000/5", chainID))
-			utils.Outf("{{yellow}}auth wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}repeat wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_auth_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_auth_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}auth wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_processor_sum[5s])/1000000/5", chainID))
-			utils.Outf("{{yellow}}processor wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
-
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_processor_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_processor_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}processor wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_exec_sum[5s])/1000000/5", chainID))
-			utils.Outf("{{yellow}}exec wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_exec_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_exec_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}execution wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_commit_sum[5s])/1000000/5", chainID))
-			utils.Outf("{{yellow}}commit wait (ms/s):{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_commit_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_commit_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}commit wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_cleared_mempool[5s])/5", chainID))
 			utils.Outf("{{yellow}}cleared mempool per second:{{/}} %s\n", panels[len(panels)-1])
@@ -139,8 +133,8 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_verify_sum[5s])/1000000/5 + increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/5", chainID, chainID))
 			utils.Outf("{{yellow}}executor busy (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_already_verified[5s])/increase(avalanche_%s_vm_hypersdk_chain_chunks_executed[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}chunks pre-verified:{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_not_verified[5s])/5", chainID))
+			utils.Outf("{{yellow}}executed chunks not pre-verified per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_unused_chunk_verifications[5s])/5", chainID))
 			utils.Outf("{{yellow}}unused chunk verifications per second:{{/}} %s\n", panels[len(panels)-1])

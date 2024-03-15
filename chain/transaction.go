@@ -334,7 +334,6 @@ func (t *Transaction) SyntacticVerify(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	reads map[string]uint16,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
