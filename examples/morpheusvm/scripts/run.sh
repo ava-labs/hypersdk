@@ -23,6 +23,8 @@ MODE=${MODE:-run}
 AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
 LOGLEVEL=${LOGLEVEL:-info}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
+EPOCH_DURATION=${EPOCH_DURATION:-30000}
+VALIDITY_WINDOW=${VALIDITY_WINDOW:-30000}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
@@ -46,6 +48,8 @@ echo VERSION: "${VERSION}"
 echo MODE: "${MODE}"
 echo LOG LEVEL: "${LOGLEVEL}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
+echo EPOCH_DURATION \(ms\): "${EPOCH_DURATION}"
+echo VALIDITY_WINDOW \(ms\): "${VALIDITY_WINDOW}"
 echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
 echo MAX_CHUNK_UNITS: "${MAX_CHUNK_UNITS}"
 echo ADDRESS: "${ADDRESS}"
@@ -121,6 +125,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f "${TMPDIR}"/morpheusvm.genesis
   "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+  --epoch-duration "${EPOCH_DURATION}" \
+  --validity-window "${VALIDITY_WINDOW}" \
   --max-chunk-units "${MAX_CHUNK_UNITS}" \
   --min-block-gap "${MIN_BLOCK_GAP}" \
   --genesis-file "${TMPDIR}"/morpheusvm.genesis

@@ -44,6 +44,8 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # Generate genesis file and configs
 ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+EPOCH_DURATION=30000
+VALIDITY_WINDOW=30000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
@@ -55,6 +57,8 @@ cat <<EOF > "${TMPDIR}"/allocations.json
 EOF
 
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+--epoch-duration "${EPOCH_DURATION}" \
+--validity-window "${VALIDITY_WINDOW}" \
 --min-unit-price "${MIN_UNIT_PRICE}" \
 --max-chunk-units "${MAX_CHUNK_UNITS}" \
 --min-block-gap "${MIN_BLOCK_GAP}" \
