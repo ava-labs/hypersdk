@@ -5,7 +5,6 @@ go 1.21
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
 	github.com/ava-labs/avalanchego v1.11.0-rc.2
-	github.com/ava-labs/coreth v0.12.11-rc.3.0.20240211224816-78730e9c0d5a
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/ava-labs/subnet-evm v0.5.12-0.20240301155339-115c86ec842c
 	github.com/ethereum/go-ethereum v1.12.2
@@ -26,6 +25,7 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect
+	github.com/ava-labs/coreth v0.12.11-rc.3.0.20240211224816-78730e9c0d5a // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
