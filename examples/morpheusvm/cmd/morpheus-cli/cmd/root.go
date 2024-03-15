@@ -30,6 +30,9 @@ var (
 	maxTxBacklog          int
 	numAccounts           int
 	txsPerSecond          int
+	sZipf                 float64
+	vZipf                 float64
+	skipZipfPlot          bool
 	numClients            int
 	clusterInfo           string
 	privateKey            string

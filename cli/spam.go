@@ -38,12 +38,11 @@ const (
 	defaultRange          = 32
 	issuerShutdownTimeout = 60 * time.Second
 
-	// TODO: make params
-	distSamples    = 1000
-	distIdentities = 10
-	distBarWidth   = 10
-	distOverhead   = 10
-	distHeight     = 25
+	plotSamples    = 1000
+	plotIdentities = 10
+	plotBarWidth   = 10
+	plotOverhead   = 10
+	plotHeight     = 25
 )
 
 // TODO: we should NEVER use globals, remove this
@@ -66,7 +65,7 @@ var (
 
 func (h *Handler) Spam(
 	maxTxBacklog int, numAccounts int, txsPerSecond int,
-	sZipf float64, vZipf float64, showZipf bool,
+	sZipf float64, vZipf float64, plotZipf bool,
 	numClients int, clusterInfo string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
@@ -78,28 +77,26 @@ func (h *Handler) Spam(
 ) error {
 	ctx := context.Background()
 
-	if showZipf {
-		// Setup UI
+	// Plot Zipf
+	if plotZipf {
 		if err := ui.Init(); err != nil {
 			return err
 		}
-
-		// Print distribution
-		zb := rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, distIdentities-1) //nolint:gosec
-		distribution := make([]float64, distIdentities)
-		for i := 0; i < distSamples; i++ {
+		zb := rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, plotIdentities-1) //nolint:gosec
+		distribution := make([]float64, plotIdentities)
+		for i := 0; i < plotSamples; i++ {
 			distribution[zb.Uint64()]++
 		}
-		labels := make([]string, distIdentities)
-		for i := 0; i < distIdentities; i++ {
+		labels := make([]string, plotIdentities)
+		for i := 0; i < plotIdentities; i++ {
 			labels[i] = fmt.Sprintf("%d", i)
 		}
 		bc := widgets.NewBarChart()
 		bc.Title = fmt.Sprintf("Account Issuance Distribution (s=%.2f v=%.2f [(v+k)^(-s)])", sZipf, vZipf)
 		bc.Data = distribution
 		bc.Labels = labels
-		bc.BarWidth = distBarWidth
-		bc.SetRect(0, 0, distOverhead+distBarWidth*distIdentities, distHeight)
+		bc.BarWidth = plotBarWidth
+		bc.SetRect(0, 0, plotOverhead+plotBarWidth*plotIdentities, plotHeight)
 		ui.Render(bc)
 		utils.Outf("\ntype any character to continue...\n")
 		for range ui.PollEvents() {
