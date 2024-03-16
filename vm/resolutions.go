@@ -643,3 +643,7 @@ func (vm *VM) IsRPCAuthorized(txID ids.ID) bool {
 func (vm *VM) RecordRPCAuthorizedTx() {
 	vm.metrics.txRPCAuthorized.Inc()
 }
+
+func (vm *VM) RecordBlockVerifyFail() {
+	vm.metrics.blockVerifyFailed.Inc()
+}

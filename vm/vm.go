@@ -430,11 +430,7 @@ func (vm *VM) trackChainDataSize() {
 		select {
 		case <-t.C:
 			start := time.Now()
-			size, err := hutils.DirectorySize(vm.snowCtx.ChainDataDir)
-			if err != nil {
-				vm.snowCtx.Log.Error("could not get chainData size", zap.Error(err))
-				continue
-			}
+			size := hutils.DirectorySize(vm.snowCtx.ChainDataDir)
 			vm.metrics.chainDataSize.Set(float64(size))
 			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
 		case <-vm.stop:

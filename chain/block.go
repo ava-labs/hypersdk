@@ -286,6 +286,56 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		return nil
 	}
 
+	// Verify start root and execution results
+	//
+	// We check this before wasting any resources on signature verification
+	var (
+		log   = b.vm.Logger()
+		r     = b.vm.Rules(b.StatefulBlock.Timestamp)
+		epoch = utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
+	)
+	depth := r.GetBlockExecutionDepth()
+	if b.StatefulBlock.Height <= depth {
+		if b.Root != ids.Empty || len(b.ExecutedChunks) > 0 {
+			return errors.New("no execution result should exist")
+		}
+	} else {
+		var (
+			execHeight = b.StatefulBlock.Height - depth
+			root       ids.ID
+			executed   []ids.ID
+			err        error
+		)
+		for {
+			root, executed, err = b.vm.Engine().Results(execHeight)
+			if err != nil {
+				// TODO: handle case where we state synced and don't have results
+				log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+				if b.vm.IsBootstrapped() {
+					return fmt.Errorf("%w: no results for execHeight", err)
+				}
+				// If we haven't finished bootstrapping, we can't fail.
+				//
+				// TODO: we should actually not verify any of this (long p-chain lookbacks)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			break
+		}
+		if b.Root != root {
+			return errors.New("root mismatch")
+		}
+		if len(b.ExecutedChunks) != len(executed) {
+			return errors.New("executed chunks count mismatch")
+		}
+		for i, id := range b.ExecutedChunks {
+			if id != executed[i] {
+				return errors.New("executed chunks mismatch")
+			}
+		}
+		b.execHeight = &execHeight
+	}
+
 	// Ensure p-chain height referenced is valid
 	validHeight, err := b.vm.IsValidHeight(ctx, b.PHeight)
 	if err != nil {
@@ -304,12 +354,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	}
 
 	// TODO: skip verification if state does not exist yet (state sync)
-
-	var (
-		log   = b.vm.Logger()
-		r     = b.vm.Rules(b.StatefulBlock.Timestamp)
-		epoch = utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
-	)
 
 	// Fetch P-Chain height for epoch from executed state
 	//
@@ -406,47 +450,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		}
 	}
 
-	// Verify start root and execution results
-	depth := r.GetBlockExecutionDepth()
-	if b.StatefulBlock.Height <= depth {
-		if b.Root != ids.Empty || len(b.ExecutedChunks) > 0 {
-			return errors.New("no execution result should exist")
-		}
-	} else {
-		var (
-			execHeight = b.StatefulBlock.Height - depth
-			root       ids.ID
-			executed   []ids.ID
-		)
-		for {
-			root, executed, err = b.vm.Engine().Results(execHeight)
-			if err != nil {
-				// TODO: handle case where we state synced and don't have results
-				log.Warn("could not get results for block", zap.Uint64("height", execHeight))
-				if b.vm.IsBootstrapped() {
-					return fmt.Errorf("%w: no results for execHeight", err)
-				}
-				// If we haven't finished bootstrapping, we can't fail.
-				//
-				// TODO: we should actually not verify any of this (long p-chain lookbacks)
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			break
-		}
-		if b.Root != root {
-			return errors.New("root mismatch")
-		}
-		if len(b.ExecutedChunks) != len(executed) {
-			return errors.New("executed chunks count mismatch")
-		}
-		for i, id := range b.ExecutedChunks {
-			if id != executed[i] {
-				return errors.New("executed chunks mismatch")
-			}
-		}
-		b.execHeight = &execHeight
-	}
 	b.vm.Verified(ctx, b)
 	log.Info(
 		"verified block",
