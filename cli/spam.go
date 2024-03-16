@@ -315,8 +315,6 @@ func (h *Handler) Spam(
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
 	var (
-		iters       int
-		lastIter    int
 		lastTxCount uint64
 		psent       int64
 		pbytes      int64
@@ -328,7 +326,6 @@ func (h *Handler) Spam(
 		for {
 			select {
 			case <-t.C:
-				iters++
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
@@ -343,9 +340,8 @@ func (h *Handler) Spam(
 				tpsDivisor := min(window.WindowSize, time.Since(startRun).Seconds())
 				if totalTxs > 0 {
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f (latest=%.2f) {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
 						float64(window.Sum(tpsWindow))/float64(tpsDivisor),
-						float64(ctxs)/float64(iters-lastIter),
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
@@ -357,7 +353,6 @@ func (h *Handler) Spam(
 				l.Unlock()
 				psent = csent
 				pbytes = cbytes
-				lastIter = iters
 			case <-cctx.Done():
 				return
 			}
