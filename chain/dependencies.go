@@ -45,7 +45,7 @@ type Metrics interface {
 	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
 
-	RecordClearedMempool()
+	RecordRemainingMempool()
 
 	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)

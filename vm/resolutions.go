@@ -540,8 +540,8 @@ func (vm *VM) RecordBlockExecute(t time.Duration) {
 	vm.metrics.blockExecute.Observe(float64(t))
 }
 
-func (vm *VM) RecordClearedMempool() {
-	vm.metrics.clearedMempool.Inc()
+func (vm *VM) RecordRemainingMempool() {
+	vm.metrics.remainingMempool.Inc()
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
