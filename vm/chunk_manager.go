@@ -359,7 +359,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 		c.PushSignature(ctx, nodeID, chunkSignature)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"received chunk from gossip",
 			zap.Stringer("chunkID", cid),
 			zap.Stringer("nodeID", nodeID),
@@ -474,7 +474,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Each time we get more signatures, we'll broadcast a new
 		// certificate
 		c.PushChunkCertificate(ctx, cert)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"constructed chunk certificate",
 			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("chunkID", chunkSignature.Chunk),
@@ -522,7 +522,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			)
 			return nil
 		}
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"verified chunk certificate",
 			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("nodeID", nodeID),
@@ -793,18 +793,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				continue
 			}
 			c.PushChunk(context.TODO(), chunk)
-			cid, err := chunk.ID()
-			if err != nil {
-				// TODO: pre-calc ID
-				panic(err)
-			}
 			chunkBytes := chunk.Size()
-			c.vm.Logger().Info(
-				"built chunk",
-				zap.Stringer("id", cid),
-				zap.Int("txs", len(chunk.Txs)),
-				zap.Int("size", chunkBytes),
-			)
 			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
 			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
 		case <-bt.C:
