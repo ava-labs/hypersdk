@@ -160,6 +160,8 @@ type StatelessBlock struct {
 	t     time.Time
 	bytes []byte
 
+	verifiedCerts bool
+
 	parent     *StatelessBlock
 	execHeight *uint64
 
@@ -286,14 +288,131 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		return nil
 	}
 
-	// Verify start root and execution results
-	//
-	// We check this before wasting any resources on signature verification
+	// Ensure p-chain height referenced is valid
 	var (
 		log   = b.vm.Logger()
 		r     = b.vm.Rules(b.StatefulBlock.Timestamp)
 		epoch = utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
 	)
+	if !b.verifiedCerts {
+		validHeight, err := b.vm.IsValidHeight(ctx, b.PHeight)
+		if err != nil {
+			return fmt.Errorf("%w: can't determine if valid height", err)
+		}
+		if !validHeight {
+			return fmt.Errorf("invalid p-chain height: %d", b.PHeight)
+		}
+
+		// Ensure no certificates if P-Chain height is 0
+		//
+		// Even if there is an epoch, this height is used to verify warp
+		// messages.
+		if b.PHeight == 0 && len(b.AvailableChunks) > 0 {
+			return errors.New("no certificates should exist in a block without context")
+		}
+
+		// TODO: skip verification if state does not exist yet (state sync)
+
+		// Fetch P-Chain height for epoch from executed state
+		//
+		// If missing and state read has timestamp updated in same or previous slot, we know that epoch
+		// cannot be set.
+		timestamp, heights, err := b.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
+		if err != nil {
+			return fmt.Errorf("%w: can't get epoch heights", err)
+		}
+		executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
+		if executedEpoch+1 < epoch && len(b.AvailableChunks) > 0 { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
+			return errors.New("executed tip is too far behind to verify block with certs")
+		}
+		// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
+
+		// Perform basic correctness checks before doing any expensive work
+		if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
+			return ErrTimestampTooLate
+		}
+
+		// Check that gap between parent is at least minimum
+		//
+		// We do not have access to state here, so we must use the parent block.
+		parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
+		if err != nil {
+			log.Error("block verification failed, missing parent", zap.Stringer("parentID", b.StatefulBlock.Parent), zap.Error(err))
+			return fmt.Errorf("%w: can't get parent block %s", err, b.StatefulBlock.Parent)
+		}
+		if b.StatefulBlock.Height != parent.StatefulBlock.Height+1 {
+			return ErrInvalidBlockHeight
+		}
+		b.parent = parent
+		parentTimestamp := parent.StatefulBlock.Timestamp
+		if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
+			return ErrTimestampTooEarly
+		}
+
+		// Check duplicate certificates
+		repeats, err := parent.IsRepeatChunk(ctx, b.AvailableChunks, set.NewBits())
+		if err != nil {
+			return fmt.Errorf("%w: can't check if chunk is repeat", err)
+		}
+		if repeats.Len() > 0 {
+			return errors.New("duplicate chunk issuance")
+		}
+
+		// Verify certificates
+		//
+		// TODO: make parallel
+		// TODO: cache verifications (may be verified multiple times at the same p-chain height while
+		// waiting for execution to complete).
+		for i, cert := range b.AvailableChunks {
+			// Ensure chunk is not expired
+			if cert.Slot < b.StatefulBlock.Timestamp {
+				return ErrTimestampTooLate
+			}
+
+			// Ensure chunk is not too early
+			//
+			// TODO: ensure slot is in the block epoch
+			if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
+				return ErrTimestampTooEarly
+			}
+
+			// Ensure chunk expiry is aligned to a tenth of a second
+			//
+			// Signatures will only be given for a configurable number of chunks per
+			// second.
+			//
+			// TODO: consider moving to unmarshal
+			if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
+				return ErrMisalignedTime
+			}
+
+			// Get validator set for the epoch
+			certEpoch := utils.Epoch(cert.Slot, r.GetEpochDuration())
+			heightIndex := certEpoch - epoch
+			if heights[heightIndex] == nil {
+				log.Warn(
+					"skipping certificate because epoch is missing",
+					zap.Uint64("epoch", certEpoch),
+					zap.Stringer("chunkID", cert.Chunk),
+				)
+				continue
+			}
+
+			// Get the public key for the signers
+			aggrPubKey, err := b.vm.GetAggregatePublicKey(ctx, *heights[heightIndex], cert.Signers, 67, 100) // TODO: add consts
+			if err != nil {
+				return fmt.Errorf("%w: can't generate aggregate public key", err)
+			}
+			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
+				return fmt.Errorf("%w: pk=%s signature=%s pHeight=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), b.PHeight, i, cert.Chunk, cert.Signers.String())
+			}
+		}
+
+		// If we get this far, record we've already verified the certificates in this block so we don't do it again
+		b.verifiedCerts = true
+	}
+
+	// Verify start root and execution results
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height <= depth {
 		if b.Root != ids.Empty || len(b.ExecutedChunks) > 0 {
@@ -334,120 +453,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			}
 		}
 		b.execHeight = &execHeight
-	}
-
-	// Ensure p-chain height referenced is valid
-	validHeight, err := b.vm.IsValidHeight(ctx, b.PHeight)
-	if err != nil {
-		return fmt.Errorf("%w: can't determine if valid height", err)
-	}
-	if !validHeight {
-		return fmt.Errorf("invalid p-chain height: %d", b.PHeight)
-	}
-
-	// Ensure no certificates if P-Chain height is 0
-	//
-	// Even if there is an epoch, this height is used to verify warp
-	// messages.
-	if b.PHeight == 0 && len(b.AvailableChunks) > 0 {
-		return errors.New("no certificates should exist in a block without context")
-	}
-
-	// TODO: skip verification if state does not exist yet (state sync)
-
-	// Fetch P-Chain height for epoch from executed state
-	//
-	// If missing and state read has timestamp updated in same or previous slot, we know that epoch
-	// cannot be set.
-	timestamp, heights, err := b.vm.Engine().GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
-	if err != nil {
-		return fmt.Errorf("%w: can't get epoch heights", err)
-	}
-	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
-	if executedEpoch+1 < epoch && len(b.AvailableChunks) > 0 { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
-		return errors.New("executed tip is too far behind to verify block with certs")
-	}
-	// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
-
-	// Perform basic correctness checks before doing any expensive work
-	if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
-		return ErrTimestampTooLate
-	}
-
-	// Check that gap between parent is at least minimum
-	//
-	// We do not have access to state here, so we must use the parent block.
-	parent, err := b.vm.GetStatelessBlock(ctx, b.StatefulBlock.Parent)
-	if err != nil {
-		log.Error("block verification failed, missing parent", zap.Stringer("parentID", b.StatefulBlock.Parent), zap.Error(err))
-		return fmt.Errorf("%w: can't get parent block %s", err, b.StatefulBlock.Parent)
-	}
-	if b.StatefulBlock.Height != parent.StatefulBlock.Height+1 {
-		return ErrInvalidBlockHeight
-	}
-	b.parent = parent
-	parentTimestamp := parent.StatefulBlock.Timestamp
-	if b.StatefulBlock.Timestamp < parentTimestamp+r.GetMinBlockGap() {
-		return ErrTimestampTooEarly
-	}
-
-	// Check duplicate certificates
-	repeats, err := parent.IsRepeatChunk(ctx, b.AvailableChunks, set.NewBits())
-	if err != nil {
-		return fmt.Errorf("%w: can't check if chunk is repeat", err)
-	}
-	if repeats.Len() > 0 {
-		return errors.New("duplicate chunk issuance")
-	}
-
-	// Verify certificates
-	//
-	// TODO: make parallel
-	// TODO: cache verifications (may be verified multiple times at the same p-chain height while
-	// waiting for execution to complete).
-	for i, cert := range b.AvailableChunks {
-		// Ensure chunk is not expired
-		if cert.Slot < b.StatefulBlock.Timestamp {
-			return ErrTimestampTooLate
-		}
-
-		// Ensure chunk is not too early
-		//
-		// TODO: ensure slot is in the block epoch
-		if cert.Slot > b.StatefulBlock.Timestamp+r.GetValidityWindow() {
-			return ErrTimestampTooEarly
-		}
-
-		// Ensure chunk expiry is aligned to a tenth of a second
-		//
-		// Signatures will only be given for a configurable number of chunks per
-		// second.
-		//
-		// TODO: consider moving to unmarshal
-		if cert.Slot%consts.MillisecondsPerDecisecond != 0 {
-			return ErrMisalignedTime
-		}
-
-		// Get validator set for the epoch
-		certEpoch := utils.Epoch(cert.Slot, r.GetEpochDuration())
-		heightIndex := certEpoch - epoch
-		if heights[heightIndex] == nil {
-			log.Warn(
-				"skipping certificate because epoch is missing",
-				zap.Uint64("epoch", certEpoch),
-				zap.Stringer("chunkID", cert.Chunk),
-			)
-			continue
-		}
-
-		// Get the public key for the signers
-		aggrPubKey, err := b.vm.GetAggregatePublicKey(ctx, *heights[heightIndex], cert.Signers, 67, 100) // TODO: add consts
-		if err != nil {
-			return fmt.Errorf("%w: can't generate aggregate public key", err)
-		}
-		if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
-			return fmt.Errorf("%w: pk=%s signature=%s pHeight=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), b.PHeight, i, cert.Chunk, cert.Signers.String())
-		}
 	}
 
 	b.vm.Verified(ctx, b)
