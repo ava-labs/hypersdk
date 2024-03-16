@@ -1153,11 +1153,13 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				}
 			})
 		}
-		if err := f.Wait(); err != nil {
-			c.vm.Logger().Error("failed to fetch chunks", zap.Error(err))
+		ferr := f.Wait()
+		close(chunks) // We always close chunks, so the execution engine can handle this issue and shutdown
+		if ferr != nil {
+			// This is a FATAL because exiting here will cause the execution engine to hang
+			c.vm.Logger().Fatal("failed to fetch chunks", zap.Error(ferr))
 			return
 		}
-		close(chunks)
 
 		// Invoke next waiter
 		close(myWaiter)

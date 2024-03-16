@@ -408,7 +408,9 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			}
 		}
 
-		// If we get this far, record we've already verified the certificates in this block so we don't do it again
+		// If we get this far, record we've already verified the certificates in this block so we don't do it again if
+		// block results aren't ready yet. We don't just check results first because we want to give as much time as
+		// possible for root generation to complete (and can do meaningful work here).
 		b.verifiedCerts = true
 	}
 
