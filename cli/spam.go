@@ -29,6 +29,7 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/window"
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
@@ -43,7 +44,7 @@ const (
 
 	inflightTargetMultiplier       = 5
 	targetIncreaseRate             = 1000
-	successfulRunsToIncreaseTarget = 5
+	successfulRunsToIncreaseTarget = 10
 
 	issuerShutdownTimeout = 60 * time.Second
 )
@@ -319,6 +320,9 @@ func (h *Handler) Spam(
 		lastTxCount uint64
 		psent       int64
 		pbytes      int64
+
+		startRun  = time.Now()
+		tpsWindow = window.Window{}
 	)
 	go func() {
 		for {
@@ -330,10 +334,17 @@ func (h *Handler) Spam(
 				l.Lock()
 				ctxs := confirmedTxs - lastTxCount
 				lastTxCount = confirmedTxs
-				if totalTxs > 0 && ctxs > 0 {
+				newWindow, err := window.Roll(tpsWindow, 1)
+				if err != nil {
+					panic(err)
+				}
+				tpsWindow = newWindow
+				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, ctxs)
+				tpsDivisor := min(window.WindowSize, time.Since(startRun).Seconds())
+				if totalTxs > 0 {
 					utils.Outf(
 						"{{yellow}}tps:{{/}} %.2f (latest=%.2f) {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
-						float64(totalTxs)/float64(iters),
+						float64(window.Sum(tpsWindow))/float64(tpsDivisor),
 						float64(ctxs)/float64(iters-lastIter),
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
@@ -483,7 +494,7 @@ func (h *Handler) Spam(
 			consecutiveUnderBacklog++
 			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
 				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
-				utils.Outf("{{cyan}}updating target tps:{{/}} %d\n", currentTarget)
+				utils.Outf("{{cyan}}updated target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
 			}
 		case <-cctx.Done():

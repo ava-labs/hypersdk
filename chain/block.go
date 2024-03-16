@@ -431,7 +431,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			root, executed, err = b.vm.Engine().Results(execHeight)
 			if err != nil {
 				// TODO: handle case where we state synced and don't have results
-				log.Warn("could not get results for block", zap.Uint64("height", execHeight))
+				log.Debug("could not get results for block", zap.Uint64("height", execHeight))
 				if b.vm.IsBootstrapped() {
 					return fmt.Errorf("%w: no results for execHeight", err)
 				}
