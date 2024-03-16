@@ -33,11 +33,11 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordOptimisticChunkVerify(time.Duration)
-	RecordNotVerifiedChunk()
-	RecordTxRPCAuthorized()
+	RecordOptimisticAuthorizedChunk(time.Duration)
+	RecordNotAuthorizedChunk()
+	RecordRPCAuthorizedTx()
 	RecordExecutedChunks(int)
-	RecordUnusedVerifiedChunks(int)
+	RecordUnusedAuthorizedChunks(int)
 
 	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)

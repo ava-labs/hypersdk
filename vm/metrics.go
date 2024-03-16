@@ -23,47 +23,48 @@ func (em *executorMetrics) RecordExecutable() {
 	em.executable.Inc()
 }
 
+// TODO: rename all of these
 type Metrics struct {
-	txsSubmitted             prometheus.Counter // includes gossip
-	txsReceived              prometheus.Counter
-	txsGossiped              prometheus.Counter
-	txsIncluded              prometheus.Counter
-	txsValid                 prometheus.Counter
-	stateChanges             prometheus.Counter
-	stateOperations          prometheus.Counter
-	clearedMempool           prometheus.Counter
-	chunkBytesBuilt          prometheus.Counter
-	deletedBlocks            prometheus.Counter
-	deletedUselessChunks     prometheus.Counter
-	deletedIncludedChunks    prometheus.Counter
-	deletedFilteredChunks    prometheus.Counter
-	blocksFromDisk           prometheus.Counter
-	blocksHeightsFromDisk    prometheus.Counter
-	executorBlocked          prometheus.Counter
-	executorExecutable       prometheus.Counter
-	chunksReceived           prometheus.Counter
-	sigsReceived             prometheus.Counter
-	certsReceived            prometheus.Counter
-	chunksExecuted           prometheus.Counter
-	chunksNotVerified        prometheus.Counter
-	unusedChunkVerifications prometheus.Counter
-	txRPCAuthorized          prometheus.Counter
-	engineBacklog            prometheus.Gauge
-	rpcTxBacklog             prometheus.Gauge
-	waitRepeat               metric.Averager
-	waitAuth                 metric.Averager
-	waitExec                 metric.Averager
-	waitProcessor            metric.Averager
-	waitCommit               metric.Averager
-	chunkBuild               metric.Averager
-	blockBuild               metric.Averager
-	blockParse               metric.Averager
-	blockVerify              metric.Averager
-	blockAccept              metric.Averager
-	blockProcess             metric.Averager
-	blockExecute             metric.Averager
-	chunkProcess             metric.Averager
-	optimisticChunkVerify    metric.Averager
+	txsSubmitted              prometheus.Counter // includes gossip
+	txsReceived               prometheus.Counter
+	txsGossiped               prometheus.Counter
+	txsIncluded               prometheus.Counter
+	txsValid                  prometheus.Counter
+	stateChanges              prometheus.Counter
+	stateOperations           prometheus.Counter
+	clearedMempool            prometheus.Counter
+	chunkBytesBuilt           prometheus.Counter
+	deletedBlocks             prometheus.Counter
+	deletedUselessChunks      prometheus.Counter
+	deletedIncludedChunks     prometheus.Counter
+	deletedFilteredChunks     prometheus.Counter
+	blocksFromDisk            prometheus.Counter
+	blocksHeightsFromDisk     prometheus.Counter
+	executorBlocked           prometheus.Counter
+	executorExecutable        prometheus.Counter
+	chunksReceived            prometheus.Counter
+	sigsReceived              prometheus.Counter
+	certsReceived             prometheus.Counter
+	chunksExecuted            prometheus.Counter
+	chunksNotAuthorized       prometheus.Counter
+	unusedChunkAuthorizations prometheus.Counter
+	txRPCAuthorized           prometheus.Counter
+	engineBacklog             prometheus.Gauge
+	rpcTxBacklog              prometheus.Gauge
+	waitRepeat                metric.Averager
+	waitAuth                  metric.Averager
+	waitExec                  metric.Averager
+	waitProcessor             metric.Averager
+	waitCommit                metric.Averager
+	chunkBuild                metric.Averager
+	blockBuild                metric.Averager
+	blockParse                metric.Averager
+	blockVerify               metric.Averager
+	blockAccept               metric.Averager
+	blockProcess              metric.Averager
+	blockExecute              metric.Averager
+	chunkProcess              metric.Averager
+	optimisticChunkAuthorized metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -188,9 +189,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	optimisticChunkVerify, err := metric.NewAverager(
+	optimisticChunkAuthorized, err := metric.NewAverager(
 		"chain",
-		"optimistic_chunk_verify",
+		"optimistic_chunk_authorized",
 		"time spent optimistically verifying chunks",
 		r,
 	)
@@ -304,14 +305,14 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "chunks_executed",
 			Help:      "chunks executed by the engine",
 		}),
-		chunksNotVerified: prometheus.NewCounter(prometheus.CounterOpts{
+		chunksNotAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
-			Name:      "chunks_not_verified",
+			Name:      "chunks_not_authorized",
 			Help:      "chunks with signatures not verified by the time they are executed",
 		}),
-		unusedChunkVerifications: prometheus.NewCounter(prometheus.CounterOpts{
+		unusedChunkAuthorizations: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
-			Name:      "unused_chunk_verifications",
+			Name:      "unused_chunk_authorizations",
 			Help:      "chunks verified but not executed",
 		}),
 		txRPCAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
@@ -329,20 +330,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "rpc_tx_backlog",
 			Help:      "number of transactions waiting to be processed by RPC",
 		}),
-		waitRepeat:            waitRepeat,
-		waitAuth:              waitAuth,
-		waitExec:              waitExec,
-		waitProcessor:         waitProcessor,
-		waitCommit:            waitCommit,
-		chunkBuild:            chunkBuild,
-		blockBuild:            blockBuild,
-		blockParse:            blockParse,
-		blockVerify:           blockVerify,
-		blockAccept:           blockAccept,
-		blockProcess:          blockProcess,
-		blockExecute:          blockExecute,
-		chunkProcess:          chunkProcess,
-		optimisticChunkVerify: optimisticChunkVerify,
+		waitRepeat:                waitRepeat,
+		waitAuth:                  waitAuth,
+		waitExec:                  waitExec,
+		waitProcessor:             waitProcessor,
+		waitCommit:                waitCommit,
+		chunkBuild:                chunkBuild,
+		blockBuild:                blockBuild,
+		blockParse:                blockParse,
+		blockVerify:               blockVerify,
+		blockAccept:               blockAccept,
+		blockProcess:              blockProcess,
+		blockExecute:              blockExecute,
+		chunkProcess:              chunkProcess,
+		optimisticChunkAuthorized: optimisticChunkAuthorized,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -369,8 +370,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.sigsReceived),
 		r.Register(m.certsReceived),
 		r.Register(m.chunksExecuted),
-		r.Register(m.chunksNotVerified),
-		r.Register(m.unusedChunkVerifications),
+		r.Register(m.chunksNotAuthorized),
+		r.Register(m.unusedChunkAuthorizations),
 		r.Register(m.txRPCAuthorized),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
