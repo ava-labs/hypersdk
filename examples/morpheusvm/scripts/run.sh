@@ -147,8 +147,8 @@ rm -f "${TMPDIR}"/morpheusvm.config
 rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 250,
-  "targetChunkBuildDuration": 100,
+  "chunkBuildFrequency": 750,
+  "targetChunkBuildDuration": 500,
   "blockBuildFrequency": 100,
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
