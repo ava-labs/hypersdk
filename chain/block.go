@@ -256,8 +256,14 @@ func (b *StatelessBlock) ID() ids.ID { return b.id }
 // 3) verify executed certificates (correct IDs)
 func (b *StatelessBlock) Verify(ctx context.Context) error {
 	start := time.Now()
+	success := false
 	defer func() {
-		b.vm.RecordBlockVerify(time.Since(start))
+		if success {
+			b.vm.RecordBlockVerify(time.Since(start))
+		} else {
+			// Can happen if block results are not yet ready
+			b.vm.RecordBlockVerifyFail()
+		}
 	}()
 
 	ctx, span := b.vm.Tracer().Start(
@@ -452,6 +458,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		zap.Stringer("root", b.Root),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
 	)
+	success = true
 	return nil
 }
 

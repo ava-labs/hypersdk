@@ -153,11 +153,12 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordUnusedAuthorizedChunks(uselessAuthorization)
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
-		e.vm.Logger().Error("chunk processing failed", zap.Error(err))
-		panic(err)
+		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err))
+		return
 	}
 	if len(chunks) != len(job.blk.AvailableChunks) {
-		e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
+		// TODO: handle graceful shutdown
+		e.vm.Logger().Fatal("did not receive all chunks from engine, exiting execution")
 		return
 	}
 	e.vm.RecordExecutedChunks(len(chunks))

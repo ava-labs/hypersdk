@@ -47,6 +47,7 @@ type Metrics interface {
 
 	RecordClearedMempool()
 
+	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
 
