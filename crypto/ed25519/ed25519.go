@@ -75,7 +75,8 @@ func Verify(msg []byte, p PublicKey, s Signature) bool {
 }
 
 type Batch struct {
-	bv ed25519consensus.BatchVerifier
+	added int
+	bv    ed25519consensus.BatchVerifier
 }
 
 func NewBatch(size int) *Batch {
@@ -84,9 +85,16 @@ func NewBatch(size int) *Batch {
 
 func (b *Batch) Add(msg []byte, p PublicKey, s Signature) {
 	b.bv.Add(p[:], msg, s[:])
+	b.added++
 }
 
 func (b *Batch) Verify() bool {
+	if b.added == 0 {
+		// By default, ed25519consensus returns false for empty batches
+		//
+		// Source: https://github.com/hdevalence/ed25519consensus/blob/15731de461e4d21d6a79d5b7aaf473454f9d2009/batch.go#L77-L80
+		return true
+	}
 	return b.bv.Verify()
 }
 

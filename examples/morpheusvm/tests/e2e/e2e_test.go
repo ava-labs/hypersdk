@@ -44,10 +44,11 @@ func TestE2e(t *testing.T) {
 var (
 	requestTimeout time.Duration
 
-	networkRunnerLogLevel string
-	avalanchegoLogLevel   string
-	gRPCEp                string
-	gRPCGatewayEp         string
+	networkRunnerLogLevel      string
+	avalanchegoLogLevel        string
+	avalanchegoLogDisplayLevel string
+	gRPCEp                     string
+	gRPCGatewayEp              string
 
 	execPath  string
 	pluginDir string
@@ -90,6 +91,13 @@ func init() {
 		"avalanchego-log-level",
 		"info",
 		"log level for avalanchego",
+	)
+
+	flag.StringVar(
+		&avalanchegoLogDisplayLevel,
+		"avalanchego-log-display-level",
+		"error",
+		"log display level for avalanchego",
 	)
 
 	flag.StringVar(
@@ -258,7 +266,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"http-allowed-hosts": "*"
 			}`,
 			avalanchegoLogLevel,
-			avalanchegoLogLevel,
+			avalanchegoLogDisplayLevel,
 		)),
 	)
 	cancel()

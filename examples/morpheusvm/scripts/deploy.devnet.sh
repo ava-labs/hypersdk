@@ -69,6 +69,7 @@ EOF
 --min-block-gap "${MIN_BLOCK_GAP}" \
 --genesis-file "${TMPDIR}"/morpheusvm.genesis
 
+# TODO: find a smarter way to split auth cores between exec and RPC
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
   "chunkBuildFrequency": 250,
@@ -81,6 +82,8 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "actionExecutionCores": 8,
   "rootGenerationCores": 32,
   "verifyAuth":true,
+  "authRPCCores": 24,
+  "authRPCBacklog": 10000000,
   "streamingBacklogSize": 10000000,
   "logLevel": "INFO"
 }

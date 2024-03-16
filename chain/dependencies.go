@@ -33,10 +33,11 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordOptimisticChunkVerify(time.Duration)
-	RecordNotVerifiedChunk()
+	RecordOptimisticAuthorizedChunk(time.Duration)
+	RecordNotAuthorizedChunk()
+	RecordRPCAuthorizedTx()
 	RecordExecutedChunks(int)
-	RecordUnusedVerifiedChunks(int)
+	RecordUnusedAuthorizedChunks(int)
 
 	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)
@@ -97,11 +98,13 @@ type VM interface {
 	Mempool() Mempool
 	GetTargetChunkBuildDuration() time.Duration
 	GetActionExecutionCores() int
+	IsRPCAuthorized(ids.ID) bool
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
-	Executed(context.Context, uint64, *FilteredChunk, []*Result)
+	ExecutedChunk(context.Context, uint64, *FilteredChunk, []*Result)
+	ExecutedBlock(context.Context, *StatelessBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root

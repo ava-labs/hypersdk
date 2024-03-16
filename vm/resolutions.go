@@ -139,11 +139,21 @@ func (vm *VM) processExecutedChunks() {
 	}
 }
 
-func (vm *VM) Executed(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Executed")
+func (vm *VM) ExecutedChunk(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
 	vm.executedQueue <- &executedWrapper{blk, chunk, results}
+}
+
+func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatelessBlock) {
+	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
+	defer span.End()
+
+	// We need to wait until we may not try to verify the signature of a tx again.
+	//
+	// TODO: add a queue
+	vm.rpcAuthorizedTxs.SetMin(blk.StatefulBlock.Timestamp)
 }
 
 func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
@@ -590,22 +600,46 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) RecordOptimisticChunkVerify(t time.Duration) {
-	vm.metrics.optimisticChunkVerify.Observe(float64(t))
+func (vm *VM) RecordOptimisticAuthorizedChunk(t time.Duration) {
+	vm.metrics.optimisticChunkAuthorized.Observe(float64(t))
 }
 
-func (vm *VM) RecordNotVerifiedChunk() {
-	vm.metrics.chunksNotVerified.Inc()
+func (vm *VM) RecordNotAuthorizedChunk() {
+	vm.metrics.chunksNotAuthorized.Inc()
 }
 
 func (vm *VM) RecordExecutedChunks(c int) {
 	vm.metrics.chunksExecuted.Add(float64(c))
 }
 
-func (vm *VM) RecordUnusedVerifiedChunks(c int) {
-	vm.metrics.unusedChunkVerifications.Add(float64(c))
+func (vm *VM) RecordUnusedAuthorizedChunks(c int) {
+	vm.metrics.unusedChunkAuthorizations.Add(float64(c))
 }
 
 func (vm *VM) RecordWaitRepeat(t time.Duration) {
 	vm.metrics.waitRepeat.Observe(float64(t))
+}
+
+func (vm *VM) GetAuthRPCCores() int {
+	return vm.config.GetAuthRPCCores()
+}
+
+func (vm *VM) GetAuthRPCBacklog() int {
+	return vm.config.GetAuthRPCBacklog()
+}
+
+func (vm *VM) RecordRPCTxBacklog(c int64) {
+	vm.metrics.rpcTxBacklog.Set(float64(c))
+}
+
+func (vm *VM) AddRPCAuthorized(tx *chain.Transaction) {
+	vm.rpcAuthorizedTxs.Add([]*chain.Transaction{tx})
+}
+
+func (vm *VM) IsRPCAuthorized(txID ids.ID) bool {
+	return vm.rpcAuthorizedTxs.HasID(txID)
+}
+
+func (vm *VM) RecordRPCAuthorizedTx() {
+	vm.metrics.txRPCAuthorized.Inc()
 }

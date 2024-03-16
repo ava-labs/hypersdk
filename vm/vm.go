@@ -86,8 +86,9 @@ type VM struct {
 	//
 	// we use an emap here to avoid recursing through all previously
 	// issued chunks when packing a new chunk.
-	issuedTxs *emap.EMap[*chain.Transaction]
-	mempool   *mempool.Mempool[*chain.Transaction]
+	issuedTxs        *emap.EMap[*chain.Transaction]
+	rpcAuthorizedTxs *emap.EMap[*chain.Transaction] // used to optimize performance of RPCs
+	mempool          *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
 	seenTxs                *emap.EMap[*chain.Transaction]
@@ -165,6 +166,7 @@ func (vm *VM) Initialize(
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	vm.issuedTxs = emap.NewEMap[*chain.Transaction]()
+	vm.rpcAuthorizedTxs = emap.NewEMap[*chain.Transaction]()
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1

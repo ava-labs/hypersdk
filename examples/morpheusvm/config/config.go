@@ -41,6 +41,10 @@ type Config struct {
 	RootGenerationCores  int `json:"rootGenerationCores"`
 	ActionExecutionCores int `json:"actionExecutionCores"`
 
+	// RPC
+	AuthRPCCores   int `json:"authRPCCores"`
+	AuthRPCBacklog int `json:"authRPCBacklog"`
+
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
 	TraceSampleRate float64 `json:"traceSampleRate"`
@@ -105,6 +109,8 @@ func (c *Config) setDefault() {
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifyAuth = c.Config.GetVerifyAuth()
+	c.AuthRPCCores = c.Config.GetAuthRPCCores()
+	c.AuthRPCBacklog = c.Config.GetAuthRPCBacklog()
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
@@ -156,4 +162,12 @@ func (c *Config) GetTargetChunkBuildDuration() time.Duration {
 
 func (c *Config) GetBlockBuildFrequency() time.Duration {
 	return time.Duration(c.BlockBuildFrequency) * time.Millisecond
+}
+
+func (c *Config) GetAuthRPCCores() int {
+	return c.AuthRPCCores
+}
+
+func (c *Config) GetAuthRPCBacklog() int {
+	return c.AuthRPCBacklog
 }

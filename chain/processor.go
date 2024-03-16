@@ -217,12 +217,13 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	// We need to do this before we check basic chunk correctness to support
 	// optimistic chunk signature verification.
 	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer && cw == nil { // trust ourselves
-		p.vm.RecordNotVerifiedChunk()
+		p.vm.RecordNotAuthorizedChunk()
 		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
 		if err != nil {
 			panic(err)
 		}
 		batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
+
 		for _, tx := range chunk.Txs {
 			// Enqueue transaction for execution
 			msg, err := tx.Digest()
@@ -231,10 +232,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 				return
 			}
-			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-			if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
-				batchVerifier.Add(msg, tx.Auth)
+			if p.vm.IsRPCAuthorized(tx.ID()) {
+				p.vm.RecordRPCAuthorizedTx()
+				continue
 			}
+			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
+			batchVerifier.Add(msg, tx.Auth)
 		}
 		authStart := time.Now()
 		batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
@@ -390,7 +393,7 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 	return p.txs, p.ts, p.results, nil
 }
 
-func VerifyChunkSignatures(vm VM, chunk *Chunk) bool {
+func AuthorizeChunk(vm VM, chunk *Chunk) bool {
 	authWorkers := workers.NewParallel(vm.GetAuthExecutionCores(), 4) // should never have more than 1 here
 	defer authWorkers.Stop()
 
@@ -404,6 +407,10 @@ func VerifyChunkSignatures(vm VM, chunk *Chunk) bool {
 		msg, err := tx.Digest()
 		if err != nil {
 			return false
+		}
+		if vm.IsRPCAuthorized(tx.ID()) {
+			vm.RecordRPCAuthorizedTx()
+			continue
 		}
 
 		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.

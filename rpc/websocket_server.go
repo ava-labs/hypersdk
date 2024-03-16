@@ -6,9 +6,9 @@ package rpc
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -16,14 +16,24 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/workers"
 )
 
+type txWrapper struct {
+	msg []byte
+	c   *pubsub.Connection
+}
+
 type WebSocketServer struct {
-	logger logging.Logger
-	s      *pubsub.Server
+	vm VM
+	s  *pubsub.Server
 
 	blockListeners *pubsub.Connections
 	chunkListeners *pubsub.Connections
+
+	authWorkers          workers.Workers
+	incomingTransactions chan *txWrapper
+	txBacklog            atomic.Int64
 
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
@@ -32,16 +42,77 @@ type WebSocketServer struct {
 
 func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
-		logger:         vm.Logger(),
-		blockListeners: pubsub.NewConnections(),
-		chunkListeners: pubsub.NewConnections(),
-		txListeners:    map[ids.ID]*pubsub.Connections{},
-		expiringTxs:    emap.NewEMap[*chain.Transaction](),
+		vm:                   vm,
+		blockListeners:       pubsub.NewConnections(),
+		chunkListeners:       pubsub.NewConnections(),
+		incomingTransactions: make(chan *txWrapper, vm.GetAuthRPCBacklog()),
+		txListeners:          map[ids.ID]*pubsub.Connections{},
+		expiringTxs:          emap.NewEMap[*chain.Transaction](),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages
-	w.s = pubsub.New(w.logger, cfg, w.MessageCallback(vm))
+	w.s = pubsub.New(w.vm.Logger(), cfg, w.MessageCallback())
+	for i := 0; i < vm.GetAuthRPCCores(); i++ {
+		go w.startWorker()
+	}
 	return w, w.s
+}
+
+func (w *WebSocketServer) startWorker() {
+	var (
+		log                          = w.vm.Logger()
+		actionRegistry, authRegistry = w.vm.Registry()
+	)
+	// We can't use batch verify here because we don't want to invalidate honest
+	// submissions if one connection sent an invalid transaction.
+	for {
+		select {
+		case txw := <-w.incomingTransactions:
+			w.vm.RecordRPCTxBacklog(w.txBacklog.Add(-1))
+			ctx := context.TODO()
+			// Unmarshal TX
+			p := codec.NewReader(txw.msg, consts.NetworkSizeLimit) // will likely be much smaller
+			tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
+			if err != nil {
+				log.Error("failed to unmarshal tx",
+					zap.Int("len", len(txw.msg)),
+					zap.Error(err),
+				)
+				continue
+			}
+
+			// Verify tx
+			if w.vm.GetVerifyAuth() {
+				msg, err := tx.Digest()
+				if err != nil {
+					// Should never occur because populated during unmarshal
+					continue
+				}
+				if err := tx.Auth.Verify(ctx, msg); err != nil {
+					log.Error("failed to verify sig",
+						zap.Error(err),
+					)
+					continue
+				}
+			}
+			w.AddTxListener(tx, txw.c)
+
+			// Submit will remove from [txWaiters] if it is not added
+			txID := tx.ID()
+			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+				log.Error("failed to submit tx",
+					zap.Stringer("txID", txID),
+					zap.Error(err),
+				)
+				continue
+			}
+
+			// Prevent duplicate signature verification during block processing
+			w.vm.AddRPCAuthorized(tx)
+		case <-w.vm.StopChan():
+			return
+		}
+	}
 }
 
 // Note: no need to have a tx listener removal, this will happen when all
@@ -93,7 +164,7 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 		}
 	}
 	if exp := len(expired); exp > 0 {
-		w.logger.Debug("expired listeners", zap.Int("count", exp))
+		w.vm.Logger().Debug("expired listeners", zap.Int("count", exp))
 	}
 	return nil
 }
@@ -140,16 +211,15 @@ func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, r
 	return nil
 }
 
-func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
+func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 	// Assumes controller is initialized before this is called
 	var (
-		actionRegistry, authRegistry = vm.Registry()
-		tracer                       = vm.Tracer()
-		log                          = vm.Logger()
+		tracer = w.vm.Tracer()
+		log    = w.vm.Logger()
 	)
 
 	return func(msgBytes []byte, c *pubsub.Connection) {
-		ctx, span := tracer.Start(context.Background(), "WebSocketServer.Callback")
+		_, span := tracer.Start(context.Background(), "WebSocketServer.Callback")
 		defer span.End()
 
 		// Check empty messages
@@ -171,43 +241,13 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			log.Debug("added chunk listener")
 		case TxMode:
 			msgBytes = msgBytes[1:]
-			// Unmarshal TX
-			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
-			if err != nil {
-				log.Error("failed to unmarshal tx",
-					zap.Int("len", len(msgBytes)),
-					zap.Error(err),
-				)
-				return
+			select {
+			case w.incomingTransactions <- &txWrapper{msgBytes, c}:
+				w.txBacklog.Add(1)
+				log.Debug("enqueued tx for processing")
+			default:
+				log.Debug("dropping tx because backlog is full")
 			}
-
-			// Verify tx
-			if vm.GetVerifyAuth() {
-				msg, err := tx.Digest()
-				if err != nil {
-					// Should never occur because populated during unmarshal
-					return
-				}
-				if err := tx.Auth.Verify(ctx, msg); err != nil {
-					log.Error("failed to verify sig",
-						zap.Error(err),
-					)
-					return
-				}
-			}
-			w.AddTxListener(tx, c)
-
-			// Submit will remove from [txWaiters] if it is not added
-			txID := tx.ID()
-			if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-				log.Error("failed to submit tx",
-					zap.Stringer("txID", txID),
-					zap.Error(err),
-				)
-				return
-			}
-			log.Debug("submitted tx", zap.Stringer("id", txID))
 		default:
 			log.Error("unexpected message type",
 				zap.Int("len", len(msgBytes)),

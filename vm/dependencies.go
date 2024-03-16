@@ -26,6 +26,8 @@ type Config interface {
 	GetTraceConfig() *trace.Config
 	GetMempoolSize() int
 	GetAuthExecutionCores() int
+	GetAuthRPCCores() int
+	GetAuthRPCBacklog() int
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetActionExecutionCores() int

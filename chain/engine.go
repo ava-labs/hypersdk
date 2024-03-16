@@ -64,7 +64,7 @@ type Engine struct {
 	outputs       map[uint64]*output
 	largestOutput *uint64
 
-	verified *eheap.ExpiryHeap[*simpleChunkWrapper]
+	authorized *eheap.ExpiryHeap[*simpleChunkWrapper]
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -78,7 +78,7 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 
 		outputs: make(map[uint64]*output),
 
-		verified: eheap.New[*simpleChunkWrapper](64),
+		authorized: eheap.New[*simpleChunkWrapper](64),
 	}
 }
 
@@ -142,15 +142,15 @@ func (e *Engine) processJob(job *engineJob) {
 		if err != nil {
 			panic(err)
 		}
-		cw, _ := e.verified.Remove(cid)
+		cw, _ := e.authorized.Remove(cid)
 		p.Add(ctx, len(chunks), chunk, cw)
 		chunks = append(chunks, chunk)
 	}
-	uselessVerification := len(e.verified.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
-	if uselessVerification > 0 {
-		e.vm.Logger().Warn("performed useless verification", zap.Int("count", uselessVerification))
+	uselessAuthorization := len(e.authorized.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
+	if uselessAuthorization > 0 {
+		e.vm.Logger().Warn("performed useless authorization", zap.Int("count", uselessAuthorization))
 	}
-	e.vm.RecordUnusedVerifiedChunks(uselessVerification)
+	e.vm.RecordUnusedAuthorizedChunks(uselessAuthorization)
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Error("chunk processing failed", zap.Error(err))
@@ -236,7 +236,7 @@ func (e *Engine) processJob(job *engineJob) {
 
 		// As soon as execution of transactions is finished, let the VM know so that it
 		// can notify subscribers.
-		e.vm.Executed(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
+		e.vm.ExecutedChunk(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
 	}
 
 	// Update tracked p-chain height as long as it is increasing
@@ -339,6 +339,7 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordBlockExecute(time.Since(estart))
 	e.vm.RecordTxsValid(validTxs)
 	e.vm.RecordTxsIncluded(txCount)
+	e.vm.ExecutedBlock(ctx, job.blk)
 }
 
 func (e *Engine) Run() {
@@ -380,15 +381,15 @@ func (e *Engine) Run() {
 				continue
 			}
 			start := time.Now()
-			result := VerifyChunkSignatures(e.vm, chunk)
-			e.verified.Add(&simpleChunkWrapper{
+			result := AuthorizeChunk(e.vm, chunk)
+			e.authorized.Add(&simpleChunkWrapper{
 				chunk:   cert.Chunk,
 				slot:    cert.Slot,
 				success: result,
 			})
 			dur := time.Since(start)
-			e.vm.Logger().Debug("optimistically verified chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", dur))
-			e.vm.RecordOptimisticChunkVerify(dur)
+			e.vm.Logger().Debug("optimistically authorized chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", dur))
+			e.vm.RecordOptimisticAuthorizedChunk(dur)
 		case job := <-e.backlog:
 			e.processJob(job)
 		case <-e.vm.StopChan():
