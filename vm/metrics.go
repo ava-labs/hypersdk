@@ -51,6 +51,7 @@ type Metrics struct {
 	txRPCAuthorized           prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
+	chainDataSize             prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
@@ -330,6 +331,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "rpc_tx_backlog",
 			Help:      "number of transactions waiting to be processed by RPC",
 		}),
+		chainDataSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "data_size",
+			Help:      "size of the chain data directory",
+		}),
 		waitRepeat:                waitRepeat,
 		waitAuth:                  waitAuth,
 		waitExec:                  waitExec,
@@ -375,6 +381,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txRPCAuthorized),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
+		r.Register(m.chainDataSize),
 	)
 	return r, m, errs.Err
 }

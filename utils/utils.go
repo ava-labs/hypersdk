@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -186,4 +187,16 @@ func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidat
 	vdrList := maps.Values(vdrs)
 	utils.Sort(vdrList)
 	return paritionVdrs, vdrList, totalWeight, nil
+}
+
+// DirectorySize returns the size of all files, recursively, in a directory.
+func DirectorySize(path string) (uint64, error) {
+	var size uint64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			size += uint64(info.Size())
+		}
+		return err
+	})
+	return size, err
 }
