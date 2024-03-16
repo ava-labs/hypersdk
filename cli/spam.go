@@ -42,8 +42,8 @@ const (
 	plotHeight     = 25
 
 	inflightTargetMultiplier       = 5
-	targetIncreaseRate             = 5000
-	successfulRunsToIncreaseTarget = 15
+	targetIncreaseRate             = 1000
+	successfulRunsToIncreaseTarget = 5
 
 	issuerShutdownTimeout = 60 * time.Second
 )
