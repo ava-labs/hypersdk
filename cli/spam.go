@@ -373,7 +373,7 @@ func (h *Handler) Spam(
 			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
 				if inflight.Load() > int64(currentTarget*inflightTargetMultiplier) {
-					utils.Outf("{{yellow}}skipping issuance because large backlog detected{{/}}\n")
+					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
 					exitedEarly = true
 					break
 				}
@@ -478,7 +478,9 @@ func (h *Handler) Spam(
 			// Determine next target
 			if exitedEarly {
 				consecutiveUnderBacklog = 0
+				continue
 			}
+			consecutiveUnderBacklog++
 			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
 				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
 				utils.Outf("{{cyan}}updating target tps:{{/}} %d\n", currentTarget)
