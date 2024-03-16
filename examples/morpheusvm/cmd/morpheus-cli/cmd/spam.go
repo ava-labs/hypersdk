@@ -71,7 +71,7 @@ var runSpamCmd = &cobra.Command{
 			}
 		}
 		return handler.Root().Spam(
-			maxTxBacklog, numAccounts, txsPerSecond,
+			numAccounts, txsPerSecond,
 			sZipf, vZipf, plotZipf,
 			numClients, clusterInfo, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient

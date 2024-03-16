@@ -147,8 +147,8 @@ rm -f "${TMPDIR}"/morpheusvm.config
 rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 250,
-  "targetChunkBuildDuration": 100,
+  "chunkBuildFrequency": 750,
+  "targetChunkBuildDuration": 500,
   "blockBuildFrequency": 100,
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
@@ -156,6 +156,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authExecutionCores": 4,
   "actionExecutionCores": 2,
   "rootGenerationCores": 4,
+  "missingChunkFetchers": 48,
   "verifyAuth":true,
   "authRPCCores": 4,
   "authRPCBacklog": 10000000,

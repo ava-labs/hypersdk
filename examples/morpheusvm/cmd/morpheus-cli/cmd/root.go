@@ -29,7 +29,6 @@ var (
 	epochDuration         int64
 	validityWindow        int64
 	hideTxs               bool
-	maxTxBacklog          int
 	numAccounts           int
 	txsPerSecond          int
 	sZipf                 float64
@@ -177,12 +176,6 @@ func init() {
 		"plot-zipf",
 		false,
 		"plot zipf distribution",
-	)
-	runSpamCmd.PersistentFlags().IntVar(
-		&maxTxBacklog,
-		"max-tx-backlog",
-		72_000,
-		"max tx backlog",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numAccounts,

@@ -40,6 +40,7 @@ type Config struct {
 	AuthExecutionCores   int `json:"authExecutionCores"`
 	RootGenerationCores  int `json:"rootGenerationCores"`
 	ActionExecutionCores int `json:"actionExecutionCores"`
+	MissingChunkFetchers int `json:"missingChunkFetchers"`
 
 	// RPC
 	AuthRPCCores   int `json:"authRPCCores"`
@@ -104,6 +105,7 @@ func (c *Config) setDefault() {
 	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
+	c.MissingChunkFetchers = c.Config.GetMissingChunkFetchers()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
@@ -170,4 +172,8 @@ func (c *Config) GetAuthRPCCores() int {
 
 func (c *Config) GetAuthRPCBacklog() int {
 	return c.AuthRPCBacklog
+}
+
+func (c *Config) GetMissingChunkFetchers() int {
+	return c.MissingChunkFetchers
 }

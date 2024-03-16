@@ -34,6 +34,7 @@ import (
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -260,6 +261,9 @@ func (vm *VM) Initialize(
 		return err
 	}
 
+	// Track size of [chainData]
+	go vm.trackChainDataSize()
+
 	// TODO: Compare stateDB with vmDB to determine if any reprocessing is necessary
 
 	// Init channels before initializing other structs
@@ -417,6 +421,22 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
+}
+
+func (vm *VM) trackChainDataSize() {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			start := time.Now()
+			size := hutils.DirectorySize(vm.snowCtx.ChainDataDir)
+			vm.metrics.chainDataSize.Set(float64(size))
+			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
+		case <-vm.stop:
+			return
+		}
+	}
 }
 
 func (vm *VM) markReady() {

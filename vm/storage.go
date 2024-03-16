@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -38,6 +39,9 @@ var (
 	lastAccepted = []byte("last_accepted")
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
+
+	// chunkLRU is a cache on top of the fileDB byte cache that prevents repeated unmarshaling of chunks
+	chunkLRU = cache.NewSizedLRU[ids.ID, *chain.Chunk](2048*units.MiB, func(K ids.ID, V *chain.Chunk) int { return ids.IDLen + V.Size() })
 )
 
 func PrefixBlockIDHeightKey(id ids.ID) []byte {
@@ -333,18 +337,18 @@ func ChunkFile(slot int64, id ids.ID) string {
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
-	cid, err := chunk.ID()
-	if err != nil {
-		return err
-	}
+	chunkLRU.Put(chunk.ID(), chunk)
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(ChunkFile(chunk.Slot, cid), b)
+	return vm.blobDB.Put(ChunkFile(chunk.Slot, chunk.ID()), b)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
+	if c, ok := chunkLRU.Get(chunk); ok {
+		return c, nil
+	}
 	b, err := vm.blobDB.Get(ChunkFile(slot, chunk))
 	if errors.Is(err, database.ErrNotFound) {
 		// TODO: remove this pattern
@@ -361,12 +365,16 @@ func (vm *VM) GetChunkBytes(slot int64, chunk ids.ID) ([]byte, error) {
 }
 
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
+	if _, ok := chunkLRU.Get(chunk); ok {
+		return true
+	}
 	// TODO: add error
 	has, _ := vm.blobDB.Has(ChunkFile(slot, chunk))
 	return has
 }
 
 func (vm *VM) RemoveChunk(slot int64, chunk ids.ID) error {
+	chunkLRU.Evict(chunk)
 	return vm.blobDB.Remove(ChunkFile(slot, chunk))
 }
 

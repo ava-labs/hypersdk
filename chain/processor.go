@@ -200,11 +200,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	// be interleaved).
 	chunkTxs := len(chunk.Txs)
 	p.results[chunkIndex] = make([]*Result, chunkTxs)
-	cid, err := chunk.ID() // TODO: make this panic on err
-	if err != nil {
-		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-		return
-	}
 	if cw != nil {
 		if !cw.success {
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
@@ -242,7 +237,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		authStart := time.Now()
 		batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
 		if err := authJob.Wait(); err != nil {
-			p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", cid), zap.Error(err))
+			p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 			return
 		}
@@ -255,7 +250,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	repeatStart := time.Now()
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
-		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", cid), zap.Error(err))
+		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
@@ -263,12 +258,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	unitsStart := time.Now()
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
-		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", cid), zap.Error(err))
+		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
 	if chunkUnits.Greater(p.r.GetMaxChunkUnits()) {
-		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", cid), zap.Error(err))
+		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}

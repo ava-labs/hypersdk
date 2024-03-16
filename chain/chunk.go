@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const mempoolBatchSize = 1024
+
 type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
@@ -40,7 +42,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	r := vm.Rules(now)
 	c := &Chunk{
 		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
-		Txs:  make([]*Transaction, 0, 256),
+		Txs:  make([]*Transaction, 0, mempoolBatchSize),
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
 
@@ -80,7 +82,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	)
 	mempool.StartStreaming(ctx)
 	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
-		txs := mempool.Stream(ctx, 256)
+		txs := mempool.Stream(ctx, mempoolBatchSize)
 		for i, tx := range txs {
 			// Ensure we haven't included this transaction in a chunk yet
 			//
@@ -129,14 +131,16 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			c.Txs = append(c.Txs, tx)
 			authCounts[tx.Auth.GetTypeID()]++
 		}
-		if len(txs) < 256 {
+		if len(txs) < mempoolBatchSize {
 			cleared = true
-			vm.RecordClearedMempool()
 			break
 		}
 	}
 	if !full {
 		mempool.FinishStreaming(ctx, nil)
+	}
+	if !cleared {
+		vm.RecordRemainingMempool()
 	}
 
 	// Discard chunk if nothing produced
@@ -168,6 +172,11 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
+	bytes, err := c.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	c.id = utils.ToID(bytes)
 
 	vm.Logger().Info(
 		"built chunk with signature",
@@ -207,17 +216,8 @@ func (c *Chunk) Digest() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func (c *Chunk) ID() (ids.ID, error) {
-	if c.id != ids.Empty {
-		return c.id, nil
-	}
-
-	bytes, err := c.Marshal()
-	if err != nil {
-		return ids.ID{}, err
-	}
-	c.id = utils.ToID(bytes)
-	return c.id, nil
+func (c *Chunk) ID() ids.ID {
+	return c.id
 }
 
 func (c *Chunk) Size() int {

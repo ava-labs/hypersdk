@@ -138,11 +138,7 @@ func (e *Engine) processJob(job *engineJob) {
 	chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 	for chunk := range job.chunks {
 		// Handle fetched chunk
-		cid, err := chunk.ID()
-		if err != nil {
-			panic(err)
-		}
-		cw, _ := e.authorized.Remove(cid)
+		cw, _ := e.authorized.Remove(chunk.ID())
 		p.Add(ctx, len(chunks), chunk, cw)
 		chunks = append(chunks, chunk)
 	}
@@ -153,10 +149,11 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordUnusedAuthorizedChunks(uselessAuthorization)
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
-		e.vm.Logger().Error("chunk processing failed", zap.Error(err))
-		panic(err)
+		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err))
+		return
 	}
 	if len(chunks) != len(job.blk.AvailableChunks) {
+		// This can happen on the shutdown path. If this is because of an error, the chunk manager will FATAL.
 		e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
 		return
 	}
@@ -401,7 +398,7 @@ func (e *Engine) Run() {
 func (e *Engine) Execute(blk *StatelessBlock) {
 	// Request chunks for processing when ready
 	chunks := make(chan *Chunk, len(blk.AvailableChunks))
-	e.vm.RequestChunks(blk.AvailableChunks, chunks) // spawns a goroutine
+	e.vm.RequestChunks(blk.Height(), blk.AvailableChunks, chunks) // spawns a goroutine
 
 	// Enqueue job
 	e.vm.RecordEngineBacklog(1)

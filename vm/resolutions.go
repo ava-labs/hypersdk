@@ -540,8 +540,8 @@ func (vm *VM) RecordBlockExecute(t time.Duration) {
 	vm.metrics.blockExecute.Observe(float64(t))
 }
 
-func (vm *VM) RecordClearedMempool() {
-	vm.metrics.clearedMempool.Inc()
+func (vm *VM) RecordRemainingMempool() {
+	vm.metrics.remainingMempool.Inc()
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
@@ -584,8 +584,8 @@ func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 	return vm.snowCtx.WarpSigner.Sign(msg)
 }
 
-func (vm *VM) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
-	vm.cm.RequestChunks(certs, chunks)
+func (vm *VM) RequestChunks(block uint64, certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+	vm.cm.RequestChunks(block, certs, chunks)
 }
 
 func (vm *VM) RecordEngineBacklog(c int) {
@@ -642,4 +642,8 @@ func (vm *VM) IsRPCAuthorized(txID ids.ID) bool {
 
 func (vm *VM) RecordRPCAuthorizedTx() {
 	vm.metrics.txRPCAuthorized.Inc()
+}
+
+func (vm *VM) RecordBlockVerifyFail() {
+	vm.metrics.blockVerifyFailed.Inc()
 }

@@ -29,20 +29,24 @@ import (
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/window"
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
 )
 
 const (
-	defaultRange          = 32
-	issuerShutdownTimeout = 60 * time.Second
-
 	plotSamples    = 1000
 	plotIdentities = 10
 	plotBarWidth   = 10
 	plotOverhead   = 10
 	plotHeight     = 25
+
+	inflightTargetMultiplier       = 5
+	targetIncreaseRate             = 1000
+	successfulRunsToIncreaseTarget = 10
+
+	issuerShutdownTimeout = 60 * time.Second
 )
 
 // TODO: we should NEVER use globals, remove this
@@ -64,7 +68,7 @@ var (
 )
 
 func (h *Handler) Spam(
-	maxTxBacklog int, numAccounts int, txsPerSecond int,
+	numAccounts int, txsPerSecond int,
 	sZipf float64, vZipf float64, plotZipf bool,
 	numClients int, clusterInfo string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
@@ -311,27 +315,33 @@ func (h *Handler) Spam(
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
 	var (
-		iters       int
-		lastIter    int
 		lastTxCount uint64
 		psent       int64
 		pbytes      int64
+
+		startRun  = time.Now()
+		tpsWindow = window.Window{}
 	)
 	go func() {
 		for {
 			select {
 			case <-t.C:
-				iters++
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
 				ctxs := confirmedTxs - lastTxCount
 				lastTxCount = confirmedTxs
-				if totalTxs > 0 && ctxs > 0 {
+				newWindow, err := window.Roll(tpsWindow, 1)
+				if err != nil {
+					panic(err)
+				}
+				tpsWindow = newWindow
+				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, ctxs)
+				tpsDivisor := min(window.WindowSize, time.Since(startRun).Seconds())
+				if totalTxs > 0 {
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f (latest=%.2f) {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
-						float64(totalTxs)/float64(iters),
-						float64(ctxs)/float64(iters-lastIter),
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						float64(window.Sum(tpsWindow))/float64(tpsDivisor),
 						totalTxs,
 						float64(confirmedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
@@ -343,7 +353,6 @@ func (h *Handler) Spam(
 				l.Unlock()
 				psent = csent
 				pbytes = cbytes
-				lastIter = iters
 			case <-cctx.Done():
 				return
 			}
@@ -352,21 +361,26 @@ func (h *Handler) Spam(
 
 	// broadcast txs
 	var (
-		it = time.NewTimer(0)
-		// TODO: make configurable
-		z    = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1) //nolint:gosec
+		it                      = time.NewTimer(0)
+		z                       = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
+		currentTarget           = min(txsPerSecond, targetIncreaseRate)
+		consecutiveUnderBacklog int
+
 		stop bool
 	)
-	// TODO: log plot of distribution
+	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
 	for !stop {
 		select {
 		case <-it.C:
 			start := time.Now()
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
-			for i := 0; i < txsPerSecond; i++ {
+			exitedEarly := false
+			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
-				if inflight.Load() > int64(maxTxBacklog) {
+				if inflight.Load() > int64(currentTarget*inflightTargetMultiplier) {
+					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
+					exitedEarly = true
 					break
 				}
 				g.Go(func() error {
@@ -466,6 +480,18 @@ func (h *Handler) Spam(
 			dur := time.Since(start)
 			sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
 			it.Reset(time.Duration(sleep) * time.Millisecond)
+
+			// Determine next target
+			if exitedEarly {
+				consecutiveUnderBacklog = 0
+				continue
+			}
+			consecutiveUnderBacklog++
+			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
+				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
+				utils.Outf("{{cyan}}updated target tps:{{/}} %d\n", currentTarget)
+				consecutiveUnderBacklog = 0
+			}
 		case <-cctx.Done():
 			stop = true
 		case <-signals:

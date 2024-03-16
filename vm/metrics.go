@@ -32,7 +32,7 @@ type Metrics struct {
 	txsValid                  prometheus.Counter
 	stateChanges              prometheus.Counter
 	stateOperations           prometheus.Counter
-	clearedMempool            prometheus.Counter
+	remainingMempool          prometheus.Counter
 	chunkBytesBuilt           prometheus.Counter
 	deletedBlocks             prometheus.Counter
 	deletedUselessChunks      prometheus.Counter
@@ -49,8 +49,10 @@ type Metrics struct {
 	chunksNotAuthorized       prometheus.Counter
 	unusedChunkAuthorizations prometheus.Counter
 	txRPCAuthorized           prometheus.Counter
+	blockVerifyFailed         prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
+	chainDataSize             prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
@@ -65,6 +67,7 @@ type Metrics struct {
 	blockExecute              metric.Averager
 	chunkProcess              metric.Averager
 	optimisticChunkAuthorized metric.Averager
+	fetchMissingChunks        metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -198,6 +201,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	fetchMissingChunks, err := metric.NewAverager(
+		"chain",
+		"fetch_missing_chunks",
+		"time spent fetching missing chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	m := &Metrics{
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
@@ -235,10 +247,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_operations",
 			Help:      "number of state operations",
 		}),
-		clearedMempool: prometheus.NewCounter(prometheus.CounterOpts{
+		remainingMempool: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
-			Name:      "cleared_mempool",
-			Help:      "number of times cleared mempool while building",
+			Name:      "remaining_mempool",
+			Help:      "number of times mempool not cleared while building",
 		}),
 		chunkBytesBuilt: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -320,6 +332,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_rpc_authorized",
 			Help:      "number of txs authorized during RPC processing",
 		}),
+		blockVerifyFailed: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "block_verify_failed",
+			Help:      "number of blocks that failed verification",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -329,6 +346,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "rpc_tx_backlog",
 			Help:      "number of transactions waiting to be processed by RPC",
+		}),
+		chainDataSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "data_size",
+			Help:      "size of the chain data directory",
 		}),
 		waitRepeat:                waitRepeat,
 		waitAuth:                  waitAuth,
@@ -344,6 +366,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockExecute:              blockExecute,
 		chunkProcess:              chunkProcess,
 		optimisticChunkAuthorized: optimisticChunkAuthorized,
+		fetchMissingChunks:        fetchMissingChunks,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -356,7 +379,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsValid),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
-		r.Register(m.clearedMempool),
+		r.Register(m.remainingMempool),
 		r.Register(m.chunkBytesBuilt),
 		r.Register(m.deletedBlocks),
 		r.Register(m.deletedUselessChunks),
@@ -373,8 +396,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunksNotAuthorized),
 		r.Register(m.unusedChunkAuthorizations),
 		r.Register(m.txRPCAuthorized),
+		r.Register(m.blockVerifyFailed),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
+		r.Register(m.chainDataSize),
 	)
 	return r, m, errs.Err
 }

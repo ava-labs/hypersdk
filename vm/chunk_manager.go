@@ -64,11 +64,7 @@ type chunkWrapper struct {
 }
 
 func (cw *chunkWrapper) ID() ids.ID {
-	id, err := cw.chunk.ID()
-	if err != nil {
-		panic(err)
-	}
-	return id
+	return cw.chunk.ID()
 }
 
 func (cw *chunkWrapper) Expiry() int64 {
@@ -258,19 +254,14 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Check if we already received
-		cid, err := chunk.ID()
-		if err != nil {
-			c.vm.Logger().Warn("cannot generate id", zap.Stringer("nodeID", nodeID), zap.Error(err))
-			return nil
-		}
-		if c.stored.Has(cid) {
-			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cid))
+		if c.stored.Has(chunk.ID()) {
+			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
 			return nil
 		}
 
 		// Check if chunk < slot
 		if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
-			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cid))
+			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
 			return nil
 		}
 
@@ -328,11 +319,11 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("unable to persist chunk to disk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
-		c.stored.Add(&simpleChunkWrapper{chunk: cid, slot: chunk.Slot})
+		c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: chunk.Slot})
 
 		// Sign chunk
 		chunkSignature := &chain.ChunkSignature{
-			Chunk: cid,
+			Chunk: chunk.ID(),
 			Slot:  chunk.Slot,
 		}
 		digest, err := chunkSignature.Digest()
@@ -359,9 +350,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 		c.PushSignature(ctx, nodeID, chunkSignature)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"received chunk from gossip",
-			zap.Stringer("chunkID", cid),
+			zap.Stringer("chunkID", chunk.ID()),
 			zap.Stringer("nodeID", nodeID),
 			zap.Int("size", len(msg)-1),
 			zap.Duration("t", time.Since(start)),
@@ -474,7 +465,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Each time we get more signatures, we'll broadcast a new
 		// certificate
 		c.PushChunkCertificate(ctx, cert)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"constructed chunk certificate",
 			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("chunkID", chunkSignature.Chunk),
@@ -522,7 +513,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			)
 			return nil
 		}
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"verified chunk certificate",
 			zap.Uint64("Pheight", epochHeight),
 			zap.Stringer("nodeID", nodeID),
@@ -793,18 +784,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				continue
 			}
 			c.PushChunk(context.TODO(), chunk)
-			cid, err := chunk.ID()
-			if err != nil {
-				// TODO: pre-calc ID
-				panic(err)
-			}
 			chunkBytes := chunk.Size()
-			c.vm.Logger().Info(
-				"built chunk",
-				zap.Stringer("id", cid),
-				zap.Int("txs", len(chunk.Txs)),
-				zap.Int("size", chunkBytes),
-			)
 			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
 			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
 		case <-bt.C:
@@ -897,9 +877,8 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	}
 
 	// Sign our own chunk
-	cid, _ := chunk.ID()
 	chunkSignature := &chain.ChunkSignature{
-		Chunk: cid,
+		Chunk: chunk.ID(),
 		Slot:  chunk.Slot,
 	}
 	digest, err := chunkSignature.Digest()
@@ -924,7 +903,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	// TODO: can probably use uncompressed bytes here
 	cw.signatures[string(bls.PublicKeyToCompressedBytes(chunkSignature.Signer))] = chunkSignature
 	c.built.Add([]*chunkWrapper{cw})
-	c.stored.Add(&simpleChunkWrapper{chunk: cid, slot: chunk.Slot})
+	c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: chunk.Slot})
 
 	// Send chunk to all validators
 	//
@@ -1051,7 +1030,7 @@ func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
 }
 
 // This function should be spawned in a goroutine because it blocks
-func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
 	// Ensure only one fetch is running at a time (all bandwidth should be allocated towards fetching chunks for next block)
 	myWaiter := make(chan struct{})
 	c.waiterL.Lock()
@@ -1070,6 +1049,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
+		fetchStart := time.Now()
 		workers := min(len(certs), c.vm.config.GetMissingChunkFetchers())
 		f := opool.New(workers, len(certs))
 		for _, rcert := range certs {
@@ -1085,7 +1065,6 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				// Fetch missing chunk
 				attempts := 0
 				for {
-					start := time.Now()
 					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
 					// Look for chunk epoch
@@ -1147,28 +1126,27 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						c.vm.Logger().Warn("failed to unmarshal chunk", zap.Error(err))
 						continue
 					}
-					chunkID, err := chunk.ID()
-					if err != nil {
-						return nil, err
-					}
-					if chunkID != cert.Chunk {
-						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunkID), zap.Stringer("expectedChunkID", cert.Chunk))
+					if chunk.ID() != cert.Chunk {
+						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunk.ID()), zap.Stringer("expectedChunkID", cert.Chunk))
 						continue
 					}
 					if err := c.vm.StoreChunk(chunk); err != nil {
 						return nil, err
 					}
-					c.stored.Add(&simpleChunkWrapper{chunk: chunkID, slot: cert.Slot})
-					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunkID), zap.Duration("t", time.Since(start)))
+					c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: cert.Slot})
 					return func() { chunks <- chunk }, nil
 				}
 			})
 		}
-		if err := f.Wait(); err != nil {
-			c.vm.Logger().Error("failed to fetch chunks", zap.Error(err))
+		ferr := f.Wait()
+		close(chunks) // We always close chunks, so the execution engine can handle this issue and shutdown
+		if ferr != nil {
+			// This is a FATAL because exiting here will cause the execution engine to hang
+			c.vm.Logger().Fatal("failed to fetch chunks", zap.Error(ferr))
 			return
 		}
-		close(chunks)
+		c.vm.Logger().Info("finished fetching chunks", zap.Uint64("height", block), zap.Duration("t", time.Since(fetchStart)))
+		c.vm.metrics.fetchMissingChunks.Observe(float64(time.Since(fetchStart)))
 
 		// Invoke next waiter
 		close(myWaiter)
