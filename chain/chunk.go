@@ -168,6 +168,11 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
+	bytes, err := c.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	c.id = utils.ToID(bytes)
 
 	vm.Logger().Info(
 		"built chunk with signature",
@@ -207,17 +212,8 @@ func (c *Chunk) Digest() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func (c *Chunk) ID() (ids.ID, error) {
-	if c.id != ids.Empty {
-		return c.id, nil
-	}
-
-	bytes, err := c.Marshal()
-	if err != nil {
-		return ids.ID{}, err
-	}
-	c.id = utils.ToID(bytes)
-	return c.id, nil
+func (c *Chunk) ID() ids.ID {
+	return c.id
 }
 
 func (c *Chunk) Size() int {

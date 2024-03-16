@@ -333,15 +333,11 @@ func ChunkFile(slot int64, id ids.ID) string {
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
-	cid, err := chunk.ID()
-	if err != nil {
-		return err
-	}
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(ChunkFile(chunk.Slot, cid), b)
+	return vm.blobDB.Put(ChunkFile(chunk.Slot, chunk.ID()), b)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {

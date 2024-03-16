@@ -138,11 +138,7 @@ func (e *Engine) processJob(job *engineJob) {
 	chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 	for chunk := range job.chunks {
 		// Handle fetched chunk
-		cid, err := chunk.ID()
-		if err != nil {
-			panic(err)
-		}
-		cw, _ := e.authorized.Remove(cid)
+		cw, _ := e.authorized.Remove(chunk.ID())
 		p.Add(ctx, len(chunks), chunk, cw)
 		chunks = append(chunks, chunk)
 	}
