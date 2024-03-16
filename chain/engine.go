@@ -153,8 +153,8 @@ func (e *Engine) processJob(job *engineJob) {
 		return
 	}
 	if len(chunks) != len(job.blk.AvailableChunks) {
-		// TODO: handle graceful shutdown
-		e.vm.Logger().Fatal("did not receive all chunks from engine, exiting execution")
+		// This can happen on the shutdown path. If this is because of an error, the chunk manager will FATAL.
+		e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
 		return
 	}
 	e.vm.RecordExecutedChunks(len(chunks))
