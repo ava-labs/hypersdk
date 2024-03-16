@@ -81,6 +81,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authExecutionCores": 24,
   "actionExecutionCores": 8,
   "rootGenerationCores": 32,
+  "missingChunkFetchers": 48,
   "verifyAuth":true,
   "authRPCCores": 24,
   "authRPCBacklog": 10000000,
@@ -126,10 +127,10 @@ EOF
 CLUSTER="vryx-$(date +%s)"
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
+RED='\033[0;31m'
+YELLOw='\033[1;33m'
+NC='\033[0m'
 function cleanup {
-  RED='\033[0;31m'
-  YELLOw='\033[1;33m'
-  NC='\033[0m'
   echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
 }
 trap cleanup EXIT

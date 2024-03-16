@@ -67,6 +67,7 @@ type Metrics struct {
 	blockExecute              metric.Averager
 	chunkProcess              metric.Averager
 	optimisticChunkAuthorized metric.Averager
+	fetchMissingChunks        metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -195,6 +196,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"optimistic_chunk_authorized",
 		"time spent optimistically verifying chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	fetchMissingChunks, err := metric.NewAverager(
+		"chain",
+		"fetch_missing_chunks",
+		"time spent fetching missing chunks",
 		r,
 	)
 	if err != nil {
@@ -356,6 +366,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockExecute:              blockExecute,
 		chunkProcess:              chunkProcess,
 		optimisticChunkAuthorized: optimisticChunkAuthorized,
+		fetchMissingChunks:        fetchMissingChunks,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 

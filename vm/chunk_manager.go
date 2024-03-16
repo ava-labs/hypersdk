@@ -1030,7 +1030,7 @@ func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
 }
 
 // This function should be spawned in a goroutine because it blocks
-func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
 	// Ensure only one fetch is running at a time (all bandwidth should be allocated towards fetching chunks for next block)
 	myWaiter := make(chan struct{})
 	c.waiterL.Lock()
@@ -1049,6 +1049,7 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 		}
 
 		// Kickoff fetch
+		fetchStart := time.Now()
 		workers := min(len(certs), c.vm.config.GetMissingChunkFetchers())
 		f := opool.New(workers, len(certs))
 		for _, rcert := range certs {
@@ -1064,7 +1065,6 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 				// Fetch missing chunk
 				attempts := 0
 				for {
-					start := time.Now()
 					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 
 					// Look for chunk epoch
@@ -1134,7 +1134,6 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 						return nil, err
 					}
 					c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: cert.Slot})
-					c.vm.Logger().Info("fetched missing chunk", zap.Stringer("chunkID", chunk.ID()), zap.Duration("t", time.Since(start)))
 					return func() { chunks <- chunk }, nil
 				}
 			})
@@ -1146,6 +1145,8 @@ func (c *ChunkManager) RequestChunks(certs []*chain.ChunkCertificate, chunks cha
 			c.vm.Logger().Fatal("failed to fetch chunks", zap.Error(ferr))
 			return
 		}
+		c.vm.Logger().Info("finished fetching chunks", zap.Uint64("height", block), zap.Duration("t", time.Since(fetchStart)))
+		c.vm.metrics.fetchMissingChunks.Observe(float64(time.Since(fetchStart)))
 
 		// Invoke next waiter
 		close(myWaiter)

@@ -156,6 +156,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authExecutionCores": 4,
   "actionExecutionCores": 2,
   "rootGenerationCores": 4,
+  "missingChunkFetchers": 48,
   "verifyAuth":true,
   "authRPCCores": 4,
   "authRPCBacklog": 10000000,

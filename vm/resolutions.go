@@ -584,8 +584,8 @@ func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 	return vm.snowCtx.WarpSigner.Sign(msg)
 }
 
-func (vm *VM) RequestChunks(certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
-	vm.cm.RequestChunks(certs, chunks)
+func (vm *VM) RequestChunks(block uint64, certs []*chain.ChunkCertificate, chunks chan *chain.Chunk) {
+	vm.cm.RequestChunks(block, certs, chunks)
 }
 
 func (vm *VM) RecordEngineBacklog(c int) {

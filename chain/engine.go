@@ -398,7 +398,7 @@ func (e *Engine) Run() {
 func (e *Engine) Execute(blk *StatelessBlock) {
 	// Request chunks for processing when ready
 	chunks := make(chan *Chunk, len(blk.AvailableChunks))
-	e.vm.RequestChunks(blk.AvailableChunks, chunks) // spawns a goroutine
+	e.vm.RequestChunks(blk.Height(), blk.AvailableChunks, chunks) // spawns a goroutine
 
 	// Enqueue job
 	e.vm.RecordEngineBacklog(1)

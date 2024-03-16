@@ -72,7 +72,7 @@ type VM interface {
 
 	// TODO: cleanup
 	Engine() *Engine
-	RequestChunks([]*ChunkCertificate, chan *Chunk)
+	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
 
 	// We don't include this in registry because it would never be used
