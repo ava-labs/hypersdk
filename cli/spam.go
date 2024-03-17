@@ -352,12 +352,10 @@ func (h *Handler) Spam(
 		psent            int64
 		pbytes           int64
 
-		startRun         = time.Now()
-		tpsWindow        = window.Window{}
-		expiredWindow    = window.Window{} // needed for ttfWindow but not tps
-		ttfWindow        = window.Window{} // max int64 is ~5.3M (so can't have more than that per second)
-		delayTimeWindow  = window.Window{}
-		delayCountWindow = window.Window{}
+		startRun      = time.Now()
+		tpsWindow     = window.Window{}
+		expiredWindow = window.Window{} // needed for ttfWindow but not tps
+		ttfWindow     = window.Window{} // max int64 is ~5.3M (so can't have more than that per second)
 	)
 	go func() {
 		for {
@@ -404,27 +402,14 @@ func (h *Handler) Spam(
 
 				cDelayTime := delayTime
 				delayTime = 0
-				newDelayTimeWindow, err := window.Roll(delayTimeWindow, 1)
-				if err != nil {
-					panic(err)
-				}
-				delayTimeWindow = newDelayTimeWindow
-				window.Update(&delayTimeWindow, window.WindowSliceSize-consts.Uint64Len, uint64(cDelayTime))
-
 				cDelayCount := delayCount
 				delayCount = 0
-				newDelayCountWindow, err := window.Roll(delayCountWindow, 1)
-				if err != nil {
-					panic(err)
-				}
-				delayCountWindow = newDelayCountWindow
-				window.Update(&delayCountWindow, window.WindowSliceSize-consts.Uint64Len, cDelayCount)
 
 				if totalTxs > 0 && tpsSum > 0 {
 					// tps is only contains transactions that actually made it onchain
 					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv[10s]:{{/}} %d (recv delay[10s]=%.2fms)\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv/s:{{/}} %d (recv delay=%.2fms)\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
 						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
@@ -434,8 +419,8 @@ func (h *Handler) Spam(
 						csent-psent,
 						pending.Len(),
 						float64(cbytes-pbytes)/units.KiB,
-						window.Sum(delayCountWindow),
-						float64(window.Sum(delayTimeWindow))/float64(window.Sum(delayCountWindow)),
+						cDelayCount,
+						float64(cDelayTime)/float64(cDelayCount),
 					)
 				} else if totalTxs > 0 {
 					// This shouldn't happen but we should log when it does.
