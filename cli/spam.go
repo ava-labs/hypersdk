@@ -430,7 +430,12 @@ func (h *Handler) Spam(
 			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
 				if pending.Len() > currentTarget*pendingTargetMultiplier {
-					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
+					if currentTarget > targetIncreaseRate {
+						currentTarget -= targetIncreaseRate
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, updating target tps:{{/}} %d\n", currentTarget)
+					} else {
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+					}
 					exitedEarly = true
 					break
 				}
