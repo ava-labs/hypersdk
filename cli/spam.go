@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -51,16 +50,17 @@ const (
 )
 
 type txWrapper struct {
-	tx       *chain.Transaction
+	id       ids.ID
+	expiry   int64
 	issuance int64
 }
 
 func (w *txWrapper) ID() ids.ID {
-	return w.tx.ID()
+	return w.id
 }
 
 func (w *txWrapper) Expiry() int64 {
-	return w.tx.Expiry()
+	return w.expiry
 }
 
 // TODO: we should NEVER use globals, remove this
@@ -80,7 +80,8 @@ var (
 	invalidTxs       uint64
 	totalTxs         uint64
 
-	pending   = eheap.New[*txWrapper](16_384)
+	pending = NewOExpirer()
+
 	issuedTxs atomic.Int64
 	sent      atomic.Int64
 	bytes     atomic.Int64
@@ -203,7 +204,8 @@ func (h *Handler) Spam(
 		return err
 	}
 	action := getTransfer(key.Address, 0, uniqueBytes())
-	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
+	rules := parser.Rules(time.Now().UnixMilli())
+	maxUnits, err := chain.EstimateUnits(rules, action, factory, nil)
 	if err != nil {
 		return err
 	}
@@ -364,9 +366,10 @@ func (h *Handler) Spam(
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
-				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
-				for _, d := range dropped {
-					confirmationTime += uint64(time.Now().UnixMilli() - d.issuance - pendingExpiryBuffer)
+				now := time.Now().UnixMilli()
+				dropped := pending.SetMin(now - pendingExpiryBuffer) // set in the past to allow for delay on connection
+				for _, txw := range dropped {
+					confirmationTime += uint64(now - txw.issuance - pendingExpiryBuffer)
 					expiredTxs++
 					totalTxs++
 				}
@@ -517,7 +520,7 @@ func (h *Handler) Spam(
 						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 						return err
 					}
-					pending.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
+					pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()})
 					if err := issuer.d.RegisterTx(tx); err != nil {
 						issuer.l.Lock()
 						if issuer.d.Closed() {
@@ -695,8 +698,8 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				return
 			}
 			now := time.Now().UnixMilli()
-			tw, ok := pending.Remove(txID)
-			if !ok {
+			tw := pending.Remove(txID)
+			if tw == nil {
 				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
 				// This will be counted by the loop that did that, so we can just continue.
 				continue
