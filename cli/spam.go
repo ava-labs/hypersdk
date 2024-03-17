@@ -414,7 +414,7 @@ func (h *Handler) Spam(
 						pending.Len(),
 						float64(cbytes-pbytes)/units.KiB,
 					)
-				} else {
+				} else if totalTxs > 0 {
 					// This shouldn't happen but we should log when it does.
 					utils.Outf(
 						"{{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
