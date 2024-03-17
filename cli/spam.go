@@ -412,7 +412,6 @@ func (h *Handler) Spam(
 	// broadcast txs
 	var (
 		it                      = time.NewTimer(0)
-		z                       = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
 		currentTarget           = min(txsPerSecond, targetIncreaseRate)
 		consecutiveUnderBacklog int
 		consecutiveAboveBacklog int
@@ -424,6 +423,7 @@ func (h *Handler) Spam(
 		select {
 		case <-it.C:
 			start := time.Now()
+			z := rand.NewZipf(rand.New(rand.NewSource(start.UnixMilli())), sZipf, vZipf, uint64(numAccounts)-1)
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			exitedEarly := false
@@ -651,6 +651,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 		for {
 			txID, dErr, result, err := c.ListenTx(context.TODO())
 			if err != nil {
+				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
 			}
 			now := time.Now().UnixMilli()
