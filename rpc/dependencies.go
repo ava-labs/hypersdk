@@ -39,4 +39,6 @@ type VM interface {
 	RecordRPCTxBacklog(int64)
 	AddRPCAuthorized(tx *chain.Transaction)
 	StopChan() chan struct{}
+
+	RecordReadDelay(int64)
 }

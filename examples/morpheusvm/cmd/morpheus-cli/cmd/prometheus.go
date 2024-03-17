@@ -154,6 +154,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_rpc_tx_backlog", chainID))
 			utils.Outf("{{yellow}}RPC transaction backlog:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_rpc_read_delay_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_rpc_read_delay_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}RPC read delay (ms):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tx_rpc_authorized[5s])/5", chainID))
 			utils.Outf("{{yellow}}RPC pre-authorized per second:{{/}} %s\n", panels[len(panels)-1])
 

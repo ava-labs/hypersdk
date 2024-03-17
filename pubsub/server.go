@@ -57,6 +57,7 @@ func NewDefaultServerConfig() *ServerConfig {
 //
 // Connect to the server after starting using websocket.DefaultDialer.Dial().
 type Server struct {
+	m        Metrics
 	log      logging.Logger
 	config   *ServerConfig
 	callback Callback
@@ -67,11 +68,13 @@ type Server struct {
 // New returns a new Server instance. The callback function [f] is called
 // by the server in response to messages if not nil.
 func New(
+	metrics Metrics,
 	log logging.Logger,
 	config *ServerConfig,
 	callback Callback,
 ) *Server {
 	return &Server{
+		m:        metrics,
 		log:      log,
 		config:   config,
 		callback: callback,
@@ -99,6 +102,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addConnection(&Connection{
+		m:    s.m,
 		s:    s,
 		conn: wsConn,
 		mb: NewMessageBuffer(

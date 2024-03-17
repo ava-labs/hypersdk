@@ -52,7 +52,8 @@ func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsu
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages
-	w.s = pubsub.New(w.vm.Logger(), cfg, w.MessageCallback())
+	// TODO: cleanup this function definition
+	w.s = pubsub.New(w.vm, w.vm.Logger(), cfg, w.MessageCallback())
 	for i := 0; i < vm.GetAuthRPCCores(); i++ {
 		go w.startWorker()
 	}

@@ -647,3 +647,7 @@ func (vm *VM) RecordRPCAuthorizedTx() {
 func (vm *VM) RecordBlockVerifyFail() {
 	vm.metrics.blockVerifyFailed.Inc()
 }
+
+func (vm *VM) RecordReadDelay(ms int64) {
+	vm.metrics.rpcReadDelay.Observe(float64(ms))
+}
