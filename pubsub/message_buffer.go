@@ -20,6 +20,7 @@ type MessageBuffer struct {
 	Queue chan []byte
 
 	l            sync.Mutex
+	count        uint64
 	log          logging.Logger
 	pending      [][]byte
 	pendingSize  int
@@ -94,36 +95,33 @@ func (m *MessageBuffer) clearPending() error {
 		// If this is failing in a loop, we will stay stuck here forever....
 		panic(err) // TODO: remove this panic
 	}
-	select {
-	case m.Queue <- bm:
-	default:
-		m.log.Debug("dropped pending message")
-		panic("dropped message from buffer")
-	}
+
+	// TODO: handle case where the connection dies
+	m.Queue <- bm
 
 	m.pendingSize = batchOverhead
 	m.pending = [][]byte{}
 	return nil
 }
 
-func (m *MessageBuffer) Send(msg []byte) error {
+func (m *MessageBuffer) Send(msg []byte) (uint64, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
 	if m.closed {
-		return ErrClosed
+		return 0, ErrClosed
 	}
 
 	l := codec.BytesLen(msg)
 	if l > m.maxPackSize {
-		return ErrMessageTooLarge
+		return 0, ErrMessageTooLarge
 	}
 
 	// Clear existing buffer if would be greater than target
 	if len(m.pending) > 0 && m.pendingSize+l > m.targetSize {
 		m.pendingTimer.Cancel()
 		if err := m.clearPending(); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
@@ -135,7 +133,9 @@ func (m *MessageBuffer) Send(msg []byte) error {
 	if len(m.pending) == 1 {
 		m.pendingTimer.SetTimeoutIn(m.timeout)
 	}
-	return nil
+	c := m.count
+	m.count++
+	return c, nil
 }
 
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {

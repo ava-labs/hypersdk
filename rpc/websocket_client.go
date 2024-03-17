@@ -31,6 +31,9 @@ type WebSocketClient struct {
 	pendingChunks chan []byte
 	pendingTxs    chan []byte
 
+	txsl sync.Mutex
+	txs  map[uint64]ids.ID
+
 	delaySum   int64
 	delayCount uint64
 
@@ -70,6 +73,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 		pendingBlocks: make(chan []byte, pending),
 		pendingChunks: make(chan []byte, pending),
 		pendingTxs:    make(chan []byte, pending),
+		txs:           make(map[uint64]ids.ID, pending),
 	}
 	go func() {
 		defer close(wc.readStopped)
@@ -177,7 +181,8 @@ func (c *WebSocketClient) RegisterBlocks() error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send([]byte{BlockMode})
+	_, err := c.mb.Send([]byte{BlockMode})
+	return err
 }
 
 // Listen listens for block messages from the streaming server.
@@ -198,7 +203,8 @@ func (c *WebSocketClient) RegisterChunks() error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send([]byte{ChunkMode})
+	_, err := c.mb.Send([]byte{ChunkMode})
+	return err
 }
 
 // Listen listens for block messages from the streaming server.
@@ -221,7 +227,15 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
+	txC, err := c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
+	if err != nil {
+		return err
+	}
+	txID := tx.ID()
+	c.txsl.Lock()
+	c.txs[txC] = txID
+	c.txsl.Unlock()
+	return nil
 }
 
 // ListenForTx listens for responses from the streamingServer.
@@ -232,7 +246,18 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, uint8, error) {
 	select {
 	case msg := <-c.pendingTxs:
-		return UnpackTxMessage(msg)
+		rtxID, status, err := UnpackTxMessage(msg)
+		if err != nil {
+			return ids.Empty, 0, err
+		}
+		c.txsl.Lock()
+		defer c.txsl.Unlock()
+		txID, ok := c.txs[rtxID]
+		if !ok {
+			return ids.Empty, 0, ErrUnknownTx
+		}
+		delete(c.txs, rtxID)
+		return txID, status, nil
 	case <-c.readStopped:
 		return ids.Empty, 0, c.err
 	case <-ctx.Done():

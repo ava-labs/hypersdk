@@ -134,6 +134,18 @@ func (s *Server) Publish(msg []byte, conns *Connections) []*Connection {
 	return inactiveConnections
 }
 
+func (s *Server) PublishSpecific(msg []byte, conn *Connection) *Connection {
+	if !s.conns.Has(conn) {
+		return conn
+	}
+	if !conn.Send(msg) {
+		s.log.Verbo(
+			"dropping message to subscribed connection due to too many pending messages",
+		)
+	}
+	return nil
+}
+
 // addConnection adds [conn] to the servers connection set and starts go
 // routines for reading and writing messages for the connection.
 func (s *Server) addConnection(conn *Connection) {

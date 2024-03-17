@@ -4,7 +4,6 @@
 package rpc
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -62,21 +61,20 @@ func UnpackChunkMessage(
 	return height, chunk, results, p.Err()
 }
 
-func PackTxMessage(txID ids.ID, status uint8) ([]byte, error) {
+func PackTxMessage(txID uint64, status uint8) ([]byte, error) {
 	size := consts.IDLen + consts.Uint8Len
 	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackID(txID)
+	p.PackUint64(txID)
 	p.PackByte(status)
 	return p.Bytes(), p.Err()
 }
 
-func UnpackTxMessage(msg []byte) (ids.ID, uint8, error) {
-	p := codec.NewReader(msg, consts.IDLen+consts.BoolLen)
-	var txID ids.ID
-	p.UnpackID(true, &txID)
+func UnpackTxMessage(msg []byte) (uint64, uint8, error) {
+	p := codec.NewReader(msg, consts.Uint64Len+consts.BoolLen)
+	txID := p.UnpackUint64(false)
 	status := p.UnpackByte()
 	if !p.Empty() {
-		return ids.Empty, 0, chain.ErrInvalidObject
+		return 0, 0, chain.ErrInvalidObject
 	}
 	return txID, status, p.Err()
 }

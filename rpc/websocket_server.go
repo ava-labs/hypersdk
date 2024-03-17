@@ -21,7 +21,13 @@ import (
 )
 
 type txWrapper struct {
-	msg []byte
+	order uint64
+	msg   []byte
+	c     *pubsub.Connection
+}
+
+type txListener struct {
+	num uint64
 	c   *pubsub.Connection
 }
 
@@ -36,9 +42,8 @@ type WebSocketServer struct {
 	incomingTransactions chan *txWrapper
 	txBacklog            atomic.Int64
 
-	txL sync.Mutex
-	// TODO: can unify with a single heap + wrapper
-	txListeners map[ids.ID]*pubsub.Connections
+	txL         sync.Mutex
+	txListeners map[ids.ID][]*txListener
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 }
 
@@ -48,7 +53,7 @@ func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsu
 		blockListeners:       pubsub.NewConnections(),
 		chunkListeners:       pubsub.NewConnections(),
 		incomingTransactions: make(chan *txWrapper, vm.GetAuthRPCBacklog()),
-		txListeners:          map[ids.ID]*pubsub.Connections{},
+		txListeners:          make(map[ids.ID][]*txListener, maxPendingMessages),
 		expiringTxs:          emap.NewEMap[*chain.Transaction](),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
@@ -98,7 +103,7 @@ func (w *WebSocketServer) startWorker() {
 					continue
 				}
 			}
-			w.AddTxListener(tx, txw.c)
+			w.AddTxListener(txw.order, tx, txw.c)
 
 			// Submit will remove from [txWaiters] if it is not added
 			txID := tx.ID()
@@ -120,16 +125,18 @@ func (w *WebSocketServer) startWorker() {
 
 // Note: no need to have a tx listener removal, this will happen when all
 // submitted transactions are cleared.
-func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
+func (w *WebSocketServer) AddTxListener(num uint64, tx *chain.Transaction, c *pubsub.Connection) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
 
 	// TODO: limit max number of tx listeners a single connection can create
 	txID := tx.ID()
 	if _, ok := w.txListeners[txID]; !ok {
-		w.txListeners[txID] = pubsub.NewConnections()
+		w.txListeners[txID] = make([]*txListener, 0, 1)
 	}
-	w.txListeners[txID].Add(c)
+	// User may submit same tx multiple times, so we need to track all instances to ensure
+	// we respond to all of them.
+	w.txListeners[txID] = append(w.txListeners[txID], &txListener{num, c})
 	w.expiringTxs.Add([]*chain.Transaction{tx})
 }
 
@@ -150,11 +157,13 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 	if errors.Is(err, ErrExpired) {
 		status = TxExpired
 	}
-	bytes, err := PackTxMessage(txID, status)
-	if err != nil {
-		return err
+	for _, listener := range listeners {
+		bytes, err := PackTxMessage(listener.num, status)
+		if err != nil {
+			return err
+		}
+		w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
 	}
-	w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 	return nil
@@ -211,11 +220,13 @@ func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, r
 		if !results[i].Success {
 			status = TxFailed
 		}
-		bytes, err := PackTxMessage(txID, status)
-		if err != nil {
-			return err
+		for _, listener := range listeners {
+			bytes, err := PackTxMessage(listener.num, status)
+			if err != nil {
+				return err
+			}
+			w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
 		}
-		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
@@ -229,7 +240,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 		log    = w.vm.Logger()
 	)
 
-	return func(msgBytes []byte, c *pubsub.Connection) {
+	return func(num uint64, msgBytes []byte, c *pubsub.Connection) {
 		_, span := tracer.Start(context.Background(), "WebSocketServer.Callback")
 		defer span.End()
 
@@ -253,7 +264,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			select {
-			case w.incomingTransactions <- &txWrapper{msgBytes, c}:
+			case w.incomingTransactions <- &txWrapper{num, msgBytes, c}:
 				w.txBacklog.Add(1)
 				log.Debug("enqueued tx for processing")
 			default:
