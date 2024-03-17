@@ -299,8 +299,8 @@ func (h *Handler) Spam(
 
 	// Kickoff txs
 	utils.Outf("{{yellow}}starting load test...{{/}}\n")
-	utils.Outf("{{yellow}}target TPS:{{/}} %d\n", txsPerSecond)
-	utils.Outf("{{yellow}}Zipf distribution [(v+k)^(-s)] s:{{/}} %.2f {{yellow}}v:{{/}} %.2f\n", sZipf, vZipf)
+	utils.Outf("{{yellow}}max tps:{{/}} %d\n", txsPerSecond)
+	utils.Outf("{{yellow}}zipf distribution [(v+k)^(-s)] s:{{/}} %.2f {{yellow}}v:{{/}} %.2f\n", sZipf, vZipf)
 	clients := []*txIssuer{}
 	for i := 0; i < len(uriNames); i++ {
 		for j := 0; j < numClients; j++ {
@@ -434,7 +434,7 @@ func (h *Handler) Spam(
 					if consecutiveAboveBacklog == failedRunsToDecreaseTarget {
 						if currentTarget > targetIncreaseRate {
 							currentTarget -= targetIncreaseRate
-							utils.Outf("{{cyan}}skipping issuance because large backlog detected, updating target tps:{{/}} %d\n", currentTarget)
+							utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
 						} else {
 							utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
 						}
@@ -537,7 +537,7 @@ func (h *Handler) Spam(
 			consecutiveUnderBacklog++
 			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
 				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
-				utils.Outf("{{cyan}}updated target tps:{{/}} %d\n", currentTarget)
+				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
 			}
 		case <-cctx.Done():
