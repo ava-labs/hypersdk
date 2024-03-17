@@ -780,7 +780,7 @@ func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error
 		}
 		if status != rpc.TxSuccess {
 			// Should never happen
-			return fmt.Errorf("%w: %d", ErrTxFailed, status)
+			return fmt.Errorf("transaction failed: %d", status)
 		}
 	}
 	return nil
