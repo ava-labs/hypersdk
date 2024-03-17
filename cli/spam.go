@@ -332,13 +332,15 @@ func (h *Handler) Spam(
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
 	var (
-		lastTxCount uint64
-		psent       int64
-		pbytes      int64
+		lastExpiredCount uint64
+		lastOnchainCount uint64
+		psent            int64
+		pbytes           int64
 
-		startRun  = time.Now()
-		tpsWindow = window.Window{}
-		ttfWindow = window.Window{} // max int64 is ~5.3M (so can't have more than that per second)
+		startRun      = time.Now()
+		tpsWindow     = window.Window{}
+		expiredWindow = window.Window{} // needed for ttfWindow but not tps
+		ttfWindow     = window.Window{} // max int64 is ~5.3M (so can't have more than that per second)
 	)
 	go func() {
 		for {
@@ -361,9 +363,10 @@ func (h *Handler) Spam(
 				}
 				ttfWindow = newTTFWindow
 				window.Update(&ttfWindow, window.WindowSliceSize-consts.Uint64Len, cConf)
-				validTxs := (confirmedTxs + expiredTxs + erroredTxs)
-				cTxs := validTxs - lastTxCount
-				lastTxCount = validTxs
+
+				onchainTxs := confirmedTxs + erroredTxs
+				cTxs := onchainTxs - lastOnchainCount
+				lastOnchainCount = onchainTxs
 				newTPSWindow, err := window.Roll(tpsWindow, 1)
 				if err != nil {
 					panic(err)
@@ -372,11 +375,23 @@ func (h *Handler) Spam(
 				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, cTxs)
 				tpsDivisor := min(window.WindowSize, time.Since(startRun).Seconds())
 				tpsSum := window.Sum(tpsWindow)
+
+				cExpired := expiredTxs - lastExpiredCount
+				lastExpiredCount = expiredTxs
+				newExpiredWindow, err := window.Roll(expiredWindow, 1)
+				if err != nil {
+					panic(err)
+				}
+				expiredWindow = newExpiredWindow
+				window.Update(&expiredWindow, window.WindowSliceSize-consts.Uint64Len, cExpired)
+
 				if totalTxs > 0 && tpsSum > 0 {
+					// tps is only contains transactions that actually made it onchain
+					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
 						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
-						float64(window.Sum(ttfWindow))/float64(tpsSum)/float64(consts.MillisecondsPerSecond),
+						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
 						float64(preErroredTxs)/float64(totalTxs)*100,
 						float64(erroredTxs)/float64(totalTxs)*100,
