@@ -35,7 +35,8 @@ type WebSocketServer struct {
 	incomingTransactions chan *txWrapper
 	txBacklog            atomic.Int64
 
-	txL         sync.Mutex
+	txL sync.Mutex
+	// TODO: can unify with a single heap + wrapper
 	txListeners map[ids.ID]*pubsub.Connections
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 }

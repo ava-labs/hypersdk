@@ -70,7 +70,6 @@ var (
 	maxConcurrency = runtime.NumCPU()
 
 	issuerWg sync.WaitGroup
-	exiting  sync.Once
 
 	l                sync.Mutex
 	confirmationTime uint64 // reset each second
@@ -496,14 +495,14 @@ func (h *Handler) Spam(
 							dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 							if err != nil {
 								issuer.abandoned = err
-								utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
 								issuer.l.Unlock()
+								utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
 								return err
 							}
 							issuer.d = dcli
 							issuer.l.Unlock()
-							startConfirmer(cctx, dcli)
 							utils.Outf("{{green}}re-created closed issuer:{{/}} %d (%v)\n", issuerIndex, err)
+							startConfirmer(cctx, dcli)
 						} else {
 							// This typically happens when the issuer errors and is replaced by a new one in
 							// a different goroutine.
@@ -518,10 +517,8 @@ func (h *Handler) Spam(
 				})
 			}
 			if err := g.Wait(); err != nil {
-				exiting.Do(func() {
-					utils.Outf("{{yellow}}exiting broadcast loop because of error:{{/}} %v\n", err)
-					cancel()
-				})
+				utils.Outf("{{yellow}}exiting broadcast loop because of error:{{/}} %v\n", err)
+				cancel()
 				stop = true
 			}
 
@@ -546,10 +543,8 @@ func (h *Handler) Spam(
 			stop = true
 		case <-signals:
 			stop = true
-			exiting.Do(func() {
-				utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-				cancel()
-			})
+			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
+			cancel()
 		}
 	}
 	t.Stop()
