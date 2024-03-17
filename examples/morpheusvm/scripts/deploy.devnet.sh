@@ -78,7 +78,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
   "mempoolExemptSponsors":["${ADDRESS}"],
-  "authExecutionCores": 24,
+  "authExecutionCores": 30,
   "actionExecutionCores": 8,
   "rootGenerationCores": 32,
   "missingChunkFetchers": 48,
