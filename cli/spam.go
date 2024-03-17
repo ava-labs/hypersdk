@@ -697,6 +697,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
 			}
+			now := time.Now().UnixMilli()
 			tw := pending.Remove(txID)
 			if tw == nil {
 				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
@@ -718,7 +719,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				return
 			}
 			if status <= rpc.TxExpired {
-				confirmationTime += uint64(time.Now().UnixMilli() - tw.issuance)
+				confirmationTime += uint64(now - tw.issuance)
 			}
 			totalTxs++
 			l.Unlock()
