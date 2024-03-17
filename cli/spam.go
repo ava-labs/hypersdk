@@ -43,8 +43,8 @@ const (
 	plotOverhead   = 10
 	plotHeight     = 25
 
-	inflightTargetMultiplier       = 5
-	inflightExpiryBuffer           = 5 * consts.MillisecondsPerSecond
+	pendingTargetMultiplier        = 5
+	pendingExpiryBuffer            = 15 * consts.MillisecondsPerSecond
 	targetIncreaseRate             = 1000
 	successfulRunsToIncreaseTarget = 10
 
@@ -80,7 +80,7 @@ var (
 	preErroredTxs    uint64
 	totalTxs         uint64
 
-	inflight  = eheap.New[*txWrapper](16_384)
+	pending   = eheap.New[*txWrapper](16_384)
 	issuedTxs atomic.Int64
 	sent      atomic.Int64
 	bytes     atomic.Int64
@@ -349,9 +349,9 @@ func (h *Handler) Spam(
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
-				dropped := inflight.SetMin(time.Now().UnixMilli() - inflightExpiryBuffer) // set in the past to allow for delay on connection
+				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
 				for _, d := range dropped {
-					confirmationTime += uint64(time.Now().UnixMilli() - d.issuance - inflightExpiryBuffer)
+					confirmationTime += uint64(time.Now().UnixMilli() - d.issuance - pendingExpiryBuffer)
 					expiredTxs++
 					totalTxs++
 				}
@@ -397,7 +397,7 @@ func (h *Handler) Spam(
 						float64(erroredTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						csent-psent,
-						inflight.Len(),
+						pending.Len(),
 						float64(cbytes-pbytes)/units.KiB,
 					)
 				}
@@ -429,7 +429,7 @@ func (h *Handler) Spam(
 			exitedEarly := false
 			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
-				if inflight.Len() > currentTarget*inflightTargetMultiplier {
+				if pending.Len() > currentTarget*pendingTargetMultiplier {
 					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
 					exitedEarly = true
 					break
@@ -467,7 +467,7 @@ func (h *Handler) Spam(
 					if err != nil {
 						return err
 					}
-					inflight.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
+					pending.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
 					if err := issuer.d.RegisterTx(tx); err != nil {
 						issuer.l.Lock()
 						if issuer.d.Closed() {
@@ -548,8 +548,8 @@ func (h *Handler) Spam(
 		for {
 			select {
 			case <-t.C:
-				inflight.SetMin(time.Now().UnixMilli())
-				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Len())
+				pending.SetMin(time.Now().UnixMilli())
+				utils.Outf("{{yellow}}remaining:{{/}} %d\n", pending.Len())
 			case <-dctx.Done():
 				return
 			}
@@ -641,9 +641,11 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				return
 			}
 			now := time.Now().UnixMilli()
-			tw, ok := inflight.Remove(txID)
+			tw, ok := pending.Remove(txID)
 			if !ok {
-				panic("tx not found in inflight")
+				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
+				// This will be counted by the loop that did that, so we can just continue.
+				continue
 			}
 			l.Lock()
 			if result != nil {
@@ -680,7 +682,7 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 			if issuer.d.Closed() {
 				return
 			}
-			if inflight.Len() == 0 {
+			if pending.Len() == 0 {
 				return
 			}
 			time.Sleep(500 * time.Millisecond)
