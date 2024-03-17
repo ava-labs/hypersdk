@@ -185,11 +185,11 @@ func BlockFile(height uint64) string {
 }
 
 func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
-	return vm.blobDB.Put(BlockFile(blk.Height()), blk.Bytes())
+	return vm.blobDB.Put(BlockFile(blk.Height()), blk.Bytes(), true)
 }
 
 func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	b, err := vm.blobDB.Get(BlockFile(height))
+	b, err := vm.blobDB.Get(BlockFile(height), true)
 	if err != nil {
 		return nil, err
 	}
@@ -342,14 +342,14 @@ func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(ChunkFile(chunk.Slot, chunk.ID()), b)
+	return vm.blobDB.Put(ChunkFile(chunk.Slot, chunk.ID()), b, false)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 	if c, ok := chunkLRU.Get(chunk); ok {
 		return c, nil
 	}
-	b, err := vm.blobDB.Get(ChunkFile(slot, chunk))
+	b, err := vm.blobDB.Get(ChunkFile(slot, chunk), false)
 	if errors.Is(err, database.ErrNotFound) {
 		// TODO: remove this pattern
 		return nil, nil
@@ -361,7 +361,7 @@ func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 }
 
 func (vm *VM) GetChunkBytes(slot int64, chunk ids.ID) ([]byte, error) {
-	return vm.blobDB.Get(ChunkFile(slot, chunk))
+	return vm.blobDB.Get(ChunkFile(slot, chunk), false)
 }
 
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
@@ -391,11 +391,11 @@ func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(FilteredChunkFile(cid), b)
+	return vm.blobDB.Put(FilteredChunkFile(cid), b, true)
 }
 
 func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
-	b, err := vm.blobDB.Get(FilteredChunkFile(chunk))
+	b, err := vm.blobDB.Get(FilteredChunkFile(chunk), true)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -406,7 +406,7 @@ func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
 }
 
 func (vm *VM) GetFilteredChunkBytes(chunk ids.ID) ([]byte, error) {
-	return vm.blobDB.Get(FilteredChunkFile(chunk))
+	return vm.blobDB.Get(FilteredChunkFile(chunk), true)
 }
 
 func (vm *VM) RemoveFilteredChunk(chunk ids.ID) error {
