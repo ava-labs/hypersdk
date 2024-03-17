@@ -229,14 +229,14 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking
 // layer in the client so no changes required in the server).
-func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
+func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, uint8, error) {
 	select {
 	case msg := <-c.pendingTxs:
 		return UnpackTxMessage(msg)
 	case <-c.readStopped:
-		return ids.Empty, nil, nil, c.err
+		return ids.Empty, 0, c.err
 	case <-ctx.Done():
-		return ids.Empty, nil, nil, ctx.Err()
+		return ids.Empty, 0, ctx.Err()
 	}
 }
 

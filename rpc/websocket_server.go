@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 
@@ -145,7 +146,11 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 	if !ok {
 		return nil
 	}
-	bytes, err := PackRemovedTxMessage(txID, err)
+	status := TxInvalid
+	if errors.Is(err, ErrExpired) {
+		status = TxExpired
+	}
+	bytes, err := PackTxMessage(txID, status)
 	if err != nil {
 		return err
 	}
@@ -202,7 +207,11 @@ func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, r
 			continue
 		}
 		// Publish to tx listener
-		bytes, err := PackAcceptedTxMessage(txID, results[i])
+		status := TxSuccess
+		if !results[i].Success {
+			status = TxFailed
+		}
+		bytes, err := PackTxMessage(txID, status)
 		if err != nil {
 			return err
 		}

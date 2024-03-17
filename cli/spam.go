@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -75,10 +74,10 @@ var (
 	confirmationTime uint64 // reset each second
 	delayTime        int64  // reset each second
 	delayCount       uint64 // reset each second
-	confirmedTxs     uint64
+	successTxs       uint64
 	expiredTxs       uint64
-	erroredTxs       uint64
-	preErroredTxs    uint64
+	failedTxs        uint64
+	invalidTxs       uint64
 	totalTxs         uint64
 
 	pending   = eheap.New[*txWrapper](16_384)
@@ -382,7 +381,7 @@ func (h *Handler) Spam(
 				ttfWindow = newTTFWindow
 				window.Update(&ttfWindow, window.WindowSliceSize-consts.Uint64Len, cConf)
 
-				onchainTxs := confirmedTxs + erroredTxs
+				onchainTxs := successTxs + failedTxs
 				cTxs := onchainTxs - lastOnchainCount
 				lastOnchainCount = onchainTxs
 				newTPSWindow, err := window.Roll(tpsWindow, 1)
@@ -425,12 +424,12 @@ func (h *Handler) Spam(
 					// tps is only contains transactions that actually made it onchain
 					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv[10s]:{{/}} %d (recv delay[10s]=%.2fms)\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv[10s]:{{/}} %d (recv delay[10s]=%.2fms)\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
 						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
-						float64(preErroredTxs)/float64(totalTxs)*100,
-						float64(erroredTxs)/float64(totalTxs)*100,
+						float64(invalidTxs)/float64(totalTxs)*100,
+						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						csent-psent,
 						pending.Len(),
@@ -443,8 +442,8 @@ func (h *Handler) Spam(
 					utils.Outf(
 						"{{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
 						totalTxs,
-						float64(preErroredTxs)/float64(totalTxs)*100,
-						float64(erroredTxs)/float64(totalTxs)*100,
+						float64(invalidTxs)/float64(totalTxs)*100,
+						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						csent-psent,
 						pending.Len(),
@@ -705,7 +704,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			txID, dErr, result, err := c.ListenTx(context.TODO())
+			txID, status, err := c.ListenTx(context.TODO())
 			if err != nil {
 				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
@@ -718,23 +717,21 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				continue
 			}
 			l.Lock()
-			if result != nil {
-				if result.Success {
-					confirmedTxs++
-				} else {
-					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
-					erroredTxs++
-				}
+			switch status {
+			case rpc.TxSuccess:
+				successTxs++
+			case rpc.TxFailed:
+				failedTxs++
+			case rpc.TxExpired:
+				expiredTxs++
+			case rpc.TxInvalid:
+				invalidTxs++
+			default:
+				utils.Outf("{{red}}unknown tx status{{/}}: %d\n", status)
+				return
+			}
+			if status <= rpc.TxExpired {
 				confirmationTime += uint64(now - tw.issuance)
-			} else {
-				// We can't error match here because we receive it over the wire.
-				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
-					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
-					preErroredTxs++
-				} else {
-					expiredTxs++
-					confirmationTime += uint64(now - tw.issuance)
-				}
 			}
 			totalTxs++
 			l.Unlock()
@@ -792,16 +789,13 @@ func uniqueBytes() []byte {
 
 func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error {
 	for i := 0; i < numTxs; i++ {
-		_, dErr, result, err := cli.ListenTx(ctx)
+		_, status, err := cli.ListenTx(ctx)
 		if err != nil {
 			return err
 		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
+		if status != rpc.TxSuccess {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+			return fmt.Errorf("%w: %d", ErrTxFailed, status)
 		}
 	}
 	return nil

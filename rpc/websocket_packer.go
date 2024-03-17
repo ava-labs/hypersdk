@@ -4,8 +4,6 @@
 package rpc
 
 import (
-	"errors"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,6 +14,11 @@ const (
 	BlockMode byte = 0
 	ChunkMode byte = 1
 	TxMode    byte = 2
+
+	TxSuccess uint8 = 0
+	TxFailed  uint8 = 1
+	TxExpired uint8 = 2
+	TxInvalid uint8 = 3
 )
 
 func PackChunkMessage(block uint64, c *chain.FilteredChunk, results []*chain.Result) ([]byte, error) {
@@ -59,47 +62,21 @@ func UnpackChunkMessage(
 	return height, chunk, results, p.Err()
 }
 
-// Could be a better place for these methods
-// Packs an accepted block message
-func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
-	size := consts.IDLen + consts.BoolLen + result.Size()
+func PackTxMessage(txID ids.ID, status uint8) ([]byte, error) {
+	size := consts.IDLen + consts.Uint8Len
 	p := codec.NewWriter(size, consts.MaxInt)
 	p.PackID(txID)
-	p.PackBool(false)
-	if err := result.Marshal(p); err != nil {
-		return nil, err
-	}
+	p.PackByte(status)
 	return p.Bytes(), p.Err()
 }
 
-// Packs a removed block message
-func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
-	errString := err.Error()
-	size := consts.IDLen + consts.BoolLen + codec.StringLen(errString)
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackID(txID)
-	p.PackBool(true)
-	p.PackString(errString)
-	return p.Bytes(), p.Err()
-}
-
-// Unpacks a tx message from [msg]. Returns the txID, an error regarding the status
-// of the tx, the result of the tx, and an error if there was a
-// problem unpacking the message.
-func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
-	p := codec.NewReader(msg, consts.MaxInt)
+func UnpackTxMessage(msg []byte) (ids.ID, uint8, error) {
+	p := codec.NewReader(msg, consts.IDLen+consts.BoolLen)
 	var txID ids.ID
 	p.UnpackID(true, &txID)
-	if p.UnpackBool() {
-		err := p.UnpackString(true)
-		return ids.Empty, errors.New(err), nil, p.Err()
-	}
-	result, err := chain.UnmarshalResult(p)
-	if err != nil {
-		return ids.Empty, nil, nil, err
-	}
+	status := p.UnpackByte()
 	if !p.Empty() {
-		return ids.Empty, nil, nil, chain.ErrInvalidObject
+		return ids.Empty, 0, chain.ErrInvalidObject
 	}
-	return txID, nil, result, p.Err()
+	return txID, status, p.Err()
 }
