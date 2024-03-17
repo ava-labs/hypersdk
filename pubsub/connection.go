@@ -110,6 +110,7 @@ func (c *Connection) readPump() {
 			c.s.log.Debug("unable to read websockets message",
 				zap.Error(err),
 			)
+			panic(err)
 			return
 		}
 		for _, msg := range msgs {

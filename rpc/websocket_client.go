@@ -101,6 +101,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, max
 			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
+				panic(err)
 				continue
 			}
 			for _, msg := range msgs {
