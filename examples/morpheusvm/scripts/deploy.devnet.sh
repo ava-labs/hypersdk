@@ -68,6 +68,7 @@ cat <<EOF > "${TMPDIR}"/allocations.json
   {"address":"morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn", "balance":3000000000000000000},
   {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":3000000000000000000}
 ]
+EOF
 
 "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
 --epoch-duration "${EPOCH_DURATION}" \
