@@ -414,6 +414,18 @@ func (h *Handler) Spam(
 						pending.Len(),
 						float64(cbytes-pbytes)/units.KiB,
 					)
+				} else {
+					// This shouldn't happen but we should log when it does.
+					utils.Outf(
+						"{{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						totalTxs,
+						float64(preErroredTxs)/float64(totalTxs)*100,
+						float64(erroredTxs)/float64(totalTxs)*100,
+						float64(expiredTxs)/float64(totalTxs)*100,
+						csent-psent,
+						pending.Len(),
+						float64(cbytes-pbytes)/units.KiB,
+					)
 				}
 				l.Unlock()
 				psent = csent
@@ -464,6 +476,7 @@ func (h *Handler) Spam(
 				// math.Rand is not safe for concurrent use
 				senderIndex := z.Uint64()
 				sender := accounts[senderIndex]
+				recipientIndex := z.Uint64()
 				issuerIndex, issuer := getRandomIssuer(clients)
 				g.Go(func() error {
 					factory := factories[senderIndex]
@@ -482,7 +495,6 @@ func (h *Handler) Spam(
 					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early depending on clock sync */}
 
 					// Send transaction
-					recipientIndex := z.Uint64()
 					if recipientIndex == senderIndex {
 						if recipientIndex == uint64(numAccounts-1) {
 							recipientIndex--
@@ -563,13 +575,14 @@ func (h *Handler) Spam(
 			}
 		case <-cctx.Done():
 			stop = true
+			utils.Outf("{{yellow}}context canceled{{/}}\n")
 		case <-signals:
 			stop = true
 			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
 			cancel()
 		}
 	}
-	t.Stop()
+	it.Stop()
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")

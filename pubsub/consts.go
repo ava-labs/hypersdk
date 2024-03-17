@@ -26,6 +26,9 @@ const (
 	//
 	// If we go over this size, we see massive degradation from packet fragmentation:
 	// https://en.wikipedia.org/wiki/IP_fragmentation
+	//
+	// The larget websocket header is 14 bytes:
+	// https://www.openmymind.net/WebSocket-Framing-Masking-Fragmentation-and-More/
 	TargetWriteMessageSize = 1_200
 	MaxWriteMessageSize    = 16 * units.MiB
 	MaxMessageWait         = 50 * time.Millisecond
