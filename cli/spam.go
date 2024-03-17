@@ -46,6 +46,7 @@ const (
 	pendingExpiryBuffer            = 15 * consts.MillisecondsPerSecond
 	targetIncreaseRate             = 1000
 	successfulRunsToIncreaseTarget = 10
+	failedRunsToDecreaseTarget     = 5
 
 	issuerShutdownTimeout = 60 * time.Second
 )
@@ -320,11 +321,10 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	PrintUnitPrices(unitPrices)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, client := range clients {
-		startIssuer(cctx, client)
+		startConfirmer(cctx, client.d)
 	}
 
 	// log stats
@@ -415,6 +415,7 @@ func (h *Handler) Spam(
 		z                       = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
 		currentTarget           = min(txsPerSecond, targetIncreaseRate)
 		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
 
 		stop bool
 	)
@@ -429,11 +430,17 @@ func (h *Handler) Spam(
 			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
 				if pending.Len() > currentTarget*pendingTargetMultiplier {
-					if currentTarget > targetIncreaseRate {
-						currentTarget -= targetIncreaseRate
-						utils.Outf("{{cyan}}skipping issuance because large backlog detected, updating target tps:{{/}} %d\n", currentTarget)
+					consecutiveAboveBacklog++
+					if consecutiveAboveBacklog == failedRunsToDecreaseTarget {
+						if currentTarget > targetIncreaseRate {
+							currentTarget -= targetIncreaseRate
+							utils.Outf("{{cyan}}skipping issuance because large backlog detected, updating target tps:{{/}} %d\n", currentTarget)
+						} else {
+							utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+						}
+						consecutiveAboveBacklog = 0
 					} else {
-						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
 					}
 					exitedEarly = true
 					break
@@ -526,6 +533,7 @@ func (h *Handler) Spam(
 				consecutiveUnderBacklog = 0
 				continue
 			}
+			consecutiveAboveBacklog = 0
 			consecutiveUnderBacklog++
 			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
 				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
