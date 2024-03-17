@@ -86,12 +86,14 @@ func (m *MessageBuffer) Close() error {
 func (m *MessageBuffer) clearPending() error {
 	bm, err := CreateBatchMessage(m.maxSize, m.pending)
 	if err != nil {
-		return err
+		// If this is failing in a loop, we will stay stuck here forever....
+		panic(err) // TODO: remove this panic
 	}
 	select {
 	case m.Queue <- bm:
 	default:
 		m.log.Debug("dropped pending message")
+		panic("dropped message from buffer")
 	}
 
 	m.pendingSize = 0
