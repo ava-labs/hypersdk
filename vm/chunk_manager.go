@@ -769,7 +769,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 		select {
 		case <-ct.C:
 			if !c.vm.isReady() {
-				c.vm.Logger().Info("skipping chunk loop because vm isn't ready")
+				c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
 				continue
 			}
 			if skipChunks {

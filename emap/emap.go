@@ -167,3 +167,10 @@ func (e *EMap[T]) Get(id ids.ID) (T, bool) {
 	item, ok := e.seen[id]
 	return item, ok
 }
+
+func (e *EMap[T]) Size() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return len(e.seen)
+}

@@ -26,6 +26,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -43,26 +44,44 @@ const (
 	plotHeight     = 25
 
 	inflightTargetMultiplier       = 5
+	inflightExpiryBuffer           = 5 * consts.MillisecondsPerSecond
 	targetIncreaseRate             = 1000
 	successfulRunsToIncreaseTarget = 10
 
 	issuerShutdownTimeout = 60 * time.Second
 )
 
+type txWrapper struct {
+	tx       *chain.Transaction
+	issuance int64
+}
+
+func (w *txWrapper) ID() ids.ID {
+	return w.tx.ID()
+}
+
+func (w *txWrapper) Expiry() int64 {
+	return w.tx.Expiry()
+}
+
 // TODO: we should NEVER use globals, remove this
 var (
+	ctx            = context.Background()
 	maxConcurrency = runtime.NumCPU()
 
 	issuerWg sync.WaitGroup
 	exiting  sync.Once
 
-	l            sync.Mutex
-	confirmedTxs uint64
-	expiredTxs   uint64
-	totalTxs     uint64
+	l                sync.Mutex
+	confirmationTime uint64 // reset each second
+	confirmedTxs     uint64
+	expiredTxs       uint64
+	erroredTxs       uint64
+	preErroredTxs    uint64
+	totalTxs         uint64
 
+	inflight  = eheap.New[*txWrapper](16_384)
 	issuedTxs atomic.Int64
-	inflight  atomic.Int64
 	sent      atomic.Int64
 	bytes     atomic.Int64
 )
@@ -79,8 +98,6 @@ func (h *Handler) Spam(
 	getTransfer func(codec.Address, uint64, []byte) chain.Action, // []byte prevents duplicate txs
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
-	ctx := context.Background()
-
 	// Plot Zipf
 	if plotZipf {
 		if err := ui.Init(); err != nil {
@@ -321,6 +338,7 @@ func (h *Handler) Spam(
 
 		startRun  = time.Now()
 		tpsWindow = window.Window{}
+		ttfWindow = window.Window{} // max int64 is ~5.3M (so can't have more than that per second)
 	)
 	go func() {
 		for {
@@ -329,24 +347,42 @@ func (h *Handler) Spam(
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
-				ctxs := confirmedTxs - lastTxCount
-				lastTxCount = confirmedTxs
-				newWindow, err := window.Roll(tpsWindow, 1)
+				dropped := inflight.SetMin(time.Now().UnixMilli() - inflightExpiryBuffer) // set in the past to allow for delay on connection
+				for _, d := range dropped {
+					confirmationTime += uint64(time.Now().UnixMilli() - d.issuance - inflightExpiryBuffer)
+					expiredTxs++
+					totalTxs++
+				}
+				cConf := confirmationTime
+				confirmationTime = 0
+				newTTFWindow, err := window.Roll(ttfWindow, 1)
 				if err != nil {
 					panic(err)
 				}
-				tpsWindow = newWindow
-				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, ctxs)
+				ttfWindow = newTTFWindow
+				window.Update(&ttfWindow, window.WindowSliceSize-consts.Uint64Len, cConf)
+				validTxs := (confirmedTxs + expiredTxs + erroredTxs)
+				cTxs := validTxs - lastTxCount
+				lastTxCount = validTxs
+				newTPSWindow, err := window.Roll(tpsWindow, 1)
+				if err != nil {
+					panic(err)
+				}
+				tpsWindow = newTPSWindow
+				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, cTxs)
 				tpsDivisor := min(window.WindowSize, time.Since(startRun).Seconds())
-				if totalTxs > 0 {
+				tpsSum := window.Sum(tpsWindow)
+				if totalTxs > 0 && tpsSum > 0 {
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
-						float64(window.Sum(tpsWindow))/float64(tpsDivisor),
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						float64(tpsSum)/float64(tpsDivisor),
+						float64(window.Sum(ttfWindow))/float64(tpsSum)/float64(consts.MillisecondsPerSecond),
 						totalTxs,
-						float64(confirmedTxs)/float64(totalTxs)*100,
+						float64(preErroredTxs)/float64(totalTxs)*100,
+						float64(erroredTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						csent-psent,
-						inflight.Load(),
+						inflight.Len(),
 						float64(cbytes-pbytes)/units.KiB,
 					)
 				}
@@ -378,7 +414,7 @@ func (h *Handler) Spam(
 			exitedEarly := false
 			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
-				if inflight.Load() > int64(currentTarget*inflightTargetMultiplier) {
+				if inflight.Len() > currentTarget*inflightTargetMultiplier {
 					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
 					exitedEarly = true
 					break
@@ -416,6 +452,7 @@ func (h *Handler) Spam(
 					if err != nil {
 						return err
 					}
+					inflight.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
 					if err := issuer.d.RegisterTx(tx); err != nil {
 						issuer.l.Lock()
 						if issuer.d.Closed() {
@@ -434,23 +471,11 @@ func (h *Handler) Spam(
 							}
 							issuer.d = dcli
 							startIssuer(cctx, issuer)
-							droppedConfirmations := issuer.outstandingTxs
-							issuer.outstandingTxs = 0
-							issuer.l.Unlock()
-							l.Lock()
-							totalTxs += uint64(droppedConfirmations) + 1 // ensure stats are updated
-							l.Unlock()
-							inflight.Add(-int64(droppedConfirmations))
-							utils.Outf("{{green}}re-created closed issuer:{{/}} %d {{yellow}}dropped:{{/}} %d\n", issuerIndex, droppedConfirmations)
+							utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
 						} else {
 							// This typically happens when the issuer errors and is replaced by a new one in
 							// a different goroutine.
 							issuer.l.Unlock()
-
-							// Ensure we track all failures
-							l.Lock()
-							totalTxs++
-							l.Unlock()
 
 							if !errors.Is(err, rpc.ErrClosed) {
 								utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
@@ -458,11 +483,6 @@ func (h *Handler) Spam(
 						}
 						return nil
 					}
-
-					issuer.l.Lock()
-					issuer.outstandingTxs++
-					issuer.l.Unlock()
-					inflight.Add(1)
 					sent.Add(1)
 					bytes.Add(int64(len(tx.Bytes())))
 					return nil
@@ -508,15 +528,13 @@ func (h *Handler) Spam(
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	dctx, cancel := context.WithCancel(ctx)
 	go func() {
-		// Send a dummy transaction if shutdown is taking too long (listeners are
-		// expired on accept if dropped)
-		t := time.NewTicker(15 * time.Second)
+		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
-				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				_ = h.SubmitDummy(dctx, cli, submitDummy(cli, key))
+				inflight.SetMin(time.Now().UnixMilli())
+				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Len())
 			case <-dctx.Done():
 				return
 			}
@@ -573,7 +591,8 @@ func (h *Handler) Spam(
 		return err
 	}
 	utils.Outf(
-		"{{yellow}}returned funds:{{/}} %s %s\n",
+		"{{yellow}}returned funds from %d accounts:{{/}} %s %s\n",
+		numAccounts,
 		utils.FormatBalance(returnedBalance, h.c.Decimals()),
 		h.c.Symbol(),
 	)
@@ -584,11 +603,10 @@ type txIssuer struct {
 	c *rpc.JSONRPCClient
 	d *rpc.WebSocketClient
 
-	l              sync.Mutex
-	name           string
-	uri            int
-	abandoned      error
-	outstandingTxs int
+	l         sync.Mutex
+	name      string
+	uri       int
+	abandoned error
 }
 
 type timeModifier struct {
@@ -603,37 +621,32 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			_, dErr, result, err := issuer.d.ListenTx(context.TODO())
+			txID, dErr, result, err := issuer.d.ListenTx(context.TODO())
 			if err != nil {
-				issuer.l.Lock()
-				// prevents issuer on other thread from handling at the same time
-				// needed in case all are stuck
-				droppedConfirmations := issuer.outstandingTxs
-				issuer.outstandingTxs = 0
-				issuer.l.Unlock()
-				l.Lock()
-				totalTxs += uint64(droppedConfirmations)
-				l.Unlock()
-				inflight.Add(-int64(droppedConfirmations))
 				return
 			}
-			inflight.Add(-1)
-			issuer.l.Lock()
-			issuer.outstandingTxs--
-			issuer.l.Unlock()
+			now := time.Now().UnixMilli()
+			tw, ok := inflight.Remove(txID)
+			if !ok {
+				panic("tx not found in inflight")
+			}
 			l.Lock()
 			if result != nil {
 				if result.Success {
 					confirmedTxs++
 				} else {
 					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
+					erroredTxs++
 				}
+				confirmationTime += uint64(now - tw.issuance)
 			} else {
 				// We can't error match here because we receive it over the wire.
 				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
 					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
+					preErroredTxs++
 				} else {
 					expiredTxs++
+					confirmationTime += uint64(now - tw.issuance)
 				}
 			}
 			totalTxs++
@@ -652,10 +665,7 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 			if issuer.d.Closed() {
 				return
 			}
-			issuer.l.Lock()
-			outstanding := issuer.outstandingTxs
-			issuer.l.Unlock()
-			if outstanding == 0 {
+			if inflight.Len() == 0 {
 				return
 			}
 			time.Sleep(500 * time.Millisecond)
