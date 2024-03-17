@@ -47,8 +47,12 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 # We use a shorter EPOCH_DURATION and VALIDITY_WINDOW to speed up devnet
 # startup. In a production environment, these should be set to longer values.
 #
-# TODO: print this out while waiting for network as well.
-ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
+# Addresses:
+# morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu: 323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+# morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3: ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9
+# morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4: 34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e
+# morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn: ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77
+# morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
 EPOCH_DURATION=30000
 VALIDITY_WINDOW=25000
 MIN_BLOCK_GAP=1000
@@ -57,7 +61,11 @@ MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
 echo "creating allocations file"
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
-  {"address":"${ADDRESS}", "balance":10000000000000000000}
+  {"address":"morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu", "balance":10000000000000000000},
+  {"address":"morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3", "balance":10000000000000000000},
+  {"address":"morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4", "balance":10000000000000000000},
+  {"address":"morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn", "balance":10000000000000000000},
+  {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":10000000000000000000}
 ]
 EOF
 
@@ -77,7 +85,6 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "blockBuildFrequency": 100,
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
-  "mempoolExemptSponsors":["${ADDRESS}"],
   "authExecutionCores": 30,
   "actionExecutionCores": 8,
   "rootGenerationCores": 32,
@@ -128,7 +135,7 @@ CLUSTER="vryx-$(date +%s)"
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
 RED='\033[0;31m'
-YELLOw='\033[1;33m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 function cleanup {
   echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
