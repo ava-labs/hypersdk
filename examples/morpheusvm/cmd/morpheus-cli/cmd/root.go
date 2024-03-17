@@ -34,7 +34,7 @@ var (
 	sZipf                 float64
 	vZipf                 float64
 	plotZipf              bool
-	numClients            int
+	connsPerHost          int
 	clusterInfo           string
 	privateKey            string
 	checkAllChains        bool
@@ -179,7 +179,7 @@ func init() {
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&numAccounts,
-		"num-accounts",
+		"accounts",
 		-1,
 		"number of accounts submitting txs",
 	)
@@ -190,10 +190,10 @@ func init() {
 		"number of txs issued per second (under backlog)",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
-		&numClients,
-		"num-clients",
+		&connsPerHost,
+		"conns-per-host",
 		-1,
-		"number of clients per host",
+		"number of connections to create per host",
 	)
 	runSpamCmd.PersistentFlags().StringVar(
 		&clusterInfo,
