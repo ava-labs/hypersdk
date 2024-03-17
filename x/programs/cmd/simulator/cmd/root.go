@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -14,18 +13,16 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/controller"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
+
+	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 const (
@@ -36,7 +33,6 @@ type simulator struct {
 	log      logging.Logger
 	logLevel string
 
-	vm      *vm.VM
 	db      *state.SimpleMutable
 	genesis *genesis.Genesis
 	cleanup func()
@@ -77,15 +73,6 @@ func NewRootCmd() *cobra.Command {
 
 	// ensure vm and databases are properly closed on simulator exit
 	cobra.OnFinalize(func() {
-		if s.vm != nil {
-			err := s.vm.Shutdown(cmd.Context())
-			if err != nil {
-				s.log.Error("simulator vm closed with error",
-					zap.Error(err),
-				)
-			}
-		}
-
 		cleanup, _ := cmd.Flags().GetBool("cleanup")
 		if cleanup {
 			s.cleanup()
@@ -109,9 +96,6 @@ func (s *simulator) Init() error {
 
 	// TODO: allow for user defined ids.
 	nodeID := ids.BuildTestNodeID(b)
-	networkID := uint32(1)
-	subnetID := ids.GenerateTestID()
-	chainID := ids.GenerateTestID()
 
 	basePath := path.Join(homeDir, simulatorFolder)
 	dbPath := path.Join(basePath, fmt.Sprintf("db-%s", nodeID.String()))
@@ -143,55 +127,24 @@ func (s *simulator) Init() error {
 		return err
 	}
 
-	sk, err := bls.NewSecretKey()
+	stateDB, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
+	if err != nil {
+		return err
+	}
+	tracer, err := avatrace.New(avatrace.Config{Enabled: false})
 	if err != nil {
 		return err
 	}
 
-	genesisBytes, err := json.Marshal(genesis.Default())
+	merkleDB, err := merkledb.New(context.TODO(), stateDB, merkledb.Config{
+		BranchFactor: merkledb.BranchFactor16,
+		Tracer:       tracer,
+	})
 	if err != nil {
 		return err
 	}
 
-	snowCtx := &snow.Context{
-		NetworkID:    networkID,
-		SubnetID:     subnetID,
-		ChainID:      chainID,
-		NodeID:       nodeID,
-		Log:          logging.NoLog{}, // TODO: use real logger
-		ChainDataDir: dbPath,
-		Metrics:      metrics.NewOptionalGatherer(),
-		PublicKey:    bls.PublicFromSecretKey(sk),
-	}
-
-	toEngine := make(chan common.Message, 1)
-
-	// initialize the simulator VM
-	vm := controller.New()
-
-	err = vm.Initialize(
-		context.TODO(),
-		snowCtx,
-		nil,
-		genesisBytes,
-		nil,
-		nil,
-		toEngine,
-		nil,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	s.vm = vm
-	// force the vm to be ready because it has no peers.
-	s.vm.ForceReady()
-
-	stateDB, err := s.vm.State()
-	if err != nil {
-		return err
-	}
-	s.db = state.NewSimpleMutable(stateDB)
+	s.db = state.NewSimpleMutable(merkleDB)
 	s.genesis = genesis.Default()
 
 	s.log.Info("simulator initialized",
