@@ -411,6 +411,8 @@ func (h *Handler) Spam(
 
 	// broadcast txs
 	var (
+		z = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
+
 		it                      = time.NewTimer(0)
 		currentTarget           = min(txsPerSecond, targetIncreaseRate)
 		consecutiveUnderBacklog int
@@ -423,7 +425,6 @@ func (h *Handler) Spam(
 		select {
 		case <-it.C:
 			start := time.Now()
-			z := rand.NewZipf(rand.New(rand.NewSource(start.UnixMilli())), sZipf, vZipf, uint64(numAccounts)-1)
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			exitedEarly := false
@@ -445,10 +446,11 @@ func (h *Handler) Spam(
 					exitedEarly = true
 					break
 				}
+				// math.Rand is not safe for concurrent use
+				senderIndex := z.Uint64()
+				sender := accounts[senderIndex]
+				issuerIndex, issuer := getRandomIssuer(clients)
 				g.Go(func() error {
-					senderIndex := z.Uint64()
-					sender := accounts[senderIndex]
-					issuerIndex, issuer := getRandomIssuer(clients)
 					factory := factories[senderIndex]
 					fundsL.Lock()
 					balance := funds[sender.Address]
