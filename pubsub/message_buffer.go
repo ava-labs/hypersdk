@@ -35,9 +35,10 @@ func NewMessageBuffer(log logging.Logger, pending int, targetSize int, maxSize i
 
 		log:         log,
 		pending:     [][]byte{},
+		pendingSize: consts.IntLen, // account for message count
 		targetSize:  targetSize,
 		maxSize:     maxSize,
-		maxPackSize: maxSize - consts.IntLen, // account for message count in batch
+		maxPackSize: maxSize,
 		timeout:     timeout,
 	}
 	m.pendingTimer = timer.NewTimer(func() {
@@ -98,7 +99,7 @@ func (m *MessageBuffer) clearPending() error {
 		panic("dropped message from buffer")
 	}
 
-	m.pendingSize = 0
+	m.pendingSize = consts.IntLen
 	m.pending = [][]byte{}
 	return nil
 }
@@ -116,8 +117,8 @@ func (m *MessageBuffer) Send(msg []byte) error {
 		return ErrMessageTooLarge
 	}
 
-	// Clear existing buffer if too large
-	if m.pendingSize+l > m.maxPackSize {
+	// Clear existing buffer if would be greater than target
+	if len(m.pending) > 0 && m.pendingSize+l > m.targetSize {
 		m.pendingTimer.Cancel()
 		if err := m.clearPending(); err != nil {
 			return err
@@ -127,15 +128,6 @@ func (m *MessageBuffer) Send(msg []byte) error {
 	// Add pending
 	m.pendingSize += l
 	m.pending = append(m.pending, msg)
-
-	// Clear existing buffer if greater than target
-	if m.pendingSize > m.targetSize {
-		m.pendingTimer.Cancel()
-		if err := m.clearPending(); err != nil {
-			return err
-		}
-		return nil
-	}
 
 	// Set timer if this is the only message
 	if len(m.pending) == 1 {
