@@ -24,7 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -68,8 +67,6 @@ var (
 	ctx            = context.Background()
 	maxConcurrency = runtime.NumCPU()
 
-	validityWindow int64
-
 	issuerWg sync.WaitGroup
 
 	l                sync.Mutex
@@ -81,8 +78,8 @@ var (
 	failedTxs        uint64
 	invalidTxs       uint64
 	totalTxs         uint64
-	issued           = emap.NewEMap[*txWrapper]()
-	pending          = make(map[ids.ID]*txWrapper, 16_384)
+
+	pending = NewOExpirer()
 
 	issuedTxs atomic.Int64
 	sent      atomic.Int64
@@ -211,7 +208,6 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	validityWindow = rules.GetValidityWindow()
 
 	// Distribute funds
 	if numAccounts == 0 {
@@ -369,12 +365,10 @@ func (h *Handler) Spam(
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
-				dropped := issued.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
-				for _, txID := range dropped {
-					if _, ok := pending[txID]; !ok {
-						continue
-					}
-					confirmationTime += uint64(validityWindow)
+				now := time.Now().UnixMilli()
+				dropped := pending.SetMin(now - pendingExpiryBuffer) // set in the past to allow for delay on connection
+				for _, txw := range dropped {
+					confirmationTime += uint64(now - txw.issuance - pendingExpiryBuffer)
 					expiredTxs++
 					totalTxs++
 				}
@@ -425,7 +419,7 @@ func (h *Handler) Spam(
 						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						csent-psent,
-						len(pending),
+						pending.Len(),
 						float64(cbytes-pbytes)/units.KiB,
 						cDelayCount,
 						float64(cDelayTime)/float64(cDelayCount),
@@ -439,7 +433,7 @@ func (h *Handler) Spam(
 						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						csent-psent,
-						len(pending),
+						pending.Len(),
 						float64(cbytes-pbytes)/units.KiB,
 					)
 				}
@@ -471,12 +465,9 @@ func (h *Handler) Spam(
 			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			exitedEarly := false
-			l.Lock()
-			currPending := len(pending)
-			l.Unlock()
 			for i := 0; i < currentTarget; i++ {
 				// Ensure we aren't too backlogged
-				if currPending > currentTarget*pendingTargetMultiplier {
+				if pending.Len() > currentTarget*pendingTargetMultiplier {
 					consecutiveAboveBacklog++
 					if consecutiveAboveBacklog == failedRunsToDecreaseTarget {
 						if currentTarget > targetIncreaseRate {
@@ -528,10 +519,7 @@ func (h *Handler) Spam(
 						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 						return err
 					}
-					issued.Add([]*txWrapper{{tx: tx, issuance: time.Now().UnixMilli()}})
-					l.Lock()
-					pending[tx.ID()] = &txWrapper{tx: tx, issuance: time.Now().UnixMilli()}
-					l.Unlock()
+					pending.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
 					if err := issuer.d.RegisterTx(tx); err != nil {
 						issuer.l.Lock()
 						if issuer.d.Closed() {
@@ -615,10 +603,8 @@ func (h *Handler) Spam(
 		for {
 			select {
 			case <-t.C:
-				issued.SetMin(time.Now().UnixMilli())
-				l.Lock()
-				utils.Outf("{{yellow}}remaining:{{/}} %d\n", len(pending))
-				l.Unlock()
+				pending.SetMin(time.Now().UnixMilli())
+				utils.Outf("{{yellow}}remaining:{{/}} %d\n", pending.Len())
 			case <-dctx.Done():
 				return
 			}
@@ -710,15 +696,13 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
 			}
-			now := time.Now().UnixMilli()
-			l.Lock()
-			tw, ok := pending[txID]
-			if !ok {
-				l.Unlock()
+			tw := pending.Remove(txID)
+			if tw == nil {
 				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
 				// This will be counted by the loop that did that, so we can just continue.
 				continue
 			}
+			l.Lock()
 			switch status {
 			case rpc.TxSuccess:
 				successTxs++
@@ -733,7 +717,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				return
 			}
 			if status <= rpc.TxExpired {
-				confirmationTime += uint64(now - tw.issuance)
+				confirmationTime += uint64(time.Now().UnixMilli() - tw.issuance)
 			}
 			totalTxs++
 			l.Unlock()
@@ -771,10 +755,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 			if c.Closed() {
 				return
 			}
-			l.Lock()
-			pendingLen := len(pending)
-			l.Unlock()
-			if pendingLen == 0 {
+			if pending.Len() == 0 {
 				return
 			}
 			time.Sleep(500 * time.Millisecond)
