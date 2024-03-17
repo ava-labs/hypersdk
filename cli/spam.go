@@ -50,16 +50,17 @@ const (
 )
 
 type txWrapper struct {
-	tx       *chain.Transaction
+	id       ids.ID
+	expiry   int64
 	issuance int64
 }
 
 func (w *txWrapper) ID() ids.ID {
-	return w.tx.ID()
+	return w.id
 }
 
 func (w *txWrapper) Expiry() int64 {
-	return w.tx.Expiry()
+	return w.expiry
 }
 
 // TODO: we should NEVER use globals, remove this
@@ -519,7 +520,7 @@ func (h *Handler) Spam(
 						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 						return err
 					}
-					pending.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
+					pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()})
 					if err := issuer.d.RegisterTx(tx); err != nil {
 						issuer.l.Lock()
 						if issuer.d.Closed() {
