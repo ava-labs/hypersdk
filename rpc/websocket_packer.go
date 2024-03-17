@@ -4,6 +4,8 @@
 package rpc
 
 import (
+	"encoding/binary"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -62,19 +64,17 @@ func UnpackChunkMessage(
 }
 
 func PackTxMessage(txID uint64, status uint8) ([]byte, error) {
-	size := consts.IDLen + consts.Uint8Len
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackUint64(txID)
-	p.PackByte(status)
-	return p.Bytes(), p.Err()
+	b := make([]byte, binary.MaxVarintLen64+1)
+	c := binary.PutUvarint(b, txID)
+	b[c] = status
+	return b[:c+1], nil
 }
 
 func UnpackTxMessage(msg []byte) (uint64, uint8, error) {
-	p := codec.NewReader(msg, consts.Uint64Len+consts.BoolLen)
-	txID := p.UnpackUint64(false)
-	status := p.UnpackByte()
-	if !p.Empty() {
+	txID, offset := binary.Uvarint(msg)
+	if len(msg) < offset {
 		return 0, 0, chain.ErrInvalidObject
 	}
-	return txID, status, p.Err()
+	status := msg[offset]
+	return txID, status, nil
 }
