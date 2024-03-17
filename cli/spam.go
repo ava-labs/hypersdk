@@ -490,6 +490,7 @@ func (h *Handler) Spam(
 								return err
 							}
 							issuer.d = dcli
+							issuer.l.Unlock()
 							startIssuer(cctx, issuer)
 							utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
 						} else {
