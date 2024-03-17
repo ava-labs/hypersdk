@@ -7,7 +7,6 @@ package cli
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -448,6 +447,7 @@ func (h *Handler) Spam(
 					balance := funds[sender.Address]
 					if feePerTx > balance {
 						fundsL.Unlock()
+						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
 						return fmt.Errorf("%s has insufficient funds", sender.Address)
 					}
 					funds[sender.Address] = balance - feePerTx
@@ -470,6 +470,7 @@ func (h *Handler) Spam(
 					action := getTransfer(recipient, 1, uniqueBytes())
 					_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
 					if err != nil {
+						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 						return err
 					}
 					pending.Add(&txWrapper{tx: tx, issuance: time.Now().UnixMilli()})
@@ -478,10 +479,11 @@ func (h *Handler) Spam(
 						if issuer.d.Closed() {
 							if issuer.abandoned != nil {
 								issuer.l.Unlock()
+								utils.Outf("{{orange}}issuer abandoned:{{/}} %v\n", issuer.abandoned)
 								return issuer.abandoned
 							}
 							// recreate issuer
-							utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
+							utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d {{red}}err:{{/}} %v\n", issuerIndex, issuer.uri, err)
 							dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 							if err != nil {
 								issuer.abandoned = err
@@ -491,16 +493,13 @@ func (h *Handler) Spam(
 							}
 							issuer.d = dcli
 							issuer.l.Unlock()
-							startIssuer(cctx, issuer)
-							utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
+							startConfirmer(cctx, dcli)
+							utils.Outf("{{green}}re-created closed issuer:{{/}} %d (%v)\n", issuerIndex, err)
 						} else {
 							// This typically happens when the issuer errors and is replaced by a new one in
 							// a different goroutine.
 							issuer.l.Unlock()
-
-							if !errors.Is(err, rpc.ErrClosed) {
-								utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
-							}
+							utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 						}
 						return nil
 					}
@@ -638,11 +637,11 @@ func (t *timeModifier) Base(b *chain.Base) {
 	b.Timestamp = t.Timestamp
 }
 
-func startIssuer(cctx context.Context, issuer *txIssuer) {
+func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			txID, dErr, result, err := issuer.d.ListenTx(context.TODO())
+			txID, dErr, result, err := c.ListenTx(context.TODO())
 			if err != nil {
 				return
 			}
@@ -678,14 +677,14 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	}()
 	go func() {
 		defer func() {
-			_ = issuer.d.Close()
+			_ = c.Close()
 			issuerWg.Done()
 		}()
 
 		<-cctx.Done()
 		start := time.Now()
 		for time.Since(start) < issuerShutdownTimeout {
-			if issuer.d.Closed() {
+			if c.Closed() {
 				return
 			}
 			if pending.Len() == 0 {
