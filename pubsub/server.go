@@ -24,6 +24,8 @@ type ServerConfig struct {
 	MaxPendingMessages int
 	// Maximum message size in bytes allowed from peer.
 	MaxReadMessageSize int
+	// Target message size is the preferred batch size for messages.
+	TargetWriteMessageSize int
 	// Maximum message size in bytes to send to peer.
 	MaxWriteMessageSize int
 	// Maximum delay for a single message to wait in the buffer
@@ -38,15 +40,16 @@ type ServerConfig struct {
 
 func NewDefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		ReadBufferSize:      ReadBufferSize,
-		WriteBufferSize:     WriteBufferSize,
-		MaxPendingMessages:  MaxPendingMessages,
-		MaxReadMessageSize:  MaxReadMessageSize,
-		MaxWriteMessageSize: MaxWriteMessageSize,
-		MaxMessageWait:      MaxMessageWait,
-		WriteWait:           WriteWait,
-		PongWait:            PongWait,
-		PingPeriod:          PongWait / 2, // don't wait until end of [PongWait] to send ping
+		ReadBufferSize:         ReadBufferSize,
+		WriteBufferSize:        WriteBufferSize,
+		MaxPendingMessages:     MaxPendingMessages,
+		MaxReadMessageSize:     MaxReadMessageSize,
+		TargetWriteMessageSize: TargetWriteMessageSize,
+		MaxWriteMessageSize:    MaxWriteMessageSize,
+		MaxMessageWait:         MaxMessageWait,
+		WriteWait:              WriteWait,
+		PongWait:               PongWait,
+		PingPeriod:             PongWait / 2, // don't wait until end of [PongWait] to send ping
 	}
 }
 
@@ -96,9 +99,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addConnection(&Connection{
-		s:      s,
-		conn:   wsConn,
-		mb:     NewMessageBuffer(s.log, s.config.MaxPendingMessages, s.config.MaxWriteMessageSize, s.config.MaxMessageWait),
+		s:    s,
+		conn: wsConn,
+		mb: NewMessageBuffer(
+			s.log,
+			s.config.MaxPendingMessages,
+			s.config.TargetWriteMessageSize,
+			s.config.MaxWriteMessageSize,
+			s.config.MaxMessageWait,
+		),
 		active: atomic.Bool{},
 	})
 	s.log.Debug("added pubsub connection", zap.Stringer("addr", wsConn.RemoteAddr()))

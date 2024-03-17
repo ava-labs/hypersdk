@@ -39,7 +39,7 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, maxWrite int) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, targetWrite, maxWrite int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -61,7 +61,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, max
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxWrite, pubsub.MaxMessageWait),
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, targetWrite, maxWrite, pubsub.MaxMessageWait),
 		readStopped:   make(chan struct{}),
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
@@ -101,7 +101,6 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, max
 			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
-				panic(err)
 				continue
 			}
 			for _, msg := range msgs {

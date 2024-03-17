@@ -69,7 +69,13 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	ws, err := rpc.NewWebSocketClient(uris[uriName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := rpc.NewWebSocketClient(
+		uris[uriName],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		pubsub.TargetWriteMessageSize,
+		pubsub.MaxReadMessageSize,
+	)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}

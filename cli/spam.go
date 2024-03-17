@@ -246,8 +246,14 @@ func (h *Handler) Spam(
 	)
 	accounts := make([]*PrivateKey, numAccounts)
 	factories := make([]chain.AuthFactory, numAccounts)
-	maxPendingMessages := max(pubsub.MaxPendingMessages, txsPerSecond*2)                                                            // ensure we don't block
-	dcli, err := rpc.NewWebSocketClient(uris[baseName], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	maxPendingMessages := max(pubsub.MaxPendingMessages, txsPerSecond*2) // ensure we don't block
+	dcli, err := rpc.NewWebSocketClient(
+		uris[baseName],
+		rpc.DefaultHandshakeTimeout,
+		maxPendingMessages,
+		pubsub.TargetWriteMessageSize,
+		pubsub.MaxReadMessageSize,
+	) // we write the max read
 	if err != nil {
 		return err
 	}
@@ -305,13 +311,23 @@ func (h *Handler) Spam(
 		for j := 0; j < numClients; j++ {
 			name := uriNames[i]
 			cli := rpc.NewJSONRPCClient(uris[name])
-			dcli, err := rpc.NewWebSocketClient(uris[name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			dcli, err := rpc.NewWebSocketClient(
+				uris[name],
+				rpc.DefaultHandshakeTimeout,
+				maxPendingMessages,
+				pubsub.TargetWriteMessageSize,
+				pubsub.MaxReadMessageSize,
+			) // we write the max read
 			if err != nil {
 				return err
 			}
 			clients = append(clients, &txIssuer{c: cli, d: dcli, name: name, uri: i})
+			if len(clients)%25 == 0 && len(clients) > 0 {
+				utils.Outf("{{yellow}}initializing connections:{{/}} %d/%d clients\n", len(clients), len(uriNames)*numClients)
+			}
 		}
 	}
+	utils.Outf("{{yellow}}initialized connections:{{/}} %d clients\n", len(clients))
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
@@ -492,7 +508,13 @@ func (h *Handler) Spam(
 							}
 							// recreate issuer
 							utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d {{red}}err:{{/}} %v\n", issuerIndex, issuer.uri, err)
-							dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+							dcli, err := rpc.NewWebSocketClient(
+								uris[issuer.name],
+								rpc.DefaultHandshakeTimeout,
+								maxPendingMessages,
+								pubsub.TargetWriteMessageSize,
+								pubsub.MaxReadMessageSize,
+							) // we write the max read
 							if err != nil {
 								issuer.abandoned = err
 								issuer.l.Unlock()

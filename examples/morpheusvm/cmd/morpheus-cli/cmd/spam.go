@@ -76,7 +76,13 @@ var runSpamCmd = &cobra.Command{
 			connsPerHost, clusterInfo, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
-				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+				ws, err := rpc.NewWebSocketClient(
+					uri,
+					rpc.DefaultHandshakeTimeout,
+					pubsub.MaxPendingMessages,
+					pubsub.TargetWriteMessageSize,
+					pubsub.MaxReadMessageSize,
+				)
 				if err != nil {
 					return err
 				}
