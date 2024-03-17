@@ -14,6 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const batchOverhead = consts.Int64Len + consts.IntLen // timestamp + msg count
+
 type MessageBuffer struct {
 	Queue chan []byte
 
@@ -35,7 +37,7 @@ func NewMessageBuffer(log logging.Logger, pending int, targetSize int, maxSize i
 
 		log:         log,
 		pending:     [][]byte{},
-		pendingSize: consts.IntLen, // account for message count
+		pendingSize: batchOverhead,
 		targetSize:  targetSize,
 		maxSize:     maxSize,
 		maxPackSize: maxSize,
@@ -99,7 +101,7 @@ func (m *MessageBuffer) clearPending() error {
 		panic("dropped message from buffer")
 	}
 
-	m.pendingSize = consts.IntLen
+	m.pendingSize = batchOverhead
 	m.pending = [][]byte{}
 	return nil
 }
@@ -137,7 +139,7 @@ func (m *MessageBuffer) Send(msg []byte) error {
 }
 
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
-	size := consts.IntLen
+	size := consts.Int64Len + consts.IntLen
 	for _, msg := range msgs {
 		size += codec.BytesLen(msg)
 	}
@@ -146,10 +148,11 @@ func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)
 	}
+	msgBatch.PackInt64(time.Now().UnixMilli())
 	return msgBatch.Bytes(), msgBatch.Err()
 }
 
-func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
+func ParseBatchMessage(maxSize int, msg []byte) (int64, [][]byte, error) {
 	msgBatch := codec.NewReader(msg, maxSize)
 	msgLen := msgBatch.UnpackInt(true)
 	msgs := [][]byte{}
@@ -157,9 +160,10 @@ func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 		var nextMsg []byte
 		msgBatch.UnpackBytes(-1, true, &nextMsg)
 		if err := msgBatch.Err(); err != nil {
-			return nil, err
+			return -1, nil, err
 		}
 		msgs = append(msgs, nextMsg)
 	}
-	return msgs, msgBatch.Err()
+	timestamp := msgBatch.UnpackInt64(true)
+	return timestamp, msgs, msgBatch.Err()
 }

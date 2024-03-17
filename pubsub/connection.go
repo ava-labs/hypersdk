@@ -17,12 +17,18 @@ import (
 // Accepts a byte message, the connection and any additional information.
 type Callback func([]byte, *Connection)
 
+type Metrics interface {
+	// RecordReadDelay records the delay between when a message was created and when it was read (noisy)
+	RecordReadDelay(int64) // ms
+}
+
 // connection is a representation of the websocket connection.
 type Connection struct {
 	s *Server
 
 	// The websocket connection.
 	conn *websocket.Conn
+	m    Metrics
 
 	// Buffered channel of outbound messages.
 	mb *MessageBuffer
@@ -105,12 +111,15 @@ func (c *Connection) readPump() {
 			c.s.log.Debug("dropping empty message")
 			continue
 		}
-		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, response)
+		created, msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, response)
 		if err != nil {
 			c.s.log.Debug("unable to read websockets message",
 				zap.Error(err),
 			)
 			return
+		}
+		if c.m != nil {
+			c.m.RecordReadDelay(max(0, time.Now().UnixMilli()-created)) // can be clock drift
 		}
 		for _, msg := range msgs {
 			c.s.callback(msg, c)

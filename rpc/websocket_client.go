@@ -31,6 +31,9 @@ type WebSocketClient struct {
 	pendingChunks chan []byte
 	pendingTxs    chan []byte
 
+	delaySum   int64
+	delayCount uint64
+
 	startedClose bool
 	closed       bool
 	err          error
@@ -98,11 +101,14 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
+			created, msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
 				continue
 			}
+			delay := max(0, time.Now().UnixMilli()-created)
+			wc.delaySum += delay
+			wc.delayCount++
 			for _, msg := range msgs {
 				tmsg := msg[1:]
 				switch msg[0] {
@@ -256,6 +262,12 @@ func (c *WebSocketClient) Close() error {
 		err = c.conn.Close()
 	})
 	return err
+}
+
+func (c *WebSocketClient) ResetDelay() (int64, uint64) {
+	delaySum, delayCount := c.delaySum, c.delayCount
+	c.delaySum, c.delayCount = 0, 0
+	return delaySum, delayCount
 }
 
 func (c *WebSocketClient) Closed() bool {
