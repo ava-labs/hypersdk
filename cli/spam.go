@@ -483,7 +483,7 @@ func (h *Handler) Spam(
 			skipped := false
 			if int64(pending.Len()+currentTarget)-txsToProcess > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveAboveBacklog++
-				if consecutiveAboveBacklog == failedRunsToDecreaseTarget {
+				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
 					if currentTarget > targetIncreaseRate {
 						currentTarget -= targetIncreaseRate
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
@@ -491,8 +491,6 @@ func (h *Handler) Spam(
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
 					}
 					consecutiveAboveBacklog = 0
-				} else {
-					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
 				}
 				skipped = true
 			} else {
