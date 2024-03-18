@@ -166,6 +166,14 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 
 				t.dependencies.Add(lt.id)
 				lt.blocking.Add(id)
+				for b := range key.concurrentReads {
+					bt := e.tasks[b]
+					// TODO: remove executed check
+					if !bt.executed {
+						t.dependencies.Add(bt.id)
+						bt.blocking.Add(id)
+					}
+				}				
 			}
 		}
 		// reads are blocked on itself
