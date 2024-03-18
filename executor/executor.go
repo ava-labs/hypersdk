@@ -39,8 +39,7 @@ type Executor struct {
 // assumption: keys in edges are A/W
 type keyData struct {
 	id int
-	blockers int
-	waiter chan struct{}
+	concurrentReads set.Set[int]
 }
 
 // New creates a new [Executor].
@@ -91,14 +90,6 @@ func (e *Executor) runWorker() {
 			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
 				bt.dependencies.Remove(t.id)
-				for key := range bt.keys {
-					k := e.edges[key]
-					// tODO: do i need k.concurrentReads?
-					if k.blockers == 0 {
-						close(k.waiter)
-					}
-					k.blockers--
-				}
 				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 					bt.dependencies = nil // free memory
 					e.executable <- bt
@@ -141,7 +132,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			lt := e.tasks[key.id]
 			if !lt.executed {
 				if v == state.Read {
-					key.blockers++
+					key.concurrentReads.Add(id)
 					continue
 				}
 
@@ -156,7 +147,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			}
 		}
 		// reads are blocked on itself
-		e.edges[k] = &keyData{id: id, blockers: 0, waiter: make(chan struct{})}
+		e.edges[k] = &keyData{id: id, concurrentReads: set.Set[int]{}}
 	}
 
 	// Start execution if there are no blocking dependencies
