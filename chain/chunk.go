@@ -17,10 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	mempoolBatchSize = 256
-	chunkPrealloc    = 16_384
-)
+const chunkPrealloc = 16_384
 
 type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
@@ -85,61 +82,60 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	)
 	mempool.StartStreaming(ctx)
 	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
-		txs := mempool.Stream(ctx, mempoolBatchSize)
-		for i, tx := range txs {
-			// Ensure we haven't included this transaction in a chunk yet
-			//
-			// Should protect us from issuing repeat txs (if others get duplicates,
-			// there will be duplicate inclusion but this is fixed with partitions)
-			if vm.IsIssuedTx(ctx, tx) {
-				continue
-			}
-
-			// TODO: count outstanding for an account and ensure less than epoch bond
-			// if too many, just put back into mempool and try again later
-
-			// TODO: ensure tx can still be processed (bond not frozen)
-
-			// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
-			// of activity).
-
-			// TODO: check if chunk units greater than limit
-
-			// TODO: verify transactions
-			if tx.Base.Timestamp > c.Slot {
-				continue
-			}
-
-			// Check if tx can fit in chunk
-			txUnits, err := tx.Units(sm, r)
-			if err != nil {
-				vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
-				continue
-			}
-			nextUnits, err := Add(chunkUnits, txUnits)
-			if err != nil {
-				full = true
-				// TODO: update mempool to only provide txs that can fit in chunk
-				// Want to maximize how "full" chunk is, so need to be a little complex
-				// if there are transactions with uneven usage of resources.
-
-				// Restore unused txs
-				mempool.FinishStreaming(ctx, txs[i:])
-				break
-			}
-			chunkUnits = nextUnits
-
-			// Add transaction to chunk
-			vm.IssueTx(ctx, tx) // prevents duplicate from being re-added to mempool
-			c.Txs = append(c.Txs, tx)
-			authCounts[tx.Auth.GetTypeID()]++
-		}
-		if len(txs) < mempoolBatchSize {
+		tx, ok := mempool.Stream(ctx)
+		if !ok {
 			cleared = true
 			break
 		}
+		// Ensure we haven't included this transaction in a chunk yet
+		//
+		// Should protect us from issuing repeat txs (if others get duplicates,
+		// there will be duplicate inclusion but this is fixed with partitions)
+		if vm.IsIssuedTx(ctx, tx) {
+			continue
+		}
+
+		// TODO: count outstanding for an account and ensure less than epoch bond
+		// if too many, just put back into mempool and try again later
+
+		// TODO: ensure tx can still be processed (bond not frozen)
+
+		// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
+		// of activity).
+
+		// TODO: check if chunk units greater than limit
+
+		// TODO: verify transactions
+		if tx.Base.Timestamp > c.Slot {
+			continue
+		}
+
+		// Check if tx can fit in chunk
+		txUnits, err := tx.Units(sm, r)
+		if err != nil {
+			vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
+			continue
+		}
+		nextUnits, err := Add(chunkUnits, txUnits)
+		if err != nil {
+			full = true
+			// TODO: update mempool to only provide txs that can fit in chunk
+			// Want to maximize how "full" chunk is, so need to be a little complex
+			// if there are transactions with uneven usage of resources.
+
+			// Restore unused txs
+			mempool.FinishStreaming(ctx, tx)
+			break
+		}
+		chunkUnits = nextUnits
+
+		// Add transaction to chunk
+		vm.IssueTx(ctx, tx) // prevents duplicate from being re-added to mempool
+		c.Txs = append(c.Txs, tx)
+		authCounts[tx.Auth.GetTypeID()]++
 	}
 	if !full {
+		// Clears conflicting set
 		mempool.FinishStreaming(ctx, nil)
 	}
 	if !cleared {

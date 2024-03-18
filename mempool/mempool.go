@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/oexpirer"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -225,43 +224,33 @@ func (m *Mempool[T]) StartStreaming(_ context.Context) {
 
 // Stream gets the next highest-valued [count] items from the mempool, not
 // including what has already been streamed.
-func (m *Mempool[T]) Stream(ctx context.Context, count int) []T {
+func (m *Mempool[T]) Stream(ctx context.Context) (T, bool) {
 	_, span := m.tracer.Start(ctx, "Mempool.Stream")
 	defer span.End()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	txs := make([]T, 0, count)
-	for len(txs) < count {
-		item, ok := m.txs.RemoveNext()
-		if !ok {
-			break
-		}
-		m.removeFromOwned(item)
-		m.size -= item.Size()
-		m.streamedItems.Add(item.ID())
-		txs = append(txs, item)
+	item, ok := m.txs.RemoveNext()
+	if !ok {
+		return *new(T), false
 	}
-	return txs
+	m.removeFromOwned(item)
+	m.size -= item.Size()
+	m.streamedItems.Add(item.ID())
+	return item, true
 }
 
 // FinishStreaming restores [restorable] items to the mempool and clears
 // the set of all previously streamed items.
-func (m *Mempool[T]) FinishStreaming(ctx context.Context, restorable []T) int {
+func (m *Mempool[T]) FinishStreaming(ctx context.Context, restorable T) {
 	_, span := m.tracer.Start(ctx, "Mempool.FinishStreaming")
 	defer span.End()
-
-	span.SetAttributes(
-		attribute.Int("restorable", len(restorable)),
-	)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	restored := len(restorable)
 	m.streamedItems = nil
-	m.add(restorable, true)
+	m.add([]T{restorable}, true)
 	m.streamLock.Unlock()
-	return restored
 }
