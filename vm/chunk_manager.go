@@ -144,7 +144,7 @@ type ChunkManager struct {
 	appSender   common.AppSender
 	incomingTxs chan *txGossipWrapper
 
-	txs *cache.FIFO[ids.ID, any]
+	epochHeights *cache.FIFO[uint64, uint64]
 
 	built *emap.EMap[*chunkWrapper]
 	// TODO: rebuild stored on startup
@@ -181,7 +181,7 @@ type txGossip struct {
 }
 
 func NewChunkManager(vm *VM) *ChunkManager {
-	cache, err := cache.NewFIFO[ids.ID, any](16384)
+	epochHeights, err := cache.NewFIFO[uint64, uint64](48)
 	if err != nil {
 		panic(err)
 	}
@@ -191,7 +191,7 @@ func NewChunkManager(vm *VM) *ChunkManager {
 
 		incomingTxs: make(chan *txGossipWrapper, vm.config.GetAuthGossipBacklog()),
 
-		txs: cache,
+		epochHeights: epochHeights,
 
 		built:  emap.NewEMap[*chunkWrapper](),
 		stored: eheap.New[*simpleChunkWrapper](64),
@@ -210,6 +210,9 @@ func NewChunkManager(vm *VM) *ChunkManager {
 func (c *ChunkManager) getEpochHeight(ctx context.Context, t int64) (uint64, error) {
 	r := c.vm.Rules(time.Now().UnixMilli())
 	epoch := utils.Epoch(t, r.GetEpochDuration())
+	if h, ok := c.epochHeights.Get(epoch); ok {
+		return h, nil
+	}
 	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
 	if err != nil {
 		return 0, err
@@ -217,6 +220,7 @@ func (c *ChunkManager) getEpochHeight(ctx context.Context, t int64) (uint64, err
 	if heights[0] == nil {
 		return 0, errors.New("epoch is not yet set")
 	}
+	c.epochHeights.Put(epoch, *heights[0])
 	return *heights[0], nil
 }
 
@@ -1017,11 +1021,7 @@ func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*ch
 }
 
 func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
-	// Check if issued recently
-	if _, ok := c.txs.Get(tx.ID()); ok {
-		return
-	}
-	c.txs.Put(tx.ID(), nil)
+	// TODO: drop if issued recently?
 
 	// Find transaction partition
 	epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
