@@ -69,6 +69,8 @@ var (
 	ctx            = context.Background()
 	maxConcurrency = runtime.NumCPU()
 
+	validityWindow int64
+
 	issuerWg sync.WaitGroup
 
 	l                sync.Mutex
@@ -210,6 +212,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+	validityWindow = rules.GetValidityWindow()
 
 	// Distribute funds
 	if numAccounts == 0 {
@@ -367,10 +370,9 @@ func (h *Handler) Spam(
 				csent := sent.Load()
 				cbytes := bytes.Load()
 				l.Lock()
-				now := time.Now().UnixMilli()
-				dropped := pending.SetMin(now - pendingExpiryBuffer) // set in the past to allow for delay on connection
-				for _, txw := range dropped {
-					confirmationTime += uint64(now - txw.issuance - pendingExpiryBuffer)
+				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
+				for range dropped {
+					confirmationTime += uint64(validityWindow)
 					expiredTxs++
 					totalTxs++
 				}
