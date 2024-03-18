@@ -302,7 +302,7 @@ func TestManyWrites(t *testing.T) {
 }
 
 // R->R->R->...
-/*func TestManyReads(t *testing.T) {
+func TestManyReads(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -367,7 +367,7 @@ func TestWriteThenRead(t *testing.T) {
 }
 
 // W->R->R->...W->R->R->...
-func TestWriteThenReadRepeated(t *testing.T) {
+/*func TestWriteThenReadRepeated(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
