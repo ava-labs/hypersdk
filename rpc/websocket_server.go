@@ -42,7 +42,8 @@ type WebSocketServer struct {
 	incomingTransactions chan *txWrapper
 	txBacklog            atomic.Int64
 
-	txL         sync.Mutex
+	txL sync.Mutex
+	// TODO: limit number of pending txs per connection to prevent OOM
 	txListeners map[ids.ID][]*txListener
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
 }

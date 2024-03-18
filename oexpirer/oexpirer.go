@@ -1,4 +1,4 @@
-package cli
+package oexpirer
 
 import (
 	"sync"
@@ -8,46 +8,51 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-type OExpirer struct {
-	l sync.RWMutex
-	q *list.List[*txWrapper]
-	m map[ids.ID]*list.Element[*txWrapper]
+type Item interface {
+	ID() ids.ID
+	Expiry() int64
 }
 
-func NewOExpirer() *OExpirer {
-	return &OExpirer{
-		q: &list.List[*txWrapper]{},
-		m: make(map[ids.ID]*list.Element[*txWrapper], 16_384),
+type OExpirer[T Item] struct {
+	l sync.RWMutex
+	q *list.List[T]
+	m map[ids.ID]*list.Element[T]
+}
+
+func New[T Item](init int) *OExpirer[T] {
+	return &OExpirer[T]{
+		q: &list.List[T]{},
+		m: make(map[ids.ID]*list.Element[T], init),
 	}
 }
 
-func (o *OExpirer) Add(tx *txWrapper) {
+func (o *OExpirer[T]) Add(i T) {
 	o.l.Lock()
 	defer o.l.Unlock()
 
-	e := o.q.PushBack(tx)
-	o.m[tx.ID()] = e
+	e := o.q.PushBack(i)
+	o.m[i.ID()] = e
 }
 
-func (o *OExpirer) Remove(id ids.ID) *txWrapper {
+func (o *OExpirer[T]) Remove(id ids.ID) (T, bool) {
 	o.l.Lock()
 	defer o.l.Unlock()
 
 	e, ok := o.m[id]
 	if !ok {
-		return nil
+		return *new(T), false
 	}
 
 	o.q.Remove(e)
 	delete(o.m, id)
-	return e.Value()
+	return e.Value(), true
 }
 
-func (o *OExpirer) SetMin(t int64) []*txWrapper {
+func (o *OExpirer[T]) SetMin(t int64) []T {
 	o.l.Lock()
 	defer o.l.Unlock()
 
-	expired := []*txWrapper{}
+	expired := []T{}
 	for {
 		e := o.q.First()
 		if e == nil {
@@ -63,7 +68,7 @@ func (o *OExpirer) SetMin(t int64) []*txWrapper {
 	return expired
 }
 
-func (o *OExpirer) Len() int {
+func (o *OExpirer[T]) Len() int {
 	o.l.RLock()
 	defer o.l.RUnlock()
 

@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/oexpirer"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -80,7 +81,7 @@ var (
 	invalidTxs       uint64
 	totalTxs         uint64
 
-	pending = NewOExpirer()
+	pending = oexpirer.New[*txWrapper](16_384)
 
 	issuedTxs atomic.Int64
 	sent      atomic.Int64
@@ -698,8 +699,8 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				return
 			}
 			now := time.Now().UnixMilli()
-			tw := pending.Remove(txID)
-			if tw == nil {
+			tw, ok := pending.Remove(txID)
+			if !ok {
 				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
 				// This will be counted by the loop that did that, so we can just continue.
 				continue
