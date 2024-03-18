@@ -30,6 +30,7 @@ type WebSocketClient struct {
 	pendingBlocks chan []byte
 	pendingChunks chan []byte
 	pendingTxs    chan []byte
+	txsToProcess  int
 
 	txsl sync.Mutex
 	txs  map[uint64]ids.ID
@@ -121,6 +122,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 				case ChunkMode:
 					wc.pendingChunks <- tmsg
 				case TxMode:
+					wc.txsToProcess++
 					wc.pendingTxs <- tmsg
 				default:
 					utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
@@ -246,6 +248,7 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, uint8, error) {
 	select {
 	case msg := <-c.pendingTxs:
+		c.txsToProcess--
 		rtxID, status, err := UnpackTxMessage(msg)
 		if err != nil {
 			return ids.Empty, 0, err
@@ -293,6 +296,10 @@ func (c *WebSocketClient) ResetDelay() (int64, uint64) {
 	delaySum, delayCount := c.delaySum, c.delayCount
 	c.delaySum, c.delayCount = 0, 0
 	return delaySum, delayCount
+}
+
+func (c *WebSocketClient) TxsToProcess() int {
+	return c.txsToProcess
 }
 
 func (c *WebSocketClient) Closed() bool {

@@ -411,11 +411,16 @@ func (h *Handler) Spam(
 				cDelayCount := delayCount
 				delayCount = 0
 
+				txsToProcess := 0
+				for _, client := range clients {
+					txsToProcess += client.d.TxsToProcess()
+				}
+
 				if totalTxs > 0 && tpsSum > 0 {
 					// tps is only contains transactions that actually made it onchain
 					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv/s:{{/}} %d (recv delay=%.2fms)\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv/s:{{/}} %d (recv delay=%.2fms backlog=%d)\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
 						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
@@ -427,6 +432,7 @@ func (h *Handler) Spam(
 						float64(cbytes-pbytes)/units.KiB,
 						cDelayCount,
 						float64(cDelayTime)/float64(cDelayCount),
+						txsToProcess,
 					)
 				} else if totalTxs > 0 {
 					// This shouldn't happen but we should log when it does.
