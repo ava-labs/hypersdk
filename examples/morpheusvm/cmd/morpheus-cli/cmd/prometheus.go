@@ -76,6 +76,12 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_remaining_mempool[5s])/5", chainID))
 			utils.Outf("{{yellow}}remaining mempool per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_mempool_len", chainID))
+			utils.Outf("{{yellow}}mempool count:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_mempool_size", chainID))
+			utils.Outf("{{yellow}}mempool size (bytes):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, "avalanche_resource_tracker_cpu_usage")
 			utils.Outf("{{yellow}}CPU usage:{{/}} %s\n", panels[len(panels)-1])
 

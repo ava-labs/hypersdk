@@ -15,7 +15,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const maxPrealloc = 128_000
+const (
+	preallocItems       = 128_000
+	streamPreallocItems = 16_384
+)
 
 type Item interface {
 	ID() ids.ID
@@ -64,7 +67,7 @@ func New[T Item](
 		maxSize:        maxSize,
 		maxSponsorSize: maxSponsorSize,
 
-		txs: oexpirer.New[T](min(maxSize, maxPrealloc)),
+		txs: oexpirer.New[T](preallocItems),
 
 		owned:          map[codec.Address]int{},
 		exemptSponsors: set.Set[codec.Address]{},
@@ -128,15 +131,19 @@ func (m *Mempool[T]) add(items []T, front bool) {
 			continue
 		}
 
-		// Ensure sender isn't abusing mempool
-		senderItems := m.owned[sender]
-		if !m.exemptSponsors.Contains(sender) && senderItems == m.maxSponsorSize {
-			continue // do nothing, wait for items to expire
-		}
+		// We are willing to go over the limit if we are restoring
+		// to the front of the mempool (didn't finish building).
+		if !front {
+			// Ensure sender isn't abusing mempool
+			senderItems := m.owned[sender]
+			if !m.exemptSponsors.Contains(sender) && senderItems == m.maxSponsorSize {
+				continue // do nothing, wait for items to expire
+			}
 
-		// Ensure mempool isn't full
-		if m.txs.Len() == m.maxSize {
-			continue // do nothing, wait for items to expire
+			// Ensure mempool isn't full
+			if m.txs.Len() == m.maxSize {
+				continue // do nothing, wait for items to expire
+			}
 		}
 
 		// Add to mempool
@@ -213,7 +220,7 @@ func (m *Mempool[T]) StartStreaming(_ context.Context) {
 	defer m.mu.Unlock()
 
 	m.streamLock.Lock()
-	m.streamedItems = set.NewSet[ids.ID](maxPrealloc)
+	m.streamedItems = set.NewSet[ids.ID](streamPreallocItems)
 }
 
 // Stream gets the next highest-valued [count] items from the mempool, not

@@ -364,6 +364,8 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	// transactions instead of the mempool because we won't need to iterate
 	// through as many transactions.
 	vm.mempool.SetMinTimestamp(ctx, blkTime)
+	vm.metrics.mempoolLen.Set(float64(vm.mempool.Len(ctx)))
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Size(ctx)))
 
 	// Enqueue block for processing
 	vm.acceptedQueue <- &acceptedWrapper{b, chunks}
