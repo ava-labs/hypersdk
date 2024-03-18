@@ -160,7 +160,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "chunkBuildFrequency": 750,
   "targetChunkBuildDuration": 500,
   "blockBuildFrequency": 100,
-  "mempoolSize": 10000000,
+  "mempoolSize": 2147483648,
   "mempoolSponsorSize": 10000000,
   "authExecutionCores": 4,
   "actionExecutionCores": 2,
