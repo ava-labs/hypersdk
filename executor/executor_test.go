@@ -318,8 +318,6 @@ func TestManyWrites(t *testing.T) {
 		s.Add(conflictKey, state.Read)
 		ti := i
 		e.Run(s, func() error {
-			time.Sleep(1 * time.Second)
-
 			l.Lock()
 			completed = append(completed, ti)
 			l.Unlock()
