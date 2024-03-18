@@ -141,7 +141,7 @@ func (m *Mempool[T]) add(items []T, front bool) {
 			}
 
 			// Ensure mempool isn't full
-			if m.txs.Len() == m.maxSize {
+			if m.size+item.Size() >= m.maxSize {
 				continue // do nothing, wait for items to expire
 			}
 		}
