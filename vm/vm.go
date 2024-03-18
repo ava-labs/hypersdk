@@ -574,6 +574,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		return err
 	}
 
+	// Shutdown engine
+	vm.engine.Done()
+
 	// Process remaining executed chunks before shutdown
 	close(vm.executedQueue)
 	<-vm.executorDone
@@ -581,9 +584,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
-
-	// Shutdown engine
-	vm.engine.Done()
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
