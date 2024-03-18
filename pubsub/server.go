@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 type ServerConfig struct {
@@ -44,7 +45,7 @@ func NewDefaultServerConfig() *ServerConfig {
 		WriteBufferSize:        WriteBufferSize,
 		MaxPendingMessages:     MaxPendingMessages,
 		MaxReadMessageSize:     MaxReadMessageSize,
-		TargetWriteMessageSize: TargetWriteMessageSize,
+		TargetWriteMessageSize: consts.MTU,
 		MaxWriteMessageSize:    MaxWriteMessageSize,
 		MaxMessageWait:         MaxMessageWait,
 		WriteWait:              WriteWait,

@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
@@ -80,7 +81,7 @@ var runSpamCmd = &cobra.Command{
 					uri,
 					rpc.DefaultHandshakeTimeout,
 					pubsub.MaxPendingMessages,
-					pubsub.TargetWriteMessageSize,
+					hconsts.MTU,
 					pubsub.MaxReadMessageSize,
 				)
 				if err != nil {

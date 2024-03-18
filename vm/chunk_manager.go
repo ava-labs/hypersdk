@@ -42,6 +42,9 @@ const (
 
 	minWeightNumerator = 67
 	weightDenominator  = 100
+
+	gossipTxPrealloc = 32
+	gossipBatchWait  = 100 * time.Millisecond
 )
 
 type simpleChunkWrapper struct {
@@ -545,7 +548,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			}
 		}
 	case txMsg:
-		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
+		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
@@ -818,87 +821,89 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			}
 		}
 	})
-	g.Go(func() error {
-		w := workers.NewParallel(c.vm.config.GetAuthGossipCores(), 4) // should never be needed
-		for {
-			select {
-			case txw := <-c.incomingTxs:
-				c.vm.metrics.gossipTxBacklog.Add(-float64(len(txw.txs)))
-				ctx := context.TODO()
-				job, err := w.NewJob(len(txw.txs))
-				if err != nil {
-					c.vm.Logger().Warn("unable to spawn new worker", zap.Error(err))
-					continue
-				}
-				invalid := false
-				batchVerifier := chain.NewAuthBatch(c.vm, job, txw.authCounts)
-				for _, tx := range txw.txs {
-					epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+	for i := 0; i < c.vm.config.GetAuthGossipCores(); i++ {
+		g.Go(func() error {
+			for {
+				select {
+				case txw := <-c.incomingTxs:
+					c.vm.metrics.gossipTxBacklog.Add(-float64(len(txw.txs)))
+					ctx := context.TODO()
+					w := workers.NewSerial()
+					job, err := w.NewJob(len(txw.txs))
 					if err != nil {
-						c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
-						invalid = true
-						break
+						c.vm.Logger().Warn("unable to spawn new worker", zap.Error(err))
+						continue
 					}
-					partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
-					if err != nil {
-						c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
-						invalid = true
-						break
+					invalid := false
+					batchVerifier := chain.NewAuthBatch(c.vm, job, txw.authCounts)
+					for _, tx := range txw.txs {
+						epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+						if err != nil {
+							c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+							invalid = true
+							break
+						}
+						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+						if err != nil {
+							c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+							invalid = true
+							break
+						}
+						if partition != c.vm.snowCtx.NodeID {
+							c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", txw.nodeID))
+							invalid = true
+							break
+						}
+						// Verify signature async
+						msg, err := tx.Digest()
+						if err != nil {
+							c.vm.Logger().Warn(
+								"unable to compute tx digest",
+								zap.Stringer("peerID", txw.nodeID),
+								zap.Error(err),
+							)
+							invalid = true
+							break
+						}
+						if !c.vm.GetVerifyAuth() {
+							continue
+						}
+						batchVerifier.Add(msg, tx.Auth)
 					}
-					if partition != c.vm.snowCtx.NodeID {
-						c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", txw.nodeID))
-						invalid = true
-						break
+
+					// Don't wait for signatures if invalid
+					//
+					// TODO: stop job
+					if invalid {
+						batchVerifier.Done(nil)
+						c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
+						continue
 					}
-					// Verify signature async
-					msg, err := tx.Digest()
-					if err != nil {
+
+					// Wait for signature verification to finish
+					batchVerifier.Done(nil)
+					if err := job.Wait(); err != nil {
 						c.vm.Logger().Warn(
-							"unable to compute tx digest",
+							"received invalid gossip",
 							zap.Stringer("peerID", txw.nodeID),
 							zap.Error(err),
 						)
-						invalid = true
-						break
-					}
-					if !c.vm.GetVerifyAuth() {
 						continue
 					}
-					batchVerifier.Add(msg, tx.Auth)
-				}
 
-				// Don't wait for signatures if invalid
-				//
-				// TODO: stop job
-				if invalid {
-					batchVerifier.Done(nil)
-					c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
-					continue
+					// Submit txs
+					c.vm.Submit(ctx, false, txw.txs)
+					c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+					c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
+				case <-c.vm.stop:
+					// If engine taking too long to process message, Shutdown will not
+					// be called.
+					c.vm.Logger().Info("stopping chunk manager")
+					return nil
 				}
-
-				// Wait for signature verification to finish
-				batchVerifier.Done(nil)
-				if err := job.Wait(); err != nil {
-					c.vm.Logger().Warn(
-						"received invalid gossip",
-						zap.Stringer("peerID", txw.nodeID),
-						zap.Error(err),
-					)
-					continue
-				}
-
-				// Submit txs
-				c.vm.Submit(ctx, false, txw.txs)
-				c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
-				c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
-			case <-c.vm.stop:
-				// If engine taking too long to process message, Shutdown will not
-				// be called.
-				c.vm.Logger().Info("stopping chunk manager")
-				return nil
 			}
-		}
-	})
+		})
+	}
 	if err := g.Wait(); err != nil {
 		c.vm.Logger().Error("chunk manager stopped with error", zap.Error(err))
 	}
@@ -1049,9 +1054,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	var gossipable *txGossip
 	gossip, ok := c.txNodes[partition]
 	if ok {
-		// Although this chunk size does not fit in a TCP packet, it is better for compression
-		// and for batch signature verification.
-		if gossip.size+txSize > consts.NetworkSizeLimit {
+		if gossip.size+txSize > consts.MTU {
 			delete(c.txNodes, partition)
 			gossip.sent = true
 			gossipable = gossip
@@ -1066,9 +1069,9 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	}
 	gossip = &txGossip{
 		nodeID: partition,
-		txs:    make(map[ids.ID]*chain.Transaction, 128),
-		expiry: time.Now().Add(100 * time.Millisecond), // TODO: make const
-		size:   txSize,
+		txs:    make(map[ids.ID]*chain.Transaction, gossipTxPrealloc),
+		expiry: time.Now().Add(gossipBatchWait),
+		size:   consts.IntLen + txSize,
 	}
 	gossip.txs[txID] = tx
 	c.txNodes[partition] = gossip

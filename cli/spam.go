@@ -258,7 +258,7 @@ func (h *Handler) Spam(
 		uris[baseName],
 		rpc.DefaultHandshakeTimeout,
 		maxPendingMessages,
-		pubsub.TargetWriteMessageSize,
+		consts.MTU,
 		pubsub.MaxReadMessageSize,
 	) // we write the max read
 	if err != nil {
@@ -322,7 +322,7 @@ func (h *Handler) Spam(
 				uris[name],
 				rpc.DefaultHandshakeTimeout,
 				maxPendingMessages,
-				pubsub.TargetWriteMessageSize,
+				consts.MTU,
 				pubsub.MaxReadMessageSize,
 			) // we write the max read
 			if err != nil {
@@ -548,7 +548,7 @@ func (h *Handler) Spam(
 									uris[issuer.name],
 									rpc.DefaultHandshakeTimeout,
 									maxPendingMessages,
-									pubsub.TargetWriteMessageSize,
+									consts.MTU,
 									pubsub.MaxReadMessageSize,
 								) // we write the max read
 								if err != nil {
