@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const numTxs = 50000 // TODO: somehow estimate this (needed to ensure no backlog)
+const numTxs = 250_000 // TODO: somehow estimate this (needed to ensure no backlog)
 
 type Processor struct {
 	vm  VM

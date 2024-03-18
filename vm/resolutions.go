@@ -136,6 +136,7 @@ func (vm *VM) processExecutedChunks() {
 			zap.Uint64("blk", ew.Block),
 			zap.Stringer("chunkID", ew.Chunk.Chunk),
 		)
+		vm.metrics.executedProcessingBacklog.Dec()
 	}
 }
 
@@ -143,6 +144,7 @@ func (vm *VM) ExecutedChunk(ctx context.Context, blk uint64, chunk *chain.Filter
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
+	vm.metrics.executedProcessingBacklog.Inc()
 	vm.executedQueue <- &executedWrapper{blk, chunk, results}
 }
 
