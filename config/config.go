@@ -19,7 +19,9 @@ type Config struct{}
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
 func (c *Config) GetAuthExecutionCores() int                { return 1 }
 func (c *Config) GetAuthRPCCores() int                      { return 1 }
-func (c *Config) GetAuthRPCBacklog() int                    { return 1_024 } // TODO: add same for p2p gossip
+func (c *Config) GetAuthRPCBacklog() int                    { return 1_024 }
+func (c *Config) GetAuthGossipCores() int                   { return 1 }
+func (c *Config) GetAuthGossipBacklog() int                 { return 1_024 }
 func (c *Config) GetRootGenerationCores() int               { return 1 }
 func (c *Config) GetActionExecutionCores() int              { return 1 }
 func (c *Config) GetMissingChunkFetchers() int              { return 4 }

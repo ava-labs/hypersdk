@@ -41,10 +41,10 @@ type Config struct {
 	RootGenerationCores  int `json:"rootGenerationCores"`
 	ActionExecutionCores int `json:"actionExecutionCores"`
 	MissingChunkFetchers int `json:"missingChunkFetchers"`
-
-	// RPC
-	AuthRPCCores   int `json:"authRPCCores"`
-	AuthRPCBacklog int `json:"authRPCBacklog"`
+	AuthGossipCores      int `json:"authGossipCores"`
+	AuthGossipBacklog    int `json:"authGossipBacklog"`
+	AuthRPCCores         int `json:"authRPCCores"`
+	AuthRPCBacklog       int `json:"authRPCBacklog"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -113,6 +113,8 @@ func (c *Config) setDefault() {
 	c.VerifyAuth = c.Config.GetVerifyAuth()
 	c.AuthRPCCores = c.Config.GetAuthRPCCores()
 	c.AuthRPCBacklog = c.Config.GetAuthRPCBacklog()
+	c.AuthGossipCores = c.Config.GetAuthGossipCores()
+	c.AuthGossipBacklog = c.Config.GetAuthGossipBacklog()
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
@@ -176,4 +178,12 @@ func (c *Config) GetAuthRPCBacklog() int {
 
 func (c *Config) GetMissingChunkFetchers() int {
 	return c.MissingChunkFetchers
+}
+
+func (c *Config) GetAuthGossipCores() int {
+	return c.AuthGossipCores
+}
+
+func (c *Config) GetAuthGossipBacklog() int {
+	return c.AuthGossipBacklog
 }

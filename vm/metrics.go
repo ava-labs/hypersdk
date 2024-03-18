@@ -56,6 +56,7 @@ type Metrics struct {
 	executedProcessingBacklog prometheus.Gauge
 	mempoolLen                prometheus.Gauge
 	mempoolSize               prometheus.Gauge
+	gossipTxBacklog           prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
@@ -358,7 +359,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		rpcTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "rpc_tx_backlog",
-			Help:      "number of transactions waiting to be processed by RPC",
+			Help:      "number of transactions waiting to be processed from RPC",
 		}),
 		chainDataSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
@@ -379,6 +380,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "mempool_size",
 			Help:      "bytes in the mempool",
+		}),
+		gossipTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "gossip_tx_backlog",
+			Help:      "number of transactions waiting to be processed from gossip",
 		}),
 		waitRepeat:                waitRepeat,
 		waitAuth:                  waitAuth,
@@ -432,6 +438,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.executedProcessingBacklog),
 		r.Register(m.mempoolLen),
 		r.Register(m.mempoolSize),
+		r.Register(m.gossipTxBacklog),
 	)
 	return r, m, errs.Err
 }

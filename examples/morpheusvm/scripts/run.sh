@@ -169,6 +169,8 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "verifyAuth":true,
   "authRPCCores": 4,
   "authRPCBacklog": 10000000,
+  "authGossipCores": 4,
+  "authGossipBacklog": 10000000,
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",

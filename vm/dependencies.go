@@ -28,6 +28,8 @@ type Config interface {
 	GetAuthExecutionCores() int
 	GetAuthRPCCores() int
 	GetAuthRPCBacklog() int
+	GetAuthGossipCores() int
+	GetAuthGossipBacklog() int
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetActionExecutionCores() int

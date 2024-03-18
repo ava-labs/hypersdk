@@ -130,13 +130,13 @@ func (vm *VM) processExecutedChunks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for ew := range vm.executedQueue {
+		vm.metrics.executedProcessingBacklog.Dec()
 		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
 		vm.snowCtx.Log.Debug(
 			"chunk async executed",
 			zap.Uint64("blk", ew.Block),
 			zap.Stringer("chunkID", ew.Chunk.Chunk),
 		)
-		vm.metrics.executedProcessingBacklog.Dec()
 	}
 }
 

@@ -28,6 +28,7 @@ import (
 	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -140,7 +141,8 @@ type ChunkManager struct {
 	vm   *VM
 	done chan struct{}
 
-	appSender common.AppSender
+	appSender   common.AppSender
+	incomingTxs chan *txGossipWrapper
 
 	txs *cache.FIFO[ids.ID, any]
 
@@ -186,6 +188,8 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	return &ChunkManager{
 		vm:   vm,
 		done: make(chan struct{}),
+
+		incomingTxs: make(chan *txGossipWrapper, vm.config.GetAuthGossipBacklog()),
 
 		txs: cache,
 
@@ -544,76 +548,21 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.vm.RecordTxsReceived(len(txs))
 
-		// Add incoming transactions to our caches to prevent useless gossip and perform
-		// batch signature verification.
-		//
-		// We rely on AppGossipConcurrency to regulate concurrency here, so we don't create
-		// a separate pool of workers for this verification.
-		job, err := workers.NewSerial().NewJob(len(txs))
-		if err != nil {
-			c.vm.Logger().Warn(
-				"unable to spawn new worker",
-				zap.Stringer("peerID", nodeID),
-				zap.Error(err),
-			)
-			return nil
+		// Enqueue txs for verification, if we have a backlog just drop them
+		c.vm.metrics.gossipTxBacklog.Add(float64(len(txs)))
+		select {
+		case c.incomingTxs <- &txGossipWrapper{nodeID: nodeID, txs: txs, authCounts: authCounts}:
+		default:
+			c.vm.metrics.gossipTxBacklog.Add(-float64(len(txs)))
+			c.vm.Logger().Warn("dropping tx gossip because too big of backlog", zap.Stringer("nodeID", nodeID))
 		}
 
-		// Check that we are the partition for the txs
-		batchVerifier := chain.NewAuthBatch(c.vm, job, authCounts)
-		for _, tx := range txs {
-			epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
-			if err != nil {
-				c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
-				batchVerifier.Done(nil)
-				return nil
-			}
-			partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
-			if err != nil {
-				c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
-				batchVerifier.Done(nil)
-				return nil
-			}
-			if partition != c.vm.snowCtx.NodeID {
-				c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
-				batchVerifier.Done(nil)
-				return nil
-			}
-			// Verify signature async
-			msg, err := tx.Digest()
-			if err != nil {
-				c.vm.Logger().Warn(
-					"unable to compute tx digest",
-					zap.Stringer("peerID", nodeID),
-					zap.Error(err),
-				)
-				batchVerifier.Done(nil)
-				return nil
-			}
-			batchVerifier.Add(msg, tx.Auth)
-		}
-		batchVerifier.Done(nil)
-
-		// Wait for signature verification to finish
-		if err := job.Wait(); err != nil {
-			c.vm.Logger().Warn(
-				"received invalid gossip",
-				zap.Stringer("peerID", nodeID),
-				zap.Error(err),
-			)
-			return nil
-		}
-
-		// Submit txs
-		c.vm.Submit(ctx, false, txs)
-		c.vm.Logger().Info(
+		c.vm.Logger().Debug(
 			"received txs from gossip",
 			zap.Int("txs", len(txs)),
 			zap.Stringer("nodeID", nodeID),
 			zap.Duration("t", time.Since(start)),
 		)
-		c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
-		c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
@@ -749,6 +698,12 @@ func (*ChunkManager) CrossChainAppError(context.Context, ids.ID, uint32, int32, 
 	return nil
 }
 
+type txGossipWrapper struct {
+	nodeID     ids.NodeID
+	txs        []*chain.Transaction
+	authCounts map[uint8]int
+}
+
 func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
 	defer close(c.done)
@@ -761,76 +716,187 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	}
 	c.vm.Logger().Info("starting chunk manager", zap.Any("beneficiary", beneficiary))
 
-	ct := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
-	defer ct.Stop()
-	bt := time.NewTicker(c.vm.config.GetBlockBuildFrequency())
-	defer bt.Stop()
-	gt := time.NewTicker(50 * time.Millisecond)
-	defer gt.Stop()
-	for {
-		select {
-		case <-ct.C:
-			if !c.vm.isReady() {
-				c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
-				continue
-			}
-			if skipChunks {
-				continue
-			}
-
-			// Attempt to build a chunk
-			chunkStart := time.Now()
-			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
-			if err != nil {
-				c.vm.Logger().Info("unable to build chunk", zap.Error(err))
-				continue
-			}
-			c.PushChunk(context.TODO(), chunk)
-			chunkBytes := chunk.Size()
-			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
-			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
-			c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
-			c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
-		case <-bt.C:
-			if !c.vm.isReady() {
-				c.vm.Logger().Info("skipping block loop because vm isn't ready")
-				continue
-			}
-
-			// Attempt to build a block
+	// While we could try to shae the same goroutine for some of these items (as they aren't
+	// expected to take much time), it is safter to split apart.
+	g := &errgroup.Group{}
+	g.Go(func() error {
+		t := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
+		defer t.Stop()
+		for {
 			select {
-			case c.vm.EngineChan() <- common.PendingTxs:
-			default:
-			}
-		case <-gt.C:
-			now := time.Now()
-			gossipable := []*txGossip{}
-			c.txL.Lock()
-			for {
-				gossip, ok := c.txQueue.PopLeft()
-				if !ok {
-					break
-				}
-				if !gossip.expiry.Before(now) {
-					c.txQueue.PushLeft(gossip)
-					break
-				}
-				delete(c.txNodes, gossip.nodeID)
-				if gossip.sent {
+			case <-t.C:
+				if !c.vm.isReady() {
+					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
 					continue
 				}
-				gossipable = append(gossipable, gossip)
+				if skipChunks {
+					continue
+				}
+
+				// Attempt to build a chunk
+				chunkStart := time.Now()
+				chunk, err := chain.BuildChunk(context.TODO(), c.vm)
+				if err != nil {
+					c.vm.Logger().Info("unable to build chunk", zap.Error(err))
+					continue
+				}
+				c.PushChunk(context.TODO(), chunk)
+				chunkBytes := chunk.Size()
+				c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
+				c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
+				c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+				c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
 			}
-			c.txL.Unlock()
-			for _, gossip := range gossipable {
-				c.sendTxGossip(context.TODO(), gossip)
-			}
-		case <-c.vm.stop:
-			// If engine taking too long to process message, Shutdown will not
-			// be called.
-			c.vm.Logger().Info("stopping chunk manager")
-			return
 		}
+	})
+	g.Go(func() error {
+		t := time.NewTicker(c.vm.config.GetBlockBuildFrequency())
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				if !c.vm.isReady() {
+					c.vm.Logger().Info("skipping block loop because vm isn't ready")
+					continue
+				}
+
+				// Attempt to build a block
+				select {
+				case c.vm.EngineChan() <- common.PendingTxs:
+				default:
+				}
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+	g.Go(func() error {
+		t := time.NewTicker(50 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				now := time.Now()
+				gossipable := []*txGossip{}
+				c.txL.Lock()
+				for {
+					gossip, ok := c.txQueue.PopLeft()
+					if !ok {
+						break
+					}
+					if !gossip.expiry.Before(now) {
+						c.txQueue.PushLeft(gossip)
+						break
+					}
+					delete(c.txNodes, gossip.nodeID)
+					if gossip.sent {
+						continue
+					}
+					gossipable = append(gossipable, gossip)
+				}
+				c.txL.Unlock()
+				for _, gossip := range gossipable {
+					c.sendTxGossip(context.TODO(), gossip)
+				}
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+	g.Go(func() error {
+		w := workers.NewParallel(c.vm.config.GetAuthGossipCores(), 4) // should never be needed
+		for {
+			select {
+			case txw := <-c.incomingTxs:
+				c.vm.metrics.gossipTxBacklog.Add(-float64(len(txw.txs)))
+				ctx := context.TODO()
+				job, err := w.NewJob(len(txw.txs))
+				if err != nil {
+					c.vm.Logger().Warn("unable to spawn new worker", zap.Error(err))
+					continue
+				}
+				invalid := false
+				batchVerifier := chain.NewAuthBatch(c.vm, job, txw.authCounts)
+				for _, tx := range txw.txs {
+					epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+					if err != nil {
+						c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+						invalid = true
+						break
+					}
+					partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+					if err != nil {
+						c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+						invalid = true
+						break
+					}
+					if partition != c.vm.snowCtx.NodeID {
+						c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", txw.nodeID))
+						invalid = true
+						break
+					}
+					// Verify signature async
+					msg, err := tx.Digest()
+					if err != nil {
+						c.vm.Logger().Warn(
+							"unable to compute tx digest",
+							zap.Stringer("peerID", txw.nodeID),
+							zap.Error(err),
+						)
+						invalid = true
+						break
+					}
+					if !c.vm.GetVerifyAuth() {
+						continue
+					}
+					batchVerifier.Add(msg, tx.Auth)
+				}
+
+				// Don't wait for signatures if invalid
+				//
+				// TODO: stop job
+				if invalid {
+					batchVerifier.Done(nil)
+					c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
+					continue
+				}
+
+				// Wait for signature verification to finish
+				batchVerifier.Done(nil)
+				if err := job.Wait(); err != nil {
+					c.vm.Logger().Warn(
+						"received invalid gossip",
+						zap.Stringer("peerID", txw.nodeID),
+						zap.Error(err),
+					)
+					continue
+				}
+
+				// Submit txs
+				c.vm.Submit(ctx, false, txw.txs)
+				c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+				c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+	if err := g.Wait(); err != nil {
+		c.vm.Logger().Error("chunk manager stopped with error", zap.Error(err))
 	}
 }
 
