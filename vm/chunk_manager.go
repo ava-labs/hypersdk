@@ -979,6 +979,8 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	var gossipable *txGossip
 	gossip, ok := c.txNodes[partition]
 	if ok {
+		// Although this chunk size does not fit in a TCP packet, it is better for compression
+		// and for batch signature verification.
 		if gossip.size+txSize > consts.NetworkSizeLimit {
 			delete(c.txNodes, partition)
 			gossip.sent = true
