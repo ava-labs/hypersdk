@@ -53,8 +53,8 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 # morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4: 34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e
 # morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn: ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77
 # morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
-EPOCH_DURATION=30000
-VALIDITY_WINDOW=25000
+EPOCH_DURATION=60000
+VALIDITY_WINDOW=55000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
@@ -91,7 +91,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "rootGenerationCores": 32,
   "missingChunkFetchers": 48,
   "verifyAuth":true,
-  "authRPCCores": 24,
+  "authRPCCores": 48,
   "authRPCBacklog": 10000000,
   "streamingBacklogSize": 10000000,
   "logLevel": "INFO"
@@ -123,7 +123,7 @@ cat <<EOF > "${TMPDIR}"/node.config
   "consensus-on-accept-gossip-peer-size":"10",
   "network-compression-type":"zstd",
   "consensus-app-concurrency":"128",
-  "profile-continuous-enabled":true,
+  "profile-continuous-enabled":false,
   "profile-continuous-freq":"1m",
   "http-host":"",
   "http-allowed-origins": "*",
@@ -142,7 +142,7 @@ function cleanup {
   echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
 }
 trap cleanup EXIT
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-east-1,eu-west-1,us-west-1,ap-northeast-2,ca-central-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7gn.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-east-1,eu-west-1,us-west-1,ap-northeast-2,ca-central-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
 cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
