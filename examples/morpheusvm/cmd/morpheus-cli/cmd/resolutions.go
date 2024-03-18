@@ -38,7 +38,7 @@ func sendAndWait(
 	}
 	success := false
 	for {
-		txID, status, err := ws.ListenTx(ctx)
+		_, txID, status, err := ws.ListenTx(ctx)
 		if err != nil {
 			return false, ids.Empty, err
 		}

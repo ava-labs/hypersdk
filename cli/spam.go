@@ -708,12 +708,11 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			txID, status, err := c.ListenTx(context.TODO())
+			recv, txID, status, err := c.ListenTx(context.TODO())
 			if err != nil {
 				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
 			}
-			now := time.Now().UnixMilli()
 			tw, ok := pending.Remove(txID)
 			if !ok {
 				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
@@ -735,7 +734,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 				return
 			}
 			if status <= rpc.TxExpired {
-				confirmationTime += uint64(now - tw.issuance)
+				confirmationTime += uint64(recv - tw.issuance)
 			}
 			totalTxs++
 			l.Unlock()
@@ -793,7 +792,7 @@ func uniqueBytes() []byte {
 
 func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error {
 	for i := 0; i < numTxs; i++ {
-		_, status, err := cli.ListenTx(ctx)
+		_, _, status, err := cli.ListenTx(ctx)
 		if err != nil {
 			return err
 		}

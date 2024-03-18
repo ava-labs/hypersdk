@@ -19,6 +19,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type byteWrapper struct {
+	t int64
+	b []byte
+}
+
 // TODO: move client connection logic to pubsub (so much shared with connection, it is a bit silly)
 type WebSocketClient struct {
 	cl   sync.Once
@@ -30,7 +35,7 @@ type WebSocketClient struct {
 
 	pendingBlocks chan []byte
 	pendingChunks chan []byte
-	pendingTxs    chan []byte
+	pendingTxs    chan *byteWrapper
 	txsToProcess  atomic.Int64
 
 	txsl sync.Mutex
@@ -74,7 +79,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
 		pendingChunks: make(chan []byte, pending),
-		pendingTxs:    make(chan []byte, pending),
+		pendingTxs:    make(chan *byteWrapper, pending),
 		txs:           make(map[uint64]ids.ID, pending),
 	}
 	go func() {
@@ -124,7 +129,7 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 					wc.pendingChunks <- tmsg
 				case TxMode:
 					wc.txsToProcess.Add(1)
-					wc.pendingTxs <- tmsg
+					wc.pendingTxs <- &byteWrapper{t: time.Now().UnixMilli(), b: tmsg}
 				default:
 					utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
 					continue
@@ -246,26 +251,26 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking
 // layer in the client so no changes required in the server).
-func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, uint8, error) {
+func (c *WebSocketClient) ListenTx(ctx context.Context) (int64, ids.ID, uint8, error) {
 	select {
-	case msg := <-c.pendingTxs:
+	case bw := <-c.pendingTxs:
 		c.txsToProcess.Add(-1)
-		rtxID, status, err := UnpackTxMessage(msg)
+		rtxID, status, err := UnpackTxMessage(bw.b)
 		if err != nil {
-			return ids.Empty, 0, err
+			return -1, ids.Empty, 0, err
 		}
 		c.txsl.Lock()
 		defer c.txsl.Unlock()
 		txID, ok := c.txs[rtxID]
 		if !ok {
-			return ids.Empty, 0, ErrUnknownTx
+			return -1, ids.Empty, 0, ErrUnknownTx
 		}
 		delete(c.txs, rtxID)
-		return txID, status, nil
+		return bw.t, txID, status, nil
 	case <-c.readStopped:
-		return ids.Empty, 0, c.err
+		return -1, ids.Empty, 0, c.err
 	case <-ctx.Done():
-		return ids.Empty, 0, ctx.Err()
+		return -1, ids.Empty, 0, ctx.Err()
 	}
 }
 
