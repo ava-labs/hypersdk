@@ -143,7 +143,7 @@ type Mempool interface {
 
 	StartStreaming(context.Context)
 	Stream(context.Context) (*Transaction, bool)
-	FinishStreaming(context.Context, *Transaction)
+	FinishStreaming(context.Context, []*Transaction)
 }
 
 type Rules interface {

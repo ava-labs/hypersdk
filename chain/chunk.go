@@ -124,7 +124,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			// if there are transactions with uneven usage of resources.
 
 			// Restore unused txs
-			mempool.FinishStreaming(ctx, tx)
+			mempool.FinishStreaming(ctx, []*Transaction{tx})
 			break
 		}
 		chunkUnits = nextUnits
