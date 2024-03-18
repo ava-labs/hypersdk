@@ -152,7 +152,7 @@ func (w *WebSocketServer) AddTxListener(num uint64, tx *chain.Transaction, c *pu
 	w.txListeners[txID] = append(w.txListeners[txID], &txListener{num, c})
 	w.txL.Unlock()
 
-	w.expiringTxs.Add(&expiringTx{txID, tx.Expiry()})
+	w.expiringTxs.Add(&expiringTx{txID, tx.Expiry()}, false)
 }
 
 // If never possible for a tx to enter mempool, call this

@@ -523,7 +523,7 @@ func (h *Handler) Spam(
 						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 						return err
 					}
-					pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()})
+					pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()}, false)
 					if err := issuer.d.RegisterTx(tx); err != nil {
 						issuer.l.Lock()
 						if issuer.d.Closed() {

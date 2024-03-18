@@ -26,11 +26,19 @@ func New[T Item](init int) *OExpirer[T] {
 	}
 }
 
-func (o *OExpirer[T]) Add(i T) {
+func (o *OExpirer[T]) Add(i T, front bool) {
 	o.l.Lock()
 	defer o.l.Unlock()
 
-	e := o.q.PushBack(i)
+	if _, ok := o.m[i.ID()]; ok {
+		return
+	}
+	var e *list.Element[T]
+	if front {
+		e = o.q.PushFront(i)
+	} else {
+		e = o.q.PushBack(i)
+	}
 	o.m[i.ID()] = e
 }
 
@@ -46,6 +54,28 @@ func (o *OExpirer[T]) Remove(id ids.ID) (T, bool) {
 	o.q.Remove(e)
 	delete(o.m, id)
 	return e.Value(), true
+}
+
+func (o *OExpirer[T]) RemoveNext() (T, bool) {
+	o.l.Lock()
+	defer o.l.Unlock()
+
+	e := o.q.First()
+	if e == nil {
+		return *new(T), false
+	}
+
+	o.q.Remove(e)
+	delete(o.m, e.ID())
+	return e.Value(), true
+}
+
+func (o *OExpirer[T]) Has(id ids.ID) bool {
+	o.l.RLock()
+	defer o.l.RUnlock()
+
+	_, ok := o.m[id]
+	return ok
 }
 
 func (o *OExpirer[T]) SetMin(t int64) []T {

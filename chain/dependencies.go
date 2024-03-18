@@ -141,14 +141,7 @@ type Mempool interface {
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
-	Top(
-		context.Context,
-		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
-	) error
-
 	StartStreaming(context.Context)
-	PrepareStream(context.Context, int)
 	Stream(context.Context, int) []*Transaction
 	FinishStreaming(context.Context, []*Transaction) int
 }
