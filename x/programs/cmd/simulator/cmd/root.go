@@ -20,8 +20,6 @@ import (
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/state"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
-
 	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
@@ -34,7 +32,6 @@ type simulator struct {
 	logLevel string
 
 	db      *state.SimpleMutable
-	genesis *genesis.Genesis
 	cleanup func()
 }
 
@@ -145,7 +142,6 @@ func (s *simulator) Init() error {
 	}
 
 	s.db = state.NewSimpleMutable(merkleDB)
-	s.genesis = genesis.Default()
 
 	s.log.Info("simulator initialized",
 		zap.String("log-level", s.logLevel),

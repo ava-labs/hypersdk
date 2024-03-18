@@ -1,17 +1,8 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
-// See the file LICENSE for licensing terms.
-
 package actions
 
 import (
 	"context"
 	"fmt"
-	"github.com/near/borsh-go"
-
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -21,14 +12,15 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
-
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/internal/storage"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/near/borsh-go"
 )
-
-var _ chain.Action = (*ProgramExecute)(nil)
 
 type ProgramExecute struct {
 	Function string      `json:"programFunction"`
@@ -40,20 +32,8 @@ type ProgramExecute struct {
 	rt runtime.Runtime
 }
 
-func (*ProgramExecute) GetTypeID() uint8 {
-	return programExecuteID
-}
-
-func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
-	return state.Keys{}
-}
-
-func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.ProgramChunks}
-}
-
-func (*ProgramExecute) OutputsWarpMessage() bool {
-	return false
+func (t *ProgramExecute) GetBalance() (uint64, error) {
+	return t.rt.Meter().GetBalance()
 }
 
 func (t *ProgramExecute) Execute(
@@ -140,37 +120,6 @@ func (t *ProgramExecute) Execute(
 	}
 
 	return true, 1, p.Bytes(), nil, nil
-}
-
-func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
-	return ProgramExecuteComputeUnits
-}
-
-func (*ProgramExecute) Size() int {
-	return ed25519.PublicKeyLen + consts.Uint64Len
-}
-
-func (t *ProgramExecute) Marshal(p *codec.Packer) {
-	// TODO
-}
-
-func (t *ProgramExecute) GetBalance() (uint64, error) {
-	return t.rt.Meter().GetBalance()
-}
-
-func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
-	// TODO
-	return nil, nil
-}
-
-func (*ProgramExecute) ValidRange(chain.Rules) (int64, int64) {
-	// Returning -1, -1 means that the action is always valid.
-	return -1, -1
-}
-
-// CallParam defines a value to be passed to a guest function.
-type CallParam struct {
-	Value interface{} `json,yaml:"value"`
 }
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
