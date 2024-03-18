@@ -92,12 +92,14 @@ func (m *MessageBuffer) Close() error {
 func (m *MessageBuffer) clearPending() error {
 	bm, err := CreateBatchMessage(m.maxSize, m.pending)
 	if err != nil {
-		// If this is failing in a loop, we will stay stuck here forever....
-		panic(err) // TODO: remove this panic
+		return err
 	}
 
-	// TODO: handle case where the connection dies
-	m.Queue <- bm
+	select {
+	case m.Queue <- bm:
+	default:
+		m.log.Warn("dropping message", zap.Int("size", len(bm)))
+	}
 
 	m.pendingSize = batchOverhead
 	m.pending = [][]byte{}
