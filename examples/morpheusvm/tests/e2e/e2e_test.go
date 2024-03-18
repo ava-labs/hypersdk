@@ -259,7 +259,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"consensus-on-accept-gossip-peer-size":"10",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"32",
-				"profile-continuous-enabled":false,
+				"profile-continuous-enabled":true,
 				"profile-continuous-freq":"1m",
 				"http-host":"",
 				"http-allowed-origins": "*",

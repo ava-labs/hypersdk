@@ -606,12 +606,14 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Submit txs
 		c.vm.Submit(ctx, false, txs)
-		c.vm.Logger().Debug(
+		c.vm.Logger().Info(
 			"received txs from gossip",
 			zap.Int("txs", len(txs)),
 			zap.Stringer("nodeID", nodeID),
 			zap.Duration("t", time.Since(start)),
 		)
+		c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+		c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
 	default:
 		c.vm.Logger().Warn("dropping unknown message type", zap.Stringer("nodeID", nodeID))
 	}
@@ -780,13 +782,15 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 			chunkStart := time.Now()
 			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 			if err != nil {
-				c.vm.Logger().Debug("unable to build chunk", zap.Error(err))
+				c.vm.Logger().Info("unable to build chunk", zap.Error(err))
 				continue
 			}
 			c.PushChunk(context.TODO(), chunk)
 			chunkBytes := chunk.Size()
 			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
 			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
+			c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+			c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
 		case <-bt.C:
 			if !c.vm.isReady() {
 				c.vm.Logger().Info("skipping block loop because vm isn't ready")
