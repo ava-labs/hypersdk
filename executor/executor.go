@@ -5,6 +5,7 @@ package executor
 
 import (
 	"sync"
+	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
@@ -38,7 +39,6 @@ type Executor struct {
 // assumption: keys in edges are A/W
 type keyData struct {
 	id int
-	concurrentReads set.Set[int]
 	blockers int
 	waiter chan struct{}
 }
@@ -93,11 +93,11 @@ func (e *Executor) runWorker() {
 				bt.dependencies.Remove(t.id)
 				for key := range bt.keys {
 					k := e.edges[key]
-					k.blockers--
 					// tODO: do i need k.concurrentReads?
 					if k.blockers == 0 {
 						close(k.waiter)
 					}
+					k.blockers--
 				}
 				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 					bt.dependencies = nil // free memory
@@ -141,12 +141,9 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			lt := e.tasks[key.id]
 			if !lt.executed {
 				if v == state.Read {
-					key.concurrentReads.Add(id)
 					key.blockers++
 					continue
 				}
-
-				<-key.waiter
 
 				if t.dependencies == nil {
 					t.dependencies = set.NewSet[int](defaultSetSize)
@@ -156,11 +153,10 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
 				lt.blocking.Add(id)
-				continue
 			}
 		}
 		// reads are blocked on itself
-		e.edges[k] = &keyData{id: id, concurrentReads: set.Set[int]{}, waiter: make(chan struct{})}
+		e.edges[k] = &keyData{id: id, blockers: 0, waiter: make(chan struct{})}
 	}
 
 	// Start execution if there are no blocking dependencies
