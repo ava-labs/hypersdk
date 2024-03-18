@@ -35,28 +35,12 @@ type Executor struct {
 	edges     map[string]*keyData
 }
 
-// keyData keeps track of the last blocked task, known
-// as the id, its Permissions, and any tasks that
-// are trying to read, but is blocked by the id,
-// known as ConcurrentReads.
-//
-// ConcurrentReads is important in the case where we have
-// many Reads that we want to access in parallel, followed
-// by a Write. It isn't sufficient enough to note the id
-// because we can't write if we're trying to read, and we can't
-// read if we're trying to write. This is to adhere to the
-// properties of the Executor.
-//
-// Consider the case where four transactions, touching the same state
-// key, with the following permissions: T1_W -> T2_R -> T3_R -> T4_W.
-// Assume that T1 hasn't executed, so this blocks T2 and T3. But,
-// we also note down that T2 and T3 are concurrent reads here. So,
-// when we get to T4, we observe that T2 and T3 are both blocking T4,
-// and we can record the appropriate dependencies with ConcurrentReads.
+// assumption: keys in edges are A/W
 type keyData struct {
-	id              int
-	permissions     state.Permissions
+	id int
 	concurrentReads set.Set[int]
+	blockers int
+	waiter chan struct{}
 }
 
 // New creates a new [Executor].
@@ -66,7 +50,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
 		edges:      make(map[string]*keyData, items*2), // TODO: tune this
-		executable: make(chan *task, items),            // ensure we don't block while holding lock
+		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
 	e.wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -104,26 +88,17 @@ func (e *Executor) runWorker() {
 			}
 
 			e.l.Lock()
-			for k, v := range t.keys {
-				if v.Has(state.Allocate) || v.Has(state.Write) {
-					for b := range key.concurrentReads {
-						bt := e.tasks[b]
-						if !bt.executed {
-							bt.blocking.Add(t.id)
-							t.dependencies.Add(b)
-						}
-					}
-					key.concurrentReads.Clear()
-				}
-				if v == state.Read {
-					key.concurrentReads.Clear()
-					key.concurrentReads.Add(id)
-				}
-			}
-
 			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
 				bt.dependencies.Remove(t.id)
+				for key := range bt.keys {
+					k := e.edges[key]
+					k.blockers--
+					// tODO: do i need k.concurrentReads?
+					if k.blockers == 0 {
+						close(k.waiter)
+					}
+				}
 				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 					bt.dependencies = nil // free memory
 					e.executable <- bt
@@ -161,65 +136,31 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 
 	// Record dependencies
 	for k, v := range conflicts {
-		// Get last blocked transaction
-		key, exists := e.edges[k]
-		if !exists {
-			concurrentReads := set.NewSet[int](defaultSetSize)
-			if v == state.Read {
-				// Record any reads on the same key to help
-				// with updating dependencies properly
-				concurrentReads.Add(id)
-			}
-			// Key doesn't exist, so we add it to our edge map
-			e.edges[k] = &keyData{id: id, permissions: v, concurrentReads: concurrentReads}
-			continue
-		}
-		pt := e.tasks[key.id]
-		if !pt.executed {
-			if t.dependencies == nil {
-				t.dependencies = set.NewSet[int](defaultSetSize)
-			}
-			if pt.blocking == nil {
-				pt.blocking = set.NewSet[int](defaultSetSize)
-			}
-			switch {
-			case v == state.Read:
-				key.concurrentReads.Add(id)
-				if key.permissions != state.Read {
-					// Only record non-Read dependencies
-					updateBlocking(pt, t, key.id)
+		key, ok := e.edges[k]
+		if ok {
+			lt := e.tasks[key.id]
+			if !lt.executed {
+				if v == state.Read {
+					key.concurrentReads.Add(id)
+					key.blockers++
+					continue
 				}
-			case v.Has(state.Allocate) || v.Has(state.Write):
-				if key.concurrentReads.Len() == 0 {
-					// Blocked on write-after-writes
-					updateBlocking(pt, t, key.id)
-				} else {
-					// Blocked when attempting write-after-reads
-					// by all of the reads preceding the write
-					e.updateConcurrentReads(key, t)
+
+				<-key.waiter
+
+				if t.dependencies == nil {
+					t.dependencies = set.NewSet[int](defaultSetSize)
 				}
-				updateKey(key, id, v)
-			}
-			continue
-		}
-		// We don't record write-after-write, since the parent Write
-		// has already executed. We consider any outstanding read(s)-
-		// after-write that still need to be executed.
-		if v.Has(state.Allocate) || v.Has(state.Write) {
-			for b := range key.concurrentReads {
-				bt := e.tasks[b]
-				if !bt.executed {
-					bt.blocking.Add(t.id)
-					t.dependencies.Add(b)
+				t.dependencies.Add(lt.id)
+				if lt.blocking == nil {
+					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
+				lt.blocking.Add(id)
+				continue
 			}
-			key.concurrentReads.Clear()
 		}
-		if v == state.Read {
-			key.concurrentReads.Clear()
-			key.concurrentReads.Add(id)
-		}		
-		updateKey(key, id, v)
+		// reads are blocked on itself
+		e.edges[k] = &keyData{id: id, concurrentReads: set.Set[int]{}, waiter: make(chan struct{})}
 	}
 
 	// Start execution if there are no blocking dependencies
@@ -234,34 +175,6 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	if e.metrics != nil {
 		e.metrics.RecordBlocked()
 	}
-}
-
-// Occurs when trying to write-after-read or write-after-write
-func updateBlocking(pt *task, t *task, keyID int) {
-	pt.blocking.Add(t.id)
-	t.dependencies.Add(keyID)
-}
-
-// Update id everytime it's a Allocate/Write key or if the last blocked txn ran
-func updateKey(key *keyData, id int, v state.Permissions) {
-	key.id = id
-	key.permissions = v
-}
-
-// Update concurrentReads when we encounter a Allocate/Write key
-// or when the last blocked transaction has been executed
-func (e *Executor) updateConcurrentReads(key *keyData, t *task) {
-	for b := range key.concurrentReads {
-		bt := e.tasks[b]
-		// Record that we're blocked on the concurrent reads
-		// that are not yet executed.
-		if !bt.executed {
-			bt.blocking.Add(t.id)
-			t.dependencies.Add(b)
-		}
-	}
-	// Any read(s)-after-write will now be blocked by this task
-	key.concurrentReads.Clear()
 }
 
 func (e *Executor) Stop() {
