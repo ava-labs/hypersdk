@@ -17,7 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const mempoolBatchSize = 1024
+const (
+	mempoolBatchSize = 256
+	chunkPrealloc    = 16_384
+)
 
 type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
@@ -42,7 +45,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	r := vm.Rules(now)
 	c := &Chunk{
 		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
-		Txs:  make([]*Transaction, 0, mempoolBatchSize),
+		Txs:  make([]*Transaction, 0, chunkPrealloc),
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
 
@@ -127,7 +130,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			chunkUnits = nextUnits
 
 			// Add transaction to chunk
-			vm.IssueTx(ctx, tx)
+			vm.IssueTx(ctx, tx) // prevents duplicate from being re-added to mempool
 			c.Txs = append(c.Txs, tx)
 			authCounts[tx.Auth.GetTypeID()]++
 		}
