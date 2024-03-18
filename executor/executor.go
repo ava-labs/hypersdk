@@ -66,6 +66,9 @@ type task struct {
 	dependencies set.Set[int]
 	blocking     set.Set[int]
 
+	blockers int
+	waiter chan struct{}
+
 	executed bool
 }
 
@@ -78,6 +81,12 @@ func (e *Executor) runWorker() {
 			if !ok {
 				return
 			}
+
+			if t.waiter != nil {
+				<-t.waiter
+			}
+			
+
 			if err := t.f(); err != nil {
 				e.stopOnce.Do(func() {
 					e.err = err
@@ -87,6 +96,17 @@ func (e *Executor) runWorker() {
 			}
 
 			e.l.Lock()
+			for key := range t.keys {
+				k := e.edges[key]
+				for cr := range k.concurrentReads {
+					crt := e.tasks[cr]
+					crt.blockers--
+					if crt.blockers == 0 {
+						close(crt.waiter)
+					}
+				}
+				k.concurrentReads.Clear()
+			}
 			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
 				bt.dependencies.Remove(t.id)
@@ -132,6 +152,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			lt := e.tasks[key.id]
 			if !lt.executed {
 				if v == state.Read {
+					t.blockers++
 					key.concurrentReads.Add(id)
 					continue
 				}
@@ -139,15 +160,20 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 				if t.dependencies == nil {
 					t.dependencies = set.NewSet[int](defaultSetSize)
 				}
-				t.dependencies.Add(lt.id)
 				if lt.blocking == nil {
 					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
+
+				t.dependencies.Add(lt.id)
 				lt.blocking.Add(id)
 			}
 		}
 		// reads are blocked on itself
 		e.edges[k] = &keyData{id: id, concurrentReads: set.Set[int]{}}
+	}
+
+	if t.blockers > 0 {
+		t.waiter = make(chan struct{})
 	}
 
 	// Start execution if there are no blocking dependencies
