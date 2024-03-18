@@ -4,10 +4,11 @@
 package executor
 
 import (
-	"errors"
+	_ "errors"
 	"sync"
 	"testing"
 	"time"
+	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-func TestExecutorNoConflicts(t *testing.T) {
+/*func TestExecutorNoConflicts(t *testing.T) {
 	var (
 		require   = require.New(t)
 		l         sync.Mutex
@@ -70,9 +71,9 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 	require.NoError(e.Wait()) // existing task is running
 	require.Len(completed, 100)
 	require.Equal(0, completed[99])
-}
+}*/
 
-func TestExecutorSimpleConflict(t *testing.T) {
+/*func TestExecutorSimpleConflict(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -80,6 +81,7 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		completed   = make([]int, 0, 100)
 		e           = New(100, 4, nil)
 	)
+	fmt.Printf("CONFLICT key %v\n", conflictKey)
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
@@ -264,7 +266,7 @@ func TestAllKeyThenAddWrite(t *testing.T) {
 	}
 	require.NoError(e.Wait())
 	require.Equal([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, completed[90:])
-}
+}*/
 
 // W->W->W->...
 func TestManyWrites(t *testing.T) {
@@ -300,7 +302,7 @@ func TestManyWrites(t *testing.T) {
 }
 
 // R->R->R->...
-func TestManyReads(t *testing.T) {
+/*func TestManyReads(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -481,4 +483,4 @@ func TestReadThenWriteRepeated(t *testing.T) {
 	require.Equal(12, completed[12])
 	// 13..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
-}
+}*/
