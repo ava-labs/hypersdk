@@ -76,7 +76,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	var (
 		chunkUnits = Dimensions{}
 		full       bool
-		cleared    bool
 		mempool    = vm.Mempool()
 		authCounts = make(map[uint8]int)
 	)
@@ -84,7 +83,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
 		tx, ok := mempool.Stream(ctx)
 		if !ok {
-			cleared = true
 			break
 		}
 		// Ensure we haven't included this transaction in a chunk yet
@@ -128,6 +126,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 
 			// Restore unused txs
 			mempool.FinishStreaming(ctx, []*Transaction{tx})
+			vm.RecordRemainingMempool()
 			break
 		}
 		chunkUnits = nextUnits
@@ -140,9 +139,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	if !full {
 		// Clears conflicting set
 		mempool.FinishStreaming(ctx, nil)
-	}
-	if !cleared {
-		vm.RecordRemainingMempool()
 	}
 
 	// Discard chunk if nothing produced
@@ -187,7 +183,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("chainID", r.ChainID()),
 		zap.Int64("slot", c.Slot),
 		zap.Uint64("epoch", epoch),
-		zap.Bool("cleared mempool", cleared),
 		zap.Bool("full", full),
 		zap.Int("txs", len(c.Txs)),
 		zap.Any("units", chunkUnits),
