@@ -80,6 +80,7 @@ func BuildBlock(
 				panic(err)
 			}
 			if repeats.Len() > 0 {
+				// TODO: should we restore these certs?
 				b.vm.RecordBlockBuildCertDropped()
 				log.Debug("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
 				continue
