@@ -609,20 +609,12 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) RecordOptimisticAuthorizedChunk(t time.Duration) {
-	vm.metrics.optimisticChunkAuthorized.Observe(float64(t))
-}
-
 func (vm *VM) RecordNotAuthorizedChunk() {
 	vm.metrics.chunksNotAuthorized.Inc()
 }
 
 func (vm *VM) RecordExecutedChunks(c int) {
 	vm.metrics.chunksExecuted.Add(float64(c))
-}
-
-func (vm *VM) RecordUnusedAuthorizedChunks(c int) {
-	vm.metrics.unusedChunkAuthorizations.Add(float64(c))
 }
 
 func (vm *VM) RecordWaitRepeat(t time.Duration) {

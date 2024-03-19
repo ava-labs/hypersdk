@@ -49,7 +49,6 @@ type Metrics struct {
 	certsReceived             prometheus.Counter
 	chunksExecuted            prometheus.Counter
 	chunksNotAuthorized       prometheus.Counter
-	unusedChunkAuthorizations prometheus.Counter
 	txRPCAuthorized           prometheus.Counter
 	blockVerifyFailed         prometheus.Counter
 	gossipTxMsgInvalid        prometheus.Counter
@@ -84,7 +83,6 @@ type Metrics struct {
 	blockProcess              metric.Averager
 	blockExecute              metric.Averager
 	chunkProcess              metric.Averager
-	optimisticChunkAuthorized metric.Averager
 	fetchMissingChunks        metric.Averager
 
 	executorRecorder executor.Metrics
@@ -205,15 +203,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"chunk_process",
 		"time spent processing executed chunks",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	optimisticChunkAuthorized, err := metric.NewAverager(
-		"chain",
-		"optimistic_chunk_authorized",
-		"time spent optimistically verifying chunks",
 		r,
 	)
 	if err != nil {
@@ -350,11 +339,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "chunks_not_authorized",
 			Help:      "chunks with signatures not verified by the time they are executed",
 		}),
-		unusedChunkAuthorizations: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "unused_chunk_authorizations",
-			Help:      "chunks verified but not executed",
-		}),
 		txRPCAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "tx_rpc_authorized",
@@ -460,21 +444,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
-		waitRepeat:                waitRepeat,
-		waitAuth:                  waitAuth,
-		waitExec:                  waitExec,
-		waitProcessor:             waitProcessor,
-		waitCommit:                waitCommit,
-		chunkBuild:                chunkBuild,
-		blockBuild:                blockBuild,
-		blockParse:                blockParse,
-		blockVerify:               blockVerify,
-		blockAccept:               blockAccept,
-		blockProcess:              blockProcess,
-		blockExecute:              blockExecute,
-		chunkProcess:              chunkProcess,
-		optimisticChunkAuthorized: optimisticChunkAuthorized,
-		fetchMissingChunks:        fetchMissingChunks,
+		waitRepeat:         waitRepeat,
+		waitAuth:           waitAuth,
+		waitExec:           waitExec,
+		waitProcessor:      waitProcessor,
+		waitCommit:         waitCommit,
+		chunkBuild:         chunkBuild,
+		blockBuild:         blockBuild,
+		blockParse:         blockParse,
+		blockVerify:        blockVerify,
+		blockAccept:        blockAccept,
+		blockProcess:       blockProcess,
+		blockExecute:       blockExecute,
+		chunkProcess:       chunkProcess,
+		fetchMissingChunks: fetchMissingChunks,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -504,7 +487,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.certsReceived),
 		r.Register(m.chunksExecuted),
 		r.Register(m.chunksNotAuthorized),
-		r.Register(m.unusedChunkAuthorizations),
 		r.Register(m.txRPCAuthorized),
 		r.Register(m.blockVerifyFailed),
 		r.Register(m.gossipTxMsgInvalid),

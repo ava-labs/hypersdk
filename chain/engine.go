@@ -13,26 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
-
-// TODO: unify with chunk wrapper
-type simpleChunkWrapper struct {
-	chunk   ids.ID
-	slot    int64
-	success bool
-}
-
-func (scw *simpleChunkWrapper) ID() ids.ID {
-	return scw.chunk
-}
-
-func (scw *simpleChunkWrapper) Expiry() int64 {
-	return scw.slot
-}
 
 type engineJob struct {
 	parentTimestamp int64
@@ -63,8 +47,6 @@ type Engine struct {
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
-
-	authorized *eheap.ExpiryHeap[*simpleChunkWrapper]
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -77,8 +59,6 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 		backlog: make(chan *engineJob, maxBacklog),
 
 		outputs: make(map[uint64]*output),
-
-		authorized: eheap.New[*simpleChunkWrapper](64),
 	}
 }
 
@@ -138,15 +118,9 @@ func (e *Engine) processJob(job *engineJob) {
 	chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 	for chunk := range job.chunks {
 		// Handle fetched chunk
-		cw, _ := e.authorized.Remove(chunk.ID())
-		p.Add(ctx, len(chunks), chunk, cw)
+		p.Add(ctx, len(chunks), chunk)
 		chunks = append(chunks, chunk)
 	}
-	uselessAuthorization := len(e.authorized.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
-	if uselessAuthorization > 0 {
-		e.vm.Logger().Warn("performed useless authorization", zap.Int("count", uselessAuthorization))
-	}
-	e.vm.RecordUnusedAuthorizedChunks(uselessAuthorization)
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err))
@@ -348,49 +322,10 @@ func (e *Engine) Run() {
 	e.latestView = state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
 
 	for {
-		// Check to see if anything is on the backlog or if we should stop
 		select {
 		case job := <-e.backlog:
 			e.processJob(job)
 			continue
-		case <-e.vm.StopChan():
-			return
-		default:
-		}
-
-		// Check to see if any chunks are ready for optimistic signature verification (if there is nothing else to do)
-		select {
-		case cert := <-e.vm.CertChan():
-			// Need to ensure this stream is deduped (can't just send as soon as a chunk is ready)
-			if e.vm.IsSeenChunk(context.TODO(), cert.Chunk) {
-				// Will process during execution loop or already processed
-				continue
-			}
-			chunk, err := e.vm.GetChunk(cert.Slot, cert.Chunk)
-			if chunk == nil || err != nil {
-				e.vm.Logger().Warn("chunk not available for optimistic verification", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
-				continue
-			}
-			if e.vm.NodeID() == chunk.Producer {
-				// Don't verify own chunks
-				continue
-			}
-			if !e.vm.GetVerifyAuth() {
-				// Don't verify chunks if not verifying
-				continue
-			}
-			start := time.Now()
-			result := AuthorizeChunk(e.vm, chunk)
-			e.authorized.Add(&simpleChunkWrapper{
-				chunk:   cert.Chunk,
-				slot:    cert.Slot,
-				success: result,
-			})
-			dur := time.Since(start)
-			e.vm.Logger().Debug("optimistically authorized chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", dur))
-			e.vm.RecordOptimisticAuthorizedChunk(dur)
-		case job := <-e.backlog:
-			e.processJob(job)
 		case <-e.vm.StopChan():
 			return
 		}

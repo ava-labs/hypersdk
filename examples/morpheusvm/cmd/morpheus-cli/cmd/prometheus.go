@@ -151,20 +151,11 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_executed[5s])/increase(avalanche_%s_vm_hypersdk_chain_block_execute_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}chunks per executed block:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_authorized_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_authorized_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}optimistic chunk authorize [async] (ms/chunk):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_authorized_sum[5s])/1000000/5", chainID))
-			utils.Outf("{{yellow}}optimistic chunk authorize [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
-
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_chunk_authorized_sum[5s])/1000000/5 + increase(avalanche_%s_vm_hypersdk_chain_block_execute_sum[5s])/1000000/5", chainID, chainID))
 			utils.Outf("{{yellow}}executor busy (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunks_not_authorized[5s])/5", chainID))
 			utils.Outf("{{yellow}}executed chunks not authorized per second:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_unused_chunk_authorizations[5s])/5", chainID))
-			utils.Outf("{{yellow}}unused chunk authorizations per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_gossip_tx_msg_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid tx msgs received over gossip per second:{{/}} %s\n", panels[len(panels)-1])
