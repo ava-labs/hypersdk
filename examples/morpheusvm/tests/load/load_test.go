@@ -392,39 +392,11 @@ var _ = ginkgo.Describe("load tests vm", func() {
 		})
 
 		ginkgo.By("deploy contracts", func() {
-			requiredTxs := map[ids.ID]struct{}{}
-
 			evmTxBuilder := &evmTxBuilder{
 				actor: root.rsender,
 				bcli:  instances[0].tcli,
 			}
 			ctx := context.TODO()
-
-			produceAndAcceptBlock := func() {
-				for {
-					blk, accept := produceBlock(instances[0])
-					if blk == nil {
-						break
-					}
-					accept()
-					log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
-					for _, result := range blk.Results() {
-						if !result.Success {
-							unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-							fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
-						}
-						gomega.Ω(result.Success).Should(gomega.BeTrue())
-					}
-					for _, tx := range blk.Txs {
-						delete(requiredTxs, tx.ID())
-					}
-					for _, instance := range instances[1:] {
-						accept := addBlock(instance, blk)
-						accept()
-					}
-				}
-				gomega.Ω(len(requiredTxs)).To(gomega.BeZero())
-			}
 
 			// parse all the contracts
 			abis := make(map[string]*parsedABI)
@@ -515,6 +487,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				},
 			}
 
+			issuer := newSimpleTxIssuer()
 			for _, step := range steps {
 				isDeploy := step.method == ""
 				var args []interface{}
@@ -542,10 +515,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					deployed[step.abi] = crypto.CreateAddress(owner, action.Nonce)
 				}
 
-				id, err := issueTx(instances[0], action, root.factory)
-				gomega.Ω(err).Should(gomega.BeNil())
-				requiredTxs[id] = struct{}{}
-				produceAndAcceptBlock()
+				issuer.issueTx(action)
+				issuer.produceAndAcceptBlock()
 			}
 		})
 
@@ -690,6 +661,51 @@ var _ = ginkgo.Describe("load tests vm", func() {
 		}
 	})
 })
+
+type simpleTxIssuer struct {
+	instances []*instance
+	pending   map[ids.ID]struct{}
+}
+
+func newSimpleTxIssuer() *simpleTxIssuer {
+	return &simpleTxIssuer{
+		instances: instances,
+		pending:   make(map[ids.ID]struct{}),
+	}
+}
+
+func (s *simpleTxIssuer) issueTx(action chain.Action) {
+	id, err := issueTx(s.instances[0], action, root.factory)
+	gomega.Ω(err).Should(gomega.BeNil())
+	s.pending[id] = struct{}{}
+}
+
+func (s *simpleTxIssuer) produceAndAcceptBlock() {
+	instances := s.instances
+	for {
+		blk, accept := produceBlock(instances[0])
+		if blk == nil {
+			break
+		}
+		accept()
+		log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
+		for _, result := range blk.Results() {
+			if !result.Success {
+				unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
+				fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
+			}
+			gomega.Ω(result.Success).Should(gomega.BeTrue())
+		}
+		for _, tx := range blk.Txs {
+			delete(s.pending, tx.ID())
+		}
+		for _, instance := range instances[1:] {
+			accept := addBlock(instance, blk)
+			accept()
+		}
+	}
+	gomega.Ω(len(s.pending)).To(gomega.BeZero())
+}
 
 func issueSimpleTx(
 	i *instance,
