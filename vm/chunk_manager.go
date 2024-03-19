@@ -1221,6 +1221,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 						return nil, errors.New("stopping")
 					}
 					if len(bytes) == 0 {
+						c.vm.Logger().Warn("failed to fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Stringer("nodeID", validator))
 						continue
 					}
 
