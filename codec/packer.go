@@ -74,9 +74,9 @@ func (p *Packer) PackAddress(a Address) {
 	p.p.PackFixedBytes(a[:])
 }
 
-func (p *Packer) UnpackAddress(dest *Address) {
+func (p *Packer) UnpackAddress(canBeEmpty bool, dest *Address) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
-	if *dest == EmptyAddress {
+	if !canBeEmpty && *dest == EmptyAddress {
 		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
 	}
 }

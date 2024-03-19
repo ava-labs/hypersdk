@@ -93,7 +93,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackAddress(&transfer.To)
+	p.UnpackAddress(false, &transfer.To)
 	p.UnpackID(false, &transfer.Asset) // empty ID is the native asset
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)

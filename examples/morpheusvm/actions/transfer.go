@@ -82,7 +82,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
+	p.UnpackAddress(false, &transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
 	if err := p.Err(); err != nil {
 		return nil, err

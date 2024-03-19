@@ -322,15 +322,23 @@ func innerGetAsset(
 	if err != nil {
 		return false, nil, 0, nil, 0, codec.EmptyAddress, false, err
 	}
-	symbolLen := binary.BigEndian.Uint16(v)
-	symbol := v[consts.Uint16Len : consts.Uint16Len+symbolLen]
-	decimals := v[consts.Uint16Len+symbolLen]
-	metadataLen := binary.BigEndian.Uint16(v[consts.Uint16Len+symbolLen+consts.Uint8Len:])
-	metadata := v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len : consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen]
-	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:])
+	p := codec.NewReader(v, consts.MaxInt)
+
+	var symbol []byte
+	var metadata []byte
 	var addr codec.Address
-	copy(addr[:], v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	warp := v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen] == 0x1
+
+	p.UnpackBytes(consts.MaxInt, false, &symbol)
+	decimals := p.UnpackByte()
+	p.UnpackBytes(consts.MaxInt, false, &metadata)
+	supply := p.UnpackUint64(false)
+	p.UnpackAddress(true, &addr)
+	warp := p.UnpackBool()
+
+	if err := p.Err(); err != nil {
+		return false, nil, 0, nil, 0, codec.EmptyAddress, false, err
+	}
+
 	return true, symbol, decimals, metadata, supply, addr, warp, nil
 }
 
@@ -346,22 +354,21 @@ func SetAsset(
 	warp bool,
 ) error {
 	k := AssetKey(asset)
-	symbolLen := len(symbol)
-	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen+1)
-	binary.BigEndian.PutUint16(v, uint16(symbolLen))
-	copy(v[consts.Uint16Len:], symbol)
-	v[consts.Uint16Len+symbolLen] = decimals
-	binary.BigEndian.PutUint16(v[consts.Uint16Len+symbolLen+consts.Uint8Len:], uint16(metadataLen))
-	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len:], metadata)
-	binary.BigEndian.PutUint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:], supply)
-	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
-	b := byte(0x0)
-	if warp {
-		b = 0x1
+
+	p := codec.NewWriter(0, consts.MaxInt)
+
+	p.PackBytes(symbol)
+	p.PackByte(decimals)
+	p.PackBytes(metadata)
+	p.PackUint64(supply)
+	p.PackAddress(owner)
+	p.PackBool(warp)
+
+	if err := p.Err(); err != nil {
+		return err
 	}
-	v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen] = b
-	return mu.Insert(ctx, k, v)
+
+	return mu.Insert(ctx, k, p.Bytes())
 }
 
 func DeleteAsset(ctx context.Context, mu state.Mutable, asset ids.ID) error {

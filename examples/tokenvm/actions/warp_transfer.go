@@ -93,7 +93,7 @@ func UnmarshalWarpTransfer(b []byte) (*WarpTransfer, error) {
 
 	var transfer WarpTransfer
 	p := codec.NewReader(b, maxWarpTransferSize)
-	p.UnpackAddress(&transfer.To)
+	p.UnpackAddress(false, &transfer.To)
 	p.UnpackBytes(MaxSymbolSize, true, &transfer.Symbol)
 	transfer.Decimals = p.UnpackByte()
 	p.UnpackID(false, &transfer.Asset)
