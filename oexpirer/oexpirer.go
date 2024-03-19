@@ -88,7 +88,7 @@ func (o *OExpirer[T]) SetMin(t int64) []T {
 		if e == nil {
 			break
 		}
-		if e.Value().Expiry() > t {
+		if e.Value().Expiry() >= t {
 			break
 		}
 		o.q.Remove(e)

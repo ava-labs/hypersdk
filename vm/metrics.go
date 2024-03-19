@@ -58,6 +58,7 @@ type Metrics struct {
 	rpcTxInvalid              prometheus.Counter
 	expiredBuiltChunks        prometheus.Counter
 	expiredCerts              prometheus.Counter
+	mempoolExpired            prometheus.Counter
 	fetchChunkAttempts        prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
@@ -383,6 +384,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "expired_certs",
 			Help:      "number of certificates that expired",
 		}),
+		mempoolExpired: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "mempool_expired",
+			Help:      "number of transactions that expired while in the mempool",
+		}),
 		fetchChunkAttempts: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "fetch_chunk_attempts",
@@ -490,6 +496,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.rpcTxInvalid),
 		r.Register(m.expiredBuiltChunks),
 		r.Register(m.expiredCerts),
+		r.Register(m.mempoolExpired),
 		r.Register(m.fetchChunkAttempts),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),

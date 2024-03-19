@@ -157,10 +157,23 @@ func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
 	defer span.End()
 
-	// We need to wait until we may not try to verify the signature of a tx again.
+	// Update timestamp in mempool
 	//
-	// TODO: add a queue
-	vm.rpcAuthorizedTxs.SetMin(blk.StatefulBlock.Timestamp)
+	// We wait to update the min until here because we want to allow all execution
+	// to complete and remove valid txs first.
+	t := blk.StatefulBlock.Timestamp
+	vm.metrics.mempoolExpired.Add(float64(len(vm.mempool.SetMinTimestamp(ctx, t))))
+	vm.metrics.mempoolLen.Set(float64(vm.mempool.Len(ctx)))
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Size(ctx)))
+
+	// We need to wait until we may not try to verify the signature of a tx again.
+	vm.rpcAuthorizedTxs.SetMin(t)
+
+	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+	// send [ErrExpired] messages.
+	if err := vm.webSocketServer.SetMinTx(t); err != nil {
+		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+	}
 }
 
 func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
@@ -254,12 +267,6 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// Send notifications as soon as transactions are executed
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
-	}
-
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(b.StatefulBlock.Timestamp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 }
 
@@ -362,15 +369,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 			}
 		}
 	}
-
-	// Update timestamp in mempool
-	//
-	// We rely on the [vm.waiters] map to notify listeners of dropped
-	// transactions instead of the mempool because we won't need to iterate
-	// through as many transactions.
-	vm.mempool.SetMinTimestamp(ctx, blkTime)
-	vm.metrics.mempoolLen.Set(float64(vm.mempool.Len(ctx)))
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Size(ctx)))
 
 	// Enqueue block for processing
 	vm.acceptedQueue <- &acceptedWrapper{b, chunks}

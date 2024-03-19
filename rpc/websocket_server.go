@@ -199,7 +199,7 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 		}
 	}
 	if exp := len(expired); exp > 0 {
-		w.vm.Logger().Debug("expired listeners", zap.Int("count", exp))
+		w.vm.Logger().Warn("expired listeners", zap.Int("count", exp))
 	}
 	return nil
 }
