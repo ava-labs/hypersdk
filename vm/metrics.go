@@ -473,6 +473,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsIncluded),
 		r.Register(m.txsInvalid),
 		r.Register(m.chunkBuildTxsDropped),
+		r.Register(m.blockBuildCertsDropped),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.remainingMempool),
