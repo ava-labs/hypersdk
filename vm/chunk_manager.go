@@ -106,6 +106,8 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
 	} else {
 		// If the existing certificate has more signers than the
 		// new certificate, don't update.
+		//
+		// TODO: we should use weight here, not just number of signers
 		if elem.Value().Signers.Len() > cert.Signers.Len() {
 			return true
 		}
