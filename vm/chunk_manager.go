@@ -551,6 +551,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			c.vm.metrics.gossipTxMsgInvalid.Inc()
 			return nil
 		}
 		c.vm.RecordTxsReceived(len(txs))
@@ -877,6 +878,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					if invalid {
 						batchVerifier.Done(nil)
 						c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
+						c.vm.metrics.gossipTxInvalid.Inc()
 						continue
 					}
 

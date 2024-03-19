@@ -50,6 +50,8 @@ type Metrics struct {
 	unusedChunkAuthorizations prometheus.Counter
 	txRPCAuthorized           prometheus.Counter
 	blockVerifyFailed         prometheus.Counter
+	gossipTxMsgInvalid        prometheus.Counter
+	gossipTxInvalid           prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -351,6 +353,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "block_verify_failed",
 			Help:      "number of blocks that failed verification",
 		}),
+		gossipTxMsgInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_tx_msg_invalid",
+			Help:      "number of invalid transaction messages received over gossip",
+		}),
+		gossipTxInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_tx_invalid",
+			Help:      "number of invalid transactions received over gossip",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -432,6 +444,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unusedChunkAuthorizations),
 		r.Register(m.txRPCAuthorized),
 		r.Register(m.blockVerifyFailed),
+		r.Register(m.gossipTxMsgInvalid),
+		r.Register(m.gossipTxInvalid),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 		r.Register(m.chainDataSize),
