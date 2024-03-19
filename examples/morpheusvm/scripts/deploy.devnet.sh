@@ -179,12 +179,6 @@ do
   esac
 done
 
-# Wait for epoch initialization
-SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
-echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-echo -e "${YELLOW}We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value.${NC}"
-sleep $SLEEP_DUR
-
 # Start load test on dedicated machine
 # TODO: only start using again once test is run async and logs are collected using Loki (stream isn't reliable)
 $TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="exit"

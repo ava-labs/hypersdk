@@ -247,6 +247,33 @@ func (e *Engine) processJob(job *engineJob) {
 			e.vm.Logger().Debug("ignoring p-chain height update", zap.Uint64("height", job.blk.PHeight))
 		}
 
+		// To speed up start of local network, set current and next epoch info as well
+		//
+		// TODO: disable this feature on a production network
+		if job.blk.Height() <= 5 {
+			for be := epoch; be < epoch+3; be++ {
+				backfillEpoch := EpochKey(e.vm.StateManager().EpochKey(be))
+				_, err := parentView.GetValue(ctx, backfillEpoch) // <P-Chain Height>|<Fee Dimensions>
+				if err != nil && errors.Is(err, database.ErrNotFound) {
+					value := make([]byte, consts.Uint64Len)
+					binary.BigEndian.PutUint64(value, job.blk.PHeight)
+					if err := ts.Insert(ctx, backfillEpoch, value); err != nil {
+						panic(err)
+					}
+					e.vm.Logger().Info(
+						"backfilling epoch height",
+						zap.Uint64("epoch", be),
+						zap.Uint64("height", job.blk.PHeight),
+					)
+				} else {
+					e.vm.Logger().Debug(
+						"height already backfilled for epoch height",
+						zap.Uint64("epoch", be),
+					)
+				}
+			}
+		}
+
 		// Ensure we are never stuck waiting for height information near the end of an epoch
 		//
 		// When validating data in a given epoch e, we need to know the p-chain height for epoch e and e+1. If either

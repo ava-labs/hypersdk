@@ -277,11 +277,6 @@ echo "running e2e tests"
 
 ############################
 if [[ ${MODE} == "run" ]]; then
-  SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
-  echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-  echo "We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value."
-  
-sleep $SLEEP_DUR
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
