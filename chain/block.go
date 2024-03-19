@@ -514,7 +514,13 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		filteredChunks = fc
 	}
 	b.vm.Accepted(ctx, b, filteredChunks)
-	b.vm.Logger().Info("accepted block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
+	r := b.vm.Rules(b.StatefulBlock.Timestamp)
+	b.vm.Logger().Info(
+		"accepted block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Uint64("epoch", utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())),
+	)
 	return nil
 }
 

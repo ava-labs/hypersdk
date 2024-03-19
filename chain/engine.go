@@ -331,6 +331,7 @@ func (e *Engine) processJob(job *engineJob) {
 		zap.Int("total txs", txCount),
 		zap.Int("chunks", len(filteredChunks)),
 		zap.Stringer("root", root),
+		zap.Uint64("epoch", epoch),
 		zap.Duration("t", time.Since(estart)),
 	)
 	e.vm.RecordBlockExecute(time.Since(estart))
