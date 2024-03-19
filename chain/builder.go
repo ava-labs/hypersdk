@@ -81,6 +81,7 @@ func BuildBlock(
 			}
 			if repeats.Len() > 0 {
 				// TODO: should we restore these certs?
+				// -> if block is rejected, we can put chunks back in the front?
 				b.vm.RecordBlockBuildCertDropped()
 				log.Debug("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
 				continue
