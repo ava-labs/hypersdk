@@ -62,6 +62,7 @@ func (scw *simpleChunkWrapper) Expiry() int64 {
 type chunkWrapper struct {
 	l sync.Mutex
 
+	sent       time.Time
 	chunk      *chain.Chunk
 	signatures map[string]*chain.ChunkSignature
 }
@@ -523,6 +524,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Debug("chunk does not have sufficient weight to create certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
+		}
+
+		// Record time to collect and then reset to ensure we don't log multiple times
+		if !cw.sent.IsZero() {
+			c.vm.metrics.collectChunkSignatures.Observe(float64(time.Since(cw.sent)))
+			cw.sent = time.Time{}
 		}
 
 		// Construct certificate
@@ -1059,6 +1066,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		panic(err)
 	}
 	cw := &chunkWrapper{
+		sent:       time.Now(),
 		chunk:      chunk,
 		signatures: make(map[string]*chain.ChunkSignature, len(validators)+1),
 	}

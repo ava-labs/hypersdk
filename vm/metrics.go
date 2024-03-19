@@ -84,6 +84,7 @@ type Metrics struct {
 	blockExecute              metric.Averager
 	chunkProcess              metric.Averager
 	fetchMissingChunks        metric.Averager
+	collectChunkSignatures    metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -212,6 +213,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"fetch_missing_chunks",
 		"time spent fetching missing chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	collectChunkSignatures, err := metric.NewAverager(
+		"chain",
+		"collect_chunk_signatures",
+		"time spent collecting chunk signatures",
 		r,
 	)
 	if err != nil {
@@ -444,20 +454,21 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
-		waitRepeat:         waitRepeat,
-		waitAuth:           waitAuth,
-		waitExec:           waitExec,
-		waitProcessor:      waitProcessor,
-		waitCommit:         waitCommit,
-		chunkBuild:         chunkBuild,
-		blockBuild:         blockBuild,
-		blockParse:         blockParse,
-		blockVerify:        blockVerify,
-		blockAccept:        blockAccept,
-		blockProcess:       blockProcess,
-		blockExecute:       blockExecute,
-		chunkProcess:       chunkProcess,
-		fetchMissingChunks: fetchMissingChunks,
+		waitRepeat:             waitRepeat,
+		waitAuth:               waitAuth,
+		waitExec:               waitExec,
+		waitProcessor:          waitProcessor,
+		waitCommit:             waitCommit,
+		chunkBuild:             chunkBuild,
+		blockBuild:             blockBuild,
+		blockParse:             blockParse,
+		blockVerify:            blockVerify,
+		blockAccept:            blockAccept,
+		blockProcess:           blockProcess,
+		blockExecute:           blockExecute,
+		chunkProcess:           chunkProcess,
+		fetchMissingChunks:     fetchMissingChunks,
+		collectChunkSignatures: collectChunkSignatures,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
