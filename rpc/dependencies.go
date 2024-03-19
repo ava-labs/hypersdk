@@ -41,4 +41,5 @@ type VM interface {
 	StopChan() chan struct{}
 
 	RecordReadDelay(int64)
+	RecordRPCTxInvalid()
 }

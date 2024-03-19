@@ -659,3 +659,7 @@ func (vm *VM) RecordReadDelay(ms int64) {
 func (vm *VM) RecordChunkBuildTxDropped() {
 	vm.metrics.chunkBuildTxsDropped.Inc()
 }
+
+func (vm *VM) RecordRPCTxInvalid() {
+	vm.metrics.rpcTxInvalid.Inc()
+}

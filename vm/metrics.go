@@ -53,6 +53,7 @@ type Metrics struct {
 	blockVerifyFailed         prometheus.Counter
 	gossipTxMsgInvalid        prometheus.Counter
 	gossipTxInvalid           prometheus.Counter
+	rpcTxInvalid              prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -369,6 +370,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "gossip_tx_invalid",
 			Help:      "number of invalid transactions received over gossip",
 		}),
+		rpcTxInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "rpc_tx_invalid",
+			Help:      "number of invalid transactions received over RPC",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -453,6 +459,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.blockVerifyFailed),
 		r.Register(m.gossipTxMsgInvalid),
 		r.Register(m.gossipTxInvalid),
+		r.Register(m.rpcTxInvalid),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 		r.Register(m.chainDataSize),

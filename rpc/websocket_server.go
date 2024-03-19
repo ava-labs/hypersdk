@@ -101,6 +101,7 @@ func (w *WebSocketServer) startWorker() {
 					zap.Int("len", len(txw.msg)),
 					zap.Error(err),
 				)
+				w.vm.RecordRPCTxInvalid()
 				continue
 			}
 
@@ -109,12 +110,14 @@ func (w *WebSocketServer) startWorker() {
 				msg, err := tx.Digest()
 				if err != nil {
 					// Should never occur because populated during unmarshal
+					w.vm.RecordRPCTxInvalid()
 					continue
 				}
 				if err := tx.Auth.Verify(ctx, msg); err != nil {
 					log.Error("failed to verify sig",
 						zap.Error(err),
 					)
+					w.vm.RecordRPCTxInvalid()
 					continue
 				}
 			}
@@ -127,6 +130,7 @@ func (w *WebSocketServer) startWorker() {
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)
+				w.vm.RecordRPCTxInvalid()
 				continue
 			}
 
