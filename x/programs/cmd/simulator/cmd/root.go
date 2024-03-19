@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -106,6 +107,8 @@ func (s *simulator) Init() error {
 	loggingConfig.LogFormat = logging.JSON
 	loggingConfig.DisableWriterDisplaying = true
 
+	var stateDB database.Database
+	var merkleDB merkledb.MerkleDB
 	s.cleanup = func() {
 		if err := os.RemoveAll(dbPath); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to remove simulator directory: %s\n", err)
@@ -113,6 +116,18 @@ func (s *simulator) Init() error {
 
 		if err := os.RemoveAll(loggingConfig.Directory); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to remove simulator logs: %s\n", err)
+		}
+
+		if merkleDB != nil {
+			if err := merkleDB.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to close simulator merkle db: %s\n", err)
+			}
+		}
+
+		if stateDB != nil {
+			if err := stateDB.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to close simulator state db: %s\n", err)
+			}
 		}
 	}
 
@@ -124,7 +139,7 @@ func (s *simulator) Init() error {
 		return err
 	}
 
-	stateDB, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
+	stateDB, _, err = pebble.New(dbPath, pebble.NewDefaultConfig())
 	if err != nil {
 		return err
 	}
@@ -133,7 +148,7 @@ func (s *simulator) Init() error {
 		return err
 	}
 
-	merkleDB, err := merkledb.New(context.TODO(), stateDB, merkledb.Config{
+	merkleDB, err = merkledb.New(context.TODO(), stateDB, merkledb.Config{
 		BranchFactor: merkledb.BranchFactor16,
 		Tracer:       tracer,
 	})
