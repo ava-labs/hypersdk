@@ -110,8 +110,9 @@ func (cw *certWrapper) Expiry() int64 {
 type CertStore struct {
 	l sync.Mutex
 
-	seen *eheap.ExpiryHeap[*seenWrapper] // only cleared on expiry
-	eh   *eheap.ExpiryHeap[*certWrapper] // cleared when we build, updated when we get a more useful cert
+	minTime int64
+	seen    *eheap.ExpiryHeap[*seenWrapper] // only cleared on expiry
+	eh      *eheap.ExpiryHeap[*certWrapper] // cleared when we build, updated when we get a more useful cert
 }
 
 func NewCertStore() *CertStore {
@@ -130,6 +131,11 @@ func NewCertStore() *CertStore {
 func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 	c.l.Lock()
 	defer c.l.Unlock()
+
+	// Only keep certs around that could be included.
+	if cert.Slot < c.minTime {
+		return
+	}
 
 	// Record the first time we saw this certificate, so we can properly
 	// sort during building.
@@ -171,6 +177,7 @@ func (c *CertStore) SetMin(ctx context.Context, t int64) []*chain.ChunkCertifica
 	c.l.Lock()
 	defer c.l.Unlock()
 
+	c.minTime = t
 	removedElems := c.seen.SetMin(t)
 	certs := make([]*chain.ChunkCertificate, 0, len(removedElems))
 	for _, removed := range removedElems {
