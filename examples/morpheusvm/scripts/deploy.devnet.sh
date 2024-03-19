@@ -144,8 +144,7 @@ function cleanup {
   echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
 }
 trap cleanup EXIT
-# TODO: compare performance to c7gn (https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html)
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-east-1,eu-west-1,us-west-1,ap-northeast-2,ca-central-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7gn.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-east-1,us-east-2,us-west-2,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
 cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml

@@ -41,7 +41,7 @@ const (
 	plotOverhead   = 10
 	plotHeight     = 25
 
-	pendingTargetMultiplier        = 5
+	pendingTargetMultiplier        = 10
 	pendingExpiryBuffer            = 15 * consts.MillisecondsPerSecond
 	targetIncreaseRate             = 1000
 	successfulRunsToIncreaseTarget = 10
