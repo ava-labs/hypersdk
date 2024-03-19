@@ -122,7 +122,7 @@ func (c *CertStore) SetMin(ctx context.Context, t int64) []*chain.ChunkCertifica
 	defer c.l.Unlock()
 
 	removedElems := c.eh.SetMin(t)
-	certs := make([]*chain.ChunkCertificate, 0, len(removedElems))
+	certs := make([]*chain.ChunkCertificate, len(removedElems))
 	for i, remove := range removedElems {
 		e := c.queue.Remove(remove)
 		certs[i] = e

@@ -524,6 +524,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.mempoolSize),
 		r.Register(m.gossipTxBacklog),
 		r.Register(m.websocketConnections),
+		r.Register(m.lastAcceptedEpoch),
+		r.Register(m.lastExecutedEpoch),
 	)
 	return r, m, errs.Err
 }
