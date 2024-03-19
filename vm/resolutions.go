@@ -432,11 +432,6 @@ func (vm *VM) StopChan() chan struct{} {
 	return vm.stop
 }
 
-func (vm *VM) CertChan() chan *chain.ChunkCertificate {
-	// Used for optimistic cert verification
-	return vm.validCerts
-}
-
 func (vm *VM) EngineChan() chan<- common.Message {
 	return vm.toEngine
 }
@@ -607,10 +602,6 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 		return nil, false
 	}
 	return bv.GetBatchVerifier(cores, count), ok
-}
-
-func (vm *VM) RecordNotAuthorizedChunk() {
-	vm.metrics.chunksNotAuthorized.Inc()
 }
 
 func (vm *VM) RecordExecutedChunks(c int) {

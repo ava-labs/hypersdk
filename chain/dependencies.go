@@ -33,7 +33,6 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordNotAuthorizedChunk()
 	RecordRPCAuthorizedTx()
 	RecordExecutedChunks(int)
 

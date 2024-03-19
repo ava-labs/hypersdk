@@ -564,14 +564,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		if !c.certs.Update(cert) {
-			select {
-			case c.vm.validCerts <- cert:
-				// Send to optimistic signature verification
-			default:
-				// If optimistic queue is full, just drop this cert
-			}
-		}
+		c.certs.Update(cert)
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {

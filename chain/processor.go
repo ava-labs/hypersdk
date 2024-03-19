@@ -206,7 +206,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	// We need to do this before we check basic chunk correctness to support
 	// optimistic chunk signature verification.
 	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
-		p.vm.RecordNotAuthorizedChunk()
 		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
 		if err != nil {
 			panic(err)
@@ -214,16 +213,17 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
 
 		for _, tx := range chunk.Txs {
+			// Skip if we already authorized this
+			if p.vm.IsRPCAuthorized(tx.ID()) {
+				p.vm.RecordRPCAuthorizedTx()
+				continue
+			}
 			// Enqueue transaction for execution
 			msg, err := tx.Digest()
 			if err != nil {
 				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
 				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 				return
-			}
-			if p.vm.IsRPCAuthorized(tx.ID()) {
-				p.vm.RecordRPCAuthorizedTx()
-				continue
 			}
 			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
 			batchVerifier.Add(msg, tx.Auth)

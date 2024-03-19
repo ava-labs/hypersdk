@@ -48,7 +48,6 @@ type Metrics struct {
 	sigsReceived              prometheus.Counter
 	certsReceived             prometheus.Counter
 	chunksExecuted            prometheus.Counter
-	chunksNotAuthorized       prometheus.Counter
 	txRPCAuthorized           prometheus.Counter
 	blockVerifyFailed         prometheus.Counter
 	gossipTxMsgInvalid        prometheus.Counter
@@ -334,11 +333,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "chunks_executed",
 			Help:      "chunks executed by the engine",
 		}),
-		chunksNotAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "chunks_not_authorized",
-			Help:      "chunks with signatures not verified by the time they are executed",
-		}),
 		txRPCAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "tx_rpc_authorized",
@@ -486,7 +480,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.sigsReceived),
 		r.Register(m.certsReceived),
 		r.Register(m.chunksExecuted),
-		r.Register(m.chunksNotAuthorized),
 		r.Register(m.txRPCAuthorized),
 		r.Register(m.blockVerifyFailed),
 		r.Register(m.gossipTxMsgInvalid),
