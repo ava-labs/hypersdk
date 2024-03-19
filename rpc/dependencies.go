@@ -40,6 +40,6 @@ type VM interface {
 	AddRPCAuthorized(tx *chain.Transaction)
 	StopChan() chan struct{}
 
-	RecordReadDelay(int64)
+	RecordWebsocketConnection(int)
 	RecordRPCTxInvalid()
 }

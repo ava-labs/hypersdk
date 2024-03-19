@@ -86,9 +86,11 @@ var (
 
 	pending = oexpirer.New[*txWrapper](16_384)
 
-	issuedTxs atomic.Int64
-	sent      atomic.Int64
-	bytes     atomic.Int64
+	issuedTxs     atomic.Int64
+	sent          atomic.Int64
+	sentBytes     atomic.Int64
+	received      atomic.Int64
+	receivedBytes atomic.Int64
 )
 
 func (h *Handler) Spam(
@@ -356,8 +358,10 @@ func (h *Handler) Spam(
 	var (
 		lastExpiredCount uint64
 		lastOnchainCount uint64
-		psent            int64
-		pbytes           int64
+		pSent            int64
+		pSentBytes       int64
+		pReceived        int64
+		pReceivedBytes   int64
 
 		startRun      = time.Now()
 		tpsWindow     = window.Window{}
@@ -368,8 +372,10 @@ func (h *Handler) Spam(
 		for {
 			select {
 			case <-t.C:
-				csent := sent.Load()
-				cbytes := bytes.Load()
+				cSent := sent.Load()
+				cSentBytes := sentBytes.Load()
+				cReceived := received.Load()
+				cReceivedBytes := receivedBytes.Load()
 				l.Lock()
 				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
 				for range dropped {
@@ -407,11 +413,6 @@ func (h *Handler) Spam(
 				expiredWindow = newExpiredWindow
 				window.Update(&expiredWindow, window.WindowSliceSize-consts.Uint64Len, cExpired)
 
-				cDelayTime := delayTime
-				delayTime = 0
-				cDelayCount := delayCount
-				delayCount = 0
-
 				txsToProcess := int64(0)
 				for _, client := range clients {
 					txsToProcess += client.d.TxsToProcess()
@@ -421,7 +422,7 @@ func (h *Handler) Spam(
 					// tps is only contains transactions that actually made it onchain
 					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}outbound bandwidth/s:{{/}} %.2fKB {{yellow}}msgs recv/s:{{/}} %d (recv delay=%.2fms backlog=%d)\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}pending:{{/}} %d {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
 						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
@@ -430,29 +431,35 @@ func (h *Handler) Spam(
 						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						float64(window.Sum(expiredWindow))/float64(tpsSum+window.Sum(expiredWindow))*100,
-						csent-psent,
 						pending.Len(),
-						float64(cbytes-pbytes)/units.KiB,
-						cDelayCount,
-						float64(cDelayTime)/float64(cDelayCount),
+						cSent-pSent,
+						float64(cSentBytes-pSentBytes)/units.KiB,
+						cReceived-pReceived,
+						float64(cReceivedBytes-pReceivedBytes)/units.KiB,
 						txsToProcess,
 					)
 				} else if totalTxs > 0 {
 					// This shouldn't happen but we should log when it does.
 					utils.Outf(
-						"{{yellow}}total txs:{{/}} %d (pre-errored=%.2f%% errored=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (pending=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
+						"{{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}pending:{{/}} %d {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
 						totalTxs,
 						float64(invalidTxs)/float64(totalTxs)*100,
+						float64(droppedTxs)/float64(totalTxs)*100,
 						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
-						csent-psent,
 						pending.Len(),
-						float64(cbytes-pbytes)/units.KiB,
+						cSent-pSent,
+						float64(cSentBytes-pSentBytes)/units.KiB,
+						cReceived-pReceived,
+						float64(cReceivedBytes-pReceivedBytes)/units.KiB,
+						txsToProcess,
 					)
 				}
 				l.Unlock()
-				psent = csent
-				pbytes = cbytes
+				pSent = cSent
+				pSentBytes = cSentBytes
+				pReceived = cReceived
+				pReceivedBytes = cReceivedBytes
 			case <-cctx.Done():
 				return
 			}
@@ -573,7 +580,7 @@ func (h *Handler) Spam(
 							return nil
 						}
 						sent.Add(1)
-						bytes.Add(int64(len(tx.Bytes())))
+						sentBytes.Add(int64(len(tx.Bytes())))
 						return nil
 					})
 				}
@@ -709,11 +716,13 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			recv, txID, status, err := c.ListenTx(context.TODO())
+			recv, rawMsgSize, txID, status, err := c.ListenTx(context.TODO())
 			if err != nil {
 				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
 			}
+			received.Add(1)
+			receivedBytes.Add(int64(rawMsgSize))
 			tw, ok := pending.Remove(txID)
 			if !ok {
 				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
@@ -739,26 +748,6 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 			}
 			totalTxs++
 			l.Unlock()
-		}
-	}()
-	ct := time.NewTicker(time.Second)
-	go func() {
-		defer ct.Stop()
-
-		for {
-			select {
-			case <-ct.C:
-				if c.Closed() {
-					return
-				}
-				dt, dc := c.ResetDelay()
-				l.Lock()
-				delayTime += dt
-				delayCount += dc
-				l.Unlock()
-			case <-cctx.Done():
-				return
-			}
 		}
 	}()
 	go func() {
@@ -793,7 +782,7 @@ func uniqueBytes() []byte {
 
 func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error {
 	for i := 0; i < numTxs; i++ {
-		_, _, status, err := cli.ListenTx(ctx)
+		_, _, _, status, err := cli.ListenTx(ctx)
 		if err != nil {
 			return err
 		}

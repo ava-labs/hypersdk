@@ -657,8 +657,8 @@ func (vm *VM) RecordBlockVerifyFail() {
 	vm.metrics.blockVerifyFailed.Inc()
 }
 
-func (vm *VM) RecordReadDelay(ms int64) {
-	vm.metrics.rpcReadDelay.Observe(float64(ms))
+func (vm *VM) RecordWebsocketConnection(c int) {
+	vm.metrics.websocketConnections.Add(float64(c))
 }
 
 func (vm *VM) RecordChunkBuildTxDropped() {

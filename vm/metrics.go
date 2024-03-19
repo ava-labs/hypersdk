@@ -67,6 +67,7 @@ type Metrics struct {
 	mempoolLen                prometheus.Gauge
 	mempoolSize               prometheus.Gauge
 	gossipTxBacklog           prometheus.Gauge
+	websocketConnections      prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
@@ -82,7 +83,6 @@ type Metrics struct {
 	chunkProcess              metric.Averager
 	optimisticChunkAuthorized metric.Averager
 	fetchMissingChunks        metric.Averager
-	rpcReadDelay              metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -220,15 +220,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"fetch_missing_chunks",
 		"time spent fetching missing chunks",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	rpcReadDelay, err := metric.NewAverager(
-		"chain",
-		"rpc_read_delay",
-		"delay to read from client (noisy)",
 		r,
 	)
 	if err != nil {
@@ -446,6 +437,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "gossip_tx_backlog",
 			Help:      "number of transactions waiting to be processed from gossip",
 		}),
+		websocketConnections: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "websocket_connections",
+			Help:      "number of websocket connections",
+		}),
 		waitRepeat:                waitRepeat,
 		waitAuth:                  waitAuth,
 		waitExec:                  waitExec,
@@ -461,7 +457,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		chunkProcess:              chunkProcess,
 		optimisticChunkAuthorized: optimisticChunkAuthorized,
 		fetchMissingChunks:        fetchMissingChunks,
-		rpcReadDelay:              rpcReadDelay,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -509,6 +504,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.mempoolLen),
 		r.Register(m.mempoolSize),
 		r.Register(m.gossipTxBacklog),
+		r.Register(m.websocketConnections),
 	)
 	return r, m, errs.Err
 }

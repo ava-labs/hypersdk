@@ -41,9 +41,6 @@ type WebSocketClient struct {
 	txsl sync.Mutex
 	txs  map[uint64]ids.ID
 
-	delaySum   int64
-	delayCount uint64
-
 	startedClose bool
 	closed       bool
 	err          error
@@ -112,14 +109,11 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 				utils.Outf("{{orange}}got empty message{{/}}\n")
 				continue
 			}
-			created, msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
+			msgs, err := pubsub.ParseBatchMessage(pubsub.MaxWriteMessageSize, msgBatch)
 			if err != nil {
 				utils.Outf("{{orange}}received invalid message:{{/}} %v\n", err)
 				continue
 			}
-			delay := max(0, time.Now().UnixMilli()-created)
-			wc.delaySum += delay
-			wc.delayCount++
 			for _, msg := range msgs {
 				tmsg := msg[1:]
 				switch msg[0] {
@@ -251,26 +245,26 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking
 // layer in the client so no changes required in the server).
-func (c *WebSocketClient) ListenTx(ctx context.Context) (int64, ids.ID, uint8, error) {
+func (c *WebSocketClient) ListenTx(ctx context.Context) (int64, int, ids.ID, uint8, error) {
 	select {
 	case bw := <-c.pendingTxs:
 		c.txsToProcess.Add(-1)
 		rtxID, status, err := UnpackTxMessage(bw.b)
 		if err != nil {
-			return -1, ids.Empty, 0, err
+			return -1, 0, ids.Empty, 0, err
 		}
 		c.txsl.Lock()
 		defer c.txsl.Unlock()
 		txID, ok := c.txs[rtxID]
 		if !ok {
-			return -1, ids.Empty, 0, ErrUnknownTx
+			return -1, 0, ids.Empty, 0, ErrUnknownTx
 		}
 		delete(c.txs, rtxID)
-		return bw.t, txID, status, nil
+		return bw.t, len(bw.b), txID, status, nil
 	case <-c.readStopped:
-		return -1, ids.Empty, 0, c.err
+		return -1, 0, ids.Empty, 0, c.err
 	case <-ctx.Done():
-		return -1, ids.Empty, 0, ctx.Err()
+		return -1, 0, ids.Empty, 0, ctx.Err()
 	}
 }
 
@@ -296,12 +290,6 @@ func (c *WebSocketClient) Close() error {
 		err = c.conn.Close()
 	})
 	return err
-}
-
-func (c *WebSocketClient) ResetDelay() (int64, uint64) {
-	delaySum, delayCount := c.delaySum, c.delayCount
-	c.delaySum, c.delayCount = 0, 0
-	return delaySum, delayCount
 }
 
 func (c *WebSocketClient) TxsToProcess() int64 {

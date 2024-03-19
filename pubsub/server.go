@@ -16,6 +16,10 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
+type Metrics interface {
+	RecordWebsocketConnection(int)
+}
+
 type ServerConfig struct {
 	// Size of the ws read buffer
 	ReadBufferSize int
@@ -103,7 +107,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addConnection(&Connection{
-		m:    s.m,
 		s:    s,
 		conn: wsConn,
 		mb: NewMessageBuffer(
@@ -115,6 +118,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		),
 		active: atomic.Bool{},
 	})
+	s.m.RecordWebsocketConnection(1)
 	s.log.Debug("added pubsub connection", zap.Stringer("addr", wsConn.RemoteAddr()))
 }
 
@@ -160,6 +164,7 @@ func (s *Server) addConnection(conn *Connection) {
 // removeConnection removes [conn] from the servers connection set.
 func (s *Server) removeConnection(conn *Connection) {
 	s.conns.Remove(conn)
+	s.m.RecordWebsocketConnection(-1)
 }
 
 func (s *Server) Connections() *Connections {
