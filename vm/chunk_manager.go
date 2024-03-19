@@ -22,7 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/list"
 	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -75,18 +74,50 @@ func (cw *chunkWrapper) Expiry() int64 {
 	return cw.chunk.Slot
 }
 
+type seenWrapper struct {
+	chunkID ids.ID
+	expiry  int64
+	seen    int64
+}
+
+func (sw *seenWrapper) ID() ids.ID {
+	return sw.chunkID
+}
+
+func (sw *seenWrapper) Expiry() int64 {
+	return sw.expiry
+}
+
+type certWrapper struct {
+	cert *chain.ChunkCertificate
+	seen int64
+}
+
+func (cw *certWrapper) ID() ids.ID {
+	return cw.cert.ID()
+}
+
+// Expiry here is really the time we first saw,
+// which is used to ensure we pop it first when iterating over
+// the heap.
+//
+// TODO: change name of [Expiry] to something more generic
+func (cw *certWrapper) Expiry() int64 {
+	return cw.seen
+}
+
 // Store fifo chunks for building
 type CertStore struct {
 	l sync.Mutex
 
-	queue *list.List[*chain.ChunkCertificate]
-	eh    *eheap.ExpiryHeap[*list.Element[*chain.ChunkCertificate]]
+	seen *eheap.ExpiryHeap[*seenWrapper] // only cleared on expiry
+	eh   *eheap.ExpiryHeap[*certWrapper] // cleared when we build, updated when we get a more useful cert
 }
 
 func NewCertStore() *CertStore {
 	return &CertStore{
-		queue: &list.List[*chain.ChunkCertificate]{},
-		eh:    eheap.New[*list.Element[*chain.ChunkCertificate]](64), // TODO: add a config
+		seen: eheap.New[*seenWrapper](64), // TODO: add a config
+		eh:   eheap.New[*certWrapper](64), // TODO: add a config
 	}
 }
 
@@ -96,24 +127,43 @@ func NewCertStore() *CertStore {
 // more signers.
 //
 // TODO: update if more weight rather than using signer heuristic?
-func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
+func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 	c.l.Lock()
 	defer c.l.Unlock()
 
+	// Record the first time we saw this certificate, so we can properly
+	// sort during building.
+	firstSeen := int64(0)
+	v, ok := c.seen.Get(cert.ID())
+	if !ok {
+		firstSeen = time.Now().UnixMilli()
+		c.seen.Add(&seenWrapper{
+			chunkID: cert.ID(),
+			expiry:  cert.Slot,
+			seen:    firstSeen,
+		})
+	} else {
+		firstSeen = v.seen
+	}
+
+	// Store the certificate by
 	elem, ok := c.eh.Get(cert.ID())
 	if !ok {
-		elem = c.queue.PushBack(cert)
-	} else {
-		// If the existing certificate has more signers than the
-		// new certificate, don't update.
-		//
-		// TODO: we should use weight here, not just number of signers
-		if elem.Value().Signers.Len() > cert.Signers.Len() {
-			return true
-		}
+		c.eh.Add(&certWrapper{
+			cert: cert,
+			seen: firstSeen,
+		})
+		return
 	}
+	// If the existing certificate has more signers than the
+	// new certificate, don't update.
+	//
+	// TODO: we should use weight here, not just number of signers
+	if elem.cert.Signers.Len() > cert.Signers.Len() {
+		return
+	}
+	elem.cert = cert
 	c.eh.Update(elem)
-	return ok
 }
 
 // Called when a block is accepted with valid certs.
@@ -121,11 +171,14 @@ func (c *CertStore) SetMin(ctx context.Context, t int64) []*chain.ChunkCertifica
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	removedElems := c.eh.SetMin(t)
-	certs := make([]*chain.ChunkCertificate, len(removedElems))
-	for i, remove := range removedElems {
-		e := c.queue.Remove(remove)
-		certs[i] = e
+	removedElems := c.seen.SetMin(t)
+	certs := make([]*chain.ChunkCertificate, 0, len(removedElems))
+	for _, removed := range removedElems {
+		cw, ok := c.eh.Remove(removed.ID())
+		if !ok {
+			continue
+		}
+		certs = append(certs, cw.cert)
 	}
 	return certs
 }
@@ -135,13 +188,11 @@ func (c *CertStore) Pop(ctx context.Context) (*chain.ChunkCertificate, bool) { /
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	first := c.queue.First()
-	if first == nil {
+	first, ok := c.eh.PopMin()
+	if !ok {
 		return nil, false
 	}
-	v := c.queue.Remove(first)
-	c.eh.Remove(v.ID())
-	return v, true
+	return first.cert, true
 }
 
 func (c *CertStore) Get(cid ids.ID) (*chain.ChunkCertificate, bool) {
@@ -152,7 +203,7 @@ func (c *CertStore) Get(cid ids.ID) (*chain.ChunkCertificate, bool) {
 	if !ok {
 		return nil, false
 	}
-	return elem.Value(), true
+	return elem.cert, true
 }
 
 // TODO: move to standalone package
@@ -1073,9 +1124,9 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 	return c.certs.Pop(ctx)
 }
 
-// TODO: ensure they are at front?
-//
-// Sort by when we first got chunk?
+// RestoreChunkCertificates re-inserts certs into the CertStore for inclusion. These chunks are sorted
+// by the time they are first seen, so we always try to include certs that have been valid and around
+// the longest first.
 func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	for _, cert := range certs {
 		c.certs.Update(cert)
