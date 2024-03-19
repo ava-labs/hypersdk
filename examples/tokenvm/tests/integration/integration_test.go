@@ -2027,7 +2027,7 @@ type appSender struct {
 	instances []instance
 }
 
-func (app *appSender) SendAppGossip(ctx context.Context, appGossipBytes []byte, numValidators int, numNonValidators int, numPeers int) error {
+func (app *appSender) SendAppGossip(ctx context.Context, appGossipBytes []byte, _ int, _ int, _ int) error {
 	n := len(app.instances)
 	sender := app.instances[app.next].nodeID
 	app.next++
