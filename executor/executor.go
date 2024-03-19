@@ -5,14 +5,16 @@ package executor
 
 import (
 	"sync"
-	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/state"
 )
 
-const defaultSetSize = 8
+const (
+	defaultSetSize = 8
+	notSet         = -1
+)
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -33,13 +35,13 @@ type Executor struct {
 	done      bool
 	completed int
 	tasks     map[int]*task
-	edges     map[string]*keyData
+	edges     map[string]*data
 }
 
-// assumption: keys in edges are A/W
-type keyData struct {
-	id int
-	concurrentReads set.Set[int]
+// We can do up to 1 Allocate/Write and many reads
+type data struct {
+	allocateWrite int
+	reads         set.Set[int]
 }
 
 // New creates a new [Executor].
@@ -48,8 +50,8 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		metrics:    metrics,
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
-		edges:      make(map[string]*keyData, items*2), // TODO: tune this
-		executable: make(chan *task, items),       // ensure we don't block while holding lock
+		edges:      make(map[string]*data, items*2), // TODO: tune this
+		executable: make(chan *task, items),         // ensure we don't block while holding lock
 	}
 	e.wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -59,15 +61,12 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 }
 
 type task struct {
-	id int
-	f  func() error
+	id   int
+	f    func() error
 	keys state.Keys
 
 	dependencies set.Set[int]
 	blocking     set.Set[int]
-
-	blockers int
-	waiter chan struct{}
 
 	executed bool
 }
@@ -82,11 +81,6 @@ func (e *Executor) runWorker() {
 				return
 			}
 
-			if t.waiter != nil {
-				<-t.waiter
-			}
-			
-
 			if err := t.f(); err != nil {
 				e.stopOnce.Do(func() {
 					e.err = err
@@ -96,16 +90,10 @@ func (e *Executor) runWorker() {
 			}
 
 			e.l.Lock()
+			// Update concurrent reads to only contain not-yet-executed reads
 			for key := range t.keys {
 				k := e.edges[key]
-				for cr := range k.concurrentReads {
-					crt := e.tasks[cr]
-					crt.blockers--
-					if crt.blockers == 0 {
-						close(crt.waiter)
-					}
-				}
-				k.concurrentReads.Clear()
+				k.reads.Remove(t.id)
 			}
 			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
@@ -139,8 +127,8 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Add task to map
 	id := len(e.tasks)
 	t := &task{
-		id: id,
-		f:  f,
+		id:   id,
+		f:    f,
 		keys: conflicts,
 	}
 	e.tasks[id] = t
@@ -149,39 +137,55 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	for k, v := range conflicts {
 		key, ok := e.edges[k]
 		if ok {
-			lt := e.tasks[key.id]
-			if !lt.executed {
+			// Get last blocked task
+			lt, ok := e.tasks[key.allocateWrite]
+			if t.dependencies == nil {
+				t.dependencies = set.NewSet[int](defaultSetSize)
+			}
+
+			// No Allocate/Write has been requested yet
+			if !ok {
 				if v == state.Read {
-					t.blockers++
-					key.concurrentReads.Add(id)
+					key.reads.Add(id)
 					continue
 				}
-
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
+				key.allocateWrite = id
+				for b := range key.reads {
+					bt := e.tasks[b]
+					recordDependencies(t, bt)
 				}
+				continue
+			}
+
+			// Allocate/Write already requested
+			if !lt.executed {
 				if lt.blocking == nil {
 					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
 
-				t.dependencies.Add(lt.id)
-				lt.blocking.Add(id)
-				for b := range key.concurrentReads {
-					bt := e.tasks[b]
-					// TODO: remove executed check
-					if !bt.executed {
-						t.dependencies.Add(bt.id)
-						bt.blocking.Add(id)
+				if v == state.Read {
+					key.reads.Add(id)
+					recordDependencies(t, lt)
+					continue
+				}
+
+				if key.reads.Len() == 0 {
+					recordDependencies(t, lt)
+				} else {
+					for b := range key.reads {
+						bt := e.tasks[b]
+						recordDependencies(t, bt)
 					}
-				}				
+				}
 			}
 		}
-		// reads are blocked on itself
-		e.edges[k] = &keyData{id: id, concurrentReads: set.Set[int]{}}
-	}
-
-	if t.blockers > 0 {
-		t.waiter = make(chan struct{})
+		keyData := &data{allocateWrite: notSet, reads: set.Set[int]{}}
+		if v == state.Read {
+			keyData.reads.Add(id)
+		} else {
+			keyData.allocateWrite = id
+		}
+		e.edges[k] = keyData
 	}
 
 	// Start execution if there are no blocking dependencies
@@ -196,6 +200,11 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	if e.metrics != nil {
 		e.metrics.RecordBlocked()
 	}
+}
+
+func recordDependencies(t *task, bt *task) {
+	t.dependencies.Add(bt.id)
+	bt.blocking.Add(t.id)
 }
 
 func (e *Executor) Stop() {
