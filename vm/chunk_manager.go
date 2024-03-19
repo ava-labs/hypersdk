@@ -144,6 +144,17 @@ func (c *CertStore) Pop(ctx context.Context) (*chain.ChunkCertificate, bool) { /
 	return v, true
 }
 
+func (c *CertStore) Get(cid ids.ID) (*chain.ChunkCertificate, bool) {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	elem, ok := c.eh.Get(cid)
+	if !ok {
+		return nil, false
+	}
+	return elem.Value(), true
+}
+
 // TODO: move to standalone package
 type ChunkManager struct {
 	vm   *VM
@@ -933,8 +944,32 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 //
 // This functions returns an array of chunkIDs that can be used to delete unused chunks from persistent storage.
 func (c *ChunkManager) SetBuildableMin(ctx context.Context, t int64) {
-	c.vm.metrics.expiredBuiltChunks.Add(float64(len(c.built.SetMin(t))))
-	c.vm.metrics.expiredCerts.Add(float64(len(c.certs.SetMin(ctx, t))))
+	removedBuilt := c.built.SetMin(t)
+	expiredBuilt := 0
+	for _, cid := range removedBuilt {
+		if c.vm.IsSeenChunk(context.TODO(), cid) {
+			continue
+		}
+		expiredBuilt++
+		if cert, ok := c.certs.Get(cid); ok {
+			c.vm.Logger().Warn(
+				"dropping built chunk",
+				zap.Stringer("chunkID", cid),
+				zap.Int64("slot", cert.Slot),
+				zap.Int("signers", cert.Signers.Len()),
+			)
+		}
+	}
+	c.vm.metrics.expiredBuiltChunks.Add(float64(expiredBuilt))
+	removedCerts := c.certs.SetMin(ctx, t)
+	expiredCerts := 0
+	for _, cert := range removedCerts {
+		if c.vm.IsSeenChunk(context.TODO(), cert.Chunk) {
+			continue
+		}
+		expiredCerts++
+	}
+	c.vm.metrics.expiredCerts.Add(float64(expiredCerts))
 }
 
 // Remove chunks we included in a block to accurately account for unused chunks
@@ -1039,6 +1074,8 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 }
 
 // TODO: ensure they are at front?
+//
+// Sort by when we first got chunk?
 func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	for _, cert := range certs {
 		c.certs.Update(cert)
