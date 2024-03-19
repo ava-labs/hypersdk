@@ -160,6 +160,15 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_gossip_tx_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid txs received over gossip per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_gossip_chunk_invalid[5s])/5", chainID))
+			utils.Outf("{{yellow}}invalid chunks received over gossip per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_gossip_chunk_sig_invalid[5s])/5", chainID))
+			utils.Outf("{{yellow}}invalid chunk signatures over gossip per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_gossip_cert_invalid[5s])/5", chainID))
+			utils.Outf("{{yellow}}invalid certs received over gossip per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_engine_backlog", chainID))
 			utils.Outf("{{yellow}}block execution backlog:{{/}} %s\n", panels[len(panels)-1])
 

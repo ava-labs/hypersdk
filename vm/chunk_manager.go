@@ -263,24 +263,28 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.vm.metrics.chunksReceived.Inc()
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
 			return nil
 		}
 
 		// Check if we already received
 		if c.stored.Has(chunk.ID()) {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
 			return nil
 		}
 
 		// Check if chunk < slot
 		if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
 			return nil
 		}
 
 		// Check that producer is the sender
 		if chunk.Producer != nodeID {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
@@ -288,25 +292,30 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Determine if chunk producer is a validator and that their key is valid
 		epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
 		if err != nil {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
 			return nil
 		}
 		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, chunk.Producer)
 		if err != nil {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine if producer is validator", zap.Stringer("producer", chunk.Producer), zap.Error(err))
 			return nil
 		}
 		if !isValidator {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunk.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
 		// Verify signature of chunk
 		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			dig, err := chunk.Digest()
 			if err != nil {
 				panic(err)
@@ -375,6 +384,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.vm.metrics.sigsReceived.Inc()
 		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
 		if err != nil {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
@@ -382,6 +392,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Check if we broadcast this chunk
 		cw, ok := c.built.Get(chunkSignature.Chunk)
 		if !ok || cw.chunk.Slot != chunkSignature.Slot {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunkSignature.Chunk))
 			return nil
 		}
@@ -389,25 +400,30 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Determine if chunk signer is a validator and that their key is valid
 		epochHeight, err := c.getEpochHeight(ctx, chunkSignature.Slot)
 		if err != nil {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunkSignature.Slot))
 			return nil
 		}
 		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, nodeID)
 		if err != nil {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine if signer is validator", zap.Stringer("signer", nodeID), zap.Error(err))
 			return nil
 		}
 		if !isValidator {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk signature from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunkSignature.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
 		// Verify signature
 		if !chunkSignature.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk signature with invalid signature", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
@@ -488,9 +504,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkCertificateMsg:
-		c.vm.metrics.certsReceived.Inc()
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
@@ -498,6 +514,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Determine epoch for certificate
 		epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
 		if err != nil {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine certificate epoch", zap.Int64("slot", cert.Slot))
 			return nil
 		}
@@ -505,6 +522,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Verify certificate using the epoch validator set
 		aggrPubKey, err := c.vm.proposerMonitor.GetAggregatePublicKey(ctx, epochHeight, cert.Signers, minWeightNumerator, weightDenominator)
 		if err != nil {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
 				zap.Uint64("Pheight", epochHeight),
@@ -515,6 +533,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return err
 		}
 		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
 				zap.Uint64("Pheight", epochHeight),
@@ -537,6 +556,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.String("signers", cert.Signers.String()),
 			zap.Duration("t", time.Since(start)),
 		)
+		c.vm.metrics.certsReceived.Inc()
 		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)

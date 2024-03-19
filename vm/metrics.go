@@ -53,6 +53,9 @@ type Metrics struct {
 	blockVerifyFailed         prometheus.Counter
 	gossipTxMsgInvalid        prometheus.Counter
 	gossipTxInvalid           prometheus.Counter
+	gossipChunkInvalid        prometheus.Counter
+	gossipChunkSigInvalid     prometheus.Counter
+	gossipCertInvalid         prometheus.Counter
 	rpcTxInvalid              prometheus.Counter
 	expiredBuiltChunks        prometheus.Counter
 	expiredCerts              prometheus.Counter
@@ -372,6 +375,21 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "gossip_tx_invalid",
 			Help:      "number of invalid transactions received over gossip",
 		}),
+		gossipChunkInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_chunk_invalid",
+			Help:      "number of invalid chunks received over gossip",
+		}),
+		gossipChunkSigInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_chunk_sig_invalid",
+			Help:      "number of invalid chunk signatures received over gossip",
+		}),
+		gossipCertInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_cert_invalid",
+			Help:      "number of invalid certificates received over gossip",
+		}),
 		rpcTxInvalid: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "rpc_tx_invalid",
@@ -471,6 +489,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.blockVerifyFailed),
 		r.Register(m.gossipTxMsgInvalid),
 		r.Register(m.gossipTxInvalid),
+		r.Register(m.gossipChunkInvalid),
+		r.Register(m.gossipChunkSigInvalid),
+		r.Register(m.gossipCertInvalid),
 		r.Register(m.rpcTxInvalid),
 		r.Register(m.expiredBuiltChunks),
 		r.Register(m.expiredCerts),
