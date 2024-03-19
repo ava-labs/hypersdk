@@ -1167,7 +1167,9 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 				// Fetch missing chunk
 				attempts := 0
 				for {
+					c.vm.metrics.fetchChunkAttempts.Add(1)
 					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
+					attempts++
 
 					// Look for chunk epoch
 					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)

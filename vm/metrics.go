@@ -60,6 +60,7 @@ type Metrics struct {
 	rpcTxInvalid              prometheus.Counter
 	expiredBuiltChunks        prometheus.Counter
 	expiredCerts              prometheus.Counter
+	fetchChunkAttempts        prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -68,6 +69,8 @@ type Metrics struct {
 	mempoolSize               prometheus.Gauge
 	gossipTxBacklog           prometheus.Gauge
 	websocketConnections      prometheus.Gauge
+	lastAcceptedEpoch         prometheus.Gauge
+	lastExecutedEpoch         prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
@@ -402,6 +405,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "expired_certs",
 			Help:      "number of certificates that expired",
 		}),
+		fetchChunkAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "fetch_chunk_attempts",
+			Help:      "number of attempts to fetch a chunk",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -441,6 +449,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "websocket_connections",
 			Help:      "number of websocket connections",
+		}),
+		lastAcceptedEpoch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "last_accepted_epoch",
+			Help:      "last accepted epoch",
+		}),
+		lastExecutedEpoch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "last_executed_epoch",
+			Help:      "last executed epoch",
 		}),
 		waitRepeat:                waitRepeat,
 		waitAuth:                  waitAuth,
@@ -497,6 +515,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.rpcTxInvalid),
 		r.Register(m.expiredBuiltChunks),
 		r.Register(m.expiredCerts),
+		r.Register(m.fetchChunkAttempts),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 		r.Register(m.chainDataSize),

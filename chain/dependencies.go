@@ -50,6 +50,8 @@ type Metrics interface {
 	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordAcceptedEpoch(uint64)
+	RecordExecutedEpoch(uint64)
 
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)

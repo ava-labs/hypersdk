@@ -338,6 +338,7 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordTxsInvalid(txCount - validTxs)
 	e.vm.RecordTxsIncluded(txCount)
 	e.vm.ExecutedBlock(ctx, job.blk)
+	e.vm.RecordExecutedEpoch(epoch)
 }
 
 func (e *Engine) Run() {

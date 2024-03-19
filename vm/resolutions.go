@@ -672,3 +672,11 @@ func (vm *VM) RecordRPCTxInvalid() {
 func (vm *VM) RecordBlockBuildCertDropped() {
 	vm.metrics.blockBuildCertsDropped.Inc()
 }
+
+func (vm *VM) RecordAcceptedEpoch(e uint64) {
+	vm.metrics.lastAcceptedEpoch.Set(float64(e))
+}
+
+func (vm *VM) RecordExecutedEpoch(e uint64) {
+	vm.metrics.lastExecutedEpoch.Set(float64(e))
+}
