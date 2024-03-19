@@ -186,7 +186,7 @@ EPOCH_WAIT_END=$(date +%s)
 TIME_TAKEN=$((EPOCH_WAIT_END - EPOCH_WAIT_START))
 
 # Wait for epoch initialization
-SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
+SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
 if [ $TIME_TAKEN -lt $SLEEP_DUR ]; then
   SLEEP_DUR=$(($SLEEP_DUR - $TIME_TAKEN))
   echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."

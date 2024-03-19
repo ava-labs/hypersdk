@@ -422,8 +422,9 @@ func (h *Handler) Spam(
 					// tps is only contains transactions that actually made it onchain
 					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}pending:{{/}} %d {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f (pending=%d) {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
+						pending.Len(),
 						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
 						float64(invalidTxs)/float64(totalTxs)*100,
@@ -431,7 +432,6 @@ func (h *Handler) Spam(
 						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
 						float64(window.Sum(expiredWindow))/float64(tpsSum+window.Sum(expiredWindow))*100,
-						pending.Len(),
 						cSent-pSent,
 						float64(cSentBytes-pSentBytes)/units.KiB,
 						cReceived-pReceived,
@@ -441,13 +441,13 @@ func (h *Handler) Spam(
 				} else if totalTxs > 0 {
 					// This shouldn't happen but we should log when it does.
 					utils.Outf(
-						"{{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}pending:{{/}} %d {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
+						"{{yellow}}total txs:{{/}} %d (pending=%d invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
 						totalTxs,
+						pending.Len(),
 						float64(invalidTxs)/float64(totalTxs)*100,
 						float64(droppedTxs)/float64(totalTxs)*100,
 						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
-						pending.Len(),
 						cSent-pSent,
 						float64(cSentBytes-pSentBytes)/units.KiB,
 						cReceived-pReceived,
