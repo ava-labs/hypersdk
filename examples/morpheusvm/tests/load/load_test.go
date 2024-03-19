@@ -261,6 +261,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				tracePrefix = `"traceEnabled":true, "traceSampleRate":1, "traceAgent":"verifier", `
 			}
 		}
+		mempoolSize := max(txs, accts*2) // TODO: handle this with a const eg, num EVM txs
 		err = c.Initialize(
 			context.TODO(),
 			snowCtx,
@@ -274,8 +275,8 @@ var _ = ginkgo.BeforeSuite(func() {
 					numWorkers/3,
 					numWorkers/3,
 					numWorkers/3,
-					txs,
-					txs,
+					mempoolSize,
+					mempoolSize,
 					verifyAuth,
 				),
 			),
@@ -535,7 +536,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			tokenB := deployed["TokenB"]
 
 			issuer := newSimpleTxIssuer()
-			for i, acct := range senders {
+			for _, acct := range senders {
 				evmAddr := actions.ToEVMAddress(acct.rsender)
 				calldataA, err := abis["TokenA"].calldata("transfer", evmAddr, amount)
 				gomega.Ω(err).Should(gomega.BeNil())
@@ -554,10 +555,6 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				})
 				gomega.Ω(err).Should(gomega.BeNil())
 				issuer.issueTx(actionB)
-
-				if i+1 == 501 {
-					issuer.produceAndAcceptBlock()
-				}
 			}
 			issuer.produceAndAcceptBlock()
 		})
