@@ -6,10 +6,13 @@ package utils
 import (
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/internal/consts"
+)
+
+const (
+	HRP = "matrix"
 )
 
 func Address(pk ed25519.PublicKey) string {
-	addrString, _ := address.FormatBech32(consts.HRP, pk[:])
+	addrString, _ := address.FormatBech32(HRP, pk[:])
 	return addrString
 }

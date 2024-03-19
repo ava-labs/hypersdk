@@ -7,7 +7,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
@@ -38,12 +37,7 @@ func (t *ProgramExecute) GetBalance() (uint64, error) {
 
 func (t *ProgramExecute) Execute(
 	ctx context.Context,
-	_ chain.Rules,
 	mu state.Mutable,
-	_ int64,
-	_ codec.Address,
-	_ ids.ID,
-	_ bool,
 ) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error) {
 	if len(t.Function) == 0 {
 		return false, 1, OutputValueZero, nil, nil

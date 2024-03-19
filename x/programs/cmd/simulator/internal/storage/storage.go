@@ -12,18 +12,10 @@ import (
 )
 
 const (
-	// metaDB
-	txPrefix = 0x0
-
 	// stateDB
 	keyPrefix = 0x0
 
-	programPrefix      = 0x1
-	heightPrefix       = 0x2
-	timestampPrefix    = 0x3
-	feePrefix          = 0x4
-	incomingWarpPrefix = 0x5
-	outgoingWarpPrefix = 0x6
+	programPrefix = 0x1
 )
 
 func SetKey(ctx context.Context, db state.Mutable, privateKey ed25519.PrivateKey, name string) error {
