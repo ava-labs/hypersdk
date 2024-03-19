@@ -146,6 +146,7 @@ function cleanup {
 trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
 $TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+EPOCH_WAIT_START=$(date +%s)
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
 cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
@@ -180,10 +181,9 @@ do
 done
 
 # Start load test on dedicated machine
-START_TIME=$(date +%s)
 $TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="exit"
-END_TIME=$(date +%s)
-TIME_TAKEN=$((END_TIME - START_TIME))
+EPOCH_WAIT_END=$(date +%s)
+TIME_TAKEN=$((EPOCH_WAIT_END - EPOCH_WAIT_START))
 
 # Wait for epoch initialization
 SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
