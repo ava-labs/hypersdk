@@ -54,7 +54,7 @@ type Metrics interface {
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
-	RecordTxsValid(int)
+	RecordTxsInvalid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordEngineBacklog(int)

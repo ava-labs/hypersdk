@@ -46,11 +46,8 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_included[5s])/5", chainID))
 			utils.Outf("{{yellow}}all transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_valid[5s])/5", chainID))
-			utils.Outf("{{yellow}}valid transactions executed per second:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("(increase(avalanche_%s_vm_hypersdk_vm_txs_valid[5s])/5)/(increase(avalanche_%s_vm_hypersdk_vm_txs_included[5s])/5) * 100", chainID, chainID))
-			utils.Outf("{{yellow}}valid transactions executed (%):{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
+			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_operations[5s])/5", chainID))
 			utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])

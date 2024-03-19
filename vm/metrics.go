@@ -29,7 +29,7 @@ type Metrics struct {
 	txsReceived               prometheus.Counter
 	txsGossiped               prometheus.Counter
 	txsIncluded               prometheus.Counter
-	txsValid                  prometheus.Counter
+	txsInvalid                prometheus.Counter
 	stateChanges              prometheus.Counter
 	stateOperations           prometheus.Counter
 	remainingMempool          prometheus.Counter
@@ -246,10 +246,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_included",
 			Help:      "number of txs included in accepted blocks",
 		}),
-		txsValid: prometheus.NewCounter(prometheus.CounterOpts{
+		txsInvalid: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
-			Name:      "txs_valid",
-			Help:      "number of valid txs included in accepted blocks",
+			Name:      "txs_invalid",
+			Help:      "number of invalid txs included in accepted blocks",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -411,7 +411,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsReceived),
 		r.Register(m.txsGossiped),
 		r.Register(m.txsIncluded),
-		r.Register(m.txsValid),
+		r.Register(m.txsInvalid),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.remainingMempool),

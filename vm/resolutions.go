@@ -516,8 +516,8 @@ func (vm *VM) RecordTxsIncluded(c int) {
 	vm.metrics.txsIncluded.Add(float64(c))
 }
 
-func (vm *VM) RecordTxsValid(c int) {
-	vm.metrics.txsValid.Add(float64(c))
+func (vm *VM) RecordTxsInvalid(c int) {
+	vm.metrics.txsInvalid.Add(float64(c))
 }
 
 func (vm *VM) GetTargetChunkBuildDuration() time.Duration {

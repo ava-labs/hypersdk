@@ -334,7 +334,7 @@ func (e *Engine) processJob(job *engineJob) {
 		zap.Duration("t", time.Since(estart)),
 	)
 	e.vm.RecordBlockExecute(time.Since(estart))
-	e.vm.RecordTxsValid(validTxs)
+	e.vm.RecordTxsInvalid(txCount - validTxs)
 	e.vm.RecordTxsIncluded(txCount)
 	e.vm.ExecutedBlock(ctx, job.blk)
 }
