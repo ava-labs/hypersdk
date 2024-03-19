@@ -373,7 +373,7 @@ func (h *Handler) Spam(
 				l.Lock()
 				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
 				for range dropped {
-					confirmationTime += uint64(validityWindow)
+					// We don't count confirmation time here because we don't know what happened
 					droppedTxs++
 					totalTxs++
 				}

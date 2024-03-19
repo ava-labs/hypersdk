@@ -115,14 +115,17 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
 }
 
 // Called when a block is accepted with valid certs.
-func (c *CertStore) SetMin(ctx context.Context, t int64) {
+func (c *CertStore) SetMin(ctx context.Context, t int64) []*chain.ChunkCertificate {
 	c.l.Lock()
 	defer c.l.Unlock()
 
 	removedElems := c.eh.SetMin(t)
-	for _, remove := range removedElems {
-		c.queue.Remove(remove)
+	certs := make([]*chain.ChunkCertificate, 0, len(removedElems))
+	for i, remove := range removedElems {
+		e := c.queue.Remove(remove)
+		certs[i] = e
 	}
+	return certs
 }
 
 // Pop removes and returns the highest valued item in m.eh.
@@ -915,8 +918,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 //
 // This functions returns an array of chunkIDs that can be used to delete unused chunks from persistent storage.
 func (c *ChunkManager) SetBuildableMin(ctx context.Context, t int64) {
-	c.built.SetMin(t)
-	c.certs.SetMin(ctx, t)
+	c.vm.metrics.expiredBuiltChunks.Add(float64(len(c.built.SetMin(t))))
+	c.vm.metrics.expiredCerts.Add(float64(len(c.certs.SetMin(ctx, t))))
 }
 
 // Remove chunks we included in a block to accurately account for unused chunks
