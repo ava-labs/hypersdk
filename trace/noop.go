@@ -4,26 +4,15 @@
 package trace
 
 import (
-	"context"
-
 	"github.com/ava-labs/avalanchego/trace"
-
-	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
-var _ trace.Tracer = (*noOpTracer)(nil)
+var Noop trace.Tracer = noOpTracer{}
 
 // noOpTracer is an implementation of trace.Tracer that does nothing.
 type noOpTracer struct {
-	t oteltrace.Tracer
-}
-
-func (n noOpTracer) Start(
-	ctx context.Context,
-	spanName string,
-	opts ...oteltrace.SpanStartOption,
-) (context.Context, oteltrace.Span) {
-	return n.t.Start(ctx, spanName, opts...) //nolint:spancheck
+	noop.Tracer
 }
 
 func (noOpTracer) Close() error {

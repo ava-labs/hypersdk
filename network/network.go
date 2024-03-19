@@ -382,12 +382,26 @@ func (w *WrappedAppSender) SendAppResponse(
 	)
 }
 
+// SendAppError sends an application-level error to an AppRequest
+func (w *WrappedAppSender) SendAppError(
+	ctx context.Context, nodeID ids.NodeID, requestID uint32, errorCode int32,
+	errorMessage string,
+) error {
+	return w.n.sender.SendAppError(ctx, nodeID, requestID, errorCode, errorMessage)
+}
+
 // Gossip an application-level message.
 // A non-nil error should be considered fatal.
-func (w *WrappedAppSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
+func (w *WrappedAppSender) SendAppGossip(
+	ctx context.Context, appGossipBytes []byte,
+	numValidators int, numNonValidators int, numPeers int,
+) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
 		w.createMessageBytes(appGossipBytes),
+		numValidators,
+		numNonValidators,
+		numPeers,
 	)
 }
 
@@ -444,6 +458,14 @@ func (w *WrappedAppSender) SendCrossChainAppResponse(
 	// We don't need to wrap this response because the sender should know what
 	// requestID is associated with which handler.
 	return w.n.sender.SendCrossChainAppResponse(ctx, chainID, requestID, appResponseBytes)
+}
+
+// SendCrossChainAppError sends an application-level error to a CrossChainAppRequest
+func (w *WrappedAppSender) SendCrossChainAppError(
+	ctx context.Context, chainID ids.ID, requestID uint32, errorCode int32,
+	errorMessage string,
+) error {
+	return w.n.sender.SendCrossChainAppError(ctx, chainID, requestID, errorCode, errorMessage)
 }
 
 func (w *WrappedAppSender) createMessageBytes(src []byte) []byte {

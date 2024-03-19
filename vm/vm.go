@@ -369,6 +369,7 @@ func (vm *VM) Initialize(
 		vm.Logger(),
 		"",
 		syncRegistry,
+		nil,
 	)
 	if err != nil {
 		return err
