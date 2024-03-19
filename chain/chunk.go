@@ -92,6 +92,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		// Should protect us from issuing repeat txs (if others get duplicates,
 		// there will be duplicate inclusion but this is fixed with partitions)
 		if vm.IsIssuedTx(ctx, tx) {
+			vm.RecordChunkBuildTxDropped()
 			continue
 		}
 
@@ -107,12 +108,14 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 
 		// TODO: verify transactions
 		if tx.Base.Timestamp > c.Slot {
+			vm.RecordChunkBuildTxDropped()
 			continue
 		}
 
 		// Check if tx can fit in chunk
 		txUnits, err := tx.Units(sm, r)
 		if err != nil {
+			vm.RecordChunkBuildTxDropped()
 			vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
 			continue
 		}

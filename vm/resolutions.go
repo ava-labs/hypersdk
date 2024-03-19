@@ -655,3 +655,7 @@ func (vm *VM) RecordBlockVerifyFail() {
 func (vm *VM) RecordReadDelay(ms int64) {
 	vm.metrics.rpcReadDelay.Observe(float64(ms))
 }
+
+func (vm *VM) RecordChunkBuildTxDropped() {
+	vm.metrics.chunkBuildTxsDropped.Inc()
+}

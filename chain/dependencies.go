@@ -54,6 +54,7 @@ type Metrics interface {
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
+	RecordChunkBuildTxDropped()
 	RecordTxsInvalid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)

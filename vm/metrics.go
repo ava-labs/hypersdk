@@ -30,6 +30,7 @@ type Metrics struct {
 	txsGossiped               prometheus.Counter
 	txsIncluded               prometheus.Counter
 	txsInvalid                prometheus.Counter
+	chunkBuildTxsDropped      prometheus.Counter
 	stateChanges              prometheus.Counter
 	stateOperations           prometheus.Counter
 	remainingMempool          prometheus.Counter
@@ -248,6 +249,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_included",
 			Help:      "number of txs included in accepted blocks",
 		}),
+		chunkBuildTxsDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_build_txs_dropped",
+			Help:      "number of txs dropped while building chunks",
+		}),
 		txsInvalid: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_invalid",
@@ -424,6 +430,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsGossiped),
 		r.Register(m.txsIncluded),
 		r.Register(m.txsInvalid),
+		r.Register(m.chunkBuildTxsDropped),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.remainingMempool),
