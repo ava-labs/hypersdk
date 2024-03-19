@@ -40,6 +40,7 @@ type EvmCall struct {
 	BlobGasFeeCap *big.Int        `json:"blobGasFeeCap"`
 	BlobHashes    []common.Hash   `json:"blobHashes"`
 	Keys          state.Keys      `json:"stateKeys"`
+	SkipNonces    bool            `json:"skipNonces"`
 
 	logger         logging.Logger
 	usedGas        uint64
@@ -58,17 +59,18 @@ func (e *EvmCall) toMessage(from common.Address) *core.Message {
 		blobHashes = e.BlobHashes
 	}
 	return &core.Message{
-		From:          from,
-		To:            e.To,
-		Nonce:         e.Nonce,
-		Value:         e.Value,
-		GasLimit:      e.GasLimit,
-		GasPrice:      e.GasPrice,
-		GasFeeCap:     e.GasFeeCap,
-		GasTipCap:     e.GasTipCap,
-		Data:          e.Data,
-		BlobGasFeeCap: e.BlobGasFeeCap,
-		BlobHashes:    blobHashes,
+		From:              from,
+		To:                e.To,
+		Nonce:             e.Nonce,
+		Value:             e.Value,
+		GasLimit:          e.GasLimit,
+		GasPrice:          e.GasPrice,
+		GasFeeCap:         e.GasFeeCap,
+		GasTipCap:         e.GasTipCap,
+		Data:              e.Data,
+		BlobGasFeeCap:     e.BlobGasFeeCap,
+		BlobHashes:        blobHashes,
+		SkipAccountChecks: e.SkipNonces,
 	}
 }
 
@@ -220,6 +222,7 @@ func (e *EvmCall) Marshal(p *codec.Packer) {
 	for _, hash := range e.BlobHashes {
 		p.PackFixedBytes(hash[:])
 	}
+	p.PackBool(e.SkipNonces)
 	MarshalKeys(e.Keys, p)
 }
 
@@ -253,6 +256,7 @@ func UnmarshalEvmCall(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 		p.UnpackFixedBytes(len(buf), &buf)
 		copy(e.BlobHashes[i][:], buf)
 	}
+	e.SkipNonces = p.UnpackBool()
 	var err error
 	e.Keys, err = UnmarshalKeys(p)
 	if err != nil {

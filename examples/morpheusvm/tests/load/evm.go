@@ -117,6 +117,8 @@ func (e *evmTxBuilder) evmCall(ctx context.Context, args *Args) (*actions.EvmCal
 			return nil, err
 		}
 		call.Nonce = nonce
+	} else {
+		call.SkipNonces = true
 	}
 	if args.Value != nil {
 		call.Value = args.Value

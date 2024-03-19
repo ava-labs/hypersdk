@@ -391,15 +391,19 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			}
 		})
 
+		var (
+			abis     = make(map[string]*parsedABI)
+			deployed = make(map[string]ethCommon.Address)
+		)
+
 		ginkgo.By("deploy contracts", func() {
+			ctx := context.TODO()
 			evmTxBuilder := &evmTxBuilder{
 				actor: root.rsender,
 				bcli:  instances[0].tcli,
 			}
-			ctx := context.TODO()
 
 			// parse all the contracts
-			abis := make(map[string]*parsedABI)
 			for name, fn := range map[string]string{
 				"TokenA":  "../../contracts/artifacts/contracts/TokenA.sol/TokenA.json",
 				"TokenB":  "../../contracts/artifacts/contracts/TokenB.sol/TokenB.json",
@@ -420,7 +424,6 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			}
 
 			owner := actions.ToEVMAddress(root.rsender)
-			deployed := make(map[string]ethCommon.Address, len(abis))
 			approvedAmount := big.NewInt(1_000_000_000_000_000_000)
 			minLiquidity := big.NewInt(1)
 			maxLiquidty := big.NewInt(1_000_000)
@@ -520,9 +523,48 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			}
 		})
 
+		ginkgo.By("send tokens to accounts", func() {
+			ctx := context.TODO()
+			evmTxBuilder := &evmTxBuilder{
+				actor: root.rsender,
+				bcli:  instances[0].tcli,
+			}
+
+			amount := big.NewInt(1_000)
+			tokenA := deployed["TokenA"]
+			tokenB := deployed["TokenB"]
+
+			issuer := newSimpleTxIssuer()
+			for i, acct := range senders {
+				evmAddr := actions.ToEVMAddress(acct.rsender)
+				calldataA, err := abis["TokenA"].calldata("transfer", evmAddr, amount)
+				gomega.Ω(err).Should(gomega.BeNil())
+				actionA, err := evmTxBuilder.evmCall(ctx, &Args{
+					To:   &tokenA,
+					Data: calldataA,
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+				issuer.issueTx(actionA)
+
+				calldataB, err := abis["TokenB"].calldata("transfer", evmAddr, amount)
+				gomega.Ω(err).Should(gomega.BeNil())
+				actionB, err := evmTxBuilder.evmCall(ctx, &Args{
+					To:   &tokenB,
+					Data: calldataB,
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+				issuer.issueTx(actionB)
+
+				if i+1 == 501 {
+					issuer.produceAndAcceptBlock()
+				}
+			}
+			issuer.produceAndAcceptBlock()
+		})
+
 		ginkgo.By("load accounts", func() {
 			// sending 1 tx to each account
-			remainder := uint64(accts)*maxFee + uint64(1_000_000)
+			remainder := uint64(accts)*maxFee + uint64(10_000_000)
 			// leave some left over for root
 			fundSplit := (genesisBalance - remainder) / uint64(accts)
 			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
@@ -637,8 +679,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 	ginkgo.It("verifies blocks", func() {
 		for i, instance := range instances[1:] {
-			//log.Warn("sleeping 10s before starting verification", zap.Int("instance", i+1))
-			//time.Sleep(10 * time.Second)
+			log.Warn("sleeping 2s before starting verification", zap.Int("instance", i+1))
+			time.Sleep(2 * time.Second)
 
 			acceptCalls := []func(){}
 			ginkgo.By(fmt.Sprintf("sync instance %d", i+1), func() {
@@ -745,6 +787,7 @@ func produceBlock(i *instance) (*chain.StatelessBlock, func()) {
 
 	blk, err := i.vm.BuildBlock(ctx)
 	if errors.Is(err, chain.ErrNoTxs) {
+		log.Debug("no more blocks to produce")
 		return nil, nil
 	}
 	gomega.Ω(err).To(gomega.BeNil())
