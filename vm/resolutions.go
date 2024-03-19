@@ -663,3 +663,7 @@ func (vm *VM) RecordChunkBuildTxDropped() {
 func (vm *VM) RecordRPCTxInvalid() {
 	vm.metrics.rpcTxInvalid.Inc()
 }
+
+func (vm *VM) RecordBlockBuildCertDropped() {
+	vm.metrics.blockBuildCertsDropped.Inc()
+}

@@ -55,6 +55,7 @@ type Metrics interface {
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
 	RecordChunkBuildTxDropped()
+	RecordBlockBuildCertDropped()
 	RecordTxsInvalid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)

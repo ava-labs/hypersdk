@@ -76,9 +76,11 @@ func BuildBlock(
 			// Check if the chunk is a repeat
 			repeats, err := parent.IsRepeatChunk(ctx, []*ChunkCertificate{cert}, set.NewBits())
 			if err != nil {
-				return nil, err
+				// Would cause us to drop all certs so far
+				panic(err)
 			}
 			if repeats.Len() > 0 {
+				b.vm.RecordBlockBuildCertDropped()
 				log.Debug("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
 				continue
 			}
@@ -107,7 +109,8 @@ func BuildBlock(
 		execHeight := b.StatefulBlock.Height - depth
 		root, executed, err := vm.Engine().Results(execHeight)
 		if err != nil {
-			return nil, err
+			// TODO: need to restore certs?
+			panic(err)
 		}
 		b.execHeight = &execHeight
 		b.Root = root
@@ -118,7 +121,8 @@ func BuildBlock(
 	b.built = true
 	bytes, err := b.Marshal()
 	if err != nil {
-		return nil, err
+		// TODO: need to restore certs
+		panic(err)
 	}
 	b.id = utils.ToID(bytes)
 	b.t = time.UnixMilli(b.StatefulBlock.Timestamp)
