@@ -4,11 +4,10 @@
 package executor
 
 import (
-	_ "errors"
+	"errors"
 	"sync"
 	"testing"
 	"time"
-	_ "fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-/*func TestExecutorNoConflicts(t *testing.T) {
+func TestExecutorNoConflicts(t *testing.T) {
 	var (
 		require   = require.New(t)
 		l         sync.Mutex
@@ -71,9 +70,9 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 	require.NoError(e.Wait()) // existing task is running
 	require.Len(completed, 100)
 	require.Equal(0, completed[99])
-}*/
+}
 
-/*func TestExecutorSimpleConflict(t *testing.T) {
+func TestExecutorSimpleConflict(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -81,7 +80,6 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		completed   = make([]int, 0, 100)
 		e           = New(100, 4, nil)
 	)
-	fmt.Printf("CONFLICT key %v\n", conflictKey)
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
@@ -198,7 +196,7 @@ func TestStop(t *testing.T) {
 	}
 	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
-}*/
+}
 
 // W->W->W->...
 func TestManyWrites(t *testing.T) {
@@ -250,6 +248,9 @@ func TestManyReads(t *testing.T) {
 		s.Add(conflictKey, state.Read)
 		ti := i
 		e.Run(s, func() error {
+			if ti%2 == 0 {
+				time.Sleep(1 * time.Second)
+			}
 			l.Lock()
 			completed = append(completed, ti)
 			l.Unlock()
@@ -337,7 +338,7 @@ func TestReadThenWrite(t *testing.T) {
 }
 
 // W->R->R->...W->R->R->...
-/*func TestWriteThenReadRepeated(t *testing.T) {
+func TestWriteThenReadRepeated(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -373,10 +374,10 @@ func TestReadThenWrite(t *testing.T) {
 	require.Equal(49, completed[49]) // Second write to execute
 	// 50..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
-}*/
+}
 
 // R->R->W->R->W->R->R...
-/*func TestReadThenWriteRepeated(t *testing.T) {
+func TestReadThenWriteRepeated(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -413,4 +414,4 @@ func TestReadThenWrite(t *testing.T) {
 	require.Equal(12, completed[12])
 	// 13..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
-}*/
+}
