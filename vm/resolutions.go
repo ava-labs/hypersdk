@@ -116,6 +116,11 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
+
+	// We opt to not remove chunks [b.AvailableChunks] from [cm] here because
+	// we may build on a different parent and we want to maximize the probability
+	// any cert gets included. If this is not the case, the cert repeat inclusion check
+	// is fast.
 }
 
 func (vm *VM) processExecutedChunks() {
