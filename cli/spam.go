@@ -102,7 +102,7 @@ func (h *Handler) Spam(
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64, []byte) chain.Action, // []byte prevents duplicate txs
+	getTransfer func(codec.Address, bool, uint64, []byte) chain.Action, // []byte prevents duplicate txs
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	// Plot Zipf
@@ -209,7 +209,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(key.Address, 0, uniqueBytes())
+	action := getTransfer(key.Address, true, 0, uniqueBytes())
 	rules := parser.Rules(time.Now().UnixMilli())
 	maxUnits, err := chain.EstimateUnits(rules, action, factory, nil)
 	if err != nil {
@@ -288,7 +288,7 @@ func (h *Handler) Spam(
 		factories[i] = f
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount, uniqueBytes()), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, true, distAmount, uniqueBytes()), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -537,7 +537,7 @@ func (h *Handler) Spam(
 							}
 						}
 						recipient := accounts[recipientIndex].Address
-						action := getTransfer(recipient, 1, uniqueBytes())
+						action := getTransfer(recipient, false, 1, uniqueBytes())
 						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
@@ -663,7 +663,7 @@ func (h *Handler) Spam(
 		// Send funds
 		returnAmt := balance - feePerTx
 		f := factories[i]
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt, uniqueBytes()), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, false, returnAmt, uniqueBytes()), f, feePerTx)
 		if err != nil {
 			return err
 		}
