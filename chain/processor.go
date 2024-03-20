@@ -256,7 +256,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
-	if chunkUnits.Greater(p.r.GetMaxChunkUnits()) {
+	if !p.r.GetMaxChunkUnits().Greater(chunkUnits) {
 		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
