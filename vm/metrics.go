@@ -61,6 +61,11 @@ type Metrics struct {
 	mempoolExpired            prometheus.Counter
 	fetchChunkAttempts        prometheus.Counter
 	txGossipDropped           prometheus.Counter
+	unitsExecutedBandwidth    prometheus.Counter
+	unitsExecutedCompute      prometheus.Counter
+	unitsExecutedRead         prometheus.Counter
+	unitsExecutedAllocate     prometheus.Counter
+	unitsExecutedWrite        prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -430,6 +435,31 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_gossip_dropped",
 			Help:      "number of tx gossip messages dropped",
 		}),
+		unitsExecutedBandwidth: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_bandwidth",
+			Help:      "number of bandwidth units executed",
+		}),
+		unitsExecutedCompute: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_compute",
+			Help:      "number of compute units executed",
+		}),
+		unitsExecutedRead: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_read",
+			Help:      "number of read units executed",
+		}),
+		unitsExecutedAllocate: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_allocate",
+			Help:      "number of allocate units executed",
+		}),
+		unitsExecutedWrite: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_write",
+			Help:      "number of write units executed",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -548,6 +578,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.lastAcceptedEpoch),
 		r.Register(m.lastExecutedEpoch),
 		r.Register(m.txGossipDropped),
+		r.Register(m.unitsExecutedBandwidth),
+		r.Register(m.unitsExecutedCompute),
+		r.Register(m.unitsExecutedRead),
+		r.Register(m.unitsExecutedAllocate),
+		r.Register(m.unitsExecutedWrite),
 	)
 	return r, m, errs.Err
 }

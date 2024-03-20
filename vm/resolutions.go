@@ -159,6 +159,21 @@ func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk
 
 	vm.metrics.executedProcessingBacklog.Inc()
 	vm.executedQueue <- &executedWrapper{blk, chunk, results, invalidTxs}
+
+	// Record units processed
+	chunkUnits := chain.Dimensions{}
+	for _, r := range results {
+		nextUnits, err := chain.Add(chunkUnits, r.Consumed)
+		if err != nil {
+			vm.Fatal("unable to add executed units", zap.Error(err))
+		}
+		chunkUnits = nextUnits
+	}
+	vm.metrics.unitsExecutedBandwidth.Add(float64(chunkUnits[chain.Bandwidth]))
+	vm.metrics.unitsExecutedCompute.Add(float64(chunkUnits[chain.Compute]))
+	vm.metrics.unitsExecutedRead.Add(float64(chunkUnits[chain.StorageRead]))
+	vm.metrics.unitsExecutedAllocate.Add(float64(chunkUnits[chain.StorageAllocate]))
+	vm.metrics.unitsExecutedWrite.Add(float64(chunkUnits[chain.StorageWrite]))
 }
 
 func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatefulBlock) {
