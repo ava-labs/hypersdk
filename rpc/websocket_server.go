@@ -217,7 +217,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 	return nil
 }
 
-func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) error {
+func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result, invalidTxs []ids.ID) error {
 	if w.chunkListeners.Len() > 0 {
 		bytes, err := PackChunkMessage(blk, chunk, results)
 		if err != nil {
@@ -245,6 +245,23 @@ func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, r
 		}
 		for _, listener := range listeners {
 			bytes, err := PackTxMessage(listener.num, status)
+			if err != nil {
+				return err
+			}
+			w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
+		}
+		delete(w.txListeners, txID)
+		// [expiringTxs] will be cleared eventually (does not support removal)
+	}
+	for _, txID := range invalidTxs {
+		w.expiringTxs.Remove(txID) // remove txs that are no longer needed ASAP
+		listeners, ok := w.txListeners[txID]
+		if !ok {
+			continue
+		}
+		// Publish to tx listener
+		for _, listener := range listeners {
+			bytes, err := PackTxMessage(listener.num, TxInvalid)
 			if err != nil {
 				return err
 			}

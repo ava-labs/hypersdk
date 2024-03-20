@@ -136,54 +136,37 @@ func (vm *VM) processExecutedChunks() {
 	// closed.
 	for ew := range vm.executedQueue {
 		vm.metrics.executedProcessingBacklog.Dec()
-		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
+		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results, ew.InvalidTxs)
 		vm.snowCtx.Log.Debug(
 			"chunk async executed",
-			zap.Uint64("blk", ew.Block),
+			zap.Uint64("blk", ew.Block.Height),
 			zap.Stringer("chunkID", ew.Chunk.Chunk),
 		)
 	}
 }
 
-func (vm *VM) ExecutedChunk(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk *chain.FilteredChunk, results []*chain.Result, invalidTxs []ids.ID) {
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
 	vm.metrics.executedProcessingBacklog.Inc()
-	vm.executedQueue <- &executedWrapper{blk, chunk, results}
+	vm.executedQueue <- &executedWrapper{blk, chunk, results, invalidTxs}
 }
 
-func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatelessBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
-	defer span.End()
-
-	// Update timestamp in mempool
-	//
-	// We wait to update the min until here because we want to allow all execution
-	// to complete and remove valid txs first.
-	t := blk.StatefulBlock.Timestamp
-	vm.metrics.mempoolExpired.Add(float64(len(vm.mempool.SetMinTimestamp(ctx, t))))
-	vm.metrics.mempoolLen.Set(float64(vm.mempool.Len(ctx)))
-	vm.metrics.mempoolSize.Set(float64(vm.mempool.Size(ctx)))
-
-	// We need to wait until we may not try to verify the signature of a tx again.
-	vm.rpcAuthorizedTxs.SetMin(t)
-
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(t); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
-	}
-}
-
-func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+func (vm *VM) processExecutedChunk(
+	blk *chain.StatefulBlock,
+	chunk *chain.FilteredChunk,
+	results []*chain.Result,
+	invalidTxs []ids.ID,
+) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.chunkProcess.Observe(float64(time.Since(start)))
 	}()
 
 	// Remove any executed transactions
-	vm.mempool.Remove(context.TODO(), chunk.Txs)
+	ctx := context.TODO()
+	vm.mempool.Remove(ctx, chunk.Txs)
 
 	// Sign and store any warp messages (regardless if validator now, may become one)
 	for i, tx := range chunk.Txs { // filtered chunks only have valid txs
@@ -217,8 +200,33 @@ func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, resul
 	}
 
 	// Send notifications as soon as transactions are executed
-	if err := vm.webSocketServer.ExecuteChunk(blk, chunk, results); err != nil {
+	if err := vm.webSocketServer.ExecuteChunk(blk.Height, chunk, results, invalidTxs); err != nil {
 		vm.Fatal("unable to execute chunk in websocket server", zap.Error(err))
+	}
+
+	// If this is the last chunk of the block, we can expire txs based on the timestamp
+	// of the block in the mempool and RPC.
+	lastChunk := blk.ExecutedChunks[len(blk.ExecutedChunks)-1]
+	if lastChunk != chunk.Chunk {
+		return
+	}
+
+	// Update timestamp in mempool
+	//
+	// We wait to update the min until here because we want to allow all execution
+	// to complete and remove valid txs first.
+	t := blk.Timestamp
+	vm.metrics.mempoolExpired.Add(float64(len(vm.mempool.SetMinTimestamp(ctx, t))))
+	vm.metrics.mempoolLen.Set(float64(vm.mempool.Len(ctx)))
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Size(ctx)))
+
+	// We need to wait until we may not try to verify the signature of a tx again.
+	vm.rpcAuthorizedTxs.SetMin(t)
+
+	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+	// send [ErrExpired] messages.
+	if err := vm.webSocketServer.SetMinTx(t); err != nil {
+		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 }
 

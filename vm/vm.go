@@ -48,9 +48,10 @@ import (
 )
 
 type executedWrapper struct {
-	Block   uint64
-	Chunk   *chain.FilteredChunk
-	Results []*chain.Result
+	Block      *chain.StatefulBlock
+	Chunk      *chain.FilteredChunk
+	Results    []*chain.Result
+	InvalidTxs []ids.ID
 }
 
 type acceptedWrapper struct {

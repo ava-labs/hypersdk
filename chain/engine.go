@@ -150,6 +150,7 @@ func (e *Engine) processJob(job *engineJob) error {
 			chunk        = chunks[i]
 			cert         = job.blk.AvailableChunks[i]
 			txs          = make([]*Transaction, 0, len(chunkResult))
+			invalidTxs   = make([]ids.ID, 0, 4) // TODO: make a const
 			reward       uint64
 
 			warpResults set.Bits64
@@ -159,18 +160,18 @@ func (e *Engine) processJob(job *engineJob) error {
 			txCount++
 			tx := chunk.Txs[j]
 			if !txResult.Valid {
+				txID := tx.ID()
+				invalidTxs = append(invalidTxs, txID)
 				// Remove txID from txSet if it was invalid and
 				// it was the first txID of its kind seen in the block.
-				if bl, ok := txSet[tx.ID()]; ok {
+				if bl, ok := txSet[txID]; ok {
 					if bl.chunk == i && bl.index == j {
-						delete(txSet, tx.ID())
+						delete(txSet, txID)
 					}
 				}
 
 				// TODO: handle case where Freezable (claim bond from user + freeze user)
 				// TODO: need to ensure that mark tx in set to prevent freezable replay?
-
-				// TODO: track invalid tx count
 				continue
 			}
 			validResults = append(validResults, txResult)
@@ -207,7 +208,8 @@ func (e *Engine) processJob(job *engineJob) error {
 
 		// As soon as execution of transactions is finished, let the VM know so that it
 		// can notify subscribers.
-		e.vm.ExecutedChunk(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
+		e.vm.ExecutedChunk(ctx, job.blk.StatefulBlock, filteredChunks[i], validResults, invalidTxs) // handled async by the vm
+		e.vm.RecordTxsInvalid(len(invalidTxs))
 	}
 
 	// Update tracked p-chain height as long as it is increasing
@@ -309,9 +311,7 @@ func (e *Engine) processJob(job *engineJob) error {
 		zap.Duration("t", time.Since(estart)),
 	)
 	e.vm.RecordBlockExecute(time.Since(estart))
-	e.vm.RecordTxsInvalid(txCount - validTxs)
 	e.vm.RecordTxsIncluded(txCount)
-	e.vm.ExecutedBlock(ctx, job.blk)
 	e.vm.RecordExecutedEpoch(epoch)
 	return nil
 }
