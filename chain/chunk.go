@@ -142,9 +142,9 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	defer func() {
 		if c.id == ids.Empty { // only happens if there is an error
 			mempool.FinishStreaming(ctx, append(c.Txs, restorableTxs...))
-		} else {
-			mempool.FinishStreaming(ctx, restorableTxs)
+			return
 		}
+		mempool.FinishStreaming(ctx, restorableTxs)
 	}()
 
 	// Discard chunk if nothing produced
