@@ -196,8 +196,11 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tx_rpc_authorized[5s])/5", chainID))
 			utils.Outf("{{yellow}}RPC pre-authorized per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_process_sum[5s])/1000000/5", chainID))
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executed_chunk_process_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}chunk process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executed_block_process_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}executed block process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s]))", chainID, chainID, chainID))
 			utils.Outf("{{yellow}}intermediate node cache hit rate:{{/}} %s\n", panels[len(panels)-1])

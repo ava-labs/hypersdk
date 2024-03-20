@@ -313,6 +313,7 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.vm.RecordBlockExecute(time.Since(estart))
 	e.vm.RecordTxsIncluded(txCount)
 	e.vm.RecordExecutedEpoch(epoch)
+	e.vm.ExecutedBlock(ctx, job.blk.StatefulBlock)
 	return nil
 }
 

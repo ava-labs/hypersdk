@@ -106,6 +106,7 @@ type VM interface {
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
 	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
+	ExecutedBlock(context.Context, *StatefulBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root

@@ -82,7 +82,8 @@ type Metrics struct {
 	blockAccept               metric.Averager
 	blockProcess              metric.Averager
 	blockExecute              metric.Averager
-	chunkProcess              metric.Averager
+	executedChunkProcess      metric.Averager
+	executedBlockProcess      metric.Averager
 	fetchMissingChunks        metric.Averager
 	collectChunkSignatures    metric.Averager
 	txTimeRemainingMempool    metric.Averager
@@ -201,10 +202,19 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	chunkProcess, err := metric.NewAverager(
+	executedChunkProcess, err := metric.NewAverager(
 		"chain",
-		"chunk_process",
+		"executed_chunk_process",
 		"time spent processing executed chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	executedBlockProcess, err := metric.NewAverager(
+		"chain",
+		"executed_block_process",
+		"time spent processing executed blocks",
 		r,
 	)
 	if err != nil {
@@ -476,7 +486,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockAccept:            blockAccept,
 		blockProcess:           blockProcess,
 		blockExecute:           blockExecute,
-		chunkProcess:           chunkProcess,
+		executedChunkProcess:   executedChunkProcess,
+		executedBlockProcess:   executedBlockProcess,
 		fetchMissingChunks:     fetchMissingChunks,
 		collectChunkSignatures: collectChunkSignatures,
 		txTimeRemainingMempool: txTimeRemainingMempool,
