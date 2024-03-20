@@ -991,6 +991,12 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					c.vm.Submit(ctx, false, txw.txs)
 					c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
 					c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
+
+					// Record time remaining when added
+					now := time.Now().UnixMilli()
+					for _, tx := range txw.txs {
+						c.vm.metrics.txTimeRemainingMempool.Observe(float64(tx.Expiry() - now))
+					}
 				case <-c.vm.stop:
 					// If engine taking too long to process message, Shutdown will not
 					// be called.

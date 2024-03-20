@@ -184,6 +184,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_rpc_tx_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid txs received over RPC per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tx_time_remaining_mempool_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_tx_time_remaining_mempool_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}validity time remaining when tx added to mempool (ms):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_mempool_expired[5s])/5", chainID))
 			utils.Outf("{{yellow}}expired txs from mempool per second:{{/}} %s\n", panels[len(panels)-1])
 
