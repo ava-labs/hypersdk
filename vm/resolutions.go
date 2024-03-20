@@ -405,8 +405,8 @@ func (vm *VM) CacheValidators(ctx context.Context, height uint64) {
 	vm.proposerMonitor.Fetch(ctx, height)
 }
 
-func (vm *VM) AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error) {
-	return vm.proposerMonitor.AddressPartition(ctx, height, addr)
+func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, addr)
 }
 
 func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (bool, error) {

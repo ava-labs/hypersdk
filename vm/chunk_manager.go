@@ -285,21 +285,21 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	}
 }
 
-func (c *ChunkManager) getEpochHeight(ctx context.Context, t int64) (uint64, error) {
+func (c *ChunkManager) getEpochInfo(ctx context.Context, t int64) (uint64, uint64, error) {
 	r := c.vm.Rules(time.Now().UnixMilli())
 	epoch := utils.Epoch(t, r.GetEpochDuration())
 	if h, ok := c.epochHeights.Get(epoch); ok {
-		return h, nil
+		return epoch, h, nil
 	}
 	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if heights[0] == nil {
-		return 0, errors.New("epoch is not yet set")
+		return 0, 0, errors.New("epoch is not yet set")
 	}
 	c.epochHeights.Put(epoch, *heights[0])
-	return *heights[0], nil
+	return epoch, *heights[0], nil
 }
 
 func (c *ChunkManager) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
@@ -362,7 +362,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Determine if chunk producer is a validator and that their key is valid
-		epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+		_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
 		if err != nil {
 			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
@@ -470,7 +470,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Determine if chunk signer is a validator and that their key is valid
-		epochHeight, err := c.getEpochHeight(ctx, chunkSignature.Slot)
+		_, epochHeight, err := c.getEpochInfo(ctx, chunkSignature.Slot)
 		if err != nil {
 			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunkSignature.Slot))
@@ -590,7 +590,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Determine epoch for certificate
-		epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+		_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
 		if err != nil {
 			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine certificate epoch", zap.Int64("slot", cert.Slot))
@@ -932,13 +932,13 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					invalid := false
 					batchVerifier := chain.NewAuthBatch(c.vm, job, txw.authCounts)
 					for _, tx := range txw.txs {
-						epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+						epoch, epochHeight, err := c.getEpochInfo(ctx, tx.Base.Timestamp)
 						if err != nil {
 							c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
 							invalid = true
 							break
 						}
-						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor())
 						if err != nil {
 							c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 							invalid = true
@@ -1062,7 +1062,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		return
 	}
 	copy(msg[1:], chunkBytes)
-	epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+	_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("t", chunk.Slot), zap.Error(err))
 		return
@@ -1129,7 +1129,7 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		return
 	}
 	copy(msg[1:], certBytes)
-	epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+	_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", cert.Slot), zap.Error(err))
 		return
@@ -1158,12 +1158,12 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	// TODO: drop if issued recently?
 
 	// Find transaction partition
-	epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+	epoch, epochHeight, err := c.getEpochInfo(ctx, tx.Base.Timestamp)
 	if err != nil {
 		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 		return
 	}
-	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor())
 	if err != nil {
 		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return
@@ -1274,7 +1274,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 					attempts++
 
 					// Look for chunk epoch
-					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)
+					_, epochHeight, err := c.getEpochInfo(context.TODO(), cert.Slot)
 					if err != nil {
 						c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 						continue
