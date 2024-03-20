@@ -206,8 +206,8 @@ func (vm *VM) processExecutedChunk(
 
 	// If this is the last chunk of the block, we can expire txs based on the timestamp
 	// of the block in the mempool and RPC.
-	lastChunk := blk.ExecutedChunks[len(blk.ExecutedChunks)-1]
-	if lastChunk != chunk.Chunk {
+	chunks := len(blk.ExecutedChunks)
+	if chunks > 0 && blk.ExecutedChunks[chunks-1] != chunk.Chunk {
 		return
 	}
 
