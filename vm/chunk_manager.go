@@ -840,9 +840,14 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				// Attempt to build a chunk
 				chunkStart := time.Now()
 				chunk, err := chain.BuildChunk(context.TODO(), c.vm)
-				if err != nil {
-					c.vm.Logger().Info("unable to build chunk", zap.Error(err))
+				switch {
+				case errors.Is(err, chain.ErrNoTxs):
+					c.vm.Logger().Debug("no transactions to build chunk")
 					continue
+				case err != nil:
+					c.vm.Logger().Error("unable to build chunk", zap.Error(err))
+					continue
+				default:
 				}
 				c.PushChunk(context.TODO(), chunk)
 				chunkBytes := chunk.Size()
