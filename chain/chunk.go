@@ -127,7 +127,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			// Want to maximize how "full" chunk is, so need to be a little complex
 			// if there are transactions with uneven usage of resources.
 			restorableTxs = append(restorableTxs, tx)
-			vm.RecordRemainingMempool()
+			vm.RecordRemainingMempool(vm.Mempool().Len(ctx))
 			break
 		}
 		chunkUnits = nextUnits
