@@ -672,7 +672,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			_ = balanceOf
 
 			issuer := newSimpleTxIssuer()
-			for round := 0; round < 2; round++ {
+			for round := 0; round < 10; round++ {
 				for i, acct := range senders {
 					evmTxBuilder := &evmTxBuilder{
 						actor: acct.rsender,
