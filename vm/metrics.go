@@ -60,6 +60,7 @@ type Metrics struct {
 	expiredCerts              prometheus.Counter
 	mempoolExpired            prometheus.Counter
 	fetchChunkAttempts        prometheus.Counter
+	txGossipDropped           prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -424,6 +425,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "fetch_chunk_attempts",
 			Help:      "number of attempts to fetch a chunk",
 		}),
+		txGossipDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "tx_gossip_dropped",
+			Help:      "number of tx gossip messages dropped",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -541,6 +547,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.websocketConnections),
 		r.Register(m.lastAcceptedEpoch),
 		r.Register(m.lastExecutedEpoch),
+		r.Register(m.txGossipDropped),
 	)
 	return r, m, errs.Err
 }

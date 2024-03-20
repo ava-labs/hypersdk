@@ -648,14 +648,16 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.metrics.gossipTxMsgInvalid.Inc()
 			return nil
 		}
-		c.vm.RecordTxsReceived(len(txs))
+		txLen := len(txs)
+		c.vm.RecordTxsReceived(txLen)
 
 		// Enqueue txs for verification, if we have a backlog just drop them
-		c.vm.metrics.gossipTxBacklog.Add(float64(len(txs)))
+		c.vm.metrics.gossipTxBacklog.Add(float64(txLen))
 		select {
 		case c.incomingTxs <- &txGossipWrapper{nodeID: nodeID, txs: txs, authCounts: authCounts}:
 		default:
-			c.vm.metrics.gossipTxBacklog.Add(-float64(len(txs)))
+			c.vm.metrics.gossipTxBacklog.Add(-float64(txLen))
+			c.vm.metrics.txGossipDropped.Add(float64(txLen))
 			c.vm.Logger().Warn("dropping tx gossip because too big of backlog", zap.Stringer("nodeID", nodeID))
 		}
 
@@ -926,6 +928,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					w := workers.NewSerial()
 					job, err := w.NewJob(len(txw.txs))
 					if err != nil {
+						c.vm.metrics.txGossipDropped.Add(float64(len(txw.txs)))
 						c.vm.Logger().Warn("unable to spawn new worker", zap.Error(err))
 						continue
 					}
@@ -972,7 +975,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					if invalid {
 						batchVerifier.Done(nil)
 						c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
-						c.vm.metrics.gossipTxInvalid.Inc()
+						c.vm.metrics.gossipTxInvalid.Add(float64(len(txw.txs)))
 						continue
 					}
 
@@ -984,19 +987,29 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 							zap.Stringer("peerID", txw.nodeID),
 							zap.Error(err),
 						)
+						c.vm.metrics.gossipTxInvalid.Add(float64(len(txw.txs)))
 						continue
 					}
 
 					// Submit txs
-					c.vm.Submit(ctx, false, txw.txs)
+					errs := c.vm.Submit(ctx, false, txw.txs)
+					now := time.Now().UnixMilli()
+					for i, err := range errs {
+						tx := txw.txs[i]
+						if err == nil {
+							c.vm.metrics.txTimeRemainingMempool.Observe(float64(tx.Expiry() - now))
+							continue
+						}
+						c.vm.metrics.txGossipDropped.Inc()
+						c.vm.Logger().Warn(
+							"did not add incoming tx to mempool",
+							zap.Stringer("peerID", txw.nodeID),
+							zap.Stringer("txID", tx.ID()),
+							zap.Error(err),
+						)
+					}
 					c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
 					c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
-
-					// Record time remaining when added
-					now := time.Now().UnixMilli()
-					for _, tx := range txw.txs {
-						c.vm.metrics.txTimeRemainingMempool.Observe(float64(tx.Expiry() - now))
-					}
 				case <-c.vm.stop:
 					// If engine taking too long to process message, Shutdown will not
 					// be called.

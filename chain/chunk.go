@@ -156,22 +156,37 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	// Sign chunk
 	digest, err := c.Digest()
 	if err != nil {
+		for range c.Txs {
+			vm.RecordChunkBuildTxDropped()
+		}
 		return nil, err
 	}
 	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
 	if err != nil {
+		for range c.Txs {
+			vm.RecordChunkBuildTxDropped()
+		}
 		return nil, err
 	}
 	sig, err := vm.Sign(wm)
 	if err != nil {
+		for range c.Txs {
+			vm.RecordChunkBuildTxDropped()
+		}
 		return nil, err
 	}
 	c.Signature, err = bls.SignatureFromBytes(sig)
 	if err != nil {
+		for range c.Txs {
+			vm.RecordChunkBuildTxDropped()
+		}
 		return nil, err
 	}
 	bytes, err := c.Marshal()
 	if err != nil {
+		for range c.Txs {
+			vm.RecordChunkBuildTxDropped()
+		}
 		return nil, err
 	}
 	c.id = utils.ToID(bytes)
