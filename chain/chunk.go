@@ -79,6 +79,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		full          bool
 		mempool       = vm.Mempool()
 		authCounts    = make(map[uint8]int)
+
+		restorableTxs = make([]*Transaction, 0, chunkPrealloc)
 	)
 	mempool.StartStreaming(ctx)
 	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
@@ -124,9 +126,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			// TODO: update mempool to only provide txs that can fit in chunk
 			// Want to maximize how "full" chunk is, so need to be a little complex
 			// if there are transactions with uneven usage of resources.
-
-			// Restore unused txs
-			mempool.FinishStreaming(ctx, []*Transaction{tx})
+			restorableTxs = append(restorableTxs, tx)
 			vm.RecordRemainingMempool()
 			break
 		}
@@ -137,10 +137,15 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		c.Txs = append(c.Txs, tx)
 		authCounts[tx.Auth.GetTypeID()]++
 	}
-	if !full {
-		// Clears conflicting set
-		mempool.FinishStreaming(ctx, nil)
-	}
+
+	// Always close stream
+	defer func() {
+		if c.id == ids.Empty { // only happens if there is an error
+			mempool.FinishStreaming(ctx, append(c.Txs, restorableTxs...))
+		} else {
+			mempool.FinishStreaming(ctx, restorableTxs)
+		}
+	}()
 
 	// Discard chunk if nothing produced
 	if len(c.Txs) == 0 {
@@ -157,37 +162,22 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	// Sign chunk
 	digest, err := c.Digest()
 	if err != nil {
-		for range c.Txs {
-			vm.RecordChunkBuildTxDropped()
-		}
 		return nil, err
 	}
 	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
 	if err != nil {
-		for range c.Txs {
-			vm.RecordChunkBuildTxDropped()
-		}
 		return nil, err
 	}
 	sig, err := vm.Sign(wm)
 	if err != nil {
-		for range c.Txs {
-			vm.RecordChunkBuildTxDropped()
-		}
 		return nil, err
 	}
 	c.Signature, err = bls.SignatureFromBytes(sig)
 	if err != nil {
-		for range c.Txs {
-			vm.RecordChunkBuildTxDropped()
-		}
 		return nil, err
 	}
 	bytes, err := c.Marshal()
 	if err != nil {
-		for range c.Txs {
-			vm.RecordChunkBuildTxDropped()
-		}
 		return nil, err
 	}
 	c.id = utils.ToID(bytes)
