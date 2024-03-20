@@ -62,7 +62,7 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	}
 }
 
-func (e *Engine) processJob(job *engineJob) {
+func (e *Engine) processJob(job *engineJob) error {
 	log := e.vm.Logger()
 	e.vm.RecordEngineBacklog(-1)
 
@@ -77,12 +77,12 @@ func (e *Engine) processJob(job *engineJob) {
 	heightKey := HeightKey(e.vm.StateManager().HeightKey())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
 	if job.blk.Height() != parentHeight+1 {
 		// TODO: re-execute previous blocks to get to required state
-		panic(ErrInvalidBlockHeight)
+		return ErrInvalidBlockHeight
 	}
 
 	// Fetch latest block context (used for reliable and recent warp verification)
@@ -107,7 +107,7 @@ func (e *Engine) processJob(job *engineJob) {
 	epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
 	_, epochHeights, err := e.GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Process chunks
@@ -123,13 +123,13 @@ func (e *Engine) processJob(job *engineJob) {
 	}
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
-		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err))
-		return
+		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err)) // does not actually panic
+		return err
 	}
 	if len(chunks) != len(job.blk.AvailableChunks) {
 		// This can happen on the shutdown path. If this is because of an error, the chunk manager will FATAL.
 		e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
-		return
+		return ErrMissingChunks
 	}
 	e.vm.RecordExecutedChunks(len(chunks))
 	e.vm.RecordWaitProcessor(time.Since(startProcessor))
@@ -261,10 +261,10 @@ func (e *Engine) processJob(job *engineJob) {
 
 	// Update chain metadata
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
-		panic(err)
+		return err
 	}
 	if err := ts.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
-		panic(err)
+		return err
 	}
 
 	// Create new view and persist to disk
@@ -272,15 +272,15 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordStateOperations(ts.OpIndex())
 	view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	commitStart := time.Now()
 	if err := view.CommitToDB(ctx); err != nil {
-		panic(err)
+		return err
 	}
 	root, err := view.GetMerkleRoot(ctx)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
@@ -313,6 +313,7 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordTxsIncluded(txCount)
 	e.vm.ExecutedBlock(ctx, job.blk)
 	e.vm.RecordExecutedEpoch(epoch)
+	return nil
 }
 
 func (e *Engine) Run() {
@@ -324,8 +325,16 @@ func (e *Engine) Run() {
 	for {
 		select {
 		case job := <-e.backlog:
-			e.processJob(job)
-			continue
+			err := e.processJob(job)
+			switch {
+			case err == nil:
+				continue
+			case errors.Is(ErrMissingChunks, err):
+				// Should only happen on shutdown
+				return
+			default:
+				panic(err) // unrecoverable error
+			}
 		case <-e.vm.StopChan():
 			return
 		}

@@ -72,4 +72,5 @@ var (
 	ErrInvalidKeyValue        = errors.New("invalid key or value")
 	ErrModificationNotAllowed = errors.New("modification not allowed")
 	ErrWrongDimensionSize     = errors.New("wrong dimensions size")
+	ErrMissingChunks          = errors.New("missing chunks") // usually means shutdown
 )

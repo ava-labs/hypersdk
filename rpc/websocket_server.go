@@ -135,6 +135,9 @@ func (w *WebSocketServer) startWorker() {
 			}
 
 			// Prevent duplicate signature verification during block processing
+			//
+			// We wait to do this until after submit to ensure the transaction was actually
+			// considered valid.
 			w.vm.AddRPCAuthorized(tx)
 		case <-w.vm.StopChan():
 			return
