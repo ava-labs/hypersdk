@@ -216,6 +216,9 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
+		if !ts.checkScope(ctx, key, state.Allocate) {
+			return ErrInvalidKeyOrPermission
+		}
 		op.t = createOp
 		keyChunks, _ := keys.MaxChunks(key) // not possible to fail
 		ts.allocates[k] = keyChunks
