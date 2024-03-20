@@ -38,7 +38,7 @@ type Executor struct {
 	edges     map[string]*data
 }
 
-// We can do up to 1 Allocate/Write and many reads
+// We can process up to 1 Allocate/Write and many reads
 type data struct {
 	allocateWrite int
 	reads         set.Set[int]
@@ -91,9 +91,9 @@ func (e *Executor) runWorker() {
 
 			e.l.Lock()
 			// Update concurrent reads to only contain not-yet-executed reads
-			for key := range t.keys {
-				k := e.edges[key]
-				k.reads.Remove(t.id)
+			for k := range t.keys {
+				key := e.edges[k]
+				key.reads.Remove(t.id)
 			}
 			for b := range t.blocking { // works fine on non-initialized map
 				bt := e.tasks[b]
@@ -137,28 +137,26 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	for k, v := range conflicts {
 		key, ok := e.edges[k]
 		if ok {
-			// Get last blocked task
-			lt, ok := e.tasks[key.allocateWrite]
-			if t.dependencies == nil {
-				t.dependencies = set.NewSet[int](defaultSetSize)
-			}
-
 			// No Allocate/Write has been requested yet
-			if !ok {
+			if key.allocateWrite == notSet {
 				if v == state.Read {
 					key.reads.Add(id)
-					continue
-				}
-				key.allocateWrite = id
-				for b := range key.reads {
-					bt := e.tasks[b]
-					recordDependencies(t, bt)
+				} else {
+					key.allocateWrite = id
+					for b := range key.reads {
+						bt := e.tasks[b]
+						recordDependencies(t, bt)
+					}
 				}
 				continue
 			}
 
-			// Allocate/Write already requested
+			// Get last blocked Allocate/Write task
+			lt := e.tasks[key.allocateWrite]
 			if !lt.executed {
+				if t.dependencies == nil {
+					t.dependencies = set.NewSet[int](defaultSetSize)
+				}
 				if lt.blocking == nil {
 					lt.blocking = set.NewSet[int](defaultSetSize)
 				}
