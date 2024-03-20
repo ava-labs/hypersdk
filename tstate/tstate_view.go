@@ -130,6 +130,16 @@ func (ts *TStateView) OpIndex() int {
 	return len(ts.ops)
 }
 
+// KeyOperations returns the number of operations performed since the scope
+// was last set.
+//
+// If an operation is performed more than once during this time, the largest
+// operation will be returned here (if 1 chunk then 2 chunks are written to a key,
+// this function will return 2 chunks).
+func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
+	return ts.allocates, ts.writes
+}
+
 // checkScope returns whether [k] is in scope and has appropriate permissions.
 func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
 	return ts.scope[string(k)].Has(perm)
