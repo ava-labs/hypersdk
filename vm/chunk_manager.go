@@ -841,8 +841,8 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				chunkStart := time.Now()
 				chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 				switch {
-				case errors.Is(err, chain.ErrNoTxs):
-					c.vm.Logger().Debug("no transactions to build chunk")
+				case errors.Is(err, chain.ErrNoTxs) || errors.Is(err, chain.ErrNotAValidator):
+					c.vm.Logger().Debug("unable to build chunk", zap.Error(err))
 					continue
 				case err != nil:
 					c.vm.Logger().Error("unable to build chunk", zap.Error(err))

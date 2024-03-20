@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
@@ -67,7 +66,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		return nil, err
 	}
 	if !amValidator {
-		return nil, errors.New("not a validator during this epoch, so no one will sign my chunk")
+		return nil, ErrNotAValidator
 	}
 
 	// Pack chunk for build duration
