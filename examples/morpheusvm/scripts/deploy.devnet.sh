@@ -57,7 +57,8 @@ EPOCH_DURATION=60000
 VALIDITY_WINDOW=59000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
-MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
+MAX_UINT64=18446744073709551615
+MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}" # in a load test, all we care about is that chunks are size-bounded (2MB network limit)
 echo "creating allocations file"
 # Sum of allocations must be less than uint64 max
 cat <<EOF > "${TMPDIR}"/allocations.json
@@ -81,8 +82,8 @@ EOF
 # TODO: find a smarter way to split auth cores between exec and RPC
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 750,
-  "targetChunkBuildDuration": 500,
+  "chunkBuildFrequency": 400,
+  "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
   "mempoolSize": 2147483648,
   "mempoolSponsorSize": 10000000,
