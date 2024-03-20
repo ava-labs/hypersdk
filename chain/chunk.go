@@ -74,10 +74,11 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	//
 	// TODO: sort mempool by priority and fit (only fetch items that can be included)
 	var (
-		chunkUnits = Dimensions{}
-		full       bool
-		mempool    = vm.Mempool()
-		authCounts = make(map[uint8]int)
+		maxChunkUnits = r.GetMaxChunkUnits()
+		chunkUnits    = Dimensions{}
+		full          bool
+		mempool       = vm.Mempool()
+		authCounts    = make(map[uint8]int)
 	)
 	mempool.StartStreaming(ctx)
 	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
@@ -118,7 +119,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 			continue
 		}
 		nextUnits, err := Add(chunkUnits, txUnits)
-		if err != nil {
+		if err != nil || !maxChunkUnits.Greater(nextUnits) {
 			full = true
 			// TODO: update mempool to only provide txs that can fit in chunk
 			// Want to maximize how "full" chunk is, so need to be a little complex
