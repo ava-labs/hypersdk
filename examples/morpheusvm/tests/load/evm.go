@@ -86,6 +86,13 @@ func (abi *parsedABI) calldata(method string, args ...interface{}) ([]byte, erro
 	return abi.ABI.Pack(method, args...)
 }
 
+func (abi *parsedABI) unpack(method string, data []byte, res interface{}) error {
+	if method == "" {
+		method = "constructor"
+	}
+	return abi.ABI.UnpackIntoInterface(res, method, data)
+}
+
 type Args struct {
 	To        *common.Address
 	Value     *big.Int
@@ -101,6 +108,11 @@ func (e *evmTxBuilder) getNonce(ctx context.Context) (uint64, error) {
 }
 
 func (e *evmTxBuilder) evmCall(ctx context.Context, args *Args) (*actions.EvmCall, error) {
+	_, call, err := e.evmTraceCall(ctx, args)
+	return call, err
+}
+
+func (e *evmTxBuilder) evmTraceCall(ctx context.Context, args *Args) (*brpc.TraceTxReply, *actions.EvmCall, error) {
 	call := &actions.EvmCall{
 		To:       args.To,
 		GasLimit: maxGas,
@@ -114,7 +126,7 @@ func (e *evmTxBuilder) evmCall(ctx context.Context, args *Args) (*actions.EvmCal
 	if args.FillNonce {
 		nonce, err := e.getNonce(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		call.Nonce = nonce
 	} else {
@@ -135,15 +147,15 @@ func (e *evmTxBuilder) evmCall(ctx context.Context, args *Args) (*actions.EvmCal
 		Actor:  e.actor,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !trace.Success {
-		return nil, fmt.Errorf("call failed: %s", trace.Error)
+		return nil, nil, fmt.Errorf("call failed: %s", trace.Error)
 	}
 	p := codec.NewReader(trace.StateKeys, len(trace.StateKeys))
 	call.Keys, err = actions.UnmarshalKeys(p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return call, nil
+	return trace, call, nil
 }

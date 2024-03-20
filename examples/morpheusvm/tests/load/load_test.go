@@ -392,6 +392,45 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			}
 		})
 
+		ginkgo.By("load accounts", func() {
+			// sending 1 tx to each account
+			remainder := uint64(accts)*maxFee + uint64(10_000_000)
+			// leave some left over for root
+			fundSplit := (genesisBalance - remainder) / uint64(accts)
+			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
+			requiredTxs := map[ids.ID]struct{}{}
+			for _, acct := range senders {
+				id, err := issueSimpleTx(instances[0], acct.rsender, fundSplit, root.factory)
+				gomega.Ω(err).Should(gomega.BeNil())
+				requiredTxs[id] = struct{}{}
+			}
+
+			for {
+				blk, accept := produceBlock(instances[0])
+				if blk == nil {
+					break
+				}
+				accept()
+				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
+				for _, result := range blk.Results() {
+					if !result.Success {
+						unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
+						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
+					}
+					gomega.Ω(result.Success).Should(gomega.BeTrue())
+				}
+				for _, tx := range blk.Txs {
+					delete(requiredTxs, tx.ID())
+				}
+				for _, instance := range instances[1:] {
+					accept := addBlock(instance, blk)
+					accept()
+				}
+			}
+
+			gomega.Ω(len(requiredTxs)).To(gomega.BeZero())
+		})
+
 		var (
 			abis     = make(map[string]*parsedABI)
 			deployed = make(map[string]ethCommon.Address)
@@ -519,7 +558,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					deployed[step.abi] = crypto.CreateAddress(owner, action.Nonce)
 				}
 
-				issuer.issueTx(action)
+				issuer.issueTx(action, root.factory)
 				issuer.produceAndAcceptBlock()
 			}
 		})
@@ -545,7 +584,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					Data: calldataA,
 				})
 				gomega.Ω(err).Should(gomega.BeNil())
-				issuer.issueTx(actionA)
+				issuer.issueTx(actionA, root.factory)
 
 				calldataB, err := abis["TokenB"].calldata("transfer", evmAddr, amount)
 				gomega.Ω(err).Should(gomega.BeNil())
@@ -554,48 +593,120 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					Data: calldataB,
 				})
 				gomega.Ω(err).Should(gomega.BeNil())
-				issuer.issueTx(actionB)
+				issuer.issueTx(actionB, root.factory)
 			}
 			issuer.produceAndAcceptBlock()
 		})
 
-		ginkgo.By("load accounts", func() {
-			// sending 1 tx to each account
-			remainder := uint64(accts)*maxFee + uint64(10_000_000)
-			// leave some left over for root
-			fundSplit := (genesisBalance - remainder) / uint64(accts)
-			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
-			requiredTxs := map[ids.ID]struct{}{}
+		ginkgo.By("approve tokens", func() {
+			ctx := context.TODO()
+			issuer := newSimpleTxIssuer()
+			tokenA := deployed["TokenA"]
+			tokenB := deployed["TokenB"]
+			amount := big.NewInt(1_000)
+
 			for _, acct := range senders {
-				id, err := issueSimpleTx(instances[0], acct.rsender, fundSplit, root.factory)
+				evmTxBuilder := &evmTxBuilder{
+					actor: acct.rsender,
+					bcli:  instances[0].tcli,
+				}
+
+				calldataApproveA, err := abis["TokenA"].calldata("approve", deployed["Router"], amount)
 				gomega.Ω(err).Should(gomega.BeNil())
-				requiredTxs[id] = struct{}{}
+				actionAllowanceA, err := evmTxBuilder.evmCall(ctx, &Args{
+					To:   &tokenA,
+					Data: calldataApproveA,
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+				issuer.issueTx(actionAllowanceA, acct.factory)
+
+				calldataApproveB, err := abis["TokenB"].calldata("approve", deployed["Router"], amount)
+				gomega.Ω(err).Should(gomega.BeNil())
+				actionAllowanceB, err := evmTxBuilder.evmCall(ctx, &Args{
+					To:   &tokenB,
+					Data: calldataApproveB,
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+				issuer.issueTx(actionAllowanceB, acct.factory)
+			}
+			issuer.produceAndAcceptBlock()
+		})
+
+		ginkgo.By("swap tokens", func() {
+			ctx := context.TODO()
+			router := deployed["Router"]
+			routeAB := []ethCommon.Address{deployed["TokenA"], deployed["TokenB"]}
+			routeBA := []ethCommon.Address{deployed["TokenB"], deployed["TokenA"]}
+
+			amountOut := func(evmTxBuilder *evmTxBuilder, amountIn *big.Int, route []ethCommon.Address, slippageNum, slippageDen int) *big.Int {
+				calldata, err := abis["Router"].calldata("getAmountsOut", amountIn, route)
+				gomega.Ω(err).Should(gomega.BeNil())
+				trace, _, err := evmTxBuilder.evmTraceCall(ctx, &Args{
+					To:   &router,
+					Data: calldata,
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+				var amountsOut []*big.Int
+				err = abis["Router"].unpack("getAmountsOut", trace.Output, &amountsOut)
+				gomega.Ω(err).Should(gomega.BeNil())
+				expected := amountsOut[len(amountsOut)-1]
+				expected = expected.Mul(expected, big.NewInt(int64(slippageNum)))
+				expected = expected.Div(expected, big.NewInt(int64(slippageDen)))
+				return expected
 			}
 
-			for {
-				blk, accept := produceBlock(instances[0])
-				if blk == nil {
-					break
-				}
-				accept()
-				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
-				for _, result := range blk.Results() {
-					if !result.Success {
-						unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
+			balanceOf := func(evmTxBuilder *evmTxBuilder, name string, token ethCommon.Address) *big.Int {
+				owner := actions.ToEVMAddress(evmTxBuilder.actor)
+				calldata, err := abis[name].calldata("balanceOf", owner)
+				gomega.Ω(err).Should(gomega.BeNil())
+				trace, _, err := evmTxBuilder.evmTraceCall(ctx, &Args{
+					To:   &token,
+					Data: calldata,
+				})
+				gomega.Ω(err).Should(gomega.BeNil())
+				var balance *big.Int
+				err = abis[name].unpack("balanceOf", trace.Output, &balance)
+				gomega.Ω(err).Should(gomega.BeNil())
+				return balance
+			}
+			_ = balanceOf
+
+			issuer := newSimpleTxIssuer()
+			for round := 0; round < 2; round++ {
+				for i, acct := range senders {
+					evmTxBuilder := &evmTxBuilder{
+						actor: acct.rsender,
+						bcli:  instances[0].tcli,
 					}
-					gomega.Ω(result.Success).Should(gomega.BeTrue())
+					evmAddr := actions.ToEVMAddress(acct.rsender)
+					amountIn := big.NewInt(100)
+					var route []ethCommon.Address
+					if (round+i)%2 == 0 {
+						route = routeAB
+					} else {
+						route = routeBA
+					}
+					amountOut := amountOut(evmTxBuilder, amountIn, route, 95, 100)
+					deadline := big.NewInt(time.Now().Unix() + 1000)
+					calldata, err := abis["Router"].calldata(
+						"swapExactTokensForTokens",
+						amountIn,
+						amountOut,
+						route,
+						evmAddr,
+						deadline,
+					)
+					gomega.Ω(err).Should(gomega.BeNil())
+					action, err := evmTxBuilder.evmCall(ctx, &Args{
+						To:   &router,
+						Data: calldata,
+					})
+					gomega.Ω(err).Should(gomega.BeNil())
+					issuer.issueTx(action, acct.factory)
 				}
-				for _, tx := range blk.Txs {
-					delete(requiredTxs, tx.ID())
-				}
-				for _, instance := range instances[1:] {
-					accept := addBlock(instance, blk)
-					accept()
-				}
+				issuer.produceAndAcceptBlock()
+				log.Info("swap round completed", zap.Int("round", round))
 			}
-
-			gomega.Ω(len(requiredTxs)).To(gomega.BeZero())
 		})
 	})
 
@@ -713,8 +824,8 @@ func newSimpleTxIssuer() *simpleTxIssuer {
 	}
 }
 
-func (s *simpleTxIssuer) issueTx(action chain.Action) {
-	id, err := issueTx(s.instances[0], action, root.factory)
+func (s *simpleTxIssuer) issueTx(action chain.Action, signer chain.AuthFactory) {
+	id, err := issueTx(s.instances[0], action, signer)
 	gomega.Ω(err).Should(gomega.BeNil())
 	s.pending[id] = struct{}{}
 }
