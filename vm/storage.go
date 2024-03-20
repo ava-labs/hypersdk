@@ -140,26 +140,38 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 	// to perform concurrent file operations (which are not possible in PebbleDB).
 	g, _ := errgroup.WithContext(context.TODO())
 	g.Go(func() error {
-		return vm.RemoveDiskBlock(expiryHeight)
+		if err := vm.RemoveDiskBlock(expiryHeight); err != nil {
+			return fmt.Errorf("%w: cannot remove block", err)
+		}
+		return nil
 	})
 	for _, cert := range blk.AvailableChunks {
 		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
 		tcert := cert
 		g.Go(func() error {
-			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
+			if err := vm.RemoveChunk(tcert.Slot, tcert.Chunk); err != nil {
+				return fmt.Errorf("%w: cannot remove included chunk", err)
+			}
+			return nil
 		})
 	}
 	for _, chunk := range blk.ExecutedChunks {
 		tchunk := chunk
 		g.Go(func() error {
-			return vm.RemoveFilteredChunk(tchunk)
+			if err := vm.RemoveFilteredChunk(tchunk); err != nil {
+				return fmt.Errorf("%w: cannot remove filtered chunk", err)
+			}
+			return nil
 		})
 	}
 	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
 	for _, chunk := range uselessChunks {
 		tchunk := chunk
 		g.Go(func() error {
-			return vm.RemoveChunk(tchunk.slot, tchunk.chunk)
+			if err := vm.RemoveChunk(tchunk.slot, tchunk.chunk); err != nil {
+				return fmt.Errorf("%w: cannot remove useless chunk", err)
+			}
+			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
