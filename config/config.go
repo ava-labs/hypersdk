@@ -17,14 +17,18 @@ import (
 type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
-func (c *Config) GetAuthVerificationCores() int             { return 1 }
+func (c *Config) GetAuthExecutionCores() int                { return 1 }
+func (c *Config) GetAuthRPCCores() int                      { return 1 }
+func (c *Config) GetAuthRPCBacklog() int                    { return 1_024 }
+func (c *Config) GetAuthGossipCores() int                   { return 1 }
+func (c *Config) GetAuthGossipBacklog() int                 { return 1_024 }
 func (c *Config) GetRootGenerationCores() int               { return 1 }
-func (c *Config) GetTransactionExecutionCores() int         { return 1 }
+func (c *Config) GetActionExecutionCores() int              { return 1 }
 func (c *Config) GetMissingChunkFetchers() int              { return 4 }
-func (c *Config) GetMempoolSize() int                       { return 2_048 }
+func (c *Config) GetMempoolSize() int                       { return 2 * units.GiB }
 func (c *Config) GetMempoolSponsorSize() int                { return 32 }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return nil }
-func (c *Config) GetStreamingBacklogSize() int              { return 1024 }
+func (c *Config) GetStreamingBacklogSize() int              { return 1_024 }
 func (c *Config) GetIntermediateNodeCacheSize() int         { return 4 * units.GiB }
 func (c *Config) GetStateIntermediateWriteBufferSize() int  { return 32 * units.MiB }
 func (c *Config) GetStateIntermediateWriteBatchSize() int   { return 4 * units.MiB }
@@ -44,8 +48,9 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
 func (c *Config) GetVerifyAuth() bool                             { return true }
-func (c *Config) GetTargetBuildDuration() time.Duration           { return 100 * time.Millisecond }
-func (c *Config) GetBuildFrequency() time.Duration                { return 250 * time.Millisecond }
+func (c *Config) GetTargetChunkBuildDuration() time.Duration      { return 100 * time.Millisecond }
+func (c *Config) GetChunkBuildFrequency() time.Duration           { return 250 * time.Millisecond }
+func (c *Config) GetBlockBuildFrequency() time.Duration           { return time.Second }
 func (c *Config) GetProcessingBuildSkip() int                     { return 16 }
 func (c *Config) GetBlockCompactionFrequency() int                { return 32 } // 64 MB of deletion if 2 MB blocks
 func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 75 } // out of 100 (more weight == more fees)

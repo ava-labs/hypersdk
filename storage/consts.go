@@ -4,8 +4,7 @@
 package storage
 
 const (
-	vm       = "vmdb"
-	blob     = "blobdb"
-	state    = "statedb"
-	metadata = "metadatadb"
+	vm    = "vmdb"
+	blob  = "blobdb"
+	state = "statedb"
 )

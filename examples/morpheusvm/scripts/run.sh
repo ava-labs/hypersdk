@@ -20,18 +20,19 @@ fi
 VERSION=11372a43e948dd238dd67e8cfec10755c0be5e58
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
-AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
-LOGLEVEL=${LOGLEVEL:-info}
+LOG_LEVEL=${LOG_LEVEL:-INFO}
+AGO_LOG_LEVEL=${AGO_LOG_LEVEL:-INFO}
+AGO_LOG_DISPLAY_LEVEL=${AGO_LOG_DISPLAY_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
+EPOCH_DURATION=${EPOCH_DURATION:-60000}
+VALIDITY_WINDOW=${VALIDITY_WINDOW:-59000}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
-STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
-ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
 if [[ ${MODE} != "run" ]]; then
-  LOGLEVEL=debug
+  LOG_LEVEL=debug
+  AGO_LOG_DISPLAY_LEVEL=info
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
-  STORE_TXS=true
   UNLIMITED_USAGE=true
 fi
 
@@ -42,16 +43,16 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
-echo AGO_LOGLEVEL: "${AGO_LOGLEVEL}"
-echo LOGLEVEL: "${LOGLEVEL}"
+echo AGO_LOG_LEVEL: "${AGO_LOG_LEVEL}"
+echo AGO_LOG_DISPLAY_LEVEL: "${AGO_LOG_DISPLAY_LEVEL}"
 echo VERSION: "${VERSION}"
 echo MODE: "${MODE}"
-echo LOG LEVEL: "${LOGLEVEL}"
+echo LOG LEVEL: "${LOG_LEVEL}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
+echo EPOCH_DURATION \(ms\): "${EPOCH_DURATION}"
+echo VALIDITY_WINDOW \(ms\): "${VALIDITY_WINDOW}"
 echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
-echo STORE_TXS: "${STORE_TXS}"
 echo MAX_CHUNK_UNITS: "${MAX_CHUNK_UNITS}"
-echo ADDRESS: "${ADDRESS}"
 
 ############################
 # build avalanchego
@@ -112,10 +113,22 @@ find "${TMPDIR}"/avalanchego-"${VERSION}"
 ############################
 
 # Always create allocations (linter doesn't like tab)
+#
+# Addresses:
+# morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu: 323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+# morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3: ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9
+# morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4: 34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e
+# morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn: ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77
+# morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
 echo "creating allocations file"
+# Sum of allocations must be less than uint64 max
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
-  {"address":"${ADDRESS}", "balance":10000000000000000000}
+  {"address":"morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu", "balance":3000000000000000000},
+  {"address":"morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3", "balance":3000000000000000000},
+  {"address":"morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4", "balance":3000000000000000000},
+  {"address":"morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn", "balance":3000000000000000000},
+  {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":3000000000000000000}
 ]
 EOF
 
@@ -124,6 +137,8 @@ if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f "${TMPDIR}"/morpheusvm.genesis
   "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+  --epoch-duration "${EPOCH_DURATION}" \
+  --validity-window "${VALIDITY_WINDOW}" \
   --max-chunk-units "${MAX_CHUNK_UNITS}" \
   --min-block-gap "${MIN_BLOCK_GAP}" \
   --genesis-file "${TMPDIR}"/morpheusvm.genesis
@@ -142,16 +157,22 @@ rm -f "${TMPDIR}"/morpheusvm.config
 rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "mempoolSize": 10000000,
+  "chunkBuildFrequency": 400,
+  "targetChunkBuildDuration": 250,
+  "blockBuildFrequency": 100,
+  "mempoolSize": 2147483648,
   "mempoolSponsorSize": 10000000,
-  "mempoolExemptSponsors":["${ADDRESS}"],
-  "authVerificationCores": 4,
-  "transactionExecutionCores": 2,
+  "authExecutionCores": 4,
+  "actionExecutionCores": 2,
   "rootGenerationCores": 4,
+  "missingChunkFetchers": 48,
   "verifyAuth":true,
-  "storeTransactions": ${STORE_TXS},
+  "authRPCCores": 4,
+  "authRPCBacklog": 10000000,
+  "authGossipCores": 4,
+  "authGossipBacklog": 10000000,
   "streamingBacklogSize": 10000000,
-  "logLevel": "${LOGLEVEL}",
+  "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
@@ -242,7 +263,8 @@ echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
 --network-runner-log-level verbo \
---avalanchego-log-level "${AGO_LOGLEVEL}" \
+--avalanchego-log-level "${AGO_LOG_LEVEL}" \
+--avalanchego-log-display-level "${AGO_LOG_DISPLAY_LEVEL}" \
 --network-runner-grpc-endpoint="0.0.0.0:12352" \
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path="${AVALANCHEGO_PATH}" \

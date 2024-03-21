@@ -31,7 +31,7 @@ func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
 	}
 }
 
-func (f *FileDB) Put(key string, value []byte) error {
+func (f *FileDB) Put(key string, value []byte, cache bool) error {
 	filePath := filepath.Join(f.baseDir, key)
 	f.lm.Lock(filePath)
 	defer f.lm.Unlock(filePath)
@@ -56,11 +56,13 @@ func (f *FileDB) Put(key string, value []byte) error {
 			return fmt.Errorf("%w: unable to sync file", err)
 		}
 	}
-	f.fileCache.Put(filePath, value)
+	if cache {
+		f.fileCache.Put(filePath, value)
+	}
 	return nil
 }
 
-func (f *FileDB) Get(key string) ([]byte, error) {
+func (f *FileDB) Get(key string, cache bool) ([]byte, error) {
 	filePath := filepath.Join(f.baseDir, key)
 	f.lm.RLock(filePath)
 	defer f.lm.RUnlock(filePath)
@@ -93,7 +95,9 @@ func (f *FileDB) Get(key string) ([]byte, error) {
 	if vid != did {
 		return nil, fmt.Errorf("%w: found=%s expected=%s", ErrCorrupt, vid, did)
 	}
-	f.fileCache.Put(filePath, value)
+	if cache {
+		f.fileCache.Put(filePath, value)
+	}
 	return value, nil
 }
 
@@ -127,3 +131,6 @@ func (f *FileDB) Remove(key string) error {
 	f.fileCache.Evict(filePath)
 	return nil
 }
+
+// Close doesn't do anything but is canonical for a database to provide.
+func (f *FileDB) Close() error { return nil }

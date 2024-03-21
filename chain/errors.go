@@ -66,10 +66,14 @@ var (
 	ErrTooManyWarpMessages       = errors.New("too many warp messages")
 	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
+	// Chunk building
+	ErrNotAValidator = errors.New("not a validator during this epoch, so no one will sign my chunk")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")
 	ErrInvalidKeyValue        = errors.New("invalid key or value")
 	ErrModificationNotAllowed = errors.New("modification not allowed")
 	ErrWrongDimensionSize     = errors.New("wrong dimensions size")
+	ErrMissingChunks          = errors.New("missing chunks") // usually means shutdown
 )

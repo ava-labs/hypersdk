@@ -9,7 +9,6 @@ import (
 	"time"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
 	atrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/profiler"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/state"
 	trace "github.com/ava-labs/hypersdk/trace"
 )
@@ -27,10 +25,14 @@ type Handlers map[string]http.Handler
 type Config interface {
 	GetTraceConfig() *trace.Config
 	GetMempoolSize() int
-	GetAuthVerificationCores() int
+	GetAuthExecutionCores() int
+	GetAuthRPCCores() int
+	GetAuthRPCBacklog() int
+	GetAuthGossipCores() int
+	GetAuthGossipBacklog() int
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
-	GetTransactionExecutionCores() int
+	GetActionExecutionCores() int
 	GetMissingChunkFetchers() int
 	GetBeneficiary() codec.Address
 	GetMempoolSponsorSize() int
@@ -49,8 +51,9 @@ type Config interface {
 	GetAcceptedBlockWindow() int
 	GetAcceptedBlockWindowCache() int
 	GetContinuousProfilerConfig() *profiler.Config
-	GetTargetBuildDuration() time.Duration
-	GetBuildFrequency() time.Duration
+	GetTargetChunkBuildDuration() time.Duration
+	GetChunkBuildFrequency() time.Duration
+	GetBlockBuildFrequency() time.Duration
 	GetProcessingBuildSkip() int
 	GetBlockCompactionFrequency() int
 	GetMinimumCertificateBroadcastNumerator() uint64
@@ -78,10 +81,7 @@ type Controller interface {
 	) (
 		config Config,
 		genesis Genesis,
-		vmDB database.Database,
-		blobDB *filedb.FileDB,
-		stateDB database.Database,
-		handler Handlers,
+		handler Handlers, // TODO: remove
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
 		authEngines map[uint8]AuthEngine,

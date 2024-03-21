@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -333,7 +334,6 @@ func (t *Transaction) SyntacticVerify(
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
-	reads map[string]uint16,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
@@ -510,12 +510,19 @@ func UnmarshalTxs(
 	p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
-	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
+	capacity := min(txCount, initialCapacity)
+	txs := make([]*Transaction, 0, capacity) // DoS to set size to txCount
+	txsSeen := set.NewSet[ids.ID](capacity)
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
 		}
+		txID := tx.ID()
+		if txsSeen.Contains(txID) {
+			return nil, nil, ErrDuplicateTx
+		}
+		txsSeen.Add(tx.ID())
 		txs = append(txs, tx)
 		authCounts[tx.Auth.GetTypeID()]++
 	}

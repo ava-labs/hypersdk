@@ -5,11 +5,13 @@ package utils
 
 import (
 	"fmt"
+	"io/fs"
 	"math"
 	"net"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -186,4 +188,23 @@ func ConstructCanonicalValidatorSet(vdrSet map[ids.NodeID]*validators.GetValidat
 	vdrList := maps.Values(vdrs)
 	utils.Sort(vdrList)
 	return paritionVdrs, vdrList, totalWeight, nil
+}
+
+// DirectorySize returns the size of all files, recursively, in a directory.
+//
+// DirectorySize is best-effort and is meant to be run on a dynamic directory. It will
+// skip errors (which may arise from reading a file that was just deleted.
+func DirectorySize(path string) uint64 {
+	var size uint64
+	filepath.WalkDir(path, func(_ string, info fs.DirEntry, err error) error {
+		if !info.IsDir() {
+			finfo, err := info.Info()
+			if err != nil {
+				return nil
+			}
+			size += uint64(finfo.Size())
+		}
+		return nil
+	})
+	return size
 }

@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/fatih/color"
@@ -48,6 +49,15 @@ var genGenesisCmd = &cobra.Command{
 		}
 		if minBlockGap >= 0 {
 			g.MinBlockGap = minBlockGap
+		}
+		if epochDuration >= 0 {
+			g.EpochDuration = epochDuration
+		}
+		if validityWindow >= 0 {
+			g.ValidityWindow = validityWindow
+		}
+		if g.EpochDuration < g.ValidityWindow {
+			return fmt.Errorf("epoch duration (%d) must be greater than or equal to validity window (%d)", g.EpochDuration, g.ValidityWindow)
 		}
 
 		a, err := os.ReadFile(args[0])

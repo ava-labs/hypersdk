@@ -33,20 +33,29 @@ type Parser interface {
 }
 
 type Metrics interface {
+	RecordRPCAuthorizedTx()
+	RecordExecutedChunks(int)
+
+	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
 
-	RecordClearedMempool()
+	RecordRemainingMempool(int)
 
+	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordAcceptedEpoch(uint64)
+	RecordExecutedEpoch(uint64)
 
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
-	RecordTxsValid(int)
+	RecordChunkBuildTxDropped()
+	RecordBlockBuildCertDropped()
+	RecordTxsInvalid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordEngineBacklog(int)
@@ -64,13 +73,14 @@ type VM interface {
 
 	// TODO: cleanup
 	Engine() *Engine
-	RequestChunks([]*ChunkCertificate, chan *Chunk)
+	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
 	GetVerifyAuth() bool
-	GetAuthVerifyCores() int
+	GetAuthExecutionCores() int
+	GetAuthBatchVerifier(authTypeID uint8, cores, count int) (AuthBatchVerifier, bool)
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -88,13 +98,15 @@ type VM interface {
 	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
 
 	Mempool() Mempool
-	GetTargetBuildDuration() time.Duration
-	GetTransactionExecutionCores() int
+	GetTargetChunkBuildDuration() time.Duration
+	GetActionExecutionCores() int
+	IsRPCAuthorized(ids.ID) bool
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
-	Executed(context.Context, uint64, *FilteredChunk, []*Result)
+	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
+	ExecutedBlock(context.Context, *StatefulBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
@@ -114,12 +126,14 @@ type VM interface {
 	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
 	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+	IsSeenChunk(context.Context, ids.ID) bool
+	GetChunk(int64, ids.ID) (*Chunk, error)
 
 	IsValidHeight(ctx context.Context, height uint64) (bool, error)
 	CacheValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
-	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
+	AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -127,16 +141,9 @@ type Mempool interface {
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
-	Top(
-		context.Context,
-		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
-	) error
-
 	StartStreaming(context.Context)
-	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context) (*Transaction, bool)
+	FinishStreaming(context.Context, []*Transaction)
 }
 
 type Rules interface {
