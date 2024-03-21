@@ -61,7 +61,7 @@ func (c *ChunkAuthorizer) Run() {
 		select {
 		case id := <-c.required:
 			c.auth(id)
-			return
+			continue
 		default:
 		}
 
