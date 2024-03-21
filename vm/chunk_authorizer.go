@@ -5,7 +5,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 )
@@ -30,7 +30,7 @@ type ChunkAuthorizer struct {
 	vm          *VM
 	authWorkers workers.Workers
 
-	jobs *emap.EMap[*job]
+	jobs *eheap.ExpiryHeap[*job]
 
 	required   chan ids.ID
 	optimistic chan ids.ID
@@ -39,7 +39,7 @@ type ChunkAuthorizer struct {
 func NewChunkAuthorizer(vm *VM) *ChunkAuthorizer {
 	return &ChunkAuthorizer{
 		vm:         vm,
-		jobs:       emap.NewEMap[*job](),
+		jobs:       eheap.New[*job](128),
 		required:   make(chan ids.ID, 128),
 		optimistic: make(chan ids.ID, 128),
 	}
@@ -140,15 +140,17 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 // It is safe to call [Add] multiple times with the same chunk
 func (c *ChunkAuthorizer) Add(chunk *chain.Chunk) {
 	// Check if already added
-	c.jobs.Add([]*job{{
+	c.jobs.Add(&job{
 		chunk: chunk,
 		done:  make(chan struct{}),
-	}})
+	})
 
 	// Queue chunk for authorization
 	c.optimistic <- chunk.ID()
 }
 
+// It is not safe to call [Wait] multiple times with the same chunk or to call
+// it concurrently.
 func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
 	result, ok := c.jobs.Get(id)
 	if !ok {
@@ -160,9 +162,17 @@ func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
 
 	// Wait for result
 	<-result.done
+
+	// Remove chunk from tracking, it will never be requested again
+	c.jobs.Remove(id)
 	return *result.result
 }
 
 func (c *ChunkAuthorizer) SetMin(t int64) []ids.ID {
-	return c.jobs.SetMin(t)
+	elems := c.jobs.SetMin(t)
+	items := make([]ids.ID, len(elems))
+	for i, elem := range elems {
+		items[i] = elem.ID()
+	}
+	return items
 }
