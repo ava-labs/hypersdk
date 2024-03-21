@@ -88,7 +88,7 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 		// Can happen if a cert is in [required] and [optimistic]
 		return
 	}
-	if !c.vm.config.GetVerifyAuth() {
+	if !c.vm.config.GetVerifyAuth() || c.vm.snowCtx.NodeID == result.chunk.Producer { // trust ourself
 		result.result = truePtr
 		result.chunk = nil
 		close(result.done)
@@ -138,7 +138,7 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 }
 
 // It is safe to call [Add] multiple times with the same chunk
-func (c *ChunkAuthorizer) Add(chunk *chain.Chunk, cert *chain.ChunkCertificate) {
+func (c *ChunkAuthorizer) Add(chunk *chain.Chunk) {
 	// Check if already added
 	c.jobs.Add([]*job{{
 		chunk: chunk,
@@ -146,7 +146,7 @@ func (c *ChunkAuthorizer) Add(chunk *chain.Chunk, cert *chain.ChunkCertificate) 
 	}})
 
 	// Queue chunk for authorization
-	c.optimistic <- cert.Chunk
+	c.optimistic <- chunk.ID()
 }
 
 func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
@@ -156,9 +156,7 @@ func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
 	}
 
 	// If cert auth is not done yet, make sure to prioritize it
-	if result.result == nil {
-		c.required <- id
-	}
+	c.required <- id
 
 	// Wait for result
 	<-result.done

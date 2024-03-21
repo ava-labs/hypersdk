@@ -129,20 +129,20 @@ func NewCertStore() *CertStore {
 // more signers.
 //
 // TODO: update if more weight rather than using signer heuristic?
-func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
+func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 	c.l.Lock()
 	defer c.l.Unlock()
 
 	// Only keep certs around that could be included.
 	if cert.Slot < c.minTime {
-		return false
+		return
 	}
 
 	// Record the first time we saw this certificate, so we can properly
 	// sort during building.
 	firstSeen := int64(0)
-	v, sok := c.seen.Get(cert.ID())
-	if !sok {
+	v, ok := c.seen.Get(cert.ID())
+	if !ok {
 		firstSeen = time.Now().UnixMilli()
 		c.seen.Add(&seenWrapper{
 			chunkID: cert.ID(),
@@ -160,18 +160,18 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
 			cert: cert,
 			seen: firstSeen,
 		})
-		return !sok
+		return
 	}
 	// If the existing certificate has more signers than the
 	// new certificate, don't update.
 	//
 	// TODO: we should use weight here, not just number of signers
 	if elem.cert.Signers.Len() > cert.Signers.Len() {
-		return !sok
+		return
 	}
 	elem.cert = cert
 	c.eh.Update(elem)
-	return !sok
+	return
 }
 
 // Called when a block is accepted with valid certs.
@@ -644,14 +644,19 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		if c.certs.Update(cert) {
-			chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-			if err != nil {
-				c.vm.Logger().Warn("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
-				return nil
-			}
-			c.auth.Add(chunk, cert)
+		c.certs.Update(cert)
+
+		// Attempt to add chunk to the optimistic verifier
+		//
+		// If the chunk has already been added, we just skip it.
+		//
+		// This operation should be cached, so it should be fast.
+		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
+		if err != nil {
+			c.vm.Logger().Warn("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
+			return nil
 		}
+		c.auth.Add(chunk)
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
@@ -1296,7 +1301,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 				// Look for chunk
 				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
 				if chunk != nil {
-					c.auth.Add(chunk, cert)
+					c.auth.Add(chunk)
 					return func() { chunks <- chunk }, nil
 				}
 				c.vm.Logger().Debug("could not fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
@@ -1376,7 +1381,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 						return nil, err
 					}
 					c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: cert.Slot})
-					c.auth.Add(chunk, cert)
+					c.auth.Add(chunk)
 					return func() { chunks <- chunk }, nil
 				}
 			})
