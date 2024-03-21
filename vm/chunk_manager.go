@@ -171,7 +171,6 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 	}
 	elem.cert = cert
 	c.eh.Update(elem)
-	return
 }
 
 // Called when a block is accepted with valid certs.
@@ -652,7 +651,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		//
 		// This operation should be cached, so it should be fast.
 		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
-		if err != nil {
+		if chunk == nil {
 			c.vm.Logger().Warn("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
@@ -870,6 +869,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					continue
 				default:
 				}
+				c.auth.Add(chunk) // this will be a no-op because we are the producer
 				c.PushChunk(context.TODO(), chunk)
 				chunkBytes := chunk.Size()
 				c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
