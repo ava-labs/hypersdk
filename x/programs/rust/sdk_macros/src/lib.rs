@@ -7,7 +7,7 @@ use syn::{
     PatType, Path, Type, Visibility,
 };
 
-const PROGRAM_TYPE: &str = "wasmlanche_sdk::program::Program";
+const PROGRAM_TYPE: &str = "wasmlanche_sdk::Program";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
@@ -118,7 +118,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let converted_params = param_names.iter().map(|param_name| {
         quote! {
             unsafe {
-                wasmlanche_sdk::memory::from_host_ptr(#param_name).expect("error serializing ptr")
+                wasmlanche_sdk::from_host_ptr(#param_name).expect("error serializing ptr")
             }
         }
     });
@@ -134,7 +134,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         #[no_mangle]
         pub extern "C" fn #new_name(param_0: i64, #(#param_names: #param_types), *) #return_type {
             let param_0: #program_type = unsafe {
-                wasmlanche_sdk::memory::from_host_ptr(param_0).expect("error serializing ptr")
+                wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
             };
             #name(param_0, #(#converted_params),*)
         }
