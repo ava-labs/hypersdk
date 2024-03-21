@@ -113,14 +113,19 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	b.Timestamp = p.UnpackInt64(false)
 
 	// Parse available chunks
-	availableChunks := p.UnpackInt(false)     // can produce empty blocks
-	b.AvailableChunks = []*ChunkCertificate{} // don't preallocate all to avoid DoS
+	availableChunks := p.UnpackInt(false)                // can produce empty blocks
+	b.AvailableChunks = make([]*ChunkCertificate, 0, 16) // don't preallocate all to avoid DoS
+	seen := set.NewSet[ids.ID](16)                       // TODO: make prealloc a config
 	for i := 0; i < availableChunks; i++ {
 		cert, err := UnmarshalChunkCertificatePacker(p)
 		if err != nil {
 			return nil, err
 		}
 		b.AvailableChunks = append(b.AvailableChunks, cert)
+		if seen.Contains(cert.Chunk) {
+			return nil, fmt.Errorf("duplicate chunk %s in block %d", cert.Chunk, b.Height)
+		}
+		seen.Add(cert.Chunk)
 	}
 
 	// Parse executed chunks

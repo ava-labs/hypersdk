@@ -1180,6 +1180,7 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 	c.appSender.SendAppGossipSpecific(ctx, validators, msg) // skips validators we aren't connected to
 }
 
+// We never want to drop a chunk with more signatures, so this isn't identical to the tx repeat case.
 func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
 	return c.certs.Pop(ctx)
 }

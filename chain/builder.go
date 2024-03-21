@@ -49,9 +49,17 @@ func BuildBlock(
 			// TODO: ensure only 1 chunk per producer
 			// TOOD: prefer old chunks to new chunks for a given producer
 
+			// It is assumed that [NextChunkCertificate] will never return a duplicate chunk.
 			cert, ok := vm.NextChunkCertificate(ctx)
 			if !ok {
 				break
+			}
+
+			// Check that chunk is unique (should never happen)
+			if b.chunks.Contains(cert.Chunk) {
+				log.Warn("skipping duplicate chunk in same block", zap.Stringer("chunkID", cert.Chunk))
+				b.vm.RecordBlockBuildCertDropped()
+				continue
 			}
 
 			// Check that we actually have the chunk
