@@ -192,6 +192,9 @@ func (vm *VM) processExecutedBlock(blk *chain.StatefulBlock) {
 		vm.metrics.executedBlockProcess.Observe(float64(time.Since(start)))
 	}()
 
+	// Clear authorization results
+	vm.metrics.uselessChunkAuth.Add(float64(len(vm.cm.auth.SetMin(blk.Timestamp))))
+
 	// Update timestamp in mempool
 	//
 	// We wait to update the min until here because we want to allow all execution
@@ -702,4 +705,9 @@ func (vm *VM) RecordAcceptedEpoch(e uint64) {
 
 func (vm *VM) RecordExecutedEpoch(e uint64) {
 	vm.metrics.lastExecutedEpoch.Set(float64(e))
+}
+
+func (vm *VM) GetAuthResult(chunkID ids.ID) bool {
+	// TODO: clean up this invocation
+	return vm.cm.auth.Wait(chunkID)
 }

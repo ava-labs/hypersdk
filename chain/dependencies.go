@@ -76,12 +76,6 @@ type VM interface {
 	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
 
-	// We don't include this in registry because it would never be used
-	// by any client of the hypersdk.
-	GetVerifyAuth() bool
-	GetAuthExecutionCores() int
-	GetAuthBatchVerifier(authTypeID uint8, cores, count int) (AuthBatchVerifier, bool)
-
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
@@ -94,13 +88,13 @@ type VM interface {
 	IsIssuedTx(context.Context, *Transaction) bool
 	IssueTx(context.Context, *Transaction)
 
+	GetAuthResult(ids.ID) bool
 	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
 	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
 
 	Mempool() Mempool
 	GetTargetChunkBuildDuration() time.Duration
 	GetActionExecutionCores() int
-	IsRPCAuthorized(ids.ID) bool
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)

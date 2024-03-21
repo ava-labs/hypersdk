@@ -232,6 +232,7 @@ type ChunkManager struct {
 	// TODO: track which chunks we've received per nodeID per slot
 
 	certs *CertStore
+	auth  *ChunkAuthorizer
 
 	// Ensures that only one request job is running at a time
 	waiterL sync.Mutex
@@ -274,7 +275,9 @@ func NewChunkManager(vm *VM) *ChunkManager {
 
 		built:  emap.NewEMap[*chunkWrapper](),
 		stored: eheap.New[*simpleChunkWrapper](64),
-		certs:  NewCertStore(),
+
+		certs: NewCertStore(),
+		auth:  NewChunkAuthorizer(vm),
 
 		callbacks: make(map[uint32]func([]byte)),
 
@@ -642,11 +645,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 
 		// Store chunk certificate for building
 		if c.certs.Update(cert) {
-			// Start to verify signature if this is the first time we are seeing a valid cert and we have the chunk
-			if !c.vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
-				c.vm.Logger().Debug("skipping optimistic authorization because we don't have the chunk", zap.Stringer("chunkID", cert.Chunk))
+			chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
+			if err != nil {
+				c.vm.Logger().Warn("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 				return nil
 			}
+			c.auth.Add(chunk, cert)
 		}
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
@@ -830,6 +834,11 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	// While we could try to shae the same goroutine for some of these items (as they aren't
 	// expected to take much time), it is safter to split apart.
 	g := &errgroup.Group{}
+	g.Go(func() error {
+		// TODO: return a proper error if something unexpected happens rather than panic
+		c.auth.Run()
+		return nil
+	})
 	g.Go(func() error {
 		t := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
 		defer t.Stop()
@@ -1287,6 +1296,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 				// Look for chunk
 				chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
 				if chunk != nil {
+					c.auth.Add(chunk, cert)
 					return func() { chunks <- chunk }, nil
 				}
 				c.vm.Logger().Debug("could not fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
@@ -1366,6 +1376,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 						return nil, err
 					}
 					c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: cert.Slot})
+					c.auth.Add(chunk, cert)
 					return func() { chunks <- chunk }, nil
 				}
 			})

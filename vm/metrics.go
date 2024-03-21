@@ -66,6 +66,7 @@ type Metrics struct {
 	unitsExecutedRead         prometheus.Counter
 	unitsExecutedAllocate     prometheus.Counter
 	unitsExecutedWrite        prometheus.Counter
+	uselessChunkAuth          prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -470,6 +471,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "units_executed_write",
 			Help:      "number of write units executed",
 		}),
+		uselessChunkAuth: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "useless_chunk_auth",
+			Help:      "number of chunks that were authenticated but not executed",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -594,6 +600,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedRead),
 		r.Register(m.unitsExecutedAllocate),
 		r.Register(m.unitsExecutedWrite),
+		r.Register(m.uselessChunkAuth),
 	)
 	return r, m, errs.Err
 }

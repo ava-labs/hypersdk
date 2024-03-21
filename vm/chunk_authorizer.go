@@ -1,11 +1,11 @@
 package vm
 
 import (
-	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 )
@@ -23,12 +23,14 @@ type job struct {
 	done   chan struct{}
 }
 
+func (j *job) ID() ids.ID    { return j.chunk.ID() }
+func (j *job) Expiry() int64 { return j.chunk.Slot }
+
 type ChunkAuthorizer struct {
 	vm          *VM
 	authWorkers workers.Workers
 
-	jobsL sync.Mutex
-	jobs  map[ids.ID]*job
+	jobs *emap.EMap[*job]
 
 	required   chan ids.ID
 	optimistic chan ids.ID
@@ -37,7 +39,7 @@ type ChunkAuthorizer struct {
 func NewChunkAuthorizer(vm *VM) *ChunkAuthorizer {
 	return &ChunkAuthorizer{
 		vm:         vm,
-		jobs:       make(map[ids.ID]*job, 128),
+		jobs:       emap.NewEMap[*job](),
 		required:   make(chan ids.ID, 128),
 		optimistic: make(chan ids.ID, 128),
 	}
@@ -76,11 +78,20 @@ func (c *ChunkAuthorizer) Run() {
 }
 
 func (c *ChunkAuthorizer) auth(id ids.ID) {
-	c.jobsL.Lock()
-	result := c.jobs[id]
-	c.jobsL.Unlock()
+	result, ok := c.jobs.Get(id)
+	if !ok {
+		// This can happen if chunk is expired before we get to it
+		c.vm.Logger().Debug("skipping missing job", zap.Stringer("chunkID", id))
+		return
+	}
 	if result.result != nil {
 		// Can happen if a cert is in [required] and [optimistic]
+		return
+	}
+	if !c.vm.config.GetVerifyAuth() {
+		result.result = truePtr
+		result.chunk = nil
+		close(result.done)
 		return
 	}
 
@@ -129,25 +140,17 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 // It is safe to call [Add] multiple times with the same chunk
 func (c *ChunkAuthorizer) Add(chunk *chain.Chunk, cert *chain.ChunkCertificate) {
 	// Check if already added
-	c.jobsL.Lock()
-	if _, ok := c.jobs[cert.Chunk]; ok {
-		c.jobsL.Unlock()
-		return
-	}
-	c.jobs[cert.Chunk] = &job{
+	c.jobs.Add([]*job{{
 		chunk: chunk,
 		done:  make(chan struct{}),
-	}
-	c.jobsL.Unlock()
+	}})
 
 	// Queue chunk for authorization
 	c.optimistic <- cert.Chunk
 }
 
 func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
-	c.jobsL.Lock()
-	result, ok := c.jobs[id]
-	c.jobsL.Unlock()
+	result, ok := c.jobs.Get(id)
 	if !ok {
 		panic("waiting on certificate that wasn't enqueued")
 	}
@@ -162,11 +165,6 @@ func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
 	return *result.result
 }
 
-func (c *ChunkAuthorizer) Remove(certs []ids.ID) {
-	c.jobsL.Lock()
-	defer c.jobsL.Unlock()
-
-	for _, id := range certs {
-		delete(c.jobs, id)
-	}
+func (c *ChunkAuthorizer) SetMin(t int64) []ids.ID {
+	return c.jobs.SetMin(t)
 }
