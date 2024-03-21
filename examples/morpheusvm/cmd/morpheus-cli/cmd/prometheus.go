@@ -25,6 +25,9 @@ var generatePrometheusCmd = &cobra.Command{
 		return handler.Root().GeneratePrometheus(prometheusBaseURI, prometheusOpenBrowser, startPrometheus, prometheusFile, prometheusData, func(chainID ids.ID) []string {
 			panels := []string{}
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_included[5s])/5", chainID))
+			utils.Outf("{{yellow}}all transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("avalanche_%s_blks_processing", chainID))
 			utils.Outf("{{yellow}}blocks processing:{{/}} %s\n", panels[len(panels)-1])
 
@@ -51,9 +54,6 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_received[5s])/5", chainID))
 			utils.Outf("{{yellow}}transactions received per second:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_included[5s])/5", chainID))
-			utils.Outf("{{yellow}}all transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
