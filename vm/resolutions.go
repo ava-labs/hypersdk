@@ -383,14 +383,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	//
 	// Transactions are added to [seen] with their [expiry], so we don't need to
 	// transform [blkTime] when calling [SetMin] here.
-	evictedTxs := vm.seenTxs.SetMin(blkTime)
-	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(vm.seenTxs.SetMin(blkTime))))
+	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(vm.seenChunks.SetMin(blkTime))))
 	for _, fc := range chunks {
 		// Mark all valid txs as seen
 		vm.seenTxs.Add(fc.Txs)
 	}
-	evictedChunks := vm.seenChunks.SetMin(blkTime)
-	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(evictedChunks)))
 	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with

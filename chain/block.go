@@ -241,9 +241,6 @@ func ParseStatefulBlock(
 	for _, cert := range blk.AvailableChunks {
 		b.chunks.Add(cert.Chunk)
 	}
-
-	// TODO: add parent, execHeight, and bctx to the block?
-
 	return b, nil
 }
 
@@ -497,12 +494,8 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
 	defer span.End()
 
+	// Mark block as accepted
 	b.st = choices.Accepted
-
-	// Start async execution
-	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
-		b.vm.Engine().Execute(b)
-	}
 
 	// Collect async results (if any)
 	var filteredChunks []*FilteredChunk
@@ -513,7 +506,19 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		}
 		filteredChunks = fc
 	}
+
+	// Notify the VM that the block has been accepted
+	//
+	// It is assumed that Accept is invoked atomically such that the slightly
+	// misaligned caches (we mark the block state as accepted before we update the
+	// repeat protection emaps for chunks/blocks) will not be queried.
 	b.vm.Accepted(ctx, b, filteredChunks)
+
+	// Start async execution of chunks (and fetch if missing)
+	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
+		b.vm.Engine().Execute(b)
+	}
+
 	r := b.vm.Rules(b.StatefulBlock.Timestamp)
 	epoch := utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
 	b.vm.RecordAcceptedEpoch(epoch)

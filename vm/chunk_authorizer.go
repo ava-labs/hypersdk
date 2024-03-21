@@ -154,6 +154,7 @@ func (c *ChunkAuthorizer) Add(chunk *chain.Chunk) {
 func (c *ChunkAuthorizer) Wait(id ids.ID) bool {
 	result, ok := c.jobs.Get(id)
 	if !ok {
+		// This panic would also catch if a chunk was included twice
 		panic("waiting on certificate that wasn't enqueued")
 	}
 
