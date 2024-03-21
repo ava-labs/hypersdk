@@ -38,10 +38,18 @@ type Executor struct {
 	edges     map[string]*data
 }
 
-// We can process up to 1 Allocate/Write and many reads
+// invariant: [data] holds either 1 Allocate/Write or
+// a set of Reads, but never both
+//
+// invariant: [waiter] is made every time when setting
+// Allocate/Write or when adding the first Read. [waiter]
+// is closed only when [blockers] == 0
 type data struct {
 	allocateWrite int
 	reads         set.Set[int]
+
+	waiter   chan struct{}
+	blockers int
 }
 
 // New creates a new [Executor].
@@ -64,11 +72,6 @@ type task struct {
 	id   int
 	f    func() error
 	keys state.Keys
-
-	dependencies set.Set[int]
-	blocking     set.Set[int]
-
-	executed bool
 }
 
 func (e *Executor) runWorker() {
@@ -90,21 +93,16 @@ func (e *Executor) runWorker() {
 			}
 
 			e.l.Lock()
-			// Update concurrent reads to only contain not-yet-executed reads
 			for k := range t.keys {
 				key := e.edges[k]
-				key.reads.Remove(t.id)
-			}
-			for b := range t.blocking { // works fine on non-initialized map
-				bt := e.tasks[b]
-				bt.dependencies.Remove(t.id)
-				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-					bt.dependencies = nil // free memory
-					e.executable <- bt
+				key.blockers--
+				if key.blockers == 0 {
+					close(key.waiter)
+					// Allows us to always make a [waiter] chan
+					// after executing the last blocked task.
+					delete(e.edges, k)
 				}
 			}
-			t.blocking = nil // free memory
-			t.executed = true
 			e.completed++
 			if e.done && e.completed == len(e.tasks) {
 				// We will close here if there are unexecuted tasks
@@ -122,7 +120,6 @@ func (e *Executor) runWorker() {
 // overlapping [conflicts] are executed.
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.l.Lock()
-	defer e.l.Unlock()
 
 	// Add task to map
 	id := len(e.tasks)
@@ -137,72 +134,39 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	for k, v := range conflicts {
 		key, ok := e.edges[k]
 		if ok {
-			// No Allocate/Write has been requested yet
-			if key.allocateWrite == notSet {
-				if v == state.Read {
-					key.reads.Add(id)
-				} else {
-					key.allocateWrite = id
-					for b := range key.reads {
-						bt := e.tasks[b]
-						recordDependencies(t, bt)
-					}
-				}
+			// We can keep processing more Reads
+			if v == state.Read && key.reads != nil {
+				key.reads.Add(id)
+				key.blockers++
 				continue
 			}
 
-			// Get last blocked Allocate/Write task
-			lt := e.tasks[key.allocateWrite]
-			if !lt.executed {
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
+			// Allocate/Write was already set, or we're
+			// currently handling Reads, so we block
+			if key.allocateWrite != notSet || key.reads != nil {
+				if e.metrics != nil {
+					e.metrics.RecordBlocked()
 				}
-				if lt.blocking == nil {
-					lt.blocking = set.NewSet[int](defaultSetSize)
-				}
-
-				if v == state.Read {
-					key.reads.Add(id)
-					recordDependencies(t, lt)
-					continue
-				}
-
-				if key.reads.Len() == 0 {
-					recordDependencies(t, lt)
-				} else {
-					for b := range key.reads {
-						bt := e.tasks[b]
-						recordDependencies(t, bt)
-					}
-				}
+				// Don't hold the lock while we wait
+				e.l.Unlock()
+				<-key.waiter
+				e.l.Lock()
 			}
 		}
-		keyData := &data{allocateWrite: notSet, reads: set.Set[int]{}}
+		// Key doesn't exist or we just processed Allocate/Write or many Reads
+		d := &data{allocateWrite: notSet, reads: nil, waiter: make(chan struct{}), blockers: 1}
 		if v == state.Read {
-			keyData.reads.Add(id)
+			d.reads = set.Of[int](id)
 		} else {
-			keyData.allocateWrite = id
+			d.allocateWrite = id
 		}
-		e.edges[k] = keyData
-	}
-
-	// Start execution if there are no blocking dependencies
-	if t.dependencies == nil || t.dependencies.Len() == 0 {
-		t.dependencies = nil // free memory
-		e.executable <- t
-		if e.metrics != nil {
-			e.metrics.RecordExecutable()
-		}
-		return
+		e.edges[k] = d
 	}
 	if e.metrics != nil {
-		e.metrics.RecordBlocked()
+		e.metrics.RecordExecutable()
 	}
-}
-
-func recordDependencies(t *task, bt *task) {
-	t.dependencies.Add(bt.id)
-	bt.blocking.Add(t.id)
+	e.l.Unlock()
+	e.executable <- t
 }
 
 func (e *Executor) Stop() {

@@ -101,7 +101,20 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		})
 	}
 	require.NoError(e.Wait())
-	require.Equal([]int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90}, completed[90:])
+	// 1..9 are different read keys we can process in parallel
+	require.Equal(0, completed[9])
+	// 0th and 10th key are conflict keys, but 0 needs to be executed before 10
+	require.Equal(10, completed[10])
+	// 11..19 are different read keys so it can be processed in parallel
+	// 20 and 30 are the same conflict key, but 20 needs to be executed before 30 etc.
+	require.Equal(20, completed[20])
+	require.Equal(30, completed[30])
+	require.Equal(40, completed[40])
+	require.Equal(50, completed[50])
+	require.Equal(60, completed[60])
+	require.Equal(70, completed[70])
+	require.Equal(80, completed[80])
+	require.Equal(90, completed[90])
 }
 
 func TestExecutorMultiConflict(t *testing.T) {
@@ -140,7 +153,17 @@ func TestExecutorMultiConflict(t *testing.T) {
 		})
 	}
 	require.NoError(e.Wait())
-	require.Equal([]int{0, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}, completed[89:])
+	require.Equal(0, completed[9])
+	require.Equal(10, completed[10])
+	require.Equal(15, completed[19])
+	require.Equal(20, completed[20])
+	require.Equal(30, completed[30])
+	require.Equal(40, completed[40])
+	require.Equal(50, completed[50])
+	require.Equal(60, completed[60])
+	require.Equal(70, completed[70])
+	require.Equal(80, completed[80])
+	require.Equal(90, completed[90])
 }
 
 func TestEarlyExit(t *testing.T) {
