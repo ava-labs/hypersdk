@@ -90,7 +90,6 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 	}
 	if !c.vm.config.GetVerifyAuth() || c.vm.snowCtx.NodeID == result.chunk.Producer { // trust ourself
 		result.result = truePtr
-		result.chunk = nil
 		close(result.done)
 		return
 	}
@@ -113,7 +112,6 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 		if err != nil {
 			c.vm.Logger().Error("chunk failed auth", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
 			result.result = falsePtr
-			result.chunk = nil
 			close(result.done)
 			return
 		}
@@ -133,7 +131,6 @@ func (c *ChunkAuthorizer) auth(id ids.ID) {
 		c.vm.Logger().Debug("chunk authorized", zap.Stringer("chunk", chunk.ID()))
 		result.result = truePtr
 	}
-	result.chunk = nil
 	close(result.done)
 }
 

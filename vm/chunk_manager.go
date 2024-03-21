@@ -123,6 +123,31 @@ func NewCertStore() *CertStore {
 	}
 }
 
+// We never want to drop a chunk with more signatures, so this isn't an identical implementation
+// to the tx repeat case. Because block building is fast, we don't need to worry about this impacting
+// performance too much.
+func (c *CertStore) StartStream() {
+	c.l.Lock()
+}
+
+// Stream removes and returns the highest valued item in m.eh.
+//
+// Stream assumes the lock is already held.
+func (c *CertStore) Stream(ctx context.Context) (*chain.ChunkCertificate, bool) { // O(log N)
+	first, ok := c.eh.PopMin()
+	if !ok {
+		return nil, false
+	}
+	return first.cert, true
+}
+
+func (c *CertStore) FinishStream(certs []*chain.ChunkCertificate) {
+	c.l.Unlock()
+	for _, cert := range certs {
+		c.Update(cert)
+	}
+}
+
 // Called when we get a valid cert or if a block is rejected with valid certs.
 //
 // If called more than once for the same ChunkID, the cert will be updated if it has
@@ -189,18 +214,6 @@ func (c *CertStore) SetMin(ctx context.Context, t int64) []*chain.ChunkCertifica
 		certs = append(certs, cw.cert)
 	}
 	return certs
-}
-
-// Pop removes and returns the highest valued item in m.eh.
-func (c *CertStore) Pop(ctx context.Context) (*chain.ChunkCertificate, bool) { // O(log N)
-	c.l.Lock()
-	defer c.l.Unlock()
-
-	first, ok := c.eh.PopMin()
-	if !ok {
-		return nil, false
-	}
-	return first.cert, true
 }
 
 func (c *CertStore) Get(cid ids.ID) (*chain.ChunkCertificate, bool) {
@@ -1180,11 +1193,6 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 	c.appSender.SendAppGossipSpecific(ctx, validators, msg) // skips validators we aren't connected to
 }
 
-// We never want to drop a chunk with more signatures, so this isn't identical to the tx repeat case.
-func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
-	return c.certs.Pop(ctx)
-}
-
 // RestoreChunkCertificates re-inserts certs into the CertStore for inclusion. These chunks are sorted
 // by the time they are first seen, so we always try to include certs that have been valid and around
 // the longest first.
@@ -1195,7 +1203,11 @@ func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*ch
 }
 
 func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
-	// TODO: drop if issued recently?
+	// TODO: drop if issued recently (recall we are not tracking in our mempool)?
+	// -> We could track these txs in the mempool to prevent this issue.
+	// -> Would then limit what we'd actually issue
+	// -> This is more complex than it seems because if the node becomes a validator, it will then
+	// start issuing chunks with invalid txs (not in correct partition).
 
 	// Find transaction partition
 	epoch, epochHeight, err := c.getEpochInfo(ctx, tx.Base.Timestamp)

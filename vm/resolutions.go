@@ -601,8 +601,16 @@ func (vm *VM) GetExecutorRecorder() executor.Metrics {
 	return vm.metrics.executorRecorder
 }
 
-func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
-	return vm.cm.NextChunkCertificate(ctx)
+func (vm *VM) StartCertStream(context.Context) {
+	vm.cm.certs.StartStream()
+}
+
+func (vm *VM) StreamCert(ctx context.Context) (*chain.ChunkCertificate, bool) {
+	return vm.cm.certs.Stream(ctx)
+}
+
+func (vm *VM) FinishCertStream(_ context.Context, certs []*chain.ChunkCertificate) {
+	vm.cm.certs.FinishStream(certs)
 }
 
 func (vm *VM) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {

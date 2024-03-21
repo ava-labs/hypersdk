@@ -117,7 +117,9 @@ type VM interface {
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
 
-	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	StartCertStream(context.Context)
+	StreamCert(context.Context) (*ChunkCertificate, bool)
+	FinishCertStream(context.Context, []*ChunkCertificate)
 	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 	IsSeenChunk(context.Context, ids.ID) bool
