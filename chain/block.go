@@ -323,6 +323,12 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		}
 		executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
 		if executedEpoch+1 < epoch && len(b.AvailableChunks) > 0 { // if execution in epoch 2 while trying to verify 4 and 5, we need to wait (should be rare)
+			log.Error(
+				"executed tip is too far behind to verify block with certs",
+				zap.Uint64("executedEpoch", executedEpoch),
+				zap.Uint64("epoch", epoch),
+				zap.Stringer("blockID", b.ID()),
+			)
 			return errors.New("executed tip is too far behind to verify block with certs")
 		}
 		// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
@@ -355,6 +361,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			return fmt.Errorf("%w: can't check if chunk is repeat", err)
 		}
 		if repeats.Len() > 0 {
+			log.Error("block contains duplicate chunk")
 			return errors.New("duplicate chunk issuance")
 		}
 
@@ -390,12 +397,12 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			certEpoch := utils.Epoch(cert.Slot, r.GetEpochDuration())
 			heightIndex := certEpoch - epoch
 			if heights[heightIndex] == nil {
-				log.Warn(
-					"skipping certificate because epoch is missing",
+				log.Error(
+					"certificate is from missing epoch",
 					zap.Uint64("epoch", certEpoch),
 					zap.Stringer("chunkID", cert.Chunk),
 				)
-				continue
+				return errors.New("missing epoch")
 			}
 
 			// Get the public key for the signers
@@ -404,6 +411,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 				return fmt.Errorf("%w: can't generate aggregate public key", err)
 			}
 			if !cert.VerifySignature(r.NetworkID(), r.ChainID(), aggrPubKey) {
+				log.Error(
+					"certificate has invalid signature",
+					zap.Stringer("blockID", b.ID()),
+					zap.Stringer("chunkID", cert.Chunk),
+				)
 				return fmt.Errorf("%w: pk=%s signature=%s pHeight=%d cert=%d certID=%s signers=%s", errors.New("certificate invalid"), hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey)), hex.EncodeToString(bls.SignatureToBytes(cert.Signature)), b.PHeight, i, cert.Chunk, cert.Signers.String())
 			}
 		}
@@ -431,8 +443,8 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			root, executed, err = b.vm.Engine().Results(execHeight)
 			if err != nil {
 				// TODO: handle case where we state synced and don't have results
-				log.Debug("could not get results for block", zap.Uint64("height", execHeight))
 				if b.vm.IsBootstrapped() {
+					log.Debug("could not get results for block", zap.Uint64("height", execHeight))
 					return fmt.Errorf("%w: no results for execHeight", err)
 				}
 				// If we haven't finished bootstrapping, we can't fail.
@@ -444,13 +456,16 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			break
 		}
 		if b.Root != root {
+			log.Error("block has invalid root", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedRoot", root), zap.Stringer("actualRoot", b.Root))
 			return errors.New("root mismatch")
 		}
 		if len(b.ExecutedChunks) != len(executed) {
+			log.Error("block has invalid executed chunks count", zap.Stringer("blockID", b.ID()), zap.Int("expectedCount", len(executed)), zap.Int("actualCount", len(b.ExecutedChunks)))
 			return errors.New("executed chunks count mismatch")
 		}
 		for i, id := range b.ExecutedChunks {
 			if id != executed[i] {
+				log.Error("block has invalid executed chunks", zap.Stringer("blockID", b.ID()), zap.Int("index", i), zap.Stringer("expectedID", executed[i]), zap.Stringer("actualID", id))
 				return errors.New("executed chunks mismatch")
 			}
 		}
@@ -499,7 +514,15 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		filteredChunks = fc
 	}
 	b.vm.Accepted(ctx, b, filteredChunks)
-	b.vm.Logger().Info("accepted block", zap.Stringer("blockID", b.ID()), zap.Uint64("height", b.StatefulBlock.Height))
+	r := b.vm.Rules(b.StatefulBlock.Timestamp)
+	epoch := utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
+	b.vm.RecordAcceptedEpoch(epoch)
+	b.vm.Logger().Info(
+		"accepted block",
+		zap.Stringer("blockID", b.ID()),
+		zap.Uint64("height", b.StatefulBlock.Height),
+		zap.Uint64("epoch", epoch),
+	)
 	return nil
 }
 

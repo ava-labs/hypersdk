@@ -29,7 +29,9 @@ type Metrics struct {
 	txsReceived               prometheus.Counter
 	txsGossiped               prometheus.Counter
 	txsIncluded               prometheus.Counter
-	txsValid                  prometheus.Counter
+	txsInvalid                prometheus.Counter
+	chunkBuildTxsDropped      prometheus.Counter
+	blockBuildCertsDropped    prometheus.Counter
 	stateChanges              prometheus.Counter
 	stateOperations           prometheus.Counter
 	remainingMempool          prometheus.Counter
@@ -46,13 +48,34 @@ type Metrics struct {
 	sigsReceived              prometheus.Counter
 	certsReceived             prometheus.Counter
 	chunksExecuted            prometheus.Counter
-	chunksNotAuthorized       prometheus.Counter
-	unusedChunkAuthorizations prometheus.Counter
 	txRPCAuthorized           prometheus.Counter
 	blockVerifyFailed         prometheus.Counter
+	gossipTxMsgInvalid        prometheus.Counter
+	gossipTxInvalid           prometheus.Counter
+	gossipChunkInvalid        prometheus.Counter
+	gossipChunkSigInvalid     prometheus.Counter
+	gossipCertInvalid         prometheus.Counter
+	rpcTxInvalid              prometheus.Counter
+	expiredBuiltChunks        prometheus.Counter
+	expiredCerts              prometheus.Counter
+	mempoolExpired            prometheus.Counter
+	fetchChunkAttempts        prometheus.Counter
+	txGossipDropped           prometheus.Counter
+	unitsExecutedBandwidth    prometheus.Counter
+	unitsExecutedCompute      prometheus.Counter
+	unitsExecutedRead         prometheus.Counter
+	unitsExecutedAllocate     prometheus.Counter
+	unitsExecutedWrite        prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
+	executedProcessingBacklog prometheus.Gauge
+	mempoolLen                prometheus.Gauge
+	mempoolSize               prometheus.Gauge
+	gossipTxBacklog           prometheus.Gauge
+	websocketConnections      prometheus.Gauge
+	lastAcceptedEpoch         prometheus.Gauge
+	lastExecutedEpoch         prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
@@ -65,9 +88,11 @@ type Metrics struct {
 	blockAccept               metric.Averager
 	blockProcess              metric.Averager
 	blockExecute              metric.Averager
-	chunkProcess              metric.Averager
-	optimisticChunkAuthorized metric.Averager
+	executedChunkProcess      metric.Averager
+	executedBlockProcess      metric.Averager
 	fetchMissingChunks        metric.Averager
+	collectChunkSignatures    metric.Averager
+	txTimeRemainingMempool    metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -183,19 +208,19 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	chunkProcess, err := metric.NewAverager(
+	executedChunkProcess, err := metric.NewAverager(
 		"chain",
-		"chunk_process",
+		"executed_chunk_process",
 		"time spent processing executed chunks",
 		r,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	optimisticChunkAuthorized, err := metric.NewAverager(
+	executedBlockProcess, err := metric.NewAverager(
 		"chain",
-		"optimistic_chunk_authorized",
-		"time spent optimistically verifying chunks",
+		"executed_block_process",
+		"time spent processing executed blocks",
 		r,
 	)
 	if err != nil {
@@ -205,6 +230,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"fetch_missing_chunks",
 		"time spent fetching missing chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	collectChunkSignatures, err := metric.NewAverager(
+		"chain",
+		"collect_chunk_signatures",
+		"time spent collecting chunk signatures",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	txTimeRemainingMempool, err := metric.NewAverager(
+		"chain",
+		"tx_time_remaining_mempool",
+		"valid time for inclusion when a tx is included in the mempool",
 		r,
 	)
 	if err != nil {
@@ -232,10 +275,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "txs_included",
 			Help:      "number of txs included in accepted blocks",
 		}),
-		txsValid: prometheus.NewCounter(prometheus.CounterOpts{
+		chunkBuildTxsDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_build_txs_dropped",
+			Help:      "number of txs dropped while building chunks",
+		}),
+		blockBuildCertsDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "block_build_certs_dropped",
+			Help:      "number of certs dropped while building blocks",
+		}),
+		txsInvalid: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
-			Name:      "txs_valid",
-			Help:      "number of valid txs included in accepted blocks",
+			Name:      "txs_invalid",
+			Help:      "number of invalid txs included in accepted blocks",
 		}),
 		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -317,16 +370,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "chunks_executed",
 			Help:      "chunks executed by the engine",
 		}),
-		chunksNotAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "chunks_not_authorized",
-			Help:      "chunks with signatures not verified by the time they are executed",
-		}),
-		unusedChunkAuthorizations: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "unused_chunk_authorizations",
-			Help:      "chunks verified but not executed",
-		}),
 		txRPCAuthorized: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "tx_rpc_authorized",
@@ -337,6 +380,86 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "block_verify_failed",
 			Help:      "number of blocks that failed verification",
 		}),
+		gossipTxMsgInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_tx_msg_invalid",
+			Help:      "number of invalid transaction messages received over gossip",
+		}),
+		gossipTxInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_tx_invalid",
+			Help:      "number of invalid transactions received over gossip",
+		}),
+		gossipChunkInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_chunk_invalid",
+			Help:      "number of invalid chunks received over gossip",
+		}),
+		gossipChunkSigInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_chunk_sig_invalid",
+			Help:      "number of invalid chunk signatures received over gossip",
+		}),
+		gossipCertInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "gossip_cert_invalid",
+			Help:      "number of invalid certificates received over gossip",
+		}),
+		rpcTxInvalid: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "rpc_tx_invalid",
+			Help:      "number of invalid transactions received over RPC",
+		}),
+		expiredBuiltChunks: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "expired_built_chunks",
+			Help:      "number of chunks that expired after being built",
+		}),
+		expiredCerts: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "expired_certs",
+			Help:      "number of certificates that expired",
+		}),
+		mempoolExpired: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "mempool_expired",
+			Help:      "number of transactions that expired while in the mempool",
+		}),
+		fetchChunkAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "fetch_chunk_attempts",
+			Help:      "number of attempts to fetch a chunk",
+		}),
+		txGossipDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "tx_gossip_dropped",
+			Help:      "number of tx gossip messages dropped",
+		}),
+		unitsExecutedBandwidth: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_bandwidth",
+			Help:      "number of bandwidth units executed",
+		}),
+		unitsExecutedCompute: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_compute",
+			Help:      "number of compute units executed",
+		}),
+		unitsExecutedRead: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_read",
+			Help:      "number of read units executed",
+		}),
+		unitsExecutedAllocate: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_allocate",
+			Help:      "number of allocate units executed",
+		}),
+		unitsExecutedWrite: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "units_executed_write",
+			Help:      "number of write units executed",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -345,28 +468,65 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		rpcTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "rpc_tx_backlog",
-			Help:      "number of transactions waiting to be processed by RPC",
+			Help:      "number of transactions waiting to be processed from RPC",
 		}),
 		chainDataSize: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "data_size",
 			Help:      "size of the chain data directory",
 		}),
-		waitRepeat:                waitRepeat,
-		waitAuth:                  waitAuth,
-		waitExec:                  waitExec,
-		waitProcessor:             waitProcessor,
-		waitCommit:                waitCommit,
-		chunkBuild:                chunkBuild,
-		blockBuild:                blockBuild,
-		blockParse:                blockParse,
-		blockVerify:               blockVerify,
-		blockAccept:               blockAccept,
-		blockProcess:              blockProcess,
-		blockExecute:              blockExecute,
-		chunkProcess:              chunkProcess,
-		optimisticChunkAuthorized: optimisticChunkAuthorized,
-		fetchMissingChunks:        fetchMissingChunks,
+		executedProcessingBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "executed_processing_backlog",
+			Help:      "number of blocks waiting to be processed after execution",
+		}),
+		mempoolLen: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_len",
+			Help:      "number of transactions in the mempool",
+		}),
+		mempoolSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "mempool_size",
+			Help:      "bytes in the mempool",
+		}),
+		gossipTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "gossip_tx_backlog",
+			Help:      "number of transactions waiting to be processed from gossip",
+		}),
+		websocketConnections: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "websocket_connections",
+			Help:      "number of websocket connections",
+		}),
+		lastAcceptedEpoch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "last_accepted_epoch",
+			Help:      "last accepted epoch",
+		}),
+		lastExecutedEpoch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "last_executed_epoch",
+			Help:      "last executed epoch",
+		}),
+		waitRepeat:             waitRepeat,
+		waitAuth:               waitAuth,
+		waitExec:               waitExec,
+		waitProcessor:          waitProcessor,
+		waitCommit:             waitCommit,
+		chunkBuild:             chunkBuild,
+		blockBuild:             blockBuild,
+		blockParse:             blockParse,
+		blockVerify:            blockVerify,
+		blockAccept:            blockAccept,
+		blockProcess:           blockProcess,
+		blockExecute:           blockExecute,
+		executedChunkProcess:   executedChunkProcess,
+		executedBlockProcess:   executedBlockProcess,
+		fetchMissingChunks:     fetchMissingChunks,
+		collectChunkSignatures: collectChunkSignatures,
+		txTimeRemainingMempool: txTimeRemainingMempool,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -376,7 +536,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsReceived),
 		r.Register(m.txsGossiped),
 		r.Register(m.txsIncluded),
-		r.Register(m.txsValid),
+		r.Register(m.txsInvalid),
+		r.Register(m.chunkBuildTxsDropped),
+		r.Register(m.blockBuildCertsDropped),
 		r.Register(m.stateChanges),
 		r.Register(m.stateOperations),
 		r.Register(m.remainingMempool),
@@ -393,13 +555,34 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.sigsReceived),
 		r.Register(m.certsReceived),
 		r.Register(m.chunksExecuted),
-		r.Register(m.chunksNotAuthorized),
-		r.Register(m.unusedChunkAuthorizations),
 		r.Register(m.txRPCAuthorized),
 		r.Register(m.blockVerifyFailed),
+		r.Register(m.gossipTxMsgInvalid),
+		r.Register(m.gossipTxInvalid),
+		r.Register(m.gossipChunkInvalid),
+		r.Register(m.gossipChunkSigInvalid),
+		r.Register(m.gossipCertInvalid),
+		r.Register(m.rpcTxInvalid),
+		r.Register(m.expiredBuiltChunks),
+		r.Register(m.expiredCerts),
+		r.Register(m.mempoolExpired),
+		r.Register(m.fetchChunkAttempts),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 		r.Register(m.chainDataSize),
+		r.Register(m.executedProcessingBacklog),
+		r.Register(m.mempoolLen),
+		r.Register(m.mempoolSize),
+		r.Register(m.gossipTxBacklog),
+		r.Register(m.websocketConnections),
+		r.Register(m.lastAcceptedEpoch),
+		r.Register(m.lastExecutedEpoch),
+		r.Register(m.txGossipDropped),
+		r.Register(m.unitsExecutedBandwidth),
+		r.Register(m.unitsExecutedCompute),
+		r.Register(m.unitsExecutedRead),
+		r.Register(m.unitsExecutedAllocate),
+		r.Register(m.unitsExecutedWrite),
 	)
 	return r, m, errs.Err
 }

@@ -7,13 +7,11 @@ package cli
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -26,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/oexpirer"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -42,29 +41,56 @@ const (
 	plotOverhead   = 10
 	plotHeight     = 25
 
-	inflightTargetMultiplier       = 5
+	pendingTargetMultiplier        = 10
+	pendingExpiryBuffer            = 15 * consts.MillisecondsPerSecond
 	targetIncreaseRate             = 1000
 	successfulRunsToIncreaseTarget = 10
+	failedRunsToDecreaseTarget     = 5
 
 	issuerShutdownTimeout = 60 * time.Second
 )
 
+type txWrapper struct {
+	id       ids.ID
+	expiry   int64
+	issuance int64
+}
+
+func (w *txWrapper) ID() ids.ID {
+	return w.id
+}
+
+func (w *txWrapper) Expiry() int64 {
+	return w.expiry
+}
+
 // TODO: we should NEVER use globals, remove this
 var (
+	ctx            = context.Background()
 	maxConcurrency = runtime.NumCPU()
 
+	validityWindow int64
+
 	issuerWg sync.WaitGroup
-	exiting  sync.Once
 
-	l            sync.Mutex
-	confirmedTxs uint64
-	expiredTxs   uint64
-	totalTxs     uint64
+	l                sync.Mutex
+	confirmationTime uint64 // reset each second
+	delayTime        int64  // reset each second
+	delayCount       uint64 // reset each second
+	successTxs       uint64
+	expiredTxs       uint64
+	droppedTxs       uint64
+	failedTxs        uint64
+	invalidTxs       uint64
+	totalTxs         uint64
 
-	issuedTxs atomic.Int64
-	inflight  atomic.Int64
-	sent      atomic.Int64
-	bytes     atomic.Int64
+	pending = oexpirer.New[*txWrapper](16_384)
+
+	issuedTxs     atomic.Int64
+	sent          atomic.Int64
+	sentBytes     atomic.Int64
+	received      atomic.Int64
+	receivedBytes atomic.Int64
 )
 
 func (h *Handler) Spam(
@@ -76,11 +102,9 @@ func (h *Handler) Spam(
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64, []byte) chain.Action, // []byte prevents duplicate txs
+	getTransfer func(codec.Address, bool, uint64, []byte) chain.Action, // []byte prevents duplicate txs
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
-	ctx := context.Background()
-
 	// Plot Zipf
 	if plotZipf {
 		if err := ui.Init(); err != nil {
@@ -185,11 +209,13 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(key.Address, 0, uniqueBytes())
-	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
+	action := getTransfer(key.Address, true, 0, uniqueBytes())
+	rules := parser.Rules(time.Now().UnixMilli())
+	maxUnits, err := chain.EstimateUnits(rules, action, factory, nil)
 	if err != nil {
 		return err
 	}
+	validityWindow = rules.GetValidityWindow()
 
 	// Distribute funds
 	if numAccounts == 0 {
@@ -230,8 +256,14 @@ func (h *Handler) Spam(
 	)
 	accounts := make([]*PrivateKey, numAccounts)
 	factories := make([]chain.AuthFactory, numAccounts)
-	maxPendingMessages := max(pubsub.MaxPendingMessages, txsPerSecond*2)                                                            // ensure we don't block
-	dcli, err := rpc.NewWebSocketClient(uris[baseName], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	maxPendingMessages := max(pubsub.MaxPendingMessages, txsPerSecond*2) // ensure we don't block
+	dcli, err := rpc.NewWebSocketClient(
+		uris[baseName],
+		rpc.DefaultHandshakeTimeout,
+		maxPendingMessages,
+		consts.MTU,
+		pubsub.MaxReadMessageSize,
+	) // we write the max read
 	if err != nil {
 		return err
 	}
@@ -256,7 +288,7 @@ func (h *Handler) Spam(
 		factories[i] = f
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount, uniqueBytes()), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, true, distAmount, uniqueBytes()), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -282,20 +314,30 @@ func (h *Handler) Spam(
 
 	// Kickoff txs
 	utils.Outf("{{yellow}}starting load test...{{/}}\n")
-	utils.Outf("{{yellow}}target TPS:{{/}} %d\n", txsPerSecond)
-	utils.Outf("{{yellow}}Zipf distribution [(v+k)^(-s)] s:{{/}} %.2f {{yellow}}v:{{/}} %.2f\n", sZipf, vZipf)
+	utils.Outf("{{yellow}}max tps:{{/}} %d\n", txsPerSecond)
+	utils.Outf("{{yellow}}zipf distribution [(v+k)^(-s)] s:{{/}} %.2f {{yellow}}v:{{/}} %.2f\n", sZipf, vZipf)
 	clients := []*txIssuer{}
 	for i := 0; i < len(uriNames); i++ {
 		for j := 0; j < numClients; j++ {
 			name := uriNames[i]
 			cli := rpc.NewJSONRPCClient(uris[name])
-			dcli, err := rpc.NewWebSocketClient(uris[name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			dcli, err := rpc.NewWebSocketClient(
+				uris[name],
+				rpc.DefaultHandshakeTimeout,
+				maxPendingMessages,
+				consts.MTU,
+				pubsub.MaxReadMessageSize,
+			) // we write the max read
 			if err != nil {
 				return err
 			}
 			clients = append(clients, &txIssuer{c: cli, d: dcli, name: name, uri: i})
+			if len(clients)%25 == 0 && len(clients) > 0 {
+				utils.Outf("{{yellow}}initializing connections:{{/}} %d/%d clients\n", len(clients), len(uriNames)*numClients)
+			}
 		}
 	}
+	utils.Outf("{{yellow}}initialized connections:{{/}} %d clients\n", len(clients))
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
@@ -304,55 +346,120 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	PrintUnitPrices(unitPrices)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, client := range clients {
-		startIssuer(cctx, client)
+		startConfirmer(cctx, client.d)
 	}
 
 	// log stats
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
 	var (
-		lastTxCount uint64
-		psent       int64
-		pbytes      int64
+		lastExpiredCount uint64
+		lastOnchainCount uint64
+		pSent            int64
+		pSentBytes       int64
+		pReceived        int64
+		pReceivedBytes   int64
 
-		startRun  = time.Now()
-		tpsWindow = window.Window{}
+		startRun      = time.Now()
+		tpsWindow     = window.Window{}
+		expiredWindow = window.Window{} // needed for ttfWindow but not tps
+		ttfWindow     = window.Window{} // max int64 is ~5.3M (so can't have more than that per second)
 	)
 	go func() {
 		for {
 			select {
 			case <-t.C:
-				csent := sent.Load()
-				cbytes := bytes.Load()
+				cSent := sent.Load()
+				cSentBytes := sentBytes.Load()
+				cReceived := received.Load()
+				cReceivedBytes := receivedBytes.Load()
 				l.Lock()
-				ctxs := confirmedTxs - lastTxCount
-				lastTxCount = confirmedTxs
-				newWindow, err := window.Roll(tpsWindow, 1)
+				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
+				for range dropped {
+					// We don't count confirmation time here because we don't know what happened
+					droppedTxs++
+					totalTxs++
+				}
+				cConf := confirmationTime
+				confirmationTime = 0
+				newTTFWindow, err := window.Roll(ttfWindow, 1)
 				if err != nil {
 					panic(err)
 				}
-				tpsWindow = newWindow
-				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, ctxs)
+				ttfWindow = newTTFWindow
+				window.Update(&ttfWindow, window.WindowSliceSize-consts.Uint64Len, cConf)
+
+				onchainTxs := successTxs + failedTxs
+				cTxs := onchainTxs - lastOnchainCount
+				lastOnchainCount = onchainTxs
+				newTPSWindow, err := window.Roll(tpsWindow, 1)
+				if err != nil {
+					panic(err)
+				}
+				tpsWindow = newTPSWindow
+				window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, cTxs)
 				tpsDivisor := min(window.WindowSize, time.Since(startRun).Seconds())
-				if totalTxs > 0 {
+				tpsSum := window.Sum(tpsWindow)
+
+				cExpired := expiredTxs - lastExpiredCount
+				lastExpiredCount = expiredTxs
+				newExpiredWindow, err := window.Roll(expiredWindow, 1)
+				if err != nil {
+					panic(err)
+				}
+				expiredWindow = newExpiredWindow
+				window.Update(&expiredWindow, window.WindowSliceSize-consts.Uint64Len, cExpired)
+
+				txsToProcess := int64(0)
+				for _, client := range clients {
+					txsToProcess += client.d.TxsToProcess()
+				}
+
+				if totalTxs > 0 && tpsSum > 0 {
+					// tps is only contains transactions that actually made it onchain
+					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f {{yellow}}total txs:{{/}} %d (success=%.2f%% expired=%.2f%%) {{yellow}}issued/s:{{/}} %d (inflight=%d) {{yellow}}bandwidth/s:{{/}} %.2fKB\n", //nolint:lll
-						float64(window.Sum(tpsWindow))/float64(tpsDivisor),
+						"{{yellow}}tps:{{/}} %.2f (pending=%d) {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
+						float64(tpsSum)/float64(tpsDivisor),
+						pending.Len(),
+						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
 						totalTxs,
-						float64(confirmedTxs)/float64(totalTxs)*100,
+						float64(invalidTxs)/float64(totalTxs)*100,
+						float64(droppedTxs)/float64(totalTxs)*100,
+						float64(failedTxs)/float64(totalTxs)*100,
 						float64(expiredTxs)/float64(totalTxs)*100,
-						csent-psent,
-						inflight.Load(),
-						float64(cbytes-pbytes)/units.KiB,
+						float64(window.Sum(expiredWindow))/float64(tpsSum+window.Sum(expiredWindow))*100,
+						cSent-pSent,
+						float64(cSentBytes-pSentBytes)/units.KiB,
+						cReceived-pReceived,
+						float64(cReceivedBytes-pReceivedBytes)/units.KiB,
+						txsToProcess,
+					)
+				} else if totalTxs > 0 {
+					// This shouldn't happen but we should log when it does.
+					utils.Outf(
+						"{{yellow}}total txs:{{/}} %d (pending=%d invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
+						totalTxs,
+						pending.Len(),
+						float64(invalidTxs)/float64(totalTxs)*100,
+						float64(droppedTxs)/float64(totalTxs)*100,
+						float64(failedTxs)/float64(totalTxs)*100,
+						float64(expiredTxs)/float64(totalTxs)*100,
+						cSent-pSent,
+						float64(cSentBytes-pSentBytes)/units.KiB,
+						cReceived-pReceived,
+						float64(cReceivedBytes-pReceivedBytes)/units.KiB,
+						txsToProcess,
 					)
 				}
 				l.Unlock()
-				psent = csent
-				pbytes = cbytes
+				pSent = cSent
+				pSentBytes = cSentBytes
+				pReceived = cReceived
+				pReceivedBytes = cReceivedBytes
 			case <-cctx.Done():
 				return
 			}
@@ -361,10 +468,12 @@ func (h *Handler) Spam(
 
 	// broadcast txs
 	var (
+		z = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
+
 		it                      = time.NewTimer(0)
-		z                       = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
 		currentTarget           = min(txsPerSecond, targetIncreaseRate)
 		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
 
 		stop bool
 	)
@@ -373,107 +482,113 @@ func (h *Handler) Spam(
 		select {
 		case <-it.C:
 			start := time.Now()
-			g := &errgroup.Group{}
-			g.SetLimit(maxConcurrency)
-			exitedEarly := false
-			for i := 0; i < currentTarget; i++ {
-				// Ensure we aren't too backlogged
-				if inflight.Load() > int64(currentTarget*inflightTargetMultiplier) {
-					utils.Outf("{{cyan}}skipping issuance because large backlog detected{{/}}\n")
-					exitedEarly = true
-					break
+
+			// Get unprocessed txs (we know about them but haven't been processed, so they aren't outstanding)
+			txsToProcess := int64(0)
+			for _, client := range clients {
+				txsToProcess += client.d.TxsToProcess()
+			}
+
+			// Check if we should issue txs
+			skipped := false
+			if int64(pending.Len()+currentTarget)-txsToProcess > int64(currentTarget*pendingTargetMultiplier) {
+				consecutiveAboveBacklog++
+				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
+					if currentTarget > targetIncreaseRate {
+						currentTarget -= targetIncreaseRate
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
+					} else {
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+					}
+					consecutiveAboveBacklog = 0
 				}
-				g.Go(func() error {
-					senderIndex := z.Uint64()
+				skipped = true
+			} else {
+				// Issue txs
+				g := &errgroup.Group{}
+				g.SetLimit(maxConcurrency)
+				for i := 0; i < currentTarget; i++ {
+					// math.Rand is not safe for concurrent use
+					senderIndex, recipientIndex := z.Uint64(), z.Uint64()
 					sender := accounts[senderIndex]
 					issuerIndex, issuer := getRandomIssuer(clients)
-					factory := factories[senderIndex]
-					fundsL.Lock()
-					balance := funds[sender.Address]
-					if feePerTx > balance {
-						fundsL.Unlock()
-						return fmt.Errorf("%s has insufficient funds", sender.Address)
-					}
-					funds[sender.Address] = balance - feePerTx
-					fundsL.Unlock()
-
-					// Select tx time
-					nextTime := time.Now().Unix()
-					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early depending on clock sync */}
-
-					// Send transaction
-					recipientIndex := z.Uint64()
-					if recipientIndex == senderIndex {
-						if recipientIndex == uint64(numAccounts-1) {
-							recipientIndex--
-						} else {
-							recipientIndex++
+					g.Go(func() error {
+						factory := factories[senderIndex]
+						fundsL.Lock()
+						balance := funds[sender.Address]
+						if feePerTx > balance {
+							fundsL.Unlock()
+							utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
+							return fmt.Errorf("%s has insufficient funds", sender.Address)
 						}
-					}
-					recipient := accounts[recipientIndex].Address
-					action := getTransfer(recipient, 1, uniqueBytes())
-					_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
-					if err != nil {
-						return err
-					}
-					if err := issuer.d.RegisterTx(tx); err != nil {
-						issuer.l.Lock()
-						if issuer.d.Closed() {
-							if issuer.abandoned != nil {
-								issuer.l.Unlock()
-								return issuer.abandoned
-							}
-							// recreate issuer
-							utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
-							dcli, err := rpc.NewWebSocketClient(uris[issuer.name], rpc.DefaultHandshakeTimeout, maxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-							if err != nil {
-								issuer.abandoned = err
-								utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
-								issuer.l.Unlock()
-								return err
-							}
-							issuer.d = dcli
-							startIssuer(cctx, issuer)
-							droppedConfirmations := issuer.outstandingTxs
-							issuer.outstandingTxs = 0
-							issuer.l.Unlock()
-							l.Lock()
-							totalTxs += uint64(droppedConfirmations) + 1 // ensure stats are updated
-							l.Unlock()
-							inflight.Add(-int64(droppedConfirmations))
-							utils.Outf("{{green}}re-created closed issuer:{{/}} %d {{yellow}}dropped:{{/}} %d\n", issuerIndex, droppedConfirmations)
-						} else {
-							// This typically happens when the issuer errors and is replaced by a new one in
-							// a different goroutine.
-							issuer.l.Unlock()
+						funds[sender.Address] = balance - feePerTx
+						fundsL.Unlock()
 
-							// Ensure we track all failures
-							l.Lock()
-							totalTxs++
-							l.Unlock()
+						// Select tx time
+						nextTime := time.Now().Unix()
+						tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early depending on clock sync */}
 
-							if !errors.Is(err, rpc.ErrClosed) {
+						// Send transaction
+						if recipientIndex == senderIndex {
+							if recipientIndex == uint64(numAccounts-1) {
+								recipientIndex--
+							} else {
+								recipientIndex++
+							}
+						}
+						recipient := accounts[recipientIndex].Address
+						action := getTransfer(recipient, false, 1, uniqueBytes())
+						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
+						if err != nil {
+							utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+							return err
+						}
+						pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()}, false)
+						if err := issuer.d.RegisterTx(tx); err != nil {
+							issuer.l.Lock()
+							if issuer.d.Closed() {
+								if issuer.abandoned != nil {
+									issuer.l.Unlock()
+									utils.Outf("{{orange}}issuer abandoned:{{/}} %v\n", issuer.abandoned)
+									return issuer.abandoned
+								}
+								// recreate issuer
+								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d {{red}}err:{{/}} %v\n", issuerIndex, issuer.uri, err)
+								dcli, err := rpc.NewWebSocketClient(
+									uris[issuer.name],
+									rpc.DefaultHandshakeTimeout,
+									maxPendingMessages,
+									consts.MTU,
+									pubsub.MaxReadMessageSize,
+								) // we write the max read
+								if err != nil {
+									issuer.abandoned = err
+									issuer.l.Unlock()
+									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
+									return err
+								}
+								issuer.d = dcli
+								issuer.l.Unlock()
+								utils.Outf("{{green}}re-created closed issuer:{{/}} %d (%v)\n", issuerIndex, err)
+								startConfirmer(cctx, dcli)
+							} else {
+								// This typically happens when the issuer errors and is replaced by a new one in
+								// a different goroutine.
+								issuer.l.Unlock()
 								utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 							}
+							return nil
 						}
+						sent.Add(1)
+						sentBytes.Add(int64(len(tx.Bytes())))
 						return nil
-					}
-
-					issuer.l.Lock()
-					issuer.outstandingTxs++
-					issuer.l.Unlock()
-					inflight.Add(1)
-					sent.Add(1)
-					bytes.Add(int64(len(tx.Bytes())))
-					return nil
-				})
-			}
-			if err := g.Wait(); err != nil {
-				exiting.Do(func() {
+					})
+				}
+				if err := g.Wait(); err != nil {
 					utils.Outf("{{yellow}}exiting broadcast loop because of error:{{/}} %v\n", err)
 					cancel()
-				})
-				stop = true
+					stop = true
+				}
 			}
 
 			// Determine how long to sleep
@@ -482,41 +597,39 @@ func (h *Handler) Spam(
 			it.Reset(time.Duration(sleep) * time.Millisecond)
 
 			// Determine next target
-			if exitedEarly {
+			if skipped {
 				consecutiveUnderBacklog = 0
 				continue
 			}
+			consecutiveAboveBacklog = 0
 			consecutiveUnderBacklog++
 			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
 				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
-				utils.Outf("{{cyan}}updated target tps:{{/}} %d\n", currentTarget)
+				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
 			}
 		case <-cctx.Done():
 			stop = true
+			utils.Outf("{{yellow}}context canceled{{/}}\n")
 		case <-signals:
 			stop = true
-			exiting.Do(func() {
-				utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-				cancel()
-			})
+			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
+			cancel()
 		}
 	}
-	t.Stop()
+	it.Stop()
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
 	dctx, cancel := context.WithCancel(ctx)
 	go func() {
-		// Send a dummy transaction if shutdown is taking too long (listeners are
-		// expired on accept if dropped)
-		t := time.NewTicker(15 * time.Second)
+		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
-				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				_ = h.SubmitDummy(dctx, cli, submitDummy(cli, key))
+				pending.SetMin(time.Now().UnixMilli())
+				utils.Outf("{{yellow}}remaining:{{/}} %d\n", pending.Len())
 			case <-dctx.Done():
 				return
 			}
@@ -550,7 +663,7 @@ func (h *Handler) Spam(
 		// Send funds
 		returnAmt := balance - feePerTx
 		f := factories[i]
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt, uniqueBytes()), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, false, returnAmt, uniqueBytes()), f, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -573,7 +686,8 @@ func (h *Handler) Spam(
 		return err
 	}
 	utils.Outf(
-		"{{yellow}}returned funds:{{/}} %s %s\n",
+		"{{yellow}}returned funds from %d accounts:{{/}} %s %s\n",
+		numAccounts,
 		utils.FormatBalance(returnedBalance, h.c.Decimals()),
 		h.c.Symbol(),
 	)
@@ -584,11 +698,10 @@ type txIssuer struct {
 	c *rpc.JSONRPCClient
 	d *rpc.WebSocketClient
 
-	l              sync.Mutex
-	name           string
-	uri            int
-	abandoned      error
-	outstandingTxs int
+	l         sync.Mutex
+	name      string
+	uri       int
+	abandoned error
 }
 
 type timeModifier struct {
@@ -599,42 +712,39 @@ func (t *timeModifier) Base(b *chain.Base) {
 	b.Timestamp = t.Timestamp
 }
 
-func startIssuer(cctx context.Context, issuer *txIssuer) {
+func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			_, dErr, result, err := issuer.d.ListenTx(context.TODO())
+			recv, rawMsgSize, txID, status, err := c.ListenTx(context.TODO())
 			if err != nil {
-				issuer.l.Lock()
-				// prevents issuer on other thread from handling at the same time
-				// needed in case all are stuck
-				droppedConfirmations := issuer.outstandingTxs
-				issuer.outstandingTxs = 0
-				issuer.l.Unlock()
-				l.Lock()
-				totalTxs += uint64(droppedConfirmations)
-				l.Unlock()
-				inflight.Add(-int64(droppedConfirmations))
+				utils.Outf("{{red}}unable to listen for tx{{/}}: %v\n", err)
 				return
 			}
-			inflight.Add(-1)
-			issuer.l.Lock()
-			issuer.outstandingTxs--
-			issuer.l.Unlock()
+			received.Add(1)
+			receivedBytes.Add(int64(rawMsgSize))
+			tw, ok := pending.Remove(txID)
+			if !ok {
+				// This could happen if we've removed the transaction from pending after [pendingExpiryBuffer].
+				// This will be counted by the loop that did that, so we can just continue.
+				continue
+			}
 			l.Lock()
-			if result != nil {
-				if result.Success {
-					confirmedTxs++
-				} else {
-					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
-				}
-			} else {
-				// We can't error match here because we receive it over the wire.
-				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
-					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
-				} else {
-					expiredTxs++
-				}
+			switch status {
+			case rpc.TxSuccess:
+				successTxs++
+			case rpc.TxFailed:
+				failedTxs++
+			case rpc.TxExpired:
+				expiredTxs++
+			case rpc.TxInvalid:
+				invalidTxs++
+			default:
+				utils.Outf("{{red}}unknown tx status{{/}}: %d\n", status)
+				return
+			}
+			if status <= rpc.TxExpired {
+				confirmationTime += uint64(recv - tw.issuance)
 			}
 			totalTxs++
 			l.Unlock()
@@ -642,20 +752,17 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	}()
 	go func() {
 		defer func() {
-			_ = issuer.d.Close()
+			_ = c.Close()
 			issuerWg.Done()
 		}()
 
 		<-cctx.Done()
 		start := time.Now()
 		for time.Since(start) < issuerShutdownTimeout {
-			if issuer.d.Closed() {
+			if c.Closed() {
 				return
 			}
-			issuer.l.Lock()
-			outstanding := issuer.outstandingTxs
-			issuer.l.Unlock()
-			if outstanding == 0 {
+			if pending.Len() == 0 {
 				return
 			}
 			time.Sleep(500 * time.Millisecond)
@@ -675,16 +782,13 @@ func uniqueBytes() []byte {
 
 func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error {
 	for i := 0; i < numTxs; i++ {
-		_, dErr, result, err := cli.ListenTx(ctx)
+		_, _, _, status, err := cli.ListenTx(ctx)
 		if err != nil {
 			return err
 		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
+		if status != rpc.TxSuccess {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+			return fmt.Errorf("transaction failed: %d", status)
 		}
 	}
 	return nil

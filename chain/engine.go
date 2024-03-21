@@ -13,26 +13,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
-
-// TODO: unify with chunk wrapper
-type simpleChunkWrapper struct {
-	chunk   ids.ID
-	slot    int64
-	success bool
-}
-
-func (scw *simpleChunkWrapper) ID() ids.ID {
-	return scw.chunk
-}
-
-func (scw *simpleChunkWrapper) Expiry() int64 {
-	return scw.slot
-}
 
 type engineJob struct {
 	parentTimestamp int64
@@ -63,8 +47,6 @@ type Engine struct {
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
-
-	authorized *eheap.ExpiryHeap[*simpleChunkWrapper]
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -77,12 +59,10 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 		backlog: make(chan *engineJob, maxBacklog),
 
 		outputs: make(map[uint64]*output),
-
-		authorized: eheap.New[*simpleChunkWrapper](64),
 	}
 }
 
-func (e *Engine) processJob(job *engineJob) {
+func (e *Engine) processJob(job *engineJob) error {
 	log := e.vm.Logger()
 	e.vm.RecordEngineBacklog(-1)
 
@@ -97,12 +77,12 @@ func (e *Engine) processJob(job *engineJob) {
 	heightKey := HeightKey(e.vm.StateManager().HeightKey())
 	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	parentHeight := binary.BigEndian.Uint64(parentHeightRaw)
 	if job.blk.Height() != parentHeight+1 {
 		// TODO: re-execute previous blocks to get to required state
-		panic(ErrInvalidBlockHeight)
+		return ErrInvalidBlockHeight
 	}
 
 	// Fetch latest block context (used for reliable and recent warp verification)
@@ -127,7 +107,7 @@ func (e *Engine) processJob(job *engineJob) {
 	epoch := utils.Epoch(job.blk.StatefulBlock.Timestamp, r.GetEpochDuration())
 	_, epochHeights, err := e.GetEpochHeights(ctx, []uint64{epoch, epoch + 1})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Process chunks
@@ -138,24 +118,18 @@ func (e *Engine) processJob(job *engineJob) {
 	chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 	for chunk := range job.chunks {
 		// Handle fetched chunk
-		cw, _ := e.authorized.Remove(chunk.ID())
-		p.Add(ctx, len(chunks), chunk, cw)
+		p.Add(ctx, len(chunks), chunk)
 		chunks = append(chunks, chunk)
 	}
-	uselessAuthorization := len(e.authorized.SetMin(job.blk.StatefulBlock.Timestamp)) // cleanup unneeded verification statuses
-	if uselessAuthorization > 0 {
-		e.vm.Logger().Warn("performed useless authorization", zap.Int("count", uselessAuthorization))
-	}
-	e.vm.RecordUnusedAuthorizedChunks(uselessAuthorization)
 	txSet, ts, chunkResults, err := p.Wait()
 	if err != nil {
-		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err))
-		return
+		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err)) // does not actually panic
+		return err
 	}
 	if len(chunks) != len(job.blk.AvailableChunks) {
 		// This can happen on the shutdown path. If this is because of an error, the chunk manager will FATAL.
 		e.vm.Logger().Warn("did not receive all chunks from engine, exiting execution")
-		return
+		return ErrMissingChunks
 	}
 	e.vm.RecordExecutedChunks(len(chunks))
 	e.vm.RecordWaitProcessor(time.Since(startProcessor))
@@ -176,6 +150,7 @@ func (e *Engine) processJob(job *engineJob) {
 			chunk        = chunks[i]
 			cert         = job.blk.AvailableChunks[i]
 			txs          = make([]*Transaction, 0, len(chunkResult))
+			invalidTxs   = make([]ids.ID, 0, 4) // TODO: make a const
 			reward       uint64
 
 			warpResults set.Bits64
@@ -185,18 +160,18 @@ func (e *Engine) processJob(job *engineJob) {
 			txCount++
 			tx := chunk.Txs[j]
 			if !txResult.Valid {
+				txID := tx.ID()
+				invalidTxs = append(invalidTxs, txID)
 				// Remove txID from txSet if it was invalid and
 				// it was the first txID of its kind seen in the block.
-				if bl, ok := txSet[tx.ID()]; ok {
+				if bl, ok := txSet[txID]; ok {
 					if bl.chunk == i && bl.index == j {
-						delete(txSet, tx.ID())
+						delete(txSet, txID)
 					}
 				}
 
 				// TODO: handle case where Freezable (claim bond from user + freeze user)
 				// TODO: need to ensure that mark tx in set to prevent freezable replay?
-
-				// TODO: track invalid tx count
 				continue
 			}
 			validResults = append(validResults, txResult)
@@ -233,7 +208,8 @@ func (e *Engine) processJob(job *engineJob) {
 
 		// As soon as execution of transactions is finished, let the VM know so that it
 		// can notify subscribers.
-		e.vm.ExecutedChunk(ctx, job.blk.Height(), filteredChunks[i], validResults) // handled async by the vm
+		e.vm.ExecutedChunk(ctx, job.blk.StatefulBlock, filteredChunks[i], validResults, invalidTxs) // handled async by the vm
+		e.vm.RecordTxsInvalid(len(invalidTxs))
 	}
 
 	// Update tracked p-chain height as long as it is increasing
@@ -287,10 +263,10 @@ func (e *Engine) processJob(job *engineJob) {
 
 	// Update chain metadata
 	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
-		panic(err)
+		return err
 	}
 	if err := ts.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
-		panic(err)
+		return err
 	}
 
 	// Create new view and persist to disk
@@ -298,15 +274,15 @@ func (e *Engine) processJob(job *engineJob) {
 	e.vm.RecordStateOperations(ts.OpIndex())
 	view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	commitStart := time.Now()
 	if err := view.CommitToDB(ctx); err != nil {
-		panic(err)
+		return err
 	}
 	root, err := view.GetMerkleRoot(ctx)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
@@ -331,12 +307,14 @@ func (e *Engine) processJob(job *engineJob) {
 		zap.Int("total txs", txCount),
 		zap.Int("chunks", len(filteredChunks)),
 		zap.Stringer("root", root),
+		zap.Uint64("epoch", epoch),
 		zap.Duration("t", time.Since(estart)),
 	)
 	e.vm.RecordBlockExecute(time.Since(estart))
-	e.vm.RecordTxsValid(validTxs)
 	e.vm.RecordTxsIncluded(txCount)
-	e.vm.ExecutedBlock(ctx, job.blk)
+	e.vm.RecordExecutedEpoch(epoch)
+	e.vm.ExecutedBlock(ctx, job.blk.StatefulBlock)
+	return nil
 }
 
 func (e *Engine) Run() {
@@ -346,49 +324,18 @@ func (e *Engine) Run() {
 	e.latestView = state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
 
 	for {
-		// Check to see if anything is on the backlog or if we should stop
 		select {
 		case job := <-e.backlog:
-			e.processJob(job)
-			continue
-		case <-e.vm.StopChan():
-			return
-		default:
-		}
-
-		// Check to see if any chunks are ready for optimistic signature verification (if there is nothing else to do)
-		select {
-		case cert := <-e.vm.CertChan():
-			// Need to ensure this stream is deduped (can't just send as soon as a chunk is ready)
-			if e.vm.IsSeenChunk(context.TODO(), cert.Chunk) {
-				// Will process during execution loop or already processed
+			err := e.processJob(job)
+			switch {
+			case err == nil:
 				continue
+			case errors.Is(ErrMissingChunks, err):
+				// Should only happen on shutdown
+				return
+			default:
+				panic(err) // unrecoverable error
 			}
-			chunk, err := e.vm.GetChunk(cert.Slot, cert.Chunk)
-			if chunk == nil || err != nil {
-				e.vm.Logger().Warn("chunk not available for optimistic verification", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
-				continue
-			}
-			if e.vm.NodeID() == chunk.Producer {
-				// Don't verify own chunks
-				continue
-			}
-			if !e.vm.GetVerifyAuth() {
-				// Don't verify chunks if not verifying
-				continue
-			}
-			start := time.Now()
-			result := AuthorizeChunk(e.vm, chunk)
-			e.authorized.Add(&simpleChunkWrapper{
-				chunk:   cert.Chunk,
-				slot:    cert.Slot,
-				success: result,
-			})
-			dur := time.Since(start)
-			e.vm.Logger().Debug("optimistically authorized chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int("txs", len(chunk.Txs)), zap.Bool("success", result), zap.Duration("t", dur))
-			e.vm.RecordOptimisticAuthorizedChunk(dur)
-		case job := <-e.backlog:
-			e.processJob(job)
 		case <-e.vm.StopChan():
 			return
 		}

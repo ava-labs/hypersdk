@@ -22,12 +22,12 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/list"
 	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -41,6 +41,9 @@ const (
 
 	minWeightNumerator = 67
 	weightDenominator  = 100
+
+	gossipTxPrealloc = 32
+	gossipBatchWait  = 100 * time.Millisecond
 )
 
 type simpleChunkWrapper struct {
@@ -59,6 +62,7 @@ func (scw *simpleChunkWrapper) Expiry() int64 {
 type chunkWrapper struct {
 	l sync.Mutex
 
+	sent       time.Time
 	chunk      *chain.Chunk
 	signatures map[string]*chain.ChunkSignature
 }
@@ -71,18 +75,51 @@ func (cw *chunkWrapper) Expiry() int64 {
 	return cw.chunk.Slot
 }
 
+type seenWrapper struct {
+	chunkID ids.ID
+	expiry  int64
+	seen    int64
+}
+
+func (sw *seenWrapper) ID() ids.ID {
+	return sw.chunkID
+}
+
+func (sw *seenWrapper) Expiry() int64 {
+	return sw.expiry
+}
+
+type certWrapper struct {
+	cert *chain.ChunkCertificate
+	seen int64
+}
+
+func (cw *certWrapper) ID() ids.ID {
+	return cw.cert.ID()
+}
+
+// Expiry here is really the time we first saw,
+// which is used to ensure we pop it first when iterating over
+// the heap.
+//
+// TODO: change name of [Expiry] to something more generic
+func (cw *certWrapper) Expiry() int64 {
+	return cw.seen
+}
+
 // Store fifo chunks for building
 type CertStore struct {
 	l sync.Mutex
 
-	queue *list.List[*chain.ChunkCertificate]
-	eh    *eheap.ExpiryHeap[*list.Element[*chain.ChunkCertificate]]
+	minTime int64
+	seen    *eheap.ExpiryHeap[*seenWrapper] // only cleared on expiry
+	eh      *eheap.ExpiryHeap[*certWrapper] // cleared when we build, updated when we get a more useful cert
 }
 
 func NewCertStore() *CertStore {
 	return &CertStore{
-		queue: &list.List[*chain.ChunkCertificate]{},
-		eh:    eheap.New[*list.Element[*chain.ChunkCertificate]](64), // TODO: add a config
+		seen: eheap.New[*seenWrapper](64), // TODO: add a config
+		eh:   eheap.New[*certWrapper](64), // TODO: add a config
 	}
 }
 
@@ -92,33 +129,66 @@ func NewCertStore() *CertStore {
 // more signers.
 //
 // TODO: update if more weight rather than using signer heuristic?
-func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
+func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 	c.l.Lock()
 	defer c.l.Unlock()
 
+	// Only keep certs around that could be included.
+	if cert.Slot < c.minTime {
+		return
+	}
+
+	// Record the first time we saw this certificate, so we can properly
+	// sort during building.
+	firstSeen := int64(0)
+	v, ok := c.seen.Get(cert.ID())
+	if !ok {
+		firstSeen = time.Now().UnixMilli()
+		c.seen.Add(&seenWrapper{
+			chunkID: cert.ID(),
+			expiry:  cert.Slot,
+			seen:    firstSeen,
+		})
+	} else {
+		firstSeen = v.seen
+	}
+
+	// Store the certificate by
 	elem, ok := c.eh.Get(cert.ID())
 	if !ok {
-		elem = c.queue.PushBack(cert)
-	} else {
-		// If the existing certificate has more signers than the
-		// new certificate, don't update.
-		if elem.Value().Signers.Len() > cert.Signers.Len() {
-			return true
-		}
+		c.eh.Add(&certWrapper{
+			cert: cert,
+			seen: firstSeen,
+		})
+		return
 	}
+	// If the existing certificate has more signers than the
+	// new certificate, don't update.
+	//
+	// TODO: we should use weight here, not just number of signers
+	if elem.cert.Signers.Len() > cert.Signers.Len() {
+		return
+	}
+	elem.cert = cert
 	c.eh.Update(elem)
-	return ok
 }
 
 // Called when a block is accepted with valid certs.
-func (c *CertStore) SetMin(ctx context.Context, t int64) {
+func (c *CertStore) SetMin(ctx context.Context, t int64) []*chain.ChunkCertificate {
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	removedElems := c.eh.SetMin(t)
-	for _, remove := range removedElems {
-		c.queue.Remove(remove)
+	c.minTime = t
+	removedElems := c.seen.SetMin(t)
+	certs := make([]*chain.ChunkCertificate, 0, len(removedElems))
+	for _, removed := range removedElems {
+		cw, ok := c.eh.Remove(removed.ID())
+		if !ok {
+			continue
+		}
+		certs = append(certs, cw.cert)
 	}
+	return certs
 }
 
 // Pop removes and returns the highest valued item in m.eh.
@@ -126,13 +196,22 @@ func (c *CertStore) Pop(ctx context.Context) (*chain.ChunkCertificate, bool) { /
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	first := c.queue.First()
-	if first == nil {
+	first, ok := c.eh.PopMin()
+	if !ok {
 		return nil, false
 	}
-	v := c.queue.Remove(first)
-	c.eh.Remove(v.ID())
-	return v, true
+	return first.cert, true
+}
+
+func (c *CertStore) Get(cid ids.ID) (*chain.ChunkCertificate, bool) {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	elem, ok := c.eh.Get(cid)
+	if !ok {
+		return nil, false
+	}
+	return elem.cert, true
 }
 
 // TODO: move to standalone package
@@ -140,9 +219,10 @@ type ChunkManager struct {
 	vm   *VM
 	done chan struct{}
 
-	appSender common.AppSender
+	appSender   common.AppSender
+	incomingTxs chan *txGossipWrapper
 
-	txs *cache.FIFO[ids.ID, any]
+	epochHeights *cache.FIFO[uint64, uint64]
 
 	built *emap.EMap[*chunkWrapper]
 	// TODO: rebuild stored on startup
@@ -179,7 +259,7 @@ type txGossip struct {
 }
 
 func NewChunkManager(vm *VM) *ChunkManager {
-	cache, err := cache.NewFIFO[ids.ID, any](16384)
+	epochHeights, err := cache.NewFIFO[uint64, uint64](48)
 	if err != nil {
 		panic(err)
 	}
@@ -187,7 +267,9 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		vm:   vm,
 		done: make(chan struct{}),
 
-		txs: cache,
+		incomingTxs: make(chan *txGossipWrapper, vm.config.GetAuthGossipBacklog()),
+
+		epochHeights: epochHeights,
 
 		built:  emap.NewEMap[*chunkWrapper](),
 		stored: eheap.New[*simpleChunkWrapper](64),
@@ -203,17 +285,21 @@ func NewChunkManager(vm *VM) *ChunkManager {
 	}
 }
 
-func (c *ChunkManager) getEpochHeight(ctx context.Context, t int64) (uint64, error) {
+func (c *ChunkManager) getEpochInfo(ctx context.Context, t int64) (uint64, uint64, error) {
 	r := c.vm.Rules(time.Now().UnixMilli())
 	epoch := utils.Epoch(t, r.GetEpochDuration())
+	if h, ok := c.epochHeights.Get(epoch); ok {
+		return epoch, h, nil
+	}
 	_, heights, err := c.vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if heights[0] == nil {
-		return 0, errors.New("epoch is not yet set")
+		return 0, 0, errors.New("epoch is not yet set")
 	}
-	return *heights[0], nil
+	c.epochHeights.Put(epoch, *heights[0])
+	return epoch, *heights[0], nil
 }
 
 func (c *ChunkManager) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
@@ -249,50 +335,59 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.vm.metrics.chunksReceived.Inc()
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
 			return nil
 		}
 
 		// Check if we already received
 		if c.stored.Has(chunk.ID()) {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
 			return nil
 		}
 
 		// Check if chunk < slot
 		if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
 			return nil
 		}
 
 		// Check that producer is the sender
 		if chunk.Producer != nodeID {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
 		// Determine if chunk producer is a validator and that their key is valid
-		epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+		_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
 		if err != nil {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
 			return nil
 		}
 		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, chunk.Producer)
 		if err != nil {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine if producer is validator", zap.Stringer("producer", chunk.Producer), zap.Error(err))
 			return nil
 		}
 		if !isValidator {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunk.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
 		// Verify signature of chunk
 		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+			c.vm.metrics.gossipChunkInvalid.Inc()
 			dig, err := chunk.Digest()
 			if err != nil {
 				panic(err)
@@ -361,6 +456,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.vm.metrics.sigsReceived.Inc()
 		chunkSignature, err := chain.UnmarshalChunkSignature(msg[1:])
 		if err != nil {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
@@ -368,32 +464,38 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Check if we broadcast this chunk
 		cw, ok := c.built.Get(chunkSignature.Chunk)
 		if !ok || cw.chunk.Slot != chunkSignature.Slot {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunkSignature.Chunk))
 			return nil
 		}
 
 		// Determine if chunk signer is a validator and that their key is valid
-		epochHeight, err := c.getEpochHeight(ctx, chunkSignature.Slot)
+		_, epochHeight, err := c.getEpochInfo(ctx, chunkSignature.Slot)
 		if err != nil {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunkSignature.Slot))
 			return nil
 		}
 		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, nodeID)
 		if err != nil {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine if signer is validator", zap.Stringer("signer", nodeID), zap.Error(err))
 			return nil
 		}
 		if !isValidator {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk signature from non-validator", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunkSignature.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
 
 		// Verify signature
 		if !chunkSignature.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+			c.vm.metrics.gossipChunkSigInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk signature with invalid signature", zap.Stringer("nodeID", nodeID))
 			return nil
 		}
@@ -422,6 +524,12 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Debug("chunk does not have sufficient weight to create certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
+		}
+
+		// Record time to collect and then reset to ensure we don't log multiple times
+		if !cw.sent.IsZero() {
+			c.vm.metrics.collectChunkSignatures.Observe(float64(time.Since(cw.sent)))
+			cw.sent = time.Time{}
 		}
 
 		// Construct certificate
@@ -474,16 +582,17 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Duration("t", time.Since(start)),
 		)
 	case chunkCertificateMsg:
-		c.vm.metrics.certsReceived.Inc()
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
 
 		// Determine epoch for certificate
-		epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+		_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
 		if err != nil {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine certificate epoch", zap.Int64("slot", cert.Slot))
 			return nil
 		}
@@ -491,6 +600,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Verify certificate using the epoch validator set
 		aggrPubKey, err := c.vm.proposerMonitor.GetAggregatePublicKey(ctx, epochHeight, cert.Signers, minWeightNumerator, weightDenominator)
 		if err != nil {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
 				zap.Uint64("Pheight", epochHeight),
@@ -501,6 +611,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return err
 		}
 		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
+			c.vm.metrics.gossipCertInvalid.Inc()
 			c.vm.Logger().Warn(
 				"dropping invalid certificate",
 				zap.Uint64("Pheight", epochHeight),
@@ -523,89 +634,33 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.String("signers", cert.Signers.String()),
 			zap.Duration("t", time.Since(start)),
 		)
+		c.vm.metrics.certsReceived.Inc()
 		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		if !c.certs.Update(cert) {
-			select {
-			case c.vm.validCerts <- cert:
-				// Send to optimistic signature verification
-			default:
-				// If optimistic queue is full, just drop this cert
-			}
-		}
+		c.certs.Update(cert)
 	case txMsg:
-		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], 128, c.vm.actionRegistry, c.vm.authRegistry)
+		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
 			c.vm.Logger().Warn("dropping invalid tx gossip from non-validator", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			c.vm.metrics.gossipTxMsgInvalid.Inc()
 			return nil
 		}
-		c.vm.RecordTxsReceived(len(txs))
+		txLen := len(txs)
+		c.vm.RecordTxsReceived(txLen)
 
-		// Add incoming transactions to our caches to prevent useless gossip and perform
-		// batch signature verification.
-		//
-		// We rely on AppGossipConcurrency to regulate concurrency here, so we don't create
-		// a separate pool of workers for this verification.
-		job, err := workers.NewSerial().NewJob(len(txs))
-		if err != nil {
-			c.vm.Logger().Warn(
-				"unable to spawn new worker",
-				zap.Stringer("peerID", nodeID),
-				zap.Error(err),
-			)
-			return nil
+		// Enqueue txs for verification, if we have a backlog just drop them
+		c.vm.metrics.gossipTxBacklog.Add(float64(txLen))
+		select {
+		case c.incomingTxs <- &txGossipWrapper{nodeID: nodeID, txs: txs, authCounts: authCounts}:
+		default:
+			c.vm.metrics.gossipTxBacklog.Add(-float64(txLen))
+			c.vm.metrics.txGossipDropped.Add(float64(txLen))
+			c.vm.Logger().Warn("dropping tx gossip because too big of backlog", zap.Stringer("nodeID", nodeID))
 		}
 
-		// Check that we are the partition for the txs
-		batchVerifier := chain.NewAuthBatch(c.vm, job, authCounts)
-		for _, tx := range txs {
-			epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
-			if err != nil {
-				c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
-				batchVerifier.Done(nil)
-				return nil
-			}
-			partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
-			if err != nil {
-				c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
-				batchVerifier.Done(nil)
-				return nil
-			}
-			if partition != c.vm.snowCtx.NodeID {
-				c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", nodeID))
-				batchVerifier.Done(nil)
-				return nil
-			}
-			// Verify signature async
-			msg, err := tx.Digest()
-			if err != nil {
-				c.vm.Logger().Warn(
-					"unable to compute tx digest",
-					zap.Stringer("peerID", nodeID),
-					zap.Error(err),
-				)
-				batchVerifier.Done(nil)
-				return nil
-			}
-			batchVerifier.Add(msg, tx.Auth)
-		}
-		batchVerifier.Done(nil)
-
-		// Wait for signature verification to finish
-		if err := job.Wait(); err != nil {
-			c.vm.Logger().Warn(
-				"received invalid gossip",
-				zap.Stringer("peerID", nodeID),
-				zap.Error(err),
-			)
-			return nil
-		}
-
-		// Submit txs
-		c.vm.Submit(ctx, false, txs)
 		c.vm.Logger().Debug(
 			"received txs from gossip",
 			zap.Int("txs", len(txs)),
@@ -747,6 +802,12 @@ func (*ChunkManager) CrossChainAppError(context.Context, ids.ID, uint32, int32, 
 	return nil
 }
 
+type txGossipWrapper struct {
+	nodeID     ids.NodeID
+	txs        []*chain.Transaction
+	authCounts map[uint8]int
+}
+
 func (c *ChunkManager) Run(appSender common.AppSender) {
 	c.appSender = appSender
 	defer close(c.done)
@@ -759,74 +820,212 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 	}
 	c.vm.Logger().Info("starting chunk manager", zap.Any("beneficiary", beneficiary))
 
-	ct := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
-	defer ct.Stop()
-	bt := time.NewTicker(c.vm.config.GetBlockBuildFrequency())
-	defer bt.Stop()
-	gt := time.NewTicker(50 * time.Millisecond)
-	defer gt.Stop()
-	for {
-		select {
-		case <-ct.C:
-			if !c.vm.isReady() {
-				c.vm.Logger().Info("skipping chunk loop because vm isn't ready")
-				continue
-			}
-			if skipChunks {
-				continue
-			}
-
-			// Attempt to build a chunk
-			chunkStart := time.Now()
-			chunk, err := chain.BuildChunk(context.TODO(), c.vm)
-			if err != nil {
-				c.vm.Logger().Debug("unable to build chunk", zap.Error(err))
-				continue
-			}
-			c.PushChunk(context.TODO(), chunk)
-			chunkBytes := chunk.Size()
-			c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
-			c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
-		case <-bt.C:
-			if !c.vm.isReady() {
-				c.vm.Logger().Info("skipping block loop because vm isn't ready")
-				continue
-			}
-
-			// Attempt to build a block
+	// While we could try to shae the same goroutine for some of these items (as they aren't
+	// expected to take much time), it is safter to split apart.
+	g := &errgroup.Group{}
+	g.Go(func() error {
+		t := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
+		defer t.Stop()
+		for {
 			select {
-			case c.vm.EngineChan() <- common.PendingTxs:
-			default:
-			}
-		case <-gt.C:
-			now := time.Now()
-			gossipable := []*txGossip{}
-			c.txL.Lock()
-			for {
-				gossip, ok := c.txQueue.PopLeft()
-				if !ok {
-					break
-				}
-				if !gossip.expiry.Before(now) {
-					c.txQueue.PushLeft(gossip)
-					break
-				}
-				delete(c.txNodes, gossip.nodeID)
-				if gossip.sent {
+			case <-t.C:
+				if !c.vm.isReady() {
+					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
 					continue
 				}
-				gossipable = append(gossipable, gossip)
+				if skipChunks {
+					continue
+				}
+
+				// Attempt to build a chunk
+				chunkStart := time.Now()
+				chunk, err := chain.BuildChunk(context.TODO(), c.vm)
+				switch {
+				case errors.Is(err, chain.ErrNoTxs) || errors.Is(err, chain.ErrNotAValidator):
+					c.vm.Logger().Debug("unable to build chunk", zap.Error(err))
+					continue
+				case err != nil:
+					c.vm.Logger().Error("unable to build chunk", zap.Error(err))
+					continue
+				default:
+				}
+				c.PushChunk(context.TODO(), chunk)
+				chunkBytes := chunk.Size()
+				c.vm.metrics.chunkBuild.Observe(float64(time.Since(chunkStart)))
+				c.vm.metrics.chunkBytesBuilt.Add(float64(chunkBytes))
+				c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+				c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
 			}
-			c.txL.Unlock()
-			for _, gossip := range gossipable {
-				c.sendTxGossip(context.TODO(), gossip)
-			}
-		case <-c.vm.stop:
-			// If engine taking too long to process message, Shutdown will not
-			// be called.
-			c.vm.Logger().Info("stopping chunk manager")
-			return
 		}
+	})
+	g.Go(func() error {
+		t := time.NewTicker(c.vm.config.GetBlockBuildFrequency())
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				if !c.vm.isReady() {
+					c.vm.Logger().Info("skipping block loop because vm isn't ready")
+					continue
+				}
+
+				// Attempt to build a block
+				select {
+				case c.vm.EngineChan() <- common.PendingTxs:
+				default:
+				}
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+	g.Go(func() error {
+		t := time.NewTicker(50 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				now := time.Now()
+				gossipable := []*txGossip{}
+				c.txL.Lock()
+				for {
+					gossip, ok := c.txQueue.PopLeft()
+					if !ok {
+						break
+					}
+					if !gossip.expiry.Before(now) {
+						c.txQueue.PushLeft(gossip)
+						break
+					}
+					delete(c.txNodes, gossip.nodeID)
+					if gossip.sent {
+						continue
+					}
+					gossipable = append(gossipable, gossip)
+				}
+				c.txL.Unlock()
+				for _, gossip := range gossipable {
+					c.sendTxGossip(context.TODO(), gossip)
+				}
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+	for i := 0; i < c.vm.config.GetAuthGossipCores(); i++ {
+		g.Go(func() error {
+			for {
+				select {
+				case txw := <-c.incomingTxs:
+					c.vm.metrics.gossipTxBacklog.Add(-float64(len(txw.txs)))
+					ctx := context.TODO()
+					w := workers.NewSerial()
+					job, err := w.NewJob(len(txw.txs))
+					if err != nil {
+						c.vm.metrics.txGossipDropped.Add(float64(len(txw.txs)))
+						c.vm.Logger().Warn("unable to spawn new worker", zap.Error(err))
+						continue
+					}
+					invalid := false
+					batchVerifier := chain.NewAuthBatch(c.vm, job, txw.authCounts)
+					for _, tx := range txw.txs {
+						epoch, epochHeight, err := c.getEpochInfo(ctx, tx.Base.Timestamp)
+						if err != nil {
+							c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+							invalid = true
+							break
+						}
+						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor())
+						if err != nil {
+							c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+							invalid = true
+							break
+						}
+						if partition != c.vm.snowCtx.NodeID {
+							c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", txw.nodeID))
+							invalid = true
+							break
+						}
+						// Verify signature async
+						msg, err := tx.Digest()
+						if err != nil {
+							c.vm.Logger().Warn(
+								"unable to compute tx digest",
+								zap.Stringer("peerID", txw.nodeID),
+								zap.Error(err),
+							)
+							invalid = true
+							break
+						}
+						if !c.vm.GetVerifyAuth() {
+							continue
+						}
+						batchVerifier.Add(msg, tx.Auth)
+					}
+
+					// Don't wait for signatures if invalid
+					//
+					// TODO: stop job
+					if invalid {
+						batchVerifier.Done(nil)
+						c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
+						c.vm.metrics.gossipTxInvalid.Add(float64(len(txw.txs)))
+						continue
+					}
+
+					// Wait for signature verification to finish
+					batchVerifier.Done(nil)
+					if err := job.Wait(); err != nil {
+						c.vm.Logger().Warn(
+							"received invalid gossip",
+							zap.Stringer("peerID", txw.nodeID),
+							zap.Error(err),
+						)
+						c.vm.metrics.gossipTxInvalid.Add(float64(len(txw.txs)))
+						continue
+					}
+
+					// Submit txs
+					errs := c.vm.Submit(ctx, false, txw.txs)
+					now := time.Now().UnixMilli()
+					for i, err := range errs {
+						tx := txw.txs[i]
+						if err == nil {
+							c.vm.metrics.txTimeRemainingMempool.Observe(float64(tx.Expiry() - now))
+							continue
+						}
+						c.vm.metrics.txGossipDropped.Inc()
+						c.vm.Logger().Warn(
+							"did not add incoming tx to mempool",
+							zap.Stringer("peerID", txw.nodeID),
+							zap.Stringer("txID", tx.ID()),
+							zap.Error(err),
+						)
+					}
+					c.vm.metrics.mempoolLen.Set(float64(c.vm.Mempool().Len(context.TODO())))
+					c.vm.metrics.mempoolSize.Set(float64(c.vm.Mempool().Size(context.TODO())))
+				case <-c.vm.stop:
+					// If engine taking too long to process message, Shutdown will not
+					// be called.
+					c.vm.Logger().Info("stopping chunk manager")
+					return nil
+				}
+			}
+		})
+	}
+	if err := g.Wait(); err != nil {
+		c.vm.Logger().Error("chunk manager stopped with error", zap.Error(err))
 	}
 }
 
@@ -834,8 +1033,32 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 //
 // This functions returns an array of chunkIDs that can be used to delete unused chunks from persistent storage.
 func (c *ChunkManager) SetBuildableMin(ctx context.Context, t int64) {
-	c.built.SetMin(t)
-	c.certs.SetMin(ctx, t)
+	removedBuilt := c.built.SetMin(t)
+	expiredBuilt := 0
+	for _, cid := range removedBuilt {
+		if c.vm.IsSeenChunk(context.TODO(), cid) {
+			continue
+		}
+		expiredBuilt++
+		if cert, ok := c.certs.Get(cid); ok {
+			c.vm.Logger().Warn(
+				"dropping built chunk",
+				zap.Stringer("chunkID", cid),
+				zap.Int64("slot", cert.Slot),
+				zap.Int("signers", cert.Signers.Len()),
+			)
+		}
+	}
+	c.vm.metrics.expiredBuiltChunks.Add(float64(expiredBuilt))
+	removedCerts := c.certs.SetMin(ctx, t)
+	expiredCerts := 0
+	for _, cert := range removedCerts {
+		if c.vm.IsSeenChunk(context.TODO(), cert.Chunk) {
+			continue
+		}
+		expiredCerts++
+	}
+	c.vm.metrics.expiredCerts.Add(float64(expiredCerts))
 }
 
 // Remove chunks we included in a block to accurately account for unused chunks
@@ -857,7 +1080,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		return
 	}
 	copy(msg[1:], chunkBytes)
-	epochHeight, err := c.getEpochHeight(ctx, chunk.Slot)
+	_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("t", chunk.Slot), zap.Error(err))
 		return
@@ -867,6 +1090,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 		panic(err)
 	}
 	cw := &chunkWrapper{
+		sent:       time.Now(),
 		chunk:      chunk,
 		signatures: make(map[string]*chain.ChunkSignature, len(validators)+1),
 	}
@@ -923,7 +1147,7 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		return
 	}
 	copy(msg[1:], certBytes)
-	epochHeight, err := c.getEpochHeight(ctx, cert.Slot)
+	_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", cert.Slot), zap.Error(err))
 		return
@@ -939,7 +1163,9 @@ func (c *ChunkManager) NextChunkCertificate(ctx context.Context) (*chain.ChunkCe
 	return c.certs.Pop(ctx)
 }
 
-// TODO: ensure they are at front?
+// RestoreChunkCertificates re-inserts certs into the CertStore for inclusion. These chunks are sorted
+// by the time they are first seen, so we always try to include certs that have been valid and around
+// the longest first.
 func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
 	for _, cert := range certs {
 		c.certs.Update(cert)
@@ -947,19 +1173,15 @@ func (c *ChunkManager) RestoreChunkCertificates(ctx context.Context, certs []*ch
 }
 
 func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
-	// Check if issued recently
-	if _, ok := c.txs.Get(tx.ID()); ok {
-		return
-	}
-	c.txs.Put(tx.ID(), nil)
+	// TODO: drop if issued recently?
 
 	// Find transaction partition
-	epochHeight, err := c.getEpochHeight(ctx, tx.Base.Timestamp)
+	epoch, epochHeight, err := c.getEpochInfo(ctx, tx.Base.Timestamp)
 	if err != nil {
 		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 		return
 	}
-	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epochHeight, tx.Sponsor())
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor())
 	if err != nil {
 		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return
@@ -979,7 +1201,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	var gossipable *txGossip
 	gossip, ok := c.txNodes[partition]
 	if ok {
-		if gossip.size+txSize > consts.NetworkSizeLimit {
+		if gossip.size+txSize > consts.MTU {
 			delete(c.txNodes, partition)
 			gossip.sent = true
 			gossipable = gossip
@@ -994,9 +1216,9 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	}
 	gossip = &txGossip{
 		nodeID: partition,
-		txs:    make(map[ids.ID]*chain.Transaction, 128),
-		expiry: time.Now().Add(100 * time.Millisecond), // TODO: make const
-		size:   txSize,
+		txs:    make(map[ids.ID]*chain.Transaction, gossipTxPrealloc),
+		expiry: time.Now().Add(gossipBatchWait),
+		size:   consts.IntLen + txSize,
 	}
 	gossip.txs[txID] = tx
 	c.txNodes[partition] = gossip
@@ -1065,10 +1287,12 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 				// Fetch missing chunk
 				attempts := 0
 				for {
+					c.vm.metrics.fetchChunkAttempts.Add(1)
 					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
+					attempts++
 
 					// Look for chunk epoch
-					epochHeight, err := c.getEpochHeight(context.TODO(), cert.Slot)
+					_, epochHeight, err := c.getEpochInfo(context.TODO(), cert.Slot)
 					if err != nil {
 						c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 						continue
@@ -1117,6 +1341,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 						return nil, errors.New("stopping")
 					}
 					if len(bytes) == 0 {
+						c.vm.Logger().Warn("failed to fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Stringer("nodeID", validator))
 						continue
 					}
 

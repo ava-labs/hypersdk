@@ -116,6 +116,11 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedBlocks[b.ID()] = b
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
+
+	// We opt to not remove chunks [b.AvailableChunks] from [cm] here because
+	// we may build on a different parent and we want to maximize the probability
+	// any cert gets included. If this is not the case, the cert repeat inclusion check
+	// is fast.
 }
 
 func (vm *VM) processExecutedChunks() {
@@ -130,40 +135,97 @@ func (vm *VM) processExecutedChunks() {
 	// persist indexed state) instead of just exiting as soon as `vm.stop` is
 	// closed.
 	for ew := range vm.executedQueue {
-		vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results)
+		vm.metrics.executedProcessingBacklog.Dec()
+		if ew.Chunk != nil {
+			vm.processExecutedChunk(ew.Block, ew.Chunk, ew.Results, ew.InvalidTxs)
+			vm.snowCtx.Log.Debug(
+				"chunk async executed",
+				zap.Uint64("blk", ew.Block.Height),
+				zap.Stringer("chunkID", ew.Chunk.Chunk),
+			)
+			continue
+		}
+		vm.processExecutedBlock(ew.Block)
 		vm.snowCtx.Log.Debug(
-			"chunk async executed",
-			zap.Uint64("blk", ew.Block),
-			zap.Stringer("chunkID", ew.Chunk.Chunk),
+			"block async executed",
+			zap.Uint64("blk", ew.Block.Height),
 		)
 	}
 }
 
-func (vm *VM) ExecutedChunk(ctx context.Context, blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk *chain.FilteredChunk, results []*chain.Result, invalidTxs []ids.ID) {
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
-	vm.executedQueue <- &executedWrapper{blk, chunk, results}
+	vm.metrics.executedProcessingBacklog.Inc()
+	vm.executedQueue <- &executedWrapper{blk, chunk, results, invalidTxs}
+
+	// Record units processed
+	chunkUnits := chain.Dimensions{}
+	for _, r := range results {
+		nextUnits, err := chain.Add(chunkUnits, r.Consumed)
+		if err != nil {
+			vm.Fatal("unable to add executed units", zap.Error(err))
+		}
+		chunkUnits = nextUnits
+	}
+	vm.metrics.unitsExecutedBandwidth.Add(float64(chunkUnits[chain.Bandwidth]))
+	vm.metrics.unitsExecutedCompute.Add(float64(chunkUnits[chain.Compute]))
+	vm.metrics.unitsExecutedRead.Add(float64(chunkUnits[chain.StorageRead]))
+	vm.metrics.unitsExecutedAllocate.Add(float64(chunkUnits[chain.StorageAllocate]))
+	vm.metrics.unitsExecutedWrite.Add(float64(chunkUnits[chain.StorageWrite]))
 }
 
-func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatelessBlock) {
+func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatefulBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
 	defer span.End()
 
-	// We need to wait until we may not try to verify the signature of a tx again.
-	//
-	// TODO: add a queue
-	vm.rpcAuthorizedTxs.SetMin(blk.StatefulBlock.Timestamp)
+	// We interleave results with chunks to ensure things are processed in the write order (if processed independently, we might
+	// process a block execution before a chunk).
+	vm.metrics.executedProcessingBacklog.Inc()
+	vm.executedQueue <- &executedWrapper{Block: blk}
 }
 
-func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) {
+func (vm *VM) processExecutedBlock(blk *chain.StatefulBlock) {
 	start := time.Now()
 	defer func() {
-		vm.metrics.chunkProcess.Observe(float64(time.Since(start)))
+		vm.metrics.executedBlockProcess.Observe(float64(time.Since(start)))
+	}()
+
+	// Update timestamp in mempool
+	//
+	// We wait to update the min until here because we want to allow all execution
+	// to complete and remove valid txs first.
+	ctx := context.TODO()
+	t := blk.Timestamp
+	vm.metrics.mempoolExpired.Add(float64(len(vm.mempool.SetMinTimestamp(ctx, t))))
+	vm.metrics.mempoolLen.Set(float64(vm.mempool.Len(ctx)))
+	vm.metrics.mempoolSize.Set(float64(vm.mempool.Size(ctx)))
+
+	// We need to wait until we may not try to verify the signature of a tx again.
+	vm.rpcAuthorizedTxs.SetMin(t)
+
+	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
+	// send [ErrExpired] messages.
+	if err := vm.webSocketServer.SetMinTx(t); err != nil {
+		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+	}
+}
+
+func (vm *VM) processExecutedChunk(
+	blk *chain.StatefulBlock,
+	chunk *chain.FilteredChunk,
+	results []*chain.Result,
+	invalidTxs []ids.ID,
+) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.executedChunkProcess.Observe(float64(time.Since(start)))
 	}()
 
 	// Remove any executed transactions
-	vm.mempool.Remove(context.TODO(), chunk.Txs)
+	ctx := context.TODO()
+	vm.mempool.Remove(ctx, chunk.Txs)
 
 	// Sign and store any warp messages (regardless if validator now, may become one)
 	for i, tx := range chunk.Txs { // filtered chunks only have valid txs
@@ -197,7 +259,7 @@ func (vm *VM) processExecutedChunk(blk uint64, chunk *chain.FilteredChunk, resul
 	}
 
 	// Send notifications as soon as transactions are executed
-	if err := vm.webSocketServer.ExecuteChunk(blk, chunk, results); err != nil {
+	if err := vm.webSocketServer.ExecuteChunk(blk.Height, chunk, results, invalidTxs); err != nil {
 		vm.Fatal("unable to execute chunk in websocket server", zap.Error(err))
 	}
 }
@@ -247,12 +309,6 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// Send notifications as soon as transactions are executed
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
-	}
-
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(b.StatefulBlock.Timestamp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 }
 
@@ -356,13 +412,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 		}
 	}
 
-	// Update timestamp in mempool
-	//
-	// We rely on the [vm.waiters] map to notify listeners of dropped
-	// transactions instead of the mempool because we won't need to iterate
-	// through as many transactions.
-	vm.mempool.SetMinTimestamp(ctx, blkTime)
-
 	// Enqueue block for processing
 	vm.acceptedQueue <- &acceptedWrapper{b, chunks}
 }
@@ -371,8 +420,8 @@ func (vm *VM) CacheValidators(ctx context.Context, height uint64) {
 	vm.proposerMonitor.Fetch(ctx, height)
 }
 
-func (vm *VM) AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error) {
-	return vm.proposerMonitor.AddressPartition(ctx, height, addr)
+func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, addr)
 }
 
 func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (bool, error) {
@@ -421,11 +470,6 @@ func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error)
 
 func (vm *VM) StopChan() chan struct{} {
 	return vm.stop
-}
-
-func (vm *VM) CertChan() chan *chain.ChunkCertificate {
-	// Used for optimistic cert verification
-	return vm.validCerts
 }
 
 func (vm *VM) EngineChan() chan<- common.Message {
@@ -512,8 +556,8 @@ func (vm *VM) RecordTxsIncluded(c int) {
 	vm.metrics.txsIncluded.Add(float64(c))
 }
 
-func (vm *VM) RecordTxsValid(c int) {
-	vm.metrics.txsValid.Add(float64(c))
+func (vm *VM) RecordTxsInvalid(c int) {
+	vm.metrics.txsInvalid.Add(float64(c))
 }
 
 func (vm *VM) GetTargetChunkBuildDuration() time.Duration {
@@ -540,8 +584,8 @@ func (vm *VM) RecordBlockExecute(t time.Duration) {
 	vm.metrics.blockExecute.Observe(float64(t))
 }
 
-func (vm *VM) RecordRemainingMempool() {
-	vm.metrics.remainingMempool.Inc()
+func (vm *VM) RecordRemainingMempool(l int) {
+	vm.metrics.remainingMempool.Add(float64(l))
 }
 
 func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
@@ -600,20 +644,8 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) RecordOptimisticAuthorizedChunk(t time.Duration) {
-	vm.metrics.optimisticChunkAuthorized.Observe(float64(t))
-}
-
-func (vm *VM) RecordNotAuthorizedChunk() {
-	vm.metrics.chunksNotAuthorized.Inc()
-}
-
 func (vm *VM) RecordExecutedChunks(c int) {
 	vm.metrics.chunksExecuted.Add(float64(c))
-}
-
-func (vm *VM) RecordUnusedAuthorizedChunks(c int) {
-	vm.metrics.unusedChunkAuthorizations.Add(float64(c))
 }
 
 func (vm *VM) RecordWaitRepeat(t time.Duration) {
@@ -646,4 +678,28 @@ func (vm *VM) RecordRPCAuthorizedTx() {
 
 func (vm *VM) RecordBlockVerifyFail() {
 	vm.metrics.blockVerifyFailed.Inc()
+}
+
+func (vm *VM) RecordWebsocketConnection(c int) {
+	vm.metrics.websocketConnections.Add(float64(c))
+}
+
+func (vm *VM) RecordChunkBuildTxDropped() {
+	vm.metrics.chunkBuildTxsDropped.Inc()
+}
+
+func (vm *VM) RecordRPCTxInvalid() {
+	vm.metrics.rpcTxInvalid.Inc()
+}
+
+func (vm *VM) RecordBlockBuildCertDropped() {
+	vm.metrics.blockBuildCertsDropped.Inc()
+}
+
+func (vm *VM) RecordAcceptedEpoch(e uint64) {
+	vm.metrics.lastAcceptedEpoch.Set(float64(e))
+}
+
+func (vm *VM) RecordExecutedEpoch(e uint64) {
+	vm.metrics.lastExecutedEpoch.Set(float64(e))
 }

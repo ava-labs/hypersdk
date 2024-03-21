@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 
@@ -14,13 +15,32 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/oexpirer"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 type txWrapper struct {
-	msg []byte
+	order uint64
+	msg   []byte
+	c     *pubsub.Connection
+}
+
+type expiringTx struct {
+	id     ids.ID
+	expiry int64
+}
+
+func (e *expiringTx) ID() ids.ID {
+	return e.id
+}
+
+func (e *expiringTx) Expiry() int64 {
+	return e.expiry
+}
+
+type txListener struct {
+	num uint64
 	c   *pubsub.Connection
 }
 
@@ -35,9 +55,11 @@ type WebSocketServer struct {
 	incomingTransactions chan *txWrapper
 	txBacklog            atomic.Int64
 
-	txL         sync.Mutex
-	txListeners map[ids.ID]*pubsub.Connections
-	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
+	txL sync.Mutex
+	// TODO: limit number of pending txs per connection to prevent OOM
+	txListeners map[ids.ID][]*txListener
+
+	expiringTxs *oexpirer.OExpirer[*expiringTx] // ensures all tx listeners are eventually responded to
 }
 
 func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsub.Server) {
@@ -46,12 +68,13 @@ func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsu
 		blockListeners:       pubsub.NewConnections(),
 		chunkListeners:       pubsub.NewConnections(),
 		incomingTransactions: make(chan *txWrapper, vm.GetAuthRPCBacklog()),
-		txListeners:          map[ids.ID]*pubsub.Connections{},
-		expiringTxs:          emap.NewEMap[*chain.Transaction](),
+		txListeners:          make(map[ids.ID][]*txListener, maxPendingMessages),
+		expiringTxs:          oexpirer.New[*expiringTx](maxPendingMessages),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages
-	w.s = pubsub.New(w.vm.Logger(), cfg, w.MessageCallback())
+	// TODO: cleanup this function definition
+	w.s = pubsub.New(w.vm, w.vm.Logger(), cfg, w.MessageCallback())
 	for i := 0; i < vm.GetAuthRPCCores(); i++ {
 		go w.startWorker()
 	}
@@ -78,6 +101,7 @@ func (w *WebSocketServer) startWorker() {
 					zap.Int("len", len(txw.msg)),
 					zap.Error(err),
 				)
+				w.vm.RecordRPCTxInvalid()
 				continue
 			}
 
@@ -86,16 +110,18 @@ func (w *WebSocketServer) startWorker() {
 				msg, err := tx.Digest()
 				if err != nil {
 					// Should never occur because populated during unmarshal
+					w.vm.RecordRPCTxInvalid()
 					continue
 				}
 				if err := tx.Auth.Verify(ctx, msg); err != nil {
 					log.Error("failed to verify sig",
 						zap.Error(err),
 					)
+					w.vm.RecordRPCTxInvalid()
 					continue
 				}
 			}
-			w.AddTxListener(tx, txw.c)
+			w.AddTxListener(txw.order, tx, txw.c)
 
 			// Submit will remove from [txWaiters] if it is not added
 			txID := tx.ID()
@@ -104,10 +130,14 @@ func (w *WebSocketServer) startWorker() {
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)
+				w.vm.RecordRPCTxInvalid()
 				continue
 			}
 
 			// Prevent duplicate signature verification during block processing
+			//
+			// We wait to do this until after submit to ensure the transaction was actually
+			// considered valid.
 			w.vm.AddRPCAuthorized(tx)
 		case <-w.vm.StopChan():
 			return
@@ -117,17 +147,19 @@ func (w *WebSocketServer) startWorker() {
 
 // Note: no need to have a tx listener removal, this will happen when all
 // submitted transactions are cleared.
-func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
-	w.txL.Lock()
-	defer w.txL.Unlock()
-
-	// TODO: limit max number of tx listeners a single connection can create
+func (w *WebSocketServer) AddTxListener(num uint64, tx *chain.Transaction, c *pubsub.Connection) {
 	txID := tx.ID()
+	w.txL.Lock()
+	// TODO: limit max number of tx listeners a single connection can create
 	if _, ok := w.txListeners[txID]; !ok {
-		w.txListeners[txID] = pubsub.NewConnections()
+		w.txListeners[txID] = make([]*txListener, 0, 1)
 	}
-	w.txListeners[txID].Add(c)
-	w.expiringTxs.Add([]*chain.Transaction{tx})
+	// User may submit same tx multiple times, so we need to track all instances to ensure
+	// we respond to all of them.
+	w.txListeners[txID] = append(w.txListeners[txID], &txListener{num, c})
+	w.txL.Unlock()
+
+	w.expiringTxs.Add(&expiringTx{txID, tx.Expiry()}, false)
 }
 
 // If never possible for a tx to enter mempool, call this
@@ -143,11 +175,17 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 	if !ok {
 		return nil
 	}
-	bytes, err := PackRemovedTxMessage(txID, err)
-	if err != nil {
-		return err
+	status := TxInvalid
+	if errors.Is(err, ErrExpired) {
+		status = TxExpired
 	}
-	w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
+	for _, listener := range listeners {
+		bytes, err := PackTxMessage(listener.num, status)
+		if err != nil {
+			return err
+		}
+		w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
+	}
 	delete(w.txListeners, txID)
 	// [expiringTxs] will be cleared eventually (does not support removal)
 	return nil
@@ -158,13 +196,13 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 	defer w.txL.Unlock()
 
 	expired := w.expiringTxs.SetMin(t)
-	for _, id := range expired {
-		if err := w.removeTx(id, ErrExpired); err != nil {
+	for _, etx := range expired {
+		if err := w.removeTx(etx.ID(), ErrExpired); err != nil {
 			return err
 		}
 	}
 	if exp := len(expired); exp > 0 {
-		w.vm.Logger().Debug("expired listeners", zap.Int("count", exp))
+		w.vm.Logger().Warn("expired listeners", zap.Int("count", exp))
 	}
 	return nil
 }
@@ -179,7 +217,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 	return nil
 }
 
-func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) error {
+func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result, invalidTxs []ids.ID) error {
 	if w.chunkListeners.Len() > 0 {
 		bytes, err := PackChunkMessage(blk, chunk, results)
 		if err != nil {
@@ -195,16 +233,40 @@ func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, r
 	defer w.txL.Unlock()
 	for i, tx := range chunk.Txs {
 		txID := tx.ID()
+		w.expiringTxs.Remove(txID) // remove txs that are no longer needed ASAP
 		listeners, ok := w.txListeners[txID]
 		if !ok {
 			continue
 		}
 		// Publish to tx listener
-		bytes, err := PackAcceptedTxMessage(txID, results[i])
-		if err != nil {
-			return err
+		status := TxSuccess
+		if !results[i].Success {
+			status = TxFailed
 		}
-		w.s.Publish(append([]byte{TxMode}, bytes...), listeners)
+		for _, listener := range listeners {
+			bytes, err := PackTxMessage(listener.num, status)
+			if err != nil {
+				return err
+			}
+			w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
+		}
+		delete(w.txListeners, txID)
+		// [expiringTxs] will be cleared eventually (does not support removal)
+	}
+	for _, txID := range invalidTxs {
+		w.expiringTxs.Remove(txID) // remove txs that are no longer needed ASAP
+		listeners, ok := w.txListeners[txID]
+		if !ok {
+			continue
+		}
+		// Publish to tx listener
+		for _, listener := range listeners {
+			bytes, err := PackTxMessage(listener.num, TxInvalid)
+			if err != nil {
+				return err
+			}
+			w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
+		}
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
@@ -218,7 +280,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 		log    = w.vm.Logger()
 	)
 
-	return func(msgBytes []byte, c *pubsub.Connection) {
+	return func(num uint64, msgBytes []byte, c *pubsub.Connection) {
 		_, span := tracer.Start(context.Background(), "WebSocketServer.Callback")
 		defer span.End()
 
@@ -242,7 +304,7 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			select {
-			case w.incomingTransactions <- &txWrapper{msgBytes, c}:
+			case w.incomingTransactions <- &txWrapper{num, msgBytes, c}:
 				w.txBacklog.Add(1)
 				log.Debug("enqueued tx for processing")
 			default:

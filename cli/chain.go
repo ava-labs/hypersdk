@@ -240,7 +240,13 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	if err != nil {
 		return err
 	}
-	scli, err := rpc.NewWebSocketClient(uris[uriName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	scli, err := rpc.NewWebSocketClient(
+		uris[uriName],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		consts.MTU,
+		pubsub.MaxReadMessageSize,
+	) // we write the max read
 	if err != nil {
 		return err
 	}

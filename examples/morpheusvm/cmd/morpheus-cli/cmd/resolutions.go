@@ -36,25 +36,22 @@ func sendAndWait(
 	if err := ws.RegisterTx(tx); err != nil {
 		return false, ids.Empty, err
 	}
-	var result *chain.Result
+	success := false
 	for {
-		txID, txErr, txResult, err := ws.ListenTx(ctx)
+		_, _, txID, status, err := ws.ListenTx(ctx)
 		if err != nil {
 			return false, ids.Empty, err
 		}
-		if txErr != nil {
-			return false, ids.Empty, txErr
-		}
 		if txID == tx.ID() {
-			result = txResult
+			success = status == rpc.TxSuccess
 			break
 		}
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
-		handler.Root().PrintStatus(tx.ID(), result.Success)
+		handler.Root().PrintStatus(tx.ID(), success)
 	}
-	return result.Success, tx.ID(), nil
+	return success, tx.ID(), nil
 }
 
 func handleTx(tx *chain.Transaction, result *chain.Result) {

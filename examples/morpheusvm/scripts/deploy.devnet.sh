@@ -47,17 +47,27 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 # We use a shorter EPOCH_DURATION and VALIDITY_WINDOW to speed up devnet
 # startup. In a production environment, these should be set to longer values.
 #
-# TODO: print this out while waiting for network as well.
-ADDRESS=morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu
-EPOCH_DURATION=30000
-VALIDITY_WINDOW=25000
+# Addresses:
+# morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu: 323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7
+# morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3: ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9
+# morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4: 34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e
+# morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn: ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77
+# morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
+EPOCH_DURATION=60000
+VALIDITY_WINDOW=59000
 MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
-MAX_CHUNK_UNITS="1800000,15000,15000,15000,15000"
+MAX_UINT64=18446744073709551615
+MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}" # in a load test, all we care about is that chunks are size-bounded (2MB network limit)
 echo "creating allocations file"
+# Sum of allocations must be less than uint64 max
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
-  {"address":"${ADDRESS}", "balance":10000000000000000000}
+  {"address":"morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu", "balance":3000000000000000000},
+  {"address":"morpheus1qryyvfut6td0l2vwn8jwae0pmmev7eqxs2vw0fxpd2c4lr37jj7wvrj4vc3", "balance":3000000000000000000},
+  {"address":"morpheus1qp52zjc3ul85309xn9stldfpwkseuth5ytdluyl7c5mvsv7a4fc76g6c4w4", "balance":3000000000000000000},
+  {"address":"morpheus1qzqjp943t0tudpw06jnvakdc0y8w790tzk7suc92aehjw0epvj93s0uzasn", "balance":3000000000000000000},
+  {"address":"morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r", "balance":3000000000000000000}
 ]
 EOF
 
@@ -72,19 +82,20 @@ EOF
 # TODO: find a smarter way to split auth cores between exec and RPC
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 750,
-  "targetChunkBuildDuration": 500,
+  "chunkBuildFrequency": 400,
+  "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
-  "mempoolSize": 10000000,
+  "mempoolSize": 2147483648,
   "mempoolSponsorSize": 10000000,
-  "mempoolExemptSponsors":["${ADDRESS}"],
-  "authExecutionCores": 24,
+  "authExecutionCores": 32,
   "actionExecutionCores": 8,
   "rootGenerationCores": 32,
   "missingChunkFetchers": 48,
   "verifyAuth":true,
-  "authRPCCores": 24,
+  "authRPCCores": 48,
   "authRPCBacklog": 10000000,
+  "authGossipCores": 32,
+  "authGossipBacklog": 10000000,
   "streamingBacklogSize": 10000000,
   "logLevel": "INFO"
 }
@@ -104,17 +115,19 @@ cat <<EOF > "${TMPDIR}"/node.config
   "proposervm-use-current-height":true,
   "throttler-inbound-validator-alloc-size":"10737418240",
   "throttler-inbound-at-large-alloc-size":"10737418240",
-  "throttler-inbound-node-max-processing-msgs":"100000",
+  "throttler-inbound-node-max-processing-msgs":"1000000",
+	"throttler-inbound-node-max-at-large-bytes":"10737418240",
   "throttler-inbound-bandwidth-refill-rate":"1073741824",
   "throttler-inbound-bandwidth-max-burst-size":"1073741824",
   "throttler-inbound-cpu-validator-alloc":"100000",
   "throttler-inbound-disk-validator-alloc":"10737418240000",
   "throttler-outbound-validator-alloc-size":"10737418240",
   "throttler-outbound-at-large-alloc-size":"10737418240",
+  "throttler-outbound-node-max-at-large-bytes":"10737418240",
   "consensus-on-accept-gossip-validator-size":"10",
   "consensus-on-accept-gossip-peer-size":"10",
   "network-compression-type":"zstd",
-  "consensus-app-concurrency":"128",
+  "consensus-app-concurrency":"1024",
   "profile-continuous-enabled":true,
   "profile-continuous-freq":"1m",
   "http-host":"",
@@ -128,13 +141,15 @@ CLUSTER="vryx-$(date +%s)"
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
 RED='\033[0;31m'
-YELLOw='\033[1;33m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 function cleanup {
   echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
 }
 trap cleanup EXIT
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-east-1,eu-west-1,us-west-1,ap-northeast-2,ca-central-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+# List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+EPOCH_WAIT_START=$(date +%s)
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
 cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
@@ -168,12 +183,23 @@ do
   esac
 done
 
-# Wait for epoch initialization
-SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
-echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-echo -e "${YELLOW}We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value.${NC}"
-sleep $SLEEP_DUR
-
 # Start load test on dedicated machine
-# TODO: only start using again once test is run async and logs are collected using Loki (stream isn't reliable)
-$TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="/home/ubuntu/simulator spam run ed25519 --num-accounts=10000 --txs-per-second=100000 --num-clients=5 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+$TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="exit"
+EPOCH_WAIT_END=$(date +%s)
+TIME_TAKEN=$((EPOCH_WAIT_END - EPOCH_WAIT_START))
+
+# Wait for epoch initialization
+SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
+if [ $TIME_TAKEN -lt $SLEEP_DUR ]; then
+  SLEEP_DUR=$(($SLEEP_DUR - $TIME_TAKEN))
+  echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
+  echo -e "${YELLOW}We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value.${NC}"
+  sleep $SLEEP_DUR
+fi
+
+echo -e "${YELLOW}To run load test, ssh into monitoring instance run these commands:${NC}"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000 --txs-per-second=100000 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000 --txs-per-second=100000 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000 --txs-per-second=100000 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000 --txs-per-second=100000 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000 --txs-per-second=100000 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5"

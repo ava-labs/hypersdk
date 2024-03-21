@@ -48,9 +48,10 @@ import (
 )
 
 type executedWrapper struct {
-	Block   uint64
-	Chunk   *chain.FilteredChunk
-	Results []*chain.Result
+	Block      *chain.StatefulBlock
+	Chunk      *chain.FilteredChunk
+	Results    []*chain.Result
+	InvalidTxs []ids.ID
 }
 
 type acceptedWrapper struct {
@@ -87,17 +88,16 @@ type VM struct {
 	//
 	// we use an emap here to avoid recursing through all previously
 	// issued chunks when packing a new chunk.
-	issuedTxs        *emap.EMap[*chain.Transaction]
-	rpcAuthorizedTxs *emap.EMap[*chain.Transaction] // used to optimize performance of RPCs
+	issuedTxs        *emap.LEMap[*chain.Transaction]
+	rpcAuthorizedTxs *emap.LEMap[*chain.Transaction] // used to optimize performance of RPCs
 	mempool          *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
-	seenTxs                *emap.EMap[*chain.Transaction]
-	seenChunks             *emap.EMap[*chain.ChunkCertificate]
+	seenTxs                *emap.LEMap[*chain.Transaction]
+	seenChunks             *emap.LEMap[*chain.ChunkCertificate]
 	startSeenTime          int64
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
-	validCerts             chan *chain.ChunkCertificate
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *cache.LRU[ids.ID, *chain.StatelessBlock]
@@ -166,16 +166,15 @@ func (vm *VM) Initialize(
 ) error {
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
-	vm.issuedTxs = emap.NewEMap[*chain.Transaction]()
-	vm.rpcAuthorizedTxs = emap.NewEMap[*chain.Transaction]()
+	vm.issuedTxs = emap.NewLEMap[*chain.Transaction]()
+	vm.rpcAuthorizedTxs = emap.NewLEMap[*chain.Transaction]()
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seenTxs = emap.NewEMap[*chain.Transaction]()
-	vm.seenChunks = emap.NewEMap[*chain.ChunkCertificate]()
+	vm.seenTxs = emap.NewLEMap[*chain.Transaction]()
+	vm.seenChunks = emap.NewLEMap[*chain.ChunkCertificate]()
 	vm.seenValidityWindow = make(chan struct{})
-	vm.validCerts = make(chan *chain.ChunkCertificate, 256) // TODO: make a const
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
@@ -574,6 +573,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		return err
 	}
 
+	// Shutdown engine
+	vm.engine.Done()
+
 	// Process remaining executed chunks before shutdown
 	close(vm.executedQueue)
 	<-vm.executorDone
@@ -581,9 +583,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
-
-	// Shutdown engine
-	vm.engine.Done()
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
