@@ -101,6 +101,7 @@ func (w *WebSocketServer) startWorker() {
 					zap.Int("len", len(txw.msg)),
 					zap.Error(err),
 				)
+				w.vm.RecordRPCTxInvalid()
 				continue
 			}
 
@@ -109,12 +110,14 @@ func (w *WebSocketServer) startWorker() {
 				msg, err := tx.Digest()
 				if err != nil {
 					// Should never occur because populated during unmarshal
+					w.vm.RecordRPCTxInvalid()
 					continue
 				}
 				if err := tx.Auth.Verify(ctx, msg); err != nil {
 					log.Error("failed to verify sig",
 						zap.Error(err),
 					)
+					w.vm.RecordRPCTxInvalid()
 					continue
 				}
 			}
@@ -127,10 +130,14 @@ func (w *WebSocketServer) startWorker() {
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)
+				w.vm.RecordRPCTxInvalid()
 				continue
 			}
 
 			// Prevent duplicate signature verification during block processing
+			//
+			// We wait to do this until after submit to ensure the transaction was actually
+			// considered valid.
 			w.vm.AddRPCAuthorized(tx)
 		case <-w.vm.StopChan():
 			return
@@ -152,7 +159,7 @@ func (w *WebSocketServer) AddTxListener(num uint64, tx *chain.Transaction, c *pu
 	w.txListeners[txID] = append(w.txListeners[txID], &txListener{num, c})
 	w.txL.Unlock()
 
-	w.expiringTxs.Add(&expiringTx{txID, tx.Expiry()})
+	w.expiringTxs.Add(&expiringTx{txID, tx.Expiry()}, false)
 }
 
 // If never possible for a tx to enter mempool, call this
@@ -195,7 +202,7 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 		}
 	}
 	if exp := len(expired); exp > 0 {
-		w.vm.Logger().Debug("expired listeners", zap.Int("count", exp))
+		w.vm.Logger().Warn("expired listeners", zap.Int("count", exp))
 	}
 	return nil
 }
@@ -210,7 +217,7 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 	return nil
 }
 
-func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result) error {
+func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, results []*chain.Result, invalidTxs []ids.ID) error {
 	if w.chunkListeners.Len() > 0 {
 		bytes, err := PackChunkMessage(blk, chunk, results)
 		if err != nil {
@@ -238,6 +245,23 @@ func (w *WebSocketServer) ExecuteChunk(blk uint64, chunk *chain.FilteredChunk, r
 		}
 		for _, listener := range listeners {
 			bytes, err := PackTxMessage(listener.num, status)
+			if err != nil {
+				return err
+			}
+			w.s.PublishSpecific(append([]byte{TxMode}, bytes...), listener.c)
+		}
+		delete(w.txListeners, txID)
+		// [expiringTxs] will be cleared eventually (does not support removal)
+	}
+	for _, txID := range invalidTxs {
+		w.expiringTxs.Remove(txID) // remove txs that are no longer needed ASAP
+		listeners, ok := w.txListeners[txID]
+		if !ok {
+			continue
+		}
+		// Publish to tx listener
+		for _, listener := range listeners {
+			bytes, err := PackTxMessage(listener.num, TxInvalid)
 			if err != nil {
 				return err
 			}

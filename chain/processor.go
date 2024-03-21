@@ -185,7 +185,7 @@ func (p *Processor) markChunkTxsInvalid(chunkIndex, count int) {
 // Chunks MUST be added in order.
 //
 // Add must not be called concurrently
-func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *simpleChunkWrapper) {
+func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Add")
 	defer span.End()
 
@@ -200,19 +200,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 	// be interleaved).
 	chunkTxs := len(chunk.Txs)
 	p.results[chunkIndex] = make([]*Result, chunkTxs)
-	if cw != nil {
-		if !cw.success {
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-	}
 
 	// Verify chunk signatures
 	//
 	// We need to do this before we check basic chunk correctness to support
 	// optimistic chunk signature verification.
-	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer && cw == nil { // trust ourselves
-		p.vm.RecordNotAuthorizedChunk()
+	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
 		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
 		if err != nil {
 			panic(err)
@@ -220,16 +213,17 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
 
 		for _, tx := range chunk.Txs {
+			// Skip if we already authorized this
+			if p.vm.IsRPCAuthorized(tx.ID()) {
+				p.vm.RecordRPCAuthorizedTx()
+				continue
+			}
 			// Enqueue transaction for execution
 			msg, err := tx.Digest()
 			if err != nil {
 				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
 				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 				return
-			}
-			if p.vm.IsRPCAuthorized(tx.ID()) {
-				p.vm.RecordRPCAuthorizedTx()
-				continue
 			}
 			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
 			batchVerifier.Add(msg, tx.Auth)
@@ -262,7 +256,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
-	if chunkUnits.Greater(p.r.GetMaxChunkUnits()) {
+	if !p.r.GetMaxChunkUnits().Greater(chunkUnits) {
 		p.vm.Logger().Warn("chunk uses more than max units", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
@@ -321,7 +315,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk, cw *s
 		// If this passes, we know that latest pHeight must be non-nil
 
 		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, *epochHeight, tx.Auth.Sponsor())
+		parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Auth.Sponsor())
 		if err != nil {
 			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.markChunkTxsInvalid(chunkIndex, chunkTxs)

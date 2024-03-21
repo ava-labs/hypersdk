@@ -199,16 +199,10 @@ func AddBalance(
 	mu state.Mutable,
 	addr codec.Address,
 	amount uint64,
-	create bool,
 ) error {
-	key, bal, exists, err := getBalance(ctx, mu, addr)
+	key, bal, _, err := getBalance(ctx, mu, addr)
 	if err != nil {
 		return err
-	}
-	// Don't add balance if account doesn't exist. This
-	// can be useful when processing fee refunds.
-	if !exists && !create {
-		return nil
 	}
 	nbal, err := smath.Add64(bal, amount)
 	if err != nil {

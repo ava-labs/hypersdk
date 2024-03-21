@@ -25,7 +25,7 @@ AGO_LOG_LEVEL=${AGO_LOG_LEVEL:-INFO}
 AGO_LOG_DISPLAY_LEVEL=${AGO_LOG_DISPLAY_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 EPOCH_DURATION=${EPOCH_DURATION:-60000}
-VALIDITY_WINDOW=${VALIDITY_WINDOW:-55000}
+VALIDITY_WINDOW=${VALIDITY_WINDOW:-59000}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 if [[ ${MODE} != "run" ]]; then
@@ -157,10 +157,10 @@ rm -f "${TMPDIR}"/morpheusvm.config
 rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 750,
-  "targetChunkBuildDuration": 500,
+  "chunkBuildFrequency": 400,
+  "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
-  "mempoolSize": 10000000,
+  "mempoolSize": 2147483648,
   "mempoolSponsorSize": 10000000,
   "authExecutionCores": 4,
   "actionExecutionCores": 2,
@@ -169,6 +169,8 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "verifyAuth":true,
   "authRPCCores": 4,
   "authRPCBacklog": 10000000,
+  "authGossipCores": 4,
+  "authGossipBacklog": 10000000,
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
@@ -275,11 +277,6 @@ echo "running e2e tests"
 
 ############################
 if [[ ${MODE} == "run" ]]; then
-  SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 2))
-  echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-  echo "We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value."
-  
-sleep $SLEEP_DUR
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true

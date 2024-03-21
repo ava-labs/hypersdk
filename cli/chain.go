@@ -244,7 +244,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		uris[uriName],
 		rpc.DefaultHandshakeTimeout,
 		pubsub.MaxPendingMessages,
-		pubsub.TargetWriteMessageSize,
+		consts.MTU,
 		pubsub.MaxReadMessageSize,
 	) // we write the max read
 	if err != nil {

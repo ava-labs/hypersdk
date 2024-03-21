@@ -33,11 +33,8 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordOptimisticAuthorizedChunk(time.Duration)
-	RecordNotAuthorizedChunk()
 	RecordRPCAuthorizedTx()
 	RecordExecutedChunks(int)
-	RecordUnusedAuthorizedChunks(int)
 
 	RecordWaitRepeat(time.Duration)
 	RecordWaitAuth(time.Duration)
@@ -45,16 +42,20 @@ type Metrics interface {
 	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
 
-	RecordRemainingMempool()
+	RecordRemainingMempool(int)
 
 	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordAcceptedEpoch(uint64)
+	RecordExecutedEpoch(uint64)
 
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
-	RecordTxsValid(int)
+	RecordChunkBuildTxDropped()
+	RecordBlockBuildCertDropped()
+	RecordTxsInvalid(int)
 	RecordStateChanges(int)
 	RecordStateOperations(int)
 	RecordEngineBacklog(int)
@@ -104,8 +105,8 @@ type VM interface {
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
-	ExecutedChunk(context.Context, uint64, *FilteredChunk, []*Result)
-	ExecutedBlock(context.Context, *StatelessBlock)
+	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
+	ExecutedBlock(context.Context, *StatefulBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
@@ -126,14 +127,13 @@ type VM interface {
 	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
 	IsSeenChunk(context.Context, ids.ID) bool
-	CertChan() chan *ChunkCertificate
 	GetChunk(int64, ids.ID) (*Chunk, error)
 
 	IsValidHeight(ctx context.Context, height uint64) (bool, error)
 	CacheValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
-	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
+	AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -141,16 +141,9 @@ type Mempool interface {
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
-	Top(
-		context.Context,
-		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
-	) error
-
 	StartStreaming(context.Context)
-	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context) (*Transaction, bool)
+	FinishStreaming(context.Context, []*Transaction)
 }
 
 type Rules interface {

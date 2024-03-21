@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const batchOverhead = consts.Int64Len + consts.IntLen // timestamp + msg count
+const batchOverhead = consts.IntLen // msg count
 
 type MessageBuffer struct {
 	Queue chan []byte
@@ -141,7 +141,7 @@ func (m *MessageBuffer) Send(msg []byte) (uint64, error) {
 }
 
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
-	size := consts.Int64Len + consts.IntLen
+	size := consts.IntLen
 	for _, msg := range msgs {
 		size += codec.BytesLen(msg)
 	}
@@ -150,11 +150,10 @@ func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {
 	for _, msg := range msgs {
 		msgBatch.PackBytes(msg)
 	}
-	msgBatch.PackInt64(time.Now().UnixMilli())
 	return msgBatch.Bytes(), msgBatch.Err()
 }
 
-func ParseBatchMessage(maxSize int, msg []byte) (int64, [][]byte, error) {
+func ParseBatchMessage(maxSize int, msg []byte) ([][]byte, error) {
 	msgBatch := codec.NewReader(msg, maxSize)
 	msgLen := msgBatch.UnpackInt(true)
 	msgs := [][]byte{}
@@ -162,10 +161,9 @@ func ParseBatchMessage(maxSize int, msg []byte) (int64, [][]byte, error) {
 		var nextMsg []byte
 		msgBatch.UnpackBytes(-1, true, &nextMsg)
 		if err := msgBatch.Err(); err != nil {
-			return -1, nil, err
+			return nil, err
 		}
 		msgs = append(msgs, nextMsg)
 	}
-	timestamp := msgBatch.UnpackInt64(true)
-	return timestamp, msgs, msgBatch.Err()
+	return msgs, msgBatch.Err()
 }

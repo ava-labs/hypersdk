@@ -231,7 +231,7 @@ func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (i
 	return ids.NodeID{}, fmt.Errorf("no validators")
 }
 
-func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error) {
+func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address) (ids.NodeID, error) {
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -242,9 +242,10 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, height uint64, a
 	if len(info.partitionSet) == 0 {
 		return ids.NodeID{}, errors.New("no validators")
 	}
-	seed := make([]byte, consts.Uint64Len+codec.AddressLen)
-	binary.BigEndian.PutUint64(seed, height)
-	copy(seed[consts.Uint64Len:], addr[:])
+	seed := make([]byte, consts.Uint64Len*2+codec.AddressLen)
+	binary.BigEndian.PutUint64(seed, epoch) // ensures partitions rotate even if P-Chain height is static
+	binary.BigEndian.PutUint64(seed[consts.Uint64Len:], height)
+	copy(seed[consts.Uint64Len*2:], addr[:])
 	h := utils.ToID(seed)
 	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
 	indexInt := int(index.Int64())
