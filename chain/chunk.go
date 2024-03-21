@@ -289,6 +289,10 @@ func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {
 	return bls.Verify(c.Signer, c.Signature, msg.Bytes())
 }
 
+func (c *Chunk) AuthCounts() map[uint8]int {
+	return c.authCounts
+}
+
 func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	var (
 		actionRegistry, authRegistry = parser.Registry()

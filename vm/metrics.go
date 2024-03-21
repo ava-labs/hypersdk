@@ -93,6 +93,7 @@ type Metrics struct {
 	fetchMissingChunks        metric.Averager
 	collectChunkSignatures    metric.Averager
 	txTimeRemainingMempool    metric.Averager
+	chunkAuth                 metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -248,6 +249,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"tx_time_remaining_mempool",
 		"valid time for inclusion when a tx is included in the mempool",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunkAuth, err := metric.NewAverager(
+		"chain",
+		"chunk_auth",
+		"time spent authenticating chunks",
 		r,
 	)
 	if err != nil {
@@ -527,6 +537,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		fetchMissingChunks:     fetchMissingChunks,
 		collectChunkSignatures: collectChunkSignatures,
 		txTimeRemainingMempool: txTimeRemainingMempool,
+		chunkAuth:              chunkAuth,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 

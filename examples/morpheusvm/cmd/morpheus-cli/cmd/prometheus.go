@@ -118,6 +118,15 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_bytes_built[5s])/5", chainID))
 			utils.Outf("{{yellow}}chunk bytes built per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_auth_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_chunk_auth_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}chunk authorization (ms/chunk):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_auth_count[5s])/5", chainID))
+			utils.Outf("{{yellow}}chunk authorizations per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_auth_sum[5s])/1000000/5", chainID))
+			utils.Outf("{{yellow}}chunk authorization (ms/s):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_block_build_count[5s])/5", chainID))
 			utils.Outf("{{yellow}}blocks built per second:{{/}} %s\n", panels[len(panels)-1])
 

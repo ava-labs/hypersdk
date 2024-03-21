@@ -129,20 +129,20 @@ func NewCertStore() *CertStore {
 // more signers.
 //
 // TODO: update if more weight rather than using signer heuristic?
-func (c *CertStore) Update(cert *chain.ChunkCertificate) {
+func (c *CertStore) Update(cert *chain.ChunkCertificate) bool {
 	c.l.Lock()
 	defer c.l.Unlock()
 
 	// Only keep certs around that could be included.
 	if cert.Slot < c.minTime {
-		return
+		return false
 	}
 
 	// Record the first time we saw this certificate, so we can properly
 	// sort during building.
 	firstSeen := int64(0)
-	v, ok := c.seen.Get(cert.ID())
-	if !ok {
+	v, sok := c.seen.Get(cert.ID())
+	if !sok {
 		firstSeen = time.Now().UnixMilli()
 		c.seen.Add(&seenWrapper{
 			chunkID: cert.ID(),
@@ -153,24 +153,25 @@ func (c *CertStore) Update(cert *chain.ChunkCertificate) {
 		firstSeen = v.seen
 	}
 
-	// Store the certificate by
+	// Store the certificate
 	elem, ok := c.eh.Get(cert.ID())
 	if !ok {
 		c.eh.Add(&certWrapper{
 			cert: cert,
 			seen: firstSeen,
 		})
-		return
+		return !sok
 	}
 	// If the existing certificate has more signers than the
 	// new certificate, don't update.
 	//
 	// TODO: we should use weight here, not just number of signers
 	if elem.cert.Signers.Len() > cert.Signers.Len() {
-		return
+		return !sok
 	}
 	elem.cert = cert
 	c.eh.Update(elem)
+	return !sok
 }
 
 // Called when a block is accepted with valid certs.
@@ -640,7 +641,13 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
 
 		// Store chunk certificate for building
-		c.certs.Update(cert)
+		if c.certs.Update(cert) {
+			// Start to verify signature if this is the first time we are seeing a valid cert and we have the chunk
+			if !c.vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
+				c.vm.Logger().Debug("skipping optimistic authorization because we don't have the chunk", zap.Stringer("chunkID", cert.Chunk))
+				return nil
+			}
+		}
 	case txMsg:
 		authCounts, txs, err := chain.UnmarshalTxs(msg[1:], gossipTxPrealloc, c.vm.actionRegistry, c.vm.authRegistry)
 		if err != nil {
