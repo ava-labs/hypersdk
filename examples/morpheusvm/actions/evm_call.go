@@ -185,9 +185,10 @@ func GasToComputeUnits(gas uint64) uint64 {
 	return gas / 1000
 }
 
-func (*EvmCall) Size() int {
+func (e *EvmCall) Size() int {
 	// TODO: try to calculate size without packing
 	p := codec.NewWriter(0, consts.MaxInt)
+	e.Marshal(p)
 	return p.Offset()
 }
 
