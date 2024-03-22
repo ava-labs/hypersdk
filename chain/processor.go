@@ -335,11 +335,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
+	p.exectutor.Done()
 	p.vm.RecordWaitRepeat(p.repeatWait)
-	p.vm.Logger().Info(
-		"remaining items when done",
-		zap.Int("remaining", p.exectutor.Done()),
-	)
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {

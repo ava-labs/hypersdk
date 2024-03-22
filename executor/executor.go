@@ -27,7 +27,7 @@ type Executor struct {
 	executable chan *task
 	remaining  atomic.Int64
 
-	seen  int
+	added int
 	tasks []*task
 	edges map[string]int
 
@@ -46,8 +46,8 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		stop:       make(chan struct{}),
 	}
 	e.remaining.Add(int64(items))
+	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		e.workers.Add(1)
 		go e.createWorker()
 	}
 	return e
@@ -65,7 +65,7 @@ type task struct {
 
 func (e *Executor) runTask(t *task) {
 	defer func() {
-		if remaining := e.remaining.Add(-1); remaining == 0 {
+		if e.remaining.Add(-1) == 0 {
 			e.stopOnce.Do(func() {
 				close(e.stop)
 			})
@@ -81,8 +81,6 @@ func (e *Executor) runTask(t *task) {
 	}
 
 	t.l.Lock()
-	t.blocking = nil // free memory
-	t.executed = true
 	for b := range t.blocking { // works fine on non-initialized map
 		bt := e.tasks[b]
 		bt.l.Lock()
@@ -93,6 +91,8 @@ func (e *Executor) runTask(t *task) {
 		}
 		bt.l.Unlock()
 	}
+	t.blocking = nil // free memory
+	t.executed = true
 	t.l.Unlock()
 }
 
@@ -119,7 +119,7 @@ func (e *Executor) createWorker() {
 // https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Ensure too many transactions not enqueued
-	if e.seen+1 >= len(e.tasks) {
+	if e.added >= len(e.tasks) {
 		e.stopOnce.Do(func() {
 			e.err = errors.New("too many transactions created")
 			close(e.stop)
@@ -128,8 +128,8 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	}
 
 	// Generate task
-	id := e.seen
-	e.seen++
+	id := e.added
+	e.added++
 	t := &task{
 		id: id,
 		f:  f,
@@ -181,19 +181,18 @@ func (e *Executor) Stop() {
 	})
 }
 
-// ReduceRemaining decrements the number of remaining tasks by [delta].
+// Done decrements the number of remaining tasks by the difference between
+// how many tasks were created and what has been enqueued.
 //
 // This is useful because we don't actually know how many transactions
 // will be processed when we start the executor.
-func (e *Executor) Done() int {
-	abandonedTasks := len(e.tasks) - e.seen
-	remaining := e.remaining.Add(-int64(abandonedTasks))
-	if remaining == 0 {
+func (e *Executor) Done() {
+	abandonedTasks := len(e.tasks) - e.added
+	if e.remaining.Add(-int64(abandonedTasks)) == 0 {
 		e.stopOnce.Do(func() {
 			close(e.stop)
 		})
 	}
-	return int(remaining)
 }
 
 // Wait returns as soon as all enqueued [f] are executed.

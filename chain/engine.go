@@ -331,6 +331,7 @@ func (e *Engine) Run() {
 				continue
 			case errors.Is(ErrMissingChunks, err):
 				// Should only happen on shutdown
+				e.vm.Logger().Warn("engine shutting down", zap.Error(err))
 				return
 			default:
 				panic(err) // unrecoverable error
