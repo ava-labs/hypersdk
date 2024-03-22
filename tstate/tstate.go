@@ -8,9 +8,12 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ethereum/go-ethereum/common"
 	"go.opentelemetry.io/otel/attribute"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
 
@@ -79,4 +82,28 @@ func (ts *TState) ExportMerkleDBView(
 	defer span.End()
 
 	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
+}
+
+func (ts *TState) LogChangedKeys(log logging.Logger, prefix string, height uint64) {
+	ts.l.RLock()
+	defer ts.l.RUnlock()
+
+	for k, v := range ts.changedKeys {
+		if v.IsNothing() {
+			log.Info(
+				"TState deleted key",
+				zap.String("key", common.Bytes2Hex([]byte(k))),
+				zap.String("prefix", prefix),
+				zap.Uint64("height", height),
+			)
+		} else {
+			log.Info(
+				"TState changed key",
+				zap.String("key", common.Bytes2Hex([]byte(k))),
+				zap.String("value", common.Bytes2Hex(v.Value())),
+				zap.String("prefix", prefix),
+				zap.Uint64("height", height),
+			)
+		}
+	}
 }

@@ -6,13 +6,18 @@ package tstate
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"slices"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ethereum/go-ethereum/common"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -35,6 +40,8 @@ type op struct {
 	pastWrites    *uint16
 }
 
+var verifyInitialValues = false
+
 type TStateView struct {
 	ts                 *TState
 	pendingChangedKeys map[string]maybe.Maybe[[]byte]
@@ -49,6 +56,7 @@ type TStateView struct {
 	// https://github.com/ava-labs/hypersdk/issues/709
 	scope        state.Keys
 	scopeStorage map[string][]byte
+	initialValue map[string]maybe.Maybe[[]byte]
 
 	// Store which keys are modified and how large their values were.
 	canAllocate bool
@@ -56,8 +64,118 @@ type TStateView struct {
 	writes      map[string]uint16
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
+func (ts *TStateView) Scope() state.Keys {
+	return ts.scope
+}
+func (ts *TStateView) ScopeStorage() map[string][]byte {
+	return ts.scopeStorage
+}
+func (ts *TStateView) InitialValue() map[string]maybe.Maybe[[]byte] {
+	return ts.initialValue
+}
+func (ts *TStateView) PendingChangedKeys() map[string]maybe.Maybe[[]byte] {
+	return ts.pendingChangedKeys
+}
+
+func marshalMap[T any](p *codec.Packer, m map[string]T, packValue func(*codec.Packer, T)) {
+	keys := maps.Keys(m)
+	slices.Sort(keys)
+	p.PackInt(len(keys))
+	for _, k := range keys {
+		p.PackString(k)
+		packValue(p, m[k])
+	}
+}
+
+func unmarshalMap[T any](p *codec.Packer, unpackValue func(*codec.Packer) T) map[string]T {
+	numKeys := p.UnpackInt(false)
+	m := make(map[string]T, numKeys)
+	for i := 0; i < numKeys; i++ {
+		key := p.UnpackString(false)
+		m[key] = unpackValue(p)
+	}
+	return m
+}
+
+func (ts *TStateView) Marshal(p *codec.Packer) {
+	marshalMap(p, ts.scope, func(p *codec.Packer, v state.Permissions) {
+		p.PackByte(byte(v))
+	})
+	marshalMap(p, ts.scopeStorage, func(p *codec.Packer, v []byte) {
+		p.PackBytes(v)
+	})
+	marshalMap(p, ts.initialValue, func(p *codec.Packer, v maybe.Maybe[[]byte]) {
+		p.PackBool(v.HasValue())
+		p.PackBytes(v.Value())
+	})
+	marshalMap(p, ts.pendingChangedKeys, func(p *codec.Packer, v maybe.Maybe[[]byte]) {
+		p.PackBool(v.HasValue())
+		p.PackBytes(v.Value())
+	})
+}
+
+func UnmarshalTStateView(p *codec.Packer) *TStateView {
+	scope := unmarshalMap(p, func(p *codec.Packer) state.Permissions {
+		return state.Permissions(p.UnpackByte())
+	})
+	scopeStorage := unmarshalMap(p, func(p *codec.Packer) []byte {
+		var val []byte
+		p.UnpackBytes(-1, false, &val)
+		return val
+	})
+	initialValue := unmarshalMap(p, func(p *codec.Packer) maybe.Maybe[[]byte] {
+		hasVal := p.UnpackBool()
+		var val []byte
+		p.UnpackBytes(-1, false, &val)
+		if !hasVal {
+			return maybe.Nothing[[]byte]()
+		}
+		return maybe.Some(val)
+	})
+	pendingChangedKeys := unmarshalMap(p, func(p *codec.Packer) maybe.Maybe[[]byte] {
+		hasVal := p.UnpackBool()
+		var val []byte
+		p.UnpackBytes(-1, false, &val)
+		if !hasVal {
+			return maybe.Nothing[[]byte]()
+		}
+		return maybe.Some(val)
+	})
+	ts := New(0)
+	for k, v := range initialValue {
+		if _, exists := scopeStorage[k]; !exists {
+			continue
+		}
+		ts.changedKeys[k] = v
+	}
 	return &TStateView{
+		ts:                 ts,
+		scope:              scope,
+		initialValue:       initialValue,
+		scopeStorage:       scopeStorage,
+		pendingChangedKeys: pendingChangedKeys,
+
+		ops:         make([]*op, 0, defaultOps),
+		canAllocate: true, // default to allowing allocation
+		allocates:   make(map[string]uint16, len(scope)),
+		writes:      make(map[string]uint16, len(scope)),
+	}
+}
+
+func (ts *TStateView) setInitialValues(ctx context.Context) {
+	ts.initialValue = make(map[string]maybe.Maybe[[]byte], len(ts.scope))
+	for k := range ts.scope {
+		v, exists := ts.getValue(ctx, k)
+		if exists {
+			ts.initialValue[k] = maybe.Some(v)
+		} else {
+			ts.initialValue[k] = maybe.Nothing[[]byte]()
+		}
+	}
+}
+
+func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
+	tsv := &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 
@@ -70,6 +188,10 @@ func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateVi
 		allocates:   make(map[string]uint16, len(scope)),
 		writes:      make(map[string]uint16, len(scope)),
 	}
+	if verifyInitialValues {
+		tsv.setInitialValues(context.Background())
+	}
+	return tsv
 }
 
 // Rollback restores the TState to the ts.op[restorePoint] operation.
@@ -175,14 +297,41 @@ func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permiss
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
 	// Getting a value requires a Read permission, so we pass state.Read
 	if !ts.checkScope(ctx, key, state.Read) {
-		return nil, ErrInvalidKeyOrPermission
+		return nil, fmt.Errorf(
+			"%w: key %x not in scope or does not have read permission",
+			ErrInvalidKeyOrPermission,
+			key,
+		)
 	}
 	k := string(key)
 	v, exists := ts.getValue(ctx, k)
+	if verifyInitialValues {
+		if err := ts.verifyInitialValue(k, v, exists); err != nil {
+			panic(err)
+		}
+	}
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
+}
+
+func (ts *TStateView) verifyInitialValue(key string, value []byte, exists bool) error {
+	if _, ok := ts.pendingChangedKeys[key]; ok {
+		return nil // if we have a pending change, we don't need to verify against initial value
+	}
+	if v, ok := ts.initialValue[key]; ok {
+		if v.IsNothing() {
+			if exists {
+				return fmt.Errorf("initial value for key %x is not found", key)
+			}
+			return nil
+		}
+		if !bytes.Equal(v.Value(), value) {
+			return fmt.Errorf("initial value for key %x is %x, not %x", key, v.Value(), value)
+		}
+	}
+	return nil
 }
 
 func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
@@ -218,7 +367,11 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
 	// Inserting requires a Write Permissions, so we pass state.Write
 	if !ts.checkScope(ctx, key, state.Write) {
-		return ErrInvalidKeyOrPermission
+		return fmt.Errorf(
+			"%w: key %x not in scope or does not have write permission",
+			ErrInvalidKeyOrPermission,
+			key,
+		)
 	}
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
@@ -247,7 +400,11 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		// make this invariant more clear. Do we require Write,
 		// Allocate|Write, and never Allocate alone?
 		if !ts.checkScope(ctx, key, state.Allocate) {
-			return ErrInvalidKeyOrPermission
+			return fmt.Errorf(
+				"%w: key %x not in scope or does not have allocate permission",
+				ErrInvalidKeyOrPermission,
+				key,
+			)
 		}
 		if !ts.canAllocate {
 			return ErrAllocationDisabled
@@ -272,7 +429,11 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	// Removing requires writing & deleting that key, so we pass state.Write
 	if !ts.checkScope(ctx, key, state.Write) {
-		return ErrInvalidKeyOrPermission
+		return fmt.Errorf(
+			"%w: key %x not in scope or does not have write permission",
+			ErrInvalidKeyOrPermission,
+			key,
+		)
 	}
 	k := string(key)
 	past, exists := ts.getValue(ctx, k)
@@ -333,18 +494,24 @@ func chunks(m map[string]uint16, key string) *uint16 {
 	return &chunks
 }
 
-func (ts *TStateView) LogChangedKeys(log logging.Logger) {
+func (ts *TStateView) LogChangedKeys(log logging.Logger, prefix string, height uint64, txID ids.ID) {
 	for k, v := range ts.pendingChangedKeys {
 		if v.IsNothing() {
 			log.Info(
 				"TStateView deleted key",
 				zap.String("key", common.Bytes2Hex([]byte(k))),
+				zap.String("prefix", prefix),
+				zap.Uint64("height", height),
+				zap.Stringer("txID", txID),
 			)
 		} else {
 			log.Info(
 				"TStateView changed key",
 				zap.String("key", common.Bytes2Hex([]byte(k))),
 				zap.String("value", common.Bytes2Hex(v.Value())),
+				zap.String("prefix", prefix),
+				zap.Uint64("height", height),
+				zap.Stringer("txID", txID),
 			)
 		}
 	}

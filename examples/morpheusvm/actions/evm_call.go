@@ -19,6 +19,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/shim"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/subnet-evm/core"
 	"github.com/ava-labs/subnet-evm/core/vm"
 	"github.com/ava-labs/subnet-evm/params"
@@ -43,6 +44,7 @@ type EvmCall struct {
 	SkipNonces    bool            `json:"skipNonces"`
 
 	logger         logging.Logger
+	logReplayBytes bool
 	usedGas        uint64
 	executionError error
 }
@@ -126,8 +128,8 @@ func (e *EvmCall) Execute(
 	mu state.Mutable,
 	time int64,
 	actor codec.Address,
-	_ ids.ID,
-	_ bool,
+	txID ids.ID,
+	warpVerified bool,
 ) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
 	blockGasLimit := r.GetMaxBlockUnits()[1]
 	parentHeight, err := getParentHeight(ctx, mu)
@@ -163,16 +165,29 @@ func (e *EvmCall) Execute(
 	}
 	hash := statedb.IntermediateRoot(true)
 	if e.logger != nil {
-		e.logger.Info("EVM call executed",
+		args := []zap.Field{
 			zap.Bool("success", result.Err == nil),
 			zap.Uint64("gasUsed", result.UsedGas),
 			zap.Binary("returnData", result.ReturnData),
 			zap.Stringer("hash", hash),
-			zap.Error(result.Err),
-		)
+			zap.Stringer("txID", txID),
+			zap.NamedError("executionError", result.Err),
+			zap.NamedError("statedbError", statedb.Error()),
+		}
+		if e.logReplayBytes {
+			replayBytes := e.replayBytes(mu, time, actor, txID, warpVerified)
+			args = append(
+				args,
+				zap.String("replayBytes", common.Bytes2Hex(replayBytes)),
+			)
+		}
+		e.logger.Info("EVM call executed", args...)
 	}
-	success := result.Err == nil
+	success := result.Err == nil && statedb.Error() == nil
 	e.executionError = result.Err
+	if result.Err == nil {
+		e.executionError = statedb.Error()
+	}
 	e.usedGas = result.UsedGas
 	return success, GasToComputeUnits(result.UsedGas), result.ReturnData, nil, nil
 }
@@ -277,6 +292,28 @@ func (e *EvmCall) SetStateKeys(k state.Keys) {
 
 func (e *EvmCall) SetLogger(logger logging.Logger) {
 	e.logger = logger
+}
+
+func (e *EvmCall) SetLogReplayBytes(logReplayBytes bool) {
+	e.logReplayBytes = logReplayBytes
+}
+
+func (e *EvmCall) replayBytes(
+	mu state.Mutable, time int64, actor codec.Address, txID ids.ID,
+	warpVerified bool,
+) []byte {
+	ts, ok := mu.(*tstate.TStateView)
+	if !ok {
+		return []byte{}
+	}
+	p := codec.NewWriter(0, consts.MaxInt)
+	e.Marshal(p)
+	ts.Marshal(p)
+	p.PackInt64(time)
+	p.PackBytes(actor[:])
+	p.PackBytes(txID[:])
+	p.PackBool(warpVerified)
+	return p.Bytes()
 }
 
 func (e *EvmCall) ExecutionError() string {

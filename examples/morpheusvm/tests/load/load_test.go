@@ -106,6 +106,8 @@ var (
 	acceptDepth int
 	verifyAuth  bool
 
+	deterministicKeys bool
+
 	senders []*account
 	blks    []*chain.StatelessBlock
 
@@ -173,6 +175,12 @@ func init() {
 		"verify-auth",
 		true,
 		"verify auth over RPC and in block verification",
+	)
+	flag.BoolVar(
+		&deterministicKeys,
+		"deterministic-keys",
+		false,
+		"generate deterministic keys",
 	)
 }
 
@@ -379,12 +387,38 @@ var _ = ginkgo.AfterSuite(func() {
 	}
 })
 
+type SeededRandReader struct {
+	rand.Source
+}
+
+func NewSeededRandReader(seed int64) *SeededRandReader {
+	return &SeededRandReader{
+		Source: rand.NewSource(seed),
+	}
+}
+
+func (s *SeededRandReader) Read(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i++ {
+		p[i] = byte(s.Source.Int63() & 0xff)
+	}
+	return len(p), nil
+}
+
 var _ = ginkgo.Describe("load tests vm", func() {
 	ginkgo.It("distributes funds", func() {
 		ginkgo.By("create accounts", func() {
 			senders = make([]*account, accts)
+			reader := NewSeededRandReader(0) // deterministic key generation
 			for i := 0; i < accts; i++ {
-				tpriv, err := ed25519.GeneratePrivateKey()
+				var (
+					tpriv ed25519.PrivateKey
+					err   error
+				)
+				if deterministicKeys {
+					tpriv, err = ed25519.GeneratePrivateKeyWithReader(reader)
+				} else {
+					tpriv, err = ed25519.GeneratePrivateKey()
+				}
 				gomega.Ω(err).Should(gomega.BeNil())
 				trsender := auth.NewED25519Address(tpriv.PublicKey())
 				tsender := codec.MustAddressBech32(consts.HRP, trsender)
@@ -394,41 +428,20 @@ var _ = ginkgo.Describe("load tests vm", func() {
 
 		ginkgo.By("load accounts", func() {
 			// sending 1 tx to each account
-			remainder := uint64(accts)*maxFee + uint64(10_000_000)
+			remainder := uint64(accts)*maxFee + uint64(100_000_000)
 			// leave some left over for root
 			fundSplit := (genesisBalance - remainder) / uint64(accts)
 			gomega.Ω(fundSplit).Should(gomega.Not(gomega.BeZero()))
-			requiredTxs := map[ids.ID]struct{}{}
+			log.Info("funding accounts", zap.Uint64("split", fundSplit), zap.Uint64("remainder", remainder))
+			issuer := newSimpleTxIssuer()
 			for _, acct := range senders {
-				id, err := issueSimpleTx(instances[0], acct.rsender, fundSplit, root.factory)
-				gomega.Ω(err).Should(gomega.BeNil())
-				requiredTxs[id] = struct{}{}
+				action := &actions.Transfer{
+					Value: fundSplit,
+					To:    acct.rsender,
+				}
+				issuer.issueTx(action, root.factory)
 			}
-
-			for {
-				blk, accept := produceBlock(instances[0])
-				if blk == nil {
-					break
-				}
-				accept()
-				log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
-				for _, result := range blk.Results() {
-					if !result.Success {
-						unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
-					}
-					gomega.Ω(result.Success).Should(gomega.BeTrue())
-				}
-				for _, tx := range blk.Txs {
-					delete(requiredTxs, tx.ID())
-				}
-				for _, instance := range instances[1:] {
-					accept := addBlock(instance, blk)
-					accept()
-				}
-			}
-
-			gomega.Ω(len(requiredTxs)).To(gomega.BeZero())
+			issuer.produceAndAcceptBlock(true)
 		})
 
 		var (
@@ -559,7 +572,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				}
 
 				issuer.issueTx(action, root.factory)
-				issuer.produceAndAcceptBlock()
+				issuer.produceAndAcceptBlock(true)
 			}
 		})
 
@@ -595,7 +608,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 				issuer.issueTx(actionB, root.factory)
 			}
-			issuer.produceAndAcceptBlock()
+			issuer.produceAndAcceptBlock(true)
 		})
 
 		ginkgo.By("approve tokens", func() {
@@ -629,7 +642,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 				issuer.issueTx(actionAllowanceB, acct.factory)
 			}
-			issuer.produceAndAcceptBlock()
+			issuer.produceAndAcceptBlock(true)
 		})
 
 		ginkgo.By("swap tokens", func() {
@@ -672,7 +685,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			_ = balanceOf
 
 			issuer := newSimpleTxIssuer()
-			for round := 0; round < 10; round++ {
+			for round := 0; round < 20; round++ {
 				for i, acct := range senders {
 					evmTxBuilder := &evmTxBuilder{
 						actor: acct.rsender,
@@ -680,6 +693,9 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					}
 					evmAddr := actions.ToEVMAddress(acct.rsender)
 					amountIn := big.NewInt(100)
+					// this avoids duplicate txs
+					amountIn = amountIn.Sub(amountIn, big.NewInt(int64(round)))
+
 					var route []ethCommon.Address
 					if (round+i)%2 == 0 {
 						route = routeAB
@@ -704,7 +720,8 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					gomega.Ω(err).Should(gomega.BeNil())
 					issuer.issueTx(action, acct.factory)
 				}
-				issuer.produceAndAcceptBlock()
+				// some trades may not succeed, so we don't require all txs to be in a block
+				issuer.produceAndAcceptBlock(false)
 				log.Info("swap round completed", zap.Int("round", round))
 			}
 		})
@@ -793,7 +810,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			acceptCalls := []func(){}
 			ginkgo.By(fmt.Sprintf("sync instance %d", i+1), func() {
 				for _, blk := range blks {
-					acceptCalls = append(acceptCalls, addBlock(instance, blk))
+					acceptCalls = append(acceptCalls, addBlock(i+1, instance, blk))
 
 					// Accept blocks at some [acceptDepth]
 					acceptIndex := len(acceptCalls) - 1 - acceptDepth
@@ -830,7 +847,7 @@ func (s *simpleTxIssuer) issueTx(action chain.Action, signer chain.AuthFactory) 
 	s.pending[id] = struct{}{}
 }
 
-func (s *simpleTxIssuer) produceAndAcceptBlock() {
+func (s *simpleTxIssuer) produceAndAcceptBlock(mustSucceed bool) {
 	instances := s.instances
 	for {
 		blk, accept := produceBlock(instances[0])
@@ -838,19 +855,36 @@ func (s *simpleTxIssuer) produceAndAcceptBlock() {
 			break
 		}
 		accept()
-		log.Debug("block produced", zap.Uint64("height", blk.Hght), zap.Int("txs", len(blk.Txs)))
+
+		success := 0
 		for _, result := range blk.Results() {
-			if !result.Success {
+			if result.Success {
+				success++
+			} else {
 				unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-				fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
+				log.Warn(
+					"tx failed",
+					zap.Stringer("unit prices", unitPrices),
+					zap.Stringer("consumed", result.Consumed),
+					zap.Uint64("fee", result.Fee),
+					zap.Binary("output", result.Output),
+				)
+			}
+			if !mustSucceed {
+				continue
 			}
 			gomega.Ω(result.Success).Should(gomega.BeTrue())
 		}
+		log.Info("block produced",
+			zap.Uint64("height", blk.Hght),
+			zap.Int("txs", len(blk.Txs)),
+			zap.Int("success", success),
+		)
 		for _, tx := range blk.Txs {
 			delete(s.pending, tx.ID())
 		}
-		for _, instance := range instances[1:] {
-			accept := addBlock(instance, blk)
+		for i, instance := range instances[1:] {
+			accept := addBlock(i+1, instance, blk)
 			accept()
 		}
 	}
@@ -917,14 +951,14 @@ func produceBlock(i *instance) (*chain.StatelessBlock, func()) {
 	}
 }
 
-func addBlock(i *instance, blk *chain.StatelessBlock) func() {
+func addBlock(num int, i *instance, blk *chain.StatelessBlock) func() {
 	ctx := context.TODO()
 	start := time.Now()
 	tblk, err := i.vm.ParseBlock(ctx, blk.Bytes())
 	i.parse = append(i.parse, time.Since(start).Seconds())
 	gomega.Ω(err).Should(gomega.BeNil())
 	start = time.Now()
-	gomega.Ω(tblk.Verify(ctx)).Should(gomega.BeNil())
+	gomega.Ω(tblk.Verify(ctx)).Should(gomega.BeNil(), "block failed verification (instance %d)", num)
 	i.verify = append(i.verify, time.Since(start).Seconds())
 	return func() {
 		start = time.Now()

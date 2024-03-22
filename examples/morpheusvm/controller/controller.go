@@ -149,7 +149,6 @@ func (c *Controller) StateManager() chain.StateManager {
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
 	batch := c.metaDB.NewBatch()
-	defer batch.Reset()
 
 	results := blk.Results()
 	for i, tx := range blk.Txs {

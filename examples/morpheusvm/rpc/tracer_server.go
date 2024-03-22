@@ -49,7 +49,7 @@ func (j *JSONRPCServer) TraceTx(
 
 	mu := state.NewSimpleMutable(view)
 	traced := shim.NewStateKeyTracer(mu)
-	args.Action.SetLogger(j.c.Logger())
+	// args.Action.SetLogger(j.c.Logger())
 	success, actionCUs, output, warpMessage, err := args.Action.Execute(
 		ctx, r, traced, t, args.Actor, args.TxID, args.WarpVerified,
 	)

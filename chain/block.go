@@ -645,10 +645,11 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	b.vm.RecordWaitRoot(time.Since(start))
 	if b.StateRoot != computedRoot {
 		return fmt.Errorf(
-			"%w: expected=%s found=%s",
+			"%w: expected=%s found=%s (height=%d)",
 			ErrStateRootMismatch,
 			computedRoot,
 			b.StateRoot,
+			b.Hght,
 		)
 	}
 
@@ -665,6 +666,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Get view from [tstate] after processing all state transitions
 	b.vm.RecordStateChanges(ts.PendingChanges())
 	b.vm.RecordStateOperations(ts.OpIndex())
+	// ts.LogChangedKeys(b.vm.Logger(), "verify", b.Hght)
 	view, err := ts.ExportMerkleDBView(ctx, b.vm.Tracer(), parentView)
 	if err != nil {
 		return err

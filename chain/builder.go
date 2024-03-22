@@ -335,6 +335,12 @@ func BuildBlock(
 					log.Warn("invalid tx: invalid state keys")
 					return nil
 				}
+				// type setLogger interface {
+				// 	SetLogger(logger logging.Logger)
+				// }
+				// if sl, ok := tx.Action.(setLogger); ok {
+				// 	sl.SetLogger(log)
+				// }
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
@@ -377,6 +383,7 @@ func BuildBlock(
 				}
 
 				// Update block with new transaction
+				// tsv.LogChangedKeys(b.vm.Logger(), "builder", b.Hght, tx.ID())
 				tsv.Commit()
 				b.Txs = append(b.Txs, tx)
 				results = append(results, result)
@@ -475,6 +482,7 @@ func BuildBlock(
 	b.StateRoot = root
 
 	// Get view from [tstate] after writing all changed keys
+	// ts.LogChangedKeys(log, "builder", b.Hght)
 	view, err := ts.ExportMerkleDBView(ctx, vm.Tracer(), parentView)
 	if err != nil {
 		return nil, err

@@ -5,6 +5,7 @@ package ed25519
 
 import (
 	"crypto/ed25519"
+	"io"
 
 	"github.com/hdevalence/ed25519consensus"
 
@@ -47,6 +48,14 @@ var (
 	EmptyPrivateKey = [ed25519.PrivateKeySize]byte{}
 	EmptySignature  = [ed25519.SignatureSize]byte{}
 )
+
+func GeneratePrivateKeyWithReader(reader io.Reader) (PrivateKey, error) {
+	_, k, err := ed25519.GenerateKey(reader)
+	if err != nil {
+		return EmptyPrivateKey, err
+	}
+	return PrivateKey(k), nil
+}
 
 // GeneratePrivateKey returns a Ed25519 PrivateKey.
 func GeneratePrivateKey() (PrivateKey, error) {
