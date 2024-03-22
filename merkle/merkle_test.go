@@ -1,9 +1,9 @@
 package merkle
 
 import (
-	"encoding/binary"
 	"testing"
 
+	"crypto/rand"
 	"context"
 	"strconv"
 
@@ -12,23 +12,30 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
-var res_root ids.ID
-var res_db merkledb.MerkleDB
-var res_err error
+var resRoot ids.ID
+var resDb merkledb.MerkleDB
+var resErr error
 
 func BenchmarkMerkleTxRoot(b *testing.B) {
-	for _, size := range []int{10, 100, 1000, 10000} {
+  b.ReportAllocs()
+
+	for _, size := range []int{10, 100, 1000} {
     ctx := context.TODO()
     tracer := trace.Noop
     merkleItems := make([][]byte, 0, size)
     for i := 0; i < size; i++ {
-      as_bytes := make([]byte, 32)
-      binary.BigEndian.PutUint32(as_bytes, uint32(i))
-      merkleItems = append(merkleItems, as_bytes)
+      item := make([]byte, 32)
+      _, err := rand.Read(item)
+      if err != nil {
+        b.Fatal(err)
+      }
+      merkleItems = append(merkleItems, item)
     }
+
     var root ids.ID
     var db merkledb.MerkleDB
     var err error
+
 		b.Run(strconv.Itoa(size), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				for i := 0; i < size; i++ {
@@ -36,9 +43,10 @@ func BenchmarkMerkleTxRoot(b *testing.B) {
 				}
 			}
 		})
+
     // avoid compiler optimizations to cancel out the bench
-    res_root = root
-    res_db = db
-    res_err = err
+    resRoot = root
+    resDb = db
+    resErr = err
 	}
 }
