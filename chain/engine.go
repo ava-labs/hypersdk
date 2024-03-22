@@ -270,11 +270,11 @@ func (e *Engine) processJob(job *engineJob) error {
 	}
 
 	// Create new view and persist to disk
-	view, ops, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
+	view, changes, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 	if err != nil {
 		return err
 	}
-	e.vm.RecordStateOperations(ops)
+	e.vm.RecordStateChanges(changes)
 	commitStart := time.Now()
 	if err := view.CommitToDB(ctx); err != nil {
 		return err

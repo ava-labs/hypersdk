@@ -33,7 +33,6 @@ type Metrics struct {
 	chunkBuildTxsDropped      prometheus.Counter
 	blockBuildCertsDropped    prometheus.Counter
 	stateChanges              prometheus.Counter
-	stateOperations           prometheus.Counter
 	remainingMempool          prometheus.Counter
 	chunkBytesBuilt           prometheus.Counter
 	deletedBlocks             prometheus.Counter
@@ -306,11 +305,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_changes",
 			Help:      "number of state changes",
 		}),
-		stateOperations: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "state_operations",
-			Help:      "number of state operations",
-		}),
 		remainingMempool: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "remaining_mempool",
@@ -557,7 +551,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunkBuildTxsDropped),
 		r.Register(m.blockBuildCertsDropped),
 		r.Register(m.stateChanges),
-		r.Register(m.stateOperations),
 		r.Register(m.remainingMempool),
 		r.Register(m.chunkBytesBuilt),
 		r.Register(m.deletedBlocks),
