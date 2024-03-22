@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -36,12 +37,18 @@ func TestStop(t *testing.T) {
 	cfg := NewConfig().SetLimitMaxMemory(1 * program.MemoryPageSize)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(ctx, wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 	// stop the runtime
 	runtime.Stop()
 
-	_, err = runtime.Call(ctx, "run")
+	_, err = runtime.Call(ctx, "run", programContext)
 	require.ErrorIs(err, program.ErrTrapInterrupt)
 	// ensure no fees were consumed
 	balance, err := runtime.Meter().GetBalance()
@@ -69,15 +76,21 @@ func TestCallParams(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(ctx, wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
-	resp, err := runtime.Call(ctx, "add", 10, 10)
+	resp, err := runtime.Call(ctx, "add", programContext, 10, 10)
 	require.NoError(err)
 	require.Equal(int64(20), resp[0])
 
 	// pass 3 params when 2 are expected.
-	_, err = runtime.Call(ctx, "add", 10, 10, 10)
+	_, err = runtime.Call(ctx, "add", programContext, 10, 10, 10)
 	require.ErrorIs(err, program.ErrInvalidParamCount)
 }
 
@@ -101,10 +114,16 @@ func TestInfiniteLoop(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(ctx, wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
-	_, err = runtime.Call(ctx, "get")
+	_, err = runtime.Call(ctx, "get", programContext)
 	require.ErrorIs(err, program.ErrTrapOutOfFuel)
 }
 
@@ -130,14 +149,20 @@ func TestMetering(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(ctx, wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 	balance, err := runtime.Meter().GetBalance()
 	require.NoError(err)
 
 	require.Equal(balance, maxUnits)
 	for i := 0; i < 10; i++ {
-		_, err = runtime.Call(ctx, "get")
+		_, err = runtime.Call(ctx, "get", programContext)
 		require.NoError(err)
 	}
 	balance, err = runtime.Meter().GetBalance()
@@ -167,15 +192,21 @@ func TestMeterAfterStop(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(ctx, wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
 	// spend 2 units
-	_, err = runtime.Call(ctx, "get")
+	_, err = runtime.Call(ctx, "get", programContext)
 	require.NoError(err)
 	// stop engine
 	runtime.Stop()
-	_, err = runtime.Call(ctx, "get")
+	_, err = runtime.Call(ctx, "get", programContext)
 	require.ErrorIs(err, program.ErrTrapInterrupt)
 	// ensure meter is still operational
 	balance, err := runtime.Meter().GetBalance()
@@ -202,7 +233,13 @@ func TestLimitMaxMemory(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(context.Background(), programContext, wasm, maxUnits)
 	require.ErrorContains(err, "memory minimum size of 2 pages exceeds memory limits") //nolint:forbidigo
 }
 
@@ -227,7 +264,13 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	require.NoError(err)
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(context.Background(), programContext, wasm, maxUnits)
 	require.NoError(err)
 
 	mem, err := runtime.Memory()
@@ -261,7 +304,13 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	cfg := NewConfig()
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(context.Background(), programContext, wasm, maxUnits)
 	require.NoError(err)
 	mem, err := runtime.Memory()
 	require.NoError(err)
@@ -295,9 +344,15 @@ func TestWithMaxWasmStack(t *testing.T) {
 	eng := engine.New(ecfg)
 	cfg := NewConfig()
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+
+	id := ids.GenerateTestID()
+	programContext := program.Context{
+		ProgramID: id,
+	}
+
+	err = runtime.Initialize(context.Background(), programContext, wasm, maxUnits)
 	require.NoError(err)
-	_, err = runtime.Call(context.Background(), "get")
+	_, err = runtime.Call(context.Background(), "get", programContext)
 	require.NoError(err)
 
 	// stack is ok for 1 call.
@@ -307,9 +362,9 @@ func TestWithMaxWasmStack(t *testing.T) {
 	require.NoError(err)
 	eng = engine.New(ecfg)
 	runtime = New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
-	err = runtime.Initialize(context.Background(), wasm, maxUnits)
+	err = runtime.Initialize(context.Background(), programContext, wasm, maxUnits)
 	require.NoError(err)
 	// exceed the stack limit
-	_, err = runtime.Call(context.Background(), "get")
+	_, err = runtime.Call(context.Background(), "get", programContext)
 	require.ErrorIs(err, program.ErrTrapStackOverflow)
 }
