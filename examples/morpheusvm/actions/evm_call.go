@@ -183,6 +183,9 @@ func (e *EvmCall) Execute(
 		}
 		e.logger.Info("EVM call executed", args...)
 	}
+	// NOTE: we must explicitly check the error from statedb, since if the tx
+	// accesses a key that is not allowed, the EVM will not return an error
+	// from ApplyMessage, but the statedb will have an error instead.
 	success := result.Err == nil && statedb.Error() == nil
 	e.executionError = result.Err
 	if result.Err == nil {
