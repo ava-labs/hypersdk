@@ -12,7 +12,7 @@ pub fn return_id(context: Context) -> u32 {
     context
         .program
         .id()
-        .into_iter()
+        .iter()
         .map(|byte| *byte as u32)
         .reduce(|acc, byte| (acc << 1) + (byte & 1))
         .unwrap()

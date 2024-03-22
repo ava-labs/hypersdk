@@ -1,5 +1,5 @@
 use std::{path::PathBuf, process::Command};
-use wasmlanche_sdk::{Program, Context};
+use wasmlanche_sdk::{Context, Program};
 use wasmtime::{Instance, Module, Store};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -36,7 +36,7 @@ fn public_functions() {
     let wasm_path = target_dir
         .join(WASM_TARGET)
         .join(PROFILE)
-        .join(TEST_PKG.replace("-", "_"))
+        .join(TEST_PKG.replace('-', "_"))
         .with_extension("wasm");
 
     let mut store: Store<()> = Store::default();
