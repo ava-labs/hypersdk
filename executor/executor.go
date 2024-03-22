@@ -181,24 +181,17 @@ func (e *Executor) Stop() {
 	})
 }
 
-// Done decrements the number of remaining tasks by the difference between
-// how many tasks were created and what has been enqueued.
+// Wait returns as soon as all enqueued [f] are executed.
 //
-// This is useful because we don't actually know how many transactions
-// will be processed when we start the executor.
-func (e *Executor) Done() {
+// You should not call [Run] after [Wait] is called.
+func (e *Executor) Wait() error {
 	abandonedTasks := len(e.tasks) - e.added
 	if e.remaining.Add(-int64(abandonedTasks)) == 0 {
 		e.stopOnce.Do(func() {
 			close(e.stop)
 		})
 	}
-}
 
-// Wait returns as soon as all enqueued [f] are executed.
-//
-// You should not call [Run] after [Wait] is called.
-func (e *Executor) Wait() error {
 	e.workers.Wait()
 	return e.err
 }

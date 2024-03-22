@@ -28,7 +28,7 @@ type Processor struct {
 	im        state.Immutable
 	r         Rules
 	sm        StateManager
-	exectutor *executor.Executor
+	executor  *executor.Executor
 	ts        *tstate.TState
 
 	txs     map[ids.ID]*blockLoc
@@ -79,8 +79,8 @@ func NewProcessor(
 		sm:        vm.StateManager(),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
-		exectutor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
-		ts:        tstate.New(numTxs * 2),
+		executor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
+		ts:       tstate.New(numTxs * 2),
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
@@ -97,7 +97,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		return
 	}
 
-	p.exectutor.Run(stateKeys, func() error {
+	p.executor.Run(stateKeys, func() error {
 		// Execute transaction
 		//
 		// It is critical we explicitly set the scope before each transaction is
@@ -335,11 +335,10 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
-	p.exectutor.Done()
 	p.vm.RecordWaitRepeat(p.repeatWait)
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	exectutorStart := time.Now()
-	if err := p.exectutor.Wait(); err != nil {
+	if err := p.executor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
