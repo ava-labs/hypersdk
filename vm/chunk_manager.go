@@ -337,7 +337,7 @@ func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig
 		return
 	}
 	copy(msg[1:], sigBytes)
-	c.appSender.SendAppGossipSpecific(ctx, set.Of(nodeID), msg) // skips validators we aren't connected to
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: set.Of(nodeID)}, msg) // skips validators we aren't connected to
 }
 
 func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
@@ -1169,7 +1169,7 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	//
 	// This would put some sort of latency requirement for other nodes to persist/sign the chunk (we should probably just let it flow
 	// more loosely.
-	c.appSender.SendAppGossipSpecific(ctx, validators, msg) // skips validators we aren't connected to
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: validators}, msg) // skips validators we aren't connected to
 }
 
 func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.ChunkCertificate) {
@@ -1190,7 +1190,7 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 	if err != nil {
 		panic(err)
 	}
-	c.appSender.SendAppGossipSpecific(ctx, validators, msg) // skips validators we aren't connected to
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: validators}, msg) // skips validators we aren't connected to
 }
 
 // RestoreChunkCertificates re-inserts certs into the CertStore for inclusion. These chunks are sorted
@@ -1275,7 +1275,7 @@ func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
 	msg := make([]byte, 1+len(txBytes))
 	msg[0] = txMsg
 	copy(msg[1:], txBytes)
-	c.appSender.SendAppGossipSpecific(ctx, set.Of(gossip.nodeID), msg)
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: set.Of(gossip.nodeID)}, msg) // skips validators we aren't connected to
 	c.vm.Logger().Debug(
 		"sending txs to partition",
 		zap.Int("txs", len(txs)),
