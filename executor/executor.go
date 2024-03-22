@@ -83,7 +83,7 @@ func (e *Executor) runTask(t *task) {
 	t.l.Lock()
 	for b := range t.blocking { // works fine on non-initialized map
 		bt := e.tasks[b]
-		bt.l.Lock()
+		bt.l.Lock() // BUG: what if need to update [t], but holding outer (a waiting for b and b waiting for a)?
 		bt.dependencies.Remove(t.id)
 		if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
 			bt.dependencies = nil // free memory
@@ -138,6 +138,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 
 	// Record dependencies
 	t.l.Lock()
+	defer t.l.Unlock()
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
@@ -161,14 +162,12 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Start execution if there are no blocking dependencies
 	if t.dependencies == nil || t.dependencies.Len() == 0 {
 		t.dependencies = nil // free memory
-		t.l.Unlock()
 		e.executable <- t
 		if e.metrics != nil {
 			e.metrics.RecordExecutable()
 		}
 		return
 	}
-	t.l.Unlock()
 	if e.metrics != nil {
 		e.metrics.RecordBlocked()
 	}
