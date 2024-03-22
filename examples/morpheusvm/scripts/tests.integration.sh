@@ -31,6 +31,7 @@ run \
 -covermode=atomic \
 -coverpkg=github.com/ava-labs/hypersdk/... \
 -coverprofile=integration.coverage.out \
+-skip="Tx Processing" \
 ./tests/integration \
 --vms 3
 

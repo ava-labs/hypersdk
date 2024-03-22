@@ -54,6 +54,7 @@ func init() {
 		actionCmd,
 		spamCmd,
 		prometheusCmd,
+		makeEvmRelayCmd(),
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -144,6 +145,7 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+		makeEvmCallCmd(),
 	)
 
 	// spam

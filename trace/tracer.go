@@ -52,9 +52,7 @@ func (t *tracer) Close() error {
 
 func New(config *Config) (trace.Tracer, error) {
 	if !config.Enabled {
-		return &noOpTracer{
-			t: oteltrace.NewNoopTracerProvider().Tracer(config.AppName),
-		}, nil
+		return &noOpTracer{}, nil
 	}
 
 	exporter, err := zipkin.New(
