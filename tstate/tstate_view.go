@@ -284,13 +284,9 @@ func (ts *TStateView) PendingChanges() int {
 
 // Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
-	ts.ts.l.Lock()
-	defer ts.ts.l.Unlock()
-
 	for k, v := range ts.pendingChangedKeys {
-		ts.ts.changedKeys[k] = v
+		ts.ts.changedKeys.Store(k, v)
 	}
-	ts.ts.ops += len(ts.ops)
 }
 
 // chunks gets the number of chunks for a key in [m]
