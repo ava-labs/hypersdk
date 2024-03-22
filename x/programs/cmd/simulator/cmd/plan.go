@@ -8,13 +8,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 	"io"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/internal/actions"
 
 	"github.com/ava-labs/hypersdk/x/programs/program"
 
@@ -25,8 +26,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/internal/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/internal/utils"
 )
 
 type runCmd struct {

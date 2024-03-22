@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/internal/storage"
 )
 
 func newKeyCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
