@@ -55,8 +55,6 @@ github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0 h1:xNbCMNqenaDr0bb35j27
 github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0/go.mod h1:B7Ynk/avkCk49CCIWbM4j1UrPlqIi0IHCPAB2MZNvLw=
 github.com/ava-labs/avalanchego v1.10.18 h1:ErJ+SJBtN9tVqk3OPRXffpf+MWeQnNZJlBNWQIgAg8A=
 github.com/ava-labs/avalanchego v1.10.18/go.mod h1:wqmokVcLXE+9Nfa8wHdGJtjEW35acVf8rkraSZPVBA4=
-github.com/ava-labs/hypersdk/x/programs/cmd/simulator v0.0.0-20240131040904-4bd6d720a5bc h1:JxdqCOsVLY4sD5Mh9R+zRc79GxRcXW0Cp7FB542O1KU=
-github.com/ava-labs/hypersdk/x/programs/cmd/simulator v0.0.0-20240131040904-4bd6d720a5bc/go.mod h1:cIFL1UbjI5LwYZCEjlThyiOWKW1Dh3T0tl8b+hbeV3M=
 github.com/aymerick/raymond v2.0.3-0.20180322193309-b565731e1464+incompatible/go.mod h1:osfaiScAUVup+UC9Nfq76eWqDhXlp+4UYaA8uhTBO6g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
