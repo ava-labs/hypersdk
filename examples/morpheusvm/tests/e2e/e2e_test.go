@@ -257,8 +257,6 @@ var _ = ginkgo.BeforeSuite(func() {
 				"throttler-outbound-validator-alloc-size":"10737418240",
 				"throttler-outbound-at-large-alloc-size":"10737418240",
 				"throttler-outbound-node-max-at-large-bytes": "10737418240",
-				"consensus-on-accept-gossip-validator-size":"10",
-				"consensus-on-accept-gossip-peer-size":"10",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"16",
 				"profile-continuous-enabled":true,
