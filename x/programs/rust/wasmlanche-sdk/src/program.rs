@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{errors::StateError, host::call_program, state::State};
+use crate::{memory::to_host_ptr, state::Error as StateError, state::State, Params};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -32,48 +32,26 @@ impl Program {
     /// Attempts to call a function `name` with `args` on the given program. This method
     /// is used to call functions on external programs.
     /// # Errors
-    /// Returns a `StateError` if the call fails.
+    /// Returns a [`StateError`] if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     pub fn call_function(
         &self,
         function_name: &str,
-        args: Vec<Vec<u8>>,
+        args: Params,
         max_units: i64,
     ) -> Result<i64, StateError> {
         // flatten the args into a single byte vector
-        let args = args.into_iter().flatten().collect::<Vec<u8>>();
-        call_program(self, function_name, &args, max_units)
+        let target = to_host_ptr(self.id())?;
+        let function = to_host_ptr(function_name.as_bytes())?;
+        let args = args.into_host_ptr()?;
+
+        Ok(unsafe { _call_program(target, function, args, max_units) })
     }
 }
 
-/// Serialize every parameter into a byte vector and return a vector of byte vectors
-#[macro_export]
-macro_rules! params {
-    ($($param:expr),*) => {
-        vec![$(wasmlanche_sdk::program::serialize_params($param).unwrap(),)*]
-    };
-}
-
-/// Serializes the parameter into a byte vector.
-/// # Errors
-/// Will return an error if the parameter cannot be serialized.
-pub fn serialize_params<T>(param: &T) -> Result<Vec<u8>, std::io::Error>
-where
-    T: BorshSerialize,
-{
-    let bytes = prepend_length(&borsh::to_vec(param)?);
-    Ok(bytes)
-}
-
-/// Returns a vector of bytes with the length of the argument prepended.
-/// # Panics
-/// Panics if the length of the argument cannot be converted to u32.
-fn prepend_length(bytes: &[u8]) -> Vec<u8> {
-    let mut len_bytes = u32::try_from(bytes.len())
-        .expect("pointer out range")
-        .to_be_bytes()
-        .to_vec();
-    len_bytes.extend(bytes);
-    len_bytes
+#[link(wasm_import_module = "program")]
+extern "C" {
+    #[link_name = "call_program"]
+    fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> i64;
 }
