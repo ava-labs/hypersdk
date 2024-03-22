@@ -4,10 +4,11 @@
 package engine
 
 import (
-	_ "embed"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	_ "embed"
 
 	"github.com/ava-labs/hypersdk/x/programs/tests"
 )

@@ -12,7 +12,7 @@ import (
 func TestValidateAssertion(t *testing.T) {
 	require := require.New(t)
 	tests := []struct {
-		actual    uint64
+		actual    int64
 		assertion Require
 		expected  bool
 		wantErr   bool

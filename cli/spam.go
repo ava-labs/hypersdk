@@ -7,7 +7,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -17,12 +16,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -133,7 +133,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	feePerTx, err := chain.MulSum(unitPrices, maxUnits)
+	feePerTx, err := fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func (h *Handler) Spam(
 						v := selected[recipient] + 1
 						selected[recipient] = v
 						action := getTransfer(recipient, uint64(v))
-						fee, err := chain.MulSum(unitPrices, maxUnits)
+						fee, err := fees.MulSum(unitPrices, maxUnits)
 						if err != nil {
 							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
 							return err
@@ -354,7 +354,7 @@ func (h *Handler) Spam(
 
 					// Determine how long to sleep
 					dur := time.Since(start)
-					sleep := math.Max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
+					sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
 					t.Reset(time.Duration(sleep) * time.Millisecond)
 				case <-gctx.Done():
 					return gctx.Err()
@@ -400,7 +400,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	feePerTx, err = chain.MulSum(unitPrices, maxUnits)
+	feePerTx, err = fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return err
 	}

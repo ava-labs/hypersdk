@@ -1,6 +1,6 @@
 module github.com/ava-labs/hypersdk/examples/tokenvm
 
-go 1.20
+go 1.21
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
@@ -13,7 +13,6 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/wailsapp/wails/v2 v2.5.1
 	go.uber.org/zap v1.26.0
-	golang.org/x/exp v0.0.0-20231127185646-65229373498e
 	golang.org/x/net v0.19.0
 )
 
@@ -144,6 +143,7 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/exp v0.0.0-20231127185646-65229373498e // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/term v0.15.0 // indirect

@@ -6,22 +6,23 @@ package cli
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
 
-	runner "github.com/ava-labs/avalanche-network-runner/client"
+	"github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"gopkg.in/yaml.v2"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
-	"gopkg.in/yaml.v2"
 )
 
 func (h *Handler) ImportChain() error {
@@ -55,7 +56,7 @@ func (h *Handler) ImportANR() error {
 	}
 
 	// Load new items from ANR
-	anrCli, err := runner.New(runner.Config{
+	anrCli, err := client.New(client.Config{
 		Endpoint:    "0.0.0.0:12352",
 		DialTimeout: 10 * time.Second,
 	}, logging.NoLog{})
@@ -229,9 +230,9 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		if err != nil {
 			return err
 		}
-		consumed := chain.Dimensions{}
+		consumed := fees.Dimensions{}
 		for _, result := range results {
-			nconsumed, err := chain.Add(consumed, result.Consumed)
+			nconsumed, err := fees.Add(consumed, result.Consumed)
 			if err != nil {
 				return err
 			}
@@ -250,7 +251,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			tpsWindow = newWindow
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))
 			runningDuration := time.Since(start)
-			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
+			tpsDivisor := min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
 				"{{green}}height:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,

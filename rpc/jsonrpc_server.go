@@ -12,10 +12,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"go.uber.org/zap"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type JSONRPCServer struct {
@@ -102,7 +104,7 @@ func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAc
 }
 
 type UnitPricesReply struct {
-	UnitPrices chain.Dimensions `json:"unitPrices"`
+	UnitPrices fees.Dimensions `json:"unitPrices"`
 }
 
 func (j *JSONRPCServer) UnitPrices(

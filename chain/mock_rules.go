@@ -16,6 +16,7 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
+	fees "github.com/ava-labs/hypersdk/fees"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -100,10 +101,10 @@ func (mr *MockRulesMockRecorder) GetBaseWarpComputeUnits() *gomock.Call {
 }
 
 // GetMaxBlockUnits mocks base method.
-func (m *MockRules) GetMaxBlockUnits() Dimensions {
+func (m *MockRules) GetMaxBlockUnits() fees.Dimensions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMaxBlockUnits")
-	ret0, _ := ret[0].(Dimensions)
+	ret0, _ := ret[0].(fees.Dimensions)
 	return ret0
 }
 
@@ -142,10 +143,10 @@ func (mr *MockRulesMockRecorder) GetMinEmptyBlockGap() *gomock.Call {
 }
 
 // GetMinUnitPrice mocks base method.
-func (m *MockRules) GetMinUnitPrice() Dimensions {
+func (m *MockRules) GetMinUnitPrice() fees.Dimensions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMinUnitPrice")
-	ret0, _ := ret[0].(Dimensions)
+	ret0, _ := ret[0].(fees.Dimensions)
 	return ret0
 }
 
@@ -268,10 +269,10 @@ func (mr *MockRulesMockRecorder) GetStorageValueWriteUnits() *gomock.Call {
 }
 
 // GetUnitPriceChangeDenominator mocks base method.
-func (m *MockRules) GetUnitPriceChangeDenominator() Dimensions {
+func (m *MockRules) GetUnitPriceChangeDenominator() fees.Dimensions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUnitPriceChangeDenominator")
-	ret0, _ := ret[0].(Dimensions)
+	ret0, _ := ret[0].(fees.Dimensions)
 	return ret0
 }
 
@@ -326,10 +327,10 @@ func (mr *MockRulesMockRecorder) GetWarpConfig(arg0 any) *gomock.Call {
 }
 
 // GetWindowTargetUnits mocks base method.
-func (m *MockRules) GetWindowTargetUnits() Dimensions {
+func (m *MockRules) GetWindowTargetUnits() fees.Dimensions {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWindowTargetUnits")
-	ret0, _ := ret[0].(Dimensions)
+	ret0, _ := ret[0].(fees.Dimensions)
 	return ret0
 }
 

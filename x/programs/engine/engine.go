@@ -4,7 +4,7 @@
 package engine
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
@@ -67,6 +67,6 @@ func NewModule(engine *Engine, bytes []byte, strategy CompileStrategy) (*wasmtim
 	case PrecompiledWasm:
 		return engine.PreCompileModule(bytes)
 	default:
-		return nil, fmt.Errorf("unknown compile strategy")
+		return nil, errors.New("unknown compile strategy")
 	}
 }

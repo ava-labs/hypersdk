@@ -574,7 +574,7 @@ To use the `hypersdk`, you must import it into your own `hypervm` and implement 
 required interfaces. Below, we'll cover some of the ones that your
 `hypervm` must implement.
 
-> _Note: `hypersdk` requires a minimum Go version of 1.20_
+> _Note: `hypersdk` requires a minimum Go version of 1.21_
 
 ### Controller
 ```golang
@@ -685,7 +685,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) []string
+	StateKeys(actor codec.Address, txID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.

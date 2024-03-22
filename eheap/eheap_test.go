@@ -6,9 +6,8 @@ package eheap
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
 )
 
 const testSponsor = "testSponsor"
@@ -44,7 +43,7 @@ func TestExpiryHeapNew(t *testing.T) {
 	// Creates empty min and max heaps
 	require := require.New(t)
 	eheap := New[*TestItem](0)
-	require.Equal(eheap.minHeap.Len(), 0, "MinHeap not initialized correctly")
+	require.Zero(eheap.minHeap.Len(), "MinHeap not initialized correctly")
 }
 
 func TestExpiryHeapAdd(t *testing.T) {
@@ -53,7 +52,7 @@ func TestExpiryHeapAdd(t *testing.T) {
 	eheap := New[*TestItem](0)
 	item := GenerateTestItem("sponsor", 1)
 	eheap.Add(item)
-	require.Equal(eheap.minHeap.Len(), 1, "MinHeap not pushed correctly")
+	require.Equal(1, eheap.minHeap.Len(), "MinHeap not pushed correctly")
 	require.True(eheap.minHeap.Has(item.ID()), "MinHeap does not have ID")
 }
 
@@ -64,11 +63,11 @@ func TestExpiryHeapRemove(t *testing.T) {
 	item := GenerateTestItem("sponsor", 1)
 	// Add first
 	eheap.Add(item)
-	require.Equal(eheap.minHeap.Len(), 1, "MinHeap not pushed correctly")
+	require.Equal(1, eheap.minHeap.Len(), "MinHeap not pushed correctly")
 	require.True(eheap.minHeap.Has(item.ID()), "MinHeap does not have ID")
 	// Remove
 	eheap.Remove(item.ID())
-	require.Equal(eheap.minHeap.Len(), 0, "MinHeap not removed")
+	require.Zero(eheap.minHeap.Len(), "MinHeap not removed")
 	require.False(eheap.minHeap.Has(item.ID()), "MinHeap still has ID")
 }
 
@@ -94,11 +93,11 @@ func TestSetMin(t *testing.T) {
 	}
 	// Remove half
 	removed := eheap.SetMin(5)
-	require.Equal(5, len(removed), "Returned an incorrect number of txs.")
+	require.Len(removed, 5, "Returned an incorrect number of txs.")
 	// All timestamps less than 5
 	seen := make(map[int64]bool)
 	for _, item := range removed {
-		require.True(item.Expiry() < 5)
+		require.Less(item.Expiry(), int64(5))
 		_, ok := seen[item.Expiry()]
 		require.False(ok, "Incorrect item removed.")
 		seen[item.Expiry()] = true
@@ -120,8 +119,8 @@ func TestSetMinRemovesAll(t *testing.T) {
 	}
 	// Remove more than exists
 	removed := eheap.SetMin(10)
-	require.Equal(5, len(removed), "Returned an incorrect number of txs.")
-	require.Equal(0, eheap.Len(), "ExpiryHeap has incorrect number of txs.")
+	require.Len(removed, 5, "Returned an incorrect number of txs.")
+	require.Zero(eheap.Len(), "ExpiryHeap has incorrect number of txs.")
 	require.Equal(items, removed, "Removed items are not as expected.")
 }
 

@@ -18,12 +18,13 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/merkle"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/window"
@@ -119,7 +120,7 @@ type StatelessBlock struct {
 	vdrState     validators.State
 
 	results    []*Result
-	feeManager *FeeManager
+	feeManager *fees.Manager
 
 	vm   VM
 	view merkledb.View
@@ -162,10 +163,10 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	defer span.End()
 
 	// Setup signature verification job
-	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
+	_, sigVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures") //nolint:spancheck
 	job, err := b.vm.AuthVerifiers().NewJob(len(b.Txs))
 	if err != nil {
-		return err
+		return err //nolint:spancheck
 	}
 	b.sigJob = job
 	batchVerifier := NewAuthBatch(b.vm, b.sigJob, b.authCounts)
@@ -270,7 +271,7 @@ func (b *StatelessBlock) initializeBuilt(
 	ctx context.Context,
 	view merkledb.View,
 	results []*Result,
-	feeManager *FeeManager,
+	feeManager *fees.Manager,
 ) error {
 	_, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
@@ -334,7 +335,7 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.VerifyWithContext",
-		oteltrace.WithAttributes(
+		trace.WithAttributes(
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
@@ -361,7 +362,7 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	stateReady := b.vm.StateReady()
 	ctx, span := b.vm.Tracer().Start(
 		ctx, "StatelessBlock.Verify",
-		oteltrace.WithAttributes(
+		trace.WithAttributes(
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
@@ -548,7 +549,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 			)
 			return ErrMissingBlockContext
 		}
-		_, warpVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
+		_, warpVerifySpan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages") //nolint:spancheck
 		b.vdrState = b.vm.ValidatorState()
 		go func() {
 			defer warpVerifySpan.End()
@@ -594,9 +595,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	feeKey := FeeKey(b.vm.StateManager().FeeKey())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return err
+		return err //nolint:spancheck
 	}
-	parentFeeManager := NewFeeManager(feeRaw)
+	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)
 	if err != nil {
 		return err
@@ -632,7 +633,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	tsv := ts.NewView(set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+
+	keys := make(state.Keys)
+	keys.Add(heightKeyStr, state.Write)
+	keys.Add(timestampKeyStr, state.Write)
+	keys.Add(feeKeyStr, state.Write)
+	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
@@ -821,7 +827,7 @@ func (b *StatelessBlock) Processed() bool {
 // it will result in undefined behavior.
 func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, error) {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.View",
-		oteltrace.WithAttributes(
+		trace.WithAttributes(
 			attribute.Bool("processed", b.Processed()),
 			attribute.Bool("verify", verify),
 		),
@@ -990,7 +996,7 @@ func (b *StatelessBlock) Results() []*Result {
 	return b.results
 }
 
-func (b *StatelessBlock) FeeManager() *FeeManager {
+func (b *StatelessBlock) FeeManager() *fees.Manager {
 	return b.feeManager
 }
 

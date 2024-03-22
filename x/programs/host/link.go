@@ -7,11 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
-
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"

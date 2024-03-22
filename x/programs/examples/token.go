@@ -7,10 +7,10 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/near/borsh-go"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
@@ -18,6 +18,19 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
+)
+
+type TokenStateKey uint8
+
+const (
+	/// The total supply of the token. Key prefix 0x0.
+	TotalSupply TokenStateKey = iota
+	/// The name of the token. Key prefix 0x1.
+	Name
+	/// The symbol of the token. Key prefix 0x2.
+	Symbol
+	/// The balance of the token by address. Key prefix 0x3 + address.
+	Balance
 )
 
 func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
@@ -105,25 +118,25 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// generate alice keys
-	_, aliceKey, err := newKey()
+	alicePublicKey, err := newKey()
 	if err != nil {
 		return err
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(aliceKey, mem)
+	alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
 
 	// generate bob keys
-	_, bobKey, err := newKey()
+	bobPublicKey, err := newKey()
 	if err != nil {
 		return err
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobKey, mem)
+	bobPtr, err := argumentToSmartPtr(bobPublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -134,7 +147,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 	t.log.Debug("balance",
-		zap.Int64("bob", int64(result[0])),
+		zap.Int64("bob", result[0]),
 	)
 
 	// mint 100 tokens to alice
@@ -227,11 +240,11 @@ func (t *Token) Run(ctx context.Context) error {
 	// combine alice and bobs addresses
 	minters := []minter{
 		{
-			To:     aliceKey,
+			To:     alicePublicKey,
 			Amount: 10,
 		},
 		{
-			To:     bobKey,
+			To:     bobPublicKey,
 			Amount: 12,
 		},
 	}
@@ -318,4 +331,17 @@ func (t *Token) RunShort(ctx context.Context) error {
 		zap.Int64("init", resp[0]),
 	)
 	return nil
+}
+
+func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, userPublicKey ed25519.PublicKey) (res int64, err error) {
+	key := storage.ProgramPrefixKey(programID[:], append([]byte{uint8(Balance)}, userPublicKey[:]...))
+	b, err := t.db.GetValue(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	err = borsh.Deserialize(&res, b)
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
 }

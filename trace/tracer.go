@@ -7,14 +7,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/trace"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/zipkin"
 	"go.opentelemetry.io/otel/sdk/resource"
+
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-
-	"github.com/ava-labs/avalanchego/trace"
 )
 
 const (

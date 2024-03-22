@@ -18,7 +18,6 @@ import (
 	hutils "github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
@@ -115,7 +114,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, output, _, err := programCreateAction.Execute(ctx, nil, db, 0, nil, programID, false)
+	success, _, output, _, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID, false)
 	if output != nil {
 		fmt.Println(string(output))
 	}
@@ -139,10 +138,10 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	callParams []runtime.CallParam,
+	callParams []actions.CallParam,
 	function string,
 	maxUnits uint64,
-) (ids.ID, []uint64, uint64, error) {
+) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
@@ -157,7 +156,7 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, nil, programTxID, false)
+	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID, false)
 	if !success {
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}
@@ -166,9 +165,9 @@ func programExecuteFunc(
 	}
 
 	p := codec.NewReader(resp, len(resp))
-	var result []uint64
+	var result []int64
 	for !p.Empty() {
-		v := p.UnpackUint64(true)
+		v := p.UnpackInt64(true)
 		result = append(result, v)
 	}
 
@@ -179,7 +178,7 @@ func programExecuteFunc(
 	}
 
 	// get remaining balance from runtime meter
-	balance := programExecuteAction.GetBalance()
+	balance, err := programExecuteAction.GetBalance()
 
-	return programTxID, result, balance, nil
+	return programTxID, result, balance, err
 }

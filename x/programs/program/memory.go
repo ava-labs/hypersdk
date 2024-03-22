@@ -4,6 +4,7 @@
 package program
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -157,38 +158,6 @@ func WriteBytes(m *Memory, buf []byte) (uint32, error) {
 	return offset, nil
 }
 
-// CallParam defines a value to be passed to a guest function.
-type CallParam struct {
-	Value interface{} `json,yaml:"value"`
-}
-
-// WriteParams is a helper function that writes the given params to memory if non integer.
-// Supported types include int, uint64 and string.
-func WriteParams(m *Memory, p []CallParam) ([]uint64, error) {
-	params := []uint64{}
-	for _, param := range p {
-		switch v := param.Value.(type) {
-		case string:
-			ptr, err := WriteBytes(m, []byte(v))
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, uint64(ptr))
-		case int:
-			if v < 0 {
-				return nil, fmt.Errorf("failed to write param: %w", ErrUnderflow)
-			}
-			params = append(params, uint64(v))
-		case uint64:
-			params = append(params, v)
-		default:
-			return nil, fmt.Errorf("invalid param: supported types int, uint64 and string")
-		}
-	}
-
-	return params, nil
-}
-
 // SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
 // and the following 4 bytes represent a pointer to WASM memory where the bytes are stored.
 type SmartPtr int64
@@ -229,14 +198,14 @@ func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
 	return NewSmartPtr(ptr, len(bytes))
 }
 
-// NewSmartPtr returns a SmartPtr from [ptr] and [len].
-func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
+// NewSmartPtr returns a SmartPtr from [ptr] and [byteLen].
+func NewSmartPtr(ptr uint32, byteLen int) (SmartPtr, error) {
 	// ensure length of bytes is not greater than int32 to prevent overflow
-	if !EnsureIntToInt32(len) {
-		return 0, fmt.Errorf("length of bytes is greater than int32")
+	if !EnsureIntToInt32(byteLen) {
+		return 0, errors.New("length of bytes is greater than int32")
 	}
 
-	lenUpperBits := int64(len) << 32
+	lenUpperBits := int64(byteLen) << 32
 	ptrLowerBits := int64(ptr)
 
 	return SmartPtr(lenUpperBits | ptrLowerBits), nil

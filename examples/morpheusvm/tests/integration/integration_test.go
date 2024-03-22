@@ -38,6 +38,7 @@ import (
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -177,7 +178,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	gen = genesis.Default()
-	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
+	gen.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
 	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
@@ -435,7 +436,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created with 1 chunk
 			// write: 2 keys modified (new + old)
-			transferTxConsumed := chain.Dimensions{191, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{191, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
@@ -482,7 +483,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 chunk each
 			// allocate: 0 key created
 			// write: 2 key modified
-			transferTxConsumed := chain.Dimensions{191, 7, 14, 0, 26}
+			transferTxConsumed := fees.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
@@ -567,7 +568,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 key modified
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			transferTxConsumed := chain.Dimensions{191, 7, 14, 0, 26}
+			transferTxConsumed := fees.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
@@ -582,7 +583,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 keys modified
 			gomega.Ω(results[1].Success).Should(gomega.BeTrue())
-			transferTxConsumed = chain.Dimensions{191, 7, 14, 0, 26}
+			transferTxConsumed = fees.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[1].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
@@ -597,7 +598,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 1 key created (1 chunk)
 			// write: 2 key modified (1 chunk), both previously modified
 			gomega.Ω(results[2].Success).Should(gomega.BeTrue())
-			transferTxConsumed = chain.Dimensions{191, 7, 12, 25, 26}
+			transferTxConsumed = fees.Dimensions{191, 7, 12, 25, 26}
 			gomega.Ω(results[2].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
@@ -612,7 +613,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 keys modified (1 chunk)
 			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
-			transferTxConsumed = chain.Dimensions{191, 7, 12, 0, 26}
+			transferTxConsumed = fees.Dimensions{191, 7, 12, 0, 26}
 			gomega.Ω(results[3].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
@@ -792,7 +793,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		tx := blk.Txs[0].Action.(*actions.Transfer)
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
-		gomega.Ω(prices).Should(gomega.Equal(chain.Dimensions{1, 1, 1, 1, 1}))
+		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
 		balancea, err := instances[0].lcli.Balance(context.TODO(), addrStr)

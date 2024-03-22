@@ -119,7 +119,7 @@ func SendJSONRequest(
 
 	request, err := http.NewRequestWithContext(
 		ctx,
-		"POST",
+		http.MethodPost,
 		uri.String(),
 		bytes.NewBuffer(requestBodyBytes),
 	)

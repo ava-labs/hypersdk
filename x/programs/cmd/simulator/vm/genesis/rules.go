@@ -6,6 +6,7 @@ package genesis
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 var _ chain.Rules = (*Rules)(nil)
@@ -22,16 +23,8 @@ func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
 	return &Rules{g, networkID, chainID}
 }
 
-func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
-	return false, 0, 0
-}
-
-func (r *Rules) NetworkID() uint32 {
-	return r.networkID
-}
-
-func (r *Rules) ChainID() ids.ID {
-	return r.chainID
+func (r *Rules) GetSponsorStateKeysMaxChunks() []uint16 {
+	return r.g.SponsorStateKeysMaxChunks
 }
 
 func (r *Rules) GetMinBlockGap() int64 {
@@ -46,7 +39,19 @@ func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
 
-func (r *Rules) GetMaxBlockUnits() chain.Dimensions {
+func (r *Rules) GetMinUnitPrice() fees.Dimensions {
+	return r.g.MinUnitPrice
+}
+
+func (r *Rules) GetUnitPriceChangeDenominator() fees.Dimensions {
+	return r.g.UnitPriceChangeDenominator
+}
+
+func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
+	return r.g.WindowTargetUnits
+}
+
+func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 	return r.g.MaxBlockUnits
 }
 
@@ -66,64 +71,40 @@ func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
 	return r.g.OutgoingWarpComputeUnits
 }
 
-func (r *Rules) GetColdStorageKeyReadUnits() uint64 {
-	return r.g.ColdStorageKeyReadUnits
+func (r *Rules) GetStorageKeyReadUnits() uint64 {
+	return r.g.StorageKeyReadUnits
 }
 
-func (r *Rules) GetColdStorageValueReadUnits() uint64 {
-	return r.g.ColdStorageValueReadUnits
+func (r *Rules) GetStorageValueReadUnits() uint64 {
+	return r.g.StorageValueReadUnits
 }
 
-func (r *Rules) GetWarmStorageKeyReadUnits() uint64 {
-	return r.g.WarmStorageKeyReadUnits
+func (r *Rules) GetStorageKeyAllocateUnits() uint64 {
+	return r.g.StorageKeyAllocateUnits
 }
 
-func (r *Rules) GetWarmStorageValueReadUnits() uint64 {
-	return r.g.WarmStorageValueReadUnits
+func (r *Rules) GetStorageValueAllocateUnits() uint64 {
+	return r.g.StorageValueAllocateUnits
 }
 
-func (r *Rules) GetStorageKeyCreateUnits() uint64 {
-	return r.g.StorageKeyCreateUnits
+func (r *Rules) GetStorageKeyWriteUnits() uint64 {
+	return r.g.StorageKeyWriteUnits
 }
 
-func (r *Rules) GetStorageValueCreateUnits() uint64 {
-	return r.g.StorageValueCreateUnits
+func (r *Rules) GetStorageValueWriteUnits() uint64 {
+	return r.g.StorageValueWriteUnits
 }
 
-func (r *Rules) GetColdStorageKeyModificationUnits() uint64 {
-	return r.g.ColdStorageKeyModificationUnits
+func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
+	return false, 0, 0
 }
 
-func (r *Rules) GetColdStorageValueModificationUnits() uint64 {
-	return r.g.ColdStorageValueModificationUnits
+func (r *Rules) NetworkID() uint32 {
+	return r.networkID
 }
 
-func (r *Rules) GetWarmStorageKeyModificationUnits() uint64 {
-	return r.g.WarmStorageKeyModificationUnits
-}
-
-func (r *Rules) GetWarmStorageValueModificationUnits() uint64 {
-	return r.g.WarmStorageValueModificationUnits
-}
-
-func (r *Rules) GetMinUnitPrice() chain.Dimensions {
-	return r.g.MinUnitPrice
-}
-
-func (r *Rules) GetUnitPriceChangeDenominator() chain.Dimensions {
-	return r.g.UnitPriceChangeDenominator
-}
-
-func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
-	return r.g.WindowTargetUnits
-}
-
-func (r *Rules) GetWasmRuntimeDebugMode() bool {
-	return r.g.EnableDebugMode
-}
-
-func (r *Rules) GetEnableBulkMemory() bool {
-	return r.g.EnableBulkMemory
+func (r *Rules) ChainID() ids.ID {
+	return r.chainID
 }
 
 func (*Rules) FetchCustom(string) (any, bool) {

@@ -13,9 +13,10 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/pkg/browser"
 	"gopkg.in/yaml.v2"
+
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 const (
@@ -102,7 +103,7 @@ func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startProm
 	// We must manually encode the params because prometheus skips any panels
 	// that are not numerically sorted and `url.params` only sorts
 	// lexicographically.
-	dashboard := fmt.Sprintf("%s/graph", baseURI)
+	dashboard := baseURI + "/graph"
 	for i, panel := range getPanels(chainID) {
 		appendChar := "&"
 		if i == 0 {
@@ -126,7 +127,7 @@ func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startProm
 	//
 	// Attempting to exit from the terminal will gracefully
 	// stop this process.
-	cmd := exec.CommandContext(context.Background(), "/tmp/prometheus", fmt.Sprintf("--config.file=%s", prometheusFile), fmt.Sprintf("--storage.tsdb.path=%s", prometheusData))
+	cmd := exec.CommandContext(context.Background(), "/tmp/prometheus", "--config.file="+prometheusFile, "--storage.tsdb.path="+prometheusData)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	errChan := make(chan error)

@@ -13,15 +13,16 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	smblock "github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
@@ -63,7 +64,7 @@ func BuildBlock(
 	ctx context.Context,
 	vm VM,
 	parent *StatelessBlock,
-	blockContext *smblock.Context,
+	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
@@ -86,7 +87,7 @@ func BuildBlock(
 	// If the parent block is not yet verified, we will attempt to
 	// execute it.
 	mempoolSize := vm.Mempool().Len(ctx)
-	changesEstimate := math.Min(mempoolSize, maxViewPreallocation)
+	changesEstimate := min(mempoolSize, maxViewPreallocation)
 	parentView, err := parent.View(ctx, true)
 	if err != nil {
 		log.Warn("block building failed: couldn't get parent db", zap.Error(err))
@@ -99,7 +100,7 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	parentFeeManager := NewFeeManager(feeRaw)
+	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
@@ -147,7 +148,7 @@ func BuildBlock(
 			b.vm.RecordClearedMempool()
 			break
 		}
-		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute")
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
 
 		// Perform a batch repeat check
 		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
@@ -433,7 +434,7 @@ func BuildBlock(
 	// Perform basic validity checks to make sure the block is well-formatted
 	if len(b.Txs) == 0 {
 		if nextTime < parent.Tmstmp+r.GetMinEmptyBlockGap() {
-			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime)
+			return nil, fmt.Errorf("%w: allowed in %d ms", ErrNoTxs, parent.Tmstmp+r.GetMinEmptyBlockGap()-nextTime) //nolint:spancheck
 		}
 		vm.RecordEmptyBlockBuilt()
 	}
@@ -444,7 +445,12 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-	tsv := ts.NewView(set.Of(heightKeyStr, timestampKeyStr, feeKeyStr), map[string][]byte{
+
+	keys := make(state.Keys)
+	keys.Add(heightKeyStr, state.Write)
+	keys.Add(timestampKeyStr, state.Write)
+	keys.Add(feeKeyStr, state.Write)
+	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),

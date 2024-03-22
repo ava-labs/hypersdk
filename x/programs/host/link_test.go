@@ -6,11 +6,9 @@ package host
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/bytecodealliance/wasmtime-go/v14"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 )
@@ -35,14 +33,12 @@ func TestLinkMissingImport(t *testing.T) {
 }
 
 func TestLinkImport(t *testing.T) {
-	require := require.New(t)
-
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
       (import "env" "one" (func $one (param i64) (result i64)))
     )	
 	`)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name,
@@ -70,6 +66,8 @@ func TestLinkImport(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
 			imports := NewImportsBuilder()
 			imports.Register(tt.module, func() Import {
 				return newTestImport(tt.module, tt.fn)
@@ -83,7 +81,7 @@ func TestLinkImport(t *testing.T) {
 			require.NoError(err)
 			_, err = link.Instantiate(store, mod, ImportFnCallback{})
 			if tt.errMsg != "" {
-				require.ErrorContains(err, tt.errMsg) // can't use ErrorIs because the error message is not owned by us.
+				require.ErrorContains(err, tt.errMsg) //nolint:forbidigo
 				return
 			}
 			require.NoError(err)

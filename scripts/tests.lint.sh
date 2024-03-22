@@ -28,7 +28,7 @@ TESTS=${TESTS:-"golangci_lint license_header"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.1
   golangci-lint run --config .golangci.yml
 }
 
@@ -49,7 +49,8 @@ function test_license_header {
   local files=()
   while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
 
-  # ignore 3rd party code
+  # Provision of the list of flags requires word splitting, so disable the shellcheck
+  # shellcheck disable=SC2086
   go-license \
   --config ./license.yml \
   ${_addlicense_flags} \
