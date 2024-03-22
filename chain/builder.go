@@ -43,13 +43,15 @@ func BuildBlock(
 	b.chunks = set.NewSet[ids.ID](16)
 	b.AvailableChunks = make([]*ChunkCertificate, 0, 16)
 	if pHeight > 0 { // even if epoch is set, we use this height to verify warp messages
+		vm.StartCertStream(ctx)
 		restorableChunks := []*ChunkCertificate{}
 		for {
 			// TODO: ensure chunk producer is in this epoch
 			// TODO: ensure only 1 chunk per producer
 			// TOOD: prefer old chunks to new chunks for a given producer
 
-			cert, ok := vm.NextChunkCertificate(ctx)
+			// It is assumed that [NextChunkCertificate] will never return a duplicate chunk.
+			cert, ok := vm.StreamCert(ctx)
 			if !ok {
 				break
 			}
@@ -99,9 +101,8 @@ func BuildBlock(
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Uint64("epoch", utils.Epoch(cert.Slot, r.GetEpochDuration())),
 			)
-
 		}
-		vm.RestoreChunkCertificates(ctx, restorableChunks)
+		vm.FinishCertStream(ctx, restorableChunks)
 	}
 
 	// Fetch executed blocks

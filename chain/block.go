@@ -113,14 +113,19 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	b.Timestamp = p.UnpackInt64(false)
 
 	// Parse available chunks
-	availableChunks := p.UnpackInt(false)     // can produce empty blocks
-	b.AvailableChunks = []*ChunkCertificate{} // don't preallocate all to avoid DoS
+	availableChunks := p.UnpackInt(false)                // can produce empty blocks
+	b.AvailableChunks = make([]*ChunkCertificate, 0, 16) // don't preallocate all to avoid DoS
+	seen := set.NewSet[ids.ID](16)                       // TODO: make prealloc a config
 	for i := 0; i < availableChunks; i++ {
 		cert, err := UnmarshalChunkCertificatePacker(p)
 		if err != nil {
 			return nil, err
 		}
 		b.AvailableChunks = append(b.AvailableChunks, cert)
+		if seen.Contains(cert.Chunk) {
+			return nil, fmt.Errorf("duplicate chunk %s in block %d", cert.Chunk, b.Height)
+		}
+		seen.Add(cert.Chunk)
 	}
 
 	// Parse executed chunks
@@ -241,9 +246,6 @@ func ParseStatefulBlock(
 	for _, cert := range blk.AvailableChunks {
 		b.chunks.Add(cert.Chunk)
 	}
-
-	// TODO: add parent, execHeight, and bctx to the block?
-
 	return b, nil
 }
 
@@ -497,12 +499,8 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Accept")
 	defer span.End()
 
+	// Mark block as accepted
 	b.st = choices.Accepted
-
-	// Start async execution
-	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
-		b.vm.Engine().Execute(b)
-	}
 
 	// Collect async results (if any)
 	var filteredChunks []*FilteredChunk
@@ -513,7 +511,19 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		}
 		filteredChunks = fc
 	}
+
+	// Notify the VM that the block has been accepted
+	//
+	// It is assumed that Accept is invoked atomically such that the slightly
+	// misaligned caches (we mark the block state as accepted before we update the
+	// repeat protection emaps for chunks/blocks) will not be queried.
 	b.vm.Accepted(ctx, b, filteredChunks)
+
+	// Start async execution of chunks (and fetch if missing)
+	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
+		b.vm.Engine().Execute(b)
+	}
+
 	r := b.vm.Rules(b.StatefulBlock.Timestamp)
 	epoch := utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
 	b.vm.RecordAcceptedEpoch(epoch)

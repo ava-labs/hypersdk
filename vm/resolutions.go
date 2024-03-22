@@ -192,6 +192,9 @@ func (vm *VM) processExecutedBlock(blk *chain.StatefulBlock) {
 		vm.metrics.executedBlockProcess.Observe(float64(time.Since(start)))
 	}()
 
+	// Clear authorization results
+	vm.metrics.uselessChunkAuth.Add(float64(len(vm.cm.auth.SetMin(blk.Timestamp))))
+
 	// Update timestamp in mempool
 	//
 	// We wait to update the min until here because we want to allow all execution
@@ -380,14 +383,12 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	//
 	// Transactions are added to [seen] with their [expiry], so we don't need to
 	// transform [blkTime] when calling [SetMin] here.
-	evictedTxs := vm.seenTxs.SetMin(blkTime)
-	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evictedTxs)))
+	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(vm.seenTxs.SetMin(blkTime))))
+	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(vm.seenChunks.SetMin(blkTime))))
 	for _, fc := range chunks {
 		// Mark all valid txs as seen
 		vm.seenTxs.Add(fc.Txs)
 	}
-	evictedChunks := vm.seenChunks.SetMin(blkTime)
-	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(evictedChunks)))
 	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
@@ -600,8 +601,16 @@ func (vm *VM) GetExecutorRecorder() executor.Metrics {
 	return vm.metrics.executorRecorder
 }
 
-func (vm *VM) NextChunkCertificate(ctx context.Context) (*chain.ChunkCertificate, bool) {
-	return vm.cm.NextChunkCertificate(ctx)
+func (vm *VM) StartCertStream(context.Context) {
+	vm.cm.certs.StartStream()
+}
+
+func (vm *VM) StreamCert(ctx context.Context) (*chain.ChunkCertificate, bool) {
+	return vm.cm.certs.Stream(ctx)
+}
+
+func (vm *VM) FinishCertStream(_ context.Context, certs []*chain.ChunkCertificate) {
+	vm.cm.certs.FinishStream(certs)
 }
 
 func (vm *VM) RestoreChunkCertificates(ctx context.Context, certs []*chain.ChunkCertificate) {
@@ -702,4 +711,9 @@ func (vm *VM) RecordAcceptedEpoch(e uint64) {
 
 func (vm *VM) RecordExecutedEpoch(e uint64) {
 	vm.metrics.lastExecutedEpoch.Set(float64(e))
+}
+
+func (vm *VM) GetAuthResult(chunkID ids.ID) bool {
+	// TODO: clean up this invocation
+	return vm.cm.auth.Wait(chunkID)
 }

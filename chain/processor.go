@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
 	"go.uber.org/zap"
 )
 
@@ -39,8 +38,7 @@ type Processor struct {
 
 	repeatWait time.Duration
 
-	authWorkers workers.Workers
-	authWait    time.Duration
+	authWait time.Duration
 
 	serialChecks          time.Duration
 	chunkUnits            time.Duration
@@ -88,8 +86,6 @@ func NewProcessor(
 		results: make([][]*Result, chunks),
 
 		frozenSponsors: set.NewSet[string](4),
-
-		authWorkers: workers.NewParallel(vm.GetAuthExecutionCores(), 4), // should never have more than 1 here
 	}
 }
 
@@ -205,36 +201,12 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	//
 	// We need to do this before we check basic chunk correctness to support
 	// optimistic chunk signature verification.
-	if p.vm.GetVerifyAuth() && p.vm.NodeID() != chunk.Producer { // trust ourselves
-		authJob, err := p.authWorkers.NewJob(len(chunk.Txs))
-		if err != nil {
-			panic(err)
-		}
-		batchVerifier := NewAuthBatch(p.vm, authJob, chunk.authCounts)
-
-		for _, tx := range chunk.Txs {
-			// Skip if we already authorized this
-			if p.vm.IsRPCAuthorized(tx.ID()) {
-				p.vm.RecordRPCAuthorizedTx()
-				continue
-			}
-			// Enqueue transaction for execution
-			msg, err := tx.Digest()
-			if err != nil {
-				p.vm.Logger().Warn("could not compute tx digest", zap.Stringer("txID", tx.ID()), zap.Error(err))
-				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-				return
-			}
-			// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-			batchVerifier.Add(msg, tx.Auth)
-		}
-		authStart := time.Now()
-		batchVerifier.Done(func() { p.authWait += time.Since(authStart) })
-		if err := authJob.Wait(); err != nil {
-			p.vm.Logger().Warn("auth verification failed", zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
+	authStart := time.Now()
+	authResult := p.vm.GetAuthResult(chunk.ID())
+	p.authWait += time.Since(authStart)
+	if !authResult {
+		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+		return
 	}
 
 	// Confirm that chunk is well-formed
@@ -364,7 +336,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
 	p.vm.RecordWaitRepeat(p.repeatWait)
-	p.authWorkers.Stop()            // must be stopped, otherwise goroutines grow indefinitely
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	exectutorStart := time.Now()
 	if err := p.exectutor.Wait(); err != nil {
@@ -380,31 +351,4 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, e
 		zap.Duration("syntactic verification", p.syntacticVerification),
 	)
 	return p.txs, p.ts, p.results, nil
-}
-
-func AuthorizeChunk(vm VM, chunk *Chunk) bool {
-	authWorkers := workers.NewParallel(vm.GetAuthExecutionCores(), 4) // should never have more than 1 here
-	defer authWorkers.Stop()
-
-	authJob, err := authWorkers.NewJob(len(chunk.Txs))
-	if err != nil {
-		panic(err)
-	}
-	batchVerifier := NewAuthBatch(vm, authJob, chunk.authCounts)
-	for _, tx := range chunk.Txs {
-		// Enqueue transaction for execution
-		msg, err := tx.Digest()
-		if err != nil {
-			return false
-		}
-		if vm.IsRPCAuthorized(tx.ID()) {
-			vm.RecordRPCAuthorizedTx()
-			continue
-		}
-
-		// We can only pre-check transactions that would invalidate the chunk prior to verifying signatures.
-		batchVerifier.Add(msg, tx.Auth)
-	}
-	batchVerifier.Done(nil)
-	return authJob.Wait() == nil
 }

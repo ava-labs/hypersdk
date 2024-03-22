@@ -66,6 +66,7 @@ type Metrics struct {
 	unitsExecutedRead         prometheus.Counter
 	unitsExecutedAllocate     prometheus.Counter
 	unitsExecutedWrite        prometheus.Counter
+	uselessChunkAuth          prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -93,6 +94,7 @@ type Metrics struct {
 	fetchMissingChunks        metric.Averager
 	collectChunkSignatures    metric.Averager
 	txTimeRemainingMempool    metric.Averager
+	chunkAuth                 metric.Averager
 
 	executorRecorder executor.Metrics
 }
@@ -248,6 +250,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"tx_time_remaining_mempool",
 		"valid time for inclusion when a tx is included in the mempool",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunkAuth, err := metric.NewAverager(
+		"chain",
+		"chunk_auth",
+		"time spent authenticating chunks",
 		r,
 	)
 	if err != nil {
@@ -460,6 +471,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "units_executed_write",
 			Help:      "number of write units executed",
 		}),
+		uselessChunkAuth: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "useless_chunk_auth",
+			Help:      "number of chunks that were authenticated but not executed",
+		}),
 		engineBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "engine_backlog",
@@ -527,6 +543,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		fetchMissingChunks:     fetchMissingChunks,
 		collectChunkSignatures: collectChunkSignatures,
 		txTimeRemainingMempool: txTimeRemainingMempool,
+		chunkAuth:              chunkAuth,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -583,6 +600,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedRead),
 		r.Register(m.unitsExecutedAllocate),
 		r.Register(m.unitsExecutedWrite),
+		r.Register(m.uselessChunkAuth),
 	)
 	return r, m, errs.Err
 }
