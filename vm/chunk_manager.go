@@ -1419,6 +1419,7 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 					if attempts > 0 {
 						chunk, _ := c.vm.GetChunk(cert.Slot, cert.Chunk)
 						if chunk != nil {
+							c.vm.metrics.uselessFetchChunkAttempts.Inc()
 							c.vm.Logger().Debug("received chunk while fetching", zap.Stringer("chunkID", cert.Chunk))
 							c.auth.Add(chunk)
 							return func() { chunks <- chunk }, nil
@@ -1491,6 +1492,12 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 					if chunk.ID() != cert.Chunk {
 						c.vm.Logger().Warn("unexpected chunk", zap.Stringer("chunkID", chunk.ID()), zap.Stringer("expectedChunkID", cert.Chunk))
 						continue
+					}
+					// Check if received during push gossip
+					if c.stored.Has(chunk.ID()) {
+						c.auth.Add(chunk)
+						c.vm.metrics.uselessFetchChunkAttempts.Inc()
+						return func() { chunks <- chunk }, nil
 					}
 					if err := c.vm.StoreChunk(chunk); err != nil {
 						return nil, err

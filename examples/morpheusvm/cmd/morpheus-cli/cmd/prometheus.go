@@ -178,6 +178,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_fetch_chunk_attempts[5s])/5", chainID))
 			utils.Outf("{{yellow}}chunk fetch attempts per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_useless_fetch_chunk_attempts[5s])/5", chainID))
+			utils.Outf("{{yellow}}useless chunk fetch attempts per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_collect_chunk_signatures_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_collect_chunk_signatures_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}collect chunk signatures (ms/chunk):{{/}} %s\n", panels[len(panels)-1])
 

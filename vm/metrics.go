@@ -65,6 +65,7 @@ type Metrics struct {
 	expiredCerts              prometheus.Counter
 	mempoolExpired            prometheus.Counter
 	fetchChunkAttempts        prometheus.Counter
+	uselessFetchChunkAttempts prometheus.Counter
 	txGossipDropped           prometheus.Counter
 	unitsExecutedBandwidth    prometheus.Counter
 	unitsExecutedCompute      prometheus.Counter
@@ -442,6 +443,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "fetch_chunk_attempts",
 			Help:      "number of attempts to fetch a chunk",
 		}),
+		uselessFetchChunkAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "useless_fetch_chunk_attempts",
+			Help:      "number of attempts to fetch a chunk that were useless (received via push)",
+		}),
 		txGossipDropped: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "tx_gossip_dropped",
@@ -589,6 +595,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.expiredCerts),
 		r.Register(m.mempoolExpired),
 		r.Register(m.fetchChunkAttempts),
+		r.Register(m.uselessFetchChunkAttempts),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 		r.Register(m.chainDataSize),
