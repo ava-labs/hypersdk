@@ -4,11 +4,12 @@
 package executor
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ava-labs/hypersdk/state"
+
+	uatomic "go.uber.org/atomic"
 )
 
 // Executor sequences the concurrent execution of
@@ -19,30 +20,26 @@ import (
 // Tasks with no conflicts are executed immediately.
 type Executor struct {
 	metrics Metrics
+
 	workers sync.WaitGroup
 
-	executable chan *task
-	remaining  atomic.Int64
+	outstanding sync.WaitGroup
+	executable  chan *task
 
-	added int
-	tasks []*task
+	tasks map[int]*task
 	edges map[string]int
 
-	stop     chan struct{}
-	err      error
-	stopOnce sync.Once
+	err uatomic.Error
 }
 
 // New creates a new [Executor].
 func New(items, concurrency int, metrics Metrics) *Executor {
 	e := &Executor{
 		metrics:    metrics,
-		tasks:      make([]*task, items),
+		tasks:      make(map[int]*task, items),
 		edges:      make(map[string]int, items*2), // TODO: tune this
 		executable: make(chan *task, items),       // ensure we don't block while holding lock
-		stop:       make(chan struct{}),
 	}
-	e.remaining.Add(int64(items))
 	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
 		go e.createWorker()
@@ -60,26 +57,11 @@ type task struct {
 	dependencies atomic.Int64
 }
 
-func (e *Executor) completeTask(c int64) {
-	if e.remaining.Add(-c) == 0 {
-		e.stopOnce.Do(func() {
-			close(e.stop)
-		})
-	}
-}
-
-func (e *Executor) fail(err error) {
-	e.stopOnce.Do(func() {
-		e.err = err
-		close(e.stop)
-	})
-}
-
 func (e *Executor) runTask(t *task) {
-	defer e.completeTask(1)
+	defer e.outstanding.Done()
 
 	if err := t.f(); err != nil {
-		e.fail(err)
+		e.err.CompareAndSwap(nil, err)
 		return
 	}
 
@@ -99,10 +81,14 @@ func (e *Executor) createWorker() {
 
 	for {
 		select {
-		case t := <-e.executable:
+		case t, ok := <-e.executable:
+			if !ok {
+				return
+			}
+			if e.err.Load() != nil {
+				continue
+			}
 			e.runTask(t)
-		case <-e.stop:
-			return
 		}
 	}
 }
@@ -116,20 +102,14 @@ func (e *Executor) createWorker() {
 // treats everything still as ReadWrite, see issue below)
 // https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
-	// Ensure too many transactions not enqueued
-	if e.added >= len(e.tasks) {
-		e.fail(errors.New("too many transactions created"))
-		return
-	}
-
 	// Generate task
-	id := e.added
-	e.added++
+	id := len(e.tasks)
 	t := &task{
 		f:        f,
 		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
+	e.outstanding.Add(1)
 
 	// Record dependencies
 	dummyDependencies := int64(len(conflicts) + 1)
@@ -158,14 +138,15 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 }
 
 func (e *Executor) Stop() {
-	e.fail(ErrStopped)
+	e.err.CompareAndSwap(nil, ErrStopped)
 }
 
 // Wait returns as soon as all enqueued [f] are executed.
 //
 // You should not call [Run] after [Wait] is called.
 func (e *Executor) Wait() error {
-	e.completeTask(int64(len(e.tasks) - e.added))
+	e.outstanding.Wait()
+	close(e.executable)
 	e.workers.Wait()
-	return e.err
+	return e.err.Load()
 }
