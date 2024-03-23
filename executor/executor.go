@@ -42,7 +42,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 	}
 	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		go e.createWorker()
+		go e.work()
 	}
 	return e
 }
@@ -60,6 +60,12 @@ type task struct {
 func (e *Executor) runTask(t *task) {
 	defer e.outstanding.Done()
 
+	// We avoid doing this check when adding tasks to the queue
+	// because it would require more synchronization.
+	if e.err.Load() != nil {
+		return
+	}
+
 	if err := t.f(); err != nil {
 		e.err.CompareAndSwap(nil, err)
 		return
@@ -76,7 +82,7 @@ func (e *Executor) runTask(t *task) {
 	t.l.Unlock()
 }
 
-func (e *Executor) createWorker() {
+func (e *Executor) work() {
 	defer e.workers.Done()
 
 	for {
@@ -84,9 +90,6 @@ func (e *Executor) createWorker() {
 		case t, ok := <-e.executable:
 			if !ok {
 				return
-			}
-			if e.err.Load() != nil {
-				continue
 			}
 			e.runTask(t)
 		}
