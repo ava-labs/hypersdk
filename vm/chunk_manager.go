@@ -257,7 +257,8 @@ type ChunkManager struct {
 
 	// connected includes all connected nodes, not just those that are validators (we use
 	// this for sending txs/requesting chunks from only connected nodes)
-	connected set.Set[ids.NodeID]
+	connectedL sync.Mutex
+	connected  set.Set[ids.NodeID]
 
 	txL     sync.Mutex
 	txQueue buffer.Deque[*txGossip]
@@ -319,11 +320,17 @@ func (c *ChunkManager) getEpochInfo(ctx context.Context, t int64) (uint64, uint6
 }
 
 func (c *ChunkManager) Connected(_ context.Context, nodeID ids.NodeID, _ *version.Application) error {
+	c.connectedL.Lock()
+	defer c.connectedL.Unlock()
+
 	c.connected.Add(nodeID)
 	return nil
 }
 
 func (c *ChunkManager) Disconnected(_ context.Context, nodeID ids.NodeID) error {
+	c.connectedL.Lock()
+	defer c.connectedL.Unlock()
+
 	c.connected.Remove(nodeID)
 	return nil
 }
@@ -543,7 +550,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Record time to collect and then reset to ensure we don't log multiple times
-		if !cw.sent.IsZero() {
+		firstCertificate := !cw.sent.IsZero()
+		if firstCertificate {
 			c.vm.metrics.collectChunkSignatures.Observe(float64(time.Since(cw.sent)))
 			cw.sent = time.Time{}
 		}
@@ -597,6 +605,17 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Uint64("totalWeight", totalWeight),
 			zap.Duration("t", time.Since(start)),
 		)
+
+		// Send chunk and cert to non-validators if we are creating the certificate
+		// for the first time (this will ensure they don't need to fetch chunks and that
+		// will allow them to kickoff signature verification earlier).
+		//
+		// TODO: limit number of nodes we send to/use a whitelist to avoid
+		// a sybil attack on our bandwidth.
+		if !firstCertificate {
+			return nil
+		}
+		c.PushCertifiedChunk(ctx, cw.chunk, cert)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
 		if err != nil {
@@ -1105,15 +1124,23 @@ func (c *ChunkManager) SetStoredMin(t int64) []*simpleChunkWrapper {
 	return c.stored.SetMin(t)
 }
 
-func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
+func makeChunkMsg(chunk *chain.Chunk) ([]byte, error) {
 	msg := make([]byte, 1+chunk.Size())
 	msg[0] = chunkMsg
 	chunkBytes, err := chunk.Marshal()
 	if err != nil {
+		return nil, err
+	}
+	copy(msg[1:], chunkBytes)
+	return msg, nil
+}
+
+func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
+	msg, err := makeChunkMsg(chunk)
+	if err != nil {
 		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
 		return
 	}
-	copy(msg[1:], chunkBytes)
 	_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("t", chunk.Slot), zap.Error(err))
@@ -1172,15 +1199,23 @@ func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
 	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: validators}, msg) // skips validators we aren't connected to
 }
 
-func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.ChunkCertificate) {
+func makeChunkCertificateMsg(cert *chain.ChunkCertificate) ([]byte, error) {
 	msg := make([]byte, 1+cert.Size())
 	msg[0] = chunkCertificateMsg
 	certBytes, err := cert.Marshal()
 	if err != nil {
-		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
-		return
+		return nil, err
 	}
 	copy(msg[1:], certBytes)
+	return msg, nil
+}
+
+func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.ChunkCertificate) {
+	msg, err := makeChunkCertificateMsg(cert)
+	if err != nil {
+		c.vm.Logger().Warn("failed to marshal chunk cert", zap.Error(err))
+		return
+	}
 	_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
 	if err != nil {
 		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", cert.Slot), zap.Error(err))
@@ -1191,6 +1226,45 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 		panic(err)
 	}
 	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: validators}, msg) // skips validators we aren't connected to
+}
+
+func (c *ChunkManager) PushCertifiedChunk(ctx context.Context, chunk *chain.Chunk, cert *chain.ChunkCertificate) {
+	// Get non-validators
+	recipients := set.Set[ids.NodeID]{}
+	_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
+	if err != nil {
+		c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", cert.Slot), zap.Error(err))
+		return
+	}
+	validators, err := c.vm.proposerMonitor.GetValidatorSet(ctx, epochHeight, false)
+	if err != nil {
+		panic(err)
+	}
+	c.connectedL.Lock()
+	connected := c.connected.List()
+	c.connectedL.Unlock()
+	for _, recipient := range connected {
+		if validators.Contains(recipient) || recipient == c.vm.snowCtx.NodeID {
+			continue
+		}
+		recipients.Add(recipient)
+	}
+
+	// Push chunk
+	chunkMsg, err := makeChunkMsg(chunk)
+	if err != nil {
+		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
+		return
+	}
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, chunkMsg)
+
+	// Push certificate
+	certMsg, err := makeChunkCertificateMsg(cert)
+	if err != nil {
+		c.vm.Logger().Warn("failed to marshal chunk cert", zap.Error(err))
+		return
+	}
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, certMsg)
 }
 
 // RestoreChunkCertificates re-inserts certs into the CertStore for inclusion. These chunks are sorted
@@ -1317,23 +1391,33 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 					c.auth.Add(chunk)
 					return func() { chunks <- chunk }, nil
 				}
-				c.vm.Logger().Debug("could not fetch chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
+				c.vm.Logger().Debug("missing chunk", zap.Stringer("chunkID", cert.Chunk), zap.Int64("slot", cert.Slot), zap.Error(err))
+
+				// Look for chunk epoch
+				_, epochHeight, err := c.getEpochInfo(context.TODO(), cert.Slot)
+				if err != nil {
+					c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
+					return nil, err
+				}
 
 				// Fetch missing chunk
 				attempts := 0
 				for {
+					// Check to see if we received chunk while we were fetching
+					if attempts > 0 {
+						chunk, _ := c.vm.GetChunk(cert.Slot, cert.Chunk)
+						if chunk != nil {
+							c.vm.Logger().Debug("received chunk while fetching", zap.Stringer("chunkID", cert.Chunk))
+							c.auth.Add(chunk)
+							return func() { chunks <- chunk }, nil
+						}
+					}
+
+					// Make request
 					c.vm.metrics.fetchChunkAttempts.Add(1)
 					c.vm.Logger().Debug("fetching missing chunk", zap.Int64("slot", cert.Slot), zap.Stringer("chunkID", cert.Chunk), zap.Int("previous attempts", attempts))
 					attempts++
 
-					// Look for chunk epoch
-					_, epochHeight, err := c.getEpochInfo(context.TODO(), cert.Slot)
-					if err != nil {
-						c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
-						continue
-					}
-
-					// Make request
 					bytesChan := make(chan []byte, 1)
 					c.callbacksL.Lock()
 					requestID := c.requestID
@@ -1352,7 +1436,10 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 						if err != nil {
 							return nil, err
 						}
-						if c.connected.Contains(randomValidator) {
+						c.connectedL.Lock()
+						contains := c.connected.Contains(randomValidator)
+						c.connectedL.Unlock()
+						if contains {
 							validator = randomValidator
 							break
 						}
