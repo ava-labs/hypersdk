@@ -55,7 +55,7 @@ type task struct {
 	f  func() error
 
 	l        sync.Mutex
-	blocking map[int]*atomic.Int64
+	blocking map[int]*task
 	executed bool
 
 	dependencies atomic.Int64
@@ -79,8 +79,7 @@ func (e *Executor) runTask(t *task) {
 	}
 
 	t.l.Lock()
-	for b := range t.blocking { // works fine on non-initialized map
-		bt := e.tasks[b]
+	for _, bt := range t.blocking { // works fine on non-initialized map
 		if bt.dependencies.Add(-1) == 0 {
 			e.executable <- bt
 		}
@@ -127,7 +126,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	t := &task{
 		id:       id,
 		f:        f,
-		blocking: map[int]*atomic.Int64{},
+		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
 
@@ -141,7 +140,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			lt.l.Lock()
 			if !lt.executed {
 				t.dependencies.Add(1)
-				lt.blocking[id] = &t.dependencies
+				lt.blocking[id] = t
 			}
 			lt.l.Unlock()
 		}
