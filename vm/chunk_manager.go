@@ -439,7 +439,16 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 		c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: chunk.Slot})
 
-		// Sign chunk
+		// Sign chunk if validator
+		amValidator, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, c.vm.snowCtx.NodeID)
+		if err != nil {
+			c.vm.Logger().Warn("unable to determine if am validator", zap.Error(err))
+			return nil
+		}
+		if !amValidator {
+			// We don't sign the chunk if we're not a validator
+			return nil
+		}
 		chunkSignature := &chain.ChunkSignature{
 			Chunk: chunk.ID(),
 			Slot:  chunk.Slot,
