@@ -116,17 +116,18 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.tasks[id] = t
 
 	// Ensure there is no way we can be executed until we have registered all dependencies
-	dummyDependencies := int64(len(conflicts))
+	dummyDependencies := int64(len(conflicts) + 1)
 	t.dependencies.Add(dummyDependencies)
 
 	// Record dependencies
+	dependencies := 0
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
 			lt.l.Lock()
 			if !lt.executed {
-				t.dependencies.Add(1)
+				dependencies++
 				lt.blocking[id] = t
 			}
 			lt.l.Unlock()
@@ -134,8 +135,11 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		e.edges[k] = id
 	}
 
-	// Start execution if there are no blocking dependencies
-	if t.dependencies.Add(-dummyDependencies) > 0 {
+	// It is ok if we briefly "go negative" (task decrements before we add) when handling
+	// dependencies for a key.
+	//
+	// We adjust dependencies after we have released [lt.l] to avoid a deadlock.
+	if t.dependencies.Add(-dummyDependencies+int64(dependencies)) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}

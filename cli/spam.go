@@ -43,7 +43,6 @@ const (
 
 	pendingTargetMultiplier        = 10
 	pendingExpiryBuffer            = 15 * consts.MillisecondsPerSecond
-	targetIncreaseRate             = 1000
 	successfulRunsToIncreaseTarget = 10
 	failedRunsToDecreaseTarget     = 5
 
@@ -94,7 +93,7 @@ var (
 )
 
 func (h *Handler) Spam(
-	numAccounts int, txsPerSecond int,
+	numAccounts int, txsPerSecond int, stepSize int,
 	sZipf float64, vZipf float64, plotZipf bool,
 	numClients int, clusterInfo string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
@@ -218,19 +217,25 @@ func (h *Handler) Spam(
 	validityWindow = rules.GetValidityWindow()
 
 	// Distribute funds
-	if numAccounts == 0 {
+	if numAccounts <= 0 {
 		numAccounts, err = h.PromptInt("number of accounts", consts.MaxInt)
 		if err != nil {
 			return err
 		}
 	}
-	if txsPerSecond == 0 {
+	if txsPerSecond <= 0 {
 		txsPerSecond, err = h.PromptInt("txs to issue per second", consts.MaxInt)
 		if err != nil {
 			return err
 		}
 	}
-	if numClients == 0 {
+	if stepSize <= 0 {
+		stepSize, err = h.PromptInt("amount to periodically increase tps by", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if numClients <= 0 {
 		numClients, err = h.PromptInt("number of clients per node", consts.MaxInt)
 		if err != nil {
 			return err
@@ -471,7 +476,7 @@ func (h *Handler) Spam(
 		z = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
 
 		it                      = time.NewTimer(0)
-		currentTarget           = min(txsPerSecond, targetIncreaseRate)
+		currentTarget           = min(txsPerSecond, stepSize)
 		consecutiveUnderBacklog int
 		consecutiveAboveBacklog int
 
@@ -494,8 +499,8 @@ func (h *Handler) Spam(
 			if int64(pending.Len()+currentTarget)-txsToProcess > int64(currentTarget*pendingTargetMultiplier) {
 				consecutiveAboveBacklog++
 				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
-					if currentTarget > targetIncreaseRate {
-						currentTarget -= targetIncreaseRate
+					if currentTarget > stepSize {
+						currentTarget -= stepSize
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
 					} else {
 						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
@@ -604,7 +609,7 @@ func (h *Handler) Spam(
 			consecutiveAboveBacklog = 0
 			consecutiveUnderBacklog++
 			if consecutiveUnderBacklog == successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
-				currentTarget = min(currentTarget+targetIncreaseRate, txsPerSecond)
+				currentTarget = min(currentTarget+stepSize, txsPerSecond)
 				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
 				consecutiveUnderBacklog = 0
 			}
