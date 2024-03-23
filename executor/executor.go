@@ -147,6 +147,8 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		}
 		return
 	}
+
+	// Mark task for execution if we aren't waiting on any other tasks
 	e.executable <- t
 	if e.metrics != nil {
 		e.metrics.RecordExecutable()
