@@ -1468,6 +1468,9 @@ func (c *ChunkManager) RequestChunks(block uint64, certs []*chain.ChunkCertifica
 					}
 
 					// Handle response
+					//
+					// Note: we may have received the chunk we are fetching from push gossip
+					// while fetching for it.
 					chunk, err := chain.UnmarshalChunk(bytes, c.vm)
 					if err != nil {
 						c.vm.Logger().Warn("failed to unmarshal chunk", zap.Error(err))
