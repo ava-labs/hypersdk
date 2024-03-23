@@ -47,6 +47,20 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 	return e
 }
 
+func (e *Executor) work() {
+	defer e.workers.Done()
+
+	for {
+		select {
+		case t, ok := <-e.executable:
+			if !ok {
+				return
+			}
+			e.runTask(t)
+		}
+	}
+}
+
 type task struct {
 	f func() error
 
@@ -72,28 +86,15 @@ func (e *Executor) runTask(t *task) {
 	}
 
 	t.l.Lock()
-	for _, bt := range t.blocking { // works fine on non-initialized map
-		if bt.dependencies.Add(-1) == 0 {
-			e.executable <- bt
+	for _, bt := range t.blocking {
+		if bt.dependencies.Add(-1) > 0 {
+			continue
 		}
+		e.executable <- bt
 	}
 	t.blocking = nil // free memory
 	t.executed = true
 	t.l.Unlock()
-}
-
-func (e *Executor) work() {
-	defer e.workers.Done()
-
-	for {
-		select {
-		case t, ok := <-e.executable:
-			if !ok {
-				return
-			}
-			e.runTask(t)
-		}
-	}
 }
 
 // Run executes [f] after all previously enqueued [f] with
@@ -106,17 +107,19 @@ func (e *Executor) work() {
 // https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Generate task
+	e.outstanding.Add(1)
 	id := len(e.tasks)
 	t := &task{
 		f:        f,
 		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
-	e.outstanding.Add(1)
+
+	// Ensure there is no way we can be executed until we have registered all dependencies
+	dummyDependencies := int64(len(conflicts))
+	t.dependencies.Add(dummyDependencies)
 
 	// Record dependencies
-	dummyDependencies := int64(len(conflicts) + 1)
-	t.dependencies.Add(dummyDependencies) // ensure there is no way we can be executed until we have registered all dependencies
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
@@ -132,12 +135,16 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	}
 
 	// Start execution if there are no blocking dependencies
-	if t.dependencies.Add(-dummyDependencies) == 0 {
-		e.executable <- t
-		e.metrics.RecordExecutable()
+	if t.dependencies.Add(-dummyDependencies) > 0 {
+		if e.metrics != nil {
+			e.metrics.RecordBlocked()
+		}
 		return
 	}
-	e.metrics.RecordBlocked()
+	e.executable <- t
+	if e.metrics != nil {
+		e.metrics.RecordExecutable()
+	}
 }
 
 func (e *Executor) Stop() {
