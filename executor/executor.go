@@ -63,8 +63,7 @@ func (e *Executor) work() {
 }
 
 type task struct {
-	id int // TODO: remove
-	f  func() error
+	f func() error
 
 	l        sync.Mutex
 	blocking map[int]*task
@@ -113,7 +112,6 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Generate task
 	id := len(e.tasks)
 	t := &task{
-		id:       id,
 		f:        f,
 		blocking: map[int]*task{},
 	}
