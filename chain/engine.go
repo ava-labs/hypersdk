@@ -270,12 +270,11 @@ func (e *Engine) processJob(job *engineJob) error {
 	}
 
 	// Create new view and persist to disk
-	e.vm.RecordStateChanges(ts.PendingChanges())
-	e.vm.RecordStateOperations(ts.OpIndex())
-	view, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
+	view, changes, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
 	if err != nil {
 		return err
 	}
+	e.vm.RecordStateChanges(changes)
 	commitStart := time.Now()
 	if err := view.CommitToDB(ctx); err != nil {
 		return err
@@ -332,6 +331,7 @@ func (e *Engine) Run() {
 				continue
 			case errors.Is(ErrMissingChunks, err):
 				// Should only happen on shutdown
+				e.vm.Logger().Warn("engine shutting down", zap.Error(err))
 				return
 			default:
 				panic(err) // unrecoverable error

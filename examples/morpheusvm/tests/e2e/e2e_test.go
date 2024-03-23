@@ -257,8 +257,6 @@ var _ = ginkgo.BeforeSuite(func() {
 				"throttler-outbound-validator-alloc-size":"10737418240",
 				"throttler-outbound-at-large-alloc-size":"10737418240",
 				"throttler-outbound-node-max-at-large-bytes": "10737418240",
-				"consensus-on-accept-gossip-validator-size":"10",
-				"consensus-on-accept-gossip-peer-size":"10",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"16",
 				"profile-continuous-enabled":true,
@@ -280,10 +278,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 5 new validators (which should have BLS key registered)
+	// Add 5 nodes to subnet (already have BLS key registered)
 	subnet := []string{}
 	for i := 1; i <= int(numValidators); i++ {
-		n := fmt.Sprintf("node%d-bls", i)
+		n := fmt.Sprintf("node%d", i)
 		subnet = append(subnet, n)
 	}
 	specs := []*rpcpb.BlockchainSpec{

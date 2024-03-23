@@ -58,9 +58,6 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_operations[5s])/5", chainID))
-			utils.Outf("{{yellow}}state operations per second:{{/}} %s\n", panels[len(panels)-1])
-
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
 			utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
 
@@ -172,11 +169,17 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_units_executed_write[5s])/5", chainID))
 			utils.Outf("{{yellow}}write units executed per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_optimistic_certified_gossip[5s])/5", chainID))
+			utils.Outf("{{yellow}}optimistic certified gossip per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_fetch_missing_chunks_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_fetch_missing_chunks_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}missing chunk fetch (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_fetch_chunk_attempts[5s])/5", chainID))
 			utils.Outf("{{yellow}}chunk fetch attempts per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_useless_fetch_chunk_attempts[5s])/5", chainID))
+			utils.Outf("{{yellow}}useless chunk fetch attempts per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_collect_chunk_signatures_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_collect_chunk_signatures_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}collect chunk signatures (ms/chunk):{{/}} %s\n", panels[len(panels)-1])
