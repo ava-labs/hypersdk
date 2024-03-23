@@ -31,6 +31,7 @@ var (
 	hideTxs               bool
 	numAccounts           int
 	txsPerSecond          int
+	stepSize              int
 	sZipf                 float64
 	vZipf                 float64
 	plotZipf              bool
@@ -188,6 +189,12 @@ func init() {
 		"txs-per-second",
 		-1,
 		"number of txs issued per second (under backlog)",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&stepSize,
+		"step-size",
+		-1,
+		"amount to increase TPS target",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&connsPerHost,

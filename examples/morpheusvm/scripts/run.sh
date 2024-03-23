@@ -261,7 +261,6 @@ trap cleanup EXIT
 
 echo "running e2e tests"
 ./tests/e2e/e2e.test \
---ginkgo.v \
 --network-runner-log-level verbo \
 --avalanchego-log-level "${AGO_LOG_LEVEL}" \
 --avalanchego-log-display-level "${AGO_LOG_DISPLAY_LEVEL}" \

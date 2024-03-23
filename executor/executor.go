@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/state"
 
 	uatomic "go.uber.org/atomic"
@@ -42,9 +43,23 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 	}
 	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		go e.createWorker()
+		go e.work()
 	}
 	return e
+}
+
+func (e *Executor) work() {
+	defer e.workers.Done()
+
+	for {
+		select {
+		case t, ok := <-e.executable:
+			if !ok {
+				return
+			}
+			e.runTask(t)
+		}
+	}
 }
 
 type task struct {
@@ -60,37 +75,27 @@ type task struct {
 func (e *Executor) runTask(t *task) {
 	defer e.outstanding.Done()
 
+	// We avoid doing this check when adding tasks to the queue
+	// because it would require more synchronization.
+	if e.err.Load() != nil {
+		return
+	}
+
 	if err := t.f(); err != nil {
 		e.err.CompareAndSwap(nil, err)
 		return
 	}
 
 	t.l.Lock()
-	for _, bt := range t.blocking { // works fine on non-initialized map
-		if bt.dependencies.Add(-1) == 0 {
-			e.executable <- bt
+	for _, bt := range t.blocking {
+		if bt.dependencies.Add(-1) > 0 {
+			continue
 		}
+		e.executable <- bt
 	}
 	t.blocking = nil // free memory
 	t.executed = true
 	t.l.Unlock()
-}
-
-func (e *Executor) createWorker() {
-	defer e.workers.Done()
-
-	for {
-		select {
-		case t, ok := <-e.executable:
-			if !ok {
-				return
-			}
-			if e.err.Load() != nil {
-				continue
-			}
-			e.runTask(t)
-		}
-	}
 }
 
 // Run executes [f] after all previously enqueued [f] with
@@ -102,6 +107,8 @@ func (e *Executor) createWorker() {
 // treats everything still as ReadWrite, see issue below)
 // https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
+	e.outstanding.Add(1)
+
 	// Generate task
 	id := len(e.tasks)
 	t := &task{
@@ -109,18 +116,20 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
-	e.outstanding.Add(1)
+
+	// Add dummy dependencies to ensure we don't execute the task
+	dummyDependencies := int64(len(conflicts) + 1)
+	t.dependencies.Add(dummyDependencies)
 
 	// Record dependencies
-	dummyDependencies := int64(len(conflicts) + 1)
-	t.dependencies.Add(dummyDependencies) // ensure there is no way we can be executed until we have registered all dependencies
+	previousDependencies := set.NewSet[int](len(conflicts))
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
 			lt.l.Lock()
 			if !lt.executed {
-				t.dependencies.Add(1)
+				previousDependencies.Add(latest) // we may depend on the same task multiple times
 				lt.blocking[id] = t
 			}
 			lt.l.Unlock()
@@ -128,13 +137,20 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		e.edges[k] = id
 	}
 
-	// Start execution if there are no blocking dependencies
-	if t.dependencies.Add(-dummyDependencies) == 0 {
-		e.executable <- t
-		e.metrics.RecordExecutable()
+	// Adjust dependency traker and execute if necessary
+	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
+	if t.dependencies.Add(-extraDependencies) > 0 {
+		if e.metrics != nil {
+			e.metrics.RecordBlocked()
+		}
 		return
 	}
-	e.metrics.RecordBlocked()
+
+	// Mark task for execution if we aren't waiting on any other tasks
+	e.executable <- t
+	if e.metrics != nil {
+		e.metrics.RecordExecutable()
+	}
 }
 
 func (e *Executor) Stop() {
