@@ -8,11 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/state"
 )
-
-const defaultSetSize = 8
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -57,10 +54,11 @@ type task struct {
 	id int
 	f  func() error
 
-	l            sync.Mutex
-	dependencies set.Set[int]
-	blocking     set.Set[int]
-	executed     bool
+	l        sync.Mutex
+	blocking map[int]*atomic.Int64
+	executed bool
+
+	dependencies atomic.Int64
 }
 
 func (e *Executor) runTask(t *task) {
@@ -83,13 +81,9 @@ func (e *Executor) runTask(t *task) {
 	t.l.Lock()
 	for b := range t.blocking { // works fine on non-initialized map
 		bt := e.tasks[b]
-		bt.l.Lock() // BUG: what if need to update [t], but holding outer (a waiting for b and b waiting for a)?
-		bt.dependencies.Remove(t.id)
-		if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-			bt.dependencies = nil // free memory
+		if bt.dependencies.Add(-1) == 0 {
 			e.executable <- bt
 		}
-		bt.l.Unlock()
 	}
 	t.blocking = nil // free memory
 	t.executed = true
@@ -131,28 +125,23 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	id := e.added
 	e.added++
 	t := &task{
-		id: id,
-		f:  f,
+		id:       id,
+		f:        f,
+		blocking: map[int]*atomic.Int64{},
 	}
 	e.tasks[id] = t
 
 	// Record dependencies
-	t.l.Lock()
-	defer t.l.Unlock()
+	dummyDependencies := int64(len(conflicts) + 1)
+	t.dependencies.Add(dummyDependencies) // ensure there is no way we can be executed until we have registered all dependencies
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
 			lt.l.Lock()
 			if !lt.executed {
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
-				}
-				t.dependencies.Add(lt.id)
-				if lt.blocking == nil {
-					lt.blocking = set.NewSet[int](defaultSetSize)
-				}
-				lt.blocking.Add(id)
+				t.dependencies.Add(1)
+				lt.blocking[id] = &t.dependencies
 			}
 			lt.l.Unlock()
 		}
@@ -160,17 +149,12 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	}
 
 	// Start execution if there are no blocking dependencies
-	if t.dependencies == nil || t.dependencies.Len() == 0 {
-		t.dependencies = nil // free memory
+	if t.dependencies.Add(-dummyDependencies) == 0 {
 		e.executable <- t
-		if e.metrics != nil {
-			e.metrics.RecordExecutable()
-		}
+		e.metrics.RecordExecutable()
 		return
 	}
-	if e.metrics != nil {
-		e.metrics.RecordBlocked()
-	}
+	e.metrics.RecordBlocked()
 }
 
 func (e *Executor) Stop() {

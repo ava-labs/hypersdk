@@ -16,10 +16,16 @@ type executorMetrics struct {
 }
 
 func (em *executorMetrics) RecordBlocked() {
+	if em == nil {
+		return
+	}
 	em.blocked.Inc()
 }
 
 func (em *executorMetrics) RecordExecutable() {
+	if em == nil {
+		return
+	}
 	em.executable.Inc()
 }
 
