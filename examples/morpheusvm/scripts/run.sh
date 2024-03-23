@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=ec3e947fbf123303385df93d84f36077e62d530e
+AGO_VERSION=v1.11.3
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -45,7 +45,7 @@ fi
 echo "Running with:"
 echo AGO_LOG_LEVEL: "${AGO_LOG_LEVEL}"
 echo AGO_LOG_DISPLAY_LEVEL: "${AGO_LOG_DISPLAY_LEVEL}"
-echo VERSION: "${VERSION}"
+echo AGO_VERSION: "${AGO_VERSION}"
 echo MODE: "${MODE}"
 echo LOG LEVEL: "${LOG_LEVEL}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
@@ -61,16 +61,16 @@ TMPDIR=/tmp/hypersdk
 
 echo "working directory: $TMPDIR"
 
-AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${VERSION}/plugins
+AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${AGO_VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${AGO_VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf "${TMPDIR}"/avalanchego-"${VERSION}"
-  mkdir -p "${TMPDIR}"/avalanchego-"${VERSION}"
+  rm -rf "${TMPDIR}"/avalanchego-"${AGO_VERSION}"
+  mkdir -p "${TMPDIR}"/avalanchego-"${AGO_VERSION}"
   rm -rf "${TMPDIR}"/avalanchego-src
   mkdir -p "${TMPDIR}"/avalanchego-src
 
@@ -78,11 +78,11 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
   cd "${TMPDIR}"/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
-  git checkout "${VERSION}"
+  git checkout "${AGO_VERSION}"
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego "${TMPDIR}"/avalanchego-"${VERSION}"
+  mv build/avalanchego "${TMPDIR}"/avalanchego-"${AGO_VERSION}"
 
   cd "${CWD}"
 else
@@ -95,18 +95,18 @@ fi
 echo "building morpheusvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${TMPDIR}"/avalanchego-"${AGO_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+-o "${TMPDIR}"/avalanchego-"${AGO_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
 ./cmd/morpheusvm
 
 echo "building morpheus-cli"
 go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # log everything in the avalanchego directory
-find "${TMPDIR}"/avalanchego-"${VERSION}"
+find "${TMPDIR}"/avalanchego-"${AGO_VERSION}"
 
 ############################
 
@@ -214,7 +214,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=7cdb4f5e7c67a3b2a313f43cbfb9729009ef2955
+ANR_VERSION=e03e43a3610761e70694fee9e41611d30974a1a3
 # version set
 go install -v "${ANR_REPO_PATH}"@"${ANR_VERSION}"
 
@@ -271,7 +271,7 @@ echo "running e2e tests"
 --vm-genesis-path="${TMPDIR}"/morpheusvm.genesis \
 --vm-config-path="${TMPDIR}"/morpheusvm.config \
 --subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
---output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
+--output-path="${TMPDIR}"/avalanchego-"${AGO_VERSION}"/output.yaml \
 --mode="${MODE}"
 
 ############################
