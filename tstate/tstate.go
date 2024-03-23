@@ -16,13 +16,16 @@ import (
 
 // TState defines a struct for storing temporary state.
 type TState struct {
+	changedSize int // estimate used to initialize mapOps during [ExportMerkleDBView]
 	changedKeys sync.Map
 }
 
-// New returns a new instance of TState. Initializes the storage and changedKeys
-// maps to have an initial size of [storageSize] and [changedSize] respectively.
+// New returns a new instance of TState.
+//
+// [changedSize] is an estimate of the number of keys that will be changed and is
+// used to optimize the creation of [ExportMerkleDBView].
 func New(changedSize int) *TState {
-	return &TState{}
+	return &TState{changedSize: changedSize}
 }
 
 func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, bool) {
@@ -50,6 +53,9 @@ func (ts *TState) Insert(ctx context.Context, key, value []byte) error {
 
 // ExportMerkleDBView creates a slice of [database.BatchOp] of all
 // changes in [TState] that can be used to commit to [merkledb].
+//
+// Once [ExportMerkleDBView] is called, [TState] should not be used
+// again (as the bytes stored are consumed).
 func (ts *TState) ExportMerkleDBView(
 	ctx context.Context,
 	t trace.Tracer, //nolint:interfacer
@@ -62,8 +68,11 @@ func (ts *TState) ExportMerkleDBView(
 	//
 	// We are willing to accept the penalty of a full iteration here
 	// to have better performance while updating TState.
-	mapOps := make(map[string]maybe.Maybe[[]byte], 16_384) // TODO: make a config
-	ts.changedKeys.Range(func(key, value interface{}) bool {
+	//
+	// Note: it is not safe to modify [changedKeys] while iterating over it (may
+	// return either old/new value).
+	mapOps := make(map[string]maybe.Maybe[[]byte], ts.changedSize)
+	ts.changedKeys.Range(func(key, value any) bool {
 		mapOps[key.(string)] = value.(maybe.Maybe[[]byte])
 		return true
 	})
