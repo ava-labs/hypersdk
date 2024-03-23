@@ -6,22 +6,8 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/executor"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-type executorMetrics struct {
-	blocked    prometheus.Counter
-	executable prometheus.Counter
-}
-
-func (em *executorMetrics) RecordBlocked() {
-	em.blocked.Inc()
-}
-
-func (em *executorMetrics) RecordExecutable() {
-	em.executable.Inc()
-}
 
 // TODO: rename all of these
 type Metrics struct {
@@ -94,8 +80,6 @@ type Metrics struct {
 	collectChunkSignatures    metric.Averager
 	txTimeRemainingMempool    metric.Averager
 	chunkAuth                 metric.Averager
-
-	executorRecorder executor.Metrics
 }
 
 func newMetrics() (*prometheus.Registry, *Metrics, error) {
@@ -539,7 +523,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		txTimeRemainingMempool: txTimeRemainingMempool,
 		chunkAuth:              chunkAuth,
 	}
-	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
 	errs := wrappers.Errs{}
 	errs.Add(

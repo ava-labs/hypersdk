@@ -6,13 +6,11 @@ package executor
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 
-	"github.com/ava-labs/avalanchego/utils/set"
+	"go.uber.org/atomic"
+
 	"github.com/ava-labs/hypersdk/state"
 )
-
-const defaultSetSize = 8
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -21,92 +19,29 @@ const defaultSetSize = 8
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
 type Executor struct {
-	metrics Metrics
-	workers sync.WaitGroup
-
-	executable chan *task
-	remaining  atomic.Int64
-
 	added int
 	tasks []*task
 	edges map[string]int
 
-	stop     chan struct{}
-	err      error
-	stopOnce sync.Once
+	outstanding sync.WaitGroup
+
+	err atomic.Error
 }
 
 // New creates a new [Executor].
-func New(items, concurrency int, metrics Metrics) *Executor {
-	e := &Executor{
-		metrics:    metrics,
-		tasks:      make([]*task, items),
-		edges:      make(map[string]int, items*2), // TODO: tune this
-		executable: make(chan *task, items),       // ensure we don't block while holding lock
-		stop:       make(chan struct{}),
+func New(items, _ int) *Executor {
+	return &Executor{
+		tasks: make([]*task, items),
+		edges: make(map[string]int, items*2), // TODO: tune this
 	}
-	e.remaining.Add(int64(items))
-	e.workers.Add(concurrency)
-	for i := 0; i < concurrency; i++ {
-		go e.createWorker()
-	}
-	return e
 }
 
 type task struct {
-	id int
-	f  func() error
+	f func() error
 
-	l            sync.Mutex
-	dependencies set.Set[int]
-	blocking     set.Set[int]
-	executed     bool
-}
-
-func (e *Executor) runTask(t *task) {
-	defer func() {
-		if e.remaining.Add(-1) == 0 {
-			e.stopOnce.Do(func() {
-				close(e.stop)
-			})
-		}
-	}()
-
-	if err := t.f(); err != nil {
-		e.stopOnce.Do(func() {
-			e.err = err
-			close(e.stop)
-		})
-		return
-	}
-
-	t.l.Lock()
-	for b := range t.blocking { // works fine on non-initialized map
-		bt := e.tasks[b]
-		bt.l.Lock() // BUG: what if need to update [t], but holding outer (a waiting for b and b waiting for a)?
-		bt.dependencies.Remove(t.id)
-		if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-			bt.dependencies = nil // free memory
-			e.executable <- bt
-		}
-		bt.l.Unlock()
-	}
-	t.blocking = nil // free memory
-	t.executed = true
-	t.l.Unlock()
-}
-
-func (e *Executor) createWorker() {
-	defer e.workers.Done()
-
-	for {
-		select {
-		case t := <-e.executable:
-			e.runTask(t)
-		case <-e.stop:
-			return
-		}
-	}
+	l        sync.Mutex
+	waiters  map[int]*sync.WaitGroup
+	executed bool
 }
 
 // Run executes [f] after all previously enqueued [f] with
@@ -120,10 +55,7 @@ func (e *Executor) createWorker() {
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Ensure too many transactions not enqueued
 	if e.added >= len(e.tasks) {
-		e.stopOnce.Do(func() {
-			e.err = errors.New("too many transactions created")
-			close(e.stop)
-		})
+		e.err.CompareAndSwap(nil, errors.New("too many transactions created"))
 		return
 	}
 
@@ -131,66 +63,66 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	id := e.added
 	e.added++
 	t := &task{
-		id: id,
-		f:  f,
+		f:       f,
+		waiters: map[int]*sync.WaitGroup{},
 	}
 	e.tasks[id] = t
+	e.outstanding.Add(1)
 
 	// Record dependencies
-	t.l.Lock()
-	defer t.l.Unlock()
+	wg := sync.WaitGroup{}
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
 			lt.l.Lock()
 			if !lt.executed {
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
-				}
-				t.dependencies.Add(lt.id)
-				if lt.blocking == nil {
-					lt.blocking = set.NewSet[int](defaultSetSize)
-				}
-				lt.blocking.Add(id)
+				wg.Add(1)
+				lt.waiters[id] = &wg
 			}
 			lt.l.Unlock()
 		}
 		e.edges[k] = id
 	}
 
-	// Start execution if there are no blocking dependencies
-	if t.dependencies == nil || t.dependencies.Len() == 0 {
-		t.dependencies = nil // free memory
-		e.executable <- t
-		if e.metrics != nil {
-			e.metrics.RecordExecutable()
+	// Wait for the scheduler to execute us
+	go func() {
+		// Block until our dependencies have been executed
+		wg.Wait()
+
+		// Ensure we unblock our dependencies
+		defer func() {
+			t.l.Lock()
+			for _, w := range t.waiters {
+				w.Done()
+			}
+			t.waiters = nil
+			t.executed = true
+			t.l.Unlock()
+			e.outstanding.Done()
+		}()
+
+		// Stop early if executor is stopped
+		if e.err.Load() != nil {
+			return
 		}
-		return
-	}
-	if e.metrics != nil {
-		e.metrics.RecordBlocked()
-	}
+
+		// Execute task once we aren't too busy
+		if err := t.f(); err != nil {
+			e.err.CompareAndSwap(nil, err)
+			return
+		}
+	}()
 }
 
 func (e *Executor) Stop() {
-	e.stopOnce.Do(func() {
-		e.err = ErrStopped
-		close(e.stop)
-	})
+	e.err.CompareAndSwap(nil, ErrStopped)
 }
 
 // Wait returns as soon as all enqueued [f] are executed.
 //
 // You should not call [Run] after [Wait] is called.
 func (e *Executor) Wait() error {
-	abandonedTasks := len(e.tasks) - e.added
-	if e.remaining.Add(-int64(abandonedTasks)) == 0 {
-		e.stopOnce.Do(func() {
-			close(e.stop)
-		})
-	}
-
-	e.workers.Wait()
-	return e.err
+	e.outstanding.Wait()
+	return e.err.Load()
 }

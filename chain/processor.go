@@ -79,7 +79,7 @@ func NewProcessor(
 		sm:        vm.StateManager(),
 		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
-		executor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
+		executor: executor.New(numTxs, vm.GetActionExecutionCores()),
 		ts:       tstate.New(numTxs * 2),
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),

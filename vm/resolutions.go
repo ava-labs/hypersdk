@@ -23,7 +23,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/executor"
 )
 
 var (
@@ -591,10 +590,6 @@ func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
 
 func (vm *VM) GetActionExecutionCores() int {
 	return vm.config.GetActionExecutionCores()
-}
-
-func (vm *VM) GetExecutorRecorder() executor.Metrics {
-	return vm.metrics.executorRecorder
 }
 
 func (vm *VM) StartCertStream(context.Context) {

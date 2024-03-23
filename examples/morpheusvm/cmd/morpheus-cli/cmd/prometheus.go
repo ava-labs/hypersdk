@@ -235,9 +235,6 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_value_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_value_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_value_node_cache_hit[5s]))", chainID, chainID, chainID))
 			utils.Outf("{{yellow}}value node cache hit rate:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executor_executable[5s]) / (increase(avalanche_%s_vm_hypersdk_chain_executor_blocked[5s]) + increase(avalanche_%s_vm_hypersdk_chain_executor_executable[5s]))", chainID, chainID, chainID))
-			utils.Outf("{{yellow}}txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])
-
 			panels = append(panels, fmt.Sprintf("avalanche_%s_handler_unprocessed_msgs_len", chainID))
 			utils.Outf("{{yellow}}unprocessed messages:{{/}} %s\n", panels[len(panels)-1])
 

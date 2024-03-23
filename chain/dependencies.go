@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -50,7 +49,6 @@ type Metrics interface {
 	RecordAcceptedEpoch(uint64)
 	RecordExecutedEpoch(uint64)
 
-	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
 	RecordChunkBuildTxDropped()
