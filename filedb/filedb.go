@@ -1,6 +1,7 @@
 package filedb
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,14 @@ func (f *FileDB) Put(key string, value []byte, cache bool) error {
 	f.lm.Lock(filePath)
 	defer f.lm.Unlock(filePath)
 
+	// Don't do anything if already in cache and bytes equal
+	if cachedValue, exists := f.fileCache.Get(filePath); exists {
+		if bytes.Equal(cachedValue, value) {
+			return nil
+		}
+	}
+
+	// Store the value on disk
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("%w: unable to create file", err)

@@ -65,6 +65,7 @@ type Metrics struct {
 	expiredCerts              prometheus.Counter
 	mempoolExpired            prometheus.Counter
 	fetchChunkAttempts        prometheus.Counter
+	uselessFetchChunkAttempts prometheus.Counter
 	txGossipDropped           prometheus.Counter
 	unitsExecutedBandwidth    prometheus.Counter
 	unitsExecutedCompute      prometheus.Counter
@@ -72,6 +73,7 @@ type Metrics struct {
 	unitsExecutedAllocate     prometheus.Counter
 	unitsExecutedWrite        prometheus.Counter
 	uselessChunkAuth          prometheus.Counter
+	optimisticCertifiedGossip prometheus.Counter
 	engineBacklog             prometheus.Gauge
 	rpcTxBacklog              prometheus.Gauge
 	chainDataSize             prometheus.Gauge
@@ -441,6 +443,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "fetch_chunk_attempts",
 			Help:      "number of attempts to fetch a chunk",
 		}),
+		uselessFetchChunkAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "useless_fetch_chunk_attempts",
+			Help:      "number of attempts to fetch a chunk that were useless (received via push)",
+		}),
 		txGossipDropped: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "tx_gossip_dropped",
@@ -470,6 +477,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "units_executed_write",
 			Help:      "number of write units executed",
+		}),
+		optimisticCertifiedGossip: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "optimistic_certified_gossip",
+			Help:      "number of optimistic certified messages sent over gossip",
 		}),
 		uselessChunkAuth: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -583,6 +595,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.expiredCerts),
 		r.Register(m.mempoolExpired),
 		r.Register(m.fetchChunkAttempts),
+		r.Register(m.uselessFetchChunkAttempts),
 		r.Register(m.engineBacklog),
 		r.Register(m.rpcTxBacklog),
 		r.Register(m.chainDataSize),
@@ -600,6 +613,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedAllocate),
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
+		r.Register(m.optimisticCertifiedGossip),
 	)
 	return r, m, errs.Err
 }
