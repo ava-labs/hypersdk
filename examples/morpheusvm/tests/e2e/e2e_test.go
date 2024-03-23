@@ -278,10 +278,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 5 new validators (which should have BLS key registered)
+	// Add 5 nodes to subnet (already have BLS key registered)
 	subnet := []string{}
 	for i := 1; i <= int(numValidators); i++ {
-		n := fmt.Sprintf("node%d-bls", i)
+		n := fmt.Sprintf("node%d", i)
 		subnet = append(subnet, n)
 	}
 	specs := []*rpcpb.BlockchainSpec{

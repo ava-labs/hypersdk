@@ -4,6 +4,7 @@
 package executor
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -62,7 +63,8 @@ func (e *Executor) work() {
 }
 
 type task struct {
-	f func() error
+	id int // TODO: remove
+	f  func() error
 
 	l        sync.Mutex
 	blocking map[int]*task
@@ -87,8 +89,14 @@ func (e *Executor) runTask(t *task) {
 
 	t.l.Lock()
 	for _, bt := range t.blocking {
-		if bt.dependencies.Add(-1) > 0 {
+		deps := bt.dependencies.Add(-1)
+		if deps > 0 {
+			fmt.Println(t.id, "deps=", deps, "in task")
 			continue
+		}
+		fmt.Println(t.id, "executing with deps=", deps, "in task")
+		if deps != 0 {
+			panic("deps should be 0")
 		}
 		e.executable <- bt
 	}
@@ -111,12 +119,13 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Generate task
 	id := len(e.tasks)
 	t := &task{
+		id:       id,
 		f:        f,
 		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
 
-	// Ensure there is no way we can be executed until we have registered all dependencies
+	// Add dummy dependencies to ensure we don't execute the task
 	dummyDependencies := int64(len(conflicts) + 1)
 	t.dependencies.Add(dummyDependencies)
 
@@ -129,6 +138,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 			lt.l.Lock()
 			if !lt.executed {
 				dependencies++
+				fmt.Println(id, "adding dep", latest)
 				lt.blocking[id] = t
 			}
 			lt.l.Unlock()
@@ -136,15 +146,19 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 		e.edges[k] = id
 	}
 
-	// It is ok if we briefly "go negative" (task decrements before we add) when handling
-	// dependencies for a key.
-	//
-	// We adjust dependencies after we have released [lt.l] to avoid a deadlock.
-	if t.dependencies.Add(int64(dependencies)-dummyDependencies) > 0 {
+	// Adjust dependency traker and execute if necessary
+	extraDependencies := dummyDependencies - int64(dependencies)
+	deps := t.dependencies.Add(-extraDependencies)
+	if deps > 0 {
+		fmt.Println(id, "deps=", deps, "at end of loop")
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}
 		return
+	}
+	fmt.Println(id, "executing with deps=", deps, "at end of loop")
+	if deps != 0 {
+		panic("deps should be 0")
 	}
 	e.executable <- t
 	if e.metrics != nil {
