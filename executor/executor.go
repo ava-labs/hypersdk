@@ -60,20 +60,26 @@ type task struct {
 	dependencies atomic.Int64
 }
 
-func (e *Executor) runTask(t *task) {
-	defer func() {
-		if e.remaining.Add(-1) == 0 {
-			e.stopOnce.Do(func() {
-				close(e.stop)
-			})
-		}
-	}()
-
-	if err := t.f(); err != nil {
+func (e *Executor) completeTask(c int64) {
+	if e.remaining.Add(-c) == 0 {
 		e.stopOnce.Do(func() {
-			e.err = err
 			close(e.stop)
 		})
+	}
+}
+
+func (e *Executor) fail(err error) {
+	e.stopOnce.Do(func() {
+		e.err = err
+		close(e.stop)
+	})
+}
+
+func (e *Executor) runTask(t *task) {
+	defer e.completeTask(1)
+
+	if err := t.f(); err != nil {
+		e.fail(err)
 		return
 	}
 
@@ -112,10 +118,7 @@ func (e *Executor) createWorker() {
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// Ensure too many transactions not enqueued
 	if e.added >= len(e.tasks) {
-		e.stopOnce.Do(func() {
-			e.err = errors.New("too many transactions created")
-			close(e.stop)
-		})
+		e.fail(errors.New("too many transactions created"))
 		return
 	}
 
@@ -155,23 +158,14 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 }
 
 func (e *Executor) Stop() {
-	e.stopOnce.Do(func() {
-		e.err = ErrStopped
-		close(e.stop)
-	})
+	e.fail(ErrStopped)
 }
 
 // Wait returns as soon as all enqueued [f] are executed.
 //
 // You should not call [Run] after [Wait] is called.
 func (e *Executor) Wait() error {
-	abandonedTasks := len(e.tasks) - e.added
-	if e.remaining.Add(-int64(abandonedTasks)) == 0 {
-		e.stopOnce.Do(func() {
-			close(e.stop)
-		})
-	}
-
+	e.completeTask(int64(len(e.tasks) - e.added))
 	e.workers.Wait()
 	return e.err
 }
