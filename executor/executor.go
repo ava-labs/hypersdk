@@ -4,10 +4,10 @@
 package executor
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/state"
 
 	uatomic "go.uber.org/atomic"
@@ -89,14 +89,8 @@ func (e *Executor) runTask(t *task) {
 
 	t.l.Lock()
 	for _, bt := range t.blocking {
-		deps := bt.dependencies.Add(-1)
-		if deps > 0 {
-			fmt.Println(t.id, "deps=", deps, "in task")
+		if bt.dependencies.Add(-1) > 0 {
 			continue
-		}
-		fmt.Println(t.id, "executing with deps=", deps, "in task")
-		if deps != 0 {
-			panic("deps should be 0")
 		}
 		e.executable <- bt
 	}
@@ -130,15 +124,14 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	t.dependencies.Add(dummyDependencies)
 
 	// Record dependencies
-	dependencies := 0
+	previousDependencies := set.NewSet[int](len(conflicts))
 	for k := range conflicts {
 		latest, ok := e.edges[k]
 		if ok {
 			lt := e.tasks[latest]
 			lt.l.Lock()
 			if !lt.executed {
-				dependencies++
-				fmt.Println(id, "adding dep", latest)
+				previousDependencies.Add(latest) // we may depend on the same task multiple times
 				lt.blocking[id] = t
 			}
 			lt.l.Unlock()
@@ -147,18 +140,12 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	}
 
 	// Adjust dependency traker and execute if necessary
-	extraDependencies := dummyDependencies - int64(dependencies)
-	deps := t.dependencies.Add(-extraDependencies)
-	if deps > 0 {
-		fmt.Println(id, "deps=", deps, "at end of loop")
+	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
+	if t.dependencies.Add(-extraDependencies) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}
 		return
-	}
-	fmt.Println(id, "executing with deps=", deps, "at end of loop")
-	if deps != 0 {
-		panic("deps should be 0")
 	}
 	e.executable <- t
 	if e.metrics != nil {
