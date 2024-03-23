@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,10 +35,11 @@ const (
 	chunkMsg            uint8 = 0x0
 	chunkSignatureMsg   uint8 = 0x1
 	chunkCertificateMsg uint8 = 0x2
-	txMsg               uint8 = 0x3
+	chunkCertifiedMsg   uint8 = 0x3 // chunk + chunk certificate
+	txMsg               uint8 = 0x4
 
-	chunkReq         uint8 = 0x0
-	filteredChunkReq uint8 = 0x1
+	chunkReq uint8 = 0x0
+	// TODO: add support for filtered chunk requests
 
 	minWeightNumerator = 67
 	weightDenominator  = 100
@@ -347,6 +349,93 @@ func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig
 	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: set.Of(nodeID)}, msg) // skips validators we aren't connected to
 }
 
+func (c *ChunkManager) VerifyAndStoreChunk(ctx context.Context, nodeID ids.NodeID, chunk *chain.Chunk) error {
+	// Check if we already received
+	if c.stored.Has(chunk.ID()) {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("already received chunk")
+	}
+
+	// Check if chunk < slot
+	if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("dropping expired chunk")
+	}
+
+	// Check that producer is the sender
+	if chunk.Producer != nodeID {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("dropping chunk gossip that isn't from producer")
+	}
+
+	// Determine if chunk producer is a validator and that their key is valid
+	_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
+	if err != nil {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return fmt.Errorf("%w: unable to determine chunk epoch", err)
+	}
+	isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, chunk.Producer)
+	if err != nil {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("unable to determine if producer is validator")
+	}
+	if !isValidator {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("dropping chunk gossip from non-validator")
+	}
+	if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunk.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("dropping validator signed chunk with wrong key")
+	}
+
+	// Verify signature of chunk
+	if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
+		c.vm.metrics.gossipChunkInvalid.Inc()
+		return errors.New("dropping chunk with invalid signature")
+	}
+
+	// TODO: only store 1 chunk per slot per validator
+	// TODO: warn if chunk is dropped for a conflict during fetching (same producer, slot, different chunkID)
+
+	// Persist chunk to disk (delete if not used in time but need to store to protect
+	// against shutdown risk across network -> chunk may no longer be accessible after included
+	// in referenced certificate)
+	if err := c.vm.StoreChunk(chunk); err != nil {
+		return fmt.Errorf("%w: unable to persist chunk to disk", err)
+	}
+	c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: chunk.Slot})
+	return nil
+}
+
+func (c *ChunkManager) VerifyAndStoreCertificate(ctx context.Context, cert *chain.ChunkCertificate) error {
+	// Determine epoch for certificate
+	_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
+	if err != nil {
+		c.vm.metrics.gossipCertInvalid.Inc()
+		return fmt.Errorf("%w: unable to determine certificate epoch", err)
+	}
+
+	// Verify certificate using the epoch validator set
+	aggrPubKey, err := c.vm.proposerMonitor.GetAggregatePublicKey(ctx, epochHeight, cert.Signers, minWeightNumerator, weightDenominator)
+	if err != nil {
+		c.vm.metrics.gossipCertInvalid.Inc()
+		return fmt.Errorf("%w: unable to get aggregate public key", err)
+	}
+	if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
+		c.vm.metrics.gossipCertInvalid.Inc()
+		return errors.New("dropping invalid certificate")
+	}
+	c.vm.metrics.certsReceived.Inc()
+
+	// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
+
+	// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
+
+	// Store chunk certificate for building
+	c.certs.Update(cert)
+	return nil
+}
+
 func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	start := time.Now()
 	if len(msg) == 0 {
@@ -363,83 +452,18 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// Check if we already received
-		if c.stored.Has(chunk.ID()) {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("already received chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
+		// Handle chunk verification
+		if err := c.VerifyAndStoreChunk(ctx, nodeID, chunk); err != nil {
+			c.vm.Logger().Warn("unable to verify and store chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
 			return nil
 		}
 
-		// Check if chunk < slot
-		if chunk.Slot < c.vm.lastAccepted.StatefulBlock.Timestamp {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("dropping expired chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()))
-			return nil
-		}
-
-		// Check that producer is the sender
-		if chunk.Producer != nodeID {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("dropping chunk gossip that isn't from producer", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
-
-		// Determine if chunk producer is a validator and that their key is valid
+		// Sign chunk if validator
 		_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
 		if err != nil {
-			c.vm.metrics.gossipChunkInvalid.Inc()
 			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
 			return nil
 		}
-		isValidator, signerKey, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, chunk.Producer)
-		if err != nil {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("unable to determine if producer is validator", zap.Stringer("producer", chunk.Producer), zap.Error(err))
-			return nil
-		}
-		if !isValidator {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("dropping chunk gossip from non-validator", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
-		if signerKey == nil || !bytes.Equal(bls.PublicKeyToCompressedBytes(chunk.Signer), bls.PublicKeyToCompressedBytes(signerKey)) {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("dropping validator signed chunk with wrong key", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
-
-		// Verify signature of chunk
-		if !chunk.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID) {
-			c.vm.metrics.gossipChunkInvalid.Inc()
-			dig, err := chunk.Digest()
-			if err != nil {
-				panic(err)
-			}
-			c.vm.Logger().Warn(
-				"dropping chunk with invalid signature",
-				zap.Stringer("nodeID", nodeID),
-				zap.Uint32("networkID", c.vm.snowCtx.NetworkID),
-				zap.Stringer("chainID", c.vm.snowCtx.ChainID),
-				zap.String("digest", hex.EncodeToString(dig)),
-				zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(chunk.Signer))),
-				zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(chunk.Signature))),
-			)
-			return nil
-		}
-
-		// TODO: only store 1 chunk per slot per validator
-		// TODO: warn if chunk is dropped for a conflict during fetching (same producer, slot, different chunkID)
-
-		// Persist chunk to disk (delete if not used in time but need to store to protect
-		// against shutdown risk across network -> chunk may no longer be accessible after included
-		// in referenced certificate)
-		if err := c.vm.StoreChunk(chunk); err != nil {
-			c.vm.Logger().Warn("unable to persist chunk to disk", zap.Stringer("nodeID", nodeID), zap.Error(err))
-			return nil
-		}
-		c.stored.Add(&simpleChunkWrapper{chunk: chunk.ID(), slot: chunk.Slot})
-
-		// Sign chunk if validator
 		amValidator, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, c.vm.snowCtx.NodeID)
 		if err != nil {
 			c.vm.Logger().Warn("unable to determine if am validator", zap.Error(err))
@@ -634,58 +658,11 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// Determine epoch for certificate
-		_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
-		if err != nil {
-			c.vm.metrics.gossipCertInvalid.Inc()
-			c.vm.Logger().Warn("unable to determine certificate epoch", zap.Int64("slot", cert.Slot))
+		// Handle cert verification
+		if err := c.VerifyAndStoreCertificate(ctx, cert); err != nil {
+			c.vm.Logger().Warn("unable to verify and store certificate", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
-
-		// Verify certificate using the epoch validator set
-		aggrPubKey, err := c.vm.proposerMonitor.GetAggregatePublicKey(ctx, epochHeight, cert.Signers, minWeightNumerator, weightDenominator)
-		if err != nil {
-			c.vm.metrics.gossipCertInvalid.Inc()
-			c.vm.Logger().Warn(
-				"dropping invalid certificate",
-				zap.Uint64("Pheight", epochHeight),
-				zap.Stringer("nodeID", nodeID),
-				zap.Stringer("chunkID", cert.Chunk),
-				zap.Error(err),
-			)
-			return err
-		}
-		if !cert.VerifySignature(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, aggrPubKey) {
-			c.vm.metrics.gossipCertInvalid.Inc()
-			c.vm.Logger().Warn(
-				"dropping invalid certificate",
-				zap.Uint64("Pheight", epochHeight),
-				zap.Stringer("nodeID", nodeID),
-				zap.Stringer("chunkID", cert.Chunk),
-				zap.Binary("bitset", cert.Signers.Bytes()),
-				zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey))),
-				zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
-				zap.Error(errors.New("invalid signature")),
-			)
-			return nil
-		}
-		c.vm.Logger().Debug(
-			"verified chunk certificate",
-			zap.Uint64("Pheight", epochHeight),
-			zap.Stringer("nodeID", nodeID),
-			zap.Stringer("chunkID", cert.Chunk),
-			zap.String("aggrPubKey", hex.EncodeToString(bls.PublicKeyToCompressedBytes(aggrPubKey))),
-			zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(cert.Signature))),
-			zap.String("signers", cert.Signers.String()),
-			zap.Duration("t", time.Since(start)),
-		)
-		c.vm.metrics.certsReceived.Inc()
-		// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
-
-		// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
-
-		// Store chunk certificate for building
-		c.certs.Update(cert)
 
 		// Attempt to add chunk to the optimistic verifier
 		//
@@ -695,6 +672,21 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
 		if chunk == nil {
 			c.vm.Logger().Warn("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
+			return nil
+		}
+		c.auth.Add(chunk)
+	case chunkCertifiedMsg:
+		chunk, cert, err := parseCertifiedChunkMsg(msg, c.vm)
+		if err != nil {
+			c.vm.Logger().Warn("dropping invalid certified chunk", zap.Stringer("nodeID", nodeID), zap.Error(err))
+			return nil
+		}
+		if err := c.VerifyAndStoreChunk(ctx, nodeID, chunk); err != nil {
+			c.vm.Logger().Warn("unable to verify and store chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
+			return nil
+		}
+		if err := c.VerifyAndStoreCertificate(ctx, cert); err != nil {
+			c.vm.Logger().Warn("unable to verify and store certificate", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
 		c.auth.Add(chunk)
@@ -756,25 +748,6 @@ func (c *ChunkManager) AppRequest(
 				"unable to fetch chunk",
 				zap.Stringer("nodeID", nodeID),
 				zap.Int64("slot", slot),
-				zap.Stringer("chunkID", id),
-				zap.Error(err),
-			)
-			c.appSender.SendAppError(ctx, nodeID, requestID, -1, err.Error()) // TODO: add error so caller knows it is missing
-			return nil
-		}
-		c.appSender.SendAppResponse(ctx, nodeID, requestID, chunk)
-	case filteredChunkReq:
-		rid := request[1:]
-		if len(rid) != ids.IDLen {
-			c.vm.Logger().Warn("dropping invalid request", zap.Stringer("nodeID", nodeID))
-			return nil
-		}
-		id := ids.ID(rid)
-		chunk, err := c.vm.GetFilteredChunkBytes(id)
-		if chunk == nil || err != nil {
-			c.vm.Logger().Warn(
-				"unable to fetch filtered chunk",
-				zap.Stringer("nodeID", nodeID),
 				zap.Stringer("chunkID", id),
 				zap.Error(err),
 			)
@@ -1238,6 +1211,42 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: validators}, msg) // skips validators we aren't connected to
 }
 
+func makeCertifiedChunkMsg(chunk *chain.Chunk, cert *chain.ChunkCertificate) ([]byte, error) {
+	// We assume there is enough room to attach a cert to a chunk and still be under the network
+	// size limit
+	p := codec.NewWriter(1+codec.BytesLenSize(chunk.Size())+codec.BytesLenSize(cert.Size()), consts.NetworkSizeLimit)
+	p.PackByte(chunkCertifiedMsg)
+	c, err := chunk.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(c)
+	ct, err := cert.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(ct)
+	return p.Bytes(), p.Err()
+}
+
+func parseCertifiedChunkMsg(msg []byte, vm *VM) (*chain.Chunk, *chain.ChunkCertificate, error) {
+	p := codec.NewReader(msg, consts.NetworkSizeLimit)
+	p.UnpackByte()
+	var chunkBytes []byte
+	p.UnpackBytes(consts.NetworkSizeLimit, true, &chunkBytes)
+	chunk, err := chain.UnmarshalChunk(chunkBytes, vm)
+	if err != nil {
+		return nil, nil, err
+	}
+	var certBytes []byte
+	p.UnpackBytes(consts.NetworkSizeLimit, true, &certBytes)
+	cert, err := chain.UnmarshalChunkCertificate(certBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return chunk, cert, nil
+}
+
 func (c *ChunkManager) PushCertifiedChunk(ctx context.Context, chunk *chain.Chunk, cert *chain.ChunkCertificate) {
 	// Get non-validators
 	recipients := set.Set[ids.NodeID]{}
@@ -1261,21 +1270,13 @@ func (c *ChunkManager) PushCertifiedChunk(ctx context.Context, chunk *chain.Chun
 		c.vm.metrics.optimisticCertifiedGossip.Inc()
 	}
 
-	// Push chunk
-	chunkMsg, err := makeChunkMsg(chunk)
+	// Push msg
+	msg, err := makeCertifiedChunkMsg(chunk, cert)
 	if err != nil {
-		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
+		c.vm.Logger().Warn("failed to marshal certified chunk", zap.Error(err))
 		return
 	}
-	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, chunkMsg)
-
-	// Push certificate
-	certMsg, err := makeChunkCertificateMsg(cert)
-	if err != nil {
-		c.vm.Logger().Warn("failed to marshal chunk cert", zap.Error(err))
-		return
-	}
-	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, certMsg)
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, msg)
 }
 
 // RestoreChunkCertificates re-inserts certs into the CertStore for inclusion. These chunks are sorted
