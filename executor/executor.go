@@ -106,8 +106,9 @@ func (e *Executor) runTask(t *task) {
 // treats everything still as ReadWrite, see issue below)
 // https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
-	// Generate task
 	e.outstanding.Add(1)
+
+	// Generate task
 	id := len(e.tasks)
 	t := &task{
 		f:        f,
@@ -139,7 +140,7 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	// dependencies for a key.
 	//
 	// We adjust dependencies after we have released [lt.l] to avoid a deadlock.
-	if t.dependencies.Add(-dummyDependencies+int64(dependencies)) > 0 {
+	if t.dependencies.Add(int64(dependencies)-dummyDependencies) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}
