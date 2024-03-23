@@ -481,7 +481,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		cw, ok := c.built.Get(chunkSignature.Chunk)
 		if !ok || cw.chunk.Slot != chunkSignature.Slot {
 			c.vm.metrics.gossipChunkSigInvalid.Inc()
-			c.vm.Logger().Warn("dropping useless chunk signature", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunkSignature.Chunk))
+			c.vm.Logger().Warn("dropping useless chunk signature", zap.Bool("built", ok), zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunkSignature.Chunk))
 			return nil
 		}
 
