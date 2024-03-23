@@ -620,7 +620,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// will allow them to kickoff signature verification earlier).
 		//
 		// TODO: limit number of nodes we send to/use a whitelist to avoid
-		// a sybil attack on our bandwidth.
+		// a sybil attack on our bandwidth (that being said, they'll try to request
+		// these from us anyways).
 		if !firstCertificate {
 			return nil
 		}
@@ -1257,6 +1258,7 @@ func (c *ChunkManager) PushCertifiedChunk(ctx context.Context, chunk *chain.Chun
 			continue
 		}
 		recipients.Add(recipient)
+		c.vm.metrics.optimisticCertifiedGossip.Inc()
 	}
 
 	// Push chunk
