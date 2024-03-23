@@ -51,8 +51,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 }
 
 type task struct {
-	id int
-	f  func() error
+	f func() error
 
 	l        sync.Mutex
 	blocking map[int]*task
@@ -124,7 +123,6 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	id := e.added
 	e.added++
 	t := &task{
-		id:       id,
 		f:        f,
 		blocking: map[int]*task{},
 	}
