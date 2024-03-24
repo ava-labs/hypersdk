@@ -459,16 +459,16 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		}
 		if b.Root != root {
 			log.Error("block has invalid root", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedRoot", root), zap.Stringer("actualRoot", b.Root))
-			return errors.New("root mismatch")
+			panic("root mismatch") // could help us debug
 		}
 		if len(b.ExecutedChunks) != len(executed) {
 			log.Error("block has invalid executed chunks count", zap.Stringer("blockID", b.ID()), zap.Int("expectedCount", len(executed)), zap.Int("actualCount", len(b.ExecutedChunks)))
-			return errors.New("executed chunks count mismatch")
+			panic("executed chunk count mismatch") // could help us debug
 		}
 		for i, id := range b.ExecutedChunks {
 			if id != executed[i] {
 				log.Error("block has invalid executed chunks", zap.Stringer("blockID", b.ID()), zap.Int("index", i), zap.Stringer("expectedID", executed[i]), zap.Stringer("actualID", id))
-				return errors.New("executed chunks mismatch")
+				panic("executed chunk mismatch") // could help us debug
 			}
 		}
 		b.execHeight = &execHeight
