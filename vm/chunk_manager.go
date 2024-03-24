@@ -978,18 +978,18 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					for _, tx := range txw.txs {
 						epoch, epochHeight, err := c.getEpochInfo(ctx, tx.Base.Timestamp)
 						if err != nil {
-							c.vm.Logger().Warn("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
+							c.vm.Logger().Debug("unable to determine tx epoch", zap.Int64("t", tx.Base.Timestamp))
 							invalid = true
 							break
 						}
 						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor())
 						if err != nil {
-							c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
+							c.vm.Logger().Debug("unable to compute address partition", zap.Error(err))
 							invalid = true
 							break
 						}
 						if partition != c.vm.snowCtx.NodeID {
-							c.vm.Logger().Warn("dropping tx gossip from non-partition", zap.Stringer("nodeID", txw.nodeID))
+							c.vm.Logger().Debug("dropping tx gossip from non-partition", zap.Stringer("nodeID", txw.nodeID))
 							invalid = true
 							break
 						}
@@ -1015,7 +1015,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					// TODO: stop job
 					if invalid {
 						batchVerifier.Done(nil)
-						c.vm.Logger().Warn("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
+						c.vm.Logger().Debug("dropping invalid tx gossip", zap.Stringer("nodeID", txw.nodeID))
 						c.vm.metrics.gossipTxInvalid.Add(float64(len(txw.txs)))
 						continue
 					}
@@ -1023,7 +1023,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					// Wait for signature verification to finish
 					batchVerifier.Done(nil)
 					if err := job.Wait(); err != nil {
-						c.vm.Logger().Warn(
+						c.vm.Logger().Debug(
 							"received invalid gossip",
 							zap.Stringer("peerID", txw.nodeID),
 							zap.Error(err),
