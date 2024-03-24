@@ -516,8 +516,8 @@ func (vm *VM) RecordWaitExec(t time.Duration) {
 	vm.metrics.waitExec.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitProcessor(t time.Duration) {
-	vm.metrics.waitProcessor.Observe(float64(t))
+func (vm *VM) RecordWaitPrecheck(t time.Duration) {
+	vm.metrics.waitPrecheck.Observe(float64(t))
 }
 
 func (vm *VM) RecordWaitCommit(t time.Duration) {
@@ -716,4 +716,8 @@ func (vm *VM) GetAuthResult(chunkID ids.ID) bool {
 
 func (vm *VM) RecordWaitQueue(t time.Duration) {
 	vm.metrics.waitQueue.Observe(float64(t))
+}
+
+func (vm *VM) GetPrecheckCores() int {
+	return vm.config.GetPrecheckCores()
 }

@@ -24,7 +24,6 @@ type Executor struct {
 
 	workers sync.WaitGroup
 
-	pending     chan *pending
 	outstanding sync.WaitGroup
 	executable  chan *task
 
@@ -38,73 +37,15 @@ type Executor struct {
 func New(items, concurrency int, metrics Metrics) *Executor {
 	e := &Executor{
 		metrics:    metrics,
-		pending:    make(chan *pending, items),
 		tasks:      make(map[int]*task, items),
 		edges:      make(map[string]int, items*2), // TODO: tune this
 		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
-	e.workers.Add(concurrency + 1)
-	go e.add()
+	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
 		go e.work()
 	}
 	return e
-}
-
-func (e *Executor) add() {
-	defer e.workers.Done()
-
-	for {
-		select {
-		case p, ok := <-e.pending:
-			if !ok {
-				return
-			}
-
-			// Generate task
-			id := len(e.tasks)
-			t := &task{
-				f:        p.f,
-				blocking: map[int]*task{},
-			}
-			e.tasks[id] = t
-
-			// Add dummy dependencies to ensure we don't execute the task
-			dummyDependencies := int64(len(p.conflicts) + 1)
-			t.dependencies.Add(dummyDependencies)
-
-			// Record dependencies
-			previousDependencies := set.NewSet[int](len(p.conflicts))
-			for k := range p.conflicts {
-				latest, ok := e.edges[k]
-				if ok {
-					lt := e.tasks[latest]
-					lt.l.Lock()
-					if !lt.executed {
-						previousDependencies.Add(latest) // we may depend on the same task multiple times
-						lt.blocking[id] = t
-					}
-					lt.l.Unlock()
-				}
-				e.edges[k] = id
-			}
-
-			// Adjust dependency traker and execute if necessary
-			extraDependencies := dummyDependencies - int64(previousDependencies.Len())
-			if t.dependencies.Add(-extraDependencies) > 0 {
-				if e.metrics != nil {
-					e.metrics.RecordBlocked()
-				}
-				continue
-			}
-
-			// Mark task for execution if we aren't waiting on any other tasks
-			e.executable <- t
-			if e.metrics != nil {
-				e.metrics.RecordExecutable()
-			}
-		}
-	}
 }
 
 func (e *Executor) work() {
@@ -119,11 +60,6 @@ func (e *Executor) work() {
 			e.runTask(t)
 		}
 	}
-}
-
-type pending struct {
-	conflicts state.Keys
-	f         func() error
 }
 
 type task struct {
@@ -173,9 +109,47 @@ func (e *Executor) runTask(t *task) {
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.outstanding.Add(1)
 
-	e.pending <- &pending{
-		conflicts: conflicts,
-		f:         f,
+	// Generate task
+	id := len(e.tasks)
+	t := &task{
+		f:        f,
+		blocking: map[int]*task{},
+	}
+	e.tasks[id] = t
+
+	// Add dummy dependencies to ensure we don't execute the task
+	dummyDependencies := int64(len(conflicts) + 1)
+	t.dependencies.Add(dummyDependencies)
+
+	// Record dependencies
+	previousDependencies := set.NewSet[int](len(conflicts))
+	for k := range conflicts {
+		latest, ok := e.edges[k]
+		if ok {
+			lt := e.tasks[latest]
+			lt.l.Lock()
+			if !lt.executed {
+				previousDependencies.Add(latest) // we may depend on the same task multiple times
+				lt.blocking[id] = t
+			}
+			lt.l.Unlock()
+		}
+		e.edges[k] = id
+	}
+
+	// Adjust dependency traker and execute if necessary
+	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
+	if t.dependencies.Add(-extraDependencies) > 0 {
+		if e.metrics != nil {
+			e.metrics.RecordBlocked()
+		}
+		return
+	}
+
+	// Mark task for execution if we aren't waiting on any other tasks
+	e.executable <- t
+	if e.metrics != nil {
+		e.metrics.RecordExecutable()
 	}
 }
 
@@ -187,7 +161,6 @@ func (e *Executor) Stop() {
 //
 // You should not call [Run] after [Wait] is called.
 func (e *Executor) Wait() error {
-	close(e.pending)
 	e.outstanding.Wait()
 	close(e.executable)
 	e.workers.Wait()
