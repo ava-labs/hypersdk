@@ -89,7 +89,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "mempoolSponsorSize": 10000000,
   "authExecutionCores": 32,
   "precheckCores": 32,
-  "actionExecutionCores": 8,
+  "actionExecutionCores": 32,
   "rootGenerationCores": 32,
   "missingChunkFetchers": 48,
   "verifyAuth":true,
