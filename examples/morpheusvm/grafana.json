@@ -64,6 +64,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -117,7 +118,107 @@
           "useBackend": false
         }
       ],
-      "title": "Transactions Finalized",
+      "title": "Transactions Finalized (Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "avalanche_${ChainID}_vm_hypersdk_vm_txs_included",
+          "fullMetaSearch": false,
+          "includeNullMetadata": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Transactions Finalized (Cummulative)",
       "type": "timeseries"
     },
     {
@@ -183,8 +284,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 0
+        "x": 0,
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -312,7 +413,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 8
       },
       "id": 24,
@@ -347,7 +448,7 @@
           "useBackend": false
         }
       ],
-      "title": "Engine Backlog",
+      "title": "Block Execution Backlog",
       "type": "timeseries"
     },
     {
@@ -393,6 +494,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -405,18 +507,17 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "none"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 8
+        "x": 0,
+        "y": 16
       },
-      "id": 23,
+      "id": 17,
       "options": {
         "legend": {
           "calcs": [],
@@ -437,9 +538,8 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "avalanche_${ChainID}_vm_hypersdk_chain_rpc_tx_backlog",
+          "expr": "rate(avalanche_${ChainID}_vm_hypersdk_chain_state_changes[30s])",
           "fullMetaSearch": false,
-          "hide": false,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -448,7 +548,108 @@
           "useBackend": false
         }
       ],
-      "title": "RPC Transaction Backlog",
+      "title": "State Changes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "rate(avalanche_${ChainID}_vm_hypersdk_chain_units_executed_bandwidth[30s])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Transaction Data Finalized",
       "type": "timeseries"
     },
     {
@@ -514,7 +715,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 24
       },
       "id": 20,
       "options": {
@@ -613,7 +814,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 24
       },
       "id": 19,
       "options": {
@@ -692,6 +893,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -704,7 +906,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -712,9 +915,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 32
       },
-      "id": 17,
+      "id": 26,
       "options": {
         "legend": {
           "calcs": [],
@@ -735,17 +938,46 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${ChainID}_vm_hypersdk_chain_state_changes[30s])",
+          "expr": "rate(avalanche_${ChainID}_vm_hypersdk_chain_tx_time_remaining_mempool_sum[30s])",
           "fullMetaSearch": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "rate(avalanche_${ChainID}_vm_hypersdk_chain_tx_time_remaining_mempool_count[30s])",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A/$B",
+          "hide": false,
+          "refId": "C",
+          "type": "math"
         }
       ],
-      "title": "State Changes",
+      "title": "Expiry Remaining When Added to Mempool",
       "type": "timeseries"
     },
     {
@@ -804,7 +1036,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -812,9 +1044,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 32
       },
-      "id": 4,
+      "id": 23,
       "options": {
         "legend": {
           "calcs": [],
@@ -835,8 +1067,9 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${ChainID}_vm_hypersdk_chain_units_executed_bandwidth[30s])",
+          "expr": "avalanche_${ChainID}_vm_hypersdk_chain_rpc_tx_backlog",
           "fullMetaSearch": false,
+          "hide": false,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -845,7 +1078,7 @@
           "useBackend": false
         }
       ],
-      "title": "Transaction Data Finalized",
+      "title": "RPC Transaction Backlog",
       "type": "timeseries"
     },
     {
@@ -892,6 +1125,7 @@
           },
           "mappings": [],
           "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -913,7 +1147,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 40
       },
       "id": 21,
       "options": {
@@ -1018,6 +1252,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1039,7 +1274,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 40
       },
       "id": 22,
       "options": {
@@ -1163,7 +1398,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "id": 5,
       "options": {
@@ -1262,7 +1497,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 48
       },
       "id": 18,
       "options": {
@@ -1361,7 +1596,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 56
       },
       "id": 2,
       "options": {
@@ -1441,6 +1676,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1462,7 +1698,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 56
       },
       "id": 12,
       "options": {
@@ -1566,6 +1802,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1586,7 +1823,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 64
       },
       "id": 11,
       "options": {
@@ -1685,7 +1922,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 64
       },
       "id": 13,
       "options": {
@@ -1784,7 +2021,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 64
+        "y": 72
       },
       "id": 14,
       "options": {
@@ -1863,6 +2100,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1884,7 +2122,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 64
+        "y": 72
       },
       "id": 10,
       "options": {
@@ -2025,7 +2263,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 80
       },
       "id": 9,
       "options": {
@@ -2171,7 +2409,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 72
+        "y": 80
       },
       "id": 6,
       "options": {
@@ -2253,6 +2491,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2274,7 +2513,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 88
       },
       "id": 7,
       "options": {
@@ -2359,6 +2598,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2380,7 +2620,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 80
+        "y": 88
       },
       "id": 8,
       "options": {
@@ -2465,6 +2705,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2482,7 +2723,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 96
       },
       "id": 15,
       "options": {
@@ -2562,6 +2803,7 @@
             }
           },
           "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2579,7 +2821,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 88
+        "y": 96
       },
       "id": 16,
       "options": {
@@ -2623,7 +2865,7 @@
     "list": []
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -2643,6 +2885,6 @@
   "timezone": "browser",
   "title": "Vryx PoC",
   "uid": "fdgkojb6r7vuod",
-  "version": 9,
+  "version": 10,
   "weekStart": ""
 }
