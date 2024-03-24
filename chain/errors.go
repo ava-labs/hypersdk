@@ -67,7 +67,8 @@ var (
 	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
 	// Chunk building
-	ErrNotAValidator = errors.New("not a validator during this epoch, so no one will sign my chunk")
+	ErrInvalidPartition = errors.New("invalid partition")
+	ErrNotAValidator    = errors.New("not a validator during this epoch, so no one will sign my chunk")
 
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
