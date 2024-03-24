@@ -2306,7 +2306,7 @@
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "interval": "",
-          "legendFormat": "Receive {{device}}",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -2412,7 +2412,7 @@
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "interval": "",
-          "legendFormat": "Receive {{device}}",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
@@ -2510,7 +2510,7 @@
           "editorMode": "code",
           "expr": "rate(node_disk_read_bytes_total[30s])",
           "interval": "",
-          "legendFormat": "Read {{device}}",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
@@ -2607,7 +2607,7 @@
           "editorMode": "code",
           "expr": "rate(node_disk_written_bytes_total[30s])",
           "interval": "",
-          "legendFormat": "Read {{device}}",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
@@ -2623,7 +2623,7 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {
@@ -2643,6 +2643,6 @@
   "timezone": "browser",
   "title": "Vryx PoC",
   "uid": "fdgkojb6r7vuod",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }
