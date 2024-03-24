@@ -246,7 +246,7 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, he
 	binary.BigEndian.PutUint64(seed, epoch) // ensures partitions rotate even if P-Chain height is static
 	binary.BigEndian.PutUint64(seed[consts.Uint64Len:], height)
 	copy(seed[consts.Uint64Len*2:], addr[:])
-	seed[consts.Uint64Len*2+codec.AddressLen] = partition
+	seed[consts.Uint64Len*2+codec.AddressLen] = partition // note: this approach does not guarantee distinct partitions
 	h := utils.ToID(seed)
 	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
 	indexInt := int(index.Int64())
