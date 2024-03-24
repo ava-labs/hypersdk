@@ -122,6 +122,8 @@ func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
 
 func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
 
+func (t *Transaction) Partition() uint8 { return t.Base.Partition }
+
 func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
@@ -305,7 +307,7 @@ func (t *Transaction) SyntacticVerify(
 	r Rules,
 	timestamp int64,
 ) (Dimensions, error) {
-	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
+	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil { // enforces valid partition size
 		return Dimensions{}, err
 	}
 	start, end := t.Action.ValidRange(r)

@@ -42,6 +42,7 @@ type Genesis struct {
 	// Tx Parameters
 	EpochDuration  int64 `json:"epochDuration"`  // ms
 	ValidityWindow int64 `json:"validityWindow"` // ms
+	Partitions     uint8 `json:"partitions"`     // number of partitions
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
@@ -74,6 +75,7 @@ func Default() *Genesis {
 		// Tx Parameters
 		EpochDuration:  30 * hconsts.MillisecondsPerSecond, // ms
 		ValidityWindow: 25 * hconsts.MillisecondsPerSecond, // ms
+		Partitions:     8,
 
 		// Tx Fee Compute Parameters
 		BaseComputeUnits:          1,
