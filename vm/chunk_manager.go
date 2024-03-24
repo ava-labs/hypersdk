@@ -671,7 +671,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// This operation should be cached, so it should be fast.
 		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
 		if chunk == nil {
-			c.vm.Logger().Warn("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
+			c.vm.Logger().Debug("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
 		c.auth.Add(chunk)
@@ -1042,7 +1042,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 							continue
 						}
 						c.vm.metrics.txGossipDropped.Inc()
-						c.vm.Logger().Warn(
+						c.vm.Logger().Debug(
 							"did not add incoming tx to mempool",
 							zap.Stringer("peerID", txw.nodeID),
 							zap.Stringer("txID", tx.ID()),
