@@ -85,9 +85,10 @@ type Metrics struct {
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
 	waitRepeat                metric.Averager
+	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
-	waitProcessor             metric.Averager
+	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
@@ -118,6 +119,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	waitQueue, err := metric.NewAverager(
+		"chain",
+		"wait_queue",
+		"time spent iterating over chunk to queue txs for execution",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	waitAuth, err := metric.NewAverager(
 		"chain",
 		"wait_auth",
@@ -136,10 +146,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	waitProcessor, err := metric.NewAverager(
+	waitPrecheck, err := metric.NewAverager(
 		"chain",
-		"wait_processor",
-		"time spent waiting for processor (auth + exec)",
+		"wait_precheck",
+		"time spent waiting for precheck",
 		r,
 	)
 	if err != nil {
@@ -539,9 +549,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "last executed epoch",
 		}),
 		waitRepeat:             waitRepeat,
+		waitQueue:              waitQueue,
 		waitAuth:               waitAuth,
 		waitExec:               waitExec,
-		waitProcessor:          waitProcessor,
+		waitPrecheck:           waitPrecheck,
 		waitCommit:             waitCommit,
 		chunkBuild:             chunkBuild,
 		blockBuild:             blockBuild,

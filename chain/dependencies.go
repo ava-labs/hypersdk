@@ -37,9 +37,10 @@ type Metrics interface {
 	RecordExecutedChunks(int)
 
 	RecordWaitRepeat(time.Duration)
+	RecordWaitQueue(time.Duration)
 	RecordWaitAuth(time.Duration)
+	RecordWaitPrecheck(time.Duration)
 	RecordWaitExec(time.Duration)
-	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
 
 	RecordRemainingMempool(int)
@@ -93,6 +94,7 @@ type VM interface {
 
 	Mempool() Mempool
 	GetTargetChunkBuildDuration() time.Duration
+	GetPrecheckCores() int
 	GetActionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)

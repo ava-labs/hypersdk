@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/ava-labs/hypersdk/utils"
@@ -23,28 +24,23 @@ type Processor struct {
 	latestPHeight *uint64
 	epochHeights  []*uint64
 
-	timestamp int64
-	epoch     uint64
-	im        state.Immutable
-	r         Rules
-	sm        StateManager
-	executor  *executor.Executor
-	ts        *tstate.TState
+	timestamp  int64
+	epoch      uint64
+	im         state.Immutable
+	r          Rules
+	sm         StateManager
+	prechecker *opool.OPool
+	executor   *executor.Executor
+	ts         *tstate.TState
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
 
-	frozenSponsors set.Set[string]
+	// TODO: track frozen sponsors
 
 	repeatWait time.Duration
-
-	authWait time.Duration
-
-	serialChecks          time.Duration
-	chunkUnits            time.Duration
-	addProcess            time.Duration
-	frozenChecks          time.Duration
-	syntacticVerification time.Duration
+	queueWait  time.Duration
+	authWait   time.Duration
 }
 
 type blockLoc struct {
@@ -77,26 +73,18 @@ func NewProcessor(
 		im:        im,
 		r:         r,
 		sm:        vm.StateManager(),
-		// Executor is shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
+		// Prechecker and Executor are shared across all chunks, this means we don't need to "wait" at the end of each chunk to continue
 		// processing transactions.
-		executor: executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
-		ts:       tstate.New(numTxs * 2),
+		prechecker: opool.New(vm.GetPrecheckCores(), numTxs),
+		executor:   executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
+		ts:         tstate.New(numTxs * 2),
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
-
-		frozenSponsors: set.NewSet[string](4),
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, fee uint64, tx *Transaction) {
-	stateKeys, err := tx.StateKeys(p.sm)
-	if err != nil {
-		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
-		p.results[chunkIndex][txIndex] = &Result{Valid: false}
-		return
-	}
-
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, chunk *Chunk, stateKeys state.Keys, fee uint64, tx *Transaction) {
 	p.executor.Run(stateKeys, func() error {
 		// Execute transaction
 		//
@@ -106,15 +94,13 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 
 		// Deduct fees
 		sponsor := tx.Auth.Sponsor()
-		ssponsor := string(sponsor[:])
 		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, fee)
 		if err != nil {
 			return err
 		}
-		if !ok || p.frozenSponsors.Contains(ssponsor) {
+		if !ok {
 			p.vm.Logger().Warn("insufficient funds", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-			p.frozenSponsors.Add(ssponsor)
 			return nil
 		}
 
@@ -212,7 +198,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	// Confirm that chunk is well-formed
 	//
 	// All of these can be avoided by chunk producer.
-	serialStart := time.Now()
 	repeatStart := time.Now()
 	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
 	if err != nil {
@@ -221,7 +206,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		return
 	}
 	p.repeatWait += time.Since(repeatStart)
-	unitsStart := time.Now()
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
 		p.vm.Logger().Warn("could not compute chunk units", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
@@ -233,70 +217,19 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 		return
 	}
-	p.chunkUnits += time.Since(unitsStart)
 
-	for txIndex, tx := range chunk.Txs {
-		// Perform syntactic verification
-		//
-		// We don't care whether this transaction is in the current epoch or the next.
-		syntacticStart := time.Now()
-		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
-		if err != nil {
-			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		if tx.Base.Timestamp > chunk.Slot {
-			p.vm.Logger().Debug("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		fee, err := MulSum(p.r.GetUnitPrices(), units)
-		if err != nil {
-			p.vm.Logger().Debug("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		if tx.Base.MaxFee < fee {
-			// This should be checked by chunk producer before inclusion.
-			//
-			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
-			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
-		}
-		p.syntacticVerification += time.Since(syntacticStart)
+	// TODO: consider doing some of these checks in parallel
+	queueStart := time.Now()
+	for rtxIndex, rtx := range chunk.Txs {
+		txIndex := rtxIndex
+		tx := rtx
 
 		// Check that transaction isn't a duplicate
 		_, seen := p.txs[tx.ID()]
 		if repeats.Contains(txIndex) || seen {
 			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-
-		// Check that height is set for epoch
-		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
-		epochHeight := p.epochHeights[txEpoch-p.epoch]
-		if epochHeight == nil {
-			// We can't verify tx partition if this is the case
-			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		// If this passes, we know that latest pHeight must be non-nil
-
-		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Auth.Sponsor(), tx.Partition())
-		if err != nil {
-			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		if parition != chunk.Producer {
-			p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
 		}
 
 		// If this is the first instance of a transaction in this block,
@@ -307,48 +240,92 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// from ever being executed).
 		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
-		// Check that transaction isn't frozen (can avoid state lookups)
+		// Perform general checks (that don't require access to state) before adding to executor
 		//
-		// Need to wait to enqueue until after verify signature.
-		sponsor := tx.Auth.Sponsor()
-		ssponsor := string(sponsor[:])
-		// ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		frozenStart := time.Now()
-		frozen := false
-		if frozen {
-			p.frozenSponsors.Add(ssponsor)
-		}
-		if p.frozenSponsors.Contains(ssponsor) {
-			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-			continue
-		}
-		p.frozenChecks += time.Since(frozenStart)
-		processStart := time.Now()
-		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
-		p.addProcess += time.Since(processStart)
+		// To maximize performance, we should minimize the time spent in each execution (as it
+		// will cause conflicting keys to be blocked).
+		p.prechecker.Go(func() (func(), error) {
+			// Perform syntactic verification
+			//
+			// We don't care whether this transaction is in the current epoch or the next.
+			units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
+			if err != nil {
+				p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+			if tx.Base.Timestamp > chunk.Slot {
+				p.vm.Logger().Warn("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+			fee, err := MulSum(p.r.GetUnitPrices(), units)
+			if err != nil {
+				p.vm.Logger().Warn("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+			if tx.Base.MaxFee < fee {
+				// This should be checked by chunk producer before inclusion.
+				//
+				// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
+				p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+
+			// Check that height is set for epoch
+			txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
+			epochHeight := p.epochHeights[txEpoch-p.epoch]
+			if epochHeight == nil {
+				// We can't verify tx partition if this is the case
+				p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+			// If this passes, we know that latest pHeight must be non-nil
+
+			// Check that transaction is in right partition
+			parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Auth.Sponsor(), tx.Partition())
+			if err != nil {
+				p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+			if parition != chunk.Producer {
+				p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+
+			// Check that transaction isn't frozen (can avoid state lookups)
+			//
+			// Need to wait to enqueue until after verify signature.
+			stateKeys, err := tx.StateKeys(p.sm)
+			if err != nil {
+				p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				p.results[chunkIndex][txIndex] = &Result{Valid: false}
+				return nil, nil
+			}
+			return func() { p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, chunk, stateKeys, fee, tx) }, nil
+		})
 	}
-	p.serialChecks += time.Since(serialStart)
+	p.queueWait += time.Since(queueStart)
 }
 
 func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
 	p.vm.RecordWaitRepeat(p.repeatWait)
+	p.vm.RecordWaitQueue(p.queueWait)
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
+	precheckStart := time.Now()
+	if err := p.prechecker.Wait(); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: prechecker failed", err)
+	}
+	p.vm.RecordWaitPrecheck(time.Since(precheckStart))
 	exectutorStart := time.Now()
 	if err := p.executor.Wait(); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
-	p.vm.Logger().Debug(
-		"times",
-		zap.Duration("serial checks", p.serialChecks),
-		zap.Duration("chunk units", p.chunkUnits),
-		zap.Duration("add process", p.addProcess),
-		zap.Duration("frozen checks", p.frozenChecks),
-		zap.Duration("syntactic verification", p.syntacticVerification),
-	)
 	return p.txs, p.ts, p.results, nil
 }

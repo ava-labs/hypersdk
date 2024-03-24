@@ -32,6 +32,7 @@ type Config interface {
 	GetAuthGossipBacklog() int
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
+	GetPrecheckCores() int
 	GetActionExecutionCores() int
 	GetMissingChunkFetchers() int
 	GetBeneficiary() codec.Address

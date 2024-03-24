@@ -23,6 +23,7 @@ func (c *Config) GetAuthRPCBacklog() int                    { return 1_024 }
 func (c *Config) GetAuthGossipCores() int                   { return 1 }
 func (c *Config) GetAuthGossipBacklog() int                 { return 1_024 }
 func (c *Config) GetRootGenerationCores() int               { return 1 }
+func (c *Config) GetPrecheckCores() int                     { return 1 }
 func (c *Config) GetActionExecutionCores() int              { return 1 }
 func (c *Config) GetMissingChunkFetchers() int              { return 4 }
 func (c *Config) GetMempoolSize() int                       { return 2 * units.GiB }

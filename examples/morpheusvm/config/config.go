@@ -39,6 +39,7 @@ type Config struct {
 	// Concurrency
 	AuthExecutionCores   int `json:"authExecutionCores"`
 	RootGenerationCores  int `json:"rootGenerationCores"`
+	PrecheckCores        int `json:"precheckCores"`
 	ActionExecutionCores int `json:"actionExecutionCores"`
 	MissingChunkFetchers int `json:"missingChunkFetchers"`
 	AuthGossipCores      int `json:"authGossipCores"`
@@ -104,6 +105,7 @@ func (c *Config) setDefault() {
 	c.BlockBuildFrequency = c.Config.GetBlockBuildFrequency().Milliseconds()
 	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
+	c.PrecheckCores = c.Config.GetPrecheckCores()
 	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
 	c.MissingChunkFetchers = c.Config.GetMissingChunkFetchers()
 	c.MempoolSize = c.Config.GetMempoolSize()
@@ -186,4 +188,8 @@ func (c *Config) GetAuthGossipCores() int {
 
 func (c *Config) GetAuthGossipBacklog() int {
 	return c.AuthGossipBacklog
+}
+
+func (c *Config) GetPrecheckCores() int {
+	return c.PrecheckCores
 }
