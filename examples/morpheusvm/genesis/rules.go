@@ -110,3 +110,7 @@ func (*Rules) GetSponsorStateKeyChunks() []uint16 {
 func (r *Rules) GetUnitPrices() chain.Dimensions {
 	return r.g.MinUnitPrice
 }
+
+func (r *Rules) GetPartitions() uint8 {
+	return r.g.Partitions
+}
