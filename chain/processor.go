@@ -34,7 +34,7 @@ type Processor struct {
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
 
-	frozenSponsors set.Set[string]
+	// TODO: track frozen sponsors
 
 	repeatWait time.Duration
 	queueWait  time.Duration
@@ -78,20 +78,64 @@ func NewProcessor(
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
-
-		frozenSponsors: set.NewSet[string](4),
 	}
 }
 
-func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, fee uint64, tx *Transaction) {
-	stateKeys, err := tx.StateKeys(p.sm)
-	if err != nil {
-		p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
-		p.results[chunkIndex][txIndex] = &Result{Valid: false}
-		return
-	}
-
+func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pchainHeight uint64, chunk *Chunk, stateKeys state.Keys, tx *Transaction) {
 	p.executor.Run(stateKeys, func() error {
+		// Perform syntactic verification
+		//
+		// We don't care whether this transaction is in the current epoch or the next.
+		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
+		if err != nil {
+			p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+		if tx.Base.Timestamp > chunk.Slot {
+			p.vm.Logger().Warn("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+		fee, err := MulSum(p.r.GetUnitPrices(), units)
+		if err != nil {
+			p.vm.Logger().Warn("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+		if tx.Base.MaxFee < fee {
+			// This should be checked by chunk producer before inclusion.
+			//
+			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
+			p.vm.Logger().Warn("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+
+		// Check that height is set for epoch
+		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
+		epochHeight := p.epochHeights[txEpoch-p.epoch]
+		if epochHeight == nil {
+			// We can't verify tx partition if this is the case
+			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+		// If this passes, we know that latest pHeight must be non-nil
+
+		// Check that transaction is in right partition
+		parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Auth.Sponsor(), tx.Partition())
+		if err != nil {
+			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+		if parition != chunk.Producer {
+			p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			return nil
+		}
+
 		// Execute transaction
 		//
 		// It is critical we explicitly set the scope before each transaction is
@@ -100,15 +144,13 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 
 		// Deduct fees
 		sponsor := tx.Auth.Sponsor()
-		ssponsor := string(sponsor[:])
 		ok, err := p.sm.CanDeduct(ctx, sponsor, tsv, fee)
 		if err != nil {
 			return err
 		}
-		if !ok || p.frozenSponsors.Contains(ssponsor) {
+		if !ok {
 			p.vm.Logger().Warn("insufficient funds", zap.Stringer("txID", tx.ID()), zap.Error(err))
 			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
-			p.frozenSponsors.Add(ssponsor)
 			return nil
 		}
 
@@ -226,67 +268,15 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		return
 	}
 
+	// TODO: consider doing some of these checks in parallel
 	queueStart := time.Now()
 	for txIndex, tx := range chunk.Txs {
-		// Perform syntactic verification
-		//
-		// We don't care whether this transaction is in the current epoch or the next.
-		units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
-		if err != nil {
-			p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		if tx.Base.Timestamp > chunk.Slot {
-			p.vm.Logger().Debug("base transaction has timestamp after slot", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		fee, err := MulSum(p.r.GetUnitPrices(), units)
-		if err != nil {
-			p.vm.Logger().Debug("cannot compute fees", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		if tx.Base.MaxFee < fee {
-			// This should be checked by chunk producer before inclusion.
-			//
-			// This can change, however (based on rules/dynamics), so we don't mark all txs as invalid.
-			p.vm.Logger().Debug("fee is greater than max fee", zap.Stringer("txID", tx.ID()), zap.Uint64("max", tx.Base.MaxFee), zap.Uint64("fee", fee))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false}
-			continue
-		}
-
 		// Check that transaction isn't a duplicate
 		_, seen := p.txs[tx.ID()]
 		if repeats.Contains(txIndex) || seen {
 			p.vm.Logger().Warn("transaction is a duplicate", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-
-		// Check that height is set for epoch
-		txEpoch := utils.Epoch(tx.Base.Timestamp, p.r.GetEpochDuration())
-		epochHeight := p.epochHeights[txEpoch-p.epoch]
-		if epochHeight == nil {
-			// We can't verify tx partition if this is the case
-			p.vm.Logger().Warn("pchainHeight not set for epoch", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		// If this passes, we know that latest pHeight must be non-nil
-
-		// Check that transaction is in right partition
-		parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Auth.Sponsor(), tx.Partition())
-		if err != nil {
-			p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
-		}
-		if parition != chunk.Producer {
-			p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
-			p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-			return
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
+			continue
 		}
 
 		// If this is the first instance of a transaction in this block,
@@ -300,22 +290,13 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		// Check that transaction isn't frozen (can avoid state lookups)
 		//
 		// Need to wait to enqueue until after verify signature.
-		sponsor := tx.Auth.Sponsor()
-		ssponsor := string(sponsor[:])
-		// ok, err := p.sm.IsFrozen(ctx, sponsor, txEpoch, p.im)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		frozen := false
-		if frozen {
-			p.frozenSponsors.Add(ssponsor)
-		}
-		if p.frozenSponsors.Contains(ssponsor) {
-			p.vm.Logger().Warn("dropping tx from frozen sponsor", zap.Stringer("txID", tx.ID()))
-			p.results[chunkIndex][txIndex] = &Result{Valid: false, Freezable: true, Fee: fee}
+		stateKeys, err := tx.StateKeys(p.sm)
+		if err != nil {
+			p.vm.Logger().Warn("could not compute state keys", zap.Stringer("txID", tx.ID()), zap.Error(err))
+			p.results[chunkIndex][txIndex] = &Result{Valid: false}
 			continue
 		}
-		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, fee, tx)
+		p.process(ctx, chunkIndex, txIndex, *p.latestPHeight, chunk, stateKeys, tx)
 	}
 	p.queueWait += time.Since(queueStart)
 }
