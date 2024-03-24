@@ -241,6 +241,9 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		p.txs[tx.ID()] = &blockLoc{chunkIndex, txIndex}
 
 		// Perform general checks (that don't require access to state) before adding to executor
+		//
+		// To maximize performance, we should minimize the time spent in each execution (as it
+		// will cause conflicting keys to be blocked).
 		p.prechecker.Go(func() (func(), error) {
 			// Perform syntactic verification
 			//
