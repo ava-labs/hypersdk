@@ -85,6 +85,7 @@ type Metrics struct {
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
 	waitRepeat                metric.Averager
+	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
 	waitProcessor             metric.Averager
@@ -113,6 +114,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_repeat",
 		"time spent waiting for repeat",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitQueue, err := metric.NewAverager(
+		"chain",
+		"wait_queue",
+		"time spent iterating over chunk to queue txs for execution",
 		r,
 	)
 	if err != nil {
@@ -539,6 +549,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "last executed epoch",
 		}),
 		waitRepeat:             waitRepeat,
+		waitQueue:              waitQueue,
 		waitAuth:               waitAuth,
 		waitExec:               waitExec,
 		waitProcessor:          waitProcessor,

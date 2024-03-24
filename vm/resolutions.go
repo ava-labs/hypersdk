@@ -713,3 +713,7 @@ func (vm *VM) GetAuthResult(chunkID ids.ID) bool {
 	// TODO: clean up this invocation
 	return vm.cm.auth.Wait(chunkID)
 }
+
+func (vm *VM) RecordWaitQueue(t time.Duration) {
+	vm.metrics.waitQueue.Observe(float64(t))
+}
