@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -86,6 +87,7 @@ var (
 	failedTxs        uint64
 	invalidTxs       uint64
 	totalTxs         uint64
+	activeAccounts   = set.NewSet[codec.Address](16_384)
 
 	pending = oexpirer.New[*txWrapper](16_384)
 
@@ -403,6 +405,9 @@ func (h *Handler) Spam(
 				cReceived := received.Load()
 				cReceivedBytes := receivedBytes.Load()
 				l.Lock()
+				cActive := activeAccounts.Len()
+				activeAccounts.Clear()
+
 				dropped := pending.SetMin(time.Now().UnixMilli() - pendingExpiryBuffer) // set in the past to allow for delay on connection
 				for range dropped {
 					// We don't count confirmation time here because we don't know what happened
@@ -448,7 +453,7 @@ func (h *Handler) Spam(
 					// tps is only contains transactions that actually made it onchain
 					// ttf includes all transactions that made it onchain or expired, but not transactions that returned an error on submission
 					utils.Outf(
-						"{{yellow}}tps:{{/}} %.2f (pending=%d) {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
+						"{{yellow}}tps:{{/}} %.2f (pending=%d) {{yellow}}ttf:{{/}} %.2fs {{yellow}}total txs:{{/}} %d (invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired[all time]=%.2f%% expired[10s]=%.2f%%) {{yellow}}txs sent/s:{{/}} %d (bandwidth=%.2fKB accounts=%d) {{yellow}}txs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
 						float64(tpsSum)/float64(tpsDivisor),
 						pending.Len(),
 						float64(window.Sum(ttfWindow))/float64(tpsSum+window.Sum(expiredWindow))/float64(consts.MillisecondsPerSecond),
@@ -460,6 +465,7 @@ func (h *Handler) Spam(
 						float64(window.Sum(expiredWindow))/float64(tpsSum+window.Sum(expiredWindow))*100,
 						cSent-pSent,
 						float64(cSentBytes-pSentBytes)/units.KiB,
+						cActive,
 						cReceived-pReceived,
 						float64(cReceivedBytes-pReceivedBytes)/units.KiB,
 						txsToProcess,
@@ -467,7 +473,7 @@ func (h *Handler) Spam(
 				} else if totalTxs > 0 {
 					// This shouldn't happen but we should log when it does.
 					utils.Outf(
-						"{{yellow}}total txs:{{/}} %d (pending=%d invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}msgs sent/s:{{/}} %d (bandwidth=%.2fKB) {{yellow}}msgs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
+						"{{yellow}}total txs:{{/}} %d (pending=%d invalid=%.2f%% dropped=%.2f%% failed=%.2f%% expired=%.2f%%) {{yellow}}txs sent/s:{{/}} %d (bandwidth=%.2fKB accounts=%d) {{yellow}}txs recv/s:{{/}} %d (bandwidth=%.2fKB backlog=%d)\n", //nolint:lll
 						totalTxs,
 						pending.Len(),
 						float64(invalidTxs)/float64(totalTxs)*100,
@@ -476,6 +482,7 @@ func (h *Handler) Spam(
 						float64(expiredTxs)/float64(totalTxs)*100,
 						cSent-pSent,
 						float64(cSentBytes-pSentBytes)/units.KiB,
+						cActive,
 						cReceived-pReceived,
 						float64(cReceivedBytes-pReceivedBytes)/units.KiB,
 						txsToProcess,
@@ -533,11 +540,21 @@ func (h *Handler) Spam(
 				// Issue txs
 				g := &errgroup.Group{}
 				g.SetLimit(maxConcurrency)
+				thisActive := set.NewSet[codec.Address](currentTarget * 2)
 				for i := 0; i < currentTarget; i++ {
 					// math.Rand is not safe for concurrent use
 					senderIndex, recipientIndex := z.Uint64(), z.Uint64()
 					sender := accounts[senderIndex]
 					issuerIndex, issuer := getRandomIssuer(clients)
+					if recipientIndex == senderIndex {
+						if recipientIndex == uint64(numAccounts-1) {
+							recipientIndex--
+						} else {
+							recipientIndex++
+						}
+					}
+					recipient := accounts[recipientIndex].Address
+					thisActive.Add(sender.Address, recipient)
 					g.Go(func() error {
 						factory := factories[senderIndex]
 						fundsL.Lock()
@@ -551,14 +568,6 @@ func (h *Handler) Spam(
 						fundsL.Unlock()
 
 						// Send transaction
-						if recipientIndex == senderIndex {
-							if recipientIndex == uint64(numAccounts-1) {
-								recipientIndex--
-							} else {
-								recipientIndex++
-							}
-						}
-						recipient := accounts[recipientIndex].Address
 						action := getTransfer(recipient, false, 1, uniqueBytes())
 						if err := issueTransfer(cctx, issuer, issuerIndex, feePerTx, factory, action); err != nil {
 							utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
@@ -572,6 +581,9 @@ func (h *Handler) Spam(
 					cancel()
 					stop = true
 				}
+				l.Lock()
+				activeAccounts.Union(thisActive)
+				l.Unlock()
 			}
 
 			// Determine how long to sleep
