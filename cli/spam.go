@@ -68,7 +68,11 @@ var (
 	ctx            = context.Background()
 	maxConcurrency = runtime.NumCPU()
 
-	validityWindow int64
+	validityWindow     int64
+	chainID            ids.ID
+	uris               map[string]string
+	maxPendingMessages int
+	parser             chain.Parser
 
 	issuerWg sync.WaitGroup
 
@@ -133,11 +137,7 @@ func (h *Handler) Spam(
 	}
 
 	// Select chain
-	var (
-		chainID ids.ID
-		uris    map[string]string
-		err     error
-	)
+	var err error
 	if len(clusterInfo) == 0 {
 		chainID, uris, err = h.PromptChain("select chainID", nil)
 	} else {
@@ -204,7 +204,7 @@ func (h *Handler) Spam(
 	}
 
 	// Compute max units
-	parser, err := getParser(ctx, chainID)
+	parser, err = getParser(ctx, chainID)
 	if err != nil {
 		return err
 	}
@@ -261,7 +261,7 @@ func (h *Handler) Spam(
 	)
 	accounts := make([]*PrivateKey, numAccounts)
 	factories := make([]chain.AuthFactory, numAccounts)
-	maxPendingMessages := max(pubsub.MaxPendingMessages, txsPerSecond*2) // ensure we don't block
+	maxPendingMessages = max(pubsub.MaxPendingMessages, txsPerSecond*2) // ensure we don't block
 	dcli, err := rpc.NewWebSocketClient(
 		uris[baseName],
 		rpc.DefaultHandshakeTimeout,
@@ -272,12 +272,35 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+
+	// Distribute funds (never more than 10x step size outstanding)
 	var (
-		funds    = map[codec.Address]uint64{}
-		fundsL   sync.Mutex
-		lastConf int
+		funds           = map[codec.Address]uint64{}
+		fundsL          sync.Mutex
+		distributed     = make(chan struct{})
+		pendingAccounts atomic.Int64
 	)
+	go func() {
+		for i := 0; i < numAccounts; i++ {
+			_, _, _, status, err := dcli.ListenTx(ctx)
+			if err != nil {
+				panic(err)
+			}
+			if status != rpc.TxSuccess {
+				// Should never happen
+				panic(fmt.Errorf("transaction failed: %d", status))
+			}
+			pendingAccounts.Add(-1)
+			if i%1000 == 0 && i != 0 {
+				utils.Outf("{{yellow}}distributed funds:{{/}} %d/%d accounts\n", i, numAccounts)
+			}
+		}
+		close(distributed)
+	}()
 	for i := 0; i < numAccounts; i++ {
+		for pendingAccounts.Load() > int64(stepSize*10) {
+			time.Sleep(100 * time.Millisecond)
+		}
 		// Create account
 		pk, err := createAccount()
 		if err != nil {
@@ -297,24 +320,13 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
+		pendingAccounts.Add(1)
 		if err := dcli.RegisterTx(tx); err != nil {
 			return fmt.Errorf("%w: failed to register tx", err)
 		}
 		funds[pk.Address] = distAmount
-
-		// Pace the creation of accounts
-		if i != 0 && i%1000 == 0 && i != numAccounts {
-			if err := confirmTxs(ctx, dcli, 1000); err != nil {
-				return err
-			}
-			utils.Outf("{{yellow}}distributed funds:{{/}} %d/%d accounts\n", i, numAccounts)
-			lastConf = i
-		}
 	}
-	// Confirm remaining
-	if err := confirmTxs(ctx, dcli, numAccounts-lastConf); err != nil {
-		return err
-	}
+	<-distributed
 	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", numAccounts)
 
 	// Kickoff txs
@@ -529,10 +541,6 @@ func (h *Handler) Spam(
 						funds[sender.Address] = balance - feePerTx
 						fundsL.Unlock()
 
-						// Select tx time
-						nextTime := time.Now().Unix()
-						tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early depending on clock sync */}
-
 						// Send transaction
 						if recipientIndex == senderIndex {
 							if recipientIndex == uint64(numAccounts-1) {
@@ -543,49 +551,10 @@ func (h *Handler) Spam(
 						}
 						recipient := accounts[recipientIndex].Address
 						action := getTransfer(recipient, false, 1, uniqueBytes())
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
-						if err != nil {
+						if err := issueTransfer(cctx, issuer, issuerIndex, feePerTx, factory, action); err != nil {
 							utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 							return err
 						}
-						pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()}, false)
-						if err := issuer.d.RegisterTx(tx); err != nil {
-							issuer.l.Lock()
-							if issuer.d.Closed() {
-								if issuer.abandoned != nil {
-									issuer.l.Unlock()
-									utils.Outf("{{orange}}issuer abandoned:{{/}} %v\n", issuer.abandoned)
-									return issuer.abandoned
-								}
-								// recreate issuer
-								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d {{red}}err:{{/}} %v\n", issuerIndex, issuer.uri, err)
-								dcli, err := rpc.NewWebSocketClient(
-									uris[issuer.name],
-									rpc.DefaultHandshakeTimeout,
-									maxPendingMessages,
-									consts.MTU,
-									pubsub.MaxReadMessageSize,
-								) // we write the max read
-								if err != nil {
-									issuer.abandoned = err
-									issuer.l.Unlock()
-									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
-									return err
-								}
-								issuer.d = dcli
-								issuer.l.Unlock()
-								utils.Outf("{{green}}re-created closed issuer:{{/}} %d (%v)\n", issuerIndex, err)
-								startConfirmer(cctx, dcli)
-							} else {
-								// This typically happens when the issuer errors and is replaced by a new one in
-								// a different goroutine.
-								issuer.l.Unlock()
-								utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
-							}
-							return nil
-						}
-						sent.Add(1)
-						sentBytes.Add(int64(len(tx.Bytes())))
 						return nil
 					})
 				}
@@ -652,18 +621,45 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}returning funds (1k batch):{{/}} %s\n", h.c.Address(key.Address))
+	utils.Outf("{{yellow}}returning funds to base:{{/}} %s\n", h.c.Address(key.Address))
 	var (
 		returnedBalance uint64
 		returnsSent     int
+		returnIssued    = make(chan struct{}, numAccounts)
+		returned        = make(chan struct{})
+		pendingReturns  atomic.Int64
 	)
-	lastConf = 0
+	go func() {
+		returns := 0
+		for range returnIssued {
+			_, _, _, status, err := dcli.ListenTx(ctx)
+			if err != nil {
+				panic(err)
+			}
+			if status != rpc.TxSuccess {
+				// Should never happen
+				panic(fmt.Errorf("transaction failed: %d", status))
+			}
+			pendingReturns.Add(-1)
+			returns++
+			if returns%1000 == 0 && returns != 0 {
+				utils.Outf("{{yellow}}returned funds:{{/}} %d/%d accounts\n", returns, numAccounts)
+			}
+		}
+		close(returned)
+	}()
 	for i := 0; i < numAccounts; i++ {
+		// Ensure return worth sending
 		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
 		returnsSent++
+
+		// Ensure backlog not too long
+		for pendingReturns.Load() > int64(stepSize*10) {
+			time.Sleep(100 * time.Millisecond)
+		}
 
 		// Send funds
 		returnAmt := balance - feePerTx
@@ -672,24 +668,15 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
+		pendingReturns.Add(1)
 		if err := dcli.RegisterTx(tx); err != nil {
 			return err
 		}
+		returnIssued <- struct{}{}
 		returnedBalance += returnAmt
-
-		// Pace the return of funds
-		if i != 0 && i%1000 == 0 && i != numAccounts {
-			if err := confirmTxs(ctx, dcli, 1000); err != nil {
-				return err
-			}
-			utils.Outf("{{yellow}}returned funds:{{/}} %d/%d accounts\n", i, numAccounts)
-			lastConf = i
-		}
 	}
-	// Confirm remaining
-	if err := confirmTxs(ctx, dcli, numAccounts-lastConf); err != nil {
-		return err
-	}
+	close(returnIssued)
+	<-returned
 	utils.Outf(
 		"{{yellow}}returned funds from %d accounts:{{/}} %s %s\n",
 		numAccounts,
@@ -776,6 +763,57 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	}()
 }
 
+func issueTransfer(cctx context.Context, issuer *txIssuer, issuerIndex int, feePerTx uint64, factory chain.AuthFactory, action chain.Action) error {
+	// Select tx time
+	nextTime := time.Now().Unix()
+	tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early depending on clock sync */}
+
+	_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
+	if err != nil {
+		utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+		return err
+	}
+	pending.Add(&txWrapper{id: tx.ID(), expiry: tx.Expiry(), issuance: time.Now().UnixMilli()}, false)
+	if err := issuer.d.RegisterTx(tx); err != nil {
+		issuer.l.Lock()
+		if issuer.d.Closed() {
+			if issuer.abandoned != nil {
+				issuer.l.Unlock()
+				utils.Outf("{{orange}}issuer abandoned:{{/}} %v\n", issuer.abandoned)
+				return issuer.abandoned
+			}
+			// recreate issuer
+			utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d {{red}}err:{{/}} %v\n", issuerIndex, issuer.uri, err)
+			dcli, err := rpc.NewWebSocketClient(
+				uris[issuer.name],
+				rpc.DefaultHandshakeTimeout,
+				maxPendingMessages,
+				consts.MTU,
+				pubsub.MaxReadMessageSize,
+			) // we write the max read
+			if err != nil {
+				issuer.abandoned = err
+				issuer.l.Unlock()
+				utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
+				return err
+			}
+			issuer.d = dcli
+			issuer.l.Unlock()
+			utils.Outf("{{green}}re-created closed issuer:{{/}} %d (%v)\n", issuerIndex, err)
+			startConfirmer(cctx, dcli)
+		} else {
+			// This typically happens when the issuer errors and is replaced by a new one in
+			// a different goroutine.
+			issuer.l.Unlock()
+			utils.Outf("{{orange}}failed to register tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+		}
+		return nil
+	}
+	sent.Add(1)
+	sentBytes.Add(int64(len(tx.Bytes())))
+	return nil
+}
+
 func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 	index := rand.Int() % len(issuers)
 	return index, issuers[index]
@@ -783,18 +821,4 @@ func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 
 func uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(issuedTxs.Add(1)))
-}
-
-func confirmTxs(ctx context.Context, cli *rpc.WebSocketClient, numTxs int) error {
-	for i := 0; i < numTxs; i++ {
-		_, _, _, status, err := cli.ListenTx(ctx)
-		if err != nil {
-			return err
-		}
-		if status != rpc.TxSuccess {
-			// Should never happen
-			return fmt.Errorf("transaction failed: %d", status)
-		}
-	}
-	return nil
 }
