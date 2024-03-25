@@ -275,10 +275,11 @@ func (h *Handler) Spam(
 
 	// Distribute funds (never more than 10x step size outstanding)
 	var (
-		funds           = map[codec.Address]uint64{}
-		fundsL          sync.Mutex
-		distributed     = make(chan struct{})
-		pendingAccounts atomic.Int64
+		distributionStart = time.Now()
+		funds             = map[codec.Address]uint64{}
+		fundsL            sync.Mutex
+		distributed       = make(chan struct{})
+		pendingAccounts   atomic.Int64
 	)
 	go func() {
 		for i := 0; i < numAccounts; i++ {
@@ -292,13 +293,20 @@ func (h *Handler) Spam(
 			}
 			pendingAccounts.Add(-1)
 			if i%1000 == 0 && i != 0 {
-				utils.Outf("{{yellow}}distributed funds:{{/}} %d/%d accounts\n", i, numAccounts)
+				rate := time.Since(distributionStart) / time.Duration(i)
+				utils.Outf(
+					"{{yellow}}distributed funds:{{/}} %d/%d accounts (pending=%d etr=%v)\n",
+					i,
+					numAccounts,
+					pendingAccounts.Load(),
+					rate*time.Duration(numAccounts-i),
+				)
 			}
 		}
 		close(distributed)
 	}()
 	for i := 0; i < numAccounts; i++ {
-		for pendingAccounts.Load() > int64(stepSize*10) {
+		for pendingAccounts.Load() > int64(stepSize*5) {
 			time.Sleep(100 * time.Millisecond)
 		}
 		// Create account
@@ -316,7 +324,8 @@ func (h *Handler) Spam(
 		factories[i] = f
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, true, distAmount, uniqueBytes()), factory, feePerTx)
+		action := getTransfer(pk.Address, true, distAmount, uniqueBytes())
+		_, tx, err := cli.GenerateTransactionManual(parser, nil, action, factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -623,6 +632,7 @@ func (h *Handler) Spam(
 	}
 	utils.Outf("{{yellow}}returning funds to base:{{/}} %s\n", h.c.Address(key.Address))
 	var (
+		returnStart     = time.Now()
 		returnedBalance uint64
 		returnsSent     int
 		returnIssued    = make(chan struct{}, numAccounts)
@@ -632,18 +642,25 @@ func (h *Handler) Spam(
 	go func() {
 		returns := 0
 		for range returnIssued {
-			_, _, _, status, err := dcli.ListenTx(ctx)
+			_, _, txID, status, err := dcli.ListenTx(ctx)
 			if err != nil {
 				panic(err)
 			}
 			if status != rpc.TxSuccess {
 				// Should never happen
-				panic(fmt.Errorf("transaction failed: %d", status))
+				utils.Outf("{{red}}transaction failed:{{/}} %s:%d\n", txID, status)
 			}
 			pendingReturns.Add(-1)
 			returns++
-			if returns%1000 == 0 && returns != 0 {
-				utils.Outf("{{yellow}}returned funds:{{/}} %d/%d accounts\n", returns, numAccounts)
+			if returns%1000 == 0 && returns != 0 && returns != numAccounts {
+				rate := time.Since(returnStart) / time.Duration(returns)
+				utils.Outf(
+					"{{yellow}}returned funds:{{/}} %d/%d accounts (pending=%d, etr=%v)\n",
+					returns,
+					numAccounts,
+					pendingReturns.Load(),
+					rate*time.Duration(numAccounts-returns),
+				)
 			}
 		}
 		close(returned)
@@ -657,7 +674,7 @@ func (h *Handler) Spam(
 		returnsSent++
 
 		// Ensure backlog not too long
-		for pendingReturns.Load() > int64(stepSize*10) {
+		for pendingReturns.Load() > int64(stepSize*5) {
 			time.Sleep(100 * time.Millisecond)
 		}
 
