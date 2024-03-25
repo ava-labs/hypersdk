@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -54,9 +55,9 @@ func NewDefaultConfig() Config {
 		CacheSize:                   1024 * 1024 * 1024, // TODO: use memory for MerkleDB cache instead?
 		BytesPerSync:                1024 * 1024,
 		MemTableStopWritesThreshold: 8,
-		MemTableSize:                16 * 1024 * 1024,
+		MemTableSize:                96 * 1024 * 1024,
 		MaxOpenFiles:                4_096,
-		ConcurrentCompactions:       func() int { return 1 },
+		ConcurrentCompactions:       func() int { return runtime.NumCPU() }, // TODO: make a config
 	}
 }
 
