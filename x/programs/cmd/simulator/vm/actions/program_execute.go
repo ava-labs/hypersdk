@@ -114,9 +114,6 @@ func (t *ProgramExecute) Execute(
 		// OriginatingActor: [32]byte(actor[1:])
 	}
 
-	// print callContext to stderr
-	fmt.Fprintf(os.Stderr, "\ncallContext: %+v\n", callContext)
-
 	importsBuilder.Register("program", func() host.Import {
 		return importProgram.New(logging.NoLog{}, eng, mu, cfg, &callContext)
 	})
