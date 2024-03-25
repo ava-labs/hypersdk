@@ -5,6 +5,7 @@ package program
 
 import (
 	"fmt"
+
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
 )
@@ -24,7 +25,7 @@ func NewFunc(inner *wasmtime.Func, inst Instance) *Func {
 }
 
 func (f *Func) Call(context Context, params ...SmartPtr) ([]int64, error) {
-	fnParams := f.Type().Params()[1:] //strip program_id
+	fnParams := f.Type().Params()[1:] // strip program_id
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
 	}

@@ -7,15 +7,13 @@ import (
 	"context"
 	"encoding/binary"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
@@ -25,12 +23,11 @@ import (
 
 var _ host.Import = (*Import)(nil)
 
-const Name = "program"
-
 type Import struct {
-	mu  state.Mutable
-	log logging.Logger
-	cfg *runtime.Config
+	name string
+	mu   state.Mutable
+	log  logging.Logger
+	cfg  *runtime.Config
 
 	engine  *engine.Engine
 	meter   *engine.Meter
@@ -41,6 +38,7 @@ type Import struct {
 // New returns a new program invoke host module which can perform program to program calls.
 func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config, ctx *program.Context) *Import {
 	return &Import{
+		name:   "program", // TODO fix this
 		cfg:    cfg,
 		mu:     mu,
 		log:    log,
@@ -50,13 +48,13 @@ func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runti
 }
 
 func (i *Import) Name() string {
-	return Name
+	return i.name
 }
 
 func (i *Import) Register(link *host.Link, callContext program.Context) error {
 	i.meter = link.Meter()
 	i.imports = link.Imports()
-	return link.RegisterImportFn(Name, "call_program", i.callProgramFn(callContext))
+	return link.RegisterImportFn(i.name, "call_program", i.callProgramFn(callContext))
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
@@ -108,7 +106,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 
 		// create a new runtime for the program to be invoked with a zero balance.
 		rt := runtime.New(i.log, i.engine, i.imports, i.cfg)
-		err = rt.Initialize(context.Background(), program.Context{}, programWasmBytes, engine.NoUnits)
+		err = rt.Initialize(context.Background(), callContext, programWasmBytes, engine.NoUnits)
 		if err != nil {
 			i.log.Error("failed to initialize runtime",
 				zap.Error(err),
@@ -169,8 +167,8 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		function_name := string(functionBytes)
-		res, err := rt.Call(ctx, function_name, program.Context{
+		functionName := string(functionBytes)
+		res, err := rt.Call(ctx, functionName, program.Context{
 			ProgramID: ids.ID(programIDBytes),
 			// Actor:            callContext.ProgramID,
 			// OriginatingActor: callContext.OriginatingActor,
@@ -182,12 +180,13 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		return int64(res[0])
+		// return int64(res[0])
+		return res[0]
 	}
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte) ([]program.SmartPtr, error) {
+func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]program.SmartPtr, error) {
 	var args []program.SmartPtr
 
 	for i := 0; i < len(buffer); {
@@ -203,7 +202,8 @@ func getCallArgs(ctx context.Context, memory *program.Memory, buffer []byte) ([]
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := program.NewSmartPtr(uint32(ptr), int(length))
+		// argPtr, err := program.NewSmartPtr(uint32(ptr), int(length))
+		argPtr, err := program.NewSmartPtr(ptr, int(length))
 		if err != nil {
 			return nil, err
 		}

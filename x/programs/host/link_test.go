@@ -4,7 +4,6 @@
 package host
 
 import (
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 func TestLinkMissingImport(t *testing.T) {

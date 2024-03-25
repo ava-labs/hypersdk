@@ -24,11 +24,11 @@ func newKey() (ed25519.PublicKey, error) {
 	return priv.PublicKey(), nil
 }
 
-// SerializeParameter serializes [obj] using Borsh
-func serializeParameter(obj interface{}) ([]byte, error) {
-	bytes, err := borsh.Serialize(obj)
-	return bytes, err
-}
+// // SerializeParameter serializes [obj] using Borsh
+// func serializeParameter(obj interface{}) ([]byte, error) {
+// 	bytes, err := borsh.Serialize(obj)
+// 	return bytes, err
+// }
 
 // Serialize the parameter and create a smart ptr
 func argumentToSmartPtr(obj interface{}, memory *program.Memory) (program.SmartPtr, error) {

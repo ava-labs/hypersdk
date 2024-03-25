@@ -5,7 +5,6 @@ package examples
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	"os"
 	"testing"
 
@@ -15,12 +14,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
-	iprogram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/tests"
+
+	iprogram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 )
 
 // go test -v -timeout 30s -run ^TestCounterProgram$ github.com/ava-labs/hypersdk/x/programs/examples
@@ -48,14 +49,16 @@ func TestCounterProgram(t *testing.T) {
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(log, db)
 	})
+
 	importsBuilder.Register("program", func() host.Import {
-		return iprogram.New(log, eng, db, cfg)
+		return iprogram.New(log, eng, db, cfg, &callContext)
 	})
 	imports := importsBuilder.Build()
 
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/counter.wasm")
 	rt := runtime.New(log, eng, imports, cfg)
-	err := rt.Initialize(ctx, wasmBytes, maxUnits)
+
+	err := rt.Initialize(ctx, callContext, wasmBytes, maxUnits)
 	require.NoError(err)
 
 	balance, err := rt.Meter().GetBalance()
@@ -91,7 +94,7 @@ func TestCounterProgram(t *testing.T) {
 	// initialize second runtime to create second counter program with an empty
 	// meter.
 	rt2 := runtime.New(log, eng, imports, cfg)
-	err = rt2.Initialize(ctx, wasmBytes, engine.NoUnits)
+	err = rt2.Initialize(ctx, callContext, wasmBytes, engine.NoUnits)
 
 	require.NoError(err)
 
@@ -110,7 +113,7 @@ func TestCounterProgram(t *testing.T) {
 
 	mem2, err := rt2.Memory()
 	require.NoError(err)
-	programID2Ptr, err := argumentToSmartPtr(programID2, mem2)
+	// programID2Ptr, err := argumentToSmartPtr(programID2, mem2)
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
@@ -156,10 +159,9 @@ func TestCounterProgram(t *testing.T) {
 	)
 
 	// write program id 2 to stack of program 1
-	programID2Ptr, err = argumentToSmartPtr(programID2, mem)
+	target, err := argumentToSmartPtr(programID2, mem)
 	require.NoError(err)
 
-	target := programID2Ptr
 	maxUnitsProgramToProgram := int64(10000)
 	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, mem)
 	require.NoError(err)

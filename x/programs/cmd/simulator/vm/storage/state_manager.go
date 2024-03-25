@@ -5,6 +5,7 @@ package storage
 
 import (
 	"context"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -13,22 +14,22 @@ import (
 type StateManager struct{}
 
 func (m *StateManager) SponsorStateKeys(_ codec.Address) state.Keys {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *StateManager) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *StateManager) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *StateManager) Refund(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
