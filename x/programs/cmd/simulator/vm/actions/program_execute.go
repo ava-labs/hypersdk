@@ -138,13 +138,8 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
-	// print callContext to stderr
-	fmt.Fprintf(os.Stderr, "\ncallContext: %+v\n", callContext)
-
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		// print err to stderr
-		fmt.Fprintf(os.Stderr, "\nerr: %+v\n", err)
 		return false, 1, utils.ErrBytes(err), nil, nil
 	}
 
