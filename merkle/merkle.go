@@ -147,6 +147,53 @@ func (m *Merkle) Clear() error {
 	return m.mdb.Clear()
 }
 
+func (m *Merkle) GetMerkleRoot(_ context.Context) (ids.ID, error) {
+	return m.mdb.GetMerkleRoot(context.Background())
+}
+
+func (m *Merkle) GetProof(ctx context.Context, keyBytes []byte) (*merkledb.Proof, error) {
+	return m.mdb.GetProof(ctx, keyBytes)
+}
+
+func (m *Merkle) GetChangeProof(
+	ctx context.Context,
+	startRootID ids.ID,
+	endRootID ids.ID,
+	start maybe.Maybe[[]byte],
+	end maybe.Maybe[[]byte],
+	maxLength int,
+) (*merkledb.ChangeProof, error) {
+	return m.mdb.GetChangeProof(ctx, startRootID, endRootID, start, end, maxLength)
+}
+
+func (m *Merkle) VerifyChangeProof(
+	ctx context.Context,
+	proof *merkledb.ChangeProof,
+	start maybe.Maybe[[]byte],
+	end maybe.Maybe[[]byte],
+	expectedEndRootID ids.ID,
+) error {
+	return m.mdb.VerifyChangeProof(ctx, proof, start, end, expectedEndRootID)
+}
+
+func (m *Merkle) GetRangeProofAtRoot(
+	ctx context.Context,
+	rootID ids.ID,
+	start maybe.Maybe[[]byte],
+	end maybe.Maybe[[]byte],
+	maxLength int,
+) (*merkledb.RangeProof, error) {
+	return m.mdb.GetRangeProofAtRoot(ctx, rootID, start, end, maxLength)
+}
+
+func (m *Merkle) CommitRangeProof(ctx context.Context, start, end maybe.Maybe[[]byte], proof *merkledb.RangeProof) error {
+	return m.mdb.CommitRangeProof(ctx, start, end, proof)
+}
+
+func (m *Merkle) CommitChangeProof(ctx context.Context, proof *merkledb.ChangeProof) error {
+	return m.mdb.CommitChangeProof(ctx, proof)
+}
+
 func (m *Merkle) Close() error {
 	return m.mdb.Close()
 }
