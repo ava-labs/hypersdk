@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	ssync "github.com/ava-labs/avalanchego/x/sync"
 	"github.com/ava-labs/hypersdk/smap"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -17,6 +18,8 @@ var (
 	_ state.Immutable = (*Merkle)(nil)
 	_ state.Mutable   = (*Merkle)(nil)
 	_ state.Database  = (*Merkle)(nil)
+
+	_ ssync.DB = (*Merkle)(nil)
 )
 
 const (
@@ -132,6 +135,16 @@ func (m *Merkle) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error)
 		}
 	}
 	return values, errors
+}
+
+// Implement [sync.DB] interface
+func (m *Merkle) Clear() error {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	m.state = make(map[string][]byte, stateInitialSize)
+	m.pending = make(map[string]maybe.Maybe[[]byte], pendingInitialSize)
+	return m.mdb.Clear()
 }
 
 func (m *Merkle) Close() error {

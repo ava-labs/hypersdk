@@ -108,6 +108,8 @@ type VM interface {
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
+	//
+	// TODO: only call when root is non-empty
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
 
