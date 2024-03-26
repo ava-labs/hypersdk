@@ -84,6 +84,8 @@ type Metrics struct {
 	websocketConnections      prometheus.Gauge
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
+	stateSize                 prometheus.Gauge
+	stateLen                  prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
@@ -568,6 +570,16 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
+		stateSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "state_size",
+			Help:      "size of the state",
+		}),
+		stateLen: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "state_len",
+			Help:      "number of items in the state",
+		}),
 		waitRepeat:             waitRepeat,
 		waitQueue:              waitQueue,
 		waitAuth:               waitAuth,
@@ -647,6 +659,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
 		r.Register(m.optimisticCertifiedGossip),
+		r.Register(m.stateSize),
+		r.Register(m.stateLen),
 	)
 	return r, m, errs.Err
 }

@@ -28,12 +28,13 @@ const (
 )
 
 type Merkle struct {
+	l       sync.RWMutex
+	size    uint64
 	state   map[string][]byte
-	mdb     merkledb.MerkleDB
 	pending map[string]maybe.Maybe[[]byte]
 
-	l  sync.RWMutex
-	cl sync.Mutex
+	cl  sync.Mutex
+	mdb merkledb.MerkleDB
 }
 
 func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkle, error) {
@@ -59,13 +60,20 @@ func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) 
 		seen++
 		m.pending[key] = value
 		if value.IsNothing() {
-			delete(m.state, key)
+			m.stateRemove(key)
 		} else {
-			m.state[key] = value.Value()
+			m.stateInsert(key, value.Value())
 		}
 		return true
 	})
 	return seen
+}
+
+func (m *Merkle) Usage() (int, uint64) {
+	m.l.RLock()
+	defer m.l.RUnlock()
+
+	return len(m.state), m.size
 }
 
 func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, error), int) {
@@ -91,13 +99,32 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 	}, len(pending)
 }
 
+func (m *Merkle) stateInsert(key string, value []byte) {
+	past, ok := m.state[key]
+	if ok {
+		m.size -= uint64(len(past))
+	} else {
+		m.size += uint64(len(key))
+	}
+	m.size += uint64(len(value))
+	m.state[key] = value
+}
+
+func (m *Merkle) stateRemove(key string) {
+	past, ok := m.state[key]
+	if ok {
+		m.size -= uint64(len(key) + len(past))
+	}
+	delete(m.state, key)
+}
+
 // We assume that any bytes provided to Insert can be consumed.
 func (m *Merkle) Insert(_ context.Context, key, value []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
 	m.pending[string(key)] = maybe.Some(value)
-	m.state[string(key)] = value
+	m.stateInsert(string(key), value)
 	return nil
 }
 
@@ -106,7 +133,7 @@ func (m *Merkle) Remove(_ context.Context, key []byte) error {
 	defer m.l.Unlock()
 
 	m.pending[string(key)] = maybe.Nothing[[]byte]()
-	delete(m.state, string(key))
+	m.stateRemove(string(key))
 	return nil
 }
 

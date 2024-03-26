@@ -429,6 +429,11 @@ func (vm *VM) trackChainDataSize() {
 			size := hutils.DirectorySize(vm.snowCtx.ChainDataDir)
 			vm.metrics.chainDataSize.Set(float64(size))
 			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
+
+			stateLen, stateSize := vm.stateDB.Usage()
+			vm.metrics.stateLen.Set(float64(stateLen))
+			vm.metrics.stateSize.Set(float64(stateSize))
+			vm.snowCtx.Log.Info("stateDB size", zap.Int("len", stateLen), zap.String("size", humanize.Bytes(stateSize)))
 		case <-vm.stop:
 			return
 		}
