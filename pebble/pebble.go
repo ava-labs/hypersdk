@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,7 +43,8 @@ type Database struct {
 type Config struct {
 	Sync                        bool
 	CacheSize                   int // B
-	BytesPerSync                int // B
+	L0CompactionThreshold       int
+	L0StopWritesThreshold       int
 	MemTableStopWritesThreshold int // num tables
 	MemTableSize                int // B
 	MaxOpenFiles                int
@@ -51,11 +53,12 @@ type Config struct {
 
 func NewDefaultConfig() Config {
 	return Config{
-		Sync:                        false,              // explicitly specified for clarity
-		CacheSize:                   1024 * 1024 * 1024, // TODO: use memory for MerkleDB cache instead?
-		BytesPerSync:                1024 * 1024,
+		Sync:                        false, // explicitly specified for clarity
+		CacheSize:                   2 * units.GiB,
+		L0CompactionThreshold:       2,    // from cockroachdb
+		L0StopWritesThreshold:       1000, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
 		MemTableStopWritesThreshold: 8,
-		MemTableSize:                96 * 1024 * 1024,
+		MemTableSize:                128 * units.MiB,
 		MaxOpenFiles:                4_096,
 		ConcurrentCompactions:       func() int { return runtime.NumCPU() }, // TODO: make a config
 	}
@@ -72,7 +75,8 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	d := &Database{wo: wo, closing: make(chan struct{})}
 	opts := &pebble.Options{
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
-		BytesPerSync:                cfg.BytesPerSync,
+		L0CompactionThreshold:       cfg.L0CompactionThreshold,
+		L0StopWritesThreshold:       cfg.L0StopWritesThreshold,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
 		MaxOpenFiles:                cfg.MaxOpenFiles,
@@ -98,6 +102,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		if i > 0 {
 			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
 		}
+		l.EnsureDefaults()
 	}
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
 	registry, metrics, err := newMetrics()

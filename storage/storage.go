@@ -40,8 +40,7 @@ func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database
 		return nil, nil, nil, err
 	}
 	stateCfg := pebble.NewDefaultConfig()
-	// With very large batches, the difference between sync/nosync becomes indistinguishable. We should
-	// just sync to ensure that an accepted block with a root is persisted to disk.
+	stateCfg.Sync = false // we can recover invalid state from persisted storage
 	stateDB, stateDBRegistry, err := pebble.New(statePath, stateCfg)
 	if err != nil {
 		return nil, nil, nil, err
