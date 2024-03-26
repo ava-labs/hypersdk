@@ -66,8 +66,6 @@ fn public_functions() {
 
     let offset = offset as u32;
 
-    dbg!(offset);
-
     let ptr = ((context_len as i64) << 32) | offset as i64;
 
     let memory = instance
