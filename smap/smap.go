@@ -4,7 +4,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/zeebo/xxh3"
 )
 
@@ -31,7 +30,7 @@ type shard[V any] struct {
 	data map[string]V
 }
 
-func (m *SMap[V]) Set(key string, value V) {
+func (m *SMap[V]) Put(key string, value V) {
 	h := xxh3.HashString(key)
 	shard := m.shards[h%m.count]
 
@@ -69,29 +68,16 @@ func (m *SMap[V]) Len() uint64 {
 	return l
 }
 
-func (m *SMap[V]) Merge(other *SMap[maybe.Maybe[any]]) error {
-	if m.count != other.count {
-		return ErrDifferentShardCount
-	}
-	g := &sync.WaitGroup{}
+func (m *SMap[V]) Iterate(f func(k string, v V) bool) {
 	for i := 0; i < int(m.count); i++ {
-		g.Add(1)
-		go func(i int) {
-			defer g.Done()
-
-			shard := m.shards[i]
-			oshard := other.shards[i]
-			shard.l.Lock()
-			for k, v := range oshard.data {
-				if v.IsNothing() {
-					delete(shard.data, k)
-				} else {
-					shard.data[k] = v.Value().(V)
-				}
+		shard := m.shards[i]
+		shard.l.RLock()
+		for k, v := range shard.data {
+			if !f(k, v) {
+				shard.l.RUnlock()
+				return
 			}
-			shard.l.Unlock()
-		}(i)
+		}
+		shard.l.RUnlock()
 	}
-	g.Wait()
-	return nil
 }

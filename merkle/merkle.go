@@ -2,8 +2,10 @@ package merkle
 
 import (
 	"context"
+	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/smap"
@@ -15,9 +17,12 @@ const (
 )
 
 type Merkle struct {
-	state   *smap.SMap[[]byte]
+	state   map[string][]byte
 	mdb     merkledb.MerkleDB
 	pending map[string]maybe.Maybe[[]byte]
+
+	l  sync.RWMutex
+	cl sync.Mutex
 }
 
 func New(db database.Database, vm VM, cfg Config) (*Merkle, error) {
@@ -39,13 +44,79 @@ func New(db database.Database, vm VM, cfg Config) (*Merkle, error) {
 		return nil, err
 	}
 	return &Merkle{
-		state:   smap.New[[]byte](stateInitialSize),
+		state:   make(map[string][]byte, stateInitialSize),
 		mdb:     mdb,
 		pending: make(map[string]maybe.Maybe[[]byte], pendingInitialSize),
 	}, nil
 }
 
-// TODO: ensure we make view async
+func (m *Merkle) Update(ops *smap.SMap[maybe.Maybe[[]byte]]) {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	ops.Iterate(func(key string, value maybe.Maybe[[]byte]) bool {
+		m.pending[key] = value
+		if value.IsNothing() {
+			delete(m.state, key)
+		} else {
+			m.state[key] = value.Value()
+		}
+		return true
+	})
+}
+
+func (m *Merkle) GetValue(key []byte) ([]byte, error) {
+	m.l.RLock()
+	defer m.l.RUnlock()
+
+	value, ok := m.state[string(key)]
+	if !ok {
+		return nil, database.ErrNotFound
+	}
+	return value, nil
+}
+
+func (m *Merkle) GetValues(keys [][]byte) ([][]byte, []error) {
+	m.l.RLock()
+	defer m.l.RUnlock()
+
+	var (
+		values = make([][]byte, len(keys))
+		errors = make([]error, len(keys))
+	)
+	for i, key := range keys {
+		value, ok := m.state[string(key)]
+		if !ok {
+			errors[i] = database.ErrNotFound
+		} else {
+			values[i] = value
+		}
+	}
+	return values, errors
+}
+
+func (m *Merkle) PrepareCommit() func(context.Context) (ids.ID, error) {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	pending := m.pending
+	m.pending = make(map[string]maybe.Maybe[[]byte], pendingInitialSize)
+	return func(ctx context.Context) (ids.ID, error) {
+		m.cl.Lock()
+		defer m.cl.Unlock()
+
+		// We don't consume bytes because we don't pre-copy them into [pending] (in case
+		// they are later replaced).
+		view, err := m.mdb.NewView(ctx, merkledb.ViewChanges{MapOps: pending})
+		if err != nil {
+			return ids.Empty, err
+		}
+		if err := view.CommitToDB(ctx); err != nil {
+			return ids.Empty, err
+		}
+		return m.mdb.GetMerkleRoot(ctx)
+	}
+}
 
 func (m *Merkle) Close() error {
 	return m.mdb.Close()
