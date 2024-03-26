@@ -1,24 +1,27 @@
 package smap
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/zeebo/xxh3"
 )
 
+var shardCount = runtime.NumCPU() * 16
+
 type SMap[V any] struct {
 	count  uint64 // less coversions with [xxh3.HashString]
 	shards []*shard[V]
 }
 
-func New[V any](shards int, shardSize int) *SMap[V] {
+func New[V any](initial int) *SMap[V] {
 	m := &SMap[V]{
-		count:  uint64(shards),
-		shards: make([]*shard[V], shards),
+		count:  uint64(shardCount),
+		shards: make([]*shard[V], shardCount),
 	}
-	for i := 0; i < shards; i++ {
-		m.shards[i] = &shard[V]{data: make(map[string]V, shardSize)}
+	for i := 0; i < shardCount; i++ {
+		m.shards[i] = &shard[V]{data: make(map[string]V, max(16, initial/shardCount))}
 	}
 	return m
 }
