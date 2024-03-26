@@ -90,6 +90,7 @@ type Metrics struct {
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
+	waitRoot                  metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -159,6 +160,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_commit",
 		"time spent waiting to commit state after execution",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitRoot, err := metric.NewAverager(
+		"chain",
+		"wait_root",
+		"time spent waiting to generate root after execution",
 		r,
 	)
 	if err != nil {
@@ -554,6 +564,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		waitExec:               waitExec,
 		waitPrecheck:           waitPrecheck,
 		waitCommit:             waitCommit,
+		waitRoot:               waitRoot,
 		chunkBuild:             chunkBuild,
 		blockBuild:             blockBuild,
 		blockParse:             blockParse,

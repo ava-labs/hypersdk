@@ -136,7 +136,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 		p.UnpackID(true, &id)
 		b.ExecutedChunks = append(b.ExecutedChunks, id)
 	}
-	p.UnpackID(false, &b.Root)
+	p.UnpackID(false, &b.Root) // only some roots are populated
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
@@ -168,6 +168,7 @@ type StatelessBlock struct {
 	verifiedCerts bool
 
 	parent     *StatelessBlock
+	rootHeight *uint64
 	execHeight *uint64
 
 	chunks set.Set[ids.ID]
@@ -428,25 +429,19 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		b.verifiedCerts = true
 	}
 
-	// Verify start root and execution results
-	depth := r.GetBlockExecutionDepth()
-	if b.StatefulBlock.Height <= depth {
-		if b.Root != ids.Empty || len(b.ExecutedChunks) > 0 {
-			return errors.New("no execution result should exist")
-		}
-	} else {
+	// Verify roots
+	frequency := r.GetRootFrequency()
+	if b.StatefulBlock.Height > frequency && b.StatefulBlock.Height%frequency == 0 {
 		var (
-			execHeight = b.StatefulBlock.Height - depth
+			rootHeight = b.StatefulBlock.Height - frequency
 			root       ids.ID
-			executed   []ids.ID
 			err        error
 		)
 		for {
-			root, executed, err = b.vm.Engine().Results(execHeight)
+			root, err = b.vm.Engine().Root(rootHeight)
 			if err != nil {
-				// TODO: handle case where we state synced and don't have results
 				if b.vm.IsBootstrapped() {
-					log.Debug("could not get results for block", zap.Uint64("height", execHeight))
+					log.Debug("could not get root for block", zap.Uint64("height", rootHeight))
 					return fmt.Errorf("%w: no results for execHeight", err)
 				}
 				// If we haven't finished bootstrapping, we can't fail.
@@ -460,6 +455,41 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		if b.Root != root {
 			log.Error("block has invalid root", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedRoot", root), zap.Stringer("actualRoot", b.Root))
 			panic("root mismatch") // could help us debug
+		}
+		b.rootHeight = &rootHeight
+	} else {
+		if b.Root != ids.Empty {
+			panic("root should be empty")
+		}
+	}
+
+	// Verify execution results
+	depth := r.GetBlockExecutionDepth()
+	if b.StatefulBlock.Height <= depth {
+		if len(b.ExecutedChunks) > 0 {
+			return errors.New("no execution result should exist")
+		}
+	} else {
+		var (
+			execHeight = b.StatefulBlock.Height - depth
+			executed   []ids.ID
+			err        error
+		)
+		for {
+			executed, err = b.vm.Engine().Results(execHeight)
+			if err != nil {
+				// TODO: handle case where we state synced and don't have results
+				if b.vm.IsBootstrapped() {
+					log.Debug("could not get results for block", zap.Uint64("height", execHeight))
+					return fmt.Errorf("%w: no results for execHeight", err)
+				}
+				// If we haven't finished bootstrapping, we can't fail.
+				//
+				// TODO: we should actually not verify any of this (long p-chain lookbacks)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			break
 		}
 		if len(b.ExecutedChunks) != len(executed) {
 			log.Error("block has invalid executed chunks count", zap.Stringer("blockID", b.ID()), zap.Int("expectedCount", len(executed)), zap.Int("actualCount", len(b.ExecutedChunks)))
@@ -502,12 +532,20 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	// Mark block as accepted
 	b.st = choices.Accepted
 
-	// Collect async results (if any)
+	// Prune root (if any)
+	if b.rootHeight != nil {
+		_, err := b.vm.Engine().PruneRoot(ctx, *b.rootHeight)
+		if err != nil {
+			return fmt.Errorf("%w: cannot prune root", err)
+		}
+	}
+
+	// Prune async results (if any)
 	var filteredChunks []*FilteredChunk
 	if b.execHeight != nil {
-		_, fc, err := b.vm.Engine().Commit(ctx, *b.execHeight)
+		_, fc, err := b.vm.Engine().PruneResults(ctx, *b.execHeight)
 		if err != nil {
-			return fmt.Errorf("%w: cannot commit", err)
+			return fmt.Errorf("%w: cannot prune results", err)
 		}
 		filteredChunks = fc
 	}

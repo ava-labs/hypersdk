@@ -73,7 +73,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (merkle.Merkle, error) {
+func (vm *VM) State() (*merkle.Merkle, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
 	if !vm.StateReady() {
 		return nil, ErrStateMissing
@@ -82,7 +82,7 @@ func (vm *VM) State() (merkle.Merkle, error) {
 }
 
 // TODO: correctly handle engine.Execute during state sync
-func (vm *VM) ForceState() merkle.Merkle {
+func (vm *VM) ForceState() *merkle.Merkle {
 	return vm.stateDB
 }
 
@@ -522,6 +522,10 @@ func (vm *VM) RecordWaitPrecheck(t time.Duration) {
 
 func (vm *VM) RecordWaitCommit(t time.Duration) {
 	vm.metrics.waitCommit.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitRoot(t time.Duration) {
+	vm.metrics.waitRoot.Observe(float64(t))
 }
 
 func (vm *VM) RecordStateChanges(c uint64) {

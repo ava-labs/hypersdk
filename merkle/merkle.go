@@ -2,6 +2,7 @@ package merkle
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -15,6 +16,7 @@ import (
 var (
 	_ state.Immutable = (*Merkle)(nil)
 	_ state.Mutable   = (*Merkle)(nil)
+	_ state.Database  = (*Merkle)(nil)
 )
 
 const (
@@ -43,7 +45,7 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	}, nil
 }
 
-func (m *Merkle) Update(ops *smap.SMap[maybe.Maybe[[]byte]]) {
+func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
@@ -64,8 +66,8 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context) (ids.ID, e
 
 	pending := m.pending
 	m.pending = make(map[string]maybe.Maybe[[]byte], pendingInitialSize)
+	m.cl.Lock()
 	return func(ctx context.Context) (ids.ID, error) {
-		m.cl.Lock()
 		defer m.cl.Unlock()
 
 		// We don't consume bytes because we don't pre-copy them into [pending] (in case
@@ -81,6 +83,7 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context) (ids.ID, e
 	}
 }
 
+// We assume that any bytes provided to Insert can be consumed.
 func (m *Merkle) Insert(_ context.Context, key, value []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
@@ -99,6 +102,7 @@ func (m *Merkle) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
+// Any bytes returned by [GetValue] can be modified.
 func (m *Merkle) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	m.l.RLock()
 	defer m.l.RUnlock()
@@ -107,9 +111,10 @@ func (m *Merkle) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	if !ok {
 		return nil, database.ErrNotFound
 	}
-	return value, nil
+	return slices.Clone(value), nil
 }
 
+// Any bytes returned by [GetValues] can be modified.
 func (m *Merkle) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error) {
 	m.l.RLock()
 	defer m.l.RUnlock()
@@ -123,7 +128,7 @@ func (m *Merkle) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error)
 		if !ok {
 			errors[i] = database.ErrNotFound
 		} else {
-			values[i] = value
+			values[i] = slices.Clone(value)
 		}
 	}
 	return values, errors

@@ -42,6 +42,7 @@ type Metrics interface {
 	RecordWaitPrecheck(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitCommit(time.Duration)
+	RecordWaitRoot(time.Duration)
 
 	RecordRemainingMempool(int)
 
@@ -80,8 +81,8 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() (merkle.Merkle, error)
-	ForceState() merkle.Merkle
+	State() (*merkle.Merkle, error)
+	ForceState() *merkle.Merkle
 	StateManager() StateManager
 	ValidatorState() validators.State
 
@@ -149,8 +150,10 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
+	// TODO: make immutable rules (that don't expect to be changed)
 	GetPartitions() uint8
 	GetBlockExecutionDepth() uint64
+	GetRootFrequency() uint64
 	GetEpochDuration() int64
 
 	GetMinBlockGap() int64    // in milliseconds
