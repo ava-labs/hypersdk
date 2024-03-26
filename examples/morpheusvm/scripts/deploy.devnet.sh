@@ -55,7 +55,7 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 # morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
 EPOCH_DURATION=60000
 VALIDITY_WINDOW=59000
-MIN_BLOCK_GAP=1600
+MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_UINT64=18446744073709551615
 MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}" # in a load test, all we care about is that chunks are size-bounded (2MB network limit)
@@ -82,7 +82,7 @@ EOF
 # TODO: find a smarter way to split auth cores between exec and RPC
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 400,
+  "chunkBuildFrequency": 333,
   "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
   "mempoolSize": 2147483648,

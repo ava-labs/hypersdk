@@ -271,8 +271,7 @@ func (e *Engine) processJob(job *engineJob) error {
 
 	// Persist changes to state
 	commitStart := time.Now()
-	diff := ts.Keys()
-	e.vm.RecordStateChanges(e.db.Update(ctx, diff))
+	e.vm.RecordStateChanges(e.db.Update(ctx, ts.Keys()))
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view
@@ -302,7 +301,9 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.vm.ExecutedBlock(ctx, job.blk.StatefulBlock)
 
 	// Kickoff root generation/ask for previously generated root
-	if job.blk.StatefulBlock.Height%r.GetRootFrequency() == 0 && job.blk.StatefulBlock.Height > 0 {
+	//
+	// Note: the first block with a root (not including genesis) will be 2*r.GetRootFrequency()
+	if job.blk.StatefulBlock.Height > 0 && job.blk.StatefulBlock.Height%r.GetRootFrequency() == 0 {
 		// Lock in commit ensures we can't run another commit until the previous finishes
 		commit, items := e.db.PrepareCommit(ctx)
 		go func() {

@@ -49,6 +49,7 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	}, nil
 }
 
+// TODO: use smap for merkle and update shards concurrently
 func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) int {
 	m.l.Lock()
 	defer m.l.Unlock()
