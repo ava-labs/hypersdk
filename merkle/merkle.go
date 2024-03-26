@@ -49,11 +49,13 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	}, nil
 }
 
-func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) {
+func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) int {
 	m.l.Lock()
 	defer m.l.Unlock()
 
+	seen := 0
 	ops.Iterate(func(key string, value maybe.Maybe[[]byte]) bool {
+		seen++
 		m.pending[key] = value
 		if value.IsNothing() {
 			delete(m.state, key)
@@ -62,9 +64,10 @@ func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) 
 		}
 		return true
 	})
+	return seen
 }
 
-func (m *Merkle) PrepareCommit(context.Context) func(context.Context) (ids.ID, error) {
+func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, error), int) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
@@ -84,7 +87,7 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context) (ids.ID, e
 			return ids.Empty, err
 		}
 		return m.mdb.GetMerkleRoot(ctx)
-	}
+	}, len(pending)
 }
 
 // We assume that any bytes provided to Insert can be consumed.

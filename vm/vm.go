@@ -337,7 +337,7 @@ func (vm *VM) Initialize(
 		}
 
 		// Commit genesis block post-execution state and compute root
-		commit := vm.stateDB.PrepareCommit(ctx)
+		commit, _ := vm.stateDB.PrepareCommit(ctx)
 		root, err := commit(ctx)
 		if err != nil {
 			return err

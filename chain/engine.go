@@ -272,8 +272,7 @@ func (e *Engine) processJob(job *engineJob) error {
 	// Persist changes to state
 	commitStart := time.Now()
 	diff := ts.Keys()
-	e.db.Update(ctx, diff)
-	e.vm.RecordStateChanges(diff.Len())
+	e.vm.RecordStateChanges(e.db.Update(ctx, diff))
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view
@@ -305,7 +304,7 @@ func (e *Engine) processJob(job *engineJob) error {
 	// Kickoff root generation/ask for previously generated root
 	if job.blk.StatefulBlock.Height%r.GetRootFrequency() == 0 && job.blk.StatefulBlock.Height > 0 {
 		// Lock in commit ensures we can't run another commit until the previous finishes
-		commit := e.db.PrepareCommit(ctx)
+		commit, items := e.db.PrepareCommit(ctx)
 		go func() {
 			rootStart := time.Now()
 			root, err := commit(context.Background())
@@ -317,6 +316,13 @@ func (e *Engine) processJob(job *engineJob) error {
 			e.roots[job.blk.StatefulBlock.Height] = root
 			e.rootsLock.Unlock()
 			e.vm.RecordWaitRoot(time.Since(rootStart))
+			e.vm.RecordRootChanges(items)
+			e.vm.Logger().Info(
+				"generated root",
+				zap.Uint64("height", job.blk.StatefulBlock.Height),
+				zap.Int("items", items),
+				zap.Duration("t", time.Since(rootStart)),
+			)
 		}()
 	}
 	return nil

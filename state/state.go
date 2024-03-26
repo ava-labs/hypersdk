@@ -27,6 +27,6 @@ type Database interface {
 
 	GetValues(ctx context.Context, keys [][]byte) (values [][]byte, errs []error)
 
-	Update(ctx context.Context, ops *smap.SMap[maybe.Maybe[[]byte]])
-	PrepareCommit(ctx context.Context) func(context.Context) (ids.ID, error)
+	Update(ctx context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) int
+	PrepareCommit(ctx context.Context) (func(context.Context) (ids.ID, error), int)
 }

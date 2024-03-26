@@ -528,7 +528,7 @@ func (vm *VM) RecordWaitRoot(t time.Duration) {
 	vm.metrics.waitRoot.Observe(float64(t))
 }
 
-func (vm *VM) RecordStateChanges(c uint64) {
+func (vm *VM) RecordStateChanges(c int) {
 	vm.metrics.stateChanges.Add(float64(c))
 }
 
@@ -724,4 +724,8 @@ func (vm *VM) RecordWaitQueue(t time.Duration) {
 
 func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
+}
+
+func (vm *VM) RecordRootChanges(c int) {
+	vm.metrics.rootChanges.Observe(float64(c))
 }

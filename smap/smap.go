@@ -58,16 +58,6 @@ func (m *SMap[V]) Delete(key string) {
 	delete(shard.data, key)
 }
 
-func (m *SMap[V]) Len() uint64 {
-	var l uint64
-	for _, shard := range m.shards {
-		shard.l.RLock()
-		l += uint64(len(shard.data))
-		shard.l.RUnlock()
-	}
-	return l
-}
-
 func (m *SMap[V]) Iterate(f func(k string, v V) bool) {
 	for i := 0; i < int(m.count); i++ {
 		shard := m.shards[i]
