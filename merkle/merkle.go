@@ -41,6 +41,7 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	if err != nil {
 		return nil, err
 	}
+	// TODO: load values into [state]
 	return &Merkle{
 		state:   make(map[string][]byte, stateInitialSize),
 		mdb:     mdb,
