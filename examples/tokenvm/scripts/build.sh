@@ -18,14 +18,14 @@ TOKENVM_PATH=$(
     cd .. && pwd
 )
 
+NAME="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
 if [[ $# -eq 1 ]]; then
     BINARY_DIR=$(cd "$(dirname "$1")" && pwd)
     BINARY_FNAME=$(basename "$1")
     BINARY_PATH=$BINARY_DIR/$BINARY_FNAME
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
-    name="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
-    BINARY_PATH=$TOKENVM_PATH/build/$name
+    BINARY_PATH="${TOKENVM_PATH}/build/${NAME}"
 else
     echo "Invalid arguments to build tokenvm. Requires zero (default location) or one argument to specify binary location."
     exit 1
@@ -36,6 +36,12 @@ cd "$TOKENVM_PATH"
 echo "Building tokenvm in $BINARY_PATH"
 mkdir -p "$(dirname "$BINARY_PATH")"
 go build -o "$BINARY_PATH" ./cmd/tokenvm
+
+PLUGIN_DIR="$HOME/.avalanchego/plugins"
+PLUGIN_PATH="${PLUGIN_DIR}/${NAME}"
+echo "Symlinking ${BINARY_PATH} to ${PLUGIN_PATH}"
+mkdir -p "${PLUGIN_DIR}"
+ln -sf "${BINARY_PATH}" "${PLUGIN_PATH}"
 
 CLI_PATH=$TOKENVM_PATH/build/token-cli
 echo "Building token-cli in $CLI_PATH"

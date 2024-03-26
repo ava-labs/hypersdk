@@ -8,7 +8,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 )
 
 const (
@@ -21,9 +20,7 @@ const (
 var ID ids.ID
 
 func init() {
-	b := make([]byte, consts.IDLen)
-	copy(b, []byte(Name))
-	vmID, err := ids.ToID(b)
+	vmID, err := ids.FromString("tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8")
 	if err != nil {
 		panic(err)
 	}
