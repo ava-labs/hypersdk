@@ -23,11 +23,12 @@ import (
 
 var _ host.Import = (*Import)(nil)
 
+const Name = "program"
+
 type Import struct {
-	name string
-	mu   state.Mutable
-	log  logging.Logger
-	cfg  *runtime.Config
+	mu  state.Mutable
+	log logging.Logger
+	cfg *runtime.Config
 
 	engine  *engine.Engine
 	meter   *engine.Meter
@@ -38,7 +39,6 @@ type Import struct {
 // New returns a new program invoke host module which can perform program to program calls.
 func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runtime.Config, ctx *program.Context) *Import {
 	return &Import{
-		name:   "program", // TODO fix this
 		cfg:    cfg,
 		mu:     mu,
 		log:    log,
@@ -47,14 +47,14 @@ func New(log logging.Logger, engine *engine.Engine, mu state.Mutable, cfg *runti
 	}
 }
 
-func (i *Import) Name() string {
-	return i.name
+func (*Import) Name() string {
+	return Name
 }
 
 func (i *Import) Register(link *host.Link, callContext program.Context) error {
 	i.meter = link.Meter()
 	i.imports = link.Imports()
-	return link.RegisterImportFn(i.name, "call_program", i.callProgramFn(callContext))
+	return link.RegisterImportFn(Name, "call_program", i.callProgramFn(callContext))
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
@@ -202,7 +202,6 @@ func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]pr
 		if err != nil {
 			return nil, err
 		}
-		// argPtr, err := program.NewSmartPtr(uint32(ptr), int(length))
 		argPtr, err := program.NewSmartPtr(ptr, int(length))
 		if err != nil {
 			return nil, err
