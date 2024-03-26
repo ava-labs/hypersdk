@@ -315,7 +315,7 @@ func (h *Handler) Spam(
 	}()
 	lastIteration := time.Now()
 	for i := 0; i < numAccounts; i++ {
-		for pendingAccounts.Load() > int64(stepSize*5) {
+		for pendingAccounts.Load() > int64(minCapacity*5) {
 			time.Sleep(100 * time.Millisecond)
 		}
 		// Create account
@@ -701,7 +701,7 @@ func (h *Handler) Spam(
 		returnsSent++
 
 		// Ensure backlog not too long
-		for pendingReturns.Load() > int64(stepSize*5) {
+		for pendingReturns.Load() > int64(minCapacity*5) {
 			time.Sleep(100 * time.Millisecond)
 		}
 
