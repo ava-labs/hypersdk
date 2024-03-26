@@ -98,6 +98,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authGossipCores": 32,
   "authGossipBacklog": 10000000,
   "streamingBacklogSize": 10000000,
+  "continuousProfilerDir":"/home/ubuntu/.morpheusvm",
   "logLevel": "INFO"
 }
 EOF

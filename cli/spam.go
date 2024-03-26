@@ -99,7 +99,7 @@ var (
 )
 
 func (h *Handler) Spam(
-	numAccounts int, txsPerSecond int, stepSize int,
+	numAccounts int, txsPerSecond int, minCapacity int, stepSize int,
 	sZipf float64, vZipf float64, plotZipf bool,
 	numClients int, clusterInfo string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
@@ -226,7 +226,13 @@ func (h *Handler) Spam(
 		}
 	}
 	if txsPerSecond <= 0 {
-		txsPerSecond, err = h.PromptInt("txs to issue per second", consts.MaxInt)
+		txsPerSecond, err = h.PromptInt("txs to try and issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
+	}
+	if minCapacity <= 0 {
+		minCapacity, err = h.PromptInt("minimum txs to issue per second", consts.MaxInt)
 		if err != nil {
 			return err
 		}
@@ -307,6 +313,7 @@ func (h *Handler) Spam(
 		}
 		close(distributed)
 	}()
+	lastIteration := time.Now()
 	for i := 0; i < numAccounts; i++ {
 		for pendingAccounts.Load() > int64(stepSize*5) {
 			time.Sleep(100 * time.Millisecond)
@@ -336,6 +343,13 @@ func (h *Handler) Spam(
 			return fmt.Errorf("%w: failed to register tx", err)
 		}
 		funds[pk.Address] = distAmount
+
+		// Sleep to ensure we don't exceed tps
+		if i%minCapacity == 0 && i != 0 {
+			sleepTime := max(0, time.Second-time.Since(lastIteration))
+			time.Sleep(sleepTime)
+			lastIteration = time.Now()
+		}
 	}
 	<-distributed
 	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", numAccounts)
@@ -504,7 +518,7 @@ func (h *Handler) Spam(
 		z = rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1)
 
 		it                      = time.NewTimer(0)
-		currentTarget           = min(txsPerSecond, stepSize)
+		currentTarget           = min(txsPerSecond, minCapacity)
 		consecutiveUnderBacklog int
 		consecutiveAboveBacklog int
 
@@ -677,6 +691,7 @@ func (h *Handler) Spam(
 		}
 		close(returned)
 	}()
+	lastIteration = time.Now()
 	for i := 0; i < numAccounts; i++ {
 		// Ensure return worth sending
 		balance := funds[accounts[i].Address]
@@ -703,6 +718,13 @@ func (h *Handler) Spam(
 		}
 		returnIssued <- struct{}{}
 		returnedBalance += returnAmt
+
+		// Sleep to ensure we don't exceed tps
+		if i%minCapacity == 0 && i != 0 {
+			sleepTime := max(0, time.Second-time.Since(lastIteration))
+			time.Sleep(sleepTime)
+			lastIteration = time.Now()
+		}
 	}
 	close(returnIssued)
 	<-returned
