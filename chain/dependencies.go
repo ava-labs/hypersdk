@@ -57,7 +57,7 @@ type Metrics interface {
 	RecordChunkBuildTxDropped()
 	RecordBlockBuildCertDropped()
 	RecordTxsInvalid(int)
-	RecordStateChanges(int)
+	RecordStateChanges(uint64)
 	RecordEngineBacklog(int)
 }
 

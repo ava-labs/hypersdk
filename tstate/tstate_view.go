@@ -285,7 +285,7 @@ func (ts *TStateView) PendingChanges() int {
 // Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
 	for k, v := range ts.pendingChangedKeys {
-		ts.ts.changedKeys.Store(k, v)
+		ts.ts.changedKeys.Set(k, v)
 	}
 }
 

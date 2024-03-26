@@ -13,10 +13,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/smap"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
+
+const stateInitialSize = 1_000_000
 
 type engineJob struct {
 	parentTimestamp int64
@@ -29,7 +32,6 @@ type output struct {
 	chunkResults [][]*Result
 
 	chunks []*FilteredChunk
-	root   ids.ID
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -42,6 +44,7 @@ type Engine struct {
 
 	backlog chan *engineJob
 
+	state      *smap.SMap[[]byte]
 	latestView state.View
 
 	outputsLock   sync.RWMutex
@@ -57,6 +60,8 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 		done: make(chan struct{}),
 
 		backlog: make(chan *engineJob, maxBacklog),
+
+		state: smap.New[[]byte](stateInitialSize),
 
 		outputs: make(map[uint64]*output),
 	}
@@ -268,19 +273,9 @@ func (e *Engine) processJob(job *engineJob) error {
 	}
 
 	// Create new view and persist to disk
-	view, changes, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
-	if err != nil {
-		return err
-	}
-	e.vm.RecordStateChanges(changes)
 	commitStart := time.Now()
-	if err := view.CommitToDB(ctx); err != nil {
-		return err
-	}
-	root, err := view.GetMerkleRoot(ctx)
-	if err != nil {
-		return err
-	}
+	diff := ts.Keys()
+	e.vm.RecordStateChanges(diff.Len())
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view
@@ -289,7 +284,6 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.outputs[job.blk.StatefulBlock.Height] = &output{
 		txs:          txSet,
 		chunkResults: chunkResults,
-		root:         root,
 		chunks:       filteredChunks,
 	}
 	e.largestOutput = &job.blk.StatefulBlock.Height
@@ -303,7 +297,6 @@ func (e *Engine) processJob(job *engineJob) error {
 		zap.Int("valid txs", validTxs),
 		zap.Int("total txs", txCount),
 		zap.Int("chunks", len(filteredChunks)),
-		zap.Stringer("root", root),
 		zap.Uint64("epoch", epoch),
 		zap.Duration("t", time.Since(estart)),
 	)
@@ -316,6 +309,8 @@ func (e *Engine) processJob(job *engineJob) error {
 
 func (e *Engine) Run() {
 	defer close(e.done)
+
+	// TODO: load state into memory
 
 	// Get last accepted state
 	e.latestView = state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
@@ -354,7 +349,7 @@ func (e *Engine) Execute(blk *StatelessBlock) {
 	}
 }
 
-func (e *Engine) Results(height uint64) (ids.ID /* Root */, []ids.ID /* Executed Chunks */, error) {
+func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, error) {
 	// TODO: handle case where never started execution (state sync)
 	e.outputsLock.RLock()
 	defer e.outputsLock.RUnlock()
@@ -364,17 +359,16 @@ func (e *Engine) Results(height uint64) (ids.ID /* Root */, []ids.ID /* Executed
 		for i, chunk := range output.chunks {
 			id, err := chunk.ID()
 			if err != nil {
-				return ids.Empty, nil, err
+				return nil, err
 			}
 			filteredIDs[i] = id
 		}
-		return output.root, filteredIDs, nil
+		return filteredIDs, nil
 	}
-	return ids.Empty, nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
+	return nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
 
-// TODO: cleanup this function signautre
-func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
+func (e *Engine) Prune(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
 	// TODO: fetch results prior to commit to reduce observed finality (state won't be queryable yet but can send block/results)
 	e.outputsLock.Lock()
 	output, ok := e.outputs[height]
