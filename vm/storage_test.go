@@ -27,7 +27,7 @@ func randBytes() []byte {
 
 func BenchmarkMerkleDB(b *testing.B) {
 	for _, items := range []int{1_000, 10_000, 100_000, 1_000_000, 10_000_000} {
-		for _, actions := range []int{100, 1_000, 10_000, 100_000, 1_000_000} {
+		for _, actions := range []int{100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000} {
 			if actions > items {
 				continue
 			}
@@ -54,14 +54,11 @@ func BenchmarkMerkleDB(b *testing.B) {
 				}
 
 				// Add keys to DB
-				keys := make([][]byte, items)
+				keys := make([]string, items)
 				ops := make(map[string]maybe.Maybe[[]byte], items)
 				for j := 0; j < items; j++ {
-					k := randBytes()
-					if j < actions {
-						keys[j] = k
-					}
-					ops[string(k)] = maybe.Some(randBytes())
+					keys[j] = string(randBytes())
+					ops[keys[j]] = maybe.Some(randBytes())
 				}
 				view, err := db.NewView(context.TODO(), merkledb.ViewChanges{MapOps: ops})
 				if err != nil {
@@ -84,14 +81,18 @@ func BenchmarkMerkleDB(b *testing.B) {
 						if err != nil {
 							b.Fatal(err)
 						}
-						ops[string(keys[idx])] = maybe.Some(randBytes())
+						ops[keys[idx]] = maybe.Some(randBytes())
 					}
+
 					// Create view, commit, get root
 					view, err = db.NewView(context.TODO(), merkledb.ViewChanges{MapOps: ops})
 					if err != nil {
 						b.Fatal(err)
 					}
 					if err := view.CommitToDB(context.TODO()); err != nil {
+						b.Fatal(err)
+					}
+					if _, err := db.GetMerkleRoot(context.TODO()); err != nil {
 						b.Fatal(err)
 					}
 				}
