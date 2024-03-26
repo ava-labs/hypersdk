@@ -31,6 +31,7 @@ import (
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
+	"github.com/ava-labs/hypersdk/merkle"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -42,7 +43,6 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/state"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 )
@@ -70,7 +70,7 @@ type VM struct {
 	config         Config
 	genesis        Genesis
 	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
+	stateDB        *merkle.Merkle
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
 	handlers       Handlers
@@ -239,7 +239,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 	merkleRegistry := prometheus.NewRegistry()
-	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
+	vm.stateDB, err = merkle.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations.
@@ -323,25 +323,22 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		// Set balances and compute genesis root
-		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
+		if err := vm.genesis.Load(ctx, vm.tracer, vm.stateDB); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 
 		// Update chain metadata
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := vm.stateDB.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
+		if err := vm.stateDB.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
 			return err
 		}
 
 		// Commit genesis block post-execution state and compute root
-		if err := sps.Commit(ctx); err != nil {
-			return err
-		}
-		root, err := vm.stateDB.GetMerkleRoot(ctx)
+		commit := vm.stateDB.PrepareCommit(ctx)
+		root, err := commit(ctx)
 		if err != nil {
 			return err
 		}

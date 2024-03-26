@@ -42,7 +42,7 @@ func (ts *TState) Insert(ctx context.Context, key, value []byte) error {
 		return ErrInvalidKeyValue
 	}
 
-	ts.changedKeys.Set(string(key), maybe.Some(value)) // we don't care if key is equivalent to key on-disk or in `changedKeys`
+	ts.changedKeys.Put(string(key), maybe.Some(value)) // we don't care if key is equivalent to key on-disk or in `changedKeys`
 	return nil
 }
 

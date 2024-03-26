@@ -9,6 +9,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/smap"
+	"github.com/ava-labs/hypersdk/state"
+)
+
+var (
+	_ state.Immutable = (*Merkle)(nil)
+	_ state.Mutable   = (*Merkle)(nil)
 )
 
 const (
@@ -25,21 +31,8 @@ type Merkle struct {
 	cl sync.Mutex
 }
 
-func New(db database.Database, vm VM, cfg Config) (*Merkle, error) {
-	mdb, err := merkledb.New(context.TODO(), db, merkledb.Config{
-		BranchFactor: cfg.GetStateBranchFactor(),
-		// RootGenConcurrency limits the number of goroutines
-		// that will be used across all concurrent root generations.
-		RootGenConcurrency:          cfg.GetRootGenerationCores(),
-		HistoryLength:               cfg.GetStateHistoryLength(),
-		ValueNodeCacheSize:          cfg.GetValueNodeCacheSize(),
-		IntermediateNodeCacheSize:   cfg.GetIntermediateNodeCacheSize(),
-		IntermediateWriteBufferSize: cfg.GetStateIntermediateWriteBufferSize(),
-		IntermediateWriteBatchSize:  cfg.GetStateIntermediateWriteBatchSize(),
-		Reg:                         vm.GetMerkleRegistry(),
-		TraceLevel:                  merkledb.InfoTrace,
-		Tracer:                      vm.GetTracer(),
-	})
+func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkle, error) {
+	mdb, err := merkledb.New(ctx, db, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -65,37 +58,7 @@ func (m *Merkle) Update(ops *smap.SMap[maybe.Maybe[[]byte]]) {
 	})
 }
 
-func (m *Merkle) GetValue(key []byte) ([]byte, error) {
-	m.l.RLock()
-	defer m.l.RUnlock()
-
-	value, ok := m.state[string(key)]
-	if !ok {
-		return nil, database.ErrNotFound
-	}
-	return value, nil
-}
-
-func (m *Merkle) GetValues(keys [][]byte) ([][]byte, []error) {
-	m.l.RLock()
-	defer m.l.RUnlock()
-
-	var (
-		values = make([][]byte, len(keys))
-		errors = make([]error, len(keys))
-	)
-	for i, key := range keys {
-		value, ok := m.state[string(key)]
-		if !ok {
-			errors[i] = database.ErrNotFound
-		} else {
-			values[i] = value
-		}
-	}
-	return values, errors
-}
-
-func (m *Merkle) PrepareCommit() func(context.Context) (ids.ID, error) {
+func (m *Merkle) PrepareCommit(context.Context) func(context.Context) (ids.ID, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
@@ -116,6 +79,54 @@ func (m *Merkle) PrepareCommit() func(context.Context) (ids.ID, error) {
 		}
 		return m.mdb.GetMerkleRoot(ctx)
 	}
+}
+
+func (m *Merkle) Insert(_ context.Context, key, value []byte) error {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	m.pending[string(key)] = maybe.Some(value)
+	m.state[string(key)] = value
+	return nil
+}
+
+func (m *Merkle) Remove(_ context.Context, key []byte) error {
+	m.l.Lock()
+	defer m.l.Unlock()
+
+	m.pending[string(key)] = maybe.Nothing[[]byte]()
+	delete(m.state, string(key))
+	return nil
+}
+
+func (m *Merkle) GetValue(_ context.Context, key []byte) ([]byte, error) {
+	m.l.RLock()
+	defer m.l.RUnlock()
+
+	value, ok := m.state[string(key)]
+	if !ok {
+		return nil, database.ErrNotFound
+	}
+	return value, nil
+}
+
+func (m *Merkle) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error) {
+	m.l.RLock()
+	defer m.l.RUnlock()
+
+	var (
+		values = make([][]byte, len(keys))
+		errors = make([]error, len(keys))
+	)
+	for i, key := range keys {
+		value, ok := m.state[string(key)]
+		if !ok {
+			errors[i] = database.ErrNotFound
+		} else {
+			values[i] = value
+		}
+	}
+	return values, errors
 }
 
 func (m *Merkle) Close() error {

@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"golang.org/x/sync/errgroup"
 
 	"go.uber.org/zap"
@@ -24,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/merkle"
 )
 
 var (
@@ -73,7 +73,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (merkledb.MerkleDB, error) {
+func (vm *VM) State() (merkle.Merkle, error) {
 	// As soon as synced (before ready), we can safely request data from the db.
 	if !vm.StateReady() {
 		return nil, ErrStateMissing
@@ -81,8 +81,8 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 	return vm.stateDB, nil
 }
 
-// TODO: correctly handle engine.Exeucte during state sync
-func (vm *VM) ForceState() merkledb.MerkleDB {
+// TODO: correctly handle engine.Execute during state sync
+func (vm *VM) ForceState() merkle.Merkle {
 	return vm.stateDB
 }
 
@@ -524,7 +524,7 @@ func (vm *VM) RecordWaitCommit(t time.Duration) {
 	vm.metrics.waitCommit.Observe(float64(t))
 }
 
-func (vm *VM) RecordStateChanges(c int) {
+func (vm *VM) RecordStateChanges(c uint64) {
 	vm.metrics.stateChanges.Add(float64(c))
 }
 
