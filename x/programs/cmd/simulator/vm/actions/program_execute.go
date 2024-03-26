@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/near/borsh-go"
 
