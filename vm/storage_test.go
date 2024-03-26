@@ -26,57 +26,63 @@ func randBytes() []byte {
 }
 
 func BenchmarkMerkleDB(b *testing.B) {
-	for _, items := range []int{1_000, 10_000, 100_000, 1_000_000, 10_000_000} {
-		for _, actions := range []int{100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000} {
-			if actions > items {
+	// Setup DB
+	tdir := b.TempDir()
+	pdb, _, err := pebble.New(tdir, pebble.NewDefaultConfig())
+	if err != nil {
+		b.Fatal(err)
+	}
+	db, err := merkledb.New(context.TODO(), pdb, merkledb.Config{
+		BranchFactor:                merkledb.BranchFactor16,
+		RootGenConcurrency:          uint(runtime.NumCPU()),
+		HistoryLength:               0,
+		ValueNodeCacheSize:          128 * units.MiB,
+		IntermediateWriteBufferSize: 128 * units.MiB,
+		IntermediateWriteBatchSize:  128 * units.MiB,
+		Tracer:                      trace.Noop,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// Run experiments
+	keys := make([]string, 10_000_000)
+	itemArr := []int{1_000, 10_000, 100_000, 1_000_000, 10_000_000}
+	for n, items := range itemArr {
+		// Determine new item count
+		last := 0
+		if n > 0 {
+			last = itemArr[n-1]
+		}
+
+		// Add keys to DB
+		ops := make(map[string]maybe.Maybe[[]byte], items-last)
+		for j := last; j < items; j++ {
+			keys[j] = string(randBytes())
+			ops[keys[j]] = maybe.Some(randBytes())
+		}
+		view, err := db.NewView(context.TODO(), merkledb.ViewChanges{MapOps: ops})
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := view.CommitToDB(context.TODO()); err != nil {
+			b.Fatal(err)
+		}
+
+		// Run through ops
+		for _, keyOps := range []int{100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000, 1_000_000} {
+			if keyOps > items {
 				continue
 			}
-			b.Run(fmt.Sprintf("items=%d_actions=%d", items, actions), func(b *testing.B) {
-				b.StopTimer()
-
-				// Setup DB
-				tdir := b.TempDir()
-				pdb, _, err := pebble.New(tdir, pebble.NewDefaultConfig())
-				if err != nil {
-					b.Fatal(err)
-				}
-				db, err := merkledb.New(context.TODO(), pdb, merkledb.Config{
-					BranchFactor:                merkledb.BranchFactor16,
-					RootGenConcurrency:          uint(runtime.NumCPU()),
-					HistoryLength:               0,
-					ValueNodeCacheSize:          128 * units.MiB,
-					IntermediateWriteBufferSize: 128 * units.MiB,
-					IntermediateWriteBatchSize:  128 * units.MiB,
-					Tracer:                      trace.Noop,
-				})
-				if err != nil {
-					b.Fatal(err)
-				}
-
-				// Add keys to DB
-				keys := make([]string, items)
-				ops := make(map[string]maybe.Maybe[[]byte], items)
-				for j := 0; j < items; j++ {
-					keys[j] = string(randBytes())
-					ops[keys[j]] = maybe.Some(randBytes())
-				}
-				view, err := db.NewView(context.TODO(), merkledb.ViewChanges{MapOps: ops})
-				if err != nil {
-					b.Fatal(err)
-				}
-				if err := view.CommitToDB(context.TODO()); err != nil {
-					b.Fatal(err)
-				}
-
-				b.StartTimer()
+			b.Run(fmt.Sprintf("items=%d_keyOps=%d", items, keyOps), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					// Initialize sampler (ensure not just re-setting the same keys)
 					s := sampler.NewUniform()
 					s.Initialize(uint64(items))
 
 					// Generate new MapOps
-					ops = make(map[string]maybe.Maybe[[]byte], actions)
-					for j := 0; j < actions; j++ {
+					ops = make(map[string]maybe.Maybe[[]byte], keyOps)
+					for j := 0; j < keyOps; j++ {
 						idx, err := s.Next()
 						if err != nil {
 							b.Fatal(err)
@@ -96,19 +102,18 @@ func BenchmarkMerkleDB(b *testing.B) {
 						b.Fatal(err)
 					}
 				}
-				b.StopTimer()
-
-				// Remove created files to ensure we don't run into any error logs
-				if err := db.Close(); err != nil {
-					b.Fatal(err)
-				}
-				if err := pdb.Close(); err != nil {
-					b.Fatal(err)
-				}
-				if err := os.RemoveAll(tdir); err != nil {
-					b.Fatal(err)
-				}
 			})
 		}
+	}
+
+	// Remove created files to ensure we don't run into any error logs
+	if err := db.Close(); err != nil {
+		b.Fatal(err)
+	}
+	if err := pdb.Close(); err != nil {
+		b.Fatal(err)
+	}
+	if err := os.RemoveAll(tdir); err != nil {
+		b.Fatal(err)
 	}
 }
