@@ -45,6 +45,8 @@ func New(db database.Database, vm VM, cfg Config) (*Merkle, error) {
 	}, nil
 }
 
+// TODO: ensure we make view async
+
 func (m *Merkle) Close() error {
 	return m.mdb.Close()
 }
