@@ -6,14 +6,7 @@ package executor
 import (
 	"sync"
 
-	"github.com/ava-labs/avalanchego/utils/set"
-
 	"github.com/ava-labs/hypersdk/state"
-)
-
-const (
-	defaultSetSize = 8
-	notSet         = -1
 )
 
 // Executor sequences the concurrent execution of
@@ -45,8 +38,7 @@ type Executor struct {
 // Allocate/Write or when adding the first Read. [waiter]
 // is closed only when [blockers] == 0
 type data struct {
-	allocateWrite int
-	reads         set.Set[int]
+	isAllocateWrite bool
 
 	waiter   chan struct{}
 	blockers int
@@ -134,33 +126,26 @@ func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	for k, v := range conflicts {
 		key, ok := e.edges[k]
 		if ok {
-			// We can keep processing more Reads
-			if v == state.Read && key.reads != nil {
-				key.reads.Add(id)
+			// Keep processing more Reads
+			if v == state.Read && !key.isAllocateWrite {
 				key.blockers++
 				continue
 			}
 
-			// Allocate/Write was already set, or we're
-			// currently handling Reads, so we block
-			if key.allocateWrite != notSet || key.reads != nil {
-				if e.metrics != nil {
-					e.metrics.RecordBlocked()
-				}
-				// Don't hold the lock while we wait
-				e.l.Unlock()
-				<-key.waiter
-				e.l.Lock()
+			// Block on write-after-write, read-after-write, or write-after-reads
+			if e.metrics != nil {
+				e.metrics.RecordBlocked()
 			}
+			e.l.Unlock()
+			<-key.waiter
+			e.l.Lock()
 		}
 		// Key doesn't exist or we just processed Allocate/Write or many Reads
-		d := &data{allocateWrite: notSet, reads: nil, waiter: make(chan struct{}), blockers: 1}
-		if v == state.Read {
-			d.reads = set.Of[int](id)
-		} else {
-			d.allocateWrite = id
+		e.edges[k] = &data{
+			isAllocateWrite: v.Has(state.Allocate) || v.Has(state.Write),
+			waiter:          make(chan struct{}),
+			blockers:        1,
 		}
-		e.edges[k] = d
 	}
 	if e.metrics != nil {
 		e.metrics.RecordExecutable()
