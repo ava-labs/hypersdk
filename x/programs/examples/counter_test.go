@@ -113,15 +113,16 @@ func TestCounterProgram(t *testing.T) {
 
 	mem2, err := rt2.Memory()
 	require.NoError(err)
-	// programID2Ptr, err := argumentToSmartPtr(programID2, mem2)
-	require.NoError(err)
 
 	// write alice's key to stack and get pointer
 	alicePtr2, err := argumentToSmartPtr(alicePublicKey, mem2)
 	require.NoError(err)
 
+	callContext1 := program.Context{ProgramID: programID}
+	callContext2 := program.Context{ProgramID: programID2}
+
 	// initialize counter for alice on runtime 2
-	result, err = rt2.Call(ctx, "initialize_address", program.Context{ProgramID: programID2}, alicePtr2)
+	result, err = rt2.Call(ctx, "initialize_address", callContext2, alicePtr2)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
@@ -129,11 +130,11 @@ func TestCounterProgram(t *testing.T) {
 	incAmount := int64(10)
 	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
 	require.NoError(err)
-	result, err = rt2.Call(ctx, "inc", program.Context{ProgramID: programID2}, alicePtr2, incAmountPtr)
+	result, err = rt2.Call(ctx, "inc", callContext2, alicePtr2, incAmountPtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt2.Call(ctx, "get_value", program.Context{ProgramID: programID2}, alicePtr2)
+	result, err = rt2.Call(ctx, "get_value", callContext2, alicePtr2)
 	require.NoError(err)
 	require.Equal(incAmount, result[0])
 
@@ -147,11 +148,11 @@ func TestCounterProgram(t *testing.T) {
 	// increment alice's counter on program 1
 	onePtr, err := argumentToSmartPtr(int64(1), mem)
 	require.NoError(err)
-	result, err = rt.Call(ctx, "inc", program.Context{ProgramID: programID}, alicePtr, onePtr)
+	result, err = rt.Call(ctx, "inc", callContext1, alicePtr, onePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
-	result, err = rt.Call(ctx, "get_value", program.Context{ProgramID: programID}, alicePtr)
+	result, err = rt.Call(ctx, "get_value", callContext1, alicePtr)
 	require.NoError(err)
 
 	log.Debug("count program 1",
@@ -169,12 +170,12 @@ func TestCounterProgram(t *testing.T) {
 	// increment alice's counter on program 2
 	fivePtr, err := argumentToSmartPtr(int64(5), mem)
 	require.NoError(err)
-	result, err = rt.Call(ctx, "inc_external", program.Context{ProgramID: programID}, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
+	result, err = rt.Call(ctx, "inc_external", callContext1, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
 	// expect alice's counter on program 2 to be 15
-	result, err = rt.Call(ctx, "get_value_external", program.Context{ProgramID: programID}, target, maxUnitsProgramToProgramPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_value_external", callContext1, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)
 	require.Equal(int64(15), result[0])
 	balance, err = rt.Meter().GetBalance()
