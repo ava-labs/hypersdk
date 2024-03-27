@@ -144,7 +144,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 
 		argsBytes, err := program.SmartPtr(args).Bytes(memory)
 		if err != nil {
-			i.log.Error("failed to read program args name from memory",
+			i.log.Error("failed to read program args from memory",
 				zap.Error(err),
 			)
 			return -1
@@ -180,7 +180,6 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		// return int64(res[0])
 		return res[0]
 	}
 }
