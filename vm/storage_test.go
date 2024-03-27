@@ -78,6 +78,7 @@ func BenchmarkMerkleDB(b *testing.B) {
 					continue
 				}
 				b.Run(fmt.Sprintf("sync=%t_keys=%d_ops=%d", sync, size, keyOps), func(b *testing.B) {
+					b.ReportAllocs()
 					for i := 0; i < b.N; i++ {
 						// Initialize sampler (ensure not just re-setting the same keys)
 						s := sampler.NewUniform()
