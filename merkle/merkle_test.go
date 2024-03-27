@@ -79,8 +79,8 @@ func BenchmarkMerkleDB(b *testing.B) {
 					continue
 				}
 				b.Run(fmt.Sprintf("sync=%t_keys=%d_ops=%d", sync, size, keyOps), func(b *testing.B) {
-					b.ReportAllocs()
 					for i := 0; i < b.N; i++ {
+						b.StopTimer()
 						// Initialize sampler (ensure not just re-setting the same keys)
 						s := sampler.NewUniform()
 						s.Initialize(uint64(keyOps))
@@ -94,6 +94,7 @@ func BenchmarkMerkleDB(b *testing.B) {
 							}
 							ops[keys[idx]] = maybe.Some(randBytes())
 						}
+						b.StartTimer()
 
 						// Create view, commit, get root
 						viewStart := time.Now()
