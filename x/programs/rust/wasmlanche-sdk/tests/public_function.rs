@@ -44,7 +44,7 @@ fn public_functions() {
             .with_extension("wasm")
     };
 
-    let mut test_crate = TestCrate::new(&wasm_path);
+    let mut test_crate = TestCrate::new(wasm_path);
 
     let context_ptr = {
         let program_id: [u8; Program::LEN] = std::array::from_fn(|_| 1);
