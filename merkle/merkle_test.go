@@ -103,11 +103,16 @@ func BenchmarkMerkleDB(b *testing.B) {
 							b.Fatal(err)
 						}
 						viewDur := time.Since(viewStart)
+						rootStart := time.Now()
+						if _, err := view.GetMerkleRoot(context.TODO()); err != nil {
+							b.Fatal(err)
+						}
+						rootDur := time.Since(rootStart)
 						commitStart := time.Now()
 						if err := view.CommitToDB(context.TODO()); err != nil {
 							b.Fatal(err)
 						}
-						b.Log("view creation", viewDur, "commit", time.Since(commitStart))
+						b.Log("view creation", viewDur, "root generation", rootDur, "commit", time.Since(commitStart))
 					}
 				})
 			}
