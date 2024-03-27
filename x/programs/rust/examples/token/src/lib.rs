@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use wasmlanche_sdk::{public, state_keys, types::Address, Program};
+use wasmlanche_sdk::Context;
+use wasmlanche_sdk::{public, state_keys, types::Address};
 
 const INITIAL_SUPPLY: i64 = 123456789;
 
@@ -18,7 +19,9 @@ enum StateKey {
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(program: Program) -> bool {
+pub fn init(context: Context) -> bool {
+    let Context { program } = context;
+
     // set total supply
     program
         .state()
@@ -42,7 +45,8 @@ pub fn init(program: Program) -> bool {
 
 /// Returns the total supply of the token.
 #[public]
-pub fn get_total_supply(program: Program) -> i64 {
+pub fn get_total_supply(context: Context) -> i64 {
+    let Context { program } = context;
     program
         .state()
         .get(StateKey::TotalSupply)
@@ -51,7 +55,8 @@ pub fn get_total_supply(program: Program) -> i64 {
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
+pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
+    let Context { program } = context;
     let balance = program
         .state()
         .get::<i64, _>(StateKey::Balance(recipient))
@@ -67,7 +72,8 @@ pub fn mint_to(program: Program, recipient: Address, amount: i64) -> bool {
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(program: Program, recipient: Address) -> bool {
+pub fn burn_from(context: Context, recipient: Address) -> bool {
+    let Context { program } = context;
     program
         .state()
         .delete(StateKey::Balance(recipient))
@@ -77,7 +83,8 @@ pub fn burn_from(program: Program, recipient: Address) -> bool {
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(program: Program, sender: Address, recipient: Address, amount: i64) -> bool {
+pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i64) -> bool {
+    let Context { program } = context;
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
@@ -115,9 +122,9 @@ pub struct Minter {
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(program: Program, minters: Vec<Minter>) -> bool {
+pub fn mint_to_many(context: Context, minters: Vec<Minter>) -> bool {
     for minter in minters.iter() {
-        mint_to(program, minter.to, minter.amount as i64);
+        mint_to(context, minter.to, minter.amount as i64);
     }
 
     true
@@ -125,7 +132,8 @@ pub fn mint_to_many(program: Program, minters: Vec<Minter>) -> bool {
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn get_balance(program: Program, recipient: Address) -> i64 {
+pub fn get_balance(context: Context, recipient: Address) -> i64 {
+    let Context { program } = context;
     program
         .state()
         .get(StateKey::Balance(recipient))

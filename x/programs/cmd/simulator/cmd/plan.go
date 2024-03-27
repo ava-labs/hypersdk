@@ -8,13 +8,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 	"io"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 
 	"github.com/ava-labs/hypersdk/x/programs/program"
 

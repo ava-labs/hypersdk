@@ -16,6 +16,10 @@ type Caller struct {
 	caller *wasmtime.Caller
 }
 
+func (c *Caller) GetStore() wasmtime.Storelike {
+	return c.caller
+}
+
 // NewCaller creates a new program instance.
 func NewCaller(caller *wasmtime.Caller) *Caller {
 	return &Caller{
@@ -34,7 +38,7 @@ func (c *Caller) GetFunc(name string) (*Func, error) {
 		return nil, err
 	}
 
-	return NewFunc(fn, c.caller), nil
+	return NewFunc(fn, c), nil
 }
 
 func (c *Caller) GetExport(name string) (*Export, error) {

@@ -1,8 +1,8 @@
 use sdk_macros::public;
 
-struct Program;
+struct Context;
 
 #[public]
-pub fn test(_: Program, _: usize) {}
+pub fn test(_: Context, _: usize) {}
 
 fn main() {}
