@@ -5,6 +5,7 @@ package executor
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -437,4 +438,73 @@ func TestReadThenWriteRepeated(t *testing.T) {
 	require.Equal(12, completed[12])
 	// 13..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
+}
+
+func BenchmarkSequentialWorkload(b *testing.B) {
+	for _, size := range []int{100, 500, 1000, 5000, 10000} {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				var (
+					require     = require.New(b)
+					conflictKey = ids.GenerateTestID().String()
+					l           sync.Mutex
+					completed   = make([]int, 0, size)
+					e           = New(size, 10, nil)
+				)
+				for i := 0; i < size; i++ {
+					s := make(state.Keys, (i + 1))
+					for k := 0; k < i+1; k++ {
+						s.Add(ids.GenerateTestID().String(), state.Write)
+					}
+					s.Add(conflictKey, state.Write)
+					ti := i
+					e.Run(s, func() error {
+						l.Lock()
+						completed = append(completed, ti)
+						l.Unlock()
+						return nil
+					})
+				}
+				require.NoError(e.Wait())
+				require.Len(completed, size)
+			}
+		})
+	}
+}
+
+func BenchmarkParallelReadsWorkload(b *testing.B) {
+	for _, size := range []int{100, 500, 1000, 5000, 10000} {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				var (
+					require     = require.New(b)
+					conflictKey = ids.GenerateTestID().String()
+					l           sync.Mutex
+					completed   = make([]int, 0, size)
+					e           = New(size, 10, nil)
+				)
+				for i := 0; i < size; i++ {
+					s := make(state.Keys, (i + 1))
+					for k := 0; k < i+1; k++ {
+						s.Add(ids.GenerateTestID().String(), state.Write)
+					}
+					if i%100 == 0 {
+						s.Add(conflictKey, state.Write)
+					} else {
+						s.Add(conflictKey, state.Read)
+					}
+					ti := i
+					e.Run(s, func() error {
+						l.Lock()
+						completed = append(completed, ti)
+						l.Unlock()
+						return nil
+					})
+				}
+				require.NoError(e.Wait())
+				require.Equal(size-1, completed[size-1])
+				require.Len(completed, size)
+			}
+		})
+	}
 }
