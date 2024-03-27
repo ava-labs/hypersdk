@@ -26,7 +26,7 @@ func randBytes() []byte {
 }
 
 func BenchmarkMerkleDB(b *testing.B) {
-	for _, sync := range []bool{true, false} {
+	for _, sync := range []bool{false, true} {
 		// Setup DB
 		tdir := b.TempDir()
 		cfg := pebble.NewDefaultConfig()
@@ -49,8 +49,8 @@ func BenchmarkMerkleDB(b *testing.B) {
 		}
 
 		// Run experiments
-		keys := make([]string, 10_000_000)
-		sizeArr := []int{100_000, 1_000_000, 10_000_000}
+		keys := make([]string, 15_000_000)
+		sizeArr := []int{100_000, 1_000_000, 10_000_000, 15_000_000}
 		for s, size := range sizeArr {
 			// Determine new item count
 			last := 0
@@ -73,7 +73,7 @@ func BenchmarkMerkleDB(b *testing.B) {
 			}
 
 			// Run through ops
-			for _, keyOps := range []int{1_000, 5_000, 10_000, 25_000, 50_000, 75_000, 100_000, 250_000, 500_000, 1_000_000} {
+			for _, keyOps := range []int{10_000, 25_000, 50_000, 75_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 7_500_000, 10_000_000} {
 				if keyOps > size {
 					continue
 				}
