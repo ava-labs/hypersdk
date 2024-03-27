@@ -1,4 +1,4 @@
-package vm
+package merkle
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
@@ -95,16 +96,17 @@ func BenchmarkMerkleDB(b *testing.B) {
 						}
 
 						// Create view, commit, get root
+						viewStart := time.Now()
 						view, err = db.NewView(context.TODO(), merkledb.ViewChanges{MapOps: ops})
 						if err != nil {
 							b.Fatal(err)
 						}
+						viewDur := time.Since(viewStart)
+						commitStart := time.Now()
 						if err := view.CommitToDB(context.TODO()); err != nil {
 							b.Fatal(err)
 						}
-						if _, err := db.GetMerkleRoot(context.TODO()); err != nil {
-							b.Fatal(err)
-						}
+						b.Log("view creation", viewDur, "commit", time.Since(commitStart))
 					}
 				})
 			}
