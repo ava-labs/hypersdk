@@ -6,12 +6,8 @@ package executor
 import (
 	"sync"
 
-	"github.com/ava-labs/avalanchego/utils/set"
-
 	"github.com/ava-labs/hypersdk/state"
 )
-
-const defaultSetSize = 8
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -32,7 +28,20 @@ type Executor struct {
 	done      bool
 	completed int
 	tasks     map[int]*task
-	edges     map[string]int
+	edges     map[string]*data
+}
+
+// invariant: [data] holds either 1 Allocate/Write or
+// a set of Reads, but never both
+//
+// invariant: [waiter] is made every time when setting
+// Allocate/Write or when adding the first Read. [waiter]
+// is closed only when [blockers] == 0
+type data struct {
+	isAllocateWrite bool
+
+	waiter   chan struct{}
+	blockers int
 }
 
 // New creates a new [Executor].
@@ -41,118 +50,108 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		metrics:    metrics,
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
-		edges:      make(map[string]int, items*2), // TODO: tune this
-		executable: make(chan *task, items),       // ensure we don't block while holding lock
+		edges:      make(map[string]*data, items*2), // TODO: tune this
+		executable: make(chan *task, items),         // ensure we don't block while holding lock
 	}
+	e.wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		e.createWorker()
+		go e.runWorker()
 	}
 	return e
 }
 
 type task struct {
-	id int
-	f  func() error
-
-	dependencies set.Set[int]
-	blocking     set.Set[int]
-
-	executed bool
+	id   int
+	f    func() error
+	keys state.Keys
 }
 
-func (e *Executor) createWorker() {
-	e.wg.Add(1)
+func (e *Executor) runWorker() {
+	defer e.wg.Done()
 
-	go func() {
-		defer e.wg.Done()
-
-		for {
-			select {
-			case t, ok := <-e.executable:
-				if !ok {
-					return
-				}
-				if err := t.f(); err != nil {
-					e.stopOnce.Do(func() {
-						e.err = err
-						close(e.stop)
-					})
-					return
-				}
-
-				e.l.Lock()
-				for b := range t.blocking { // works fine on non-initialized map
-					bt := e.tasks[b]
-					bt.dependencies.Remove(t.id)
-					if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-						bt.dependencies = nil // free memory
-						e.executable <- bt
-					}
-				}
-				t.blocking = nil // free memory
-				t.executed = true
-				e.completed++
-				if e.done && e.completed == len(e.tasks) {
-					// We will close here if there are unexecuted tasks
-					// when we call [Wait].
-					close(e.executable)
-				}
-				e.l.Unlock()
-			case <-e.stop:
+	for {
+		select {
+		case t, ok := <-e.executable:
+			if !ok {
 				return
 			}
+
+			if err := t.f(); err != nil {
+				e.stopOnce.Do(func() {
+					e.err = err
+					close(e.stop)
+				})
+				return
+			}
+
+			e.l.Lock()
+			for k := range t.keys {
+				key := e.edges[k]
+				key.blockers--
+				if key.blockers == 0 {
+					close(key.waiter)
+					// Allows us to always make a [waiter] chan
+					// after executing the last blocked task.
+					delete(e.edges, k)
+				}
+			}
+			e.completed++
+			if e.done && e.completed == len(e.tasks) {
+				// We will close here if there are unexecuted tasks
+				// when we call [Wait].
+				close(e.executable)
+			}
+			e.l.Unlock()
+		case <-e.stop:
+			return
 		}
-	}()
+	}
 }
 
 // Run executes [f] after all previously enqueued [f] with
 // overlapping [conflicts] are executed.
-// TODO: Handle read-only/write-only keys (currently the executor
-// treats everything still as ReadWrite, see issue below)
-// https://github.com/ava-labs/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.l.Lock()
-	defer e.l.Unlock()
 
 	// Add task to map
 	id := len(e.tasks)
 	t := &task{
-		id: id,
-		f:  f,
+		id:   id,
+		f:    f,
+		keys: conflicts,
 	}
 	e.tasks[id] = t
 
 	// Record dependencies
-	for k := range conflicts {
-		latest, ok := e.edges[k]
+	for k, v := range conflicts {
+		key, ok := e.edges[k]
 		if ok {
-			lt := e.tasks[latest]
-			if !lt.executed {
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
-				}
-				t.dependencies.Add(lt.id)
-				if lt.blocking == nil {
-					lt.blocking = set.NewSet[int](defaultSetSize)
-				}
-				lt.blocking.Add(id)
+			// Keep processing more Reads
+			if v == state.Read && !key.isAllocateWrite {
+				key.blockers++
+				continue
 			}
-		}
-		e.edges[k] = id
-	}
 
-	// Start execution if there are no blocking dependencies
-	if t.dependencies == nil || t.dependencies.Len() == 0 {
-		t.dependencies = nil // free memory
-		e.executable <- t
-		if e.metrics != nil {
-			e.metrics.RecordExecutable()
+			// Block on write-after-write, read-after-write, or write-after-reads
+			if e.metrics != nil {
+				e.metrics.RecordBlocked()
+			}
+			e.l.Unlock()
+			<-key.waiter
+			e.l.Lock()
 		}
-		return
+		// Key doesn't exist or we just processed Allocate/Write or many Reads
+		e.edges[k] = &data{
+			isAllocateWrite: v.Has(state.Allocate) || v.Has(state.Write),
+			waiter:          make(chan struct{}),
+			blockers:        1,
+		}
 	}
 	if e.metrics != nil {
-		e.metrics.RecordBlocked()
+		e.metrics.RecordExecutable()
 	}
+	e.l.Unlock()
+	e.executable <- t
 }
 
 func (e *Executor) Stop() {
