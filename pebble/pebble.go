@@ -57,8 +57,8 @@ func NewDefaultConfig() Config {
 		CacheSize:                   2 * units.GiB,
 		L0CompactionThreshold:       2,    // from cockroachdb
 		L0StopWritesThreshold:       1000, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
-		MemTableStopWritesThreshold: 8,
-		MemTableSize:                128 * units.MiB,
+		MemTableStopWritesThreshold: 4,
+		MemTableSize:                256 * units.MiB,
 		MaxOpenFiles:                4_096,
 		ConcurrentCompactions:       func() int { return runtime.NumCPU() }, // TODO: make a config
 	}
