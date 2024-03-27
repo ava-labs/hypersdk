@@ -102,6 +102,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		if i > 0 {
 			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
 		}
+		// TODO: activate zstd when update to production (panics before then)
 		l.EnsureDefaults()
 	}
 	opts.Levels[len(opts.Levels)-1].FilterPolicy = nil
