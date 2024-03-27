@@ -34,9 +34,9 @@ const (
 	Balance
 )
 
-func NewToken(id ids.ID, log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
+func NewToken(programID ids.ID, log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
 	return &Token{
-		id:           id,
+		programID:    programID,
 		log:          log,
 		programBytes: programBytes,
 		cfg:          cfg,
@@ -55,7 +55,7 @@ type minter struct {
 }
 
 type Token struct {
-	id           ids.ID
+	programID    ids.ID
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
@@ -67,12 +67,12 @@ type Token struct {
 
 func (t *Token) Context() program.Context {
 	return program.Context{
-		ProgramID: t.id,
+		ProgramID: t.programID,
 	}
 }
 
 func (t *Token) ID() ids.ID {
-	return t.id
+	return t.programID
 }
 
 func (t *Token) Run(ctx context.Context) error {

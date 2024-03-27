@@ -45,11 +45,8 @@ func TestTokenProgram(t *testing.T) {
 		mem, err := rt.Memory()
 		require.NoError(err)
 
-		programIDPtr, err := argumentToSmartPtr(programID, mem)
-		require.NoError(err)
-
 		// initialize program
-		_, err = rt.Call(ctx, "init", callContext, programIDPtr)
+		_, err = rt.Call(ctx, "init", callContext)
 		require.NoError(err, "failed to initialize program")
 
 		// generate alice keys
@@ -65,11 +62,11 @@ func TestTokenProgram(t *testing.T) {
 		mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
 		require.NoError(err)
 
-		_, err = rt.Call(ctx, "mint_to", callContext, programIDPtr, alicePtr, mintAlicePtr)
+		_, err = rt.Call(ctx, "mint_to", callContext, alicePtr, mintAlicePtr)
 		require.NoError(err)
 
 		// check balance of alice
-		result, err := rt.Call(ctx, "get_balance", callContext, programIDPtr, alicePtr)
+		result, err := rt.Call(ctx, "get_balance", callContext, alicePtr)
 		require.NoError(err)
 		require.Equal(int64(1000), result[0])
 
@@ -79,7 +76,7 @@ func TestTokenProgram(t *testing.T) {
 		require.Equal(int64(1000), aliceBalance)
 
 		// burn alice tokens
-		_, err = rt.Call(ctx, "burn_from", callContext, programIDPtr, alicePtr)
+		_, err = rt.Call(ctx, "burn_from", callContext, alicePtr)
 		require.NoError(err)
 
 		// check balance of alice from state db
