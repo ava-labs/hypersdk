@@ -95,8 +95,8 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	// https://github.com/cockroachdb/pebble/blob/master/cmd/pebble/db.go#L76-L86
 	for i := 0; i < len(opts.Levels); i++ {
 		l := &opts.Levels[i]
-		l.BlockSize = 64 * 1024
-		l.IndexBlockSize = 256 * 1024
+		l.BlockSize = 64 * units.KiB
+		l.IndexBlockSize = 256 * units.KiB
 		l.FilterPolicy = bloom.FilterPolicy(10)
 		l.FilterType = pebble.TableFilter
 		if i > 0 {
@@ -104,6 +104,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		}
 		l.EnsureDefaults()
 	}
+	opts.Levels[len(opts.Levels)-1].FilterPolicy = nil
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
 	registry, metrics, err := newMetrics()
 	if err != nil {

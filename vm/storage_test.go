@@ -50,7 +50,7 @@ func BenchmarkMerkleDB(b *testing.B) {
 
 		// Run experiments
 		keys := make([]string, 10_000_000)
-		sizeArr := []int{1_000, 10_000, 100_000, 1_000_000, 10_000_000}
+		sizeArr := []int{100_000, 1_000_000, 10_000_000}
 		for s, size := range sizeArr {
 			// Determine new item count
 			last := 0
