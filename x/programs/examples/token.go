@@ -71,7 +71,7 @@ func (t *Token) Context() program.Context {
 	}
 }
 
-func (t *Token) ID() ids.ID {
+func (t *Token) ProgramID() ids.ID {
 	return t.programID
 }
 
@@ -94,7 +94,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programID := t.ID()
+	programID := t.ProgramID()
 	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
 	if err != nil {
 		return err
@@ -313,7 +313,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 		zap.Uint64("balance", balance),
 	)
 
-	programID := t.ID()
+	programID := t.ProgramID()
 	// simulate create program transaction
 	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
 	if err != nil {

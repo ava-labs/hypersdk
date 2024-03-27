@@ -38,7 +38,7 @@ func TestTokenProgram(t *testing.T) {
 		require.NoError(err)
 
 		// simulate create program transaction
-		programID := program.ID()
+		programID := program.ProgramID()
 		err = storage.SetProgram(ctx, program.db, programID, program.programBytes)
 		require.NoError(err)
 
