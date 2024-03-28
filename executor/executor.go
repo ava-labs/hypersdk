@@ -5,13 +5,12 @@ package executor
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/state"
 )
-
-const defaultSetSize = 8
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -55,8 +54,8 @@ type task struct {
 	id int
 	f  func() error
 
-	dependencies set.Set[int]
-	blocking     set.Set[int]
+	dependencies atomic.Int64
+	blocking     map[int]*task
 
 	executed bool
 }
@@ -79,13 +78,11 @@ func (e *Executor) runWorker() {
 			}
 
 			e.l.Lock()
-			for b := range t.blocking { // works fine on non-initialized map
-				bt := e.tasks[b]
-				bt.dependencies.Remove(t.id)
-				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-					bt.dependencies = nil // free memory
-					e.executable <- bt
+			for _, bt := range t.blocking {
+				if bt.dependencies.Add(-1) > 0 {
+					continue
 				}
+				e.executable <- bt
 			}
 			t.blocking = nil // free memory
 			t.executed = true
@@ -111,37 +108,43 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	// Add task to map
 	id := len(e.tasks)
 	t := &task{
-		id:           id,
-		f:            f,
-		dependencies: set.NewSet[int](defaultSetSize),
-		blocking:     set.NewSet[int](defaultSetSize),
+		id:       id,
+		f:        f,
+		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
 
+	// Add dummy dependencies to ensure we don't execute the task
+	dummyDependencies := int64(len(keys) + 1)
+	t.dependencies.Add(dummyDependencies)
+
 	// Record dependencies
+	previousDependencies := set.NewSet[int](len(keys))
 	for k := range keys {
 		latest, ok := e.nodes[k]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
-				t.dependencies.Add(lt.id)
-				lt.blocking.Add(id)
+				previousDependencies.Add(latest) // we may depend on the same task multiple times
+				lt.blocking[id] = t
 			}
 		}
 		e.nodes[k] = id
 	}
 
-	// Start execution if there are no blocking dependencies
-	if t.dependencies == nil || t.dependencies.Len() == 0 {
-		t.dependencies = nil // free memory
-		e.executable <- t
+	// Adjust dependency traker and execute if necessary
+	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
+	if t.dependencies.Add(-extraDependencies) > 0 {
 		if e.metrics != nil {
-			e.metrics.RecordExecutable()
+			e.metrics.RecordBlocked()
 		}
 		return
 	}
+
+	// Mark task for execution if we aren't waiting on any other tasks
+	e.executable <- t
 	if e.metrics != nil {
-		e.metrics.RecordBlocked()
+		e.metrics.RecordExecutable()
 	}
 }
 
