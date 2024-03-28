@@ -44,8 +44,9 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		edges:      make(map[string]int, items*2), // TODO: tune this
 		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
+	e.wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
-		e.createWorker()
+		go e.runWorker()
 	}
 	return e
 }
@@ -60,49 +61,45 @@ type task struct {
 	executed bool
 }
 
-func (e *Executor) createWorker() {
-	e.wg.Add(1)
+func (e *Executor) runWorker() {
+	defer e.wg.Done()
 
-	go func() {
-		defer e.wg.Done()
-
-		for {
-			select {
-			case t, ok := <-e.executable:
-				if !ok {
-					return
-				}
-				if err := t.f(); err != nil {
-					e.stopOnce.Do(func() {
-						e.err = err
-						close(e.stop)
-					})
-					return
-				}
-
-				e.l.Lock()
-				for b := range t.blocking { // works fine on non-initialized map
-					bt := e.tasks[b]
-					bt.dependencies.Remove(t.id)
-					if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
-						bt.dependencies = nil // free memory
-						e.executable <- bt
-					}
-				}
-				t.blocking = nil // free memory
-				t.executed = true
-				e.completed++
-				if e.done && e.completed == len(e.tasks) {
-					// We will close here if there are unexecuted tasks
-					// when we call [Wait].
-					close(e.executable)
-				}
-				e.l.Unlock()
-			case <-e.stop:
+	for {
+		select {
+		case t, ok := <-e.executable:
+			if !ok {
 				return
 			}
+			if err := t.f(); err != nil {
+				e.stopOnce.Do(func() {
+					e.err = err
+					close(e.stop)
+				})
+				return
+			}
+
+			e.l.Lock()
+			for b := range t.blocking { // works fine on non-initialized map
+				bt := e.tasks[b]
+				bt.dependencies.Remove(t.id)
+				if bt.dependencies.Len() == 0 { // must be non-nil to be blocked
+					bt.dependencies = nil // free memory
+					e.executable <- bt
+				}
+			}
+			t.blocking = nil // free memory
+			t.executed = true
+			e.completed++
+			if e.done && e.completed == len(e.tasks) {
+				// We will close here if there are unexecuted tasks
+				// when we call [Wait].
+				close(e.executable)
+			}
+			e.l.Unlock()
+		case <-e.stop:
+			return
 		}
-	}()
+	}
 }
 
 // Run executes [f] after all previously enqueued [f] with
