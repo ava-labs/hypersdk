@@ -146,7 +146,7 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 function cleanup {
-  echo -e "${RED}To destroy the devnet, run:${NC} \"${TMPDIR}/avalanche node destroy ${CLUSTER}\""
+  echo -e "${RED}To destroy the devnet, run:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}"
 }
 trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
