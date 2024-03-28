@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,6 +19,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type byteWrapper struct {
+	t int64
+	b []byte
+}
+
+// TODO: move client connection logic to pubsub (so much shared with connection, it is a bit silly)
 type WebSocketClient struct {
 	cl   sync.Once
 	conn *websocket.Conn
@@ -28,7 +35,11 @@ type WebSocketClient struct {
 
 	pendingBlocks chan []byte
 	pendingChunks chan []byte
-	pendingTxs    chan []byte
+	pendingTxs    chan *byteWrapper
+	txsToProcess  atomic.Int64
+
+	txsl sync.Mutex
+	txs  map[uint64]ids.ID
 
 	startedClose bool
 	closed       bool
@@ -38,7 +49,7 @@ type WebSocketClient struct {
 
 // NewWebSocketClient creates a new client for the decision rpc server.
 // Dials into the server at [uri] and returns a client.
-func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int, maxSize int) (*WebSocketClient, error) {
+func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, targetWrite, maxWrite int) (*WebSocketClient, error) {
 	uri = strings.ReplaceAll(uri, "http://", "ws://")
 	uri = strings.ReplaceAll(uri, "https://", "wss://")
 	if !strings.HasPrefix(uri, "ws") { // fallback to default usage
@@ -50,6 +61,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
 		HandshakeTimeout: handshakeTimeout,
+		ReadBufferSize:   pubsub.MaxWriteMessageSize, // we assume we are reading from server (TODO: make generic)
+		WriteBufferSize:  maxWrite,
 	}
 	conn, resp, err := dialer.Dial(uri, nil)
 	if err != nil {
@@ -58,22 +71,39 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 	resp.Body.Close()
 	wc := &WebSocketClient{
 		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, maxSize, pubsub.MaxMessageWait),
+		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, targetWrite, maxWrite, pubsub.MaxMessageWait),
 		readStopped:   make(chan struct{}),
 		writeStopped:  make(chan struct{}),
 		pendingBlocks: make(chan []byte, pending),
 		pendingChunks: make(chan []byte, pending),
-		pendingTxs:    make(chan []byte, pending),
+		pendingTxs:    make(chan *byteWrapper, pending),
+		txs:           make(map[uint64]ids.ID, pending),
 	}
 	go func() {
 		defer close(wc.readStopped)
+
+		// Ensure connection stays open as long as we get pings
+		//
+		// Note: the server is doing the same thing to prune connections...we
+		// should unify this logic in the future.
+		if err := wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait)); err != nil {
+			return
+		}
+		wc.conn.SetPongHandler(func(string) error {
+			return wc.conn.SetReadDeadline(time.Now().Add(pubsub.PongWait))
+		})
+
+		// TODO: add ReadLimit
 		for {
-			_, msgBatch, err := conn.ReadMessage()
+			messageType, msgBatch, err := conn.ReadMessage()
 			if err != nil {
 				wc.errl.Do(func() {
 					wc.err = err
 				})
 				return
+			}
+			if messageType != websocket.BinaryMessage {
+				continue
 			}
 			if len(msgBatch) == 0 {
 				utils.Outf("{{orange}}got empty message{{/}}\n")
@@ -92,7 +122,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 				case ChunkMode:
 					wc.pendingChunks <- tmsg
 				case TxMode:
-					wc.pendingTxs <- tmsg
+					wc.txsToProcess.Add(1)
+					wc.pendingTxs <- &byteWrapper{t: time.Now().UnixMilli(), b: tmsg}
 				default:
 					utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
 					continue
@@ -101,14 +132,28 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending int,
 		}
 	}()
 	go func() {
-		defer close(wc.writeStopped)
+		ticker := time.NewTicker(pubsub.PingPeriod)
+		defer func() {
+			ticker.Stop()
+			close(wc.writeStopped)
+		}()
 		for {
 			select {
 			case msg, ok := <-wc.mb.Queue:
 				if !ok {
 					return
 				}
+				wc.conn.SetWriteDeadline(time.Now().Add(pubsub.WriteWait))
 				if err := wc.conn.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					wc.errl.Do(func() {
+						wc.err = err
+					})
+					_ = wc.conn.Close()
+					return
+				}
+			case <-ticker.C:
+				wc.conn.SetWriteDeadline(time.Now().Add(pubsub.WriteWait))
+				if err := wc.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					wc.errl.Do(func() {
 						wc.err = err
 					})
@@ -138,7 +183,8 @@ func (c *WebSocketClient) RegisterBlocks() error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send([]byte{BlockMode})
+	_, err := c.mb.Send([]byte{BlockMode})
+	return err
 }
 
 // Listen listens for block messages from the streaming server.
@@ -159,7 +205,8 @@ func (c *WebSocketClient) RegisterChunks() error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send([]byte{ChunkMode})
+	_, err := c.mb.Send([]byte{ChunkMode})
+	return err
 }
 
 // Listen listens for block messages from the streaming server.
@@ -182,7 +229,15 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 	if c.closed {
 		return ErrClosed
 	}
-	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
+	txC, err := c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
+	if err != nil {
+		return err
+	}
+	txID := tx.ID()
+	c.txsl.Lock()
+	c.txs[txC] = txID
+	c.txsl.Unlock()
+	return nil
 }
 
 // ListenForTx listens for responses from the streamingServer.
@@ -190,19 +245,38 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking
 // layer in the client so no changes required in the server).
-func (c *WebSocketClient) ListenTx(ctx context.Context) (ids.ID, error, *chain.Result, error) {
+func (c *WebSocketClient) ListenTx(ctx context.Context) (int64, int, ids.ID, uint8, error) {
 	select {
-	case msg := <-c.pendingTxs:
-		return UnpackTxMessage(msg)
+	case bw := <-c.pendingTxs:
+		c.txsToProcess.Add(-1)
+		rtxID, status, err := UnpackTxMessage(bw.b)
+		if err != nil {
+			return -1, 0, ids.Empty, 0, err
+		}
+		c.txsl.Lock()
+		defer c.txsl.Unlock()
+		txID, ok := c.txs[rtxID]
+		if !ok {
+			return -1, 0, ids.Empty, 0, ErrUnknownTx
+		}
+		delete(c.txs, rtxID)
+		return bw.t, len(bw.b), txID, status, nil
 	case <-c.readStopped:
-		return ids.Empty, nil, nil, c.err
+		return -1, 0, ids.Empty, 0, c.err
 	case <-ctx.Done():
-		return ids.Empty, nil, nil, ctx.Err()
+		return -1, 0, ids.Empty, 0, ctx.Err()
 	}
 }
 
 // Close closes [c]'s connection to the decision rpc server.
 func (c *WebSocketClient) Close() error {
+	// Check if we already exited
+	select {
+	case <-c.readStopped:
+		return c.err
+	default:
+	}
+
 	var err error
 	c.cl.Do(func() {
 		c.startedClose = true
@@ -212,9 +286,14 @@ func (c *WebSocketClient) Close() error {
 		<-c.writeStopped
 
 		// Close connection and stop reading
+		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 		err = c.conn.Close()
 	})
 	return err
+}
+
+func (c *WebSocketClient) TxsToProcess() int64 {
+	return c.txsToProcess.Load()
 }
 
 func (c *WebSocketClient) Closed() bool {

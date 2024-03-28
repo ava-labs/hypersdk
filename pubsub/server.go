@@ -13,7 +13,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/consts"
 )
+
+type Metrics interface {
+	RecordWebsocketConnection(int)
+}
 
 type ServerConfig struct {
 	// Size of the ws read buffer
@@ -24,6 +29,8 @@ type ServerConfig struct {
 	MaxPendingMessages int
 	// Maximum message size in bytes allowed from peer.
 	MaxReadMessageSize int
+	// Target message size is the preferred batch size for messages.
+	TargetWriteMessageSize int
 	// Maximum message size in bytes to send to peer.
 	MaxWriteMessageSize int
 	// Maximum delay for a single message to wait in the buffer
@@ -38,15 +45,16 @@ type ServerConfig struct {
 
 func NewDefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		ReadBufferSize:      ReadBufferSize,
-		WriteBufferSize:     WriteBufferSize,
-		MaxPendingMessages:  MaxPendingMessages,
-		MaxReadMessageSize:  MaxReadMessageSize,
-		MaxWriteMessageSize: MaxWriteMessageSize,
-		MaxMessageWait:      MaxMessageWait,
-		WriteWait:           WriteWait,
-		PongWait:            PongWait,
-		PingPeriod:          (9 * PongWait) / 10,
+		ReadBufferSize:         ReadBufferSize,
+		WriteBufferSize:        WriteBufferSize,
+		MaxPendingMessages:     MaxPendingMessages,
+		MaxReadMessageSize:     MaxReadMessageSize,
+		TargetWriteMessageSize: consts.MTU,
+		MaxWriteMessageSize:    MaxWriteMessageSize,
+		MaxMessageWait:         MaxMessageWait,
+		WriteWait:              WriteWait,
+		PongWait:               PongWait,
+		PingPeriod:             PongWait / 2, // don't wait until end of [PongWait] to send ping
 	}
 }
 
@@ -54,6 +62,7 @@ func NewDefaultServerConfig() *ServerConfig {
 //
 // Connect to the server after starting using websocket.DefaultDialer.Dial().
 type Server struct {
+	m        Metrics
 	log      logging.Logger
 	config   *ServerConfig
 	callback Callback
@@ -64,11 +73,13 @@ type Server struct {
 // New returns a new Server instance. The callback function [f] is called
 // by the server in response to messages if not nil.
 func New(
+	metrics Metrics,
 	log logging.Logger,
 	config *ServerConfig,
 	callback Callback,
 ) *Server {
 	return &Server{
+		m:        metrics,
 		log:      log,
 		config:   config,
 		callback: callback,
@@ -96,11 +107,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addConnection(&Connection{
-		s:      s,
-		conn:   wsConn,
-		mb:     NewMessageBuffer(s.log, s.config.MaxPendingMessages, s.config.MaxWriteMessageSize, s.config.MaxMessageWait),
+		s:    s,
+		conn: wsConn,
+		mb: NewMessageBuffer(
+			s.log,
+			s.config.MaxPendingMessages,
+			s.config.TargetWriteMessageSize,
+			s.config.MaxWriteMessageSize,
+			s.config.MaxMessageWait,
+		),
 		active: atomic.Bool{},
 	})
+	s.m.RecordWebsocketConnection(1)
 	s.log.Debug("added pubsub connection", zap.Stringer("addr", wsConn.RemoteAddr()))
 }
 
@@ -121,6 +139,18 @@ func (s *Server) Publish(msg []byte, conns *Connections) []*Connection {
 	return inactiveConnections
 }
 
+func (s *Server) PublishSpecific(msg []byte, conn *Connection) *Connection {
+	if !s.conns.Has(conn) {
+		return conn
+	}
+	if !conn.Send(msg) {
+		s.log.Verbo(
+			"dropping message to subscribed connection due to too many pending messages",
+		)
+	}
+	return nil
+}
+
 // addConnection adds [conn] to the servers connection set and starts go
 // routines for reading and writing messages for the connection.
 func (s *Server) addConnection(conn *Connection) {
@@ -134,6 +164,7 @@ func (s *Server) addConnection(conn *Connection) {
 // removeConnection removes [conn] from the servers connection set.
 func (s *Server) removeConnection(conn *Connection) {
 	s.conns.Remove(conn)
+	s.m.RecordWebsocketConnection(-1)
 }
 
 func (s *Server) Connections() *Connections {

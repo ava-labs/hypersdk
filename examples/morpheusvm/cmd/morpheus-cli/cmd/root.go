@@ -24,19 +24,27 @@ var (
 	dbPath                string
 	genesisFile           string
 	minUnitPrice          []string
-	maxBlockUnits         []string
-	windowTargetUnits     []string
+	maxChunkUnits         []string
 	minBlockGap           int64
+	epochDuration         int64
+	validityWindow        int64
 	hideTxs               bool
-	randomRecipient       bool
-	maxTxBacklog          int
+	numAccounts           int
+	txsPerSecond          int
+	minCapacity           int
+	stepSize              int
+	sZipf                 float64
+	vZipf                 float64
+	plotZipf              bool
+	connsPerHost          int
+	clusterInfo           string
+	privateKey            string
 	checkAllChains        bool
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-	maxFee                int64
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -90,22 +98,28 @@ func init() {
 		"minimum price",
 	)
 	genGenesisCmd.PersistentFlags().StringSliceVar(
-		&maxBlockUnits,
-		"max-block-units",
+		&maxChunkUnits,
+		"max-chunk-units",
 		[]string{},
-		"max block units",
-	)
-	genGenesisCmd.PersistentFlags().StringSliceVar(
-		&windowTargetUnits,
-		"window-target-units",
-		[]string{},
-		"window target units",
+		"max chunk units",
 	)
 	genGenesisCmd.PersistentFlags().Int64Var(
 		&minBlockGap,
 		"min-block-gap",
 		-1,
 		"minimum block gap (ms)",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&epochDuration,
+		"epoch-duration",
+		-1,
+		"epoch duration (ms)",
+	)
+	genGenesisCmd.PersistentFlags().Int64Var(
+		&validityWindow,
+		"validity-window",
+		-1,
+		"validity window (ms)",
 	)
 	genesisCmd.AddCommand(
 		genGenesisCmd,
@@ -135,7 +149,7 @@ func init() {
 	chainCmd.AddCommand(
 		importChainCmd,
 		importANRChainCmd,
-		importAvalancheOpsChainCmd,
+		importAvalancheCliChainCmd,
 		setChainCmd,
 		chainInfoCmd,
 		watchChainCmd,
@@ -147,23 +161,65 @@ func init() {
 	)
 
 	// spam
+	runSpamCmd.PersistentFlags().Float64Var(
+		&sZipf,
+		"s-zipf",
+		1.01,
+		"Zipf distribution = [(v+k)^(-s)]",
+	)
+	runSpamCmd.PersistentFlags().Float64Var(
+		&vZipf,
+		"v-zipf",
+		2.7,
+		"Zipf distribution = [(v+k)^(-s)]",
+	)
 	runSpamCmd.PersistentFlags().BoolVar(
-		&randomRecipient,
-		"random-recipient",
+		&plotZipf,
+		"plot-zipf",
 		false,
-		"random recipient",
+		"plot zipf distribution",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
-		&maxTxBacklog,
-		"max-tx-backlog",
-		72_000,
-		"max tx backlog",
-	)
-	runSpamCmd.PersistentFlags().Int64Var(
-		&maxFee,
-		"max-fee",
+		&numAccounts,
+		"accounts",
 		-1,
-		"max fee per tx",
+		"number of accounts submitting txs",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&txsPerSecond,
+		"txs-per-second",
+		-1,
+		"number of txs issued per second (under backlog)",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&minCapacity,
+		"min-capacity",
+		-1,
+		"minimum txs per second chain can handle",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&stepSize,
+		"step-size",
+		-1,
+		"amount to increase TPS target",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&connsPerHost,
+		"conns-per-host",
+		-1,
+		"number of connections to create per host",
+	)
+	runSpamCmd.PersistentFlags().StringVar(
+		&clusterInfo,
+		"cluster-info",
+		"",
+		"output from avalanche-cli with cluster info",
+	)
+	runSpamCmd.PersistentFlags().StringVar(
+		&privateKey,
+		"private-key",
+		"",
+		"ed25519 private key for root account (hex)",
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,

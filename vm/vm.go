@@ -25,13 +25,17 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
+	"github.com/ava-labs/hypersdk/merkle"
+	"github.com/ava-labs/hypersdk/storage"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -39,15 +43,15 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/state"
 	htrace "github.com/ava-labs/hypersdk/trace"
 	hutils "github.com/ava-labs/hypersdk/utils"
 )
 
 type executedWrapper struct {
-	Block   uint64
-	Chunk   *chain.FilteredChunk
-	Results []*chain.Result
+	Block      *chain.StatefulBlock
+	Chunk      *chain.FilteredChunk
+	Results    []*chain.Result
+	InvalidTxs []ids.ID
 }
 
 type acceptedWrapper struct {
@@ -62,12 +66,11 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
 	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
+	stateDB        *merkle.Merkle
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
 	handlers       Handlers
@@ -85,12 +88,13 @@ type VM struct {
 	//
 	// we use an emap here to avoid recursing through all previously
 	// issued chunks when packing a new chunk.
-	issuedTxs *emap.EMap[*chain.Transaction]
-	mempool   *mempool.Mempool[*chain.Transaction]
+	issuedTxs        *emap.LEMap[*chain.Transaction]
+	rpcAuthorizedTxs *emap.LEMap[*chain.Transaction] // used to optimize performance of RPCs
+	mempool          *mempool.Mempool[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
-	seenTxs                *emap.EMap[*chain.Transaction]
-	seenChunks             *emap.EMap[*chain.ChunkCertificate]
+	seenTxs                *emap.LEMap[*chain.Transaction]
+	seenChunks             *emap.LEMap[*chain.ChunkCertificate]
 	startSeenTime          int64
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
@@ -152,7 +156,7 @@ func New(c Controller, v *version.Semantic) *VM {
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	baseDB database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -162,13 +166,14 @@ func (vm *VM) Initialize(
 ) error {
 	vm.snowCtx = snowCtx
 	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
-	vm.issuedTxs = emap.NewEMap[*chain.Transaction]()
+	vm.issuedTxs = emap.NewLEMap[*chain.Transaction]()
+	vm.rpcAuthorizedTxs = emap.NewLEMap[*chain.Transaction]()
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
-	vm.seenTxs = emap.NewEMap[*chain.Transaction]()
-	vm.seenChunks = emap.NewEMap[*chain.ChunkCertificate]()
+	vm.seenTxs = emap.NewLEMap[*chain.Transaction]()
+	vm.seenChunks = emap.NewLEMap[*chain.ChunkCertificate]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -185,10 +190,8 @@ func (vm *VM) Initialize(
 	}
 	vm.metrics = metrics
 
-	// Always initialize implementation first
-	vm.baseDB = baseDB
-	vm.config, vm.genesis, vm.vmDB, vm.blobDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	// Initialize the user-provided VM
+	vm.config, vm.genesis, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
 		gatherer,
@@ -231,8 +234,12 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
+	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
+	if err != nil {
+		return err
+	}
 	merkleRegistry := prometheus.NewRegistry()
-	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
+	vm.stateDB, err = merkle.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations.
@@ -252,6 +259,11 @@ func (vm *VM) Initialize(
 	if err := gatherer.Register("state", merkleRegistry); err != nil {
 		return err
 	}
+
+	// Track size of [chainData]
+	go vm.trackChainDataSize()
+
+	// TODO: Compare stateDB with vmDB to determine if any reprocessing is necessary
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -311,25 +323,22 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		// Set balances and compute genesis root
-		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.Load(ctx, vm.tracer, sps); err != nil {
+		if err := vm.genesis.Load(ctx, vm.tracer, vm.stateDB); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 
 		// Update chain metadata
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := vm.stateDB.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
+		if err := vm.stateDB.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
 			return err
 		}
 
 		// Commit genesis block post-execution state and compute root
-		if err := sps.Commit(ctx); err != nil {
-			return err
-		}
-		root, err := vm.stateDB.GetMerkleRoot(ctx)
+		commit, _ := vm.stateDB.PrepareCommit(ctx)
+		root, err := commit(ctx)
 		if err != nil {
 			return err
 		}
@@ -410,6 +419,27 @@ func (vm *VM) Initialize(
 	return nil
 }
 
+func (vm *VM) trackChainDataSize() {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			start := time.Now()
+			size := hutils.DirectorySize(vm.snowCtx.ChainDataDir)
+			vm.metrics.chainDataSize.Set(float64(size))
+			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
+
+			stateLen, stateSize := vm.stateDB.Usage()
+			vm.metrics.stateLen.Set(float64(stateLen))
+			vm.metrics.stateSize.Set(float64(stateSize))
+			vm.snowCtx.Log.Info("stateDB size", zap.Int("len", stateLen), zap.String("size", humanize.Bytes(stateSize)))
+		case <-vm.stop:
+			return
+		}
+	}
+}
+
 func (vm *VM) markReady() {
 	// Wait for state syncing to complete
 	select {
@@ -451,11 +481,6 @@ func (vm *VM) isReady() bool {
 		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
-}
-
-// TODO: remove?
-func (vm *VM) BaseDB() database.Database {
-	return vm.baseDB
 }
 
 // ReadState reads the latest executed state
@@ -550,6 +575,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		return err
 	}
 
+	// Shutdown engine
+	vm.engine.Done()
+
 	// Process remaining executed chunks before shutdown
 	close(vm.executedQueue)
 	<-vm.executorDone
@@ -557,9 +585,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	// Process remaining accepted blocks before shutdown
 	close(vm.acceptedQueue)
 	<-vm.acceptorDone
-
-	// Shutdown engine
-	vm.engine.Done()
 
 	// Shutdown other async VM mechanisms
 	vm.warpManager.Done()
@@ -578,13 +603,14 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	if vm.snowCtx == nil {
 		return nil
 	}
-	if err := vm.vmDB.Close(); err != nil {
-		return err
-	}
-	if err := vm.stateDB.Close(); err != nil {
-		return err
-	}
-	return vm.rawStateDB.Close()
+	errs := wrappers.Errs{}
+	errs.Add(
+		vm.vmDB.Close(),
+		vm.stateDB.Close(),
+		vm.rawStateDB.Close(),
+		vm.blobDB.Close(),
+	)
+	return errs.Err
 }
 
 // implements "block.ChainVM.common.VM"

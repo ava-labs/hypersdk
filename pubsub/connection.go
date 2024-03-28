@@ -4,7 +4,7 @@
 package pubsub
 
 import (
-	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,20 +15,22 @@ import (
 // Callback type is used as a callback function for the
 // WebSocket server to process incoming messages.
 // Accepts a byte message, the connection and any additional information.
-type Callback func([]byte, *Connection)
+type Callback func(uint64, []byte, *Connection)
 
 // connection is a representation of the websocket connection.
 type Connection struct {
 	s *Server
 
 	// The websocket connection.
-	conn *websocket.Conn
+	conn     *websocket.Conn
+	received uint64
 
 	// Buffered channel of outbound messages.
 	mb *MessageBuffer
 
 	// Represents if the connection can receive new messages.
 	active atomic.Bool
+	closer sync.Once
 }
 
 // isActive returns whether the connection is active
@@ -47,11 +49,18 @@ func (c *Connection) Send(msg []byte) bool {
 	if !c.isActive() {
 		return false
 	}
-	if err := c.mb.Send(msg); err != nil {
+	if _, err := c.mb.Send(msg); err != nil {
 		c.s.log.Debug("unable to send message", zap.Error(err))
 		return false
 	}
 	return true
+}
+
+func (c *Connection) cleanup() {
+	c.closer.Do(func() {
+		c.s.removeConnection(c)
+		c.deactivate()
+	})
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -60,25 +69,19 @@ func (c *Connection) Send(msg []byte) bool {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Connection) readPump() {
-	defer func() {
-		c.s.removeConnection(c)
-		c.deactivate()
+	defer c.cleanup()
 
-		// close is called by both the writePump and the readPump so one of them
-		// will always error
-		_ = c.conn.Close()
-	}()
-
-	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
-	// SetReadDeadline returns an error if the connection is corrupted
+	// Ensure connection stays open as long as we get pings
 	if err := c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait)); err != nil {
 		return
 	}
 	c.conn.SetPongHandler(func(string) error {
 		return c.conn.SetReadDeadline(time.Now().Add(c.s.config.PongWait))
 	})
+
+	c.conn.SetReadLimit(int64(c.s.config.MaxReadMessageSize))
 	for {
-		_, reader, err := c.conn.NextReader()
+		messageType, response, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,
@@ -91,17 +94,19 @@ func (c *Connection) readPump() {
 			}
 			return
 		}
+		if messageType != websocket.BinaryMessage {
+			c.s.log.Debug("dropping non-binary message", zap.Int("messageType", messageType))
+			continue
+		}
 		if c.s.callback == nil {
 			continue
 		}
-		responseBytes, err := io.ReadAll(reader)
-		if err != nil {
-			c.s.log.Debug("unexpected error reading bytes from websockets",
-				zap.Error(err),
-			)
-			return
+		if len(response) == 0 {
+			// TODO: disconnect here?
+			c.s.log.Debug("dropping empty message")
+			continue
 		}
-		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, responseBytes)
+		msgs, err := ParseBatchMessage(c.s.config.MaxReadMessageSize, response)
 		if err != nil {
 			c.s.log.Debug("unable to read websockets message",
 				zap.Error(err),
@@ -109,7 +114,8 @@ func (c *Connection) readPump() {
 			return
 		}
 		for _, msg := range msgs {
-			c.s.callback(msg, c)
+			c.s.callback(c.received, msg, c)
+			c.received++
 		}
 	}
 }
@@ -120,30 +126,27 @@ func (c *Connection) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Connection) writePump() {
-	ticker := time.NewTicker(c.s.config.PingPeriod)
+	ticker := time.NewTicker(PingPeriod)
 	defer func() {
-		c.s.removeConnection(c)
-		c.deactivate()
 		ticker.Stop()
 
-		// close is called by both the writePump and the readPump so one of them
-		// will always error
+		_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 		_ = c.conn.Close()
+
+		c.cleanup()
 	}()
+
 	for {
 		select {
 		case message, ok := <-c.mb.Queue:
+			if !ok {
+				return
+			}
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.s.config.WriteWait)); err != nil {
 				c.s.log.Debug("closing the connection",
 					zap.String("reason", "failed to set the write deadline"),
 					zap.Error(err),
 				)
-				return
-			}
-			if !ok {
-				// The hub closed the channel. Attempt to close the connection
-				// gracefully.
-				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
@@ -162,6 +165,10 @@ func (c *Connection) writePump() {
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				c.s.log.Debug("closing the connection",
+					zap.String("reason", "failed to write ping"),
+					zap.Error(err),
+				)
 				return
 			}
 		}

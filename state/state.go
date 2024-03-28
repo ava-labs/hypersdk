@@ -7,7 +7,8 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/avalanchego/utils/maybe"
+	"github.com/ava-labs/hypersdk/smap"
 )
 
 type Immutable interface {
@@ -21,9 +22,11 @@ type Mutable interface {
 	Remove(ctx context.Context, key []byte) error
 }
 
-type View interface {
-	Immutable
+type Database interface {
+	Mutable
 
-	NewView(ctx context.Context, changes merkledb.ViewChanges) (merkledb.View, error)
-	GetMerkleRoot(ctx context.Context) (ids.ID, error)
+	GetValues(ctx context.Context, keys [][]byte) (values [][]byte, errs []error)
+
+	Update(ctx context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) int
+	PrepareCommit(ctx context.Context) (func(context.Context) (ids.ID, error), int)
 }

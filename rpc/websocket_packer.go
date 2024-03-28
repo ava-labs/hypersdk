@@ -4,9 +4,8 @@
 package rpc
 
 import (
-	"errors"
+	"encoding/binary"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -16,6 +15,11 @@ const (
 	BlockMode byte = 0
 	ChunkMode byte = 1
 	TxMode    byte = 2
+
+	TxSuccess uint8 = 0
+	TxFailed  uint8 = 1
+	TxExpired uint8 = 2
+	TxInvalid uint8 = 3
 )
 
 func PackChunkMessage(block uint64, c *chain.FilteredChunk, results []*chain.Result) ([]byte, error) {
@@ -59,47 +63,18 @@ func UnpackChunkMessage(
 	return height, chunk, results, p.Err()
 }
 
-// Could be a better place for these methods
-// Packs an accepted block message
-func PackAcceptedTxMessage(txID ids.ID, result *chain.Result) ([]byte, error) {
-	size := consts.IDLen + consts.BoolLen + result.Size()
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackID(txID)
-	p.PackBool(false)
-	if err := result.Marshal(p); err != nil {
-		return nil, err
-	}
-	return p.Bytes(), p.Err()
+func PackTxMessage(txID uint64, status uint8) ([]byte, error) {
+	b := make([]byte, binary.MaxVarintLen64+1)
+	c := binary.PutUvarint(b, txID)
+	b[c] = status
+	return b[:c+1], nil
 }
 
-// Packs a removed block message
-func PackRemovedTxMessage(txID ids.ID, err error) ([]byte, error) {
-	errString := err.Error()
-	size := consts.IDLen + consts.BoolLen + codec.StringLen(errString)
-	p := codec.NewWriter(size, consts.MaxInt)
-	p.PackID(txID)
-	p.PackBool(true)
-	p.PackString(errString)
-	return p.Bytes(), p.Err()
-}
-
-// Unpacks a tx message from [msg]. Returns the txID, an error regarding the status
-// of the tx, the result of the tx, and an error if there was a
-// problem unpacking the message.
-func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
-	p := codec.NewReader(msg, consts.MaxInt)
-	var txID ids.ID
-	p.UnpackID(true, &txID)
-	if p.UnpackBool() {
-		err := p.UnpackString(true)
-		return ids.Empty, errors.New(err), nil, p.Err()
+func UnpackTxMessage(msg []byte) (uint64, uint8, error) {
+	txID, offset := binary.Uvarint(msg)
+	if len(msg) < offset {
+		return 0, 0, chain.ErrInvalidObject
 	}
-	result, err := chain.UnmarshalResult(p)
-	if err != nil {
-		return ids.Empty, nil, nil, err
-	}
-	if !p.Empty() {
-		return ids.Empty, nil, nil, chain.ErrInvalidObject
-	}
-	return txID, nil, result, p.Err()
+	status := msg[offset]
+	return txID, status, nil
 }

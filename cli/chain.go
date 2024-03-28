@@ -118,18 +118,53 @@ func (h *Handler) ImportANR() error {
 	return h.StoreDefaultChain(filledChainID)
 }
 
-type AvalancheOpsConfig struct {
-	Resources struct {
-		CreatedNodes []struct {
-			HTTPEndpoint string `yaml:"httpEndpoint"`
-		} `yaml:"created_nodes"`
-	} `yaml:"resource"`
-	VMInstall struct {
-		ChainID string `yaml:"chain_id"`
-	} `yaml:"vm_install"`
+type ClusterInfo struct {
+	ChainID  string `yaml:"CHAIN_ID"` // ids.ID requires "first and last characters to be quotes"
+	SubnetID string `yaml:"SUBNET_ID"`
+	APIs     []struct {
+		CloudID string `yaml:"CLOUD_ID"`
+		IP      string `yaml:"IP"`
+		Region  string `yaml:"REGION"`
+	} `yaml:"API"`
+	Validators []struct {
+		CloudID string `yaml:"CLOUD_ID"`
+		IP      string `yaml:"IP"`
+		Region  string `yaml:"REGION"`
+		NodeID  string `yaml:"NODE_ID"`
+	} `yaml:"VALIDATOR"`
 }
 
-func (h *Handler) ImportOps(opsPath string) error {
+func ReadCLIFile(cliPath string) (ids.ID, map[string]string, error) {
+	// Load yaml file
+	yamlFile, err := os.ReadFile(cliPath)
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+	var yamlContents ClusterInfo
+	if err := yaml.Unmarshal(yamlFile, &yamlContents); err != nil {
+		return ids.Empty, nil, fmt.Errorf("%w: unable to unmarshal YAML", err)
+	}
+	chainID, err := ids.FromString(yamlContents.ChainID)
+	if err != nil {
+		return ids.Empty, nil, err
+	}
+
+	// Load nodes
+	nodes := make(map[string]string)
+	for i, api := range yamlContents.APIs {
+		name := fmt.Sprintf("%s-%d (%s)", "API", i, api.Region)
+		uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", api.IP, chainID)
+		nodes[name] = uri
+	}
+	for i, validator := range yamlContents.Validators {
+		name := fmt.Sprintf("%s-%d (%s)", "Validator", i, validator.Region)
+		uri := fmt.Sprintf("http://%s:9650/ext/bc/%s", validator.IP, chainID)
+		nodes[name] = uri
+	}
+	return chainID, nodes, nil
+}
+
+func (h *Handler) ImportCLI(cliPath string) error {
 	oldChains, err := h.DeleteChains()
 	if err != nil {
 		return err
@@ -139,26 +174,11 @@ func (h *Handler) ImportOps(opsPath string) error {
 	}
 
 	// Load yaml file
-	var opsConfig AvalancheOpsConfig
-	yamlFile, err := os.ReadFile(opsPath)
+	chainID, nodes, err := ReadCLIFile(cliPath)
 	if err != nil {
 		return err
 	}
-	err = yaml.Unmarshal(yamlFile, &opsConfig)
-	if err != nil {
-		return err
-	}
-
-	// Load chainID
-	chainID, err := ids.FromString(opsConfig.VMInstall.ChainID)
-	if err != nil {
-		return err
-	}
-
-	// Add chains
-	for i, node := range opsConfig.Resources.CreatedNodes {
-		name := fmt.Sprintf("node-%d", i)
-		uri := fmt.Sprintf("%s/ext/bc/%s", node.HTTPEndpoint, chainID)
+	for name, uri := range nodes {
 		if err := h.StoreChain(chainID, name, uri); err != nil {
 			return err
 		}
@@ -220,7 +240,13 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	if err != nil {
 		return err
 	}
-	scli, err := rpc.NewWebSocketClient(uris[uriName], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	scli, err := rpc.NewWebSocketClient(
+		uris[uriName],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		consts.MTU,
+		pubsub.MaxReadMessageSize,
+	) // we write the max read
 	if err != nil {
 		return err
 	}

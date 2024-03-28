@@ -15,10 +15,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/merkle"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -33,22 +33,34 @@ type Parser interface {
 }
 
 type Metrics interface {
+	RecordRPCAuthorizedTx()
+	RecordExecutedChunks(int)
+
+	RecordWaitRepeat(time.Duration)
+	RecordWaitQueue(time.Duration)
 	RecordWaitAuth(time.Duration)
+	RecordWaitPrecheck(time.Duration)
 	RecordWaitExec(time.Duration)
-	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
+	RecordWaitRoot(time.Duration)
 
-	RecordClearedMempool()
+	RecordRemainingMempool(int)
 
+	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordAcceptedEpoch(uint64)
+	RecordExecutedEpoch(uint64)
 
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
-	RecordTxsValid(int)
+	RecordChunkBuildTxDropped()
+	RecordBlockBuildCertDropped()
+	RecordTxsInvalid(int)
 	RecordStateChanges(int)
-	RecordStateOperations(int)
+	RecordRootChanges(int)
+	RecordEngineBacklog(int)
 }
 
 type Monitoring interface {
@@ -63,42 +75,42 @@ type VM interface {
 
 	// TODO: cleanup
 	Engine() *Engine
-	RequestChunks([]*ChunkCertificate, chan *Chunk)
+	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
-
-	// We don't include this in registry because it would never be used
-	// by any client of the hypersdk.
-	GetVerifyAuth() bool
-	GetAuthVerifyCores() int
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() (merkledb.MerkleDB, error)
-	ForceState() merkledb.MerkleDB
+	State() (*merkle.Merkle, error)
+	ForceState() *merkle.Merkle
 	StateManager() StateManager
 	ValidatorState() validators.State
 
 	IsIssuedTx(context.Context, *Transaction) bool
 	IssueTx(context.Context, *Transaction)
 
+	GetAuthResult(ids.ID) bool
 	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
 	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
 
 	Mempool() Mempool
-	GetTargetBuildDuration() time.Duration
-	GetTransactionExecutionCores() int
+	GetTargetChunkBuildDuration() time.Duration
+	GetPrecheckCores() int
+	GetActionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
-	Executed(context.Context, uint64, *FilteredChunk, []*Result)
+	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
+	ExecutedBlock(context.Context, *StatefulBlock)
 	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
 
 	// UpdateSyncTarget returns a bool that is true if the root
 	// was updated and the sync is continuing with the new specified root
 	// and false if the sync completed with the previous root.
+	//
+	// TODO: only call when root is non-empty
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
 
@@ -110,15 +122,19 @@ type VM interface {
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
 
-	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	StartCertStream(context.Context)
+	StreamCert(context.Context) (*ChunkCertificate, bool)
+	FinishCertStream(context.Context, []*ChunkCertificate)
 	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+	IsSeenChunk(context.Context, ids.ID) bool
+	GetChunk(int64, ids.ID) (*Chunk, error)
 
 	IsValidHeight(ctx context.Context, height uint64) (bool, error)
 	CacheValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
-	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
+	AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -126,16 +142,9 @@ type Mempool interface {
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
-	Top(
-		context.Context,
-		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
-	) error
-
 	StartStreaming(context.Context)
-	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context) (*Transaction, bool)
+	FinishStreaming(context.Context, []*Transaction)
 }
 
 type Rules interface {
@@ -144,7 +153,10 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
+	// TODO: make immutable rules (that don't expect to be changed)
+	GetPartitions() uint8
 	GetBlockExecutionDepth() uint64
+	GetRootFrequency() uint64
 	GetEpochDuration() int64
 
 	GetMinBlockGap() int64    // in milliseconds

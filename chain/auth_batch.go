@@ -14,7 +14,7 @@ const authWorkerBacklog = 16_384
 
 type AuthVM interface {
 	Logger() logging.Logger
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	GetAuthBatchVerifier(authTypeID uint8, cores, count int) (AuthBatchVerifier, bool)
 }
 
 // Adding a signature to a verification batch

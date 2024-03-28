@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	ReadBufferSize      = 512 * units.KiB
-	WriteBufferSize     = 512 * units.KiB
+	ReadBufferSize      = consts.NetworkSizeLimit
+	WriteBufferSize     = consts.NetworkSizeLimit
 	WriteWait           = 10 * time.Second
 	PongWait            = 60 * time.Second
 	PingPeriod          = (PongWait * 9) / 10

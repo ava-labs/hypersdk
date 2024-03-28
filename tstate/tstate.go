@@ -5,50 +5,33 @@ package tstate
 
 import (
 	"context"
-	"sync"
 
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/state"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
+	"github.com/ava-labs/hypersdk/smap"
 )
 
 // TState defines a struct for storing temporary state.
 type TState struct {
-	l           sync.RWMutex
-	ops         int
-	changedKeys map[string]maybe.Maybe[[]byte]
+	changedKeys *smap.SMap[maybe.Maybe[[]byte]]
 }
 
-// New returns a new instance of TState. Initializes the storage and changedKeys
-// maps to have an initial size of [storageSize] and [changedSize] respectively.
+// New returns a new instance of TState.
+//
+// [changedSize] is an estimate of the number of keys that will be changed and is
+// used to optimize the creation of [ExportMerkleDBView].
 func New(changedSize int) *TState {
-	return &TState{
-		changedKeys: make(map[string]maybe.Maybe[[]byte], changedSize),
-	}
+	return &TState{changedKeys: smap.New[maybe.Maybe[[]byte]](changedSize)}
 }
 
 func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, bool) {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	if v, ok := ts.changedKeys[key]; ok {
+	if v, ok := ts.changedKeys.Get(key); ok {
 		if v.IsNothing() {
 			return nil, true, false
 		}
 		return v.Value(), true, true
 	}
 	return nil, false, false
-}
-
-func (ts *TState) PendingChanges() int {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	return len(ts.changedKeys)
 }
 
 // Insert should only be called if you know what you are doing (updates
@@ -59,38 +42,10 @@ func (ts *TState) Insert(ctx context.Context, key, value []byte) error {
 		return ErrInvalidKeyValue
 	}
 
-	ts.l.Lock()
-	defer ts.l.Unlock()
-	ts.changedKeys[string(key)] = maybe.Some(value) // we don't care if key is equivalent to key on-disk or in `changedKeys`
-	ts.ops++
+	ts.changedKeys.Put(string(key), maybe.Some(value)) // we don't care if key is equivalent to key on-disk or in `changedKeys`
 	return nil
 }
 
-// OpIndex returns the number of operations done on ts.
-func (ts *TState) OpIndex() int {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	return ts.ops
-}
-
-// ExportMerkleDBView creates a slice of [database.BatchOp] of all
-// changes in [TState] that can be used to commit to [merkledb].
-func (ts *TState) ExportMerkleDBView(
-	ctx context.Context,
-	t trace.Tracer, //nolint:interfacer
-	view state.View,
-) (merkledb.View, error) {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	ctx, span := t.Start(
-		ctx, "TState.ExportMerkleDBView",
-		oteltrace.WithAttributes(
-			attribute.Int("items", len(ts.changedKeys)),
-		),
-	)
-	defer span.End()
-
-	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
+func (ts *TState) Keys() *smap.SMap[maybe.Maybe[[]byte]] {
+	return ts.changedKeys
 }

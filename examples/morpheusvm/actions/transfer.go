@@ -23,8 +23,14 @@ type Transfer struct {
 	// To is the recipient of the [Value].
 	To codec.Address `json:"to"`
 
+	// Allocate is whether or not to create [To], if they don't exist.
+	Create bool `json:"create"`
+
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
+
+	// Memo is an optional field that can be used to store arbitrary data.
+	Memo []byte `json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -32,9 +38,15 @@ func (*Transfer) GetTypeID() uint8 {
 }
 
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	if !t.Create {
+		return state.Keys{
+			string(storage.BalanceKey(actor)): state.Read | state.Write,
+			string(storage.BalanceKey(t.To)):  state.Read | state.Write,
+		}
+	}
 	return state.Keys{
 		string(storage.BalanceKey(actor)): state.Read | state.Write,
-		string(storage.BalanceKey(t.To)):  state.Read | state.Write,
+		string(storage.BalanceKey(t.To)):  state.All,
 	}
 }
 
@@ -61,7 +73,7 @@ func (t *Transfer) Execute(
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return false, utils.ErrBytes(err), nil, nil
 	}
-	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
+	if err := storage.AddBalance(ctx, mu, t.To, t.Value); err != nil {
 		return false, utils.ErrBytes(err), nil, nil
 	}
 	return true, nil, nil, nil
@@ -71,19 +83,23 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (*Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (t *Transfer) Size() int {
+	return codec.AddressLen + consts.BoolLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackAddress(t.To)
+	p.PackBool(t.Create)
 	p.PackUint64(t.Value)
+	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
+	transfer.Create = p.UnpackBool()
 	transfer.Value = p.UnpackUint64(true)
+	p.UnpackBytes(consts.NetworkSizeLimit, false, &transfer.Memo)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

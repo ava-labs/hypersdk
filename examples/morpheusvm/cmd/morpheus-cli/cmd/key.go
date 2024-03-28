@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -177,8 +178,9 @@ var importKeyCmd = &cobra.Command{
 			return err
 		}
 		utils.Outf(
-			"{{green}}imported address:{{/}} %s",
+			"{{green}}imported address:{{/}} %s (private key: %s)",
 			codec.MustAddressBech32(consts.HRP, priv.Address),
+			hex.EncodeToString(priv.Bytes),
 		)
 		return nil
 	},

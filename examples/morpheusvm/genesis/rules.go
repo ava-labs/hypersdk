@@ -99,15 +99,22 @@ func (*Rules) GetBlockExecutionDepth() uint64 {
 	return 5
 }
 
-func (*Rules) GetEpochDuration() int64 {
-	// TODO: ensure this is greater than validity window
-	return 15000 // 15s
+func (*Rules) GetRootFrequency() uint64 {
+	return 60
+}
+
+func (r *Rules) GetEpochDuration() int64 {
+	return r.g.EpochDuration
 }
 
 func (*Rules) GetSponsorStateKeyChunks() []uint16 {
 	return []uint16{storage.BalanceChunks}
 }
 
-func (*Rules) GetUnitPrices() chain.Dimensions {
-	return chain.Dimensions{1, 1, 1, 1, 1}
+func (r *Rules) GetUnitPrices() chain.Dimensions {
+	return r.g.MinUnitPrice
+}
+
+func (r *Rules) GetPartitions() uint8 {
+	return r.g.Partitions
 }
