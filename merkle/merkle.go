@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	ssync "github.com/ava-labs/avalanchego/x/sync"
+	"github.com/ava-labs/hypersdk/rchannel"
 	"github.com/ava-labs/hypersdk/smap"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -35,11 +36,8 @@ type Merkle struct {
 	cl  sync.Mutex
 	mdb merkledb.MerkleDB
 
-	rv           *merkledb.RollingView
-	pending      chan string
-	pendingKeys  map[string]maybe.Maybe[[]byte]
-	pendingKeysL sync.Mutex
-	pendingDone  chan struct{}
+	rv *merkledb.RollingView
+	rc *rchannel.RChannel[maybe.Maybe[[]byte]]
 }
 
 func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkle, error) {
@@ -48,6 +46,7 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 		return nil, err
 	}
 	m := &Merkle{
+		// TODO: load state from disk
 		state: make(map[string][]byte, stateInitialSize),
 		mdb:   mdb,
 	}
@@ -55,39 +54,10 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	if err != nil {
 		return nil, err
 	}
+	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
+	m.rc.SetCallback(rv.Process)
 	m.rv = rv
-	pending := make(chan string, pendingInitialSize)
-	m.pending = pending
-	pendingDone := make(chan struct{})
-	m.pendingDone = pendingDone
-	go func() {
-		defer close(pendingDone)
-
-		for c := range pending {
-			m.pendingKeysL.Lock()
-			val, ok := m.pendingKeys[c]
-			if !ok {
-				m.pendingKeysL.Unlock()
-				// already wrote
-				continue
-			}
-			// ensure we don't write again unless someone updates us
-			delete(m.pendingKeys, c)
-			m.pendingKeysL.Unlock()
-			if err := rv.Process(context.Background(), c, val); err != nil {
-				panic(err)
-			}
-		}
-	}()
-	// TODO: load values into [state]
 	return m, nil
-}
-
-func (m *Merkle) addPending(key string, val maybe.Maybe[[]byte]) {
-	m.pendingKeysL.Lock()
-	m.pendingKeys[key] = val
-	m.pendingKeysL.Unlock()
-	m.pending <- key
 }
 
 // TODO: use smap for merkle and update shards concurrently
@@ -98,7 +68,7 @@ func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) 
 	seen := 0
 	ops.Iterate(func(key string, value maybe.Maybe[[]byte]) bool {
 		seen++
-		m.addPending(key, value)
+		m.rc.Add(key, value)
 		if value.IsNothing() {
 			m.stateRemove(key)
 		} else {
@@ -120,58 +90,35 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	// Create new channels (ensure we don't update goroutine)
-	pending := m.pending
-	pendingDone := m.pendingDone
-	newPending := make(chan string, pendingInitialSize)
-	m.pending = newPending
-	newPendingDone := make(chan struct{})
-	m.pendingDone = newPendingDone
+	rc := m.rc
+	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
 
 	m.cl.Lock()
 	return func(ctx context.Context) (ids.ID, error) {
 		defer m.cl.Unlock()
 
 		// Wait for processing to finish
-		close(pending)
-		<-pendingDone
+		if err := rc.Wait(); err != nil {
+			return ids.Empty, err
+		}
 
-		// Create new rv
-		oldRv := m.rv
+		// Create new rv once trie is updated
 		newRv, err := m.rv.NewRollingView(ctx)
 		if err != nil {
 			return ids.Empty, err
 		}
-		m.rv = newRv
+		rv := m.rv
 
 		// Start new processing queue
-		go func() {
-			defer close(newPendingDone)
+		m.rc.SetCallback(newRv.Process)
+		m.rv = newRv
 
-			for c := range newPending {
-				m.pendingKeysL.Lock()
-				val, ok := m.pendingKeys[c]
-				if !ok {
-					m.pendingKeysL.Unlock()
-					// already wrote
-					continue
-				}
-				// ensure we don't write again unless someone updates us
-				delete(m.pendingKeys, c)
-				m.pendingKeysL.Unlock()
-				if err := newRv.Process(context.Background(), c, val); err != nil {
-					panic(err)
-				}
-			}
-		}()
-
-		// We don't consume bytes because we don't pre-copy them into [pending] (in case
-		// they are later replaced).
-		if err := oldRv.CommitToDB(ctx); err != nil {
+		// Wait for root to be generated and nodes to be committed to db
+		if err := rv.CommitToDB(ctx); err != nil {
 			return ids.Empty, err
 		}
 		return m.mdb.GetMerkleRoot(ctx)
-	}, len(pending)
+	}, 0
 }
 
 func (m *Merkle) stateInsert(key string, value []byte) {
@@ -199,7 +146,7 @@ func (m *Merkle) Insert(_ context.Context, key, value []byte) error {
 	defer m.l.Unlock()
 
 	skey := string(key)
-	m.addPending(skey, maybe.Some(value))
+	m.rc.Add(skey, maybe.Some(value))
 	m.stateInsert(skey, value)
 	return nil
 }
@@ -209,7 +156,7 @@ func (m *Merkle) Remove(_ context.Context, key []byte) error {
 	defer m.l.Unlock()
 
 	skey := string(key)
-	m.addPending(skey, maybe.Nothing[[]byte]())
+	m.rc.Add(skey, maybe.Nothing[[]byte]())
 	m.stateRemove(skey)
 	return nil
 }
