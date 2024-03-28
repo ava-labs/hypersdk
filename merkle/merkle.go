@@ -54,9 +54,9 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	if err != nil {
 		return nil, err
 	}
+	m.rv = rv
 	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
 	m.rc.SetCallback(rv.Process)
-	m.rv = rv
 	return m, nil
 }
 
@@ -109,13 +109,11 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 		if err != nil {
 			return ids.Empty, err
 		}
-		rv := m.rv
-
-		// Start new processing queue
 		m.rc.SetCallback(newRv.Process)
-		m.rv = newRv
 
 		// Wait for root to be generated and nodes to be committed to db
+		rv := m.rv
+		m.rv = newRv
 		if err := rv.CommitToDB(ctx); err != nil {
 			return ids.Empty, err
 		}
