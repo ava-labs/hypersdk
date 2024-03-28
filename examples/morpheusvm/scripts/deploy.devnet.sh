@@ -29,11 +29,11 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo "working directory: $TMPDIR"
 
 # Install avalanche-cli
-CLI_COMMIT=v1.4.3-rc.1
+CLI_COMMIT=v1.4.3-rc.2
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
-git checkout ef0a7b748fdd5d6d91fa52b2cfe822f08008d4fe # TODO: replace with CLI_COMMIT
+git checkout 7537e80954730d8b9e165507cd2afc358dddc03a # TODO: replace with CLI_COMMIT
 ./scripts/build.sh
 mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
@@ -152,7 +152,7 @@ trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
 #
 # It is not recommended to use an instance with burstable network performance.
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type m7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring=true --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type m7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 2,2,2,2,2 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT --add-grafana-dashboard="./grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
@@ -161,7 +161,6 @@ cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 # Import the cluster into morpheus-cli for local interaction
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-echo -e "\n${YELLOW}Run this command in a separate window to monitor cluster:${NC} \"${TMPDIR}/morpheus-cli prometheus generate\""
 
 # Wait for user to confirm that they want to launch load test
 while true
@@ -186,9 +185,6 @@ do
           ;;
   esac
 done
-
-# Start load test on dedicated machine
-$TMPDIR/avalanche node loadtest ${CLUSTER} ${VMID} --loadTestRepoURL="https://github.com/ava-labs/hypersdk/commit/${VM_COMMIT}" --loadTestBuildCmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --loadTestCmd="exit"
 EPOCH_WAIT_END=$(date +%s)
 TIME_TAKEN=$((EPOCH_WAIT_END - EPOCH_WAIT_START))
 
@@ -201,9 +197,10 @@ if [ $TIME_TAKEN -lt $SLEEP_DUR ]; then
   sleep $SLEEP_DUR
 fi
 
-echo -e "${YELLOW}To run load test, ssh into monitoring instance run these commands:${NC}"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5"
+# Start load test on dedicated machine
+echo "Starting load test"
+$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+
+# Emit instructions for use
+echo -e "${YELLOW}To stop load test, run:${NC} \"${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\"\""
+echo -e "${YELLOW}To monitor load test, view \"Vryx PoC\" dashboard on grafana:${NC} $(yq e '.MONITORING' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml)"
