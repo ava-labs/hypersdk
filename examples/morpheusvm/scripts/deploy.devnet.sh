@@ -203,4 +203,4 @@ $TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-w
 
 # Emit instructions for use
 echo -e "${YELLOW}To stop load test, run:${NC} \"${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\"\""
-echo -e "${YELLOW}To monitor load test, view \"Vryx PoC\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/dashboards (username: admin, password: admin)"
+echo -e "${YELLOW}To monitor load test, view \"Vryx PoC\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/fdgkojb6r7vuod/vryx-poc (username: admin, password: admin)"
