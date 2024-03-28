@@ -120,13 +120,15 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 
 	// Record dependencies
 	previousDependencies := set.NewSet[int](len(keys))
-	for k := range keys {
+	for k, v := range keys {
 		latest, ok := e.nodes[k]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
 				previousDependencies.Add(latest) // we may depend on the same task multiple times
-				lt.blocking[id] = t
+				if v.Has(state.Allocate) || v.Has(state.Write) {
+					lt.blocking[id] = t
+				}
 			}
 		}
 		e.nodes[k] = id
