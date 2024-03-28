@@ -105,17 +105,29 @@ func BuildBlock(
 		vm.FinishCertStream(ctx, restorableChunks)
 	}
 
+	// Fetch root
+	frequency := r.GetRootFrequency()
+	if b.StatefulBlock.Height > frequency && b.StatefulBlock.Height%frequency == 0 {
+		rootHeight := b.StatefulBlock.Height - frequency
+		root, err := vm.Engine().Root(rootHeight)
+		if err != nil {
+			vm.RestoreChunkCertificates(ctx, b.AvailableChunks)
+			return nil, err
+		}
+		b.rootHeight = &rootHeight
+		b.Root = root
+	}
+
 	// Fetch executed blocks
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height > depth {
 		execHeight := b.StatefulBlock.Height - depth
-		root, executed, err := vm.Engine().Results(execHeight)
+		executed, err := vm.Engine().Results(execHeight)
 		if err != nil {
 			vm.RestoreChunkCertificates(ctx, b.AvailableChunks)
 			return nil, err
 		}
 		b.execHeight = &execHeight
-		b.Root = root
 		b.ExecutedChunks = executed
 	}
 

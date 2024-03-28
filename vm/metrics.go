@@ -84,12 +84,16 @@ type Metrics struct {
 	websocketConnections      prometheus.Gauge
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
+	stateSize                 prometheus.Gauge
+	stateLen                  prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
+	waitRoot                  metric.Averager
+	rootChanges               metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -159,6 +163,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_commit",
 		"time spent waiting to commit state after execution",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitRoot, err := metric.NewAverager(
+		"chain",
+		"wait_root",
+		"time spent waiting to generate root",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	rootChanges, err := metric.NewAverager(
+		"chain",
+		"root_changes",
+		"changes enqueued to generate root",
 		r,
 	)
 	if err != nil {
@@ -548,12 +570,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
+		stateSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "state_size",
+			Help:      "size of the state",
+		}),
+		stateLen: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "state_len",
+			Help:      "number of items in the state",
+		}),
 		waitRepeat:             waitRepeat,
 		waitQueue:              waitQueue,
 		waitAuth:               waitAuth,
 		waitExec:               waitExec,
 		waitPrecheck:           waitPrecheck,
 		waitCommit:             waitCommit,
+		waitRoot:               waitRoot,
+		rootChanges:            rootChanges,
 		chunkBuild:             chunkBuild,
 		blockBuild:             blockBuild,
 		blockParse:             blockParse,
@@ -625,6 +659,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
 		r.Register(m.optimisticCertifiedGossip),
+		r.Register(m.stateSize),
+		r.Register(m.stateLen),
 	)
 	return r, m, errs.Err
 }

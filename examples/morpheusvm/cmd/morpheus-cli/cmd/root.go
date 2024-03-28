@@ -31,6 +31,7 @@ var (
 	hideTxs               bool
 	numAccounts           int
 	txsPerSecond          int
+	minCapacity           int
 	stepSize              int
 	sZipf                 float64
 	vZipf                 float64
@@ -163,13 +164,13 @@ func init() {
 	runSpamCmd.PersistentFlags().Float64Var(
 		&sZipf,
 		"s-zipf",
-		1.2,
+		1.01,
 		"Zipf distribution = [(v+k)^(-s)]",
 	)
 	runSpamCmd.PersistentFlags().Float64Var(
 		&vZipf,
 		"v-zipf",
-		2.0,
+		2.7,
 		"Zipf distribution = [(v+k)^(-s)]",
 	)
 	runSpamCmd.PersistentFlags().BoolVar(
@@ -189,6 +190,12 @@ func init() {
 		"txs-per-second",
 		-1,
 		"number of txs issued per second (under backlog)",
+	)
+	runSpamCmd.PersistentFlags().IntVar(
+		&minCapacity,
+		"min-capacity",
+		-1,
+		"minimum txs per second chain can handle",
 	)
 	runSpamCmd.PersistentFlags().IntVar(
 		&stepSize,

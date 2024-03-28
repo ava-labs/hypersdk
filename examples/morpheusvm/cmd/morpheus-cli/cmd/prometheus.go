@@ -79,6 +79,12 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_commit_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_commit_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}commit wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_root_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_root_changes_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}root changes (changes/attempt):{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_root_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_root_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}root wait (ms/attempt):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_remaining_mempool[5s])/5", chainID))
 			utils.Outf("{{yellow}}remaining mempool per second:{{/}} %s\n", panels[len(panels)-1])
 
@@ -99,6 +105,12 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_data_size", chainID))
 			utils.Outf("{{yellow}}chainData size:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_state_size", chainID))
+			utils.Outf("{{yellow}}state size:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_state_len", chainID))
+			utils.Outf("{{yellow}}state items:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[5s])/1000000/5 + increase(avalanche_%s_handler_notify_sum[5s])/1000000/5 + increase(avalanche_%s_handler_get_sum[5s])/1000000/5 + increase(avalanche_%s_handler_push_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_put_sum[5s])/1000000/5 + increase(avalanche_%s_handler_pull_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_query_failed_sum[5s])/1000000/5", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 			utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])

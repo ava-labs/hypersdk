@@ -8,10 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,7 +43,8 @@ type Database struct {
 type Config struct {
 	Sync                        bool
 	CacheSize                   int // B
-	BytesPerSync                int // B
+	L0CompactionThreshold       int
+	L0StopWritesThreshold       int
 	MemTableStopWritesThreshold int // num tables
 	MemTableSize                int // B
 	MaxOpenFiles                int
@@ -50,13 +53,14 @@ type Config struct {
 
 func NewDefaultConfig() Config {
 	return Config{
-		Sync:                        false,              // explicitly specified for clarity
-		CacheSize:                   1024 * 1024 * 1024, // TODO: use memory for MerkleDB cache instead?
-		BytesPerSync:                1024 * 1024,
-		MemTableStopWritesThreshold: 8,
-		MemTableSize:                16 * 1024 * 1024,
+		Sync:                        false, // explicitly specified for clarity
+		CacheSize:                   2 * units.GiB,
+		L0CompactionThreshold:       2,    // from cockroachdb
+		L0StopWritesThreshold:       1000, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
+		MemTableStopWritesThreshold: 4,
+		MemTableSize:                256 * units.MiB,
 		MaxOpenFiles:                4_096,
-		ConcurrentCompactions:       func() int { return 1 },
+		ConcurrentCompactions:       func() int { return runtime.NumCPU() }, // TODO: make a config
 	}
 }
 
@@ -71,7 +75,8 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	d := &Database{wo: wo, closing: make(chan struct{})}
 	opts := &pebble.Options{
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
-		BytesPerSync:                cfg.BytesPerSync,
+		L0CompactionThreshold:       cfg.L0CompactionThreshold,
+		L0StopWritesThreshold:       cfg.L0StopWritesThreshold,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
 		MaxOpenFiles:                cfg.MaxOpenFiles,
@@ -90,14 +95,17 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	// https://github.com/cockroachdb/pebble/blob/master/cmd/pebble/db.go#L76-L86
 	for i := 0; i < len(opts.Levels); i++ {
 		l := &opts.Levels[i]
-		l.BlockSize = 64 * 1024
-		l.IndexBlockSize = 256 * 1024
+		l.BlockSize = 64 * units.KiB
+		l.IndexBlockSize = 256 * units.KiB
 		l.FilterPolicy = bloom.FilterPolicy(10)
 		l.FilterType = pebble.TableFilter
 		if i > 0 {
 			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
 		}
+		// TODO: activate zstd when update to production (panics before then)
+		l.EnsureDefaults()
 	}
+	opts.Levels[len(opts.Levels)-1].FilterPolicy = nil
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
 	registry, metrics, err := newMetrics()
 	if err != nil {
