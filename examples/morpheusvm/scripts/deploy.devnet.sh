@@ -17,6 +17,16 @@ if ! [[ "$0" =~ scripts/deploy.devnet.sh ]]; then
   exit 255
 fi
 
+# Ensure required software is installed and aws credentials are set
+if ! command -v go >/dev/null 2>&1 ; then
+    echo "golang is not installed. exiting..."
+    exit 1
+fi
+if ! aws sts get-caller-identity >/dev/null 2>&1 ; then
+    echo "aws credentials not set. exiting..."
+    exit 1
+fi
+
 # Create temporary directory for the deployment
 TMPDIR=/tmp/morpheusvm-deploy
 rm -rf $TMPDIR && mkdir -p $TMPDIR
