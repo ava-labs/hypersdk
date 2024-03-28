@@ -162,6 +162,9 @@ cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 
+# Point to cluster dashboard
+echo -e "${YELLOW}To monitor devnet health, view the \"Vryx PoC\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc (username: admin, password: admin)"
+
 # Wait for user to confirm that they want to launch load test
 while true
 do
@@ -193,7 +196,6 @@ SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
 if [ $TIME_TAKEN -lt $SLEEP_DUR ]; then
   SLEEP_DUR=$(($SLEEP_DUR - $TIME_TAKEN))
   echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-  echo -e "${YELLOW}We use a shorter EPOCH_DURATION to speed up devnet startup. In a production environment, this should be set to a longer value.${NC}"
   sleep $SLEEP_DUR
 fi
 
@@ -205,5 +207,4 @@ $TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-w
 
 # Emit instructions for use
 echo -e "${YELLOW}To stop load test, run:${NC} ${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\""
-echo -e "${YELLOW}To monitor devnet health, view the \"Vryx PoC\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc (username: admin, password: admin)"
 echo -e "${YELLOW}To monitor load test, view the \"Logs\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/TODO (username: admin, password: admin)"
