@@ -138,6 +138,15 @@ func (h *Handler) Spam(
 		ui.Close()
 	}
 
+	// Log Zipf participants
+	zz := rand.NewZipf(rand.New(rand.NewSource(0)), sZipf, vZipf, uint64(numAccounts)-1) //nolint:gosec
+	trials := txsPerSecond * 60 * 2                                                      /* sender/receiver */
+	unique := set.NewSet[uint64](trials)
+	for i := 0; i < trials; i++ {
+		unique.Add(zz.Uint64())
+	}
+	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
+
 	// Select chain
 	var err error
 	if len(clusterInfo) == 0 {

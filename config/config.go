@@ -39,7 +39,7 @@ func (c *Config) GetStateSyncParallelism() int              { return 4 }
 func (c *Config) GetStateSyncServerDelay() time.Duration    { return 0 } // used for testing
 
 func (c *Config) GetParsedBlockCacheSize() int     { return 128 }
-func (c *Config) GetStateHistoryLength() int       { return 5 }   // 5 minutes of state history (root generated once per minute)
+func (c *Config) GetStateHistoryLength() int       { return 3 }   // 3 minutes of state history (root generated once per minute, just need to get to latest to keep syncing)
 func (c *Config) GetAcceptedBlockWindowCache() int { return 128 } // 256MB at 2MB blocks
 func (c *Config) GetAcceptedBlockWindow() int      { return 512 } // TODO: make this longer for prod
 func (c *Config) GetStateSyncMinBlocks() uint64    { return 768 } // set to max int for archive nodes to ensure no skips
