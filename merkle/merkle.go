@@ -27,14 +27,22 @@ const (
 	pendingInitialSize = 1_000_000
 )
 
+type change struct {
+	key string
+	val maybe.Maybe[[]byte]
+}
+
 type Merkle struct {
-	l       sync.RWMutex
-	size    uint64
-	state   map[string][]byte
-	pending map[string]maybe.Maybe[[]byte]
+	l     sync.RWMutex
+	size  uint64
+	state map[string][]byte
 
 	cl  sync.Mutex
 	mdb merkledb.MerkleDB
+
+	rv          *merkledb.RollingView
+	pending     chan *change
+	pendingDone chan struct{}
 }
 
 func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkle, error) {
@@ -42,11 +50,27 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 	if err != nil {
 		return nil, err
 	}
+	rv, err := mdb.NewRollingView(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pending := make(chan *change, pendingInitialSize)
+	pendingDone := make(chan struct{})
+	go func() {
+		defer close(pendingDone)
+		for c := range pending {
+			if err := rv.Process(context.Background(), c.key, c.val); err != nil {
+				panic(err)
+			}
+		}
+	}()
 	// TODO: load values into [state]
 	return &Merkle{
-		state:   make(map[string][]byte, stateInitialSize),
-		mdb:     mdb,
-		pending: make(map[string]maybe.Maybe[[]byte], pendingInitialSize),
+		state:       make(map[string][]byte, stateInitialSize),
+		mdb:         mdb,
+		rv:          rv,
+		pending:     pending,
+		pendingDone: pendingDone,
 	}, nil
 }
 
@@ -58,7 +82,7 @@ func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) 
 	seen := 0
 	ops.Iterate(func(key string, value maybe.Maybe[[]byte]) bool {
 		seen++
-		m.pending[key] = value
+		m.pending <- &change{key: key, val: value}
 		if value.IsNothing() {
 			m.stateRemove(key)
 		} else {
@@ -80,19 +104,43 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 	m.l.Lock()
 	defer m.l.Unlock()
 
+	// Create new channels (ensure we don't update goroutine)
 	pending := m.pending
-	m.pending = make(map[string]maybe.Maybe[[]byte], pendingInitialSize)
+	pendingDone := m.pendingDone
+	newPending := make(chan *change, pendingInitialSize)
+	m.pending = newPending
+	newPendingDone := make(chan struct{})
+	m.pendingDone = newPendingDone
+
 	m.cl.Lock()
 	return func(ctx context.Context) (ids.ID, error) {
 		defer m.cl.Unlock()
 
-		// We don't consume bytes because we don't pre-copy them into [pending] (in case
-		// they are later replaced).
-		view, err := m.mdb.NewView(ctx, merkledb.ViewChanges{MapOps: pending})
+		// Wait for processing to finish
+		close(pending)
+		<-pendingDone
+
+		// Create new rv
+		oldRv := m.rv
+		newRv, err := m.rv.NewRollingView(ctx)
 		if err != nil {
 			return ids.Empty, err
 		}
-		if err := view.CommitToDB(ctx); err != nil {
+		m.rv = newRv
+
+		// Start new processing queue
+		go func() {
+			defer close(newPendingDone)
+			for c := range newPending {
+				if err := newRv.Process(context.Background(), c.key, c.val); err != nil {
+					panic(err)
+				}
+			}
+		}()
+
+		// We don't consume bytes because we don't pre-copy them into [pending] (in case
+		// they are later replaced).
+		if err := oldRv.CommitToDB(ctx); err != nil {
 			return ids.Empty, err
 		}
 		return m.mdb.GetMerkleRoot(ctx)
@@ -123,7 +171,7 @@ func (m *Merkle) Insert(_ context.Context, key, value []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	m.pending[string(key)] = maybe.Some(value)
+	m.pending <- &change{key: string(key), val: maybe.Some(value)}
 	m.stateInsert(string(key), value)
 	return nil
 }
@@ -132,7 +180,7 @@ func (m *Merkle) Remove(_ context.Context, key []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	m.pending[string(key)] = maybe.Nothing[[]byte]()
+	m.pending <- &change{key: string(key), val: maybe.Nothing[[]byte]()}
 	m.stateRemove(string(key))
 	return nil
 }
@@ -171,11 +219,7 @@ func (m *Merkle) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error)
 
 // Implement [sync.DB] interface
 func (m *Merkle) Clear() error {
-	m.l.Lock()
-	defer m.l.Unlock()
-
-	m.state = make(map[string][]byte, stateInitialSize)
-	m.pending = make(map[string]maybe.Maybe[[]byte], pendingInitialSize)
+	// TODO: may not be correct (shouldn't be adding keys anywhere)
 	return m.mdb.Clear()
 }
 

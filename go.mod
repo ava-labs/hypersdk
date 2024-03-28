@@ -7,7 +7,7 @@ toolchain go1.21.1
 require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
-	github.com/ava-labs/avalanchego v1.11.3
+	github.com/ava-labs/avalanchego v1.11.4-0.20240328214615-ebd6fedac387
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/dustin/go-humanize v1.0.0
@@ -26,6 +26,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.4
+	github.com/zeebo/xxh3 v1.0.2
 	go.opentelemetry.io/otel v1.22.0
 	go.opentelemetry.io/otel/exporters/zipkin v1.11.2
 	go.opentelemetry.io/otel/sdk v1.22.0
@@ -79,7 +80,6 @@ require (
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
-	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.22.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.22.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.22.0 // indirect
