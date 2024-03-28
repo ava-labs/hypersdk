@@ -5326,13 +5326,26 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "CHAIN_ID_VAL",
+          "value": "CHAIN_ID_VAL"
+        },
         "hide": 0,
-        "name": "ChainID",
-        "options": [],
-        "query": "",
+        "includeAll": false,
+        "multi": false,
+        "name": "CHAIN_ID",
+        "options": [
+          {
+            "selected": true,
+            "text": "CHAIN_ID_VAL",
+            "value": "CHAIN_ID_VAL"
+          }
+        ],
+        "query": "CHAIN_ID_VAL",
+        "queryValue": "",
         "skipUrlSync": false,
-        "type": "textbox"
+        "type": "custom"
       }
     ]
   },
