@@ -4,6 +4,11 @@
 
 set -e
 
+# Set console colors
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 # Ensure we return back to the original directory
 pw=$(pwd)
 function cleanup() {
@@ -13,24 +18,24 @@ trap cleanup EXIT
 
 # Ensure that the script is being run from the repository root
 if ! [[ "$0" =~ scripts/deploy.devnet.sh ]]; then
-  echo "must be run from repository root"
-  exit 255
+  echo -e "${RED}must be run from repository root${NC}"
+  exit 1
 fi
 
 # Ensure required software is installed and aws credentials are set
 if ! command -v go >/dev/null 2>&1 ; then
-    echo "golang is not installed. exiting..."
+    echo -e "${RED}golang is not installed. exiting...${NC}"
     exit 1
 fi
 if ! aws sts get-caller-identity >/dev/null 2>&1 ; then
-    echo "aws credentials not set. exiting..."
+    echo -e "${RED}aws credentials not set. exiting...${NC}"
     exit 1
 fi
 
 # Create temporary directory for the deployment
 TMPDIR=/tmp/morpheusvm-deploy
 rm -rf $TMPDIR && mkdir -p $TMPDIR
-echo "working directory: $TMPDIR"
+echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
 LOCAL_CLI_COMMIT=7537e80954730d8b9e165507cd2afc358dddc03a
@@ -45,7 +50,7 @@ cd $pw
 
 # Install morpheus-cli
 MORPHEUS_VM_COMMIT=3c42b089969c2f24f589473ae1e06ce3de82ebeb
-echo "building morpheus-cli"
+echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
 cd hypersdk
@@ -74,7 +79,6 @@ MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_UINT64=18446744073709551615
 MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}" # in a load test, all we care about is that chunks are size-bounded (2MB network limit)
-echo "creating allocations file"
 # Sum of allocations must be less than uint64 max
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
@@ -155,28 +159,22 @@ EOF
 
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
 function cleanup {
-  echo -e "${RED}To destroy the devnet, run:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}"
+  echo -e "${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}"
 }
 trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
 #
 # It is not recommended to use an instance with burstable network performance.
+echo -e "${YELLOW}creating devnet${NC}"
 $TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type m7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
-echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
-cat ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
-
 # Import the cluster into morpheus-cli for local interaction
-echo "Importing cluster into local morpheus-cli"
 $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml
 
 # Point to cluster dashboard
-echo -e "${YELLOW}To monitor devnet health, view the \"Vryx PoC\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc (username: admin, password: admin)"
+echo -e "${YELLOW}devnet dashboard:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc (username: admin, password: admin)"
 
 # Wait for user to confirm that they want to launch load test
 while true
@@ -215,9 +213,7 @@ fi
 # Start load test on dedicated machine
 #
 # Zipf parameters expected to lead to ~1M active accounts per 60s
-echo "Starting load test"
+echo -e "${YELLOW}starting load test${NC}"
 $TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.15 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
-
-# Emit instructions for use
-echo -e "${YELLOW}To stop load test, run:${NC} ${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\""
-echo -e "${YELLOW}To monitor load test, view the \"Logs\" dashboard on grafana:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/TODO (username: admin, password: admin)"
+echo -e "${YELLOW}load test logs:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/TODO (username: admin, password: admin)"
+echo -e "${YELLOW}run this command to stop load test:${NC} ${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\""
