@@ -32,7 +32,7 @@ type Executor struct {
 	done      bool
 	completed int
 	tasks     map[int]*task
-	edges     map[string]int
+	nodes     map[string]int
 }
 
 // New creates a new [Executor].
@@ -41,7 +41,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		metrics:    metrics,
 		stop:       make(chan struct{}),
 		tasks:      make(map[int]*task, items),
-		edges:      make(map[string]int, items*2), // TODO: tune this
+		nodes:      make(map[string]int, items*2), // TODO: tune this
 		executable: make(chan *task, items),       // ensure we don't block while holding lock
 	}
 	e.wg.Add(concurrency)
@@ -103,39 +103,32 @@ func (e *Executor) runWorker() {
 }
 
 // Run executes [f] after all previously enqueued [f] with
-// overlapping [conflicts] are executed.
-// TODO: Handle read-only/write-only keys (currently the executor
-// treats everything still as ReadWrite, see issue below)
-// https://github.com/ava-labs/hypersdk/issues/709
-func (e *Executor) Run(conflicts state.Keys, f func() error) {
+// overlapping [keys] are executed.
+func (e *Executor) Run(keys state.Keys, f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()
 
 	// Add task to map
 	id := len(e.tasks)
 	t := &task{
-		id: id,
-		f:  f,
+		id:           id,
+		f:            f,
+		dependencies: set.NewSet[int](defaultSetSize),
+		blocking:     set.NewSet[int](defaultSetSize),
 	}
 	e.tasks[id] = t
 
 	// Record dependencies
-	for k := range conflicts {
-		latest, ok := e.edges[k]
+	for k := range keys {
+		latest, ok := e.nodes[k]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
-				if t.dependencies == nil {
-					t.dependencies = set.NewSet[int](defaultSetSize)
-				}
 				t.dependencies.Add(lt.id)
-				if lt.blocking == nil {
-					lt.blocking = set.NewSet[int](defaultSetSize)
-				}
 				lt.blocking.Add(id)
 			}
 		}
-		e.edges[k] = id
+		e.nodes[k] = id
 	}
 
 	// Start execution if there are no blocking dependencies
