@@ -164,13 +164,13 @@ func init() {
 	runSpamCmd.PersistentFlags().Float64Var(
 		&sZipf,
 		"s-zipf",
-		1.2,
+		1.01,
 		"Zipf distribution = [(v+k)^(-s)]",
 	)
 	runSpamCmd.PersistentFlags().Float64Var(
 		&vZipf,
 		"v-zipf",
-		2.0,
+		2.7,
 		"Zipf distribution = [(v+k)^(-s)]",
 	)
 	runSpamCmd.PersistentFlags().BoolVar(
