@@ -1,4 +1,4 @@
-package vm
+package merkle
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
@@ -26,7 +27,7 @@ func randBytes() []byte {
 }
 
 func BenchmarkMerkleDB(b *testing.B) {
-	for _, sync := range []bool{true, false} {
+	for _, sync := range []bool{false, true} {
 		// Setup DB
 		tdir := b.TempDir()
 		cfg := pebble.NewDefaultConfig()
@@ -49,8 +50,8 @@ func BenchmarkMerkleDB(b *testing.B) {
 		}
 
 		// Run experiments
-		keys := make([]string, 10_000_000)
-		sizeArr := []int{1_000, 10_000, 100_000, 1_000_000, 10_000_000}
+		keys := make([]string, 15_000_000)
+		sizeArr := []int{100_000, 1_000_000, 10_000_000, 15_000_000}
 		for s, size := range sizeArr {
 			// Determine new item count
 			last := 0
@@ -73,12 +74,13 @@ func BenchmarkMerkleDB(b *testing.B) {
 			}
 
 			// Run through ops
-			for _, keyOps := range []int{1_000, 5_000, 10_000, 25_000, 50_000, 75_000, 100_000, 250_000, 500_000, 1_000_000} {
+			for _, keyOps := range []int{100, 1_000, 5_000, 10_000, 25_000, 50_000, 75_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 7_500_000, 10_000_000} {
 				if keyOps > size {
 					continue
 				}
 				b.Run(fmt.Sprintf("sync=%t_keys=%d_ops=%d", sync, size, keyOps), func(b *testing.B) {
 					for i := 0; i < b.N; i++ {
+						b.StopTimer()
 						// Initialize sampler (ensure not just re-setting the same keys)
 						s := sampler.NewUniform()
 						s.Initialize(uint64(keyOps))
@@ -92,18 +94,25 @@ func BenchmarkMerkleDB(b *testing.B) {
 							}
 							ops[keys[idx]] = maybe.Some(randBytes())
 						}
+						b.StartTimer()
 
 						// Create view, commit, get root
+						viewStart := time.Now()
 						view, err = db.NewView(context.TODO(), merkledb.ViewChanges{MapOps: ops})
 						if err != nil {
 							b.Fatal(err)
 						}
+						viewDur := time.Since(viewStart)
+						rootStart := time.Now()
+						if _, err := view.GetMerkleRoot(context.TODO()); err != nil {
+							b.Fatal(err)
+						}
+						rootDur := time.Since(rootStart)
+						commitStart := time.Now()
 						if err := view.CommitToDB(context.TODO()); err != nil {
 							b.Fatal(err)
 						}
-						if _, err := db.GetMerkleRoot(context.TODO()); err != nil {
-							b.Fatal(err)
-						}
+						b.Log("view creation", viewDur, "root generation", rootDur, "commit", time.Since(commitStart))
 					}
 				})
 			}

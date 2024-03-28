@@ -36,11 +36,11 @@ import (
 )
 
 const (
-	plotSamples    = 1000
-	plotIdentities = 10
+	plotSamples    = 5000
+	plotIdentities = 20
 	plotBarWidth   = 10
-	plotOverhead   = 10
-	plotHeight     = 25
+	plotOverhead   = 20
+	plotHeight     = 30
 
 	pendingTargetMultiplier        = 10
 	pendingExpiryBuffer            = 15 * consts.MillisecondsPerSecond

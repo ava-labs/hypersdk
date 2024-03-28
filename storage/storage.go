@@ -40,7 +40,7 @@ func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database
 		return nil, nil, nil, err
 	}
 	stateCfg := pebble.NewDefaultConfig()
-	stateCfg.Sync = false // this is the default but we explicitly set it here for clarity
+	stateCfg.Sync = false // we can recover invalid state from persisted blocks/chunks
 	stateDB, stateDBRegistry, err := pebble.New(statePath, stateCfg)
 	if err != nil {
 		return nil, nil, nil, err

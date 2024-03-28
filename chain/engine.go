@@ -29,7 +29,6 @@ type output struct {
 	chunkResults [][]*Result
 
 	chunks []*FilteredChunk
-	root   ids.ID
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -42,11 +41,14 @@ type Engine struct {
 
 	backlog chan *engineJob
 
-	latestView state.View
+	db state.Database
 
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
+
+	rootsLock sync.Mutex
+	roots     map[uint64]ids.ID
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -59,6 +61,7 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 		backlog: make(chan *engineJob, maxBacklog),
 
 		outputs: make(map[uint64]*output),
+		roots:   make(map[uint64]ids.ID),
 	}
 }
 
@@ -70,12 +73,11 @@ func (e *Engine) processJob(job *engineJob) error {
 	ctx := context.Background() // TODO: cleanup
 
 	// Setup state
-	parentView := e.latestView
 	r := e.vm.Rules(job.blk.StatefulBlock.Timestamp)
 
 	// Fetch parent height key and ensure block height is valid
 	heightKey := HeightKey(e.vm.StateManager().HeightKey())
-	parentHeightRaw, err := parentView.GetValue(ctx, heightKey)
+	parentHeightRaw, err := e.db.GetValue(ctx, heightKey)
 	if err != nil {
 		return err
 	}
@@ -91,7 +93,7 @@ func (e *Engine) processJob(job *engineJob) error {
 		shouldUpdatePHeight bool
 	)
 	pHeightKey := PHeightKey(e.vm.StateManager().PHeightKey())
-	pHeightRaw, err := parentView.GetValue(ctx, pHeightKey)
+	pHeightRaw, err := e.db.GetValue(ctx, pHeightKey)
 	if err == nil {
 		h := binary.BigEndian.Uint64(pHeightRaw)
 		pHeight = &h
@@ -113,7 +115,7 @@ func (e *Engine) processJob(job *engineJob) error {
 	// Process chunks
 	//
 	// We know that if any new available chunks are added that block context must be non-nil (so warp messages will be processed).
-	p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, parentView, r)
+	p := NewProcessor(e.vm, e, pHeight, epochHeights, len(job.blk.AvailableChunks), job.blk.StatefulBlock.Timestamp, e.db, r)
 	chunks := make([]*Chunk, 0, len(job.blk.AvailableChunks))
 	for chunk := range job.chunks {
 		// Handle fetched chunk
@@ -230,7 +232,7 @@ func (e *Engine) processJob(job *engineJob) error {
 		// expected to set to the p-chain hegiht for an epoch.
 		nextEpoch := epoch + 3
 		nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
-		epochValueRaw, err := parentView.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
+		epochValueRaw, err := e.db.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
 		switch {
 		case err == nil:
 			e.vm.Logger().Debug(
@@ -267,20 +269,9 @@ func (e *Engine) processJob(job *engineJob) error {
 		return err
 	}
 
-	// Create new view and persist to disk
-	view, changes, err := ts.ExportMerkleDBView(ctx, e.vm.Tracer(), parentView)
-	if err != nil {
-		return err
-	}
-	e.vm.RecordStateChanges(changes)
+	// Persist changes to state
 	commitStart := time.Now()
-	if err := view.CommitToDB(ctx); err != nil {
-		return err
-	}
-	root, err := view.GetMerkleRoot(ctx)
-	if err != nil {
-		return err
-	}
+	e.vm.RecordStateChanges(e.db.Update(ctx, ts.Keys()))
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view
@@ -289,12 +280,10 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.outputs[job.blk.StatefulBlock.Height] = &output{
 		txs:          txSet,
 		chunkResults: chunkResults,
-		root:         root,
 		chunks:       filteredChunks,
 	}
 	e.largestOutput = &job.blk.StatefulBlock.Height
 	e.outputsLock.Unlock()
-	e.latestView = state.View(e.vm.ForceState()) // Don't offer views that will be discarded
 
 	log.Info(
 		"executed block",
@@ -303,7 +292,6 @@ func (e *Engine) processJob(job *engineJob) error {
 		zap.Int("valid txs", validTxs),
 		zap.Int("total txs", txCount),
 		zap.Int("chunks", len(filteredChunks)),
-		zap.Stringer("root", root),
 		zap.Uint64("epoch", epoch),
 		zap.Duration("t", time.Since(estart)),
 	)
@@ -311,14 +299,43 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.vm.RecordTxsIncluded(txCount)
 	e.vm.RecordExecutedEpoch(epoch)
 	e.vm.ExecutedBlock(ctx, job.blk.StatefulBlock)
+
+	// Kickoff root generation/ask for previously generated root
+	//
+	// Note: the first block with a root (not including genesis) will be 2*r.GetRootFrequency()
+	if job.blk.StatefulBlock.Height > 0 && job.blk.StatefulBlock.Height%r.GetRootFrequency() == 0 {
+		// Lock in commit ensures we can't run another commit until the previous finishes
+		commit, items := e.db.PrepareCommit(ctx)
+		go func() {
+			rootStart := time.Now()
+			root, err := commit(context.Background())
+			if err != nil {
+				log.Error("failed to generate root", zap.Error(err))
+				panic(err)
+			}
+			e.rootsLock.Lock()
+			e.roots[job.blk.StatefulBlock.Height] = root
+			e.rootsLock.Unlock()
+			e.vm.RecordWaitRoot(time.Since(rootStart))
+			e.vm.RecordRootChanges(items)
+			e.vm.Logger().Info(
+				"generated root",
+				zap.Uint64("height", job.blk.StatefulBlock.Height),
+				zap.Int("items", items),
+				zap.Duration("t", time.Since(rootStart)),
+			)
+		}()
+	}
 	return nil
 }
 
 func (e *Engine) Run() {
 	defer close(e.done)
 
+	// TODO: load state into memory
+
 	// Get last accepted state
-	e.latestView = state.View(e.vm.ForceState()) // TODO: state may not be ready at this point
+	e.db = e.vm.ForceState()
 
 	for {
 		select {
@@ -354,7 +371,7 @@ func (e *Engine) Execute(blk *StatelessBlock) {
 	}
 }
 
-func (e *Engine) Results(height uint64) (ids.ID /* Root */, []ids.ID /* Executed Chunks */, error) {
+func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, error) {
 	// TODO: handle case where never started execution (state sync)
 	e.outputsLock.RLock()
 	defer e.outputsLock.RUnlock()
@@ -364,30 +381,50 @@ func (e *Engine) Results(height uint64) (ids.ID /* Root */, []ids.ID /* Executed
 		for i, chunk := range output.chunks {
 			id, err := chunk.ID()
 			if err != nil {
-				return ids.Empty, nil, err
+				return nil, err
 			}
 			filteredIDs[i] = id
 		}
-		return output.root, filteredIDs, nil
+		return filteredIDs, nil
 	}
-	return ids.Empty, nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
+	return nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
 
-// TODO: cleanup this function signautre
-func (e *Engine) Commit(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
-	// TODO: fetch results prior to commit to reduce observed finality (state won't be queryable yet but can send block/results)
+func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
 	e.outputsLock.Lock()
+	defer e.outputsLock.Unlock()
+
 	output, ok := e.outputs[height]
 	if !ok {
-		e.outputsLock.Unlock()
 		return nil, nil, fmt.Errorf("%w: %d", errors.New("not outputs found at height"), height)
 	}
 	delete(e.outputs, height)
 	if e.largestOutput != nil && *e.largestOutput == height {
 		e.largestOutput = nil
 	}
-	e.outputsLock.Unlock()
 	return output.chunkResults, output.chunks, nil
+}
+
+func (e *Engine) Root(height uint64) (ids.ID, error) {
+	e.rootsLock.Lock()
+	defer e.rootsLock.Unlock()
+
+	if root, ok := e.roots[height]; ok {
+		return root, nil
+	}
+	return ids.Empty, fmt.Errorf("%w: root not found for %d", errors.New("not found"), height)
+}
+
+func (e *Engine) PruneRoot(ctx context.Context, height uint64) (ids.ID, error) {
+	e.rootsLock.Lock()
+	defer e.rootsLock.Unlock()
+
+	root, ok := e.roots[height]
+	if !ok {
+		return ids.Empty, fmt.Errorf("%w: %d", errors.New("not root found at height"), height)
+	}
+	delete(e.roots, height)
+	return root, nil
 }
 
 func (e *Engine) IsRepeatTx(
@@ -417,15 +454,7 @@ func (e *Engine) IsRepeatTx(
 }
 
 func (e *Engine) ReadLatestState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	view := e.latestView
-	results := make([][]byte, len(keys))
-	errors := make([]error, len(keys))
-	for i, key := range keys {
-		result, err := view.GetValue(ctx, key)
-		results[i] = result
-		errors[i] = err
-	}
-	return results, errors
+	return e.db.GetValues(ctx, keys)
 }
 
 func (e *Engine) Done() {

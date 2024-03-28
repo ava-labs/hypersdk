@@ -26,7 +26,7 @@ AGO_LOG_DISPLAY_LEVEL=${AGO_LOG_DISPLAY_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 EPOCH_DURATION=${EPOCH_DURATION:-10000}
 VALIDITY_WINDOW=${VALIDITY_WINDOW:-9000}
-MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1600}
+MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 if [[ ${MODE} != "run" ]]; then
   LOG_LEVEL=debug
@@ -157,7 +157,7 @@ rm -f "${TMPDIR}"/morpheusvm.config
 rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 400,
+  "chunkBuildFrequency": 333,
   "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
   "mempoolSize": 2147483648,

@@ -55,7 +55,7 @@ go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 # morpheus1qz97wx3vl3upjuquvkulp56nk20l3jumm3y4yva7v6nlz5rf8ukty8fh27r: 3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5
 EPOCH_DURATION=60000
 VALIDITY_WINDOW=59000
-MIN_BLOCK_GAP=1600
+MIN_BLOCK_GAP=1000
 MIN_UNIT_PRICE="1,1,1,1,1"
 MAX_UINT64=18446744073709551615
 MAX_CHUNK_UNITS="1800000,${MAX_UINT64},${MAX_UINT64},${MAX_UINT64},${MAX_UINT64}" # in a load test, all we care about is that chunks are size-bounded (2MB network limit)
@@ -82,7 +82,7 @@ EOF
 # TODO: find a smarter way to split auth cores between exec and RPC
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 400,
+  "chunkBuildFrequency": 333,
   "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
   "mempoolSize": 2147483648,
@@ -202,8 +202,8 @@ if [ $TIME_TAKEN -lt $SLEEP_DUR ]; then
 fi
 
 echo -e "${YELLOW}To run load test, ssh into monitoring instance run these commands:${NC}"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=1000000 --txs-per-second=100000 --step-size=1000 --s-zipf=1.2 --v-zipf=2 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=1000000 --txs-per-second=100000 --step-size=1000 --s-zipf=1.2 --v-zipf=2 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=1000000 --txs-per-second=100000 --step-size=1000 --s-zipf=1.2 --v-zipf=2 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=1000000 --txs-per-second=100000 --step-size=1000 --s-zipf=1.2 --v-zipf=2 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77"
-echo "/home/ubuntu/simulator spam run ed25519 --accounts=1000000 --txs-per-second=100000 --step-size=1000 --s-zipf=1.2 --v-zipf=2 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ee11a050c75f0f47390f8ed98ab29fbce8c1f820b0245af56e1cb484a80c8022d77899baf0059747b8b685cfe62296f85f67083dc0bf8d2fab24c5ee3a7563b9"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=34214e27f4c7d17315694968e37d999b848bb7b0bc95d679eb8163cf516c15dd9e77d9ebe639f9bece4260f4cce91ccf365dbce726da4299ff5a1b1ed31b339e"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=ba09c65939a182f46879fcda172eabe9844d1f0a835a00c905dd2fa11b61a50ff38c9fdaef41e74730a732208284f2199fcd2f31779942662139884ca3f97a77"
+echo "/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.01 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=3e5ab8a792187c8fa0a87e2171058d9a0c16ca07bc35c2cfb5e2132078fe18c0a70d00475d1e86ef32bb22397e47722c420dd4caf157400b83d9262af6bf0af5"
