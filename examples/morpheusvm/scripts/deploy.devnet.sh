@@ -11,12 +11,6 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-# Set the CGO flags to use the portable version of BLST
-#
-# We use "export" here instead of just setting a bash variable because we need
-# to pass this flag to all child processes spawned by the shell.
-export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
-
 # Ensure that the script is being run from the repository root
 if ! [[ "$0" =~ scripts/deploy.devnet.sh ]]; then
   echo "must be run from repository root"
@@ -29,18 +23,29 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo "working directory: $TMPDIR"
 
 # Install avalanche-cli
-CLI_COMMIT=v1.4.3-rc.2
+LOCAL_CLI_COMMIT=7537e80954730d8b9e165507cd2afc358dddc03a
+REMOTE_CLI_COMMIT=v1.4.3-rc.2
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
-git checkout 7537e80954730d8b9e165507cd2afc358dddc03a # TODO: replace with CLI_COMMIT
+git checkout $LOCAL_CLI_COMMIT
 ./scripts/build.sh
 mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
-# Build morpheus-cli
+# Install morpheus-cli
+MORPHEUS_VM_COMMIT=3c42b089969c2f24f589473ae1e06ce3de82ebeb
 echo "building morpheus-cli"
-go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
+cd $TMPDIR
+git clone https://github.com/ava-labs/hypersdk
+cd hypersdk
+git checkout $MORPHEUS_VM_COMMIT
+VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
+VM_COMMIT=$(git rev-parse HEAD)
+cd examples/morpheusvm
+./scripts/build.sh
+mv ./build/morpheus-cli "${TMPDIR}/morpheus-cli"
+cd $pw
 
 # Generate genesis file and configs
 #
@@ -140,8 +145,6 @@ EOF
 
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
-VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
-VM_COMMIT=$(git rev-parse HEAD)
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
@@ -152,7 +155,7 @@ trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
 #
 # It is not recommended to use an instance with burstable network performance.
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type m7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $CLI_COMMIT --add-grafana-dashboard="grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type m7g.8xlarge --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
 echo "Cluster info: (~/.avalanche-cli/nodes/inventories/${CLUSTER}/clusterInfo.yaml)"
