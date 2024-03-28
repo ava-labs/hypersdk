@@ -50,7 +50,7 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 		state: make(map[string][]byte, stateInitialSize),
 		mdb:   mdb,
 	}
-	rv, err := mdb.NewRollingView(ctx)
+	rv, err := mdb.NewRollingView(ctx, pendingInitialSize)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +90,8 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 	m.l.Lock()
 	defer m.l.Unlock()
 
+	// It is safe to add to [rchannel] before the callback is set (pending
+	// requests will just be queued on the channel).
 	rc := m.rc
 	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
 
@@ -103,7 +105,7 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 		}
 
 		// Create new rv once trie is updated
-		newRv, err := m.rv.NewRollingView(ctx)
+		newRv, err := m.rv.NewRollingView(ctx, pendingInitialSize)
 		if err != nil {
 			return ids.Empty, err
 		}
