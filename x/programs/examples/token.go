@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -33,8 +34,9 @@ const (
 	Balance
 )
 
-func NewToken(log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
+func NewToken(programID ids.ID, log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
 	return &Token{
+		programID:    programID,
 		log:          log,
 		programBytes: programBytes,
 		cfg:          cfg,
@@ -53,6 +55,7 @@ type minter struct {
 }
 
 type Token struct {
+	programID    ids.ID
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
@@ -62,9 +65,21 @@ type Token struct {
 	engine       *engine.Engine
 }
 
+func (t *Token) Context() program.Context {
+	return program.Context{
+		ProgramID: t.programID,
+	}
+}
+
+func (t *Token) ProgramID() ids.ID {
+	return t.programID
+}
+
 func (t *Token) Run(ctx context.Context) error {
 	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
-	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
+	programContext := t.Context()
+
+	err := rt.Initialize(ctx, programContext, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
@@ -79,7 +94,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// simulate create program transaction
-	programID := ids.GenerateTestID()
+	programID := t.ProgramID()
 	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
 	if err != nil {
 		return err
@@ -90,17 +105,12 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	programIDPtr, err := argumentToSmartPtr(programID, mem)
-	if err != nil {
-		return err
-	}
-
 	t.log.Debug("new token program created",
 		zap.String("id", programID.String()),
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", programContext)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
@@ -109,7 +119,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("init", resp[0]),
 	)
 
-	result, err := rt.Call(ctx, "get_total_supply", programIDPtr)
+	result, err := rt.Call(ctx, "get_total_supply", programContext)
 	if err != nil {
 		return err
 	}
@@ -142,7 +152,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -157,7 +167,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlicePtr)
+	_, err = rt.Call(ctx, "mint_to", programContext, alicePtr, mintAlicePtr)
 	if err != nil {
 		return err
 	}
@@ -166,7 +176,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -175,7 +185,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -189,7 +199,7 @@ func (t *Token) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, transferToBobPtr)
+	_, err = rt.Call(ctx, "transfer", programContext, alicePtr, bobPtr, transferToBobPtr)
 	if err != nil {
 		return err
 	}
@@ -203,7 +213,7 @@ func (t *Token) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = rt.Call(ctx, "transfer", programIDPtr, alicePtr, bobPtr, onePtr)
+	_, err = rt.Call(ctx, "transfer", programContext, alicePtr, bobPtr, onePtr)
 	if err != nil {
 		return err
 	}
@@ -213,7 +223,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -222,7 +232,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -255,7 +265,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// perform bulk mint
-	_, err = rt.Call(ctx, "mint_to_many", programIDPtr, mintersPtr)
+	_, err = rt.Call(ctx, "mint_to_many", programContext, mintersPtr)
 	if err != nil {
 		return err
 	}
@@ -265,7 +275,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
 		return err
 	}
@@ -274,7 +284,7 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programIDPtr, bobPtr)
+	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
@@ -286,7 +296,10 @@ func (t *Token) Run(ctx context.Context) error {
 // RunShort performs the steps of initialization only, used for benchmarking.
 func (t *Token) RunShort(ctx context.Context) error {
 	rt := runtime.New(t.log, t.engine, t.imports, t.cfg)
-	err := rt.Initialize(ctx, t.programBytes, t.maxUnits)
+
+	programContext := t.Context()
+
+	err := rt.Initialize(ctx, programContext, t.programBytes, t.maxUnits)
 	if err != nil {
 		return err
 	}
@@ -300,19 +313,9 @@ func (t *Token) RunShort(ctx context.Context) error {
 		zap.Uint64("balance", balance),
 	)
 
+	programID := t.ProgramID()
 	// simulate create program transaction
-	programID := ids.GenerateTestID()
 	err = storage.SetProgram(ctx, t.db, programID, t.programBytes)
-	if err != nil {
-		return err
-	}
-
-	mem, err := rt.Memory()
-	if err != nil {
-		return err
-	}
-
-	programIDPtr, err := argumentToSmartPtr(programID, mem)
 	if err != nil {
 		return err
 	}
@@ -322,7 +325,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programIDPtr)
+	resp, err := rt.Call(ctx, "init", program.Context{ProgramID: programID})
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}

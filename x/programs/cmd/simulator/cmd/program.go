@@ -144,6 +144,7 @@ func programExecuteFunc(
 ) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
+
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
@@ -157,6 +158,7 @@ func programExecuteFunc(
 
 	// execute the action
 	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID, false)
+
 	if !success {
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}
