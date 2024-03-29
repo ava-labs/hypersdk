@@ -756,14 +756,6 @@ type txIssuer struct {
 	abandoned error
 }
 
-type timeModifier struct {
-	Timestamp int64
-}
-
-func (t *timeModifier) Base(b *chain.Base) {
-	b.Timestamp = t.Timestamp
-}
-
 func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 	issuerWg.Add(1)
 	go func() {
@@ -824,11 +816,7 @@ func startConfirmer(cctx context.Context, c *rpc.WebSocketClient) {
 }
 
 func issueTransfer(cctx context.Context, issuer *txIssuer, issuerIndex int, feePerTx uint64, factory chain.AuthFactory, action chain.Action) error {
-	// Select tx time
-	nextTime := time.Now().Unix()
-	tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - consts.MillisecondsPerSecond /* may be a second early depending on clock sync */}
-
-	_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx, tm)
+	_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, feePerTx)
 	if err != nil {
 		utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
 		return err
