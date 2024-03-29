@@ -1042,7 +1042,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 							continue
 						}
 						c.vm.metrics.txGossipDropped.Inc()
-						c.vm.Logger().Debug(
+						c.vm.Logger().Warn(
 							"did not add incoming tx to mempool",
 							zap.Stringer("peerID", txw.nodeID),
 							zap.Stringer("txID", tx.ID()),
