@@ -143,7 +143,7 @@ func (vm *VM) Initialize(
 	appSender common.AppSender,
 ) error {
 	vm.snowCtx = snowCtx
-	vm.pkBytes = bls.PublicKeyToBytes(vm.snowCtx.PublicKey)
+	vm.pkBytes = bls.PublicKeyToCompressedBytes(vm.snowCtx.PublicKey)
 	// This will be overwritten when we accept the first block (in state sync) or
 	// backfill existing blocks (during normal bootstrapping).
 	vm.startSeenTime = -1

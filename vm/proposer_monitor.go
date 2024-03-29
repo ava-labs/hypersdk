@@ -75,7 +75,7 @@ func (p *ProposerMonitor) refresh(ctx context.Context) error {
 		if v.PublicKey == nil {
 			continue
 		}
-		pks[string(bls.PublicKeyToBytes(v.PublicKey))] = struct{}{}
+		pks[string(bls.PublicKeyToCompressedBytes(v.PublicKey))] = struct{}{}
 	}
 	p.validatorPublicKeys = pks
 	p.vm.snowCtx.Log.Info(

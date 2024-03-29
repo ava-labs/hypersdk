@@ -239,14 +239,14 @@ func PrefixWarpSignatureKey(txID ids.ID, signer *bls.PublicKey) []byte {
 	k := make([]byte, 1+consts.IDLen+bls.PublicKeyLen)
 	k[0] = warpSignaturePrefix
 	copy(k[1:], txID[:])
-	copy(k[1+consts.IDLen:], bls.PublicKeyToBytes(signer))
+	copy(k[1+consts.IDLen:], bls.PublicKeyToCompressedBytes(signer))
 	return k
 }
 
 func (vm *VM) StoreWarpSignature(txID ids.ID, signer *bls.PublicKey, signature []byte) error {
 	k := PrefixWarpSignatureKey(txID, signer)
 	// Cache any signature we produce for later queries from peers
-	if bytes.Equal(vm.pkBytes, bls.PublicKeyToBytes(signer)) {
+	if bytes.Equal(vm.pkBytes, bls.PublicKeyToCompressedBytes(signer)) {
 		signatureLRU.Put(string(k), chain.NewWarpSignature(vm.pkBytes, signature))
 	}
 	return vm.vmDB.Put(k, signature)
@@ -265,7 +265,7 @@ func (vm *VM) GetWarpSignature(txID ids.ID, signer *bls.PublicKey) (*chain.WarpS
 		return nil, err
 	}
 	ws := &chain.WarpSignature{
-		PublicKey: bls.PublicKeyToBytes(signer),
+		PublicKey: bls.PublicKeyToCompressedBytes(signer),
 		Signature: v,
 	}
 	return ws, nil

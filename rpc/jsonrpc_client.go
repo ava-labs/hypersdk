@@ -147,7 +147,7 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 			Weight: vdr.Weight,
 		}
 		if len(vdr.PublicKey) > 0 {
-			pk, err := bls.PublicKeyFromBytes(vdr.PublicKey)
+			pk, err := bls.PublicKeyFromCompressedBytes(vdr.PublicKey)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -271,7 +271,7 @@ func getCanonicalValidatorSet(
 			continue
 		}
 
-		pkBytes := bls.PublicKeyToBytes(vdr.PublicKey)
+		pkBytes := bls.PublicKeyToCompressedBytes(vdr.PublicKey)
 		uniqueVdr, ok := vdrs[string(pkBytes)]
 		if !ok {
 			uniqueVdr = &warp.Validator{

@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
-	github.com/ava-labs/avalanchego v1.11.2
+	github.com/ava-labs/avalanchego v1.11.3
 	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
@@ -84,7 +84,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/grpc v1.62.0 // indirect
-	google.golang.org/protobuf v1.32.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

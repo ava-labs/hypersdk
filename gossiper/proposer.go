@@ -376,5 +376,8 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 		}
 		recipients.Add(proposer)
 	}
-	return g.appSender.SendAppGossipSpecific(ctx, recipients, b)
+	sendConfig := common.SendConfig{
+		NodeIDs: recipients,
+	}
+	return g.appSender.SendAppGossip(ctx, sendConfig, b)
 }

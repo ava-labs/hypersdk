@@ -393,26 +393,11 @@ func (w *WrappedAppSender) SendAppError(
 // Gossip an application-level message.
 // A non-nil error should be considered fatal.
 func (w *WrappedAppSender) SendAppGossip(
-	ctx context.Context, appGossipBytes []byte,
-	numValidators int, numNonValidators int, numPeers int,
+	ctx context.Context, sendConfig common.SendConfig, appGossipBytes []byte,
 ) error {
 	return w.n.sender.SendAppGossip(
 		ctx,
-		w.createMessageBytes(appGossipBytes),
-		numValidators,
-		numNonValidators,
-		numPeers,
-	)
-}
-
-func (w *WrappedAppSender) SendAppGossipSpecific(
-	ctx context.Context,
-	nodeIDs set.Set[ids.NodeID],
-	appGossipBytes []byte,
-) error {
-	return w.n.sender.SendAppGossipSpecific(
-		ctx,
-		nodeIDs,
+		sendConfig,
 		w.createMessageBytes(appGossipBytes),
 	)
 }
