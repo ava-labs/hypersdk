@@ -215,8 +215,8 @@ func ParseStatefulBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Timestamp > time.Now().Add(FutureBound).UnixMilli() {
-		return nil, ErrTimestampTooLate
+	if blk.Timestamp > time.Now().UnixMilli()+consts.ClockSkewAllowance {
+		return nil, ErrTimestampTooEarly
 	}
 
 	if len(source) == 0 {
@@ -337,8 +337,8 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
 
 		// Perform basic correctness checks before doing any expensive work
-		if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
-			return ErrTimestampTooLate
+		if b.Timestamp().UnixMilli() > time.Now().UnixMilli()+consts.ClockSkewAllowance {
+			return ErrTimestampTooEarly
 		}
 
 		// Check that gap between parent is at least minimum
