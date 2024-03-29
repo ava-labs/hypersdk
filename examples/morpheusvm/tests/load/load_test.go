@@ -616,7 +616,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 			issuer := newSimpleTxIssuer()
 			tokenA := deployed["TokenA"]
 			tokenB := deployed["TokenB"]
-			amount := big.NewInt(1_000)
+			amount := big.NewInt(10_000_000)
 
 			for _, acct := range senders {
 				evmTxBuilder := &evmTxBuilder{
@@ -682,19 +682,25 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				gomega.Ω(err).Should(gomega.BeNil())
 				return balance
 			}
-			_ = balanceOf
+
+			txBuilders := make([]*evmTxBuilder, len(senders))
+			for i, acct := range senders {
+				txBuilders[i] = &evmTxBuilder{
+					actor: acct.rsender,
+					bcli:  instances[0].tcli,
+				}
+			}
 
 			issuer := newSimpleTxIssuer()
-			for round := 0; round < 20; round++ {
+			totalSuccess, totalTxs := 0, 0
+			for round := 0; round < 100; round++ {
+				amountIn := big.NewInt(200)
+				// this avoids duplicate txs
+				amountIn = amountIn.Sub(amountIn, big.NewInt(int64(round)))
+
+				var minAmountOut *big.Int
 				for i, acct := range senders {
-					evmTxBuilder := &evmTxBuilder{
-						actor: acct.rsender,
-						bcli:  instances[0].tcli,
-					}
 					evmAddr := actions.ToEVMAddress(acct.rsender)
-					amountIn := big.NewInt(100)
-					// this avoids duplicate txs
-					amountIn = amountIn.Sub(amountIn, big.NewInt(int64(round)))
 
 					var route []ethCommon.Address
 					if (round+i)%2 == 0 {
@@ -702,7 +708,10 @@ var _ = ginkgo.Describe("load tests vm", func() {
 					} else {
 						route = routeBA
 					}
-					amountOut := amountOut(evmTxBuilder, amountIn, route, 95, 100)
+					amountOut := amountOut(txBuilders[i], amountIn, route, 50, 100)
+					if minAmountOut == nil || amountOut.Cmp(minAmountOut) < 0 {
+						minAmountOut = amountOut
+					}
 					deadline := big.NewInt(time.Now().Unix() + 1000)
 					calldata, err := abis["Router"].calldata(
 						"swapExactTokensForTokens",
@@ -713,17 +722,67 @@ var _ = ginkgo.Describe("load tests vm", func() {
 						deadline,
 					)
 					gomega.Ω(err).Should(gomega.BeNil())
-					action, err := evmTxBuilder.evmCall(ctx, &Args{
-						To:   &router,
-						Data: calldata,
-					})
+					var action *actions.EvmCall
+					for attempt := 0; attempt < 300; attempt++ {
+						action, err = txBuilders[i].evmCall(ctx, &Args{
+							To:   &router,
+							Data: calldata,
+						})
+						if err != nil {
+							balanceOfA := balanceOf(txBuilders[i], "TokenA", deployed["TokenA"])
+							balanceOfB := balanceOf(txBuilders[i], "TokenB", deployed["TokenB"])
+							log.Error("failed to create swap tx",
+								zap.Int("try", attempt),
+								zap.Error(err),
+								zap.Int("round", round),
+								zap.Int("account", i),
+								zap.Stringer("amountIn", amountIn),
+								zap.Stringer("amountOut", amountOut),
+								zap.Stringer("balanceA", balanceOfA),
+								zap.Stringer("balanceB", balanceOfB),
+							)
+							continue
+						}
+						break
+					}
 					gomega.Ω(err).Should(gomega.BeNil())
 					issuer.issueTx(action, acct.factory)
 				}
 				// some trades may not succeed, so we don't require all txs to be in a block
-				issuer.produceAndAcceptBlock(false)
-				log.Info("swap round completed", zap.Int("round", round))
+				success, txs := issuer.produceAndAcceptBlock(false)
+
+				// check balances
+				totalA := big.NewInt(0)
+				totalB := big.NewInt(0)
+				totalNative := uint64(0)
+				for i := range senders {
+					native, err := instances[0].tcli.Balance(context.Background(), senders[i].sender)
+					gomega.Ω(err).Should(gomega.BeNil())
+					balanceA := balanceOf(txBuilders[i], "TokenA", deployed["TokenA"])
+					balanceB := balanceOf(txBuilders[i], "TokenB", deployed["TokenB"])
+					totalA = totalA.Add(totalA, balanceA)
+					totalB = totalB.Add(totalB, balanceB)
+					totalNative += native
+				}
+				ratio := float64(minAmountOut.Uint64()) / float64(amountIn.Uint64())
+				log.Info(
+					"swap round totals",
+					zap.Int("round", round),
+					zap.Int("success", success),
+					zap.Int("txs", txs),
+					zap.Stringer("TokenA", totalA),
+					zap.Stringer("TokenB", totalB),
+					zap.Stringer("minAmountOut", minAmountOut),
+					zap.Float64("ratio", ratio),
+					zap.Uint64("native", totalNative),
+				)
+				totalSuccess += success
+				totalTxs += txs
 			}
+			log.Info("test summary",
+				zap.Int("totalSuccess", totalSuccess),
+				zap.Int("totalTxs", totalTxs),
+			)
 		})
 	})
 
@@ -847,8 +906,9 @@ func (s *simpleTxIssuer) issueTx(action chain.Action, signer chain.AuthFactory) 
 	s.pending[id] = struct{}{}
 }
 
-func (s *simpleTxIssuer) produceAndAcceptBlock(mustSucceed bool) {
+func (s *simpleTxIssuer) produceAndAcceptBlock(mustSucceed bool) (int, int) {
 	instances := s.instances
+	success, txs := 0, 0
 	for {
 		blk, accept := produceBlock(instances[0])
 		if blk == nil {
@@ -856,19 +916,10 @@ func (s *simpleTxIssuer) produceAndAcceptBlock(mustSucceed bool) {
 		}
 		accept()
 
-		success := 0
+		txs += len(blk.Results())
 		for _, result := range blk.Results() {
 			if result.Success {
 				success++
-			} else {
-				unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-				log.Warn(
-					"tx failed",
-					zap.Stringer("unit prices", unitPrices),
-					zap.Stringer("consumed", result.Consumed),
-					zap.Uint64("fee", result.Fee),
-					zap.Binary("output", result.Output),
-				)
 			}
 			if !mustSucceed {
 				continue
@@ -889,6 +940,7 @@ func (s *simpleTxIssuer) produceAndAcceptBlock(mustSucceed bool) {
 		}
 	}
 	gomega.Ω(len(s.pending)).To(gomega.BeZero())
+	return success, txs
 }
 
 func issueSimpleTx(
