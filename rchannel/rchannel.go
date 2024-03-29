@@ -2,13 +2,13 @@ package rchannel
 
 import (
 	"context"
-	"sync"
+
+	"github.com/ava-labs/hypersdk/smap"
 )
 
 type RChannel[V any] struct {
-	l       sync.Mutex
 	pending chan string
-	keys    map[string]V
+	keys    *smap.SMap[V]
 	done    chan struct{}
 	err     error
 }
@@ -16,7 +16,7 @@ type RChannel[V any] struct {
 func New[V any](backlog int) *RChannel[V] {
 	return &RChannel[V]{
 		pending: make(chan string, backlog),
-		keys:    make(map[string]V, backlog),
+		keys:    smap.New[V](backlog),
 		done:    make(chan struct{}),
 	}
 }
@@ -26,15 +26,11 @@ func (r *RChannel[V]) SetCallback(c func(context.Context, string, V) error) {
 		defer close(r.done)
 
 		for k := range r.pending {
-			r.l.Lock()
-			v, ok := r.keys[k]
+			v, ok := r.keys.GetAndDelete(k)
 			if !ok {
 				// Already handled
-				r.l.Unlock()
 				continue
 			}
-			delete(r.keys, k)
-			r.l.Unlock()
 
 			// Skip if we already errored (keep dequeing to prevent stall)
 			if r.err != nil {
@@ -50,10 +46,7 @@ func (r *RChannel[V]) SetCallback(c func(context.Context, string, V) error) {
 }
 
 func (r *RChannel[V]) Add(key string, val V) {
-	r.l.Lock()
-	r.keys[key] = val
-	r.l.Unlock()
-
+	r.keys.Put(key, val)
 	r.pending <- key
 }
 
