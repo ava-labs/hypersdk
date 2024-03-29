@@ -429,40 +429,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		b.verifiedCerts = true
 	}
 
-	// Verify roots
-	frequency := r.GetRootFrequency()
-	if b.StatefulBlock.Height > frequency && b.StatefulBlock.Height%frequency == 0 {
-		var (
-			rootHeight = b.StatefulBlock.Height - frequency
-			root       ids.ID
-			err        error
-		)
-		for {
-			root, err = b.vm.Engine().Root(rootHeight)
-			if err != nil {
-				if b.vm.IsBootstrapped() {
-					log.Debug("could not get root for block", zap.Uint64("height", rootHeight))
-					return fmt.Errorf("%w: no results for execHeight", err)
-				}
-				// If we haven't finished bootstrapping, we can't fail.
-				//
-				// TODO: we should actually not verify any of this (long p-chain lookbacks)
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			break
-		}
-		if b.Root != root {
-			log.Error("block has invalid root", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedRoot", root), zap.Stringer("actualRoot", b.Root))
-			panic("root mismatch") // could help us debug
-		}
-		b.rootHeight = &rootHeight
-	} else {
-		if b.Root != ids.Empty {
-			panic("root should be empty")
-		}
-	}
-
 	// Verify execution results
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height <= depth {
@@ -502,6 +468,40 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 			}
 		}
 		b.execHeight = &execHeight
+	}
+
+	// Verify roots
+	frequency := r.GetRootFrequency()
+	if b.StatefulBlock.Height > frequency && b.StatefulBlock.Height%frequency == 0 {
+		var (
+			rootHeight = b.StatefulBlock.Height - frequency
+			root       ids.ID
+			err        error
+		)
+		for {
+			root, err = b.vm.Engine().Root(rootHeight)
+			if err != nil {
+				if b.vm.IsBootstrapped() {
+					log.Debug("could not get root for block", zap.Uint64("height", rootHeight))
+					return fmt.Errorf("%w: no results for execHeight", err)
+				}
+				// If we haven't finished bootstrapping, we can't fail.
+				//
+				// TODO: we should actually not verify any of this (long p-chain lookbacks)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			break
+		}
+		if b.Root != root {
+			log.Error("block has invalid root", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedRoot", root), zap.Stringer("actualRoot", b.Root))
+			panic("root mismatch") // could help us debug
+		}
+		b.rootHeight = &rootHeight
+	} else {
+		if b.Root != ids.Empty {
+			panic("root should be empty")
+		}
 	}
 
 	b.vm.Verified(ctx, b)
