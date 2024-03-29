@@ -726,6 +726,18 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
-func (vm *VM) RecordRootChanges(c int) {
-	vm.metrics.rootChanges.Observe(float64(c))
+func (vm *VM) RecordTrieNodeChanges(c int) {
+	vm.metrics.trieNodeChanges.Observe(float64(c))
+}
+
+func (vm *VM) RecordTrieValueChanges(c int) {
+	vm.metrics.trieValueChanges.Observe(float64(c))
+}
+
+func (vm *VM) RecordTrieSkippedValueChanges(c int) {
+	vm.metrics.trieSkippedValueChanges.Observe(float64(c))
+}
+
+func (vm *VM) RecordWaitTrie(t time.Duration) {
+	vm.metrics.waitTrie.Observe(float64(t))
 }

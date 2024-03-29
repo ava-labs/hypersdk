@@ -92,8 +92,11 @@ type Metrics struct {
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
+	waitTrie                  metric.Averager
+	trieNodeChanges           metric.Averager
+	trieValueChanges          metric.Averager
+	trieSkippedValueChanges   metric.Averager
 	waitRoot                  metric.Averager
-	rootChanges               metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -168,19 +171,46 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	waitRoot, err := metric.NewAverager(
+	waitTrie, err := metric.NewAverager(
 		"chain",
-		"wait_root",
-		"time spent waiting to generate root",
+		"wait_trie",
+		"time spent waiting to for trie creation to complete",
 		r,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	rootChanges, err := metric.NewAverager(
+	trieNodeChanges, err := metric.NewAverager(
 		"chain",
-		"root_changes",
-		"changes enqueued to generate root",
+		"trie_node_changes",
+		"node changes enqueued to generate root",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	trieValueChanges, err := metric.NewAverager(
+		"chain",
+		"trie_value_changes",
+		"value changes enqueued to generate root",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	trieSkippedValueChanges, err := metric.NewAverager(
+		"chain",
+		"trie_skipped_value_changes",
+		"skipped value changes enqueued to generate root",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitRoot, err := metric.NewAverager(
+		"chain",
+		"wait_root",
+		"time spent waiting to generate root",
 		r,
 	)
 	if err != nil {
@@ -580,27 +610,30 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_len",
 			Help:      "number of items in the state",
 		}),
-		waitRepeat:             waitRepeat,
-		waitQueue:              waitQueue,
-		waitAuth:               waitAuth,
-		waitExec:               waitExec,
-		waitPrecheck:           waitPrecheck,
-		waitCommit:             waitCommit,
-		waitRoot:               waitRoot,
-		rootChanges:            rootChanges,
-		chunkBuild:             chunkBuild,
-		blockBuild:             blockBuild,
-		blockParse:             blockParse,
-		blockVerify:            blockVerify,
-		blockAccept:            blockAccept,
-		blockProcess:           blockProcess,
-		blockExecute:           blockExecute,
-		executedChunkProcess:   executedChunkProcess,
-		executedBlockProcess:   executedBlockProcess,
-		fetchMissingChunks:     fetchMissingChunks,
-		collectChunkSignatures: collectChunkSignatures,
-		txTimeRemainingMempool: txTimeRemainingMempool,
-		chunkAuth:              chunkAuth,
+		waitRepeat:              waitRepeat,
+		waitQueue:               waitQueue,
+		waitAuth:                waitAuth,
+		waitExec:                waitExec,
+		waitPrecheck:            waitPrecheck,
+		waitTrie:                waitTrie,
+		waitCommit:              waitCommit,
+		waitRoot:                waitRoot,
+		trieNodeChanges:         trieNodeChanges,
+		trieValueChanges:        trieValueChanges,
+		trieSkippedValueChanges: trieSkippedValueChanges,
+		chunkBuild:              chunkBuild,
+		blockBuild:              blockBuild,
+		blockParse:              blockParse,
+		blockVerify:             blockVerify,
+		blockAccept:             blockAccept,
+		blockProcess:            blockProcess,
+		blockExecute:            blockExecute,
+		executedChunkProcess:    executedChunkProcess,
+		executedBlockProcess:    executedBlockProcess,
+		fetchMissingChunks:      fetchMissingChunks,
+		collectChunkSignatures:  collectChunkSignatures,
+		txTimeRemainingMempool:  txTimeRemainingMempool,
+		chunkAuth:               chunkAuth,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 

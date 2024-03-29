@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -86,7 +87,7 @@ func (m *Merkle) Usage() (int, uint64) {
 	return len(m.state), m.size
 }
 
-func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, error), int) {
+func (m *Merkle) PrepareCommit(context.Context) func(context.Context, state.Metrics) (ids.ID, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
@@ -96,13 +97,20 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
 
 	m.cl.Lock()
-	return func(ctx context.Context) (ids.ID, error) {
+	return func(ctx context.Context, metrics state.Metrics) (ids.ID, error) {
 		defer m.cl.Unlock()
 
 		// Wait for processing to finish
-		if err := rc.Wait(); err != nil {
+		t := time.Now()
+		skips, err := rc.Wait()
+		if err != nil {
 			return ids.Empty, err
 		}
+		nodes, values := m.rv.Changes()
+		metrics.RecordTrieNodeChanges(nodes)
+		metrics.RecordTrieValueChanges(values)
+		metrics.RecordTrieSkippedValueChanges(skips)
+		metrics.RecordWaitTrie(time.Since(t))
 
 		// Create new rv once trie is updated
 		newRv, err := m.rv.NewRollingView(ctx, pendingInitialSize)
@@ -114,11 +122,17 @@ func (m *Merkle) PrepareCommit(context.Context) (func(context.Context) (ids.ID, 
 		// Wait for root to be generated and nodes to be committed to db
 		rv := m.rv
 		m.rv = newRv
+		t = time.Now()
 		if err := rv.CommitToDB(ctx); err != nil {
 			return ids.Empty, err
 		}
-		return m.mdb.GetMerkleRoot(ctx)
-	}, 0
+		root, err := m.mdb.GetMerkleRoot(ctx)
+		if err != nil {
+			return ids.Empty, err
+		}
+		metrics.RecordWaitRoot(time.Since(t))
+		return root, nil
+	}
 }
 
 func (m *Merkle) stateInsert(key string, value []byte) {

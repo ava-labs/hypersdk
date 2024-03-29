@@ -305,10 +305,10 @@ func (e *Engine) processJob(job *engineJob) error {
 	// Note: the first block with a root (not including genesis) will be 2*r.GetRootFrequency()
 	if job.blk.StatefulBlock.Height > 0 && job.blk.StatefulBlock.Height%r.GetRootFrequency() == 0 {
 		// Lock in commit ensures we can't run another commit until the previous finishes
-		commit, items := e.db.PrepareCommit(ctx)
+		commit := e.db.PrepareCommit(ctx)
 		go func() {
 			rootStart := time.Now()
-			root, err := commit(context.Background())
+			root, err := commit(context.Background(), e.vm)
 			if err != nil {
 				log.Error("failed to generate root", zap.Error(err))
 				panic(err)
@@ -316,12 +316,9 @@ func (e *Engine) processJob(job *engineJob) error {
 			e.rootsLock.Lock()
 			e.roots[job.blk.StatefulBlock.Height] = root
 			e.rootsLock.Unlock()
-			e.vm.RecordWaitRoot(time.Since(rootStart))
-			e.vm.RecordRootChanges(items)
 			e.vm.Logger().Info(
 				"generated root",
 				zap.Uint64("height", job.blk.StatefulBlock.Height),
-				zap.Int("items", items),
 				zap.Duration("t", time.Since(rootStart)),
 			)
 		}()

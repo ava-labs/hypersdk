@@ -7,8 +7,9 @@ import (
 )
 
 type RChannel[V any] struct {
-	pending chan string
 	keys    *smap.SMap[V]
+	skips   int
+	pending chan string
 	done    chan struct{}
 	err     error
 }
@@ -29,6 +30,7 @@ func (r *RChannel[V]) SetCallback(c func(context.Context, string, V) error) {
 			v, ok := r.keys.GetAndDelete(k)
 			if !ok {
 				// Already handled
+				r.skips++
 				continue
 			}
 
@@ -50,8 +52,8 @@ func (r *RChannel[V]) Add(key string, val V) {
 	r.pending <- key
 }
 
-func (r *RChannel[V]) Wait() error {
+func (r *RChannel[V]) Wait() (int, error) {
 	close(r.pending)
 	<-r.done
-	return r.err
+	return r.skips, r.err
 }
