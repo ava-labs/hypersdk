@@ -182,44 +182,15 @@ $TMPDIR/morpheus-cli chain import-cli ~/.avalanche-cli/nodes/inventories/$CLUSTE
 # Point to cluster dashboard
 echo -e "${YELLOW}devnet dashboard:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc (username: admin, password: admin)"
 
-# Wait for user to confirm that they want to launch load test
-while true
-do
-  echo -n "Start load test (y/n)?: "
-
-  # Wait for the user to press a key
-  read -s -n 1 key
-
-  # Check which key was pressed
-  case $key in
-      y|Y)
-          printf "y\n"
-          break
-          ;;
-      n|N)
-          printf "n\nExiting...\n"
-          exit 1
-          ;;
-      *)
-          printf "\nInvalid input. Please type 'y' or 'n'.\n"
-          ;;
-  esac
-done
-EPOCH_WAIT_END=$(date +%s)
-TIME_TAKEN=$((EPOCH_WAIT_END - EPOCH_WAIT_START))
-
 # Wait for epoch initialization
 SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
-if [ $TIME_TAKEN -lt $SLEEP_DUR ]; then
-  SLEEP_DUR=$(($SLEEP_DUR - $TIME_TAKEN))
-  echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
-  sleep $SLEEP_DUR
-fi
+echo "Waiting for epoch initialization ($SLEEP_DUR seconds)..."
+sleep $SLEEP_DUR
 
 # Start load test on dedicated machine
 #
 # Zipf parameters expected to lead to ~1M active accounts per 60s
-echo -e "${YELLOW}starting load test${NC}"
+echo -e "${YELLOW}starting load test...${NC}"
 $TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.2 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
 echo -e "${YELLOW}load test logs:${NC} http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs?var-app=loadtest (username: admin, password: admin)"
 echo -e "${YELLOW}run this command to stop load test:${NC} ${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\""
