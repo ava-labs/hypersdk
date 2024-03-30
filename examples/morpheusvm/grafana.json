@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 12,
+  "id": 10,
   "links": [],
   "liveNow": true,
   "panels": [
@@ -6313,7 +6313,7 @@
           "exemplar": true,
           "expr": "100 * (node_memory_MemTotal_bytes{job=~\"avalanchego-machine\"} - node_memory_MemFree_bytes{job=~\"avalanchego-machine\"} - node_memory_Buffers_bytes{job=~\"avalanchego-machine\"} - node_memory_Cached_bytes{job=~\"avalanchego-machine\"}) / node_memory_MemTotal_bytes{job=~\"avalanchego-machine\"}",
           "interval": "",
-          "legendFormat": "Memory",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
@@ -6460,7 +6460,7 @@
           "exemplar": true,
           "expr": "(1 - avg(irate(node_cpu_seconds_total{job=~\"avalanchego-machine\", mode=\"idle\"}[30s])) by (instance)) * 100",
           "interval": "",
-          "legendFormat": "CPU",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
