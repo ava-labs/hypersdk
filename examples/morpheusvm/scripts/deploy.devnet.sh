@@ -11,8 +11,9 @@ set -e
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
 # Set console colors
-RED='\033[0;31m'
+RED='\033[1;31m'
 YELLOW='\033[1;33m'
+CYAN='\033[1;36m'
 NC='\033[0m'
 
 # Ensure we return back to the original directory
@@ -166,7 +167,7 @@ EOF
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
 function cleanup {
-  echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}"
+  echo -e "\n\n${CYAN}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}"
 }
 trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
@@ -189,9 +190,9 @@ sleep $SLEEP_DUR
 # Zipf parameters expected to lead to ~1M active accounts per 60s
 echo -e "${YELLOW}starting load test...${NC}"
 $TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=10000 --step-size=1000 --s-zipf=1.2 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
-echo -e "${YELLOW}run this command to stop load test:${NC} ${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\""
+echo -e "\n\n${CYAN}run this command to stop load test:${NC} ${TMPDIR}/avalanche node loadtest stop ${CLUSTER} --load-test=\"default\""
 
 # Log dashboard information
-echo -e "${YELLOW}dashboards:${NC} (username: admin, password: admin)"
+echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"
 echo "hypersdk (metrics): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/vryx-poc"
 echo "load test (logs): http://$(yq e '.MONITOR.IP' ~/.avalanche-cli/nodes/inventories/$CLUSTER/clusterInfo.yaml):3000/d/avalanche-loki-logs?var-app=loadtest"
