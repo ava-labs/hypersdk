@@ -2448,7 +2448,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 59
       },
@@ -2473,7 +2473,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_sum[30s])",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_modifications_sum[30s])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -2489,7 +2489,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_count[30s])",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_modifications_count[30s])",
           "hide": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -2508,7 +2508,7 @@
           "type": "math"
         }
       ],
-      "title": "Wait Trie Construction",
+      "title": "Wait Trie Modifications",
       "type": "timeseries"
     },
     {
@@ -2575,8 +2575,135 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
+        "y": 59
+      },
+      "id": 73,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_root_sum[30s])",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_root_count[30s])",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A/$B",
+          "hide": false,
+          "refId": "C",
+          "type": "math"
+        }
+      ],
+      "title": "Wait Trie Root",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ns"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
         "y": 59
       },
       "id": 48,
@@ -2600,7 +2727,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_root_sum[30s])",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_sum[30s])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -2616,7 +2743,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_root_count[30s])",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_count[30s])",
           "hide": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -2635,7 +2762,7 @@
           "type": "math"
         }
       ],
-      "title": "Wait Root Generation",
+      "title": "Wait Trie Commit",
       "type": "timeseries"
     },
     {
