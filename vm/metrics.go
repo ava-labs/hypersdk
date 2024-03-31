@@ -92,11 +92,12 @@ type Metrics struct {
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
-	waitTrie                  metric.Averager
+	waitTrieModifications     metric.Averager
+	waitTrieRoot              metric.Averager
+	waitTrieCommit            metric.Averager
 	trieNodeChanges           metric.Averager
 	trieValueChanges          metric.Averager
 	trieSkippedValueChanges   metric.Averager
-	waitRoot                  metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -171,10 +172,28 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	waitTrie, err := metric.NewAverager(
+	waitTrieModifications, err := metric.NewAverager(
 		"chain",
-		"wait_trie",
-		"time spent waiting to for trie creation to complete",
+		"wait_trie_modifications",
+		"time spent waiting to for trie modifications to complete",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitTrieRoot, err := metric.NewAverager(
+		"chain",
+		"wait_trie_root",
+		"time spent waiting to compute trie root",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	waitTrieCommit, err := metric.NewAverager(
+		"chain",
+		"wait_trie_commit",
+		"time spent waiting to commit trie root to disk",
 		r,
 	)
 	if err != nil {
@@ -202,15 +221,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"trie_skipped_value_changes",
 		"skipped value changes enqueued to generate root",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitRoot, err := metric.NewAverager(
-		"chain",
-		"wait_root",
-		"time spent waiting to generate root",
 		r,
 	)
 	if err != nil {
@@ -615,9 +625,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		waitAuth:                waitAuth,
 		waitExec:                waitExec,
 		waitPrecheck:            waitPrecheck,
-		waitTrie:                waitTrie,
 		waitCommit:              waitCommit,
-		waitRoot:                waitRoot,
+		waitTrieModifications:   waitTrieModifications,
+		waitTrieRoot:            waitTrieRoot,
+		waitTrieCommit:          waitTrieCommit,
 		trieNodeChanges:         trieNodeChanges,
 		trieValueChanges:        trieValueChanges,
 		trieSkippedValueChanges: trieSkippedValueChanges,

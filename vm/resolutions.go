@@ -524,8 +524,8 @@ func (vm *VM) RecordWaitCommit(t time.Duration) {
 	vm.metrics.waitCommit.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitRoot(t time.Duration) {
-	vm.metrics.waitRoot.Observe(float64(t))
+func (vm *VM) RecordWaitTrieRoot(t time.Duration) {
+	vm.metrics.waitTrieRoot.Observe(float64(t))
 }
 
 func (vm *VM) RecordStateChanges(c int) {
@@ -738,6 +738,10 @@ func (vm *VM) RecordTrieSkippedValueChanges(c int) {
 	vm.metrics.trieSkippedValueChanges.Observe(float64(c))
 }
 
-func (vm *VM) RecordWaitTrie(t time.Duration) {
-	vm.metrics.waitTrie.Observe(float64(t))
+func (vm *VM) RecordWaitTrieModifications(t time.Duration) {
+	vm.metrics.waitTrieModifications.Observe(float64(t))
+}
+
+func (vm *VM) RecordWaitTrieCommit(t time.Duration) {
+	vm.metrics.waitTrieCommit.Observe(float64(t))
 }

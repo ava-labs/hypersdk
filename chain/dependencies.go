@@ -42,8 +42,10 @@ type Metrics interface {
 	RecordWaitPrecheck(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitCommit(time.Duration)
-	RecordWaitTrie(time.Duration)
-	RecordWaitRoot(time.Duration)
+
+	RecordWaitTrieModifications(time.Duration)
+	RecordWaitTrieRoot(time.Duration)
+	RecordWaitTrieCommit(time.Duration)
 
 	RecordRemainingMempool(int)
 

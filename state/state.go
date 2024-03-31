@@ -16,8 +16,10 @@ type Metrics interface {
 	RecordTrieNodeChanges(int)
 	RecordTrieValueChanges(int)
 	RecordTrieSkippedValueChanges(int)
-	RecordWaitTrie(time.Duration)
-	RecordWaitRoot(time.Duration)
+
+	RecordWaitTrieModifications(time.Duration)
+	RecordWaitTrieRoot(time.Duration)
+	RecordWaitTrieCommit(time.Duration)
 }
 
 type Immutable interface {

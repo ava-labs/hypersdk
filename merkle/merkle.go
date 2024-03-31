@@ -51,13 +51,12 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 		state: make(map[string][]byte, stateInitialSize),
 		mdb:   mdb,
 	}
-	rv, err := mdb.NewRollingView(ctx, pendingInitialSize)
+	m.rv, err = mdb.NewRollingView(ctx, pendingInitialSize)
 	if err != nil {
 		return nil, err
 	}
-	m.rv = rv
 	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
-	m.rc.SetCallback(rv.Update)
+	m.rc.SetCallback(m.rv.Update)
 	return m, nil
 }
 
@@ -100,37 +99,43 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context, state.Metr
 	return func(ctx context.Context, metrics state.Metrics) (ids.ID, error) {
 		defer m.cl.Unlock()
 
-		// Wait for processing to finish
+		// Wait for trie modifications to finish
 		t := time.Now()
 		skips, err := rc.Wait()
 		if err != nil {
 			return ids.Empty, err
 		}
+		metrics.RecordWaitTrieModifications(time.Since(t))
+
+		// Merklize trie
+		t = time.Now()
+		root, err := m.rv.Merklize(context.TODO())
+		if err != nil {
+			return ids.Empty, err
+		}
+		metrics.RecordWaitTrieRoot(time.Since(t))
 		nodes, values := m.rv.Changes()
 		metrics.RecordTrieNodeChanges(nodes)
 		metrics.RecordTrieValueChanges(values)
 		metrics.RecordTrieSkippedValueChanges(skips)
-		metrics.RecordWaitTrie(time.Since(t))
 
-		// Create new rv once trie is updated
-		newRv, err := m.rv.NewRollingView(ctx, pendingInitialSize)
+		// Create new rv once trie is merklized
+		oldRv := m.rv
+		m.rv, err = m.rv.NewRollingView(ctx, pendingInitialSize)
 		if err != nil {
 			return ids.Empty, err
 		}
-		m.rc.SetCallback(newRv.Update)
+		m.rc.SetCallback(m.rv.Update)
 
-		// Wait for root to be generated and nodes to be committed to db
-		rv := m.rv
-		m.rv = newRv
+		// Wait for trie to be committed to disk
 		t = time.Now()
-		if err := rv.CommitToDB(ctx); err != nil {
+		if err := oldRv.Commit(ctx); err != nil {
 			return ids.Empty, err
 		}
-		root, err := m.mdb.GetMerkleRoot(ctx)
-		if err != nil {
-			return ids.Empty, err
-		}
-		metrics.RecordWaitRoot(time.Since(t))
+		metrics.RecordWaitTrieCommit(time.Since(t))
+
+		// We wait to return root until the trie
+		// is committed to disk.
 		return root, nil
 	}
 }
