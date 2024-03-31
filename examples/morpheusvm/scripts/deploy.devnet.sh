@@ -140,6 +140,8 @@ cat <<EOF > "${TMPDIR}"/node.config
 {
   "log-level":"INFO",
   "log-display-level":"INFO",
+  "log-rotater-max-size": 128,
+  "log-rotater-max-files": 512,
   "proposervm-use-current-height":true,
   "throttler-inbound-validator-alloc-size":"10737418240",
   "throttler-inbound-at-large-alloc-size":"10737418240",
@@ -167,7 +169,7 @@ EOF
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
 function cleanup {
-  echo -e "\n\n${CYAN}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}"
+  echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
 }
 trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
