@@ -292,41 +292,11 @@ func (h *Handler) Spam(
 
 	// Distribute funds (never more than 10x step size outstanding)
 	var (
-		distributionStart = time.Now()
-		funds             = map[codec.Address]uint64{}
-		fundsL            sync.Mutex
-		distributed       = make(chan struct{})
-		pendingAccounts   atomic.Int64
+		funds  = map[codec.Address]uint64{}
+		fundsL sync.Mutex
 	)
-	go func() {
-		for i := 0; i < numAccounts; i++ {
-			_, _, _, status, err := dcli.ListenTx(ctx)
-			if err != nil {
-				panic(err)
-			}
-			if status != rpc.TxSuccess {
-				// Should never happen
-				panic(fmt.Errorf("transaction failed: %d", status))
-			}
-			pendingAccounts.Add(-1)
-			if i%1000 == 0 && i != 0 {
-				rate := time.Since(distributionStart) / time.Duration(i)
-				utils.Outf(
-					"{{yellow}}distributed funds:{{/}} %d/%d accounts (pending=%d etr=%v)\n",
-					i,
-					numAccounts,
-					pendingAccounts.Load(),
-					rate*time.Duration(numAccounts-i),
-				)
-			}
-		}
-		close(distributed)
-	}()
-	lastIteration := time.Now()
+	distributor := NewReliableSender(numAccounts, cli, dcli, parser, txsPerSecond, maxPendingMessages, feePerTx)
 	for i := 0; i < numAccounts; i++ {
-		for pendingAccounts.Load() > int64(minCapacity*5) {
-			time.Sleep(100 * time.Millisecond)
-		}
 		// Create account
 		pk, err := createAccount()
 		if err != nil {
@@ -342,25 +312,11 @@ func (h *Handler) Spam(
 		factories[i] = f
 
 		// Send funds
-		action := getTransfer(pk.Address, true, distAmount, uniqueBytes())
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, action, factory, feePerTx)
-		if err != nil {
-			return err
-		}
-		pendingAccounts.Add(1)
-		if err := dcli.RegisterTx(tx); err != nil {
-			return fmt.Errorf("%w: failed to register tx", err)
-		}
-		funds[pk.Address] = distAmount
-
-		// Sleep to ensure we don't exceed tps
-		if i%minCapacity == 0 && i != 0 {
-			sleepTime := max(0, time.Second-time.Since(lastIteration))
-			time.Sleep(sleepTime)
-			lastIteration = time.Now()
-		}
+		distributor.Send(factory, getTransfer(pk.Address, true, distAmount, uniqueBytes()))
 	}
-	<-distributed
+	if err := distributor.Wait(context.Background()); err != nil {
+		return err
+	}
 	utils.Outf("{{yellow}}distributed funds:{{/}} %d accounts\n", numAccounts)
 
 	// Kickoff txs
@@ -667,78 +623,29 @@ func (h *Handler) Spam(
 	}
 	utils.Outf("{{yellow}}returning funds to base:{{/}} %s\n", h.c.Address(key.Address))
 	var (
-		returnStart     = time.Now()
-		returnedBalance uint64
-		returnsSent     int
-		returnIssued    = make(chan struct{}, numAccounts)
-		returned        = make(chan struct{})
-		pendingReturns  atomic.Int64
+		accountsWithBalance = map[int]uint64{}
+		returnedBalance     = uint64(0)
 	)
-	go func() {
-		returns := 0
-		for range returnIssued {
-			_, _, txID, status, err := dcli.ListenTx(ctx)
-			if err != nil {
-				panic(err)
-			}
-			if status != rpc.TxSuccess {
-				// Should never happen
-				utils.Outf("{{red}}transaction failed:{{/}} %s:%d\n", txID, status)
-			}
-			pendingReturns.Add(-1)
-			returns++
-			if returns%1000 == 0 && returns != 0 && returns != numAccounts {
-				rate := time.Since(returnStart) / time.Duration(returns)
-				utils.Outf(
-					"{{yellow}}returned funds:{{/}} %d/%d accounts (pending=%d, etr=%v)\n",
-					returns,
-					numAccounts,
-					pendingReturns.Load(),
-					rate*time.Duration(numAccounts-returns),
-				)
-			}
-		}
-		close(returned)
-	}()
-	lastIteration = time.Now()
 	for i := 0; i < numAccounts; i++ {
-		// Ensure return worth sending
 		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
-		returnsSent++
-
-		// Ensure backlog not too long
-		for pendingReturns.Load() > int64(minCapacity*5) {
-			time.Sleep(100 * time.Millisecond)
-		}
-
+		accountsWithBalance[i] = balance
+		returnedBalance += balance
+	}
+	returner := NewReliableSender(len(accountsWithBalance), cli, dcli, parser, txsPerSecond, maxPendingMessages, feePerTx)
+	for i, balance := range accountsWithBalance {
 		// Send funds
 		returnAmt := balance - feePerTx
-		f := factories[i]
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, false, returnAmt, uniqueBytes()), f, feePerTx)
-		if err != nil {
-			return err
-		}
-		pendingReturns.Add(1)
-		if err := dcli.RegisterTx(tx); err != nil {
-			return err
-		}
-		returnIssued <- struct{}{}
-		returnedBalance += returnAmt
-
-		// Sleep to ensure we don't exceed tps
-		if i%minCapacity == 0 && i != 0 {
-			sleepTime := max(0, time.Second-time.Since(lastIteration))
-			time.Sleep(sleepTime)
-			lastIteration = time.Now()
-		}
+		returner.Send(factories[i], getTransfer(key.Address, false, returnAmt, uniqueBytes()))
 	}
-	close(returnIssued)
-	<-returned
+	if err := returner.Wait(context.Background()); err != nil {
+		return err
+	}
 	utils.Outf(
-		"{{yellow}}returned funds from %d accounts:{{/}} %s %s\n",
+		"{{yellow}}returned funds from %d/%d accounts:{{/}} %s %s\n",
+		len(accountsWithBalance),
 		numAccounts,
 		utils.FormatBalance(returnedBalance, h.c.Decimals()),
 		h.c.Symbol(),
@@ -871,39 +778,42 @@ func uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(issuedTxs.Add(1)))
 }
 
+type sendable struct {
+	action chain.Action
+	sender chain.AuthFactory
+}
+
 type reliableSender struct {
 	sends int
 
 	cli    *rpc.JSONRPCClient
 	dcli   *rpc.WebSocketClient
 	parser chain.Parser
-	sender chain.AuthFactory
 
 	target     int
 	maxPending int
 	feePerTx   uint64
 
-	issuance     chan chain.Action
+	issuance     chan *sendable
 	outstandingL sync.RWMutex
-	outstanding  map[ids.ID]chain.Action
+	outstanding  map[ids.ID]*sendable
 	done         chan struct{}
 }
 
-func NewReliableSender(sends int, cli *rpc.JSONRPCClient, dcli *rpc.WebSocketClient, parser chain.Parser, sender chain.AuthFactory, target int, maxPending int, feePerTx uint64) *reliableSender {
+func NewReliableSender(sends int, cli *rpc.JSONRPCClient, dcli *rpc.WebSocketClient, parser chain.Parser, target int, maxPending int, feePerTx uint64) *reliableSender {
 	r := &reliableSender{
 		sends: sends,
 
 		cli:    cli,
 		dcli:   dcli,
 		parser: parser,
-		sender: sender,
 
 		target:     target,
 		maxPending: maxPending,
 		feePerTx:   feePerTx,
 
-		issuance:    make(chan chain.Action, maxPending),
-		outstanding: map[ids.ID]chain.Action{},
+		issuance:    make(chan *sendable, maxPending),
+		outstanding: map[ids.ID]*sendable{},
 		done:        make(chan struct{}),
 	}
 	go r.run()
@@ -917,14 +827,14 @@ func (r *reliableSender) pending() int {
 	return len(r.outstanding)
 }
 
-func (r *reliableSender) addOutstanding(txID ids.ID, action chain.Action) {
+func (r *reliableSender) addOutstanding(txID ids.ID, s *sendable) {
 	r.outstandingL.Lock()
 	defer r.outstandingL.Unlock()
 
-	r.outstanding[txID] = action
+	r.outstanding[txID] = s
 }
 
-func (r *reliableSender) removeOutstanding(txID ids.ID) chain.Action {
+func (r *reliableSender) removeOutstanding(txID ids.ID) *sendable {
 	r.outstandingL.Lock()
 	defer r.outstandingL.Unlock()
 
@@ -940,15 +850,15 @@ func (r *reliableSender) run() {
 			start = time.Now()
 			sent  = 0
 		)
-		for action := range r.issuance {
+		for s := range r.issuance {
 			for r.pending() > r.maxPending {
 				time.Sleep(100 * time.Millisecond)
 			}
-			_, tx, err := r.cli.GenerateTransactionManual(r.parser, nil, action, r.sender, r.feePerTx)
+			_, tx, err := r.cli.GenerateTransactionManual(r.parser, nil, s.action, s.sender, r.feePerTx)
 			if err != nil {
 				panic(err)
 			}
-			r.addOutstanding(tx.ID(), action)
+			r.addOutstanding(tx.ID(), s)
 			if err := r.dcli.RegisterTx(tx); err != nil {
 				panic(fmt.Errorf("%w: failed to register tx", err))
 			}
@@ -998,8 +908,8 @@ func (r *reliableSender) run() {
 	}()
 }
 
-func (r *reliableSender) Send(action chain.Action) {
-	r.issuance <- action
+func (r *reliableSender) Send(sender chain.AuthFactory, action chain.Action) {
+	r.issuance <- &sendable{action: action, sender: sender}
 }
 
 func (r *reliableSender) Wait(ctx context.Context) error {
