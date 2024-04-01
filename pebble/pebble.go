@@ -54,10 +54,10 @@ func NewDefaultConfig() Config {
 	return Config{
 		Sync:                        false, // explicitly specified for clarity
 		CacheSize:                   2 * units.GiB,
-		L0CompactionThreshold:       2,    // avoid large compaction spikes
-		L0StopWritesThreshold:       1000, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
-		MemTableStopWritesThreshold: 4,
-		MemTableSize:                64 * units.MiB, // try to avoid splitting large batches
+		L0CompactionThreshold:       2,              // avoid large compaction spikes: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L496
+		L0StopWritesThreshold:       1000,           // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
+		MemTableStopWritesThreshold: 4,              // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L502
+		MemTableSize:                64 * units.MiB, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L501
 		MaxOpenFiles:                4_096,
 		ConcurrentCompactions:       func() int { return 1 }, // TODO: make a config
 	}
