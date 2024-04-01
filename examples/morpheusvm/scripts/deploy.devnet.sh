@@ -187,7 +187,7 @@ SLEEP_DUR=$(($EPOCH_DURATION / 1000 * 3))
 EPOCH_SEC=$(($EPOCH_DURATION / 1000))
 VALIDITY_WINDOW_SEC=$(($VALIDITY_WINDOW / 1000))
 echo -e "\n${YELLOW}waiting for epoch initialization:${NC} $SLEEP_DUR seconds"
-echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC s) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC s) to speed up devnet startup. In a production environment, these should be set to larger values."
+echo "We use a shorter EPOCH_DURATION ($EPOCH_SEC seconds) and VALIDITY_WINDOW ($VALIDITY_WINDOW_SEC seconds) to speed up devnet startup. In a production environment, these should be set to larger values."
 sleep $SLEEP_DUR
 
 # Start load test on dedicated machine
