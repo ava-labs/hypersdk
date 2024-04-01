@@ -45,7 +45,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=79857d8f184b3c520f30e368568a6a02293992be
+LOCAL_CLI_COMMIT=994521642219eb1cfd555186a35c7cb5914a46b0
 REMOTE_CLI_COMMIT=v1.4.3-rc.2
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
@@ -56,7 +56,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=faf98f83308f05aae7b1e3ab432042f3a36019be
+MORPHEUS_VM_COMMIT=5b6f0daec76f847b297888aefd9feddbc5968fa2
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
