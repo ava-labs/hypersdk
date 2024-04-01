@@ -25,8 +25,12 @@ var (
 )
 
 const (
-	stateInitialSize   = 10_000_000
-	pendingInitialSize = 5_000_000 // 200k keys per block
+	stateInitialSize = 10_000_000
+
+	// pendingInitialSize sets the backlog for trie modification processing
+	//
+	// 200k keys per block * 60 blocks per minute (max keys ~12M)
+	pendingInitialSize = 5_000_000
 )
 
 type Merkle struct {
