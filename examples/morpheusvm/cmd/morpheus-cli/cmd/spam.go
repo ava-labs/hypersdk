@@ -74,7 +74,7 @@ var runSpamCmd = &cobra.Command{
 		return handler.Root().Spam(
 			numAccounts, txsPerSecond, minCapacity, stepSize,
 			sZipf, vZipf, plotZipf,
-			connsPerHost, clusterInfo, pk,
+			connsPerHost, clusterInfo, consts.HRP, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
 				ws, err := rpc.NewWebSocketClient(

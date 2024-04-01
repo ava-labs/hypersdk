@@ -101,7 +101,7 @@ var (
 func (h *Handler) Spam(
 	numAccounts int, txsPerSecond int, minCapacity int, stepSize int,
 	sZipf float64, vZipf float64, plotZipf bool,
-	numClients int, clusterInfo string, privateKey *PrivateKey,
+	numClients int, clusterInfo string, hrp string, privateKey *PrivateKey,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),
@@ -312,6 +312,7 @@ func (h *Handler) Spam(
 		factories[i] = f
 
 		// Send funds
+		funds[pk.Address] = distAmount
 		distributor.Send(factory, getTransfer(pk.Address, true, distAmount, uniqueBytes()))
 	}
 	if err := distributor.Wait(context.Background()); err != nil {
@@ -540,8 +541,8 @@ func (h *Handler) Spam(
 						balance := funds[sender.Address]
 						if feePerTx > balance {
 							fundsL.Unlock()
-							utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
-							return fmt.Errorf("%s has insufficient funds", sender.Address)
+							utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", codec.MustAddressBech32(hrp, sender.Address))
+							return fmt.Errorf("%s has insufficient funds", codec.MustAddressBech32(hrp, sender.Address))
 						}
 						funds[sender.Address] = balance - feePerTx
 						fundsL.Unlock()
@@ -878,6 +879,7 @@ func (r *reliableSender) run() {
 		var (
 			start   = time.Now()
 			success = 0
+			errors  = 0
 		)
 		for success < r.sends {
 			_, _, txID, status, err := r.dcli.ListenTx(ctx)
@@ -887,8 +889,8 @@ func (r *reliableSender) run() {
 			action := r.removeOutstanding(txID)
 			if status != rpc.TxSuccess {
 				// Should never happen
-				utils.Outf("{{red}}transaction failed:{{/}} %d\n", status)
 				r.issuance <- action
+				errors++
 				continue
 			}
 			success++
@@ -898,6 +900,7 @@ func (r *reliableSender) run() {
 					"{{yellow}}distributed funds:{{/}} %d/%d (errors=%d pending=%d etr=%v)\n",
 					success,
 					r.sends,
+					errors,
 					r.pending(),
 					rate*time.Duration(r.sends-success),
 				)
