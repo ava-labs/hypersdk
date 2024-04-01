@@ -96,7 +96,10 @@ func (*Rules) FetchCustom(string) (any, bool) {
 }
 
 func (*Rules) GetBlockExecutionDepth() uint64 {
-	return 5
+	// we notify as soon as execution is done, so this can be higher to make more stable/account for more fetch delays
+	//
+	// only downside is that the repeat check can be more expensive
+	return 15
 }
 
 func (*Rules) GetRootFrequency() uint64 {

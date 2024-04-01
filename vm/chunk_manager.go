@@ -577,6 +577,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Check if weight is sufficient
 		//
 		// Fees are proportional to the weight of the chunk, so we may want to wait until it has more than the minimum.
+		//
+		// TODO: add a timeout here in case we never get above target
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Debug("chunk does not have sufficient weight to create certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
