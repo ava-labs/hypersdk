@@ -98,6 +98,7 @@ type Metrics struct {
 	trieNodeChanges           metric.Averager
 	trieValueChanges          metric.Averager
 	trieSkippedValueChanges   metric.Averager
+	trieMaxBacklog            metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -221,6 +222,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"trie_skipped_value_changes",
 		"skipped value changes enqueued to generate root",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	trieMaxBacklog, err := metric.NewAverager(
+		"chain",
+		"trie_max_backlog",
+		"maximum number of items enqueued for trie modification",
 		r,
 	)
 	if err != nil {
@@ -632,6 +642,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		trieNodeChanges:         trieNodeChanges,
 		trieValueChanges:        trieValueChanges,
 		trieSkippedValueChanges: trieSkippedValueChanges,
+		trieMaxBacklog:          trieMaxBacklog,
 		chunkBuild:              chunkBuild,
 		blockBuild:              blockBuild,
 		blockParse:              blockParse,

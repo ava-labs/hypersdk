@@ -745,3 +745,7 @@ func (vm *VM) RecordWaitTrieModifications(t time.Duration) {
 func (vm *VM) RecordWaitTrieCommit(t time.Duration) {
 	vm.metrics.waitTrieCommit.Observe(float64(t))
 }
+
+func (vm *VM) RecordTrieMaxBacklog(c int) {
+	vm.metrics.trieMaxBacklog.Observe(float64(c))
+}

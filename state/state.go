@@ -12,14 +12,17 @@ import (
 	"github.com/ava-labs/hypersdk/smap"
 )
 
+// TODO: move this somewhere better
 type Metrics interface {
-	RecordTrieNodeChanges(int)
-	RecordTrieValueChanges(int)
 	RecordTrieSkippedValueChanges(int)
+	RecordTrieMaxBacklog(int)
 
 	RecordWaitTrieModifications(time.Duration)
 	RecordWaitTrieRoot(time.Duration)
 	RecordWaitTrieCommit(time.Duration)
+
+	RecordTrieNodeChanges(int)
+	RecordTrieValueChanges(int)
 }
 
 type Immutable interface {

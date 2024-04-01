@@ -27,10 +27,11 @@ var (
 const (
 	stateInitialSize = 10_000_000
 
-	// pendingInitialSize sets the backlog for trie modification processing
+	// backlogInitialSize sets the backlog for trie modification processing
 	//
 	// 200k keys per block * 60 blocks per minute (max keys ~12M)
-	pendingInitialSize = 5_000_000
+	backlogInitialSize = 15_000_000
+	changesInitialSize = 2_500_000
 )
 
 type Merkle struct {
@@ -55,11 +56,11 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 		state: make(map[string][]byte, stateInitialSize),
 		mdb:   mdb,
 	}
-	m.rv, err = mdb.NewRollingView(ctx, pendingInitialSize)
+	m.rv, err = mdb.NewRollingView(ctx, changesInitialSize)
 	if err != nil {
 		return nil, err
 	}
-	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
+	m.rc = rchannel.New[maybe.Maybe[[]byte]](backlogInitialSize)
 	m.rc.SetCallback(m.rv.Update)
 	return m, nil
 }
@@ -97,7 +98,7 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context, state.Metr
 	// It is safe to add to [rchannel] before the callback is set (pending
 	// requests will just be queued on the channel).
 	rc := m.rc
-	m.rc = rchannel.New[maybe.Maybe[[]byte]](pendingInitialSize)
+	m.rc = rchannel.New[maybe.Maybe[[]byte]](backlogInitialSize)
 
 	m.cl.Lock()
 	return func(ctx context.Context, metrics state.Metrics) (ids.ID, error) {
@@ -105,11 +106,12 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context, state.Metr
 
 		// Wait for trie modifications to finish
 		t := time.Now()
-		skips, err := rc.Wait()
+		skips, maxBacklog, err := rc.Wait()
 		if err != nil {
 			return ids.Empty, err
 		}
 		metrics.RecordWaitTrieModifications(time.Since(t))
+		metrics.RecordTrieMaxBacklog(maxBacklog)
 
 		// Merklize trie
 		t = time.Now()
@@ -125,7 +127,7 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context, state.Metr
 
 		// Create new rv once trie is merklized
 		oldRv := m.rv
-		m.rv, err = m.rv.NewRollingView(ctx, pendingInitialSize)
+		m.rv, err = m.rv.NewRollingView(ctx, changesInitialSize)
 		if err != nil {
 			return ids.Empty, err
 		}

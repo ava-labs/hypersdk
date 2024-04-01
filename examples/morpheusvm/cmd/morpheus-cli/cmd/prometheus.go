@@ -88,6 +88,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_trie_skipped_value_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_trie_skipped_value_changes_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}skipped trie value changes (changes/attempt):{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_trie_max_backlog_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_trie_max_backlog_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}trie max backlog (size/attempt):{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_trie_modifications_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_trie_modifications_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}trie wait modifications (ms/attempt):{{/}} %s\n", panels[len(panels)-1])
 

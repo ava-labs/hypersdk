@@ -65,6 +65,7 @@ type Metrics interface {
 	RecordTrieNodeChanges(int)
 	RecordTrieValueChanges(int)
 	RecordTrieSkippedValueChanges(int)
+	RecordTrieMaxBacklog(int)
 	RecordEngineBacklog(int)
 }
 
