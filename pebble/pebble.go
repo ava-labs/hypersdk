@@ -54,10 +54,10 @@ func NewDefaultConfig() Config {
 	return Config{
 		Sync:                        false, // explicitly specified for clarity
 		CacheSize:                   2 * units.GiB,
-		L0CompactionThreshold:       8,    // will allow db to become a little slower (not needed for execution, so that is ok)
+		L0CompactionThreshold:       2,    // avoid large compaction spikes
 		L0StopWritesThreshold:       1000, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
 		MemTableStopWritesThreshold: 4,
-		MemTableSize:                256 * units.MiB, // try to avoid splitting large batches
+		MemTableSize:                64 * units.MiB, // try to avoid splitting large batches
 		MaxOpenFiles:                4_096,
 		ConcurrentCompactions:       func() int { return 1 }, // TODO: make a config
 	}
