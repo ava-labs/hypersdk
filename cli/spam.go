@@ -865,6 +865,7 @@ func (r *reliableSender) run() {
 			}
 
 			// Sleep to ensure we don't exceed tps
+			sent++
 			if sent%r.target == 0 && sent > 0 {
 				sleepTime := max(0, time.Second-time.Since(start))
 				time.Sleep(sleepTime)
