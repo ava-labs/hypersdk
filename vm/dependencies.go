@@ -56,7 +56,6 @@ type Config interface {
 	GetChunkBuildFrequency() time.Duration
 	GetBlockBuildFrequency() time.Duration
 	GetProcessingBuildSkip() int
-	GetBlockCompactionFrequency() int
 	GetMinimumCertificateBroadcastNumerator() uint64
 }
 
