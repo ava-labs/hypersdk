@@ -623,15 +623,6 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			Signers:   signers,
 			Signature: aggSignature,
 		}
-		// We don't send our own certs to the optimistic verifier because we
-		// don't verify the signatures in those chunks anyways.
-		c.certs.Update(cert)
-
-		// Broadcast certificate
-		//
-		// Each time we get more signatures, we'll broadcast a new
-		// certificate
-		c.PushChunkCertificate(ctx, cert)
 		c.vm.Logger().Debug(
 			"constructed chunk certificate",
 			zap.Uint64("Pheight", epochHeight),
@@ -641,16 +632,23 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			zap.Duration("t", time.Since(start)),
 		)
 
-		// Send chunk and cert to non-validators if we are creating the certificate
-		// for the first time (this will ensure they don't need to fetch chunks and that
+		// We don't send our own certs to the optimistic verifier because we
+		// don't verify the signatures in those chunks anyways.
+		c.certs.Update(cert)
+
+		// Broadcast certificate to validators
+		if !firstCertificate {
+			// TODO: we may want to send more certs as we collect more signatures
+			return nil
+		}
+		c.PushChunkCertificate(ctx, cert)
+
+		// Send chunk and cert to non-validators (this will ensure they don't need to fetch chunks and that
 		// will allow them to kickoff signature verification earlier).
 		//
 		// TODO: limit number of nodes we send to/use a whitelist to avoid
 		// a sybil attack on our bandwidth (that being said, they'll try to request
 		// these from us anyways).
-		if !firstCertificate {
-			return nil
-		}
 		c.PushCertifiedChunk(ctx, cw.chunk, cert)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
