@@ -870,3 +870,143 @@ func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 func uniqueBytes() []byte {
 	return binary.BigEndian.AppendUint64(nil, uint64(issuedTxs.Add(1)))
 }
+
+type reliableSender struct {
+	sends int
+
+	cli    *rpc.JSONRPCClient
+	dcli   *rpc.WebSocketClient
+	parser chain.Parser
+	sender chain.AuthFactory
+
+	target     int
+	maxPending int
+	feePerTx   uint64
+
+	issuance     chan chain.Action
+	outstandingL sync.RWMutex
+	outstanding  map[ids.ID]chain.Action
+	done         chan struct{}
+}
+
+func NewReliableSender(sends int, cli *rpc.JSONRPCClient, dcli *rpc.WebSocketClient, parser chain.Parser, sender chain.AuthFactory, target int, maxPending int, feePerTx uint64) *reliableSender {
+	r := &reliableSender{
+		sends: sends,
+
+		cli:    cli,
+		dcli:   dcli,
+		parser: parser,
+		sender: sender,
+
+		target:     target,
+		maxPending: maxPending,
+		feePerTx:   feePerTx,
+
+		issuance:    make(chan chain.Action, maxPending),
+		outstanding: map[ids.ID]chain.Action{},
+		done:        make(chan struct{}),
+	}
+	go r.run()
+	return r
+}
+
+func (r *reliableSender) pending() int {
+	r.outstandingL.RLock()
+	defer r.outstandingL.RUnlock()
+
+	return len(r.outstanding)
+}
+
+func (r *reliableSender) addOutstanding(txID ids.ID, action chain.Action) {
+	r.outstandingL.Lock()
+	defer r.outstandingL.Unlock()
+
+	r.outstanding[txID] = action
+}
+
+func (r *reliableSender) removeOutstanding(txID ids.ID) chain.Action {
+	r.outstandingL.Lock()
+	defer r.outstandingL.Unlock()
+
+	action := r.outstanding[txID]
+	delete(r.outstanding, txID)
+	return action
+}
+
+func (r *reliableSender) run() {
+	// Issue txs
+	go func() {
+		var (
+			start = time.Now()
+			sent  = 0
+		)
+		for action := range r.issuance {
+			for r.pending() > r.maxPending {
+				time.Sleep(100 * time.Millisecond)
+			}
+			_, tx, err := r.cli.GenerateTransactionManual(r.parser, nil, action, r.sender, r.feePerTx)
+			if err != nil {
+				panic(err)
+			}
+			r.addOutstanding(tx.ID(), action)
+			if err := r.dcli.RegisterTx(tx); err != nil {
+				panic(fmt.Errorf("%w: failed to register tx", err))
+			}
+
+			// Sleep to ensure we don't exceed tps
+			if sent%r.target == 0 && sent > 0 {
+				sleepTime := max(0, time.Second-time.Since(start))
+				time.Sleep(sleepTime)
+				start = time.Now()
+				sent = 0
+			}
+		}
+	}()
+
+	// Confirm txs
+	go func() {
+		var (
+			start   = time.Now()
+			success = 0
+		)
+		for success < r.sends {
+			_, _, txID, status, err := r.dcli.ListenTx(ctx)
+			if err != nil {
+				panic(err)
+			}
+			action := r.removeOutstanding(txID)
+			if status != rpc.TxSuccess {
+				// Should never happen
+				utils.Outf("{{red}}transaction failed:{{/}} %d\n", status)
+				r.issuance <- action
+				continue
+			}
+			success++
+			if success%1000 == 0 && success != 0 {
+				rate := time.Since(start) / time.Duration(success)
+				utils.Outf(
+					"{{yellow}}distributed funds:{{/}} %d/%d (errors=%d pending=%d etr=%v)\n",
+					success,
+					r.sends,
+					r.pending(),
+					rate*time.Duration(r.sends-success),
+				)
+			}
+		}
+		close(r.issuance)
+		close(r.done)
+	}()
+}
+
+func (r *reliableSender) Send(action chain.Action) {
+	r.issuance <- action
+}
+
+func (r *reliableSender) Wait(ctx context.Context) error {
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
