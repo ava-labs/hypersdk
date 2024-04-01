@@ -295,7 +295,7 @@ func (h *Handler) Spam(
 		funds  = map[codec.Address]uint64{}
 		fundsL sync.Mutex
 	)
-	distributor := NewReliableSender(numAccounts, cli, dcli, parser, txsPerSecond, maxPendingMessages, feePerTx)
+	distributor := NewReliableSender(numAccounts, cli, dcli, parser, minCapacity, maxPendingMessages, feePerTx)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
 		pk, err := createAccount()
@@ -635,7 +635,7 @@ func (h *Handler) Spam(
 		accountsWithBalance[i] = balance
 		returnedBalance += balance
 	}
-	returner := NewReliableSender(len(accountsWithBalance), cli, dcli, parser, txsPerSecond, maxPendingMessages, feePerTx)
+	returner := NewReliableSender(len(accountsWithBalance), cli, dcli, parser, minCapacity, maxPendingMessages, feePerTx)
 	for i, balance := range accountsWithBalance {
 		// Send funds
 		returnAmt := balance - feePerTx
