@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -60,7 +59,7 @@ func NewDefaultConfig() Config {
 		MemTableStopWritesThreshold: 4,
 		MemTableSize:                256 * units.MiB,
 		MaxOpenFiles:                4_096,
-		ConcurrentCompactions:       func() int { return runtime.NumCPU() }, // TODO: make a config
+		ConcurrentCompactions:       func() int { return 1 }, // TODO: make a config
 	}
 }
 
