@@ -26,7 +26,7 @@ var (
 
 const (
 	stateInitialSize   = 10_000_000
-	pendingInitialSize = 1_000_000
+	pendingInitialSize = 5_000_000 // 200k keys per block
 )
 
 type Merkle struct {
