@@ -2402,7 +2402,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2529,7 +2529,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2656,7 +2656,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2783,7 +2783,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2910,7 +2910,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2981,7 +2981,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_node_changes_sum[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_node_changes_sum[30s])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -2997,7 +2997,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_node_changes_count[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_node_changes_count[30s])",
           "hide": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -3037,7 +3037,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -3108,7 +3108,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_skipped_value_changes_sum[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_skipped_value_changes_sum[30s])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -3124,7 +3124,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_skipped_value_changes_count[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_skipped_value_changes_count[30s])",
           "hide": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -3163,7 +3163,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -3233,17 +3233,42 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_state_merkleDB_hashes_calculated[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_state_merkleDB_hashes_calculated[30s])",
           "fullMetaSearch": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_root_count[30s])",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A/$B",
+          "hide": false,
+          "refId": "C",
+          "type": "math"
         }
       ],
-      "title": "MerkleDB Hashes Calculated",
+      "title": "MerkleDB Hashes Calculated Per Root",
       "type": "timeseries"
     },
     {
@@ -3263,7 +3288,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -3332,19 +3357,43 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_state_merkleDB_io_key_write[30s])",
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_state_merkleDB_io_key_write[30s])",
           "fullMetaSearch": false,
-          "hide": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "B",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_count[30s])",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$B/$A",
+          "hide": false,
+          "refId": "C",
+          "type": "math"
         }
       ],
-      "title": "MerkleDB Keys Written to Disk",
+      "title": "MerkleDB Keys Written to Disk Per Commit",
       "type": "timeseries"
     },
     {
@@ -3364,7 +3413,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "points",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -3434,7 +3483,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_statedb_pebble_l0_compactions[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_statedb_pebble_l0_compactions[30s])",
           "fullMetaSearch": false,
           "hide": true,
           "includeNullMetadata": true,
@@ -3450,7 +3499,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_statedb_pebble_other_compactions[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_statedb_pebble_other_compactions[30s])",
           "hide": true,
           "instant": false,
           "legendFormat": "__auto",
@@ -3464,12 +3513,36 @@
             "uid": "__expr__"
           },
           "expression": "$A+$B",
-          "hide": false,
+          "hide": true,
           "refId": "C",
+          "type": "math"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_count[30s])",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$C/$D",
+          "hide": false,
+          "refId": "E",
           "type": "math"
         }
       ],
-      "title": "MerkleDB Compactions",
+      "title": "MerkleDB Compactions Per Commit",
       "type": "timeseries"
     },
     {
