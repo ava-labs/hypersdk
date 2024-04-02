@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ava-labs/avalanchego/utils/set"
+	// "github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -114,19 +114,20 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	}
 	e.tasks[id] = t
 
-	// Add dummy dependencies to ensure we don't execute the task
-	dummyDependencies := int64(len(keys) + 1)
-	t.dependencies.Add(dummyDependencies)
-
 	// Record dependencies
-	previousDependencies := set.NewSet[int](len(keys))
+	//previousDependencies := set.NewSet[int](len(keys))
 	for k, v := range keys {
 		latest, ok := e.nodes[k]
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
-				previousDependencies.Add(latest) // we may depend on the same task multiple times
+				if v == state.Read {
+					lt.dependencies.Add(int64(1))
+					continue
+				}
+				//previousDependencies.Add(latest) // we may depend on the same task multiple times
 				if v.Has(state.Allocate) || v.Has(state.Write) {
+					t.dependencies.Add(int64(1))
 					lt.blocking[id] = t
 				}
 			}
@@ -134,9 +135,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		e.nodes[k] = id
 	}
 
-	// Adjust dependency traker and execute if necessary
-	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
-	if t.dependencies.Add(-extraDependencies) > 0 {
+	if t.dependencies.Load() > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}
