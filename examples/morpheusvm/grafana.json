@@ -7445,7 +7445,7 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -7481,14 +7481,31 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "rate(node_pressure_cpu_waiting_seconds_total[30s])",
+          "expr": "avalanche_go_goroutines",
           "interval": "",
-          "legendFormat": "__auto",
+          "legendFormat": "avalanchego: {{instance}}",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avalanche_CHAIN_ID_VAL_vm_go_goroutines",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "morpheusvm: {{instance}}",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
         }
       ],
-      "title": "CPU Wait",
+      "title": "Goroutines",
       "type": "timeseries"
     },
     {
