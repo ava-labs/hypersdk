@@ -121,15 +121,10 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		if ok {
 			lt := e.tasks[latest]
 			if !lt.executed {
-				if v == state.Read {
-					lt.dependencies.Add(int64(1))
-					continue
-				}
-				//previousDependencies.Add(latest) // we may depend on the same task multiple times
 				if v.Has(state.Allocate) || v.Has(state.Write) {
 					t.dependencies.Add(int64(1))
-					lt.blocking[id] = t
 				}
+				lt.blocking[id] = t
 			}
 		}
 		e.nodes[k] = id
