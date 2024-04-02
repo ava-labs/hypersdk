@@ -45,7 +45,7 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=bf494d4d4129ba71108cc801fe9362b72a4ac9f5
+LOCAL_CLI_COMMIT=7bfdc7e1725f55edc3c109681ac7747bff5b77af
 REMOTE_CLI_COMMIT=v1.4.3-rc.2
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
@@ -56,7 +56,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=03a2bfb866dc9e4df15889a73efcbcc94304fce9
+MORPHEUS_VM_COMMIT=d9053bf9c81116dd3bf6a401d5a0d4f3d2a41350
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -117,7 +117,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authExecutionCores": 32,
   "precheckCores": 32,
   "actionExecutionCores": 32,
-  "rootGenerationCores": 16,
+  "rootGenerationCores": 2,
   "missingChunkFetchers": 48,
   "verifyAuth":true,
   "authRPCCores": 48,
