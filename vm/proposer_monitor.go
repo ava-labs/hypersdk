@@ -232,6 +232,7 @@ func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (i
 }
 
 func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error) {
+	// Get determinisitc ordering of validators
 	info, ok := p.proposers.Get(height)
 	if !ok {
 		info = p.Fetch(ctx, height)
@@ -242,15 +243,23 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, he
 	if len(info.partitionSet) == 0 {
 		return ids.NodeID{}, errors.New("no validators")
 	}
-	seed := make([]byte, consts.Uint64Len*2+codec.AddressLen+consts.Uint8Len)
-	binary.BigEndian.PutUint64(seed, epoch) // ensures partitions rotate even if P-Chain height is static
-	binary.BigEndian.PutUint64(seed[consts.Uint64Len:], height)
-	copy(seed[consts.Uint64Len*2:], addr[:])
-	seed[consts.Uint64Len*2+codec.AddressLen] = partition // note: this approach does not guarantee distinct partitions
-	h := utils.ToID(seed)
-	index := new(big.Int).Mod(new(big.Int).SetBytes(h[:]), big.NewInt(int64(len(info.partitionSet))))
-	indexInt := int(index.Int64())
-	return info.partitionSet[indexInt], nil
+
+	// Compute seed
+	seedBytes := make([]byte, consts.Uint64Len*2+codec.AddressLen)
+	binary.BigEndian.PutUint64(seedBytes, epoch) // ensures partitions rotate even if P-Chain height is static
+	binary.BigEndian.PutUint64(seedBytes[consts.Uint64Len:], height)
+	copy(seedBytes[consts.Uint64Len*2:], addr[:])
+	seed := utils.ToID(seedBytes)
+
+	// Select validator
+	//
+	// It is important to ensure each partition is actually a unique validator, otherwise
+	// the censorship resistance that partitions are supposed to provide is lost (all partitions
+	// could be allocated to a single validator if we aren't careful).
+	seedInt := new(big.Int).SetBytes(seed[:])
+	partitionInt := new(big.Int).Add(seedInt, big.NewInt(int64(partition)))
+	partitionIdx := new(big.Int).Mod(partitionInt, big.NewInt(int64(len(info.partitionSet)))).Int64()
+	return info.partitionSet[int(partitionIdx)], nil
 }
 
 func (p *ProposerMonitor) GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) {
