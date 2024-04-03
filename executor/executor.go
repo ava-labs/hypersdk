@@ -129,17 +129,25 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			lt.l.Lock()
 			if !lt.executed {
 				switch {
-				case v == state.Read && !n.isAllocateWrite:
+				case v == state.Read:
+					if n.isAllocateWrite {
+						t.dependencies.Add(int64(1))
+					}
 					lt.blocking[id] = t
 					lt.l.Unlock()
 					continue
-				case v == state.Read && n.isAllocateWrite:
-					t.dependencies.Add(int64(1))
-					lt.blocking[id] = t
-					lt.l.Unlock()
-					continue
-				case (v.Has(state.Allocate) || v.Has(state.Write)) && !n.isAllocateWrite:
-					// blocked by all reads
+				case v.Has(state.Allocate) || v.Has(state.Write):
+					if n.isAllocateWrite {
+						// sequential writes
+						if len(lt.blocking) == 0 {
+							t.dependencies.Add(int64(1))
+							lt.blocking[id] = t
+							e.update(id, k, v)
+							lt.l.Unlock()
+							continue
+						}
+					}
+					// blocked by all reads plus an allocateWrite/the first requested Read
 					t.dependencies.Add(int64(len(lt.blocking) + 1))
 					for b := range lt.blocking {
 						bt := e.tasks[b]
@@ -148,24 +156,11 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 						bt.l.Unlock()
 					}
 					lt.blocking[id] = t
-				case (v.Has(state.Allocate) || v.Has(state.Write)) && n.isAllocateWrite:
-					if len(lt.blocking) == 0 {
-						t.dependencies.Add(int64(1))
-						lt.blocking[id] = t
-					} else {
-						t.dependencies.Add(int64(len(lt.blocking)))
-						for b := range lt.blocking {
-							bt := e.tasks[b]
-							bt.l.Lock()
-							bt.blocking[id] = t
-							bt.l.Unlock()
-						}
-					}
 				}
 			}
 			lt.l.Unlock()
 		}
-		e.nodes[k] = &node{id: id, isAllocateWrite: v.Has(state.Allocate) || v.Has(state.Write)}
+		e.update(id, k, v)
 	}
 
 	if t.dependencies.Load() > 0 {
@@ -180,6 +175,10 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	if e.metrics != nil {
 		e.metrics.RecordExecutable()
 	}
+}
+
+func (e *Executor) update(id int, k string, v state.Permissions) {
+	e.nodes[k] = &node{id: id, isAllocateWrite: v.Has(state.Allocate) || v.Has(state.Write)}
 }
 
 func (e *Executor) Stop() {
