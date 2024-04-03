@@ -6,9 +6,7 @@ package executor
 import (
 	"sync"
 	"sync/atomic"
-	_ "fmt"
 
-	_ "github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/state"
 
 	uatomic "go.uber.org/atomic"
@@ -35,7 +33,7 @@ type Executor struct {
 }
 
 type node struct {
-	id int
+	id              int
 	isAllocateWrite bool
 }
 
@@ -45,7 +43,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 		metrics:    metrics,
 		tasks:      make(map[int]*task, items),
 		nodes:      make(map[string]*node, items*2), // TODO: tune this
-		executable: make(chan *task, items),       // ensure we don't block while holding lock
+		executable: make(chan *task, items),         // ensure we don't block while holding lock
 	}
 	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -70,7 +68,7 @@ func (e *Executor) work() {
 
 type task struct {
 	id int
-	f func() error
+	f  func() error
 
 	l        sync.Mutex
 	blocking map[int]*task
@@ -93,22 +91,17 @@ func (e *Executor) runTask(t *task) {
 		return
 	}
 
-	//fmt.Printf("a sup %v\n", t.id)
 	t.l.Lock()
-	//fmt.Printf("b sup %v\n", t.id)
 	for _, bt := range t.blocking {
 		if bt.dependencies.Load() == 0 || bt.dependencies.Add(-1) > 0 {
-			//fmt.Printf("hit %v %v %v\n", t.id, bt.id, len(e.executable))
 			continue
 		}
-		//fmt.Printf("should never hit %v %v\n", t.id, bt.id)
 		if !bt.executed {
 			e.executable <- bt
 		}
 	}
 	t.blocking = nil // free memory
 	t.executed = true
-	//fmt.Printf("c sup %v\n", t.id)
 	t.l.Unlock()
 }
 
@@ -122,18 +115,13 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	// Generate task
 	id := len(e.tasks)
 	t := &task{
-		id: id,
+		id:       id,
 		f:        f,
 		blocking: map[int]*task{},
 	}
 	e.tasks[id] = t
 
-	// Add dummy dependencies to ensure we don't execute the task
-	//dummyDependencies := int64(len(keys) + 1)
-	//t.dependencies.Add(dummyDependencies)
-
 	// Record dependencies
-	//previousDependencies := set.NewSet[int](len(keys))
 	for k, v := range keys {
 		n, ok := e.nodes[k]
 		if ok {
@@ -180,10 +168,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		e.nodes[k] = &node{id: id, isAllocateWrite: v.Has(state.Allocate) || v.Has(state.Write)}
 	}
 
-	// Adjust dependency traker and execute if necessary
-	//extraDependencies := dummyDependencies - int64(previousDependencies.Len())
-	//if t.dependencies.Add(-extraDependencies) > 0 {
-	//fmt.Printf("dep %v\n", t.dependencies.Load())
 	if t.dependencies.Load() > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
@@ -191,7 +175,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		return
 	}
 
-	//fmt.Printf("sending %v\n", id)
 	// Mark task for execution if we aren't waiting on any other tasks
 	e.executable <- t
 	if e.metrics != nil {

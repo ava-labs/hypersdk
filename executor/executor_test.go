@@ -5,10 +5,10 @@ package executor
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -168,7 +168,7 @@ func TestEarlyExit(t *testing.T) {
 			return nil
 		})
 	}
-	require.ErrorIs(e.Wait(), terr) // no task running	
+	require.ErrorIs(e.Wait(), terr) // no task running
 	require.True(len(completed) < 500)
 }
 
