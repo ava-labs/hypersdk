@@ -4,7 +4,7 @@
 package executor
 
 import (
-	_ "errors"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-/*func TestExecutorNoConflicts(t *testing.T) {
+func TestExecutorNoConflicts(t *testing.T) {
 	var (
 		require   = require.New(t)
 		l         sync.Mutex
@@ -197,10 +197,10 @@ func TestStop(t *testing.T) {
 	}
 	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
-}*/
+}
 
 // W->W->W->...
-func TestManyWrites(t *testing.T) {
+/*func TestManyWrites(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -379,3 +379,45 @@ func TestWriteThenReadRepeated(t *testing.T) {
 	// 50..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
 }
+
+// R->R->W->R->W->R->R...
+func TestReadThenWriteRepeated(t *testing.T) {
+	var (
+		require     = require.New(t)
+		conflictKey = ids.GenerateTestID().String()
+		l           sync.Mutex
+		completed   = make([]int, 0, 100)
+		e           = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Write)
+		}
+		if i == 10 || i == 12 {
+			s.Add(conflictKey, state.Write)
+		} else {
+			s.Add(conflictKey, state.Read)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 10 {
+				time.Sleep(1 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	require.NoError(e.Wait())
+	fmt.Printf("completed %v\n", completed)
+	// 0..9 are ran in parallel, so non-deterministic
+	require.Equal(10, completed[10])
+	require.Equal(11, completed[11])
+	require.Equal(12, completed[12])
+	// 13..99 are ran in parallel, so non-deterministic
+	require.Len(completed, 100)
+}
+*/
