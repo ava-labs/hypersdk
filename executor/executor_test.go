@@ -168,8 +168,8 @@ func TestEarlyExit(t *testing.T) {
 			return nil
 		})
 	}
-	require.Less(len(completed), 500)
-	require.ErrorIs(e.Wait(), terr) // no task running
+	require.ErrorIs(e.Wait(), terr) // no task running	
+	require.True(len(completed) < 500)
 }
 
 func TestStop(t *testing.T) {
@@ -195,12 +195,12 @@ func TestStop(t *testing.T) {
 			return nil
 		})
 	}
-	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
+	require.Less(len(completed), 500)
 }
 
 // W->W->W->...
-/*func TestManyWrites(t *testing.T) {
+func TestManyWrites(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -420,4 +420,3 @@ func TestReadThenWriteRepeated(t *testing.T) {
 	// 13..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
 }
-*/
