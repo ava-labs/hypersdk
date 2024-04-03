@@ -53,8 +53,8 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156 h1:eMwmnE/GDgah
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax3seSYIx7SuZdm2G2xzfwmv3TPSk2ucNfQESPXM=
 github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0 h1:xNbCMNqenaDr0bb35j27sqwa+C8t8BgRz51vXd6q0QM=
 github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0/go.mod h1:B7Ynk/avkCk49CCIWbM4j1UrPlqIi0IHCPAB2MZNvLw=
-github.com/ava-labs/avalanchego v1.11.4-rc.1.0.20240403135651-e6afb31afcce h1:Icmn7DUq3NToNg+cAzW/H0c4Fox/9V6JU/rxIP6lSM4=
-github.com/ava-labs/avalanchego v1.11.4-rc.1.0.20240403135651-e6afb31afcce/go.mod h1:gERvI2cUBGylfAoRT0eRQs+F+BIsDXFRhCfenUUlGUI=
+github.com/ava-labs/avalanchego v1.11.4-rc.1.0.20240403142537-8373ce98494c h1:LOXOgbCf/x3Z9TF/O7p9VzQoOYW3LAg+zrlnDIKxyww=
+github.com/ava-labs/avalanchego v1.11.4-rc.1.0.20240403142537-8373ce98494c/go.mod h1:gERvI2cUBGylfAoRT0eRQs+F+BIsDXFRhCfenUUlGUI=
 github.com/ava-labs/coreth v0.13.2-rc.2 h1:GmXSyDykDUuDyW7933T8lK7Fp6/4k/IcHhLJjkvjUYI=
 github.com/ava-labs/coreth v0.13.2-rc.2/go.mod h1:jOapwtgvroqZ2U8PJpoaq1PHrUFOrlgshUWQfM3nba0=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
