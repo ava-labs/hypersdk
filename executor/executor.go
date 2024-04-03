@@ -151,6 +151,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				case (v.Has(state.Allocate) || v.Has(state.Write)) && !n.isAllocateWrite:
 					// blocked by all reads
 					t.dependencies.Add(int64(len(lt.blocking)))*/
+				case (v.Has(state.Allocate) || v.Has(state.Write)) && n.isAllocateWrite:
+					t.dependencies.Add(int64(1))
+					lt.blocking[id] = t					
 				}
 			}
 			lt.l.Unlock()

@@ -197,7 +197,7 @@ func TestStop(t *testing.T) {
 	}
 	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
-}
+}*/
 
 // W->W->W->...
 func TestManyWrites(t *testing.T) {
@@ -230,7 +230,7 @@ func TestManyWrites(t *testing.T) {
 	}
 	require.NoError(e.Wait())
 	require.Equal(answer, completed)
-}*/
+}
 
 // R->R->R->...
 func TestManyReads(t *testing.T) {
