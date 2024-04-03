@@ -161,8 +161,18 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					}
 					lt.blocking[id] = t
 				case (v.Has(state.Allocate) || v.Has(state.Write)) && n.isAllocateWrite:
-					t.dependencies.Add(int64(1))
-					lt.blocking[id] = t					
+					if len(lt.blocking) == 0 {
+						t.dependencies.Add(int64(1))
+						lt.blocking[id] = t
+					} else {
+						t.dependencies.Add(int64(len(lt.blocking)))
+						for b := range lt.blocking {
+							bt := e.tasks[b]
+							bt.l.Lock()
+							bt.blocking[id] = t
+							bt.l.Unlock()
+						}
+					}
 				}
 			}
 			lt.l.Unlock()
