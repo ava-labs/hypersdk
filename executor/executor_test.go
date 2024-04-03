@@ -261,7 +261,7 @@ func TestManyReads(t *testing.T) {
 	require.NoError(e.Wait())
 	// 0..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
-}*/
+}
 
 // W->R->R->...
 func TestWriteThenRead(t *testing.T) {
@@ -298,5 +298,44 @@ func TestWriteThenRead(t *testing.T) {
 	fmt.Printf("completed %v\n", completed)
 	require.Equal(0, completed[0]) // Write first to execute
 	// 1..99 are ran in parallel, so non-deterministic
+	require.Len(completed, 100)
+}*/
+
+// R->R->W...
+func TestReadThenWrite(t *testing.T) {
+	var (
+		require     = require.New(t)
+		conflictKey = ids.GenerateTestID().String()
+		l           sync.Mutex
+		completed   = make([]int, 0, 100)
+		e           = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Write)
+		}
+		if i == 10 {
+			s.Add(conflictKey, state.Write)
+		} else {
+			s.Add(conflictKey, state.Read)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 10 {
+				time.Sleep(1 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	require.NoError(e.Wait())
+	fmt.Printf("completed %v\n", completed)
+	// 0..9 are ran in parallel, so non-deterministic
+	require.Equal(10, completed[10]) // First write to execute
+	// 11..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
 }
