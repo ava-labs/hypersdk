@@ -153,6 +153,8 @@ cat <<EOF > "${TMPDIR}"/node.config
   "throttler-inbound-bandwidth-refill-rate":"1073741824",
   "throttler-inbound-bandwidth-max-burst-size":"1073741824",
   "throttler-inbound-cpu-validator-alloc":"100000",
+  "throttler-inbound-cpu-max-non-validator-usage":"100000",
+  "throttler-inbound-cpu-max-non-validator-node-usage":"100000",
   "throttler-inbound-disk-validator-alloc":"10737418240000",
   "throttler-outbound-validator-alloc-size":"10737418240",
   "throttler-outbound-at-large-alloc-size":"10737418240",
