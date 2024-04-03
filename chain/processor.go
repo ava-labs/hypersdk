@@ -250,7 +250,9 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			// We don't care whether this transaction is in the current epoch or the next.
 			units, err := tx.SyntacticVerify(ctx, p.sm, p.r, p.timestamp)
 			if err != nil {
-				p.vm.Logger().Warn("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
+				// This is a debug log because it can get very noisy when transactions were included after their timeslot. For a production
+				// release, all the logs in this function should probably be DEBUG.
+				p.vm.Logger().Debug("transaction is invalid", zap.Stringer("txID", tx.ID()), zap.Error(err))
 				p.results[chunkIndex][txIndex] = &Result{Valid: false}
 				return nil, nil
 			}
