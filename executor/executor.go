@@ -13,11 +13,11 @@ import (
 )
 
 // Executor sequences the concurrent execution of
-// tasks with arbitrary keys on-the-fly.
+// tasks with arbitrary conflicts on-the-fly.
 //
 // Executor ensures that conflicting tasks
 // are executed in the order they were queued.
-// Tasks with no keys are executed immediately.
+// Tasks with no conflicts are executed immediately.
 type Executor struct {
 	metrics Metrics
 
@@ -55,7 +55,7 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 func (e *Executor) work() {
 	defer e.workers.Done()
 
-	for {
+	for { //nolint:gosimple
 		select {
 		case t, ok := <-e.executable:
 			if !ok {
@@ -93,9 +93,11 @@ func (e *Executor) runTask(t *task) {
 
 	t.l.Lock()
 	for _, bt := range t.blocking {
+		// Reads would have zero dependencies
 		if bt.dependencies.Load() == 0 || bt.dependencies.Add(-1) > 0 {
 			continue
 		}
+		// This might happen in Read-after-Read, so don't enqueue again
 		if !bt.executed {
 			e.executable <- bt
 		}
@@ -112,7 +114,7 @@ func (e *Executor) runTask(t *task) {
 func (e *Executor) Run(keys state.Keys, f func() error) {
 	e.outstanding.Add(1)
 
-	// Generate task
+	// Add task to map
 	id := len(e.tasks)
 	t := &task{
 		id:       id,
@@ -163,6 +165,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		e.update(id, k, v)
 	}
 
+	// Start execution if there are no blocking dependencies
 	if t.dependencies.Load() > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()

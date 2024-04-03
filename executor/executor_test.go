@@ -5,7 +5,6 @@ package executor
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -169,7 +168,7 @@ func TestEarlyExit(t *testing.T) {
 		})
 	}
 	require.ErrorIs(e.Wait(), terr) // no task running
-	require.True(len(completed) < 500)
+	require.Less(len(completed), 500)
 }
 
 func TestStop(t *testing.T) {
@@ -295,7 +294,6 @@ func TestWriteThenRead(t *testing.T) {
 		})
 	}
 	require.NoError(e.Wait())
-	fmt.Printf("completed %v\n", completed)
 	require.Equal(0, completed[0]) // Write first to execute
 	// 1..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
@@ -330,7 +328,6 @@ func TestReadThenWrite(t *testing.T) {
 		})
 	}
 	require.NoError(e.Wait())
-	fmt.Printf("completed %v\n", completed)
 	// 0..9 are ran in parallel, so non-deterministic
 	require.Equal(10, completed[10]) // First write to execute
 	// 11..99 are ran in parallel, so non-deterministic
@@ -369,7 +366,6 @@ func TestWriteThenReadRepeated(t *testing.T) {
 		})
 	}
 	require.NoError(e.Wait())
-	fmt.Printf("completed %v\n", completed)
 	require.Equal(0, completed[0]) // First write to execute
 	// 1..48 are ran in parallel, so non-deterministic
 	require.Equal(49, completed[49]) // Second write to execute
@@ -409,7 +405,6 @@ func TestReadThenWriteRepeated(t *testing.T) {
 		})
 	}
 	require.NoError(e.Wait())
-	fmt.Printf("completed %v\n", completed)
 	// 0..9 are ran in parallel, so non-deterministic
 	require.Equal(10, completed[10])
 	require.Equal(11, completed[11])
