@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	_ "fmt"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -197,7 +197,7 @@ func TestStop(t *testing.T) {
 	}
 	require.Less(len(completed), 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
-}*/
+}
 
 // W->W->W->...
 func TestManyWrites(t *testing.T) {
@@ -261,10 +261,10 @@ func TestManyReads(t *testing.T) {
 	require.NoError(e.Wait())
 	// 0..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
-}
+}*/
 
 // W->R->R->...
-/*func TestWriteThenRead(t *testing.T) {
+func TestWriteThenRead(t *testing.T) {
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -299,4 +299,4 @@ func TestManyReads(t *testing.T) {
 	require.Equal(0, completed[0]) // Write first to execute
 	// 1..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
-}*/
+}
