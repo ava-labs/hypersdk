@@ -39,13 +39,16 @@ if ! aws sts get-caller-identity >/dev/null 2>&1 ; then
     exit 1
 fi
 
+# Set AvalancheGo Build (should have canPop disabled)
+AVALANCHEGO_COMMIT=d8ca8137975ec3940ea6b4a7e341cbdfcb3f4930
+
 # Create temporary directory for the deployment
 TMPDIR=/tmp/morpheusvm-deploy
 rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=882a1f4043233d24a8e31c3ba2f474ed734fd63c
+LOCAL_CLI_COMMIT=d044dbda1f1d76d2e666d0edb0cba338808e338b
 REMOTE_CLI_COMMIT=v1.4.3-rc.2
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
@@ -181,7 +184,7 @@ trap cleanup EXIT
 #
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.16xlarge --aws-volume-type=gp3 --aws-iops=3000 --aws-throughput=300 --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.16xlarge --aws-volume-type=gp3 --aws-iops=3000 --aws-throughput=300 --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
 # Import the cluster into morpheus-cli for local interaction
