@@ -9,7 +9,7 @@ require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
 	github.com/ava-labs/avalanchego v1.11.4-rc.1.0.20240403135651-e6afb31afcce
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
-	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
+	github.com/cockroachdb/pebble v1.1.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/golang/mock v1.6.0
@@ -48,9 +48,10 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
-	github.com/cockroachdb/errors v1.9.1 // indirect
+	github.com/cockroachdb/errors v1.11.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/redact v1.1.3 // indirect
+	github.com/cockroachdb/redact v1.1.5 // indirect
+	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect

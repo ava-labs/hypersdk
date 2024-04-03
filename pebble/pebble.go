@@ -29,8 +29,10 @@ var (
 
 type Database struct {
 	db      *pebble.DB
-	wo      *pebble.WriteOptions
 	metrics *metrics
+
+	wo           *pebble.WriteOptions
+	maxBatchSize int
 
 	// We use an atomic bool for most
 	// checks because it is much faster
@@ -41,18 +43,20 @@ type Database struct {
 
 type Config struct {
 	Sync                        bool
+	MaxBatchSize                int // B // TODO: make this an arg once NewBatchWithSize is added to db interface
 	CacheSize                   int // B
 	L0CompactionThreshold       int
 	L0StopWritesThreshold       int
-	MemTableStopWritesThreshold int // num tables
-	MemTableSize                int // B
+	MemTableStopWritesThreshold int    // num tables
+	MemTableSize                uint64 // B
 	MaxOpenFiles                int
 	ConcurrentCompactions       func() int
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		Sync:                        false, // explicitly specified for clarity
+		Sync:                        false,         // explicitly specified for clarity
+		MaxBatchSize:                1 * units.GiB, // Avoid growing during batch construction (this is reused across batches)
 		CacheSize:                   2 * units.GiB,
 		L0CompactionThreshold:       2,              // avoid large compaction spikes: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L496
 		L0StopWritesThreshold:       1000,           // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
@@ -71,7 +75,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	if cfg.Sync {
 		wo = pebble.Sync
 	}
-	d := &Database{wo: wo, closing: make(chan struct{})}
+	d := &Database{wo: wo, maxBatchSize: cfg.MaxBatchSize, closing: make(chan struct{})}
 	opts := &pebble.Options{
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
 		L0CompactionThreshold:       cfg.L0CompactionThreshold,
@@ -180,7 +184,9 @@ type batch struct {
 
 // NewBatch creates a write/delete-only buffer that is atomically committed to
 // the database when write is called
-func (db *Database) NewBatch() database.Batch { return &batch{db: db, batch: db.db.NewBatch()} }
+func (db *Database) NewBatch() database.Batch {
+	return &batch{db: db, batch: db.db.NewBatchWithSize(db.maxBatchSize)}
+}
 
 // Put the value into the batch for later writing
 func (b *batch) Put(key, value []byte) error {
@@ -199,7 +205,6 @@ func (b *batch) Size() int { return b.size }
 
 // Write flushes any accumulated data to disk.
 func (b *batch) Write() error {
-	defer b.batch.Close()
 	return updateError(b.batch.Commit(b.db.wo))
 }
 
@@ -213,7 +218,10 @@ func (b *batch) Reset() {
 func (b *batch) Replay(w database.KeyValueWriterDeleter) error {
 	reader := b.batch.Reader()
 	for {
-		kind, k, v, ok := reader.Next()
+		kind, k, v, ok, err := reader.Next()
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return nil
 		}
@@ -244,21 +252,29 @@ type iter struct {
 	err   error
 }
 
+func (db *Database) newIter(args *pebble.IterOptions) *iter {
+	it := &iter{
+		db: db,
+	}
+	dbIt, err := db.db.NewIter(args)
+	if err != nil {
+		it.err = err
+		it.valid = false
+		return it
+	}
+	it.iter = dbIt
+	return it
+}
+
 // NewIterator creates a lexicographically ordered iterator over the database
 func (db *Database) NewIterator() database.Iterator {
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{}),
-	}
+	return db.newIter(&pebble.IterOptions{})
 }
 
 // NewIteratorWithStart creates a lexicographically ordered iterator over the
 // database starting at the provided key
 func (db *Database) NewIteratorWithStart(start []byte) database.Iterator {
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{LowerBound: start}),
-	}
+	return db.newIter(&pebble.IterOptions{LowerBound: start})
 }
 
 // bytesPrefix returns key range that satisfy the given prefix.
@@ -280,10 +296,7 @@ func bytesPrefix(prefix []byte) *pebble.IterOptions {
 // NewIteratorWithPrefix creates a lexicographically ordered iterator over the
 // database ignoring keys that do not start with the provided prefix
 func (db *Database) NewIteratorWithPrefix(prefix []byte) database.Iterator {
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(bytesPrefix(prefix)),
-	}
+	return db.newIter(bytesPrefix(prefix))
 }
 
 // NewIteratorWithStartAndPrefix creates a lexicographically ordered iterator
@@ -297,10 +310,7 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 	if bytes.Compare(start, prefix) == 1 {
 		iterRange.LowerBound = start
 	}
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(iterRange),
-	}
+	return db.newIter(iterRange)
 }
 
 func (it *iter) Next() bool {
@@ -308,6 +318,13 @@ func (it *iter) Next() bool {
 	if it.db.closed.Get() {
 		it.valid = false
 		it.err = database.ErrClosed
+		return false
+	}
+
+	// If the iterator has already errored, just return.
+	//
+	// This could happen in the construction of the iterator.
+	if it.err != nil {
 		return false
 	}
 
