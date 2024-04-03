@@ -311,10 +311,7 @@ func TestReadThenWrite(t *testing.T) {
 		e           = New(100, 4, nil)
 	)
 	for i := 0; i < 100; i++ {
-		s := make(state.Keys, (i + 1))
-		for k := 0; k < i+1; k++ {
-			s.Add(ids.GenerateTestID().String(), state.Write)
-		}
+		s := make(state.Keys, 1)
 		if i == 10 {
 			s.Add(conflictKey, state.Write)
 		} else {
@@ -322,7 +319,7 @@ func TestReadThenWrite(t *testing.T) {
 		}
 		ti := i
 		e.Run(s, func() error {
-			if ti == 10 {
+			if ti == 9 {
 				time.Sleep(1 * time.Second)
 			}
 

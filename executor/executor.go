@@ -117,7 +117,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	t := &task{
 		id:       id,
 		f:        f,
-		blocking: map[int]*task{},
+		blocking: make(map[int]*task),
 	}
 	e.tasks[id] = t
 
