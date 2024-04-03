@@ -27,6 +27,18 @@ var (
 	ErrInvalidOperation = errors.New("invalid operation")
 )
 
+const (
+	// oneIf64Bit is 1 on 64-bit platforms and 0 on 32-bit platforms.
+	oneIf64Bit = ^uint(0) >> 63
+
+	// MaxUint32OrInt returns min(MaxUint32, MaxInt), i.e
+	// - MaxUint32 on 64-bit platforms;
+	// - MaxInt on 32-bit platforms.
+	// It is used when slices are limited to Uint32 on 64-bit platforms (the
+	// length limit for slices is naturally MaxInt on 32-bit platforms).
+	MaxUint32OrInt = (1<<31)<<oneIf64Bit - 1
+)
+
 type Database struct {
 	db      *pebble.DB
 	wo      *pebble.WriteOptions
@@ -73,11 +85,12 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	}
 	d := &Database{wo: wo, closing: make(chan struct{})}
 	opts := &pebble.Options{
+		BytesPerSync:                128 * units.MiB,
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
 		L0CompactionThreshold:       cfg.L0CompactionThreshold,
 		L0StopWritesThreshold:       cfg.L0StopWritesThreshold,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
-		MemTableSize:                cfg.MemTableSize,
+		MemTableSize:                uint64(cfg.MemTableSize),
 		MaxOpenFiles:                cfg.MaxOpenFiles,
 		MaxConcurrentCompactions:    cfg.ConcurrentCompactions, // TODO: may want to tweak this?
 		Levels:                      make([]pebble.LevelOptions, 7),
@@ -106,6 +119,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	}
 	opts.Levels[len(opts.Levels)-1].FilterPolicy = nil
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
+	opts.Experimental.TableCacheShards = 1
 	registry, metrics, err := newMetrics()
 	if err != nil {
 		return nil, nil, err
@@ -180,7 +194,10 @@ type batch struct {
 
 // NewBatch creates a write/delete-only buffer that is atomically committed to
 // the database when write is called
-func (db *Database) NewBatch() database.Batch { return &batch{db: db, batch: db.db.NewBatch()} }
+func (db *Database) NewBatch() database.Batch {
+	fmt.Println("creating new batch")
+	return &batch{db: db, batch: db.db.NewBatchWithSize(MaxUint32OrInt)}
+}
 
 // Put the value into the batch for later writing
 func (b *batch) Put(key, value []byte) error {
@@ -200,6 +217,7 @@ func (b *batch) Size() int { return b.size }
 // Write flushes any accumulated data to disk.
 func (b *batch) Write() error {
 	defer b.batch.Close()
+	fmt.Println("starting batch commit")
 	return updateError(b.batch.Commit(b.db.wo))
 }
 
@@ -213,7 +231,10 @@ func (b *batch) Reset() {
 func (b *batch) Replay(w database.KeyValueWriterDeleter) error {
 	reader := b.batch.Reader()
 	for {
-		kind, k, v, ok := reader.Next()
+		kind, k, v, ok, err := reader.Next()
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return nil
 		}
@@ -246,18 +267,27 @@ type iter struct {
 
 // NewIterator creates a lexicographically ordered iterator over the database
 func (db *Database) NewIterator() database.Iterator {
+	i, err := db.db.NewIter(&pebble.IterOptions{})
+	if err != nil {
+		panic(err)
+	}
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{}),
+		iter: i,
 	}
 }
 
 // NewIteratorWithStart creates a lexicographically ordered iterator over the
 // database starting at the provided key
 func (db *Database) NewIteratorWithStart(start []byte) database.Iterator {
+	i, err := db.db.NewIter(&pebble.IterOptions{LowerBound: start})
+	if err != nil {
+		panic(err)
+	}
+
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{LowerBound: start}),
+		iter: i,
 	}
 }
 
@@ -280,9 +310,13 @@ func bytesPrefix(prefix []byte) *pebble.IterOptions {
 // NewIteratorWithPrefix creates a lexicographically ordered iterator over the
 // database ignoring keys that do not start with the provided prefix
 func (db *Database) NewIteratorWithPrefix(prefix []byte) database.Iterator {
+	i, err := db.db.NewIter(bytesPrefix(prefix))
+	if err != nil {
+		panic(err)
+	}
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(bytesPrefix(prefix)),
+		iter: i,
 	}
 }
 
@@ -297,9 +331,13 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 	if bytes.Compare(start, prefix) == 1 {
 		iterRange.LowerBound = start
 	}
+	i, err := db.db.NewIter(iterRange)
+	if err != nil {
+		panic(err)
+	}
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(iterRange),
+		iter: i,
 	}
 }
 
