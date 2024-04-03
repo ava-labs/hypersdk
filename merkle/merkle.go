@@ -31,7 +31,7 @@ const (
 	//
 	// 200k keys per block * 60 blocks per minute (max keys ~12M)
 	backlogInitialSize = 15_000_000
-	changesInitialSize = 2_500_000
+	changesInitialSize = 5_000_000 // this size is allocated for both nodes and values
 )
 
 type Merkle struct {
