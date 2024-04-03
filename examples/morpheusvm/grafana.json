@@ -5373,7 +5373,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 12,
         "x": 0,
         "y": 125
       },
@@ -5475,8 +5475,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
+        "w": 12,
+        "x": 12,
         "y": 125
       },
       "id": 22,
@@ -5602,8 +5602,210 @@
       "gridPos": {
         "h": 8,
         "w": 8,
+        "x": 0,
+        "y": 133
+      },
+      "id": 100,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_chunk_gossip_dropped[30s])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Dropped Chunks (Gossip)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 133
+      },
+      "id": 101,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_chain_gossip_chunk_backlog",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Chunk Backlog (Gossip)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
         "x": 16,
-        "y": 125
+        "y": 133
       },
       "id": 32,
       "options": {
@@ -5700,9 +5902,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 6,
         "x": 0,
-        "y": 133
+        "y": 141
       },
       "id": 28,
       "options": {
@@ -5800,9 +6002,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 133
+        "w": 6,
+        "x": 6,
+        "y": 141
       },
       "id": 76,
       "options": {
@@ -5837,6 +6039,106 @@
         }
       ],
       "title": "Useless Fetch Chunk Attempts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 141
+      },
+      "id": 102,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_optimistic_certified_gossip[30s])",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Optimistic Chunk Certificates Sent",
       "type": "timeseries"
     },
     {
@@ -5903,9 +6205,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 133
+        "w": 6,
+        "x": 18,
+        "y": 141
       },
       "id": 27,
       "options": {
@@ -5963,7 +6265,7 @@
           "type": "math"
         }
       ],
-      "title": "Fetch Missing Chunks",
+      "title": "Get Chunks",
       "type": "timeseries"
     },
     {
@@ -6030,7 +6332,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 141
+        "y": 149
       },
       "id": 23,
       "options": {
@@ -6131,7 +6433,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 141
+        "y": 149
       },
       "id": 66,
       "options": {
@@ -6231,7 +6533,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 141
+        "y": 149
       },
       "id": 64,
       "options": {
@@ -6329,7 +6631,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 149
+        "y": 157
       },
       "id": 26,
       "options": {
@@ -6457,7 +6759,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 149
+        "y": 157
       },
       "id": 5,
       "options": {
@@ -6556,7 +6858,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 149
+        "y": 157
       },
       "id": 18,
       "options": {
@@ -6657,7 +6959,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 157
+        "y": 165
       },
       "id": 67,
       "options": {
@@ -6758,7 +7060,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 157
+        "y": 165
       },
       "id": 70,
       "options": {
@@ -6859,7 +7161,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 157
+        "y": 165
       },
       "id": 69,
       "options": {
@@ -6960,7 +7262,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 165
+        "y": 173
       },
       "id": 71,
       "options": {
@@ -7061,7 +7363,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 165
+        "y": 173
       },
       "id": 72,
       "options": {
@@ -7162,7 +7464,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 165
+        "y": 173
       },
       "id": 10,
       "options": {
@@ -7261,7 +7563,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 173
+        "y": 181
       },
       "id": 39,
       "options": {
@@ -7360,7 +7662,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 173
+        "y": 181
       },
       "id": 65,
       "options": {
@@ -7460,7 +7762,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 173
+        "y": 181
       },
       "id": 40,
       "options": {
@@ -7499,7 +7801,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 181
+        "y": 189
       },
       "id": 35,
       "panels": [],
@@ -7611,7 +7913,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 182
+        "y": 190
       },
       "id": 9,
       "options": {
@@ -7757,7 +8059,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 182
+        "y": 190
       },
       "id": 6,
       "options": {
@@ -7857,7 +8159,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 182
+        "y": 190
       },
       "id": 93,
       "options": {
@@ -7974,7 +8276,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 182
+        "y": 190
       },
       "id": 94,
       "options": {
@@ -8082,7 +8384,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 190
+        "y": 198
       },
       "id": 8,
       "options": {
@@ -8189,7 +8491,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 190
+        "y": 198
       },
       "id": 74,
       "options": {
@@ -8296,7 +8598,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 190
+        "y": 198
       },
       "id": 7,
       "options": {
@@ -8403,7 +8705,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 190
+        "y": 198
       },
       "id": 75,
       "options": {
@@ -8506,7 +8808,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 198
+        "y": 206
       },
       "id": 16,
       "options": {
@@ -8604,7 +8906,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 198
+        "y": 206
       },
       "id": 90,
       "options": {
@@ -8702,7 +9004,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 198
+        "y": 206
       },
       "id": 77,
       "options": {
@@ -8800,7 +9102,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 198
+        "y": 206
       },
       "id": 80,
       "options": {
@@ -8923,7 +9225,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 206
+        "y": 214
       },
       "id": 15,
       "options": {
@@ -9021,7 +9323,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 206
+        "y": 214
       },
       "id": 91,
       "options": {
@@ -9119,7 +9421,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 206
+        "y": 214
       },
       "id": 78,
       "options": {
@@ -9217,7 +9519,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 206
+        "y": 214
       },
       "id": 81,
       "options": {
@@ -9340,7 +9642,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 214
+        "y": 222
       },
       "id": 79,
       "options": {
@@ -9438,7 +9740,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 214
+        "y": 222
       },
       "id": 82,
       "options": {
@@ -9536,7 +9838,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 214
+        "y": 222
       },
       "id": 95,
       "options": {
