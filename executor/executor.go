@@ -129,6 +129,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			lt.l.Lock()
 			if !lt.executed {
 				switch {
+				// concurrent Reads or Read(s)-after-Write
 				case v == state.Read:
 					if n.isAllocateWrite {
 						t.dependencies.Add(int64(1))
@@ -137,17 +138,16 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					lt.l.Unlock()
 					continue
 				case v.Has(state.Allocate) || v.Has(state.Write):
-					if n.isAllocateWrite {
-						// sequential writes
-						if len(lt.blocking) == 0 {
-							t.dependencies.Add(int64(1))
-							lt.blocking[id] = t
-							e.update(id, k, v)
-							lt.l.Unlock()
-							continue
-						}
+					// Write-after-Write
+					if n.isAllocateWrite && len(lt.blocking) == 0 {
+						t.dependencies.Add(int64(1))
+						lt.blocking[id] = t
+						e.update(id, k, v)
+						lt.l.Unlock()
+						continue
 					}
-					// blocked by all reads plus an allocateWrite/the first requested Read
+					// blocked by all Reads plus an Allocate/Write or the first Read
+					// example: w->r->r...w->r->r OR r->r->w...
 					t.dependencies.Add(int64(len(lt.blocking) + 1))
 					for b := range lt.blocking {
 						bt := e.tasks[b]
