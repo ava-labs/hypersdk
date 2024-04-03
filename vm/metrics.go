@@ -57,6 +57,7 @@ type Metrics struct {
 	blockVerifyFailed         prometheus.Counter
 	gossipTxMsgInvalid        prometheus.Counter
 	gossipTxInvalid           prometheus.Counter
+	chunkGossipDropped        prometheus.Counter
 	gossipChunkInvalid        prometheus.Counter
 	gossipChunkSigInvalid     prometheus.Counter
 	gossipCertInvalid         prometheus.Counter
@@ -81,6 +82,7 @@ type Metrics struct {
 	mempoolLen                prometheus.Gauge
 	mempoolSize               prometheus.Gauge
 	gossipTxBacklog           prometheus.Gauge
+	gossipChunkBacklog        prometheus.Gauge
 	websocketConnections      prometheus.Gauge
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
@@ -535,6 +537,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_gossip_dropped",
 			Help:      "number of tx gossip messages dropped",
 		}),
+		chunkGossipDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_gossip_dropped",
+			Help:      "number of chunks dropped from gossip",
+		}),
 		unitsExecutedBandwidth: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "units_executed_bandwidth",
@@ -599,6 +606,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "chain",
 			Name:      "mempool_size",
 			Help:      "bytes in the mempool",
+		}),
+		gossipChunkBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "gossip_chunk_backlog",
+			Help:      "number of chunks waiting to be processed from gossip",
 		}),
 		gossipTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
@@ -687,6 +699,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.blockVerifyFailed),
 		r.Register(m.gossipTxMsgInvalid),
 		r.Register(m.gossipTxInvalid),
+		r.Register(m.chunkGossipDropped),
 		r.Register(m.gossipChunkInvalid),
 		r.Register(m.gossipChunkSigInvalid),
 		r.Register(m.gossipCertInvalid),
@@ -702,6 +715,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.executedProcessingBacklog),
 		r.Register(m.mempoolLen),
 		r.Register(m.mempoolSize),
+		r.Register(m.gossipChunkBacklog),
 		r.Register(m.gossipTxBacklog),
 		r.Register(m.websocketConnections),
 		r.Register(m.lastAcceptedEpoch),

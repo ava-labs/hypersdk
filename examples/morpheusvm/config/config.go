@@ -46,6 +46,8 @@ type Config struct {
 	AuthGossipBacklog    int `json:"authGossipBacklog"`
 	AuthRPCCores         int `json:"authRPCCores"`
 	AuthRPCBacklog       int `json:"authRPCBacklog"`
+	ChunkStorageCores    int `json:"chunkStorageCores"`
+	ChunkStorageBacklog  int `json:"chunkStorageBacklog"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -117,6 +119,8 @@ func (c *Config) setDefault() {
 	c.AuthRPCBacklog = c.Config.GetAuthRPCBacklog()
 	c.AuthGossipCores = c.Config.GetAuthGossipCores()
 	c.AuthGossipBacklog = c.Config.GetAuthGossipBacklog()
+	c.ChunkStorageCores = c.Config.GetChunkStorageCores()
+	c.ChunkStorageBacklog = c.Config.GetChunkStorageBacklog()
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
@@ -192,4 +196,12 @@ func (c *Config) GetAuthGossipBacklog() int {
 
 func (c *Config) GetPrecheckCores() int {
 	return c.PrecheckCores
+}
+
+func (c *Config) GetChunkStorageCores() int {
+	return c.ChunkStorageCores
+}
+
+func (c *Config) GetChunkStorageBacklog() int {
+	return c.ChunkStorageBacklog
 }

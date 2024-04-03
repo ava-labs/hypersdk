@@ -35,6 +35,8 @@ type Config interface {
 	GetPrecheckCores() int
 	GetActionExecutionCores() int
 	GetMissingChunkFetchers() int
+	GetChunkStorageCores() int
+	GetChunkStorageBacklog() int
 	GetBeneficiary() codec.Address
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address

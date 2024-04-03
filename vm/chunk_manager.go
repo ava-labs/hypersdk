@@ -234,8 +234,9 @@ type ChunkManager struct {
 	vm   *VM
 	done chan struct{}
 
-	appSender   common.AppSender
-	incomingTxs chan *txGossipWrapper
+	appSender      common.AppSender
+	incomingChunks chan *chunkGossipWrapper
+	incomingTxs    chan *txGossipWrapper
 
 	epochHeights *cache.FIFO[uint64, uint64]
 
@@ -284,7 +285,8 @@ func NewChunkManager(vm *VM) *ChunkManager {
 		vm:   vm,
 		done: make(chan struct{}),
 
-		incomingTxs: make(chan *txGossipWrapper, vm.config.GetAuthGossipBacklog()),
+		incomingChunks: make(chan *chunkGossipWrapper, vm.config.GetChunkStorageBacklog()),
+		incomingTxs:    make(chan *txGossipWrapper, vm.config.GetAuthGossipBacklog()),
 
 		epochHeights: epochHeights,
 
@@ -407,7 +409,7 @@ func (c *ChunkManager) VerifyAndStoreChunk(ctx context.Context, nodeID ids.NodeI
 	return nil
 }
 
-func (c *ChunkManager) VerifyAndStoreCertificate(ctx context.Context, cert *chain.ChunkCertificate) error {
+func (c *ChunkManager) VerifyAndTrackCertificate(ctx context.Context, cert *chain.ChunkCertificate) error {
 	// Determine epoch for certificate
 	_, epochHeight, err := c.getEpochInfo(ctx, cert.Slot)
 	if err != nil {
@@ -452,55 +454,18 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			return nil
 		}
 
-		// Handle chunk verification
-		if err := c.VerifyAndStoreChunk(ctx, nodeID, chunk); err != nil {
-			c.vm.Logger().Warn("unable to verify and store chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
-			return nil
+		// Enqueue chunk for verification, if we have a backlog drop it
+		c.vm.metrics.gossipChunkBacklog.Inc()
+		select {
+		case c.incomingChunks <- &chunkGossipWrapper{nodeID: nodeID, chunk: chunk}:
+			// TODO: dedup incoming chunks to prevent backlog on same chunk (would block filedb)
+		default:
+			// TODO: track backlog by nodeID
+			c.vm.Logger().Warn("dropping chunk gossip because too big of a backlog", zap.Stringer("nodeID", nodeID))
+			c.vm.metrics.gossipChunkBacklog.Dec()
+			c.vm.metrics.chunkGossipDropped.Inc()
 		}
 
-		// Sign chunk if validator
-		_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
-		if err != nil {
-			c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
-			return nil
-		}
-		amValidator, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, c.vm.snowCtx.NodeID)
-		if err != nil {
-			c.vm.Logger().Warn("unable to determine if am validator", zap.Error(err))
-			return nil
-		}
-		if !amValidator {
-			// We don't sign the chunk if we're not a validator
-			return nil
-		}
-		chunkSignature := &chain.ChunkSignature{
-			Chunk: chunk.ID(),
-			Slot:  chunk.Slot,
-		}
-		digest, err := chunkSignature.Digest()
-		if err != nil {
-			c.vm.Logger().Warn("cannot generate cert digest", zap.Stringer("nodeID", nodeID), zap.Error(err))
-			return nil
-		}
-		warpMessage, err := warp.NewUnsignedMessage(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, digest)
-		if err != nil {
-			c.vm.Logger().Warn("unable to build warp message", zap.Error(err))
-			return nil
-		}
-		sig, err := c.vm.snowCtx.WarpSigner.Sign(warpMessage)
-		if err != nil {
-			c.vm.Logger().Warn("unable to sign chunk digest", zap.Error(err))
-			return nil
-		}
-		// We don't include the signer in the digest because we can't verify
-		// the aggregate signature over the chunk if we do.
-		chunkSignature.Signer = c.vm.snowCtx.PublicKey
-		chunkSignature.Signature, err = bls.SignatureFromBytes(sig)
-		if err != nil {
-			c.vm.Logger().Warn("unable to parse signature", zap.Error(err))
-			return nil
-		}
-		c.PushSignature(ctx, nodeID, chunkSignature)
 		c.vm.Logger().Debug(
 			"received chunk from gossip",
 			zap.Stringer("chunkID", chunk.ID()),
@@ -659,7 +624,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Handle cert verification
-		if err := c.VerifyAndStoreCertificate(ctx, cert); err != nil {
+		if err := c.VerifyAndTrackCertificate(ctx, cert); err != nil {
 			c.vm.Logger().Warn("unable to verify and store certificate", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
@@ -685,7 +650,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 			c.vm.Logger().Warn("unable to verify and store chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
 			return nil
 		}
-		if err := c.VerifyAndStoreCertificate(ctx, cert); err != nil {
+		if err := c.VerifyAndTrackCertificate(ctx, cert); err != nil {
 			c.vm.Logger().Warn("unable to verify and store certificate", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
@@ -830,6 +795,11 @@ func (*ChunkManager) CrossChainAppResponse(context.Context, ids.ID, uint32, []by
 
 func (*ChunkManager) CrossChainAppError(context.Context, ids.ID, uint32, int32, string) error {
 	return nil
+}
+
+type chunkGossipWrapper struct {
+	nodeID ids.NodeID
+	chunk  *chain.Chunk
 }
 
 type txGossipWrapper struct {
@@ -1055,6 +1025,72 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					// If engine taking too long to process message, Shutdown will not
 					// be called.
 					c.vm.Logger().Info("stopping chunk manager")
+					return nil
+				}
+			}
+		})
+	}
+	for i := 0; i < c.vm.config.GetChunkStorageCores(); i++ {
+		g.Go(func() error {
+			for {
+				select {
+				case cw := <-c.incomingChunks:
+					c.vm.metrics.gossipChunkBacklog.Dec()
+					ctx := context.TODO()
+					nodeID := cw.nodeID
+					chunk := cw.chunk
+
+					// Handle chunk verification
+					if err := c.VerifyAndStoreChunk(ctx, nodeID, chunk); err != nil {
+						c.vm.Logger().Warn("unable to verify and store chunk", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", chunk.ID()), zap.Error(err))
+						return nil
+					}
+
+					// Sign chunk if validator
+					_, epochHeight, err := c.getEpochInfo(ctx, chunk.Slot)
+					if err != nil {
+						c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", chunk.Slot), zap.Error(err))
+						return nil
+					}
+					amValidator, _, _, err := c.vm.proposerMonitor.IsValidator(ctx, epochHeight, c.vm.snowCtx.NodeID)
+					if err != nil {
+						c.vm.Logger().Warn("unable to determine if am validator", zap.Error(err))
+						return nil
+					}
+					if !amValidator {
+						// We don't sign the chunk if we're not a validator
+						return nil
+					}
+					chunkSignature := &chain.ChunkSignature{
+						Chunk: chunk.ID(),
+						Slot:  chunk.Slot,
+					}
+					digest, err := chunkSignature.Digest()
+					if err != nil {
+						c.vm.Logger().Warn("cannot generate cert digest", zap.Stringer("nodeID", nodeID), zap.Error(err))
+						return nil
+					}
+					warpMessage, err := warp.NewUnsignedMessage(c.vm.snowCtx.NetworkID, c.vm.snowCtx.ChainID, digest)
+					if err != nil {
+						c.vm.Logger().Warn("unable to build warp message", zap.Error(err))
+						return nil
+					}
+					sig, err := c.vm.snowCtx.WarpSigner.Sign(warpMessage)
+					if err != nil {
+						c.vm.Logger().Warn("unable to sign chunk digest", zap.Error(err))
+						return nil
+					}
+					// We don't include the signer in the digest because we can't verify
+					// the aggregate signature over the chunk if we do.
+					chunkSignature.Signer = c.vm.snowCtx.PublicKey
+					chunkSignature.Signature, err = bls.SignatureFromBytes(sig)
+					if err != nil {
+						c.vm.Logger().Warn("unable to parse signature", zap.Error(err))
+						return nil
+					}
+					c.PushSignature(ctx, nodeID, chunkSignature)
+				case <-c.vm.stop:
+					c.vm.Logger().Info("stopping chunk storage worker")
 					return nil
 				}
 			}

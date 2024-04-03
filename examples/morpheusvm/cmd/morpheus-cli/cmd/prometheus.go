@@ -52,6 +52,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tx_gossip_dropped[5s])/5", chainID))
 			utils.Outf("{{yellow}}transaction gossip dropped per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_gossip_dropped[5s])/5", chainID))
+			utils.Outf("{{yellow}}chunk gossip dropped per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_received[5s])/5", chainID))
 			utils.Outf("{{yellow}}transactions received per second:{{/}} %s\n", panels[len(panels)-1])
 
@@ -237,6 +240,9 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_gossip_tx_backlog", chainID))
 			utils.Outf("{{yellow}}gossip transaction backlog:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_gossip_chunk_backlog", chainID))
+			utils.Outf("{{yellow}}gossip chunk backlog:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_rpc_tx_backlog", chainID))
 			utils.Outf("{{yellow}}RPC transaction backlog:{{/}} %s\n", panels[len(panels)-1])
