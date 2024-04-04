@@ -45,6 +45,7 @@ type AppendDB struct {
 	nextBatch   uint64
 	oldestBatch *uint64
 	size        uint64
+	stillAlive  map[string][]byte
 
 	keyLock sync.RWMutex
 	batches map[uint64]*mmap.ReaderAt
@@ -239,6 +240,8 @@ func New(
 		logger:  log,
 		baseDir: baseDir,
 		history: history,
+
+		stillAlive: make(map[string][]byte),
 	}
 	if len(batches) > 0 {
 		adb.oldestBatch = &firstBatch
@@ -264,6 +267,9 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 }
 
 func (a *AppendDB) Close() error {
+	a.commitLock.Lock()
+	defer a.commitLock.Unlock()
+
 	for _, file := range a.batches {
 		if err := file.Close(); err != nil {
 			return err
@@ -272,35 +278,53 @@ func (a *AppendDB) Close() error {
 	return nil
 }
 
-func (a *AppendDB) readOldest() {
-	var (
-		batch     = *a.oldestBatch
-		reader    = a.batches[batch]
-		batchSize = int64(reader.Len())
-		cursor    = int64(0)
-		alive     = make(map[string]*record)
-	)
-	for cursor < batchSize-ids.IDLen {
-		// Read next record
-		key, record, newCursor, err := readKey(batch, reader, cursor, nil)
-		if err != nil {
-			log.Fatal("could not read key from batch", zap.Error(err))
+// prune is async
+func (a *AppendDB) preparePrune() {
+	// TODO: will deadlock rn
+	a.commitLock.Lock()
+
+	go func() {
+		defer a.commitLock.Unlock()
+
+		if a.oldestBatch == nil {
 			return
 		}
-		cursor = newCursor
+		batch := *a.oldestBatch
+		if a.nextBatch-batch < a.history {
+			return
+		}
 
-		// Update alive if record hasn't been updated
-		if record == nil {
-			continue
+		var (
+			reader    = a.batches[batch]
+			batchSize = int64(reader.Len())
+			cursor    = int64(0)
+			alive     = make(map[string]*record)
+		)
+		for cursor < batchSize-ids.IDLen {
+			// Read next record
+			//
+			// TODO: likely want next value here to avoid a re-read?
+			key, record, newCursor, err := readKey(batch, reader, cursor, nil)
+			if err != nil {
+				log.Fatal("could not read key from non-corrup batch", zap.Error(err))
+				panic(err)
+			}
+			cursor = newCursor
+
+			// Update alive if record hasn't been updated
+			if record == nil {
+				continue
+			}
+			a.keyLock.RLock()
+			v, ok := a.keys[key]
+			a.keyLock.RLock()
+			if !ok || v.file > batch {
+				continue
+			}
+			alive[key] = record
 		}
-		a.keyLock.RLock()
-		v, ok := a.keys[key]
-		a.keyLock.RLock()
-		if !ok || v.file > batch {
-			continue
-		}
-		alive[key] = record
-	}
+		a.stillAlive = alive
+	}()
 }
 
 // Batch is not thread-safe
@@ -370,6 +394,7 @@ func (b *Batch) Put(key string, value []byte) {
 		loc:  valueStart,
 		size: uint32(len(value)),
 	}
+	delete(b.a.stillAlive, key)
 }
 
 func (b *Batch) Delete(key string) {
@@ -393,6 +418,7 @@ func (b *Batch) Delete(key string) {
 		return
 	}
 	b.changes[key] = nil
+	delete(b.a.stillAlive, key)
 }
 
 // ungracefulWrite cleans up any partial file writes
@@ -411,6 +437,13 @@ func (b *Batch) ungracefulWrite() {
 // files (to prevent the disk from filling up).
 func (b *Batch) Write() (ids.ID, error) {
 	defer b.a.commitLock.Unlock()
+
+	// Persist items that are still alive and haven't been updated
+	// in this batch.
+	for key, entry := range b.a.stillAlive {
+		if entry != nil {
+
+		}
 
 	// If we already encountered an error, return that immediately
 	if b.err != nil {
@@ -457,7 +490,9 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 	b.a.keyLock.Unlock()
 
-	// TODO: spawn new cleanup thread to queue changes
-	// prepare for next batch async
+	// preparePrune collects all keys that are still alive
+	// from the oldest batch and prepares them for inclusion
+	// in the next batch (async).
+	b.a.preparePrune()
 	return ids.ID(checksum), nil
 }
