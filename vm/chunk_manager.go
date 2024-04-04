@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/cache"
@@ -44,8 +45,13 @@ const (
 	minWeightNumerator = 67
 	weightDenominator  = 100
 
-	gossipTxPrealloc = 32
-	gossipBatchWait  = 100 * time.Millisecond
+	// While the most efficient size to send over the network is ~MTU, the overhead
+	// of handling messages causes performance degradation (high CPU usage) at high-throughput.
+	// A byproduct of larger batches, however, is that compression is more efficient and we
+	// can better leverage batch signature verification.
+	gossipTxTargetSize = 256 * units.KiB
+	gossipTxPrealloc   = 2_048
+	gossipBatchWait    = 100 * time.Millisecond
 )
 
 type simpleChunkWrapper struct {
@@ -1376,7 +1382,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	var gossipable *txGossip
 	gossip, ok := c.txNodes[partition]
 	if ok {
-		if gossip.size+txSize > consts.MTU {
+		if gossip.size+txSize > gossipTxTargetSize {
 			delete(c.txNodes, partition)
 			gossip.sent = true
 			gossipable = gossip
