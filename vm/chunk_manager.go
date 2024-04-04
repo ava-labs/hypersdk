@@ -49,8 +49,8 @@ const (
 	// of handling messages causes performance degradation (high CPU usage) at high-throughput.
 	// A byproduct of larger batches, however, is that compression is more efficient and we
 	// can better leverage batch signature verification.
-	gossipTxTargetSize = 128 * units.KiB
-	gossipTxPrealloc   = 1_024
+	gossipTxTargetSize = 512 * units.KiB
+	gossipTxPrealloc   = 4_096
 	gossipBatchWait    = 100 * time.Millisecond
 )
 

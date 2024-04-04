@@ -112,7 +112,7 @@ EOF
 # TODO: we limit root generation cores because it can cause network handling to stop (exhausts all CPU for a few seconds)
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 333,
+  "chunkBuildFrequency": 250,
   "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
   "mempoolSize": 2147483648,
@@ -130,7 +130,6 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "chunkStorageCores": 16,
   "chunkStorageBacklog": 10000000,
   "streamingBacklogSize": 10000000,
-  "continuousProfilerDir":"/home/ubuntu/morpheusvm-profiles",
   "logLevel": "INFO"
 }
 EOF
@@ -146,8 +145,6 @@ cat <<EOF > "${TMPDIR}"/node.config
 {
   "log-level":"INFO",
   "log-display-level":"INFO",
-  "log-rotater-max-size": 128,
-  "log-rotater-max-files": 512,
   "proposervm-use-current-height":true,
   "throttler-inbound-validator-alloc-size":"10737418240",
   "throttler-inbound-at-large-alloc-size":"10737418240",
@@ -164,9 +161,9 @@ cat <<EOF > "${TMPDIR}"/node.config
   "throttler-outbound-node-max-at-large-bytes":"10737418240",
   "consensus-on-accept-gossip-validator-size":"10",
   "consensus-on-accept-gossip-peer-size":"10",
-  "network-compression-type":"zstd",
-  "consensus-app-concurrency":"128",
-  "profile-continuous-enabled":true,
+  "network-compression-type":"none",
+  "consensus-app-concurrency":"64",
+  "profile-continuous-enabled":false,
   "profile-continuous-freq":"1m",
   "http-host":"",
   "http-allowed-origins": "*",
@@ -184,7 +181,7 @@ trap cleanup EXIT
 #
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.12xlarge --aws-volume-type=gp3 --aws-iops=3000 --aws-throughput=300 --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.16xlarge --aws-volume-type=io2 --aws-iops=1000 --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
 # Import the cluster into morpheus-cli for local interaction
