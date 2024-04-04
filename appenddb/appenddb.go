@@ -1,7 +1,9 @@
 package appenddb
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
+	"hash"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -55,9 +57,11 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 
 // Batch is not thread-safe
 type Batch struct {
-	a  *AppendDB
-	id uint64
+	a    *AppendDB
+	path string
+	id   uint64
 
+	hasher  hash.Hash
 	f       *os.File
 	changes map[string]*keyEntry
 	cursor  int64
@@ -65,7 +69,9 @@ type Batch struct {
 	err error
 }
 
-func (a *AppendDB) NewBatch() (*Batch, error) {
+// TODO: load from disk and recover anything broken
+
+func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	a.l.Lock()
 	id := a.fileCount
 	path := filepath.Join(a.baseDir, strconv.FormatUint(id, 10))
@@ -75,7 +81,15 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 		return nil, err
 	}
 	a.fileCount++
-	return &Batch{a: a, f: f, id: id}, nil
+	return &Batch{
+		a:    a,
+		path: path,
+		id:   id,
+
+		hasher:  sha256.New(),
+		f:       f,
+		changes: make(map[string]*keyEntry, changes),
+	}, nil
 }
 
 func (b *Batch) Put(key string, value []byte) {
@@ -101,6 +115,10 @@ func (b *Batch) Put(key string, value []byte) {
 		b.err = err
 		return
 	}
+	if _, err := b.hasher.Write(operation); err != nil {
+		b.err = err
+		return
+	}
 	b.changes[key] = &keyEntry{
 		file: b.id,
 		loc:  valueStart,
@@ -112,10 +130,36 @@ func (b *Batch) Delete(key string) {
 	if b.err != nil {
 		return
 	}
-	_, err := b.f.Write(nil)
-	if err != nil && b.err == nil {
-		b.err = err
+	if _, ok := b.a.keys.Get(key); !ok {
+		b.err = database.ErrNotFound
+		return
 	}
+	if _, ok := b.changes[key]; ok {
+		b.err = ErrDuplicate
+		return
+	}
+	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
+	operation[0] = opDelete
+	binary.BigEndian.PutUint16(operation[1:1+consts.Uint16Len], uint16(len(key)))
+	copy(operation[1+consts.Uint16Len:], key)
+	if _, err := b.f.Write(operation); err != nil {
+		b.err = err
+		return
+	}
+	if _, err := b.hasher.Write(operation); err != nil {
+		b.err = err
+		return
+	}
+	b.changes[key] = nil
+}
+
+// ungracefulWrite cleans up any partial file writes
+// in the case of an error and resets the database file count.
+func (b *Batch) ungracefulWrite() {
+	b.a.fileCount--
+	_ = b.f.Close()
+	_ = os.Remove(b.path)
+	return
 }
 
 // Write fsyncs the changes to disk and opens
@@ -126,11 +170,28 @@ func (b *Batch) Delete(key string) {
 func (b *Batch) Write() error {
 	defer b.a.l.Unlock()
 
-	// Ensure file is committed to disk
-	if err := b.f.Sync(); err != nil {
+	// If we already encountered an error, return that immediately
+	if b.err != nil {
+		b.ungracefulWrite()
+		return b.err
+	}
+
+	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
+	checksum := b.hasher.Sum(nil)
+	if _, err := b.f.Write(checksum); err != nil {
+		b.ungracefulWrite()
 		return err
 	}
+
+	// Ensure file is committed to disk
+	if err := b.f.Sync(); err != nil {
+		b.ungracefulWrite()
+		return err
+	}
+
+	// Close file now that we don't need to write to it anymore
 	if err := b.f.Close(); err != nil {
+		b.ungracefulWrite()
 		return err
 	}
 
