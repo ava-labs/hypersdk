@@ -25,14 +25,6 @@ type AppendDB struct {
 	keys  *smap.SMap[*keyEntry]
 }
 
-func (a *AppendDB) Lock() {
-	a.l.Lock()
-}
-
-func (a *AppendDB) Unlock() {
-	a.l.Unlock()
-}
-
 func (a *AppendDB) Get(key string) ([]byte, error) {
 	a.l.RLock()
 	defer a.l.RUnlock()
@@ -47,4 +39,20 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 	value := make([]byte, entry.size)
 	_, err := a.files[entry.file].ReadAt(value, entry.loc)
 	return value, err
+}
+
+type Batch struct {
+	a *AppendDB
+}
+
+func (a *AppendDB) NewBatch() *Batch {
+	a.l.Lock()
+	return &Batch{a: a}
+}
+
+func (b *Batch) Write() error {
+	defer b.a.l.Unlock()
+
+	// TODO: spawn new cleanup thread to queue changes
+	return nil
 }
