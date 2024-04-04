@@ -46,8 +46,7 @@ type AppendDB struct {
 
 // TODO: load from disk and error if anything is broken (in the future,
 // gracefully rollback based on that issue)
-
-func New(baseDir string) (*AppendDB, error) {
+func New(baseDir string, history uint64) (*AppendDB, error) {
 	// Iterate over files in directory and put into sorted order
 	files := []uint64{}
 	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
@@ -248,7 +247,7 @@ func (b *Batch) Put(key string, value []byte) {
 	b.changes[key] = &keyEntry{
 		file: b.id,
 		loc:  valueStart,
-		size: len(value),
+		size: uint32(len(value)),
 	}
 }
 
