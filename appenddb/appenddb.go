@@ -1,6 +1,9 @@
 package appenddb
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -17,7 +20,7 @@ type keyEntry struct {
 }
 
 type AppendDB struct {
-	base      string
+	baseDir   string
 	fileCount uint64
 
 	files map[uint64]*mmap.ReaderAt
@@ -41,13 +44,48 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 	return value, err
 }
 
+// Batch is not thread-safe
 type Batch struct {
-	a *AppendDB
+	a  *AppendDB
+	id uint64
+
+	f      *os.File
+	cursor int64
+
+	err error
 }
 
-func (a *AppendDB) NewBatch() *Batch {
+func (a *AppendDB) NewBatch() (*Batch, error) {
 	a.l.Lock()
-	return &Batch{a: a}
+	id := a.fileCount
+	path := filepath.Join(a.baseDir, strconv.FormatUint(id, 10))
+	f, err := os.Create(path)
+	if err != nil {
+		a.l.Unlock()
+		return nil, err
+	}
+	a.fileCount++
+	return &Batch{a: a, f: f, id: id}, nil
+}
+
+func (b *Batch) Put(key string, value []byte) {
+	if b.err != nil {
+		return
+	}
+	_, err := b.f.Write(nil)
+	if err != nil && b.err == nil {
+		b.err = err
+	}
+}
+
+func (b *Batch) Delete(key string) {
+	if b.err != nil {
+		return
+	}
+	_, err := b.f.Write(nil)
+	if err != nil && b.err == nil {
+		b.err = err
+	}
 }
 
 // Write fsyncs the changes to disk and opens
@@ -57,6 +95,16 @@ func (a *AppendDB) NewBatch() *Batch {
 // files (to prevent the disk from filling up).
 func (b *Batch) Write() error {
 	defer b.a.l.Unlock()
+
+	// Ensure file is committed to disk
+	if err := b.f.Sync(); err != nil {
+		return err
+	}
+	if err := b.f.Close(); err != nil {
+		return err
+	}
+
+	// TODO: Update in-memory values with locations
 
 	// TODO: spawn new cleanup thread to queue changes
 	return nil
