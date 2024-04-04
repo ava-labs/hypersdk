@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=9622510bddce9f7b0ed43dc23645ea9a859e206e
+MORPHEUS_VM_COMMIT=9603c587e913af906bcb71683b445eb8c4c97e22
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -112,7 +112,7 @@ EOF
 # TODO: we limit root generation cores because it can cause network handling to stop (exhausts all CPU for a few seconds)
 cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
-  "chunkBuildFrequency": 250,
+  "chunkBuildFrequency": 333,
   "targetChunkBuildDuration": 250,
   "blockBuildFrequency": 100,
   "mempoolSize": 2147483648,
@@ -130,6 +130,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "chunkStorageCores": 16,
   "chunkStorageBacklog": 10000000,
   "streamingBacklogSize": 10000000,
+  "continuousProfilerDir":"/home/ubuntu/morpheusvm-profiles",
   "logLevel": "INFO"
 }
 EOF
@@ -161,9 +162,9 @@ cat <<EOF > "${TMPDIR}"/node.config
   "throttler-outbound-node-max-at-large-bytes":"10737418240",
   "consensus-on-accept-gossip-validator-size":"10",
   "consensus-on-accept-gossip-peer-size":"10",
-  "network-compression-type":"none",
-  "consensus-app-concurrency":"64",
-  "profile-continuous-enabled":false,
+  "network-compression-type":"zstd",
+  "consensus-app-concurrency":"128",
+  "profile-continuous-enabled":true,
   "profile-continuous-freq":"1m",
   "http-host":"",
   "http-allowed-origins": "*",
