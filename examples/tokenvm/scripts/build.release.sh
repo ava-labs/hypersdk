@@ -10,8 +10,9 @@ if ! [[ "$0" =~ scripts/build.release.sh ]]; then
   echo "must be run from tokenvm root"
   exit 255
 fi
-
+# shellcheck source=/scripts/constants.sh
 source ../../scripts/constants.sh
+# shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
 # https://goreleaser.com/install/

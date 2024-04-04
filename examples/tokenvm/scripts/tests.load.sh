@@ -8,7 +8,7 @@ if ! [[ "$0" =~ scripts/tests.load.sh ]]; then
   echo "must be run from tokenvm root"
   exit 255
 fi
-
+# shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
 prepare_ginkgo

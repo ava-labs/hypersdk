@@ -13,7 +13,7 @@ HYPERSDK_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
   cd .. && pwd
 )
-
+# shellcheck source=/scripts/constants.sh
 source "$HYPERSDK_PATH"/scripts/constants.sh
 
 # Provision of the list of tests requires word splitting, so disable the shellcheck

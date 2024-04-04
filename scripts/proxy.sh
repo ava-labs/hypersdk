@@ -10,7 +10,7 @@ HYPERSDK_PATH=$(
   cd "$(dirname "${BASH_SOURCE[0]}")"
   cd .. && pwd
 )
-
+# shellcheck source=/scripts/common/utils.sh
 source "$HYPERSDK_PATH"/scripts/common/utils.sh
 
 echo "installing proxy"

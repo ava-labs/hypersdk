@@ -11,7 +11,9 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
+# shellcheck source=/scripts/constants.sh
 source ../../scripts/constants.sh
+# shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
 VERSION=v1.10.18
