@@ -50,6 +50,11 @@ func (a *AppendDB) NewBatch() *Batch {
 	return &Batch{a: a}
 }
 
+// Write fsyncs the changes to disk and opens
+// the file for reading.
+//
+// It then begins a cleanup routine to remove old
+// files (to prevent the disk from filling up).
 func (b *Batch) Write() error {
 	defer b.a.l.Unlock()
 
