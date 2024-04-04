@@ -29,9 +29,11 @@ type keyEntry struct {
 
 type AppendDB struct {
 	baseDir string
+	history uint64
 
 	commitLock sync.RWMutex
-	fileCount  uint64
+	nextFile   uint64
+	oldestFile uint64
 
 	keyLock sync.RWMutex
 	files   map[uint64]*mmap.ReaderAt
@@ -69,14 +71,14 @@ type Batch struct {
 
 func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	a.commitLock.Lock()
-	id := a.fileCount
+	id := a.nextFile
 	path := filepath.Join(a.baseDir, strconv.FormatUint(id, 10))
 	f, err := os.Create(path)
 	if err != nil {
 		a.commitLock.Unlock()
 		return nil, err
 	}
-	a.fileCount++
+	a.nextFile++
 	return &Batch{
 		a:    a,
 		path: path,
@@ -155,7 +157,7 @@ func (b *Batch) Delete(key string) {
 // ungracefulWrite cleans up any partial file writes
 // in the case of an error and resets the database file count.
 func (b *Batch) ungracefulWrite() {
-	b.a.fileCount--
+	b.a.nextFile--
 	_ = b.f.Close()
 	_ = os.Remove(b.path)
 	return
@@ -214,5 +216,6 @@ func (b *Batch) Write() error {
 	b.a.keyLock.Unlock()
 
 	// TODO: spawn new cleanup thread to queue changes
+	// prepare for next batch async
 	return nil
 }
