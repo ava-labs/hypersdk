@@ -6,6 +6,7 @@ import (
 	"hash"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -27,6 +28,8 @@ type keyEntry struct {
 	size int
 }
 
+// This sits under the MerkleDB and won't be used
+// directly by the VM.
 type AppendDB struct {
 	baseDir string
 	history uint64
@@ -38,6 +41,39 @@ type AppendDB struct {
 	keyLock sync.RWMutex
 	files   map[uint64]*mmap.ReaderAt
 	keys    map[string]*keyEntry
+}
+
+// TODO: load from disk and error if anything is broken (in the future,
+// gracefully rollback based on that issue)
+
+func New(baseDir string) (*AppendDB, error) {
+	// Iterate over files in directory and put into sorted order
+	files := []uint64{}
+	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return ErrCorrupt
+		}
+		file, err := strconv.ParseUint(info.Name(), 10, 64)
+		if err != nil {
+			return err
+		}
+		files = append(files, file)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(files)
+
+	// Replay all changes on-disk
+	//
+	// Note: this will require reading all stored files
+	// to reconstruct data. If any files were not fully written or have become corrupt,
+	// this will error.
+	return nil, nil
 }
 
 func (a *AppendDB) Get(key string) ([]byte, error) {
@@ -66,8 +102,6 @@ type Batch struct {
 
 	err error
 }
-
-// TODO: load from disk and recover anything broken
 
 func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	a.commitLock.Lock()
