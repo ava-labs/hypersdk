@@ -58,16 +58,26 @@ func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) 
 	m.l.Lock()
 	defer m.l.Unlock()
 
+	b := m.mdb.NewBatch()
 	seen := 0
 	ops.Iterate(func(key string, value maybe.Maybe[[]byte]) bool {
 		seen++
 		if value.IsNothing() {
 			m.stateRemove(key)
+			if err := b.Delete([]byte(key)); err != nil {
+				panic(err)
+			}
 		} else {
 			m.stateInsert(key, value.Value())
+			if err := b.Put([]byte(key), value.Value()); err != nil {
+				panic(err)
+			}
 		}
 		return true
 	})
+	if err := b.Write(); err != nil {
+		panic(err)
+	}
 	return seen
 }
 
