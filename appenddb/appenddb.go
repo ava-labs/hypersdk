@@ -1,6 +1,7 @@
 package appenddb
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"hash"
@@ -25,7 +26,7 @@ type keyEntry struct {
 	// operation, key length, key, or value length)
 	file uint64
 	loc  int64
-	size int
+	size uint32
 }
 
 // This sits under the MerkleDB and won't be used
@@ -73,6 +74,90 @@ func New(baseDir string) (*AppendDB, error) {
 	// Note: this will require reading all stored files
 	// to reconstruct data. If any files were not fully written or have become corrupt,
 	// this will error.
+	var (
+		keys      = make(map[string]*keyEntry)
+		diskFiles = make(map[uint64]*mmap.ReaderAt)
+	)
+	for _, file := range files {
+		// MMap file on-disk
+		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
+		reader, err := mmap.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		diskFiles[file] = reader
+
+		// Read all operations from the file
+		var (
+			fileSize    = int64(reader.Len())
+			opAndKeyLen = make([]byte, 1+consts.Uint16Len)
+			cursor      = int64(0)
+			hasher      = sha256.New()
+		)
+		for cursor < fileSize-sha256.Size {
+			// Read op and key len
+			if _, err := reader.ReadAt(opAndKeyLen, cursor); err != nil {
+				return nil, err
+			}
+			if _, err := hasher.Write(opAndKeyLen); err != nil {
+				return nil, err
+			}
+			cursor += int64(len(opAndKeyLen))
+			op := opAndKeyLen[0]
+			keyLen := binary.BigEndian.Uint16(opAndKeyLen[1:])
+
+			if op == opPut {
+				// Read key and value len
+				keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
+				if _, err := reader.ReadAt(keyAndValueLen, cursor); err != nil {
+					return nil, err
+				}
+				if _, err := hasher.Write(keyAndValueLen); err != nil {
+					return nil, err
+				}
+				cursor += int64(len(keyAndValueLen))
+				key := string(keyAndValueLen[:keyLen])
+				valueLen := binary.BigEndian.Uint32(keyAndValueLen[keyLen:])
+
+				// Read value
+				valueStart := cursor
+				value := make([]byte, valueLen)
+				if _, err := reader.ReadAt(value, cursor); err != nil {
+					return nil, err
+				}
+				if _, err := hasher.Write(value); err != nil {
+					return nil, err
+				}
+				cursor += int64(len(value))
+				keys[key] = &keyEntry{
+					file: file,
+					loc:  valueStart,
+					size: valueLen,
+				}
+			} else if op == opDelete {
+				// Read key
+				key := make([]byte, keyLen)
+				if _, err := reader.ReadAt(key, cursor); err != nil {
+					return nil, err
+				}
+				if _, err := hasher.Write(key); err != nil {
+					return nil, err
+				}
+				cursor += int64(len(key))
+				delete(keys, string(key))
+			} else {
+				return nil, ErrCorrupt
+			}
+		}
+		checksum := make([]byte, sha256.Size)
+		if _, err := reader.ReadAt(checksum, cursor); err != nil {
+			return nil, err
+		}
+		if !bytes.Equal(checksum, hasher.Sum(nil)) {
+			// TODO: handle this gracefully by just rolling back to last committed file
+			return nil, ErrCorrupt
+		}
+	}
 	return nil, nil
 }
 
@@ -87,6 +172,15 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 	value := make([]byte, entry.size)
 	_, err := a.files[entry.file].ReadAt(value, entry.loc)
 	return value, err
+}
+
+func (a *AppendDB) Close() error {
+	for _, file := range a.files {
+		if err := file.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Batch is not thread-safe
