@@ -4,14 +4,12 @@ import (
 	"context"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	ssync "github.com/ava-labs/avalanchego/x/sync"
-	"github.com/ava-labs/hypersdk/rchannel"
 	"github.com/ava-labs/hypersdk/smap"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -39,11 +37,7 @@ type Merkle struct {
 	size  uint64
 	state map[string][]byte
 
-	cl  sync.Mutex
 	mdb merkledb.MerkleDB
-
-	rv *merkledb.RollingView
-	rc *rchannel.RChannel[maybe.Maybe[[]byte]]
 }
 
 func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkle, error) {
@@ -56,12 +50,6 @@ func New(ctx context.Context, db database.Database, cfg merkledb.Config) (*Merkl
 		state: make(map[string][]byte, stateInitialSize),
 		mdb:   mdb,
 	}
-	m.rv, err = mdb.NewRollingView(ctx, changesInitialSize)
-	if err != nil {
-		return nil, err
-	}
-	m.rc = rchannel.New[maybe.Maybe[[]byte]](backlogInitialSize)
-	m.rc.SetCallback(m.rv.Update)
 	return m, nil
 }
 
@@ -73,7 +61,6 @@ func (m *Merkle) Update(_ context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) 
 	seen := 0
 	ops.Iterate(func(key string, value maybe.Maybe[[]byte]) bool {
 		seen++
-		m.rc.Add(key, value)
 		if value.IsNothing() {
 			m.stateRemove(key)
 		} else {
@@ -95,54 +82,8 @@ func (m *Merkle) PrepareCommit(context.Context) func(context.Context, state.Metr
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	// It is safe to add to [rchannel] before the callback is set (pending
-	// requests will just be queued on the channel).
-	rc := m.rc
-	m.rc = rchannel.New[maybe.Maybe[[]byte]](backlogInitialSize)
-
-	m.cl.Lock()
 	return func(ctx context.Context, metrics state.Metrics) (ids.ID, error) {
-		defer m.cl.Unlock()
-
-		// Wait for trie modifications to finish
-		t := time.Now()
-		skips, maxBacklog, err := rc.Wait()
-		if err != nil {
-			return ids.Empty, err
-		}
-		metrics.RecordWaitTrieModifications(time.Since(t))
-		metrics.RecordTrieMaxBacklog(maxBacklog)
-
-		// Merklize trie
-		t = time.Now()
-		root, err := m.rv.Merklize(context.TODO())
-		if err != nil {
-			return ids.Empty, err
-		}
-		metrics.RecordWaitTrieRoot(time.Since(t))
-		nodes, values := m.rv.Changes()
-		metrics.RecordTrieNodeChanges(nodes)
-		metrics.RecordTrieValueChanges(values)
-		metrics.RecordTrieSkippedValueChanges(skips)
-
-		// Create new rv once trie is merklized
-		oldRv := m.rv
-		m.rv, err = m.rv.NewRollingView(ctx, changesInitialSize)
-		if err != nil {
-			return ids.Empty, err
-		}
-		m.rc.SetCallback(m.rv.Update)
-
-		// Wait for trie to be committed to disk
-		t = time.Now()
-		if err := oldRv.Commit(ctx); err != nil {
-			return ids.Empty, err
-		}
-		metrics.RecordWaitTrieCommit(time.Since(t))
-
-		// We wait to return root until the trie
-		// is committed to disk.
-		return root, nil
+		return ids.Empty, nil
 	}
 }
 
@@ -170,9 +111,7 @@ func (m *Merkle) Insert(_ context.Context, key, value []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	skey := string(key)
-	m.rc.Add(skey, maybe.Some(value))
-	m.stateInsert(skey, value)
+	m.stateInsert(string(key), value)
 	return nil
 }
 
@@ -180,9 +119,7 @@ func (m *Merkle) Remove(_ context.Context, key []byte) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	skey := string(key)
-	m.rc.Add(skey, maybe.Nothing[[]byte]())
-	m.stateRemove(skey)
+	m.stateRemove(string(key))
 	return nil
 }
 
