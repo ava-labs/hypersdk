@@ -10,7 +10,7 @@ if ! [[ "$0" =~ scripts/fix.lint.sh ]]; then
   echo "must be run from hypersdk root"
   exit 255
 fi
-
+# shellcheck source=/scripts/common/utils.sh
 source ./scripts/common/utils.sh
 
 echo "adding license header"

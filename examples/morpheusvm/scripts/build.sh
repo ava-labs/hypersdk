@@ -11,7 +11,9 @@ SCRIPT_DIR=$(
   cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd
 )
 
+# shellcheck source=/scripts/common/build.sh
 source "$SCRIPT_DIR"/../../../scripts/common/build.sh
+# shellcheck source=/scripts/constants.sh
 source "$SCRIPT_DIR"/../../../scripts/constants.sh
 # Construct the correct path to morpheusvm directory
 MORPHEUSVM_PATH=$(
