@@ -6,7 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wasmlanche_sdk = { version = "0.1.0", path = "../../wasmlanche_sdk" }
+wasmlanche-sdk = { version = "0.1.0", path = "../../wasmlanche-sdk" }
+
+[build-dependencies]
+wasmlanche-sdk = { path = "../../wasmlanche-sdk", features = ["build"] }
 
 [lib]
 crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)

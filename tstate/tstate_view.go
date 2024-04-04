@@ -222,6 +222,8 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	valueChunks, _ := keys.NumChunks(value) // not possible to fail
 	k := string(key)
+	// Invariant: [getValue] is safe to call here because with [state.Write], it
+	// will provide Read and Write access to the state
 	past, exists := ts.getValue(ctx, k)
 	op := &op{
 		k:             k,
@@ -237,6 +239,13 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
+		// New entry requires Allocate
+		// TODO: we assume any allocate is a write too, but we should
+		// make this invariant more clear. Do we require Write,
+		// Allocate|Write, and never Allocate alone?
+		if !ts.checkScope(ctx, key, state.Allocate) {
+			return ErrInvalidKeyOrPermission
+		}
 		if !ts.canAllocate {
 			return ErrAllocationDisabled
 		}

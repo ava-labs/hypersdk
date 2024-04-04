@@ -1,6 +1,15 @@
-# Program VM simulator
+# Program VM simulator (work in progress)
 
-## Introduction
+The `Simulator` is currently a work-in-progress.
+ It is a cli-tool built in Go, but meant to be used from the `wasmlanche-sdk` as a way to run automated tests on your HyperSDK wasm programs. For relatively up-to-date documentation, run `cargo doc --no-deps -p simulator --open`. Create a `Client`, create a `Plan`, then call `client.execute(plan)`, to execute the plan.
+
+And please, if you see any inconsistencies in the `README.md`` here, [open a PR](https://github.com/ava-labs/hypersdk/edit/main/x/programs/cmd/simulator/README.md)!
+
+#### Note
+
+Are we calling a Go based-cli from Rust? Yes. The Go-cli re-uses primitives from the HyperSDK, but we wanted to wrap that code in a Rust client to give a seamless experience testing.
+
+## Cli Useage on its own
 
 The VM simulator provides a tool for testing and interacting with HyperSDK Wasm
 `Programs`.
@@ -18,6 +27,7 @@ To try out out test token program its as easy as one command.
 ```sh
 ./simulator run ./cmd/testdata/basic_token.yaml
 ```
+
 ```json
 {"id":0,"result":{"msg":"created key bob_key","timestamp":1697835142}}
 {"id":1,"result":{"msg":"created key alice_key","timestamp":1697835142}}
@@ -63,6 +73,7 @@ Next we will run the simulation
 ```sh
 $./simulator run ./new_program.yaml
 ```
+
 ```json
 {"id":0,"result":{"msg":"created key my_key","timestamp":1697835142}}
 {"id":2,"result":{"id":"2ut4fwdGE5FJG5w89CF3pVCjLrhiqCRZxB7ojtPnigh7QVU51i","timestamp":1697835142}}
@@ -96,21 +107,6 @@ steps:
         value: 100
     require:
       result:
-        operator: "=="
+        operator: '=='
         value: 200
 ```
-
-### Interact with Rust!
-
-The Rust SDK now allows for writing `Plans` in pure Rust.
-
-## Deploy and Interact with HyperSDK Program
-
-The above examples show how to deploy and interact with a `HyperSDK` program in
-separate `Plan`  files but we can also perform all of this in a single run. To reference a tx ID in you `Plan` just use the string `step_N` where `N` is the step number the tx was created
-
-
-## Import Modules
-
-Currently the simulator supports the `program` and `pstate` modules found in the
-examples/imports directory.

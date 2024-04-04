@@ -33,6 +33,7 @@ type Config interface {
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
+	GetStateFetchConcurrency() int
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
 	GetStreamingBacklogSize() int

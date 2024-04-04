@@ -4,10 +4,9 @@
 package state
 
 const (
-	Read Permissions = 1 << iota
-	// TODO: Handle Allocate permission
-	Allocate
-	Write
+	Read     Permissions = 1
+	Allocate             = 1<<1 | Read
+	Write                = 1<<2 | Read
 
 	None Permissions = 0
 	All              = Read | Allocate | Write
