@@ -8200,7 +8200,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avalanche_CHAIN_ID_VAL_vm_go_goroutines",
+          "expr": "avalanche_${CHAIN_ID}_vm_go_goroutines",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
