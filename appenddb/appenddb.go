@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"hash"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -40,14 +41,80 @@ type AppendDB struct {
 	baseDir string
 	history uint64
 
-	commitLock sync.RWMutex
-	nextFile   uint64
-	oldestFile *uint64
-	size       uint64
+	commitLock  sync.RWMutex
+	nextBatch   uint64
+	oldestBatch *uint64
+	size        uint64
 
 	keyLock sync.RWMutex
 	batches map[uint64]*mmap.ReaderAt
 	keys    map[string]*record
+}
+
+func readKey(file uint64, reader *mmap.ReaderAt, cursor int64, hasher hash.Hash) (string, *record, int64, error) {
+	// Read op and key len
+	opAndKeyLen := make([]byte, 1+consts.Uint16Len)
+	if _, err := reader.ReadAt(opAndKeyLen, cursor); err != nil {
+		return "", nil, -1, err
+	}
+	if hasher != nil {
+		if _, err := hasher.Write(opAndKeyLen); err != nil {
+			return "", nil, -1, err
+		}
+	}
+	cursor += int64(len(opAndKeyLen))
+	op := opAndKeyLen[0]
+	keyLen := binary.BigEndian.Uint16(opAndKeyLen[1:])
+
+	switch op {
+	case opPut:
+		// Read key and value len
+		keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
+		if _, err := reader.ReadAt(keyAndValueLen, cursor); err != nil {
+			return "", nil, -1, err
+		}
+		if hasher != nil {
+			if _, err := hasher.Write(keyAndValueLen); err != nil {
+				return "", nil, -1, err
+			}
+		}
+		cursor += int64(len(keyAndValueLen))
+		key := string(keyAndValueLen[:keyLen])
+		valueLen := binary.BigEndian.Uint32(keyAndValueLen[keyLen:])
+
+		// Read value
+		valueStart := cursor
+		value := make([]byte, valueLen)
+		if _, err := reader.ReadAt(value, cursor); err != nil {
+			return "", nil, -1, err
+		}
+		if hasher != nil {
+			if _, err := hasher.Write(value); err != nil {
+				return "", nil, -1, err
+			}
+		}
+		cursor += int64(len(value))
+		return key, &record{
+			file: file,
+			loc:  valueStart,
+			size: valueLen,
+		}, cursor, nil
+	case opDelete:
+		// Read key
+		key := make([]byte, keyLen)
+		if _, err := reader.ReadAt(key, cursor); err != nil {
+			return "", nil, -1, err
+		}
+		if hasher != nil {
+			if _, err := hasher.Write(key); err != nil {
+				return "", nil, -1, err
+			}
+		}
+		cursor += int64(len(key))
+		return string(key), nil, cursor, nil
+	default:
+		return "", nil, -1, ErrCorrupt
+	}
 }
 
 func openBatch(path string, file uint64) (ids.ID, map[string]*record, *mmap.ReaderAt, error) {
@@ -65,60 +132,12 @@ func openBatch(path string, file uint64) (ids.ID, map[string]*record, *mmap.Read
 		hasher   = sha256.New()
 	)
 	for cursor < fileSize-ids.IDLen {
-		// Read op and key len
-		opAndKeyLen := make([]byte, 1+consts.Uint16Len)
-		if _, err := reader.ReadAt(opAndKeyLen, cursor); err != nil {
+		key, entry, newCursor, err := readKey(file, reader, cursor, hasher)
+		if err != nil {
 			return ids.Empty, nil, reader, err
 		}
-		if _, err := hasher.Write(opAndKeyLen); err != nil {
-			return ids.Empty, nil, reader, err
-		}
-		cursor += int64(len(opAndKeyLen))
-		op := opAndKeyLen[0]
-		keyLen := binary.BigEndian.Uint16(opAndKeyLen[1:])
-
-		if op == opPut {
-			// Read key and value len
-			keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
-			if _, err := reader.ReadAt(keyAndValueLen, cursor); err != nil {
-				return ids.Empty, nil, reader, err
-			}
-			if _, err := hasher.Write(keyAndValueLen); err != nil {
-				return ids.Empty, nil, reader, err
-			}
-			cursor += int64(len(keyAndValueLen))
-			key := string(keyAndValueLen[:keyLen])
-			valueLen := binary.BigEndian.Uint32(keyAndValueLen[keyLen:])
-
-			// Read value
-			valueStart := cursor
-			value := make([]byte, valueLen)
-			if _, err := reader.ReadAt(value, cursor); err != nil {
-				return ids.Empty, nil, reader, err
-			}
-			if _, err := hasher.Write(value); err != nil {
-				return ids.Empty, nil, reader, err
-			}
-			cursor += int64(len(value))
-			changes[key] = &record{
-				file: file,
-				loc:  valueStart,
-				size: valueLen,
-			}
-		} else if op == opDelete {
-			// Read key
-			key := make([]byte, keyLen)
-			if _, err := reader.ReadAt(key, cursor); err != nil {
-				return ids.Empty, nil, reader, err
-			}
-			if _, err := hasher.Write(key); err != nil {
-				return ids.Empty, nil, reader, err
-			}
-			cursor += int64(len(key))
-			changes[string(key)] = nil
-		} else {
-			return ids.Empty, nil, reader, ErrCorrupt
-		}
+		changes[key] = entry
+		cursor = newCursor
 	}
 	checksum := make([]byte, sha256.Size)
 	if _, err := reader.ReadAt(checksum, cursor); err != nil {
@@ -173,8 +192,8 @@ func New(
 		size    uint64
 
 		lastChecksum ids.ID
-		firstFile    uint64
-		lastFile     uint64
+		firstBatch   uint64
+		lastBatch    uint64
 	)
 	slices.Sort(files)
 	for i, file := range files {
@@ -200,19 +219,19 @@ func New(
 			}
 		}
 		if i == 0 {
-			firstFile = file
+			firstBatch = file
 		}
 		batches[file] = reader
 		lastChecksum = checksum
-		lastFile = file
+		lastBatch = file
 		size += uint64(reader.Len())
 	}
 	log.Info(
 		"loaded batches",
 		zap.Int("count", len(batches)),
 		zap.Int("keys", len(keys)),
-		zap.Uint64("first file", firstFile),
-		zap.Uint64("last file", lastFile),
+		zap.Uint64("first batch", firstBatch),
+		zap.Uint64("last batch", lastBatch),
 		zap.Stringer("last checksum", lastChecksum),
 		zap.Uint64("size", size),
 	)
@@ -222,8 +241,8 @@ func New(
 		history: history,
 	}
 	if len(batches) > 0 {
-		adb.oldestFile = &firstFile
-		adb.nextFile = lastFile + 1
+		adb.oldestBatch = &firstBatch
+		adb.nextBatch = lastBatch + 1
 		adb.size = size
 		adb.batches = batches
 		adb.keys = keys
@@ -240,17 +259,48 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 		return nil, database.ErrNotFound
 	}
 	value := make([]byte, entry.size)
-	_, err := a.files[entry.file].ReadAt(value, entry.loc)
+	_, err := a.batches[entry.file].ReadAt(value, entry.loc)
 	return value, err
 }
 
 func (a *AppendDB) Close() error {
-	for _, file := range a.files {
+	for _, file := range a.batches {
 		if err := file.Close(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (a *AppendDB) readOldest() {
+	var (
+		batch     = *a.oldestBatch
+		reader    = a.batches[batch]
+		batchSize = int64(reader.Len())
+		cursor    = int64(0)
+		alive     = make(map[string]*record)
+	)
+	for cursor < batchSize-ids.IDLen {
+		// Read next record
+		key, record, newCursor, err := readKey(batch, reader, cursor, nil)
+		if err != nil {
+			log.Fatal("could not read key from batch", zap.Error(err))
+			return
+		}
+		cursor = newCursor
+
+		// Update alive if record hasn't been updated
+		if record == nil {
+			continue
+		}
+		a.keyLock.RLock()
+		v, ok := a.keys[key]
+		a.keyLock.RLock()
+		if !ok || v.file > batch {
+			continue
+		}
+		alive[key] = record
+	}
 }
 
 // Batch is not thread-safe
@@ -269,14 +319,14 @@ type Batch struct {
 
 func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	a.commitLock.Lock()
-	id := a.nextFile
+	id := a.nextBatch
 	path := filepath.Join(a.baseDir, strconv.FormatUint(id, 10))
 	f, err := os.Create(path)
 	if err != nil {
 		a.commitLock.Unlock()
 		return nil, err
 	}
-	a.nextFile++
+	a.nextBatch++
 	return &Batch{
 		a:    a,
 		path: path,
@@ -330,13 +380,6 @@ func (b *Batch) Delete(key string) {
 		b.err = ErrDuplicate
 		return
 	}
-	b.a.keyLock.RLock()
-	_, ok := b.a.keys[key]
-	b.a.keyLock.RUnlock()
-	if !ok {
-		b.err = database.ErrNotFound
-		return
-	}
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
 	operation[0] = opDelete
 	binary.BigEndian.PutUint16(operation[1:1+consts.Uint16Len], uint16(len(key)))
@@ -355,7 +398,7 @@ func (b *Batch) Delete(key string) {
 // ungracefulWrite cleans up any partial file writes
 // in the case of an error and resets the database file count.
 func (b *Batch) ungracefulWrite() {
-	b.a.nextFile--
+	b.a.nextBatch--
 	_ = b.f.Close()
 	_ = os.Remove(b.path)
 	return
@@ -400,10 +443,11 @@ func (b *Batch) Write() (ids.ID, error) {
 		// Should never happen
 		return ids.Empty, err
 	}
+	b.a.size += uint64(reader.Len())
 
 	// Update in-memory values with locations
 	b.a.keyLock.Lock()
-	b.a.files[b.id] = reader
+	b.a.batches[b.id] = reader
 	for key, entry := range b.changes {
 		if entry == nil {
 			delete(b.a.keys, key)
@@ -415,5 +459,5 @@ func (b *Batch) Write() (ids.ID, error) {
 
 	// TODO: spawn new cleanup thread to queue changes
 	// prepare for next batch async
-	return ids.Empty, nil
+	return ids.ID(checksum), nil
 }
