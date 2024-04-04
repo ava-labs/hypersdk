@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"hash"
 	"os"
 	"path/filepath"
@@ -12,7 +13,10 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
+	"go.uber.org/zap"
 	"golang.org/x/exp/mmap"
 )
 
@@ -21,7 +25,7 @@ const (
 	opDelete = uint8(1)
 )
 
-type keyEntry struct {
+type record struct {
 	// Location of value in file (does not include
 	// operation, key length, key, or value length)
 	file uint64
@@ -32,21 +36,109 @@ type keyEntry struct {
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
 type AppendDB struct {
+	logger  logging.Logger
 	baseDir string
 	history uint64
 
 	commitLock sync.RWMutex
 	nextFile   uint64
-	oldestFile uint64
+	oldestFile *uint64
+	size       uint64
 
 	keyLock sync.RWMutex
-	files   map[uint64]*mmap.ReaderAt
-	keys    map[string]*keyEntry
+	batches map[uint64]*mmap.ReaderAt
+	keys    map[string]*record
 }
 
-// TODO: load from disk and error if anything is broken (in the future,
-// gracefully rollback based on that issue)
-func New(baseDir string, history uint64) (*AppendDB, error) {
+func openBatch(path string, file uint64) (ids.ID, map[string]*record, *mmap.ReaderAt, error) {
+	// MMap file on-disk
+	reader, err := mmap.Open(path)
+	if err != nil {
+		return ids.Empty, nil, nil, err
+	}
+
+	// Read all operations from the file
+	var (
+		changes  = make(map[string]*record)
+		fileSize = int64(reader.Len())
+		cursor   = int64(0)
+		hasher   = sha256.New()
+	)
+	for cursor < fileSize-ids.IDLen {
+		// Read op and key len
+		opAndKeyLen := make([]byte, 1+consts.Uint16Len)
+		if _, err := reader.ReadAt(opAndKeyLen, cursor); err != nil {
+			return ids.Empty, nil, reader, err
+		}
+		if _, err := hasher.Write(opAndKeyLen); err != nil {
+			return ids.Empty, nil, reader, err
+		}
+		cursor += int64(len(opAndKeyLen))
+		op := opAndKeyLen[0]
+		keyLen := binary.BigEndian.Uint16(opAndKeyLen[1:])
+
+		if op == opPut {
+			// Read key and value len
+			keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
+			if _, err := reader.ReadAt(keyAndValueLen, cursor); err != nil {
+				return ids.Empty, nil, reader, err
+			}
+			if _, err := hasher.Write(keyAndValueLen); err != nil {
+				return ids.Empty, nil, reader, err
+			}
+			cursor += int64(len(keyAndValueLen))
+			key := string(keyAndValueLen[:keyLen])
+			valueLen := binary.BigEndian.Uint32(keyAndValueLen[keyLen:])
+
+			// Read value
+			valueStart := cursor
+			value := make([]byte, valueLen)
+			if _, err := reader.ReadAt(value, cursor); err != nil {
+				return ids.Empty, nil, reader, err
+			}
+			if _, err := hasher.Write(value); err != nil {
+				return ids.Empty, nil, reader, err
+			}
+			cursor += int64(len(value))
+			changes[key] = &record{
+				file: file,
+				loc:  valueStart,
+				size: valueLen,
+			}
+		} else if op == opDelete {
+			// Read key
+			key := make([]byte, keyLen)
+			if _, err := reader.ReadAt(key, cursor); err != nil {
+				return ids.Empty, nil, reader, err
+			}
+			if _, err := hasher.Write(key); err != nil {
+				return ids.Empty, nil, reader, err
+			}
+			cursor += int64(len(key))
+			changes[string(key)] = nil
+		} else {
+			return ids.Empty, nil, reader, ErrCorrupt
+		}
+	}
+	checksum := make([]byte, sha256.Size)
+	if _, err := reader.ReadAt(checksum, cursor); err != nil {
+		return ids.Empty, nil, reader, err
+	}
+	if !bytes.Equal(checksum, hasher.Sum(nil)) {
+		return ids.Empty, nil, reader, ErrCorrupt
+	}
+	if cursor+sha256.Size != fileSize {
+		return ids.Empty, nil, reader, ErrCorrupt
+	}
+	return ids.ID(checksum), changes, reader, nil
+}
+
+// New returns a new AppendDB instance and the ID of the last committed file.
+func New(
+	log logging.Logger,
+	baseDir string,
+	history uint64, // should not be changed
+) (*AppendDB, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
 	files := []uint64{}
 	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
@@ -54,7 +146,9 @@ func New(baseDir string, history uint64) (*AppendDB, error) {
 			return err
 		}
 		if !info.IsDir() {
-			return ErrCorrupt
+			// Skip anything unexpected
+			log.Warn("found unexpected directory", zap.String("path", path))
+			return nil
 		}
 		file, err := strconv.ParseUint(info.Name(), 10, 64)
 		if err != nil {
@@ -64,9 +158,9 @@ func New(baseDir string, history uint64) (*AppendDB, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, ids.Empty, err
 	}
-	slices.Sort(files)
+	log.Info("found batches", zap.Uint64("count", uint64(len(files))))
 
 	// Replay all changes on-disk
 	//
@@ -74,90 +168,67 @@ func New(baseDir string, history uint64) (*AppendDB, error) {
 	// to reconstruct data. If any files were not fully written or have become corrupt,
 	// this will error.
 	var (
-		keys      = make(map[string]*keyEntry)
-		diskFiles = make(map[uint64]*mmap.ReaderAt)
+		keys    = make(map[string]*record)
+		batches = make(map[uint64]*mmap.ReaderAt)
+		size    uint64
+
+		lastChecksum ids.ID
+		firstFile    uint64
+		lastFile     uint64
 	)
-	for _, file := range files {
-		// MMap file on-disk
+	slices.Sort(files)
+	for i, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		reader, err := mmap.Open(path)
+		checksum, changes, reader, err := openBatch(path, file)
 		if err != nil {
-			return nil, err
+			_ = reader.Close()
+			if errors.Is(err, ErrCorrupt) {
+				log.Warn("found corrupt batch", zap.Uint64("file", file))
+				for j := i; j < len(files); j++ {
+					corruptPath := filepath.Join(baseDir, strconv.FormatUint(files[j], 10))
+					_ = os.Remove(corruptPath)
+					log.Warn("removed corrupt batch", zap.String("path", corruptPath))
+				}
+			}
+			break
 		}
-		diskFiles[file] = reader
-
-		// Read all operations from the file
-		var (
-			fileSize    = int64(reader.Len())
-			opAndKeyLen = make([]byte, 1+consts.Uint16Len)
-			cursor      = int64(0)
-			hasher      = sha256.New()
-		)
-		for cursor < fileSize-sha256.Size {
-			// Read op and key len
-			if _, err := reader.ReadAt(opAndKeyLen, cursor); err != nil {
-				return nil, err
-			}
-			if _, err := hasher.Write(opAndKeyLen); err != nil {
-				return nil, err
-			}
-			cursor += int64(len(opAndKeyLen))
-			op := opAndKeyLen[0]
-			keyLen := binary.BigEndian.Uint16(opAndKeyLen[1:])
-
-			if op == opPut {
-				// Read key and value len
-				keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
-				if _, err := reader.ReadAt(keyAndValueLen, cursor); err != nil {
-					return nil, err
-				}
-				if _, err := hasher.Write(keyAndValueLen); err != nil {
-					return nil, err
-				}
-				cursor += int64(len(keyAndValueLen))
-				key := string(keyAndValueLen[:keyLen])
-				valueLen := binary.BigEndian.Uint32(keyAndValueLen[keyLen:])
-
-				// Read value
-				valueStart := cursor
-				value := make([]byte, valueLen)
-				if _, err := reader.ReadAt(value, cursor); err != nil {
-					return nil, err
-				}
-				if _, err := hasher.Write(value); err != nil {
-					return nil, err
-				}
-				cursor += int64(len(value))
-				keys[key] = &keyEntry{
-					file: file,
-					loc:  valueStart,
-					size: valueLen,
-				}
-			} else if op == opDelete {
-				// Read key
-				key := make([]byte, keyLen)
-				if _, err := reader.ReadAt(key, cursor); err != nil {
-					return nil, err
-				}
-				if _, err := hasher.Write(key); err != nil {
-					return nil, err
-				}
-				cursor += int64(len(key))
-				delete(keys, string(key))
+		for key, entry := range changes {
+			if entry == nil {
+				delete(keys, key)
 			} else {
-				return nil, ErrCorrupt
+				keys[key] = entry
 			}
 		}
-		checksum := make([]byte, sha256.Size)
-		if _, err := reader.ReadAt(checksum, cursor); err != nil {
-			return nil, err
+		if i == 0 {
+			firstFile = file
 		}
-		if !bytes.Equal(checksum, hasher.Sum(nil)) {
-			// TODO: handle this gracefully by just rolling back to last committed file
-			return nil, ErrCorrupt
-		}
+		batches[file] = reader
+		lastChecksum = checksum
+		lastFile = file
+		size += uint64(reader.Len())
 	}
-	return nil, nil
+	log.Info(
+		"loaded batches",
+		zap.Int("count", len(batches)),
+		zap.Int("keys", len(keys)),
+		zap.Uint64("first file", firstFile),
+		zap.Uint64("last file", lastFile),
+		zap.Stringer("last checksum", lastChecksum),
+		zap.Uint64("size", size),
+	)
+	adb := &AppendDB{
+		logger:  log,
+		baseDir: baseDir,
+		history: history,
+	}
+	if len(batches) > 0 {
+		adb.oldestFile = &firstFile
+		adb.nextFile = lastFile + 1
+		adb.size = size
+		adb.batches = batches
+		adb.keys = keys
+	}
+	return adb, lastChecksum, nil
 }
 
 func (a *AppendDB) Get(key string) ([]byte, error) {
@@ -190,7 +261,7 @@ type Batch struct {
 
 	hasher  hash.Hash
 	f       *os.File
-	changes map[string]*keyEntry
+	changes map[string]*record
 	cursor  int64
 
 	err error
@@ -213,7 +284,7 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 
 		hasher:  sha256.New(),
 		f:       f,
-		changes: make(map[string]*keyEntry, changes),
+		changes: make(map[string]*record, changes),
 	}, nil
 }
 
@@ -244,7 +315,7 @@ func (b *Batch) Put(key string, value []byte) {
 		b.err = err
 		return
 	}
-	b.changes[key] = &keyEntry{
+	b.changes[key] = &record{
 		file: b.id,
 		loc:  valueStart,
 		size: uint32(len(value)),
@@ -295,39 +366,39 @@ func (b *Batch) ungracefulWrite() {
 //
 // It then begins a cleanup routine to remove old
 // files (to prevent the disk from filling up).
-func (b *Batch) Write() error {
+func (b *Batch) Write() (ids.ID, error) {
 	defer b.a.commitLock.Unlock()
 
 	// If we already encountered an error, return that immediately
 	if b.err != nil {
 		b.ungracefulWrite()
-		return b.err
+		return ids.Empty, b.err
 	}
 
 	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
 	checksum := b.hasher.Sum(nil)
 	if _, err := b.f.Write(checksum); err != nil {
 		b.ungracefulWrite()
-		return err
+		return ids.Empty, err
 	}
 
 	// Ensure file is committed to disk
 	if err := b.f.Sync(); err != nil {
 		b.ungracefulWrite()
-		return err
+		return ids.Empty, err
 	}
 
 	// Close file now that we don't need to write to it anymore
 	if err := b.f.Close(); err != nil {
 		b.ungracefulWrite()
-		return err
+		return ids.Empty, err
 	}
 
 	// Open file for mmap
 	reader, err := mmap.Open(b.path)
 	if err != nil {
 		// Should never happen
-		return err
+		return ids.Empty, err
 	}
 
 	// Update in-memory values with locations
@@ -344,5 +415,5 @@ func (b *Batch) Write() error {
 
 	// TODO: spawn new cleanup thread to queue changes
 	// prepare for next batch async
-	return nil
+	return ids.Empty, nil
 }
