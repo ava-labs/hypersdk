@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=9603c587e913af906bcb71683b445eb8c4c97e22
+MORPHEUS_VM_COMMIT=9575bf51c9af7fc6a3899a058b1ed5e004440d96
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
