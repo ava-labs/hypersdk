@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/smap"
 	"golang.org/x/exp/mmap"
 )
 
@@ -21,8 +20,6 @@ const (
 )
 
 type keyEntry struct {
-	pending []byte
-
 	// Location of value in file (does not include
 	// operation, key length, key, or value length)
 	file uint64
@@ -31,24 +28,23 @@ type keyEntry struct {
 }
 
 type AppendDB struct {
-	baseDir   string
-	fileCount uint64
+	baseDir string
 
-	files map[uint64]*mmap.ReaderAt
-	l     sync.RWMutex
-	keys  *smap.SMap[*keyEntry]
+	commitLock sync.RWMutex
+	fileCount  uint64
+
+	keyLock sync.RWMutex
+	files   map[uint64]*mmap.ReaderAt
+	keys    map[string]*keyEntry
 }
 
 func (a *AppendDB) Get(key string) ([]byte, error) {
-	a.l.RLock()
-	defer a.l.RUnlock()
+	a.keyLock.RLock()
+	defer a.keyLock.RUnlock()
 
-	entry, ok := a.keys.Get(key)
+	entry, ok := a.keys[key]
 	if !ok {
 		return nil, database.ErrNotFound
-	}
-	if len(entry.pending) > 0 {
-		return entry.pending, nil
 	}
 	value := make([]byte, entry.size)
 	_, err := a.files[entry.file].ReadAt(value, entry.loc)
@@ -72,12 +68,12 @@ type Batch struct {
 // TODO: load from disk and recover anything broken
 
 func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
-	a.l.Lock()
+	a.commitLock.Lock()
 	id := a.fileCount
 	path := filepath.Join(a.baseDir, strconv.FormatUint(id, 10))
 	f, err := os.Create(path)
 	if err != nil {
-		a.l.Unlock()
+		a.commitLock.Unlock()
 		return nil, err
 	}
 	a.fileCount++
@@ -130,12 +126,15 @@ func (b *Batch) Delete(key string) {
 	if b.err != nil {
 		return
 	}
-	if _, ok := b.a.keys.Get(key); !ok {
-		b.err = database.ErrNotFound
-		return
-	}
 	if _, ok := b.changes[key]; ok {
 		b.err = ErrDuplicate
+		return
+	}
+	b.a.keyLock.RLock()
+	_, ok := b.a.keys[key]
+	b.a.keyLock.RUnlock()
+	if !ok {
+		b.err = database.ErrNotFound
 		return
 	}
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
@@ -168,7 +167,7 @@ func (b *Batch) ungracefulWrite() {
 // It then begins a cleanup routine to remove old
 // files (to prevent the disk from filling up).
 func (b *Batch) Write() error {
-	defer b.a.l.Unlock()
+	defer b.a.commitLock.Unlock()
 
 	// If we already encountered an error, return that immediately
 	if b.err != nil {
@@ -195,7 +194,24 @@ func (b *Batch) Write() error {
 		return err
 	}
 
-	// TODO: Update in-memory values with locations
+	// Open file for mmap
+	reader, err := mmap.Open(b.path)
+	if err != nil {
+		// Should never happen
+		return err
+	}
+
+	// Update in-memory values with locations
+	b.a.keyLock.Lock()
+	b.a.files[b.id] = reader
+	for key, entry := range b.changes {
+		if entry == nil {
+			delete(b.a.keys, key)
+		} else {
+			b.a.keys[key] = entry
+		}
+	}
+	b.a.keyLock.Unlock()
 
 	// TODO: spawn new cleanup thread to queue changes
 	return nil
