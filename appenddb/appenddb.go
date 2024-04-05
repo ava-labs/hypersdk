@@ -283,6 +283,7 @@ func (a *AppendDB) Close() error {
 	a.logger.Info(
 		"closing appenddb",
 		zap.Uint64("size", a.size),
+		zap.Int("keys", len(a.keys)),
 		zap.Uint64("next batch", a.nextBatch),
 		zap.Uint64("batches", uint64(len(a.batches))),
 	)
@@ -364,7 +365,7 @@ func (b *Batch) Prepare() {
 		// Read next record
 		key, record, value, newCursor, err := readRecord(oldestBatch, reader, cursor, nil)
 		if err != nil {
-			b.a.logger.Error("could not read key from non-corrup batch", zap.Error(err))
+			b.a.logger.Error("could not read key from batch", zap.Error(err))
 			b.err = err
 			return
 		}
@@ -390,10 +391,6 @@ func (b *Batch) Prepare() {
 
 func (b *Batch) Put(key string, value []byte) {
 	// Check input
-	if !b.prepared.Load() && b.err == nil {
-		b.err = ErrNotPrepared
-		return
-	}
 	if b.err != nil {
 		return
 	}
@@ -427,10 +424,6 @@ func (b *Batch) Put(key string, value []byte) {
 
 func (b *Batch) Delete(key string) {
 	// Check input
-	if !b.prepared.Load() && b.err == nil {
-		b.err = ErrNotPrepared
-		return
-	}
 	if b.err != nil {
 		return
 	}
@@ -534,9 +527,13 @@ func (b *Batch) Write() (ids.ID, error) {
 		if err := os.Remove(preparedPath); err != nil {
 			b.a.logger.Error("could not remove old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
 		}
+		delete(b.a.batches, preparedBatch)
 		b.a.size -= preparedSize
 		oldestBatch := preparedBatch + 1
 		b.a.oldestBatch = &oldestBatch
+	}
+	if b.a.oldestBatch == nil {
+		b.a.oldestBatch = &b.batch
 	}
 	return ids.ID(checksum), nil
 }
