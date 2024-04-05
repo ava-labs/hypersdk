@@ -432,7 +432,9 @@ func (b *Batch) recycle() {
 		return
 	}
 	oldestBatch := *b.a.oldestBatch
-	if b.batch-b.a.historyLen < oldestBatch {
+	if b.batch-b.a.historyLen <= oldestBatch {
+		// This means that if we are working on batch 2, we will prune batch 0
+		// but keep batch 1 around.
 		return
 	}
 

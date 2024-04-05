@@ -318,25 +318,27 @@ func BenchmarkAppendDB(b *testing.B) {
 	batches := 10
 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
-			keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
-			b.Run(fmt.Sprintf("batch=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
-					db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, defaultBufferSize, 5)
-					require.NoError(err)
-					require.Equal(ids.Empty, last)
-					for j := 0; j < batches; j++ {
-						b, err := db.NewBatch(batchSize + 100)
+			for _, historyLen := range []uint64{1, 5, 10} {
+				keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
+				b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d", batchSize, reuse, historyLen), func(b *testing.B) {
+					for i := 0; i < b.N; i++ {
+						db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, defaultBufferSize, historyLen)
 						require.NoError(err)
-						b.Prepare()
-						for k := 0; k < batchSize; k++ {
-							b.Put(string(keys[j][k]), values[j][k])
+						require.Equal(ids.Empty, last)
+						for j := 0; j < batches; j++ {
+							b, err := db.NewBatch(batchSize + 100)
+							require.NoError(err)
+							b.Prepare()
+							for k := 0; k < batchSize; k++ {
+								b.Put(string(keys[j][k]), values[j][k])
+							}
+							_, err = b.Write()
+							require.NoError(err)
 						}
-						_, err = b.Write()
-						require.NoError(err)
+						require.NoError(db.Close())
 					}
-					require.NoError(db.Close())
-				}
-			})
+				})
+			}
 		}
 	}
 }
@@ -349,7 +351,7 @@ func BenchmarkPebbleDB(b *testing.B) {
 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
 			keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
-			b.Run(fmt.Sprintf("batch=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
+			b.Run(fmt.Sprintf("keys=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
 					require.NoError(err)
