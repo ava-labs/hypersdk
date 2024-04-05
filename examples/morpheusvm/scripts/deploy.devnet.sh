@@ -51,8 +51,11 @@ echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 LOCAL_CLI_COMMIT=cebf8376e42a4a6b90c66761fca3313ee2fce712
 REMOTE_CLI_COMMIT=v1.4.3-rc.2
 cd $TMPDIR
-git clone https://github.com/ava-labs/avalanche-cli
+mkdir -p avalanche-cli
 cd avalanche-cli
+git init
+git remote add origin https://github.com/ava-labs/avalanche-cli
+git fetch --depth 1 origin $LOCAL_CLI_COMMIT
 git checkout $LOCAL_CLI_COMMIT
 ./scripts/build.sh
 mv ./bin/avalanche "${TMPDIR}/avalanche"
@@ -62,8 +65,11 @@ cd $pw
 MORPHEUS_VM_COMMIT=9622510bddce9f7b0ed43dc23645ea9a859e206e
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
-git clone https://github.com/ava-labs/hypersdk
+mkdir -p hypersdk
 cd hypersdk
+git init
+git remote add origin https://github.com/ava-labs/hypersdk
+git fetch --depth 1 origin $MORPHEUS_VM_COMMIT
 git checkout $MORPHEUS_VM_COMMIT
 VMID=$(git rev-parse --short HEAD) # ensure we use a fresh vm
 VM_COMMIT=$(git rev-parse HEAD)
