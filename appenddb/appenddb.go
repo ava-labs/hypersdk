@@ -42,8 +42,8 @@ type AppendDB struct {
 	history uint64
 
 	commitLock  sync.RWMutex
-	nextBatch   uint64
 	oldestBatch *uint64
+	nextBatch   uint64
 	size        uint64
 
 	keyLock sync.RWMutex
@@ -164,7 +164,11 @@ func New(
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if baseDir == path {
+			// Don't attempt to load self
+			return nil
+		}
+		if info.IsDir() {
 			// Skip anything unexpected
 			log.Warn("found unexpected directory", zap.String("path", path))
 			return nil
@@ -200,7 +204,10 @@ func New(
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
 		checksum, changes, reader, err := openBatch(path, file)
 		if err != nil {
-			_ = reader.Close()
+			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
+			if reader != nil {
+				_ = reader.Close()
+			}
 			if errors.Is(err, ErrCorrupt) {
 				log.Warn("found corrupt batch", zap.Uint64("file", file))
 				for j := i; j < len(files); j++ {
@@ -239,13 +246,14 @@ func New(
 		logger:  log,
 		baseDir: baseDir,
 		history: history,
+
+		batches: batches,
+		keys:    keys,
 	}
 	if len(batches) > 0 {
 		adb.oldestBatch = &firstBatch
 		adb.nextBatch = lastBatch + 1
 		adb.size = size
-		adb.batches = batches
-		adb.keys = keys
 	}
 	return adb, lastChecksum, nil
 }
@@ -272,6 +280,12 @@ func (a *AppendDB) Close() error {
 			return err
 		}
 	}
+	a.logger.Info(
+		"closing appenddb",
+		zap.Uint64("size", a.size),
+		zap.Uint64("next batch", a.nextBatch),
+		zap.Uint64("batches", uint64(len(a.batches))),
+	)
 	return nil
 }
 
