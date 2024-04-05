@@ -34,7 +34,7 @@ TESTS=${TESTS:-"golangci_lint license_header"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.1
+  go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
   
   # alert the user if they do not have $GOPATH properly configured
   check_command golangci-lint
