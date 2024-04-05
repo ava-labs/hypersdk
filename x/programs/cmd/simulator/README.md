@@ -8,7 +8,7 @@ And please, if you see any inconsistencies in the `README.md` here, [open a PR](
 
 #### Note
 
-Are we calling a Go-based CLI from Rust? Yes. The Go-cli re-uses primitives from the HyperSDK, but we wanted to wrap that code in a Rust client to give a seamless experience testing.
+Are we calling a Go-based CLI from Rust? Yes. The Go-CLI re-uses primitives from the HyperSDK, but we wanted to wrap that code in a Rust client to give a seamless experience testing.
 
 ## CLI Usage on its own
 
