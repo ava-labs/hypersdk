@@ -203,7 +203,75 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 }
 
-// TODO: add random reads and writes to test to ensure locations are updated right
+func TestAppendDBLarge(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"appenddb",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Generate keys
+	keys := make([][]string, 10)
+	values := make([][][]byte, 10)
+	for i := 0; i < 10; i++ {
+		keys[i] = make([]string, 1_000_000)
+		values[i] = make([][]byte, 1_000_000)
+		for j := 0; j < 1_000_000; j++ {
+			k := make([]byte, 32)
+			rand.Read(k)
+			keys[i][j] = string(k)
+			v := make([]byte, 32)
+			rand.Read(v)
+			values[i][j] = v
+		}
+	}
+
+	// Write 1M unique keys in 10 batches
+	var lastBatch ids.ID
+	for i := 0; i < 10; i++ {
+		b, err := db.NewBatch(1_000_000)
+		require.NoError(err)
+		b.Prepare()
+		for j := 0; j < 1_000_000; j++ {
+			b.Put(keys[i][j], values[i][j])
+		}
+		lastBatch, err = b.Write()
+		require.NoError(err)
+
+		// Ensure data is correct
+		for j := 0; j < 1_000_000; j++ {
+			v, err := db.Get(keys[i][j])
+			require.NoError(err)
+			require.Equal(values[i][j], v)
+		}
+	}
+
+	// Restart
+	require.NoError(db.Close())
+	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
+	require.NoError(err)
+	require.Equal(lastBatch, last)
+
+	// Ensure data is correct after restart
+	for i := 0; i < 1_000_000; i++ {
+		v, err := db.Get(keys[9][i])
+		require.NoError(err)
+		require.Equal(values[9][i], v)
+	}
+	require.NoError(db.Close())
+}
 
 func BenchmarkAppendDB(b *testing.B) {
 	// Prepare
@@ -218,15 +286,19 @@ func BenchmarkAppendDB(b *testing.B) {
 	)
 
 	// Generate keys
-	keys := make([]string, 10_000_000)
-	values := make([][]byte, 10_000_000)
-	for i := 0; i < 10_000_000; i++ {
-		k := make([]byte, 32)
-		rand.Read(k)
-		keys[i] = string(k)
-		v := make([]byte, 32)
-		rand.Read(v)
-		values[i] = v
+	keys := make([][]string, 10)
+	values := make([][][]byte, 10)
+	for i := 0; i < 10; i++ {
+		keys[i] = make([]string, 1_000_000)
+		values[i] = make([][]byte, 1_000_000)
+		for j := 0; i < 1_000_000; i++ {
+			k := make([]byte, 32)
+			rand.Read(k)
+			keys[i][j] = string(k)
+			v := make([]byte, 32)
+			rand.Read(v)
+			values[i][j] = v
+		}
 	}
 
 	b.ResetTimer()
@@ -240,7 +312,6 @@ func BenchmarkAppendDB(b *testing.B) {
 				require.Equal(ids.Empty, last)
 
 				// Write 1M unique keys in 10 batches
-				lastIndex := 0
 				for j := 0; j < 10; j++ {
 					b, err := db.NewBatch(1_500_000)
 					require.NoError(err)
@@ -248,9 +319,8 @@ func BenchmarkAppendDB(b *testing.B) {
 					b.Prepare()
 					prepareDuration := time.Since(start)
 					start = time.Now()
-					for lastIndex < (j+1)*1_000_000 {
-						b.Put(keys[lastIndex], values[lastIndex])
-						lastIndex++
+					for k := 0; k < 1_000_000; k++ {
+						b.Put(keys[j][k], values[j][k])
 					}
 					putDuration := time.Since(start)
 					start = time.Now()
@@ -277,15 +347,19 @@ func BenchmarkPebbleDB(b *testing.B) {
 	require := require.New(b)
 
 	// Generate keys
-	keys := make([][]byte, 10_000_000)
-	values := make([][]byte, 10_000_000)
-	for i := 0; i < 10_000_000; i++ {
-		k := make([]byte, 32)
-		rand.Read(k)
-		keys[i] = k
-		v := make([]byte, 32)
-		rand.Read(v)
-		values[i] = v
+	keys := make([][][]byte, 10)
+	values := make([][][]byte, 10)
+	for i := 0; i < 10; i++ {
+		keys[i] = make([][]byte, 1_000_000)
+		values[i] = make([][]byte, 1_000_000)
+		for j := 0; i < 1_000_000; i++ {
+			k := make([]byte, 32)
+			rand.Read(k)
+			keys[i][j] = k
+			v := make([]byte, 32)
+			rand.Read(v)
+			values[i][j] = v
+		}
 	}
 
 	b.ResetTimer()
@@ -296,12 +370,10 @@ func BenchmarkPebbleDB(b *testing.B) {
 		require.NoError(err)
 
 		// Write 1M unique keys in 10 batches
-		lastIndex := 0
 		for j := 0; j < 10; j++ {
 			b := db.NewBatch()
-			for lastIndex < (j+1)*1_000_000 {
-				b.Put(keys[lastIndex], values[lastIndex])
-				lastIndex++
+			for k := 0; k < 1_000_000; k++ {
+				b.Put(keys[j][k], values[j][k])
 			}
 			require.NoError(b.Write())
 		}
