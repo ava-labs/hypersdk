@@ -296,7 +296,7 @@ func BenchmarkAppendDB(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		keys[i] = make([]string, 1_000_000)
 		values[i] = make([][]byte, 1_000_000)
-		for j := 0; i < 1_000_000; i++ {
+		for j := 0; j < 1_000_000; j++ {
 			k := make([]byte, 32)
 			rand.Read(k)
 			keys[i][j] = string(k)
@@ -321,7 +321,7 @@ func BenchmarkAppendDB(b *testing.B) {
 					b, err := db.NewBatch(1_500_000)
 					require.NoError(err)
 					start := time.Now()
-					b.Prepare()
+					recycled := b.Prepare()
 					prepareDuration := time.Since(start)
 					start = time.Now()
 					for k := 0; k < 1_000_000; k++ {
@@ -333,6 +333,7 @@ func BenchmarkAppendDB(b *testing.B) {
 					logger.Info(
 						"latency",
 						zap.Duration("prepare", prepareDuration),
+						zap.Int("recycled", recycled),
 						zap.Duration("puts", putDuration),
 						zap.Duration("write", time.Since(start)),
 					)
@@ -357,7 +358,7 @@ func BenchmarkPebbleDB(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		keys[i] = make([][]byte, 1_000_000)
 		values[i] = make([][]byte, 1_000_000)
-		for j := 0; i < 1_000_000; i++ {
+		for j := 0; j < 1_000_000; j++ {
 			k := make([]byte, 32)
 			rand.Read(k)
 			keys[i][j] = k
