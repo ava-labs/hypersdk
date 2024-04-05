@@ -204,19 +204,19 @@ func New(
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
 		checksum, changes, reader, err := openBatch(path, file)
 		if err != nil {
-			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
 			if reader != nil {
 				_ = reader.Close()
 			}
 			if errors.Is(err, ErrCorrupt) {
-				log.Warn("found corrupt batch", zap.Uint64("file", file))
 				for j := i; j < len(files); j++ {
 					corruptPath := filepath.Join(baseDir, strconv.FormatUint(files[j], 10))
 					_ = os.Remove(corruptPath)
 					log.Warn("removed corrupt batch", zap.String("path", corruptPath))
 				}
+				break
 			}
-			break
+			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
+			return nil, ids.Empty, err
 		}
 		for key, entry := range changes {
 			if entry == nil {
