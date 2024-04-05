@@ -45,7 +45,7 @@ type AppendDB struct {
 	logger     logging.Logger
 	baseDir    string
 	bufferSize int
-	history    uint64
+	historyLen uint64
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -164,7 +164,7 @@ func New(
 	baseDir string,
 	initialSize int,
 	bufferSize int,
-	history uint64, // should not be changed
+	historyLen uint64, // should not be changed
 ) (*AppendDB, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
 	files := []uint64{}
@@ -200,7 +200,7 @@ func New(
 	// this will error.
 	var (
 		keys    = make(map[string]*record, initialSize)
-		batches = make(map[uint64]*mmap.ReaderAt, history+1)
+		batches = make(map[uint64]*mmap.ReaderAt, historyLen+1)
 		size    uint64
 
 		lastChecksum ids.ID
@@ -254,7 +254,7 @@ func New(
 		logger:     log,
 		baseDir:    baseDir,
 		bufferSize: bufferSize,
-		history:    history,
+		historyLen: historyLen,
 
 		batches: batches,
 		keys:    keys,
@@ -369,14 +369,14 @@ func (b *Batch) Prepare() {
 	}
 
 	// Determine if we should delete the oldest batch
-	if b.batch < b.a.history {
+	if b.batch < b.a.historyLen {
 		return
 	}
 	if b.a.oldestBatch == nil {
 		return
 	}
 	oldestBatch := *b.a.oldestBatch
-	if b.batch-b.a.history < oldestBatch {
+	if b.batch-b.a.historyLen < oldestBatch {
 		return
 	}
 

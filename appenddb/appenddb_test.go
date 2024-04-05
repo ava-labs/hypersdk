@@ -18,7 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultBufferSize = 64 * units.KiB
+const (
+	defaultInitialSize = 10_000_000
+	defaultBufferSize  = 64 * units.KiB
+	defaultHistoryLen  = 100
+)
 
 func TestAppendDB(t *testing.T) {
 	// Prepare
@@ -35,7 +39,7 @@ func TestAppendDB(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, defaultBufferSize, 100)
+	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, defaultHistoryLen)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -55,7 +59,7 @@ func TestAppendDB(t *testing.T) {
 
 	// Restart
 	require.NoError(db.Close())
-	db, last, err = New(logger, baseDir, defaultBufferSize, 100)
+	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, defaultHistoryLen)
 	require.NoError(err)
 	require.Equal(batch, last)
 
@@ -73,7 +77,7 @@ func TestAppendDB(t *testing.T) {
 	require.NoError(f.Close())
 
 	// Restart
-	db, last, err = New(logger, baseDir, defaultBufferSize, 100)
+	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, defaultHistoryLen)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -98,7 +102,7 @@ func TestAppendDBPrune(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, defaultBufferSize, 10)
+	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -145,7 +149,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Len(files, 10) // 10 for the data files
 
 	// Restart
-	db, last, err = New(logger, baseDir, defaultBufferSize, 10)
+	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 
@@ -185,7 +189,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Len(files, 10) // 10 for the data files
 
 	// Read from new batches
-	db, last, err = New(logger, baseDir, defaultBufferSize, 10)
+	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 	for i := 0; i < 10; i++ {
@@ -231,7 +235,7 @@ func BenchmarkAppendDB(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				// Create
 				baseDir := b.TempDir()
-				db, last, err := New(logger, baseDir, bufferSize, 5)
+				db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
 				require.NoError(err)
 				require.Equal(ids.Empty, last)
 
