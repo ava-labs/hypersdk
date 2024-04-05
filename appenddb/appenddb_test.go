@@ -191,3 +191,38 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Equal([]byte("world"), v)
 	require.NoError(db.Close())
 }
+
+func BenchmarkAppendDB(b *testing.B) {
+	// Prepare
+	require := require.New(b)
+	logger := logging.NewLogger(
+		"appenddb",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+
+	for i := 0; i < b.N; i++ {
+		// Create
+		baseDir := b.TempDir()
+		db, last, err := New(logger, baseDir, 100)
+		require.NoError(err)
+		require.Equal(ids.Empty, last)
+
+		// Write 1M unique keys
+		b, err := db.NewBatch(1_000_000)
+		require.NoError(err)
+		b.Prepare()
+		for k := 0; k < 1_000_000; k++ {
+			b.Put(strconv.Itoa(k), []byte(strconv.Itoa(k)))
+		}
+		_, err = b.Write()
+		require.NoError(err)
+
+		// Cleanup
+		require.NoError(db.Close())
+		os.Remove(baseDir)
+	}
+}

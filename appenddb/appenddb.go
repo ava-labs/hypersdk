@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
 	"golang.org/x/exp/mmap"
 )
@@ -240,7 +241,7 @@ func New(
 		zap.Uint64("first batch", firstBatch),
 		zap.Uint64("last batch", lastBatch),
 		zap.Stringer("last checksum", lastChecksum),
-		zap.Uint64("size", size),
+		zap.String("size", humanize.Bytes(size)),
 	)
 	adb := &AppendDB{
 		logger:  log,
@@ -282,7 +283,7 @@ func (a *AppendDB) Close() error {
 	}
 	a.logger.Info(
 		"closing appenddb",
-		zap.Uint64("size", a.size),
+		zap.String("size", humanize.Bytes(a.size)),
 		zap.Int("keys", len(a.keys)),
 		zap.Uint64("next batch", a.nextBatch),
 		zap.Uint64("batches", uint64(len(a.batches))),
