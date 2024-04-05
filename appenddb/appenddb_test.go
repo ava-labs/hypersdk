@@ -199,6 +199,8 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 }
 
+// TODO: add random reads and writes to test to ensure locations are updated right
+
 func BenchmarkAppendDB(b *testing.B) {
 	// Prepare
 	require := require.New(b)
