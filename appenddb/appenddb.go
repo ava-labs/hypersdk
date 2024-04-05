@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -26,6 +27,8 @@ import (
 const (
 	opPut    = uint8(0)
 	opDelete = uint8(1)
+
+	defaultBatchBufferSize = 16_384 // per item encoding
 )
 
 type record struct {
@@ -159,6 +162,7 @@ func openBatch(path string, file uint64) (ids.ID, map[string]*record, *mmap.Read
 func New(
 	log logging.Logger,
 	baseDir string,
+	initialSize int,
 	bufferSize int,
 	history uint64, // should not be changed
 ) (*AppendDB, ids.ID, error) {
@@ -195,8 +199,8 @@ func New(
 	// to reconstruct data. If any files were not fully written or have become corrupt,
 	// this will error.
 	var (
-		keys    = make(map[string]*record)
-		batches = make(map[uint64]*mmap.ReaderAt)
+		keys    = make(map[string]*record, initialSize)
+		batches = make(map[uint64]*mmap.ReaderAt, history+1)
 		size    uint64
 
 		lastChecksum ids.ID
@@ -311,6 +315,8 @@ type Batch struct {
 
 	writer *bufio.Writer
 
+	buf []byte
+
 	err error
 }
 
@@ -334,7 +340,17 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		changes: make(map[string]*record, changes),
 
 		writer: bufio.NewWriterSize(f, a.bufferSize),
+
+		buf: make([]byte, defaultBatchBufferSize),
 	}, nil
+}
+
+func (b *Batch) growBuffer(size int) {
+	if cap(b.buf) < size {
+		b.buf = make([]byte, size, size*2)
+	} else {
+		b.buf = b.buf[:size]
+	}
 }
 
 // Prepare reads all keys from the oldest batch
@@ -410,19 +426,20 @@ func (b *Batch) Put(key string, value []byte) {
 
 	// Create operation to write
 	valueStart := b.cursor + int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len)
-	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len+len(value))
-	operation[0] = opPut
-	binary.BigEndian.PutUint16(operation[1:], uint16(len(key)))
-	copy(operation[1+consts.Uint16Len:], key)
-	binary.BigEndian.PutUint32(operation[1+consts.Uint16Len+len(key):], uint32(len(value)))
-	copy(operation[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
+	l := consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value)
+	b.growBuffer(l)
+	b.buf[0] = opPut
+	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
+	copy(b.buf[1+consts.Uint16Len:], key)
+	binary.BigEndian.PutUint32(b.buf[1+consts.Uint16Len+len(key):], uint32(len(value)))
+	copy(b.buf[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
 
 	// Add to buffer
-	if _, err := b.writer.Write(operation); err != nil {
+	if _, err := b.writer.Write(b.buf); err != nil {
 		b.err = err
 		return
 	}
-	if _, err := b.hasher.Write(operation); err != nil {
+	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
 		return
 	}
@@ -433,7 +450,7 @@ func (b *Batch) Put(key string, value []byte) {
 		loc:   valueStart,
 		size:  uint32(len(value)),
 	}
-	b.cursor += int64(len(operation))
+	b.cursor += int64(l)
 }
 
 func (b *Batch) Delete(key string) {
@@ -447,24 +464,25 @@ func (b *Batch) Delete(key string) {
 	}
 
 	// Create operation to write
-	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
-	operation[0] = opDelete
-	binary.BigEndian.PutUint16(operation[1:], uint16(len(key)))
-	copy(operation[1+consts.Uint16Len:], key)
+	l := consts.Uint8Len + consts.Uint16Len + len(key)
+	b.growBuffer(l)
+	b.buf[0] = opDelete
+	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
+	copy(b.buf[1+consts.Uint16Len:], key)
 
 	// Add to buffer
-	if _, err := b.writer.Write(operation); err != nil {
+	if _, err := b.writer.Write(b.buf); err != nil {
 		b.err = err
 		return
 	}
-	if _, err := b.hasher.Write(operation); err != nil {
+	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
 		return
 	}
 
 	// Add to changes
 	b.changes[key] = nil
-	b.cursor += int64(len(operation))
+	b.cursor += int64(l)
 }
 
 // ungracefulWrite cleans up any partial file writes
@@ -526,6 +544,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	b.a.size += uint64(reader.Len())
 
 	// Update in-memory values with new locations
+	start := time.Now()
 	b.a.keyLock.Lock()
 	b.a.batches[b.batch] = reader
 	for key, entry := range b.changes {
@@ -536,6 +555,7 @@ func (b *Batch) Write() (ids.ID, error) {
 		}
 	}
 	b.a.keyLock.Unlock()
+	b.a.logger.Info("update keys", zap.Duration("duration", time.Since(start)))
 
 	// Delete old batch once keys are updated to new batch
 	if b.pruneableBatch != nil {
