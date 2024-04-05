@@ -32,7 +32,9 @@ type op struct {
 }
 
 type TStateView struct {
-	ts                 *TState
+	ts *TState
+
+	idx                int
 	pendingChangedKeys map[string]maybe.Maybe[[]byte]
 
 	// Ops is a record of all operations performed on [TState]. Tracking
@@ -51,9 +53,11 @@ type TStateView struct {
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(im state.Immutable, scope state.Keys) *TStateView {
+func (ts *TState) NewView(idx int, im state.Immutable, scope state.Keys) *TStateView {
 	return &TStateView{
-		ts:                 ts,
+		ts: ts,
+
+		idx:                idx,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 
 		ops: make([]*op, 0, defaultOps),
@@ -284,8 +288,9 @@ func (ts *TStateView) PendingChanges() int {
 
 // Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
+	ts.ts.viewKeys[ts.idx] = ts.scope
 	for k, v := range ts.pendingChangedKeys {
-		ts.ts.changedKeys.Put(k, v)
+		ts.ts.changedKeys.Put(k, &change{ts.idx, v})
 	}
 }
 

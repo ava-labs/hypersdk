@@ -5,10 +5,12 @@ package tstate
 
 import (
 	"context"
+	"slices"
 
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/hypersdk/smap"
 	"github.com/ava-labs/hypersdk/state"
+	"golang.org/x/exp/maps"
 )
 
 type change struct {
@@ -23,12 +25,9 @@ type TState struct {
 }
 
 // New returns a new instance of TState.
-//
-// [changedSize] is an estimate of the number of keys that will be changed and is
-// used to optimize the creation of [ExportMerkleDBView].
-func New(capacity int, changedSize int) *TState {
+func New(changedSize int) *TState {
 	return &TState{
-		viewKeys:    make([]state.Keys, capacity),
+		viewKeys:    make([]state.Keys, 500_000), // set to max txs that could ever be in a single block
 		changedKeys: smap.New[*change](changedSize),
 	}
 }
@@ -48,8 +47,16 @@ func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, 
 // Iterate should only be called once tstate is done being modified.
 func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
 	for idx, keys := range ts.viewKeys {
-		for key, perms := range keys {
-			if perms == state.Read {
+		if keys == nil {
+			// Skip empty views (needed to avoid locking)
+			continue
+		}
+
+		// Ensure we iterate deterministically
+		keyArr := maps.Keys(keys)
+		slices.Sort(keyArr)
+		for _, key := range keyArr {
+			if keys[key] == state.Read {
 				continue
 			}
 			v, ok := ts.changedKeys.Get(key)
@@ -57,6 +64,7 @@ func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
 				continue
 			}
 			if v.view != idx {
+				// If we weren't the latest modification, skip
 				continue
 			}
 			if err := f([]byte(key), v.v); err != nil {
