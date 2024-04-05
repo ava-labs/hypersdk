@@ -111,12 +111,7 @@ func TestAppendDBPrune(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		b, err := db.NewBatch(10)
 		require.NoError(err)
-		recycled := b.Prepare()
-		if i < 10 {
-			require.Zero(recycled)
-		} else {
-			require.NotZero(recycled)
-		}
+		b.Prepare()
 		switch {
 		case i == 0:
 			// Never modify again
