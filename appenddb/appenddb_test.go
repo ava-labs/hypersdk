@@ -46,7 +46,7 @@ func TestAppendDB(t *testing.T) {
 	// Put
 	b, err := db.NewBatch(10)
 	require.NoError(err)
-	b.Prepare()
+	require.Zero(b.Prepare())
 	b.Put("hello", []byte("world"))
 	batch, err := b.Write()
 	require.NoError(err)
@@ -111,7 +111,12 @@ func TestAppendDBPrune(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		b, err := db.NewBatch(10)
 		require.NoError(err)
-		b.Prepare()
+		recycled := b.Prepare()
+		if i < 10 {
+			require.Zero(recycled)
+		} else {
+			require.NotZero(recycled)
+		}
 		switch {
 		case i == 0:
 			// Never modify again
@@ -243,7 +248,12 @@ func TestAppendDBLarge(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		b, err := db.NewBatch(1_000_000)
 		require.NoError(err)
-		b.Prepare()
+		recycled := b.Prepare()
+		if i < 5 {
+			require.Zero(recycled)
+		} else {
+			require.Equal(1_000_000, recycled)
+		}
 		for j := 0; j < 1_000_000; j++ {
 			b.Put(keys[i][j], values[i][j])
 		}
