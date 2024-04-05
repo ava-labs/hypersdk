@@ -562,6 +562,9 @@ func (b *Batch) Write() (ids.ID, error) {
 	b.a.size += uint64(reader.Len())
 
 	// Update in-memory values with new locations
+	//
+	// We wait to do this until now to avoid locking all reads
+	// while we update the keys.
 	start := time.Now()
 	b.a.keyLock.Lock()
 	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.alive}
