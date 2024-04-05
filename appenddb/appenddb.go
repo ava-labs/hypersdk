@@ -63,9 +63,10 @@ type AppendDB struct {
 	nextBatch   uint64
 	size        uint64
 
-	keyLock sync.RWMutex
-	batches map[uint64]*tracker
-	keys    map[string]*record
+	keyLock       sync.RWMutex
+	leftoverAlive *linked.Hashmap[string, *record] // avoid reallocation
+	batches       map[uint64]*tracker
+	keys          map[string]*record
 }
 
 func readRecord(batch uint64, reader io.Reader, cursor int64, hasher hash.Hash) (string, *record, int64, error) {
@@ -379,7 +380,13 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 
 		buf:    make([]byte, defaultBatchBufferSize),
 		writer: bufio.NewWriterSize(f, a.bufferSize),
-		alive:  linked.NewHashmapWithSize[string, *record](changes),
+	}
+	if a.leftoverAlive == nil {
+		b.alive = linked.NewHashmapWithSize[string, *record](changes)
+	} else {
+		b.alive = a.leftoverAlive
+		a.leftoverAlive = nil
+		b.alive.Clear()
 	}
 	b.recycle()
 	return b, nil
@@ -613,6 +620,7 @@ func (b *Batch) Write() (ids.ID, error) {
 		b.a.size -= preparedSize
 		oldestBatch := preparedBatch + 1
 		b.a.oldestBatch = &oldestBatch
+		b.a.leftoverAlive = preparedReader.alive
 	}
 	if b.a.oldestBatch == nil {
 		b.a.oldestBatch = &b.batch
