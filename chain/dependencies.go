@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -16,9 +15,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
+	"github.com/ava-labs/hypersdk/appenddb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/merkle"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -88,8 +87,8 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() (*merkle.Merkle, error)
-	ForceState() *merkle.Merkle
+	State() (*appenddb.AppendDB, error)
+	ForceState() *appenddb.AppendDB
 	StateManager() StateManager
 	ValidatorState() validators.State
 
@@ -110,15 +109,6 @@ type VM interface {
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
 	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
 	ExecutedBlock(context.Context, *StatefulBlock)
-	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
-
-	// UpdateSyncTarget returns a bool that is true if the root
-	// was updated and the sync is continuing with the new specified root
-	// and false if the sync completed with the previous root.
-	//
-	// TODO: only call when root is non-empty
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
-	StateReady() bool
 
 	// TODO: cleanup
 	NodeID() ids.NodeID

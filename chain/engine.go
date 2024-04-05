@@ -366,7 +366,7 @@ func (e *Engine) Execute(blk *StatelessBlock) {
 	}
 }
 
-func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, error) {
+func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, ids.ID /* Checksum */, error) {
 	// TODO: handle case where never started execution (state sync)
 	e.outputsLock.RLock()
 	defer e.outputsLock.RUnlock()
@@ -376,13 +376,13 @@ func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, error) 
 		for i, chunk := range output.chunks {
 			id, err := chunk.ID()
 			if err != nil {
-				return nil, err
+				return nil, ids.Empty, err
 			}
 			filteredIDs[i] = id
 		}
-		return filteredIDs, nil
+		return filteredIDs, output.checksum, nil
 	}
-	return nil, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
+	return nil, ids.Empty, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
 
 func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
@@ -398,28 +398,6 @@ func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, 
 		e.largestOutput = nil
 	}
 	return output.chunkResults, output.chunks, nil
-}
-
-func (e *Engine) Root(height uint64) (ids.ID, error) {
-	e.rootsLock.Lock()
-	defer e.rootsLock.Unlock()
-
-	if root, ok := e.roots[height]; ok {
-		return root, nil
-	}
-	return ids.Empty, fmt.Errorf("%w: root not found for %d", errors.New("not found"), height)
-}
-
-func (e *Engine) PruneRoot(ctx context.Context, height uint64) (ids.ID, error) {
-	e.rootsLock.Lock()
-	defer e.rootsLock.Unlock()
-
-	root, ok := e.roots[height]
-	if !ok {
-		return ids.Empty, fmt.Errorf("%w: %d", errors.New("not root found at height"), height)
-	}
-	delete(e.roots, height)
-	return root, nil
 }
 
 func (e *Engine) IsRepeatTx(
