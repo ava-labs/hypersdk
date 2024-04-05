@@ -434,10 +434,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		var (
 			execHeight = b.StatefulBlock.Height - depth
 			executed   []ids.ID
+			checksum   ids.ID
 			err        error
 		)
 		for {
-			executed, root, err = b.vm.Engine().Results(execHeight)
+			executed, checksum, err = b.vm.Engine().Results(execHeight)
 			if err != nil {
 				// TODO: handle case where we state synced and don't have results
 				if b.vm.IsBootstrapped() {
@@ -461,6 +462,10 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 				log.Error("block has invalid executed chunks", zap.Stringer("blockID", b.ID()), zap.Int("index", i), zap.Stringer("expectedID", executed[i]), zap.Stringer("actualID", id))
 				panic("executed chunk mismatch") // could help us debug
 			}
+		}
+		if b.Checksum != checksum {
+			log.Error("block has invalid checksum", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedChecksum", checksum), zap.Stringer("actualChecksum", b.Checksum))
+			panic("checksum mismatch") // could help us debug
 		}
 		b.execHeight = &execHeight
 	}
