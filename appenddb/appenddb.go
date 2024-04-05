@@ -484,13 +484,10 @@ func (b *Batch) Write() (ids.ID, error) {
 		return ids.Empty, err
 	}
 
-	// Ensure file is committed to disk
-	if err := b.f.Sync(); err != nil {
-		b.ungracefulWrite()
-		return ids.Empty, err
-	}
-
 	// Close file now that we don't need to write to it anymore
+	//
+	// Note: we don't require the file to be fsync'd here and assume
+	// we can recover the current state on restart.
 	if err := b.f.Close(); err != nil {
 		b.ungracefulWrite()
 		return ids.Empty, err

@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -220,6 +221,29 @@ func BenchmarkAppendDB(b *testing.B) {
 		}
 		_, err = b.Write()
 		require.NoError(err)
+
+		// Cleanup
+		require.NoError(db.Close())
+		os.Remove(baseDir)
+	}
+}
+
+func BenchmarkPebbleDB(b *testing.B) {
+	// Prepare
+	require := require.New(b)
+
+	for i := 0; i < b.N; i++ {
+		// Create
+		baseDir := b.TempDir()
+		db, _, err := pebble.New(baseDir, pebble.NewDefaultConfig())
+		require.NoError(err)
+
+		// Write 1M unique keys
+		b := db.NewBatch()
+		for k := 0; k < 1_000_000; k++ {
+			b.Put([]byte(strconv.Itoa(k)), []byte(strconv.Itoa(k)))
+		}
+		require.NoError(b.Write())
 
 		// Cleanup
 		require.NoError(db.Close())
