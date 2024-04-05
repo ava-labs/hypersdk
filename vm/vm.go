@@ -28,12 +28,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
-	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	"github.com/ava-labs/hypersdk/appenddb"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/pebble"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
@@ -127,11 +125,6 @@ type VM struct {
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
-
-	// State Sync client and AppRequest handlers
-	stateSyncClient        *stateSyncerClient
-	stateSyncNetworkClient syncEng.NetworkClient
-	stateSyncNetworkServer *syncEng.NetworkServer
 
 	// Warp manager fetches signatures from other validators for a given accepted
 	// txID
@@ -356,7 +349,7 @@ func (vm *VM) Initialize(
 		// Create genesis block
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root),
+			chain.NewGenesisBlock(checksum),
 			nil,
 			choices.Accepted,
 			vm,
@@ -376,7 +369,7 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis",
 			zap.Stringer("block", gBlkID),
-			zap.Stringer("root", root),
+			zap.Stringer("checksum", checksum),
 		)
 	}
 	go vm.processExecutedChunks()
@@ -385,28 +378,6 @@ func (vm *VM) Initialize(
 	// Setup chain engine
 	vm.engine = chain.NewEngine(vm, 128)
 	go vm.engine.Run()
-
-	// Setup state syncing
-	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
-	syncRegistry := prometheus.NewRegistry()
-	vm.stateSyncNetworkClient, err = syncEng.NewNetworkClient(
-		stateSyncSender,
-		vm.snowCtx.NodeID,
-		int64(vm.config.GetStateSyncParallelism()),
-		vm.Logger(),
-		"",
-		syncRegistry,
-		&version.Application{}, // TODO: populate this
-	)
-	if err != nil {
-		return err
-	}
-	if err := gatherer.Register("sync", syncRegistry); err != nil {
-		return err
-	}
-	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
-	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
-	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -451,18 +422,6 @@ func (vm *VM) trackChainDataSize() {
 }
 
 func (vm *VM) markReady() {
-	// Wait for state syncing to complete
-	select {
-	case <-vm.stop:
-		return
-	case <-vm.stateSyncClient.done:
-	}
-
-	// We can begin partailly verifying blocks here because
-	// we have the full state but can't detect duplicate transactions
-	// because we haven't yet observed a full [ValidityWindow].
-	vm.snowCtx.Log.Info("state sync client ready")
-
 	// Wait for a full [ValidityWindow] before
 	// we are willing to vote on blocks.
 	select {
@@ -471,16 +430,10 @@ func (vm *VM) markReady() {
 	case <-vm.seenValidityWindow:
 	}
 	vm.snowCtx.Log.Info("validity window ready")
-	if vm.stateSyncClient.Started() {
-		vm.toEngine <- common.StateSyncDone
-	}
 	close(vm.ready)
 
 	// Mark node ready and attempt to build a block.
-	vm.snowCtx.Log.Info(
-		"node is now ready",
-		zap.Bool("synced", vm.stateSyncClient.Started()),
-	)
+	vm.snowCtx.Log.Info("node is now ready")
 }
 
 func (vm *VM) isReady() bool {
@@ -504,48 +457,18 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 
 func (vm *VM) SetState(_ context.Context, state snow.State) error {
 	switch state {
-	case snow.StateSyncing:
-		vm.Logger().Info("state sync started")
-		return nil
 	case snow.Bootstrapping:
-		// Ensure state sync client marks itself as done if it was never started
-		syncStarted := vm.stateSyncClient.Started()
-		if !syncStarted {
-			// We must check if we finished syncing before starting bootstrapping.
-			// This should only ever occur if we began a state sync, restarted, and
-			// were unable to find any acceptable summaries.
-			syncing, err := vm.GetDiskIsSyncing()
-			if err != nil {
-				vm.Logger().Error("could not determine if syncing", zap.Error(err))
-				return err
-			}
-			if syncing {
-				vm.Logger().Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
-				// This is a fatal error that will require retrying sync or deleting the
-				// node database.
-				return ErrStateSyncing
-			}
-
-			// If we weren't previously syncing, we force state syncer completion so
-			// that the node will mark itself as ready.
-			vm.stateSyncClient.ForceDone()
-
-			// TODO: add a config to FATAL here if could not state sync (likely won't be
-			// able to recover in networks where no one has the full state, bypass
-			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
-		}
-
 		// Backfill seen transactions, if any. This will exit as soon as we reach
 		// a block we no longer have on disk or if we have walked back the full
 		// [ValidityWindow].
 		vm.backfillSeenTransactions()
 
 		// Trigger that bootstrapping has started
-		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
+		vm.Logger().Info("bootstrapping started")
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
 		vm.Logger().
-			Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
+			Info("normal operation started")
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -561,7 +484,6 @@ func (vm *VM) onBootstrapStarted() error {
 // ForceReady is used in integration testing
 func (vm *VM) ForceReady() {
 	// Only works if haven't already started syncing
-	vm.stateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
 		close(vm.seenValidityWindow)
 	})
@@ -579,11 +501,6 @@ func (vm *VM) onNormalOperationsStarted() error {
 // implements "block.ChainVM.common.VM"
 func (vm *VM) Shutdown(ctx context.Context) error {
 	close(vm.stop)
-
-	// Shutdown state sync client if still running
-	if err := vm.stateSyncClient.Shutdown(); err != nil {
-		return err
-	}
 
 	// Shutdown engine
 	vm.engine.Done()
@@ -617,7 +534,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	errs.Add(
 		vm.vmDB.Close(),
 		vm.stateDB.Close(),
-		vm.rawStateDB.Close(),
 		vm.blobDB.Close(),
 	)
 	return errs.Err

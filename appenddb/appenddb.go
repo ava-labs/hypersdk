@@ -710,3 +710,10 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 	return ids.ID(checksum), nil
 }
+
+func (a *AppendDB) Usage() (int, uint64) {
+	a.commitLock.RLock()
+	defer a.commitLock.RUnlock()
+
+	return len(a.keys), a.size
+}

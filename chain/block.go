@@ -583,20 +583,3 @@ func (b *StatelessBlock) IsRepeatChunk(ctx context.Context, certs []*ChunkCertif
 	}
 	return parent.IsRepeatChunk(ctx, certs, marker)
 }
-
-// TODO: restore when re-implement state sync
-// type SyncableBlock struct {
-// 	*StatelessBlock
-// }
-//
-// func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
-// 	return sb.vm.AcceptedSyncableBlock(ctx, sb)
-// }
-//
-// func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
-// 	return &SyncableBlock{sb}
-// }
-//
-// func (sb *SyncableBlock) String() string {
-// 	return fmt.Sprintf("%d:%s checksum=%s", sb.Height(), sb.ID(), sb.Checksum)
-// }
