@@ -375,6 +375,7 @@ func (b *Batch) Prepare() {
 }
 
 func (b *Batch) Put(key string, value []byte) {
+	// Check input
 	if !b.prepared.Load() && b.err == nil {
 		b.err = ErrNotPrepared
 		return
@@ -386,10 +387,12 @@ func (b *Batch) Put(key string, value []byte) {
 		b.err = ErrKeyTooLong
 		return
 	}
+
+	// Write operation to file
 	valueStart := b.cursor + int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len)
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len+len(value))
 	operation[0] = opPut
-	binary.BigEndian.PutUint16(operation[1:1+consts.Uint16Len], uint16(len(key)))
+	binary.BigEndian.PutUint16(operation[1:], uint16(len(key)))
 	copy(operation[1+consts.Uint16Len:], key)
 	binary.BigEndian.PutUint32(operation[1+consts.Uint16Len+len(key):], uint32(len(value)))
 	copy(operation[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
@@ -409,6 +412,7 @@ func (b *Batch) Put(key string, value []byte) {
 }
 
 func (b *Batch) Delete(key string) {
+	// Check input
 	if !b.prepared.Load() && b.err == nil {
 		b.err = ErrNotPrepared
 		return
@@ -416,9 +420,15 @@ func (b *Batch) Delete(key string) {
 	if b.err != nil {
 		return
 	}
+	if len(key) > int(consts.MaxUint16) {
+		b.err = ErrKeyTooLong
+		return
+	}
+
+	// Write operation to file
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
 	operation[0] = opDelete
-	binary.BigEndian.PutUint16(operation[1:1+consts.Uint16Len], uint16(len(key)))
+	binary.BigEndian.PutUint16(operation[1:], uint16(len(key)))
 	copy(operation[1+consts.Uint16Len:], key)
 	if _, err := b.f.Write(operation); err != nil {
 		b.err = err
