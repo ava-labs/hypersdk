@@ -18,6 +18,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
@@ -365,9 +366,10 @@ type Batch struct {
 	f      *os.File
 	cursor int64
 
-	buf    []byte
-	writer *bufio.Writer
-	alive  *linked.Hashmap[string, *record]
+	deadRecords buffer.Deque[*record]
+	buf         []byte
+	writer      *writer
+	alive       *linked.Hashmap[string, *record]
 
 	err error
 }
@@ -390,8 +392,9 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		hasher: sha256.New(),
 		f:      f,
 
-		buf:    make([]byte, defaultBatchBufferSize),
-		writer: bufio.NewWriterSize(f, a.bufferSize),
+		deadRecords: buffer.NewUnboundedDeque[*record](max(changes/2, 16_384)),
+		buf:         make([]byte, defaultBatchBufferSize),
+		writer:      newWriter(f, a.bufferSize),
 	}
 	if a.leftoverAlive == nil {
 		b.alive = linked.NewHashmapWithSize[string, *record](changes)
@@ -478,10 +481,7 @@ func (b *Batch) put(key string, value []byte) *record {
 	copy(b.buf[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
 
 	// Write to disk
-	if _, err := b.writer.Write(b.buf); err != nil {
-		b.err = err
-		return nil
-	}
+	b.writer.Write(b.buf)
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
 		return nil
@@ -491,14 +491,22 @@ func (b *Batch) put(key string, value []byte) *record {
 	// Furnish record for future usage
 	//
 	// Note: this batch is not mmap'd yet and should not be used until it is.
-	r := &record{batch: b.batch}
+	var r *record
+	if rec, ok := b.deadRecords.PopRight(); ok {
+		r = rec
+	} else {
+		r = &record{}
+	}
+	r.batch = b.batch
 	lv := len(value)
 	if lv >= minDiskValueSize {
+		r.value = nil
 		r.loc = valueStart
 		r.size = uint32(lv)
 	} else {
 		r.value = value
 		r.loc = -1
+		r.size = 0
 	}
 	return r
 }
@@ -518,10 +526,14 @@ func (b *Batch) Prepare() int {
 			b.a.batches[past.batch].alive.Delete(key)
 
 			// Use existing value instead of inserting a new value
+			//
+			// This value was also used in [alive], so we don't need
+			// to reclaim that too.
 			past.batch = record.batch
 			past.value = record.value
 			past.loc = record.loc
 			past.size = record.size
+			b.deadRecords.PushRight(record)
 		} else {
 			b.a.keys[key] = record
 		}
@@ -544,10 +556,14 @@ func (b *Batch) Put(key string, value []byte) {
 		b.a.batches[past.batch].alive.Delete(key)
 
 		// Use existing value instead of inserting a new value
+		//
+		// This value was also used in [alive], so we don't need
+		// to reclaim that too.
 		past.batch = record.batch
 		past.value = record.value
 		past.loc = record.loc
 		past.size = record.size
+		b.deadRecords.PushRight(record)
 	} else {
 		b.a.keys[key] = record
 	}
@@ -571,10 +587,7 @@ func (b *Batch) Delete(key string) {
 	copy(b.buf[1+consts.Uint16Len:], key)
 
 	// Write to disk
-	if _, err := b.writer.Write(b.buf); err != nil {
-		b.err = err
-		return
-	}
+	b.writer.Write(b.buf)
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
 		return
@@ -586,6 +599,7 @@ func (b *Batch) Delete(key string) {
 	delete(b.a.keys, key)
 	if ok {
 		b.a.batches[past.batch].alive.Delete(key)
+		b.deadRecords.PushRight(past)
 	}
 }
 
@@ -604,9 +618,7 @@ func (b *Batch) Write() (ids.ID, error) {
 
 	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
 	checksum := b.hasher.Sum(nil)
-	if _, err := b.writer.Write(checksum); err != nil {
-		return ids.Empty, err
-	}
+	b.writer.Write(checksum)
 
 	// Flush all unwritten data to disk
 	if err := b.writer.Flush(); err != nil {

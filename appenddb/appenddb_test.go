@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -25,22 +23,24 @@ const (
 	defaultHistoryLen  = 100
 )
 
-func randomKeyValues(batches int, itemsPerBatch int, keySize int, valueSize int, reuseKeys bool) ([][][]byte, [][][]byte) {
+// reuseKeys is a value [0,itemsPerBatch] that determines how many keys are reused across batches
+func randomKeyValues(batches int, itemsPerBatch int, keySize int, valueSize int, reuseKeys int) ([][][]byte, [][][]byte) {
 	keys := make([][][]byte, batches)
 	values := make([][][]byte, batches)
-	for i := 0; i < 10; i++ {
-		if i == 0 || !reuseKeys {
-			keys[i] = make([][]byte, itemsPerBatch)
-			for j := 0; j < itemsPerBatch; j++ {
+	for i := 0; i < batches; i++ {
+		keys[i] = make([][]byte, itemsPerBatch)
+		values[i] = make([][]byte, itemsPerBatch)
+		for j := 0; j < itemsPerBatch; j++ {
+			// Create key
+			if i == 0 || j >= reuseKeys {
 				k := make([]byte, keySize)
 				rand.Read(k)
 				keys[i][j] = k
+			} else {
+				keys[i][j] = keys[0][j]
 			}
-		} else {
-			keys[i] = keys[0]
-		}
-		values[i] = make([][]byte, itemsPerBatch)
-		for j := 0; j < itemsPerBatch; j++ {
+
+			// Create value
 			v := make([]byte, valueSize)
 			rand.Read(v)
 			values[i][j] = v
@@ -251,8 +251,8 @@ func TestAppendDBLarge(t *testing.T) {
 
 			// Write 1M unique keys in 10 batches
 			batches := 10
-			batchSize := 1_000_000
-			keys, values := randomKeyValues(batches, batchSize, 32, 32, false)
+			batchSize := 10_000
+			keys, values := randomKeyValues(batches, batchSize, 32, 32, 0)
 			checksums := make([]ids.ID, batches)
 			for i := 0; i < batches; i++ {
 				b, err := db.NewBatch(batchSize + 100)
@@ -314,58 +314,27 @@ func TestAppendDBLarge(t *testing.T) {
 func BenchmarkAppendDB(b *testing.B) {
 	// Prepare
 	require := require.New(b)
-	logger := logging.NewLogger(
-		"appenddb",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stdout,
-			logging.Colors.ConsoleEncoder(),
-		),
-	)
 
-	for _, reuse := range []bool{false, true} {
-		batches := 10
-		batchSize := 1_000_000
-		keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
-		for _, bufferSize := range []int{4 * units.KiB, 64 * units.KiB, 128 * units.KiB, 256 * units.KiB, 1 * units.MiB} {
-			b.Run(fmt.Sprintf("buffer=%d reuse=%t", bufferSize, reuse), func(b *testing.B) {
+	batches := 10
+	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
+		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
+			keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
+			b.Run(fmt.Sprintf("batch=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					// Create
-					baseDir := b.TempDir()
-					db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
+					db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, defaultBufferSize, 5)
 					require.NoError(err)
 					require.Equal(ids.Empty, last)
-
-					// Write 1M unique keys in 10 batches
 					for j := 0; j < batches; j++ {
-						start := time.Now()
 						b, err := db.NewBatch(batchSize + 100)
 						require.NoError(err)
-						newBatchDuration := time.Since(start)
-						start = time.Now()
-						recycled := b.Prepare()
-						prepareDuration := time.Since(start)
-						start = time.Now()
+						b.Prepare()
 						for k := 0; k < batchSize; k++ {
 							b.Put(string(keys[j][k]), values[j][k])
 						}
-						putDuration := time.Since(start)
-						start = time.Now()
 						_, err = b.Write()
-						logger.Info(
-							"latency",
-							zap.Duration("new batch", newBatchDuration),
-							zap.Duration("prepare", prepareDuration),
-							zap.Int("recycled", recycled),
-							zap.Duration("puts", putDuration),
-							zap.Duration("write", time.Since(start)),
-						)
 						require.NoError(err)
 					}
-
-					// Cleanup
 					require.NoError(db.Close())
-					os.Remove(baseDir)
 				}
 			})
 		}
@@ -376,48 +345,24 @@ func BenchmarkPebbleDB(b *testing.B) {
 	// Prepare
 	require := require.New(b)
 
-	for _, reuse := range []bool{false, true} {
-		batches := 10
-		batchSize := 1_000_000
-		keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
-		b.Run(fmt.Sprintf("reuse=%t", reuse), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				// Create
-				baseDir := b.TempDir()
-				db, _, err := pebble.New(baseDir, pebble.NewDefaultConfig())
-				require.NoError(err)
-
-				// Write 1M unique keys in 10 batches
-				for j := 0; j < batches; j++ {
-					b := db.NewBatch()
-					for k := 0; k < batchSize; k++ {
-						b.Put(keys[j][k], values[j][k])
+	batches := 10
+	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
+		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
+			keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
+			b.Run(fmt.Sprintf("batch=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
+					require.NoError(err)
+					for j := 0; j < batches; j++ {
+						b := db.NewBatch()
+						for k := 0; k < batchSize; k++ {
+							b.Put(keys[j][k], values[j][k])
+						}
+						require.NoError(b.Write())
 					}
-					require.NoError(b.Write())
+					require.NoError(db.Close())
 				}
-
-				// Cleanup
-				require.NoError(db.Close())
-				os.Remove(baseDir)
-			}
-		})
-	}
-}
-
-// Takes ~200ms on Mac
-func BenchmarkSortIDs(b *testing.B) {
-	for _, size := range []int{1_000, 10_000, 100_000, 1_000_000} {
-		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				b.StopTimer()
-				items := make([]string, size)
-				for i := 0; i < size; i++ {
-					id := ids.GenerateTestID()
-					items[i] = string(id[:])
-				}
-				b.StartTimer()
-				slices.Sort(items)
-			}
-		})
+			})
+		}
 	}
 }
