@@ -42,10 +42,6 @@ type Metrics interface {
 	RecordWaitExec(time.Duration)
 	RecordWaitCommit(time.Duration)
 
-	RecordWaitTrieModifications(time.Duration)
-	RecordWaitTrieRoot(time.Duration)
-	RecordWaitTrieCommit(time.Duration)
-
 	RecordRemainingMempool(int)
 
 	RecordBlockVerifyFail()
@@ -60,12 +56,10 @@ type Metrics interface {
 	RecordChunkBuildTxDropped()
 	RecordBlockBuildCertDropped()
 	RecordTxsInvalid(int)
-	RecordStateChanges(int)
-	RecordTrieNodeChanges(int)
-	RecordTrieValueChanges(int)
-	RecordTrieSkippedValueChanges(int)
-	RecordTrieMaxBacklog(int)
 	RecordEngineBacklog(int)
+
+	RecordStateChanges(int)
+	RecordStateRecycled(int)
 }
 
 type Monitoring interface {

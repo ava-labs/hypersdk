@@ -34,7 +34,9 @@ type op struct {
 type TStateView struct {
 	ts *TState
 
-	idx                int
+	chunkIdx int
+	txIdx    int
+
 	pendingChangedKeys map[string]maybe.Maybe[[]byte]
 
 	// Ops is a record of all operations performed on [TState]. Tracking
@@ -53,11 +55,13 @@ type TStateView struct {
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(idx int, im state.Immutable, scope state.Keys) *TStateView {
+func (ts *TState) NewView(chunkIdx, txIdx int, im state.Immutable, scope state.Keys) *TStateView {
 	return &TStateView{
 		ts: ts,
 
-		idx:                idx,
+		chunkIdx: chunkIdx,
+		txIdx:    txIdx,
+
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 
 		ops: make([]*op, 0, defaultOps),
@@ -288,9 +292,9 @@ func (ts *TStateView) PendingChanges() int {
 
 // Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
-	ts.ts.viewKeys[ts.idx] = ts.scope
+	ts.ts.viewKeys[ts.chunkIdx][ts.txIdx] = ts.scope
 	for k, v := range ts.pendingChangedKeys {
-		ts.ts.changedKeys.Put(k, &change{ts.idx, v})
+		ts.ts.changedKeys.Put(k, &change{ts.chunkIdx, ts.txIdx, v})
 	}
 }
 
@@ -302,4 +306,41 @@ func chunks(m map[string]uint16, key string) *uint16 {
 		return nil
 	}
 	return &chunks
+}
+
+type TStateWriteView struct {
+	ts *TState
+
+	chunkIdx int
+	txIdx    int
+
+	pendingChangedKeys map[string]maybe.Maybe[[]byte]
+}
+
+func (ts *TState) NewWriteView(chunkIdx, txIdx int) *TStateWriteView {
+	return &TStateWriteView{
+		ts: ts,
+
+		chunkIdx: chunkIdx,
+		txIdx:    txIdx,
+
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte]),
+	}
+}
+
+func (ts *TStateWriteView) Insert(ctx context.Context, key []byte, value []byte) error {
+	if !keys.VerifyValue(key, value) {
+		return ErrInvalidKeyValue
+	}
+	ts.pendingChangedKeys[string(key)] = maybe.Some(value)
+	return nil
+}
+
+func (tsv *TStateWriteView) Commit() {
+	scope := state.Keys{}
+	for k, v := range tsv.pendingChangedKeys {
+		scope[k] = state.All
+		tsv.ts.changedKeys.Put(k, &change{tsv.chunkIdx, tsv.txIdx, v})
+	}
+	tsv.ts.viewKeys[tsv.chunkIdx][tsv.txIdx] = scope
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/appenddb"
 	"github.com/ava-labs/hypersdk/consts"
@@ -62,7 +63,7 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	}
 }
 
-func (e *Engine) processJob(job *engineJob) error {
+func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	log := e.vm.Logger()
 	e.vm.RecordEngineBacklog(-1)
 
@@ -210,9 +211,10 @@ func (e *Engine) processJob(job *engineJob) error {
 	}
 
 	// Update tracked p-chain height as long as it is increasing
-	if job.blk.PHeight > 0 { // if context is not set, don't update P-Chain height in state or populate epochs
+	tsv := ts.NewWriteView(-1) // TODO: populate this counter
+	if job.blk.PHeight > 0 {   // if context is not set, don't update P-Chain height in state or populate epochs
 		if shouldUpdatePHeight {
-			if err := ts.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+			if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
 				panic(err)
 			}
 			e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
@@ -240,7 +242,7 @@ func (e *Engine) processJob(job *engineJob) error {
 		case err != nil && errors.Is(err, database.ErrNotFound):
 			value := make([]byte, consts.Uint64Len)
 			binary.BigEndian.PutUint64(value, job.blk.PHeight)
-			if err := ts.Insert(ctx, nextEpochKey, value); err != nil {
+			if err := tsv.Insert(ctx, nextEpochKey, value); err != nil {
 				panic(err)
 			}
 			e.vm.CacheValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
@@ -259,16 +261,34 @@ func (e *Engine) processJob(job *engineJob) error {
 	}
 
 	// Update chain metadata
-	if err := ts.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
+	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
 		return err
 	}
-	if err := ts.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
+	if err := tsv.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
 		return err
 	}
+	tsv.Commit()
 
 	// Persist changes to state
 	commitStart := time.Now()
-	e.vm.RecordStateChanges(e.db.Update(ctx, ts.Keys()))
+	recycled := batch.Prepare()
+	changes := 0
+	if err := ts.Iterate(func(key []byte, value maybe.Maybe[[]byte]) error {
+		changes++
+		if value.IsNothing() {
+			return batch.Remove(context.TODO(), key)
+		} else {
+			return batch.Insert(context.TODO(), key, value.Value())
+		}
+	}); err != nil {
+		return err
+	}
+	checksum, err := batch.Write()
+	if err != nil {
+		return err
+	}
+	e.vm.RecordStateChanges(changes)
+	e.vm.RecordStateRecycled(recycled)
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view
@@ -277,8 +297,9 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.outputs[job.blk.StatefulBlock.Height] = &output{
 		txs:          txSet,
 		chunkResults: chunkResults,
-		chunks:       filteredChunks,
-		checksum:     TODO,
+
+		chunks:   filteredChunks,
+		checksum: checksum,
 	}
 	e.largestOutput = &job.blk.StatefulBlock.Height
 	e.outputsLock.Unlock()
@@ -297,47 +318,30 @@ func (e *Engine) processJob(job *engineJob) error {
 	e.vm.RecordTxsIncluded(txCount)
 	e.vm.RecordExecutedEpoch(epoch)
 	e.vm.ExecutedBlock(ctx, job.blk.StatefulBlock)
-
-	// Kickoff root generation/ask for previously generated root
-	//
-	// Note: the first block with a root (not including genesis) will be 2*r.GetRootFrequency()
-	if job.blk.StatefulBlock.Height > 0 && job.blk.StatefulBlock.Height%r.GetRootFrequency() == 0 {
-		// Lock in commit ensures we can't run another commit until the previous finishes
-		commit := e.db.PrepareCommit(ctx)
-		go func() {
-			rootStart := time.Now()
-			root, err := commit(context.Background(), e.vm)
-			if err != nil {
-				log.Error("failed to generate root", zap.Error(err))
-				panic(err)
-			}
-			e.rootsLock.Lock()
-			e.roots[job.blk.StatefulBlock.Height] = root
-			e.rootsLock.Unlock()
-			e.vm.Logger().Info(
-				"generated root",
-				zap.Uint64("height", job.blk.StatefulBlock.Height),
-				zap.Duration("t", time.Since(rootStart)),
-			)
-		}()
-	}
 	return nil
 }
 
 func (e *Engine) Run() {
 	defer close(e.done)
 
-	// TODO: load state into memory
-
 	// Get last accepted state
 	e.db = e.vm.ForceState()
+	batch, err := e.db.NewBatch(500_000) // TODO: set to max txs in a block
+	if err != nil {
+		panic(err)
+	}
 
 	for {
 		select {
 		case job := <-e.backlog:
-			err := e.processJob(job)
+			err := e.processJob(batch, job)
 			switch {
 			case err == nil:
+				// Start preparation for new batch
+				batch, err = e.db.NewBatch(500_000) // TODO: set to max txs in a block
+				if err != nil {
+					panic(err)
+				}
 				continue
 			case errors.Is(ErrMissingChunks, err):
 				// Should only happen on shutdown
