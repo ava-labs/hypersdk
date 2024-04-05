@@ -145,7 +145,6 @@ type Rules interface {
 	// TODO: make immutable rules (that don't expect to be changed)
 	GetPartitions() uint8
 	GetBlockExecutionDepth() uint64
-	GetRootFrequency() uint64
 	GetEpochDuration() int64
 
 	GetMinBlockGap() int64    // in milliseconds

@@ -38,7 +38,6 @@ type Config struct {
 
 	// Concurrency
 	AuthExecutionCores   int `json:"authExecutionCores"`
-	RootGenerationCores  int `json:"rootGenerationCores"`
 	PrecheckCores        int `json:"precheckCores"`
 	ActionExecutionCores int `json:"actionExecutionCores"`
 	MissingChunkFetchers int `json:"missingChunkFetchers"`
@@ -68,9 +67,6 @@ type Config struct {
 	VerifyAuth bool          `json:"verifyAuth"`
 	TestMode   bool          `json:"testMode"` // makes gossip/building manual
 	LogLevel   logging.Level `json:"logLevel"`
-
-	// State Sync
-	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
 
 	loaded               bool
 	nodeID               ids.NodeID
@@ -106,13 +102,11 @@ func (c *Config) setDefault() {
 	c.TargetChunkBuildDuration = c.Config.GetTargetChunkBuildDuration().Milliseconds()
 	c.BlockBuildFrequency = c.Config.GetBlockBuildFrequency().Milliseconds()
 	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
-	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.PrecheckCores = c.Config.GetPrecheckCores()
 	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
 	c.MissingChunkFetchers = c.Config.GetMissingChunkFetchers()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
-	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifyAuth = c.Config.GetVerifyAuth()
 	c.AuthRPCCores = c.Config.GetAuthRPCCores()
@@ -126,7 +120,6 @@ func (c *Config) setDefault() {
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
 func (c *Config) GetTestMode() bool                         { return c.TestMode }
 func (c *Config) GetAuthExecutionCores() int                { return c.AuthExecutionCores }
-func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
 func (c *Config) GetActionExecutionCores() int              { return c.ActionExecutionCores }
 func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
 func (c *Config) GetMempoolSponsorSize() int                { return c.MempoolSponsorSize }
@@ -140,8 +133,7 @@ func (c *Config) GetTraceConfig() *trace.Config {
 		Version:         version.Version.String(),
 	}
 }
-func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
-func (c *Config) GetStreamingBacklogSize() int           { return c.StreamingBacklogSize }
+func (c *Config) GetStreamingBacklogSize() int { return c.StreamingBacklogSize }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}

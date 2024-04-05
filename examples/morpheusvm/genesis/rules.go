@@ -102,10 +102,6 @@ func (*Rules) GetBlockExecutionDepth() uint64 {
 	return 15
 }
 
-func (*Rules) GetRootFrequency() uint64 {
-	return 60
-}
-
 func (r *Rules) GetEpochDuration() int64 {
 	return r.g.EpochDuration
 }

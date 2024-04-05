@@ -6,7 +6,7 @@ toolchain go1.21.1
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
-	github.com/ava-labs/avalanchego v1.11.4-rc.1.0.20240403215318-d8ca8137975e
+	github.com/ava-labs/avalanchego v1.11.4-rc.2.0.20240405173859-4a1d0bbaf044
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
