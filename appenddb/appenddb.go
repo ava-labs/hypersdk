@@ -1,6 +1,7 @@
 package appenddb
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
@@ -38,9 +39,10 @@ type record struct {
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
 type AppendDB struct {
-	logger  logging.Logger
-	baseDir string
-	history uint64
+	logger     logging.Logger
+	baseDir    string
+	bufferSize int
+	history    uint64
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -157,6 +159,7 @@ func openBatch(path string, file uint64) (ids.ID, map[string]*record, *mmap.Read
 func New(
 	log logging.Logger,
 	baseDir string,
+	bufferSize int,
 	history uint64, // should not be changed
 ) (*AppendDB, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
@@ -244,9 +247,10 @@ func New(
 		zap.String("size", humanize.Bytes(size)),
 	)
 	adb := &AppendDB{
-		logger:  log,
-		baseDir: baseDir,
-		history: history,
+		logger:     log,
+		baseDir:    baseDir,
+		bufferSize: bufferSize,
+		history:    history,
 
 		batches: batches,
 		keys:    keys,
@@ -305,6 +309,8 @@ type Batch struct {
 	changes map[string]*record
 	cursor  int64
 
+	writer *bufio.Writer
+
 	err error
 }
 
@@ -326,6 +332,8 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		hasher:  sha256.New(),
 		f:       f,
 		changes: make(map[string]*record, changes),
+
+		writer: bufio.NewWriterSize(f, a.bufferSize),
 	}, nil
 }
 
@@ -400,7 +408,7 @@ func (b *Batch) Put(key string, value []byte) {
 		return
 	}
 
-	// Write operation to file
+	// Create operation to write
 	valueStart := b.cursor + int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len)
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len+len(value))
 	operation[0] = opPut
@@ -408,7 +416,9 @@ func (b *Batch) Put(key string, value []byte) {
 	copy(operation[1+consts.Uint16Len:], key)
 	binary.BigEndian.PutUint32(operation[1+consts.Uint16Len+len(key):], uint32(len(value)))
 	copy(operation[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
-	if _, err := b.f.Write(operation); err != nil {
+
+	// Add to buffer
+	if _, err := b.writer.Write(operation); err != nil {
 		b.err = err
 		return
 	}
@@ -416,11 +426,14 @@ func (b *Batch) Put(key string, value []byte) {
 		b.err = err
 		return
 	}
+
+	// Add to changes
 	b.changes[key] = &record{
 		batch: b.batch,
 		loc:   valueStart,
 		size:  uint32(len(value)),
 	}
+	b.cursor += int64(len(operation))
 }
 
 func (b *Batch) Delete(key string) {
@@ -433,12 +446,14 @@ func (b *Batch) Delete(key string) {
 		return
 	}
 
-	// Write operation to file
+	// Create operation to write
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
 	operation[0] = opDelete
 	binary.BigEndian.PutUint16(operation[1:], uint16(len(key)))
 	copy(operation[1+consts.Uint16Len:], key)
-	if _, err := b.f.Write(operation); err != nil {
+
+	// Add to buffer
+	if _, err := b.writer.Write(operation); err != nil {
 		b.err = err
 		return
 	}
@@ -446,7 +461,10 @@ func (b *Batch) Delete(key string) {
 		b.err = err
 		return
 	}
+
+	// Add to changes
 	b.changes[key] = nil
+	b.cursor += int64(len(operation))
 }
 
 // ungracefulWrite cleans up any partial file writes
@@ -479,7 +497,13 @@ func (b *Batch) Write() (ids.ID, error) {
 
 	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
 	checksum := b.hasher.Sum(nil)
-	if _, err := b.f.Write(checksum); err != nil {
+	if _, err := b.writer.Write(checksum); err != nil {
+		b.ungracefulWrite()
+		return ids.Empty, err
+	}
+
+	// Flush all unwritten data to disk
+	if err := b.writer.Flush(); err != nil {
 		b.ungracefulWrite()
 		return ids.Empty, err
 	}

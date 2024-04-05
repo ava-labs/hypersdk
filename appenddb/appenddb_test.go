@@ -1,18 +1,24 @@
 package appenddb
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+const defaultBufferSize = 64 * units.KiB
 
 func TestAppendDB(t *testing.T) {
 	// Prepare
@@ -29,7 +35,7 @@ func TestAppendDB(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, 100)
+	db, last, err := New(logger, baseDir, defaultBufferSize, 100)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -49,7 +55,7 @@ func TestAppendDB(t *testing.T) {
 
 	// Restart
 	require.NoError(db.Close())
-	db, last, err = New(logger, baseDir, 100)
+	db, last, err = New(logger, baseDir, defaultBufferSize, 100)
 	require.NoError(err)
 	require.Equal(batch, last)
 
@@ -67,7 +73,7 @@ func TestAppendDB(t *testing.T) {
 	require.NoError(f.Close())
 
 	// Restart
-	db, last, err = New(logger, baseDir, 100)
+	db, last, err = New(logger, baseDir, defaultBufferSize, 100)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -92,7 +98,7 @@ func TestAppendDBPrune(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, 10)
+	db, last, err := New(logger, baseDir, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -139,7 +145,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Len(files, 10) // 10 for the data files
 
 	// Restart
-	db, last, err = New(logger, baseDir, 10)
+	db, last, err = New(logger, baseDir, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 
@@ -179,7 +185,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Len(files, 10) // 10 for the data files
 
 	// Read from new batches
-	db, last, err = New(logger, baseDir, 10)
+	db, last, err = New(logger, baseDir, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 	for i := 0; i < 10; i++ {
@@ -205,26 +211,49 @@ func BenchmarkAppendDB(b *testing.B) {
 		),
 	)
 
-	for i := 0; i < b.N; i++ {
-		// Create
-		baseDir := b.TempDir()
-		db, last, err := New(logger, baseDir, 100)
-		require.NoError(err)
-		require.Equal(ids.Empty, last)
+	// Generate keys
+	keys := make([]string, 10_000_000)
+	values := make([][]byte, 10_000_000)
+	for i := 0; i < 10_000_000; i++ {
+		k := make([]byte, 32)
+		rand.Read(k)
+		keys[i] = string(k)
+		v := make([]byte, 32)
+		rand.Read(v)
+		values[i] = v
+	}
 
-		// Write 1M unique keys
-		b, err := db.NewBatch(1_000_000)
-		require.NoError(err)
-		b.Prepare()
-		for k := 0; k < 1_000_000; k++ {
-			b.Put(strconv.Itoa(k), []byte(strconv.Itoa(k)))
-		}
-		_, err = b.Write()
-		require.NoError(err)
+	b.ResetTimer()
+	for _, bufferSize := range []int{4 * units.KiB, 64 * units.KiB, 128 * units.KiB, 256 * units.KiB, 1 * units.MiB} {
+		b.Run(fmt.Sprintf("buffer=%d", bufferSize), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				// Create
+				baseDir := b.TempDir()
+				db, last, err := New(logger, baseDir, bufferSize, 5)
+				require.NoError(err)
+				require.Equal(ids.Empty, last)
 
-		// Cleanup
-		require.NoError(db.Close())
-		os.Remove(baseDir)
+				// Write 1M unique keys in 10 batches
+				lastIndex := 0
+				for j := 0; j < 10; j++ {
+					b, err := db.NewBatch(1_500_000)
+					require.NoError(err)
+					start := time.Now()
+					b.Prepare()
+					logger.Info("prepare", zap.Duration("elapsed", time.Since(start)))
+					for lastIndex < (j+1)*1_000_000 {
+						b.Put(keys[lastIndex], values[lastIndex])
+						lastIndex++
+					}
+					_, err = b.Write()
+					require.NoError(err)
+				}
+
+				// Cleanup
+				require.NoError(db.Close())
+				os.Remove(baseDir)
+			}
+		})
 	}
 }
 
@@ -232,18 +261,35 @@ func BenchmarkPebbleDB(b *testing.B) {
 	// Prepare
 	require := require.New(b)
 
+	// Generate keys
+	keys := make([][]byte, 10_000_000)
+	values := make([][]byte, 10_000_000)
+	for i := 0; i < 10_000_000; i++ {
+		k := make([]byte, 32)
+		rand.Read(k)
+		keys[i] = k
+		v := make([]byte, 32)
+		rand.Read(v)
+		values[i] = v
+	}
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Create
 		baseDir := b.TempDir()
 		db, _, err := pebble.New(baseDir, pebble.NewDefaultConfig())
 		require.NoError(err)
 
-		// Write 1M unique keys
-		b := db.NewBatch()
-		for k := 0; k < 1_000_000; k++ {
-			b.Put([]byte(strconv.Itoa(k)), []byte(strconv.Itoa(k)))
+		// Write 1M unique keys in 10 batches
+		lastIndex := 0
+		for j := 0; j < 10; j++ {
+			b := db.NewBatch()
+			for lastIndex < (j+1)*1_000_000 {
+				b.Put(keys[lastIndex], values[lastIndex])
+				lastIndex++
+			}
+			require.NoError(b.Write())
 		}
-		require.NoError(b.Write())
 
 		// Cleanup
 		require.NoError(db.Close())
