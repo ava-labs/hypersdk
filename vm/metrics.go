@@ -38,7 +38,6 @@ type Metrics struct {
 	txsInvalid                prometheus.Counter
 	chunkBuildTxsDropped      prometheus.Counter
 	blockBuildCertsDropped    prometheus.Counter
-	stateChanges              prometheus.Counter
 	remainingMempool          prometheus.Counter
 	chunkBytesBuilt           prometheus.Counter
 	deletedBlocks             prometheus.Counter
@@ -94,13 +93,8 @@ type Metrics struct {
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
-	waitTrieModifications     metric.Averager
-	waitTrieRoot              metric.Averager
-	waitTrieCommit            metric.Averager
-	trieNodeChanges           metric.Averager
-	trieValueChanges          metric.Averager
-	trieSkippedValueChanges   metric.Averager
-	trieMaxBacklog            metric.Averager
+	stateRecycled             metric.Averager
+	stateChanges              metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -170,69 +164,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_commit",
 		"time spent waiting to commit state after execution",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitTrieModifications, err := metric.NewAverager(
-		"chain",
-		"wait_trie_modifications",
-		"time spent waiting to for trie modifications to complete",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitTrieRoot, err := metric.NewAverager(
-		"chain",
-		"wait_trie_root",
-		"time spent waiting to compute trie root",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitTrieCommit, err := metric.NewAverager(
-		"chain",
-		"wait_trie_commit",
-		"time spent waiting to commit trie root to disk",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	trieNodeChanges, err := metric.NewAverager(
-		"chain",
-		"trie_node_changes",
-		"node changes enqueued to generate root",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	trieValueChanges, err := metric.NewAverager(
-		"chain",
-		"trie_value_changes",
-		"value changes enqueued to generate root",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	trieSkippedValueChanges, err := metric.NewAverager(
-		"chain",
-		"trie_skipped_value_changes",
-		"skipped value changes enqueued to generate root",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	trieMaxBacklog, err := metric.NewAverager(
-		"chain",
-		"trie_max_backlog",
-		"maximum number of items enqueued for trie modification",
 		r,
 	)
 	if err != nil {
@@ -355,6 +286,24 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	stateChanges, err := metric.NewAverager(
+		"chain",
+		"state_changes",
+		"changes to state in a block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	stateRecycled, err := metric.NewAverager(
+		"chain",
+		"state_recycled",
+		"state recycled in a block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	m := &Metrics{
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
@@ -391,11 +340,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "vm",
 			Name:      "txs_invalid",
 			Help:      "number of invalid txs included in accepted blocks",
-		}),
-		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "state_changes",
-			Help:      "number of state changes",
 		}),
 		remainingMempool: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -642,32 +586,27 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "state_len",
 			Help:      "number of items in the state",
 		}),
-		waitRepeat:              waitRepeat,
-		waitQueue:               waitQueue,
-		waitAuth:                waitAuth,
-		waitExec:                waitExec,
-		waitPrecheck:            waitPrecheck,
-		waitCommit:              waitCommit,
-		waitTrieModifications:   waitTrieModifications,
-		waitTrieRoot:            waitTrieRoot,
-		waitTrieCommit:          waitTrieCommit,
-		trieNodeChanges:         trieNodeChanges,
-		trieValueChanges:        trieValueChanges,
-		trieSkippedValueChanges: trieSkippedValueChanges,
-		trieMaxBacklog:          trieMaxBacklog,
-		chunkBuild:              chunkBuild,
-		blockBuild:              blockBuild,
-		blockParse:              blockParse,
-		blockVerify:             blockVerify,
-		blockAccept:             blockAccept,
-		blockProcess:            blockProcess,
-		blockExecute:            blockExecute,
-		executedChunkProcess:    executedChunkProcess,
-		executedBlockProcess:    executedBlockProcess,
-		fetchMissingChunks:      fetchMissingChunks,
-		collectChunkSignatures:  collectChunkSignatures,
-		txTimeRemainingMempool:  txTimeRemainingMempool,
-		chunkAuth:               chunkAuth,
+		waitRepeat:             waitRepeat,
+		waitQueue:              waitQueue,
+		waitAuth:               waitAuth,
+		waitExec:               waitExec,
+		waitPrecheck:           waitPrecheck,
+		waitCommit:             waitCommit,
+		chunkBuild:             chunkBuild,
+		blockBuild:             blockBuild,
+		blockParse:             blockParse,
+		blockVerify:            blockVerify,
+		blockAccept:            blockAccept,
+		blockProcess:           blockProcess,
+		blockExecute:           blockExecute,
+		executedChunkProcess:   executedChunkProcess,
+		executedBlockProcess:   executedBlockProcess,
+		fetchMissingChunks:     fetchMissingChunks,
+		collectChunkSignatures: collectChunkSignatures,
+		txTimeRemainingMempool: txTimeRemainingMempool,
+		chunkAuth:              chunkAuth,
+		stateChanges:           stateChanges,
+		stateRecycled:          stateRecycled,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -680,7 +619,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsInvalid),
 		r.Register(m.chunkBuildTxsDropped),
 		r.Register(m.blockBuildCertsDropped),
-		r.Register(m.stateChanges),
 		r.Register(m.remainingMempool),
 		r.Register(m.chunkBytesBuilt),
 		r.Register(m.deletedBlocks),

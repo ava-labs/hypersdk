@@ -31,7 +31,6 @@ type Config interface {
 	GetAuthGossipCores() int
 	GetAuthGossipBacklog() int
 	GetVerifyAuth() bool
-	GetRootGenerationCores() int
 	GetPrecheckCores() int
 	GetActionExecutionCores() int
 	GetMissingChunkFetchers() int
@@ -41,15 +40,7 @@ type Config interface {
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
 	GetStreamingBacklogSize() int
-	GetStateHistoryLength() int               // how many roots back of data to keep to serve state queries
-	GetIntermediateNodeCacheSize() int        // how many bytes to keep in intermediate cache
-	GetStateIntermediateWriteBufferSize() int // how many bytes to keep unwritten in intermediate cache
-	GetStateIntermediateWriteBatchSize() int  // how many bytes to to write from intermediate cache at once
-	GetValueNodeCacheSize() int               // how many bytes to keep in value cache
-	GetAcceptorSize() int                     // how far back we can fall in processing accepted blocks
-	GetStateSyncParallelism() int
-	GetStateSyncMinBlocks() uint64
-	GetStateSyncServerDelay() time.Duration
+	GetAcceptorSize() int // how far back we can fall in processing accepted blocks
 	GetParsedBlockCacheSize() int
 	GetAcceptedBlockWindow() int
 	GetAcceptedBlockWindowCache() int

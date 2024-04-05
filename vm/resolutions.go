@@ -20,16 +20,15 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/appenddb"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/merkle"
 )
 
 var (
 	_ chain.VM                           = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
-	_ block.StateSyncableVM              = (*VM)(nil)
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
 
@@ -73,16 +72,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (*merkle.Merkle, error) {
-	// As soon as synced (before ready), we can safely request data from the db.
-	if !vm.StateReady() {
-		return nil, ErrStateMissing
-	}
-	return vm.stateDB, nil
-}
-
-// TODO: correctly handle engine.Execute during state sync
-func (vm *VM) ForceState() *merkle.Merkle {
+func (vm *VM) State() *appenddb.AppendDB {
 	return vm.stateDB
 }
 
@@ -477,33 +467,6 @@ func (vm *VM) EngineChan() chan<- common.Message {
 	return vm.toEngine
 }
 
-func (vm *VM) AcceptedSyncableBlock(
-	ctx context.Context,
-	sb *chain.SyncableBlock,
-) (block.StateSyncMode, error) {
-	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
-}
-
-func (vm *VM) StateReady() bool {
-	if vm.stateSyncClient == nil {
-		// Can occur in test
-		return false
-	}
-	return vm.stateSyncClient.StateReady()
-}
-
-func (vm *VM) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
-	return vm.stateSyncClient.UpdateSyncTarget(b)
-}
-
-func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return vm.stateSyncClient.GetOngoingSyncStateSummary(ctx)
-}
-
-func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return vm.stateSyncClient.StateSyncEnabled(ctx)
-}
-
 func (vm *VM) StateManager() chain.StateManager {
 	return vm.c.StateManager()
 }
@@ -524,12 +487,8 @@ func (vm *VM) RecordWaitCommit(t time.Duration) {
 	vm.metrics.waitCommit.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitTrieRoot(t time.Duration) {
-	vm.metrics.waitTrieRoot.Observe(float64(t))
-}
-
 func (vm *VM) RecordStateChanges(c int) {
-	vm.metrics.stateChanges.Add(float64(c))
+	vm.metrics.stateChanges.Observe(float64(c))
 }
 
 func (vm *VM) GetVerifyAuth() bool {
@@ -726,26 +685,6 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
-func (vm *VM) RecordTrieNodeChanges(c int) {
-	vm.metrics.trieNodeChanges.Observe(float64(c))
-}
-
-func (vm *VM) RecordTrieValueChanges(c int) {
-	vm.metrics.trieValueChanges.Observe(float64(c))
-}
-
-func (vm *VM) RecordTrieSkippedValueChanges(c int) {
-	vm.metrics.trieSkippedValueChanges.Observe(float64(c))
-}
-
-func (vm *VM) RecordWaitTrieModifications(t time.Duration) {
-	vm.metrics.waitTrieModifications.Observe(float64(t))
-}
-
-func (vm *VM) RecordWaitTrieCommit(t time.Duration) {
-	vm.metrics.waitTrieCommit.Observe(float64(t))
-}
-
-func (vm *VM) RecordTrieMaxBacklog(c int) {
-	vm.metrics.trieMaxBacklog.Observe(float64(c))
+func (vm *VM) RecordStateRecycled(c int) {
+	vm.metrics.stateRecycled.Observe(float64(c))
 }

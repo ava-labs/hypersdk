@@ -81,8 +81,7 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() (*appenddb.AppendDB, error)
-	ForceState() *appenddb.AppendDB
+	State() *appenddb.AppendDB
 	StateManager() StateManager
 	ValidatorState() validators.State
 

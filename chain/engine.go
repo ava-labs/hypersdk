@@ -325,7 +325,7 @@ func (e *Engine) Run() {
 	defer close(e.done)
 
 	// Get last accepted state
-	e.db = e.vm.ForceState()
+	e.db = e.vm.State()
 	batch, err := e.db.NewBatch(500_000) // TODO: set to max txs in a block
 	if err != nil {
 		panic(err)
