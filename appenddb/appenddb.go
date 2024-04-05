@@ -368,7 +368,7 @@ type Batch struct {
 
 	deadRecords buffer.Deque[*record]
 	buf         []byte
-	writer      *writer
+	writer      *bufio.Writer
 	alive       *linked.Hashmap[string, *record]
 
 	err error
@@ -394,7 +394,7 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 
 		deadRecords: buffer.NewUnboundedDeque[*record](max(changes/2, 16_384)),
 		buf:         make([]byte, defaultBatchBufferSize),
-		writer:      newWriter(f, a.bufferSize),
+		writer:      bufio.NewWriterSize(f, a.bufferSize),
 	}
 	if a.leftoverAlive == nil {
 		b.alive = linked.NewHashmapWithSize[string, *record](changes)
@@ -481,7 +481,10 @@ func (b *Batch) put(key string, value []byte) *record {
 	copy(b.buf[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
 
 	// Write to disk
-	b.writer.Write(b.buf)
+	if _, err := b.writer.Write(b.buf); err != nil {
+		b.err = err
+		return nil
+	}
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
 		return nil
@@ -587,7 +590,10 @@ func (b *Batch) Delete(key string) {
 	copy(b.buf[1+consts.Uint16Len:], key)
 
 	// Write to disk
-	b.writer.Write(b.buf)
+	if _, err := b.writer.Write(b.buf); err != nil {
+		b.err = err
+		return
+	}
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
 		return
@@ -618,7 +624,9 @@ func (b *Batch) Write() (ids.ID, error) {
 
 	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
 	checksum := b.hasher.Sum(nil)
-	b.writer.Write(checksum)
+	if _, err := b.writer.Write(checksum); err != nil {
+		return ids.Empty, err
+	}
 
 	// Flush all unwritten data to disk
 	if err := b.writer.Flush(); err != nil {
