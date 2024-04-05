@@ -19,6 +19,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/dustin/go-humanize"
@@ -43,7 +44,7 @@ type record struct {
 
 type tracker struct {
 	reader *mmap.ReaderAt
-	alive  map[string]*record
+	alive  *linked.Hashmap[string, *record]
 }
 
 // This sits under the MerkleDB and won't be used
@@ -130,7 +131,7 @@ func readRecord(batch uint64, reader io.Reader, cursor int64, hasher hash.Hash) 
 	}
 }
 
-func loadBatch(path string, file uint64) (ids.ID, map[string]*record, error) {
+func loadBatch(path string, file uint64) (ids.ID, *linked.Hashmap[string, *record], error) {
 	// Load file into buffer
 	f, err := os.Open(path)
 	if err != nil {
@@ -145,7 +146,7 @@ func loadBatch(path string, file uint64) (ids.ID, map[string]*record, error) {
 
 	// Read all operations from the file
 	var (
-		changes  = make(map[string]*record)
+		alive    = linked.NewHashmap[string, *record]()
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
 		hasher   = sha256.New()
@@ -155,7 +156,7 @@ func loadBatch(path string, file uint64) (ids.ID, map[string]*record, error) {
 		if err != nil {
 			return ids.Empty, nil, err
 		}
-		changes[key] = entry
+		alive.Put(key, entry)
 		cursor = newCursor
 	}
 	checksum := make([]byte, sha256.Size)
@@ -168,7 +169,7 @@ func loadBatch(path string, file uint64) (ids.ID, map[string]*record, error) {
 	if cursor+sha256.Size != fileSize {
 		return ids.Empty, nil, fmt.Errorf("%w: incorrect size", ErrCorrupt)
 	}
-	return ids.ID(checksum), changes, nil
+	return ids.ID(checksum), alive, nil
 }
 
 // New returns a new AppendDB instance and the ID of the last committed file.
@@ -223,7 +224,7 @@ func New(
 	slices.Sort(files)
 	for i, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		checksum, changes, err := loadBatch(path, file)
+		checksum, alive, err := loadBatch(path, file)
 		if err != nil {
 			if errors.Is(err, ErrCorrupt) {
 				log.Warn("detected corrupt batch", zap.String("path", path), zap.Error(err))
@@ -237,15 +238,18 @@ func New(
 			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
-		for key, entry := range changes {
+		aliveIter := alive.NewIterator()
+		for aliveIter.Next() {
+			key, entry := aliveIter.Key(), aliveIter.Value()
 			past, ok := keys[key]
 			if entry == nil {
 				delete(keys, key)
+				alive.Delete(key) // only track keys that are alive
 			} else {
 				keys[key] = entry
 			}
 			if ok {
-				delete(batches[past.batch].alive, key)
+				batches[past.batch].alive.Delete(key)
 			}
 		}
 		if i == 0 {
@@ -256,7 +260,7 @@ func New(
 			log.Warn("could not mmap batch", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
-		batches[file] = &tracker{reader: reader, alive: changes}
+		batches[file] = &tracker{reader: reader, alive: alive}
 		lastChecksum = checksum
 		lastBatch = file
 		size += uint64(reader.Len())
@@ -321,6 +325,9 @@ func (a *AppendDB) Close() error {
 }
 
 // Batch is not thread-safe
+//
+// Batch assumes that keys are inserted in a **deterministic** order
+// otherwise the checksum will differ across nodes.
 type Batch struct {
 	a     *AppendDB
 	path  string
@@ -329,14 +336,13 @@ type Batch struct {
 	prepared       atomic.Bool
 	pruneableBatch *uint64
 
-	hasher  hash.Hash
-	f       *os.File
-	changes map[string]*record
-	cursor  int64
+	hasher hash.Hash
+	f      *os.File
+	cursor int64
 
+	buf    []byte
 	writer *bufio.Writer
-
-	buf []byte
+	alive  *linked.Hashmap[string, *record]
 
 	err error
 }
@@ -356,13 +362,12 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		path:  path,
 		batch: batch,
 
-		hasher:  sha256.New(),
-		f:       f,
-		changes: make(map[string]*record, changes),
+		hasher: sha256.New(),
+		f:      f,
 
+		buf:    make([]byte, defaultBatchBufferSize),
 		writer: bufio.NewWriterSize(f, a.bufferSize),
-
-		buf: make([]byte, defaultBatchBufferSize),
+		alive:  linked.NewHashmap[string, *record](),
 	}, nil
 }
 
@@ -403,20 +408,18 @@ func (b *Batch) Prepare() int {
 
 	// Collect all alive records and add them to the batch file
 	recycled := 0
-	for k, record := range b.a.batches[oldestBatch].alive {
+	aliveIter := b.a.batches[oldestBatch].alive.NewIterator()
+	for aliveIter.Next() {
+		k, record := aliveIter.Key(), aliveIter.Value()
+
 		// Do nothing if the record was a delete (state would already have this accounted
 		// for on restart)
 		if record == nil {
 			continue
 		}
 
-		// Update alive if record hasn't been updated and exists
-		b.a.keyLock.RLock()
-		v, ok := b.a.keys[k]
-		b.a.keyLock.RUnlock()
-		if !ok || v.batch > oldestBatch {
-			continue
-		}
+		// Anything left in [alive] is should be written, so we don't
+		// need to check the batch in key.
 		value, err := b.a.Get(k)
 		if err != nil {
 			b.err = err
@@ -449,7 +452,7 @@ func (b *Batch) Put(key string, value []byte) {
 	binary.BigEndian.PutUint32(b.buf[1+consts.Uint16Len+len(key):], uint32(len(value)))
 	copy(b.buf[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
 
-	// Add to buffer
+	// Write to disk
 	if _, err := b.writer.Write(b.buf); err != nil {
 		b.err = err
 		return
@@ -460,11 +463,11 @@ func (b *Batch) Put(key string, value []byte) {
 	}
 
 	// Add to changes
-	b.changes[key] = &record{
+	b.alive.Put(key, &record{
 		batch: b.batch,
 		loc:   valueStart,
 		size:  uint32(len(value)),
-	}
+	})
 	b.cursor += int64(l)
 }
 
@@ -485,7 +488,7 @@ func (b *Batch) Delete(key string) {
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
 
-	// Add to buffer
+	// Write to disk
 	if _, err := b.writer.Write(b.buf); err != nil {
 		b.err = err
 		return
@@ -496,7 +499,7 @@ func (b *Batch) Delete(key string) {
 	}
 
 	// Add to changes
-	b.changes[key] = nil
+	b.alive.Put(key, nil)
 	b.cursor += int64(l)
 }
 
@@ -561,16 +564,19 @@ func (b *Batch) Write() (ids.ID, error) {
 	// Update in-memory values with new locations
 	start := time.Now()
 	b.a.keyLock.Lock()
-	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.changes}
-	for key, entry := range b.changes {
+	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.alive}
+	aliveIter := b.alive.NewIterator()
+	for aliveIter.Next() {
+		key, entry := aliveIter.Key(), aliveIter.Value()
 		past, ok := b.a.keys[key]
 		if entry == nil {
 			delete(b.a.keys, key)
+			b.alive.Delete(key) // only track keys that are alive
 		} else {
 			b.a.keys[key] = entry
 		}
 		if ok {
-			delete(b.a.batches[past.batch].alive, key)
+			b.a.batches[past.batch].alive.Delete(key)
 		}
 	}
 	b.a.keyLock.Unlock()
