@@ -25,14 +25,14 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	"github.com/ava-labs/hypersdk/appenddb"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
-	"github.com/ava-labs/hypersdk/merkle"
-	"github.com/ava-labs/hypersdk/storage"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dustin/go-humanize"
@@ -69,10 +69,9 @@ type VM struct {
 
 	config         Config
 	genesis        Genesis
-	rawStateDB     database.Database
-	stateDB        *merkle.Merkle
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
+	stateDB        *appenddb.AppendDB
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
@@ -234,36 +233,41 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
-	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
+	vmCfg := pebble.NewDefaultConfig()
+	vmCfg.Sync = true
+	vmPath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "vmdb")
 	if err != nil {
 		return err
 	}
-	merkleRegistry := prometheus.NewRegistry()
-	vm.stateDB, err = merkle.New(ctx, vm.rawStateDB, merkledb.Config{
-		BranchFactor: vm.genesis.GetStateBranchFactor(),
-		// RootGenConcurrency limits the number of goroutines
-		// that will be used across all concurrent root generations.
-		RootGenConcurrency:          uint(vm.config.GetRootGenerationCores()),
-		HistoryLength:               uint(vm.config.GetStateHistoryLength()),
-		ValueNodeCacheSize:          uint(vm.config.GetValueNodeCacheSize()),
-		IntermediateNodeCacheSize:   uint(vm.config.GetIntermediateNodeCacheSize()),
-		IntermediateWriteBufferSize: uint(vm.config.GetStateIntermediateWriteBufferSize()),
-		IntermediateWriteBatchSize:  uint(vm.config.GetStateIntermediateWriteBatchSize()),
-		Reg:                         merkleRegistry,
-		TraceLevel:                  merkledb.InfoTrace,
-		Tracer:                      vm.tracer,
-	})
+	vmDB, vmDBRegistry, err := pebble.New(vmPath, vmCfg)
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("state", merkleRegistry); err != nil {
+	if gatherer != nil {
+		if err := gatherer.Register("vmdb", vmDBRegistry); err != nil {
+			return err
+		}
+	}
+	vm.vmDB = vmDB
+	blobPath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "blobdb")
+	if err != nil {
 		return err
 	}
+	blobDB := filedb.New(blobPath, true, 1024, 512*units.MiB) // TODO: make configurable
+	if err != nil {
+		return err
+	}
+	vm.blobDB = blobDB
+	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
+	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 64*units.KiB, 512) // TODO: make this a config
+	if err != nil {
+		return err
+	}
+	// TODO: rollback to last checksum on unclean shutdown
+	vm.stateDB = stateDB
 
 	// Track size of [chainData]
 	go vm.trackChainDataSize()
-
-	// TODO: Compare stateDB with vmDB to determine if any reprocessing is necessary
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -322,23 +326,29 @@ func (vm *VM) Initialize(
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
+		// Prepare AppendDB
+		batch, err := stateDB.NewBatch(16_384)
+		if err != nil {
+			return err
+		}
+		batch.Prepare() // should be a no-op
+
 		// Set balances and compute genesis root
-		if err := vm.genesis.Load(ctx, vm.tracer, vm.stateDB); err != nil {
+		if err := vm.genesis.Load(ctx, vm.tracer, batch); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 
 		// Update chain metadata
-		if err := vm.stateDB.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := batch.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := vm.stateDB.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
+		if err := batch.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
 			return err
 		}
 
 		// Commit genesis block post-execution state and compute root
-		commit := vm.stateDB.PrepareCommit(ctx)
-		root, err := commit(ctx, vm)
+		checksum, err := batch.Write()
 		if err != nil {
 			return err
 		}

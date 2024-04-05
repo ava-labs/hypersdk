@@ -12,8 +12,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/appenddb"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
 )
@@ -28,7 +28,8 @@ type output struct {
 	txs          map[ids.ID]*blockLoc
 	chunkResults [][]*Result
 
-	chunks []*FilteredChunk
+	chunks   []*FilteredChunk
+	checksum ids.ID
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -41,14 +42,11 @@ type Engine struct {
 
 	backlog chan *engineJob
 
-	db state.Database
+	db *appenddb.AppendDB
 
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
 	largestOutput *uint64
-
-	rootsLock sync.Mutex
-	roots     map[uint64]ids.ID
 }
 
 func NewEngine(vm VM, maxBacklog int) *Engine {
@@ -61,7 +59,6 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 		backlog: make(chan *engineJob, maxBacklog),
 
 		outputs: make(map[uint64]*output),
-		roots:   make(map[uint64]ids.ID),
 	}
 }
 
@@ -281,6 +278,7 @@ func (e *Engine) processJob(job *engineJob) error {
 		txs:          txSet,
 		chunkResults: chunkResults,
 		chunks:       filteredChunks,
+		checksum:     TODO,
 	}
 	e.largestOutput = &job.blk.StatefulBlock.Height
 	e.outputsLock.Unlock()

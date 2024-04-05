@@ -3,6 +3,7 @@ package appenddb
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -22,9 +23,15 @@ import (
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
 	"golang.org/x/exp/mmap"
+)
+
+var (
+	_ state.Immutable = (*AppendDB)(nil)
+	_ state.Mutable   = (*Batch)(nil)
 )
 
 const (
@@ -313,11 +320,8 @@ func New(
 	return adb, lastChecksum, nil
 }
 
-func (a *AppendDB) Get(key string) ([]byte, error) {
-	a.keyLock.RLock()
-	defer a.keyLock.RUnlock()
-
-	entry, ok := a.keys[key]
+func (a *AppendDB) getValue(key []byte) ([]byte, error) {
+	entry, ok := a.keys[string(key)]
 	if !ok {
 		return nil, database.ErrNotFound
 	}
@@ -327,6 +331,25 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 	value := make([]byte, entry.size)
 	_, err := a.batches[entry.batch].reader.ReadAt(value, entry.loc)
 	return value, err
+}
+
+func (a *AppendDB) GetValue(_ context.Context, key []byte) ([]byte, error) {
+	a.keyLock.RLock()
+	defer a.keyLock.RUnlock()
+
+	return a.getValue(key)
+}
+
+func (a *AppendDB) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error) {
+	a.keyLock.RLock()
+	defer a.keyLock.RUnlock()
+
+	values := make([][]byte, len(keys))
+	errors := make([]error, len(keys))
+	for i, key := range keys {
+		values[i], errors[i] = a.getValue(key)
+	}
+	return values, errors
 }
 
 func (a *AppendDB) Close() error {
@@ -451,7 +474,7 @@ func (b *Batch) recycle() {
 
 		// Anything left in [alive] is should be written, so we don't
 		// need to check the batch in key.
-		value, err := b.a.Get(k)
+		value, err := b.a.GetValue(context.TODO(), []byte(k))
 		if err != nil {
 			b.err = err
 			return
@@ -546,11 +569,16 @@ func (b *Batch) Prepare() int {
 	return b.recycled
 }
 
-func (b *Batch) Put(key string, value []byte) {
+func (b *Batch) Insert(_ context.Context, bkey []byte, value []byte) error {
+	if b.err != nil {
+		return b.err
+	}
+
+	key := string(bkey)
 	record := b.put(key, value)
 	if record == nil {
 		// An error occurred
-		return
+		return b.err
 	}
 	b.alive.Put(key, record)
 
@@ -572,16 +600,18 @@ func (b *Batch) Put(key string, value []byte) {
 	} else {
 		b.a.keys[key] = record
 	}
+	return nil
 }
 
-func (b *Batch) Delete(key string) {
-	// Check input
+func (b *Batch) Remove(_ context.Context, bkey []byte) error {
 	if b.err != nil {
-		return
+		return b.err
 	}
+
+	// Check input
+	key := string(bkey)
 	if len(key) > int(consts.MaxUint16) {
-		b.err = ErrKeyTooLong
-		return
+		return ErrKeyTooLong
 	}
 
 	// Create operation to write
@@ -593,12 +623,10 @@ func (b *Batch) Delete(key string) {
 
 	// Write to disk
 	if _, err := b.writer.Write(b.buf); err != nil {
-		b.err = err
-		return
+		return err
 	}
 	if _, err := b.hasher.Write(b.buf); err != nil {
-		b.err = err
-		return
+		return err
 	}
 	b.cursor += int64(l)
 
@@ -609,6 +637,11 @@ func (b *Batch) Delete(key string) {
 		b.a.batches[past.batch].alive.Delete(key)
 		b.deadRecords.PushRight(past)
 	}
+	return nil
+}
+
+func (b *Batch) GetValue(ctx context.Context, key []byte) ([]byte, error) {
+	return b.a.GetValue(ctx, key)
 }
 
 // Write failure is not expected. If an error is returned,
