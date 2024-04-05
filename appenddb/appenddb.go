@@ -6,12 +6,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"hash"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -29,9 +29,9 @@ const (
 type record struct {
 	// Location of value in file (does not include
 	// operation, key length, key, or value length)
-	file uint64
-	loc  int64
-	size uint32
+	batch uint64
+	loc   int64
+	size  uint32
 }
 
 // This sits under the MerkleDB and won't be used
@@ -45,22 +45,21 @@ type AppendDB struct {
 	nextBatch   uint64
 	oldestBatch *uint64
 	size        uint64
-	stillAlive  map[string][]byte
 
 	keyLock sync.RWMutex
 	batches map[uint64]*mmap.ReaderAt
 	keys    map[string]*record
 }
 
-func readKey(file uint64, reader *mmap.ReaderAt, cursor int64, hasher hash.Hash) (string, *record, int64, error) {
+func readRecord(batch uint64, reader *mmap.ReaderAt, cursor int64, hasher hash.Hash) (string, *record, []byte, int64, error) {
 	// Read op and key len
 	opAndKeyLen := make([]byte, 1+consts.Uint16Len)
 	if _, err := reader.ReadAt(opAndKeyLen, cursor); err != nil {
-		return "", nil, -1, err
+		return "", nil, nil, -1, err
 	}
 	if hasher != nil {
 		if _, err := hasher.Write(opAndKeyLen); err != nil {
-			return "", nil, -1, err
+			return "", nil, nil, -1, err
 		}
 	}
 	cursor += int64(len(opAndKeyLen))
@@ -72,11 +71,11 @@ func readKey(file uint64, reader *mmap.ReaderAt, cursor int64, hasher hash.Hash)
 		// Read key and value len
 		keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
 		if _, err := reader.ReadAt(keyAndValueLen, cursor); err != nil {
-			return "", nil, -1, err
+			return "", nil, nil, -1, err
 		}
 		if hasher != nil {
 			if _, err := hasher.Write(keyAndValueLen); err != nil {
-				return "", nil, -1, err
+				return "", nil, nil, -1, err
 			}
 		}
 		cursor += int64(len(keyAndValueLen))
@@ -87,34 +86,34 @@ func readKey(file uint64, reader *mmap.ReaderAt, cursor int64, hasher hash.Hash)
 		valueStart := cursor
 		value := make([]byte, valueLen)
 		if _, err := reader.ReadAt(value, cursor); err != nil {
-			return "", nil, -1, err
+			return "", nil, nil, -1, err
 		}
 		if hasher != nil {
 			if _, err := hasher.Write(value); err != nil {
-				return "", nil, -1, err
+				return "", nil, nil, -1, err
 			}
 		}
 		cursor += int64(len(value))
 		return key, &record{
-			file: file,
-			loc:  valueStart,
-			size: valueLen,
-		}, cursor, nil
+			batch: batch,
+			loc:   valueStart,
+			size:  valueLen,
+		}, value, cursor, nil
 	case opDelete:
 		// Read key
 		key := make([]byte, keyLen)
 		if _, err := reader.ReadAt(key, cursor); err != nil {
-			return "", nil, -1, err
+			return "", nil, nil, -1, err
 		}
 		if hasher != nil {
 			if _, err := hasher.Write(key); err != nil {
-				return "", nil, -1, err
+				return "", nil, nil, -1, err
 			}
 		}
 		cursor += int64(len(key))
-		return string(key), nil, cursor, nil
+		return string(key), nil, nil, cursor, nil
 	default:
-		return "", nil, -1, ErrCorrupt
+		return "", nil, nil, -1, ErrCorrupt
 	}
 }
 
@@ -133,7 +132,7 @@ func openBatch(path string, file uint64) (ids.ID, map[string]*record, *mmap.Read
 		hasher   = sha256.New()
 	)
 	for cursor < fileSize-ids.IDLen {
-		key, entry, newCursor, err := readKey(file, reader, cursor, hasher)
+		key, entry, _, newCursor, err := readRecord(file, reader, cursor, hasher)
 		if err != nil {
 			return ids.Empty, nil, reader, err
 		}
@@ -240,8 +239,6 @@ func New(
 		logger:  log,
 		baseDir: baseDir,
 		history: history,
-
-		stillAlive: make(map[string][]byte),
 	}
 	if len(batches) > 0 {
 		adb.oldestBatch = &firstBatch
@@ -262,7 +259,7 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 		return nil, database.ErrNotFound
 	}
 	value := make([]byte, entry.size)
-	_, err := a.batches[entry.file].ReadAt(value, entry.loc)
+	_, err := a.batches[entry.batch].ReadAt(value, entry.loc)
 	return value, err
 }
 
@@ -285,53 +282,17 @@ func (a *AppendDB) preparePrune() {
 
 	go func() {
 		defer a.commitLock.Unlock()
-
-		if a.oldestBatch == nil {
-			return
-		}
-		batch := *a.oldestBatch
-		if a.nextBatch-batch < a.history {
-			return
-		}
-
-		var (
-			reader    = a.batches[batch]
-			batchSize = int64(reader.Len())
-			cursor    = int64(0)
-			alive     = make(map[string]*record)
-		)
-		for cursor < batchSize-ids.IDLen {
-			// Read next record
-			//
-			// TODO: likely want next value here to avoid a re-read?
-			key, record, newCursor, err := readKey(batch, reader, cursor, nil)
-			if err != nil {
-				log.Fatal("could not read key from non-corrup batch", zap.Error(err))
-				panic(err)
-			}
-			cursor = newCursor
-
-			// Update alive if record hasn't been updated
-			if record == nil {
-				continue
-			}
-			a.keyLock.RLock()
-			v, ok := a.keys[key]
-			a.keyLock.RLock()
-			if !ok || v.file > batch {
-				continue
-			}
-			alive[key] = record
-		}
-		a.stillAlive = alive
 	}()
 }
 
 // Batch is not thread-safe
 type Batch struct {
-	a    *AppendDB
-	path string
-	id   uint64
+	a     *AppendDB
+	path  string
+	batch uint64
+
+	prepared       atomic.Bool
+	pruneableBatch *uint64
 
 	hasher  hash.Hash
 	f       *os.File
@@ -343,35 +304,91 @@ type Batch struct {
 
 func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	a.commitLock.Lock()
-	id := a.nextBatch
-	path := filepath.Join(a.baseDir, strconv.FormatUint(id, 10))
+	batch := a.nextBatch
+	path := filepath.Join(a.baseDir, strconv.FormatUint(batch, 10))
 	f, err := os.Create(path)
 	if err != nil {
 		a.commitLock.Unlock()
 		return nil, err
 	}
 	a.nextBatch++
-	return &Batch{
-		a:    a,
-		path: path,
-		id:   id,
+	b := &Batch{
+		a:     a,
+		path:  path,
+		batch: batch,
 
 		hasher:  sha256.New(),
 		f:       f,
 		changes: make(map[string]*record, changes),
-	}, nil
+	}
+	return b, nil
+}
+
+// Prepare reads all keys from the oldest batch
+// and puts them into the new file.
+//
+// A byproduct of this approach is that batches may contain duplicate
+// keys (if a key is replaced in this batch), however, we are willing to make
+// that tradeoff to begin writing the new batch as soon as possible.
+func (b *Batch) Prepare() {
+	defer b.prepared.Store(true)
+
+	// Determine if we should delete the oldest batch
+	if b.batch < b.a.history {
+		return
+	}
+	if b.a.oldestBatch == nil {
+		return
+	}
+	oldestBatch := *b.a.oldestBatch
+	if b.batch-b.a.history < oldestBatch {
+		return
+	}
+
+	// Collect all alive records and add them to the batch file
+	var (
+		reader    = b.a.batches[oldestBatch]
+		batchSize = int64(reader.Len())
+		cursor    = int64(0)
+	)
+	for cursor < batchSize-ids.IDLen {
+		// Read next record
+		key, record, value, newCursor, err := readRecord(oldestBatch, reader, cursor, nil)
+		if err != nil {
+			b.a.logger.Error("could not read key from non-corrup batch", zap.Error(err))
+			b.err = err
+			return
+		}
+		cursor = newCursor
+
+		// Do nothing if the record was a delete (state would already have this accounted
+		// for on restart)
+		if record == nil {
+			continue
+		}
+
+		// Update alive if record hasn't been updated and exists
+		b.a.keyLock.RLock()
+		v, ok := b.a.keys[key]
+		b.a.keyLock.RUnlock()
+		if !ok || v.batch > oldestBatch {
+			continue
+		}
+		b.Put(key, value)
+	}
+	b.pruneableBatch = &oldestBatch
 }
 
 func (b *Batch) Put(key string, value []byte) {
+	if !b.prepared.Load() && b.err == nil {
+		b.err = ErrNotPrepared
+		return
+	}
 	if b.err != nil {
 		return
 	}
 	if len(key) > int(consts.MaxUint16) {
 		b.err = ErrKeyTooLong
-		return
-	}
-	if _, ok := b.changes[key]; ok {
-		b.err = ErrDuplicate
 		return
 	}
 	valueStart := b.cursor + int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len)
@@ -390,19 +407,18 @@ func (b *Batch) Put(key string, value []byte) {
 		return
 	}
 	b.changes[key] = &record{
-		file: b.id,
-		loc:  valueStart,
-		size: uint32(len(value)),
+		batch: b.batch,
+		loc:   valueStart,
+		size:  uint32(len(value)),
 	}
-	delete(b.a.stillAlive, key)
 }
 
 func (b *Batch) Delete(key string) {
-	if b.err != nil {
+	if !b.prepared.Load() && b.err == nil {
+		b.err = ErrNotPrepared
 		return
 	}
-	if _, ok := b.changes[key]; ok {
-		b.err = ErrDuplicate
+	if b.err != nil {
 		return
 	}
 	operation := make([]byte, consts.Uint8Len+consts.Uint16Len+len(key))
@@ -418,7 +434,6 @@ func (b *Batch) Delete(key string) {
 		return
 	}
 	b.changes[key] = nil
-	delete(b.a.stillAlive, key)
 }
 
 // ungracefulWrite cleans up any partial file writes
@@ -438,12 +453,10 @@ func (b *Batch) ungracefulWrite() {
 func (b *Batch) Write() (ids.ID, error) {
 	defer b.a.commitLock.Unlock()
 
-	// Persist items that are still alive and haven't been updated
-	// in this batch.
-	for key, entry := range b.a.stillAlive {
-		if entry != nil {
-
-		}
+	// Check if we properly prepared this batch
+	if !b.prepared.Load() && b.err == nil {
+		b.err = ErrNotPrepared
+	}
 
 	// If we already encountered an error, return that immediately
 	if b.err != nil {
@@ -470,7 +483,7 @@ func (b *Batch) Write() (ids.ID, error) {
 		return ids.Empty, err
 	}
 
-	// Open file for mmap
+	// Open file for mmap before keys become acessible
 	reader, err := mmap.Open(b.path)
 	if err != nil {
 		// Should never happen
@@ -478,9 +491,9 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 	b.a.size += uint64(reader.Len())
 
-	// Update in-memory values with locations
+	// Update in-memory values with new locations
 	b.a.keyLock.Lock()
-	b.a.batches[b.id] = reader
+	b.a.batches[b.batch] = reader
 	for key, entry := range b.changes {
 		if entry == nil {
 			delete(b.a.keys, key)
@@ -490,9 +503,21 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 	b.a.keyLock.Unlock()
 
-	// preparePrune collects all keys that are still alive
-	// from the oldest batch and prepares them for inclusion
-	// in the next batch (async).
-	b.a.preparePrune()
+	// Delete old batch once keys are updated to new batch
+	if b.pruneableBatch != nil {
+		preparedBatch := *b.pruneableBatch
+		preparedReader := b.a.batches[preparedBatch]
+		preparedSize := uint64(preparedReader.Len())
+		if err := preparedReader.Close(); err != nil {
+			b.a.logger.Error("could not close old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+		}
+		preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
+		if err := os.Remove(preparedPath); err != nil {
+			b.a.logger.Error("could not remove old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+		}
+		b.a.size -= preparedSize
+		oldestBatch := preparedBatch + 1
+		b.a.oldestBatch = &oldestBatch
+	}
 	return ids.ID(checksum), nil
 }
