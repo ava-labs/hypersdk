@@ -5,12 +5,9 @@ package tstate
 
 import (
 	"context"
-	"slices"
 
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/hypersdk/smap"
-	"github.com/ava-labs/hypersdk/state"
-	"golang.org/x/exp/maps"
 )
 
 type change struct {
@@ -21,14 +18,14 @@ type change struct {
 
 // TState defines a struct for storing temporary state.
 type TState struct {
-	viewKeys    [][]state.Keys
+	viewKeys    [][][]string
 	changedKeys *smap.SMap[*change]
 }
 
 // New returns a new instance of TState.
 func New(changedSize int) *TState {
 	return &TState{
-		viewKeys:    make([][]state.Keys, 1024), // set to max chunks that could ever be in a single block
+		viewKeys:    make([][][]string, 1024), // set to max chunks that could ever be in a single block
 		changedKeys: smap.New[*change](changedSize),
 	}
 }
@@ -44,7 +41,7 @@ func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, 
 }
 
 func (ts *TState) PrepareChunk(idx, size int) {
-	ts.viewKeys[idx] = make([]state.Keys, size)
+	ts.viewKeys[idx] = make([][]string, size)
 }
 
 // Iterate over changes in deterministic order
@@ -65,12 +62,7 @@ func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
 			}
 
 			// Ensure we iterate deterministically
-			keyArr := maps.Keys(keys)
-			slices.Sort(keyArr)
-			for _, key := range keyArr {
-				if keys[key] == state.Read {
-					continue
-				}
+			for _, key := range keys {
 				v, ok := ts.changedKeys.Get(key)
 				if !ok {
 					continue

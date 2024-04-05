@@ -211,7 +211,9 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	}
 
 	// Update tracked p-chain height as long as it is increasing
-	tsv := ts.NewWriteView(len(chunks), 0)
+	metaChunk := len(chunks)
+	ts.PrepareChunk(metaChunk, 1)
+	tsv := ts.NewWriteView(metaChunk, 0)
 	if job.blk.PHeight > 0 { // if context is not set, don't update P-Chain height in state or populate epochs
 		if shouldUpdatePHeight {
 			if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {

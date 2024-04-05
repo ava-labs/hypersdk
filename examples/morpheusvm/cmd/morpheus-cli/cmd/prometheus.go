@@ -61,8 +61,11 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
-			utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_recycled_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_recycled_sum[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}state recycled per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_changes_sum[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}state changes per block:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}repeat wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
@@ -81,27 +84,6 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_commit_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_commit_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}commit wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_trie_node_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_trie_node_changes_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}trie node changes (changes/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_trie_value_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_trie_value_changes_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}trie value changes (changes/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_trie_skipped_value_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_trie_skipped_value_changes_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}skipped trie value changes (changes/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_trie_max_backlog_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_trie_max_backlog_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}trie max backlog (size/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_trie_modifications_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_trie_modifications_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}trie wait modifications (ms/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_trie_root_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_trie_root_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}trie wait root (ms/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_trie_commit_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_trie_commit_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}trie wait commit (ms/attempt):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_remaining_mempool[5s])/5", chainID))
 			utils.Outf("{{yellow}}remaining mempool per second:{{/}} %s\n", panels[len(panels)-1])

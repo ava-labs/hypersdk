@@ -6,6 +6,7 @@ package tstate
 import (
 	"bytes"
 	"context"
+	"slices"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
@@ -292,10 +293,13 @@ func (ts *TStateView) PendingChanges() int {
 
 // Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
-	ts.ts.viewKeys[ts.chunkIdx][ts.txIdx] = ts.scope
+	changedKeys := make([]string, 0, len(ts.pendingChangedKeys))
 	for k, v := range ts.pendingChangedKeys {
 		ts.ts.changedKeys.Put(k, &change{ts.chunkIdx, ts.txIdx, v})
+		changedKeys = append(changedKeys, k)
 	}
+	slices.Sort(changedKeys)
+	ts.ts.viewKeys[ts.chunkIdx][ts.txIdx] = changedKeys
 }
 
 // chunks gets the number of chunks for a key in [m]
@@ -337,10 +341,11 @@ func (ts *TStateWriteView) Insert(ctx context.Context, key []byte, value []byte)
 }
 
 func (tsv *TStateWriteView) Commit() {
-	scope := state.Keys{}
+	changedKeys := make([]string, 0, len(tsv.pendingChangedKeys))
 	for k, v := range tsv.pendingChangedKeys {
-		scope[k] = state.All
 		tsv.ts.changedKeys.Put(k, &change{tsv.chunkIdx, tsv.txIdx, v})
+		changedKeys = append(changedKeys, k)
 	}
-	tsv.ts.viewKeys[tsv.chunkIdx][tsv.txIdx] = scope
+	slices.Sort(changedKeys)
+	tsv.ts.viewKeys[tsv.chunkIdx][tsv.txIdx] = changedKeys
 }
