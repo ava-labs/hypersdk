@@ -399,14 +399,18 @@ func BenchmarkPebbleDB(b *testing.B) {
 
 // Takes ~200ms on Mac
 func BenchmarkSortIDs(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		items := make([]string, 1_000_000)
-		for i := 0; i < 1_000_000; i++ {
-			id := ids.GenerateTestID()
-			items[i] = string(id[:])
-		}
-		b.StartTimer()
-		slices.Sort(items)
+	for _, size := range []int{1_000, 10_000, 100_000, 1_000_000} {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				items := make([]string, size)
+				for i := 0; i < size; i++ {
+					id := ids.GenerateTestID()
+					items[i] = string(id[:])
+				}
+				b.StartTimer()
+				slices.Sort(items)
+			}
+		})
 	}
 }
