@@ -242,12 +242,21 @@ func BenchmarkAppendDB(b *testing.B) {
 					require.NoError(err)
 					start := time.Now()
 					b.Prepare()
-					logger.Info("prepare", zap.Duration("elapsed", time.Since(start)))
+					prepareDuration := time.Since(start)
+					start = time.Now()
 					for lastIndex < (j+1)*1_000_000 {
 						b.Put(keys[lastIndex], values[lastIndex])
 						lastIndex++
 					}
+					putDuration := time.Since(start)
+					start = time.Now()
 					_, err = b.Write()
+					logger.Info(
+						"latency",
+						zap.Duration("prepare", prepareDuration),
+						zap.Duration("puts", putDuration),
+						zap.Duration("write", time.Since(start)),
+					)
 					require.NoError(err)
 				}
 
