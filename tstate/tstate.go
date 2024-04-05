@@ -51,13 +51,19 @@ func (ts *TState) PrepareChunk(idx, size int) {
 //
 // Iterate should only be called once tstate is done being modified.
 func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
+	// TODO: make naming more generic
 	for chunkIdx, txs := range ts.viewKeys {
 		if txs == nil {
-			// Skip empty views (needed to avoid locking)
-			continue
+			// Once we run out of views, exit
+			break
 		}
 
 		for txIdx, keys := range txs {
+			// Skip invalid txs
+			if keys == nil {
+				continue
+			}
+
 			// Ensure we iterate deterministically
 			keyArr := maps.Keys(keys)
 			slices.Sort(keyArr)
