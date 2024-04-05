@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -393,5 +394,19 @@ func BenchmarkPebbleDB(b *testing.B) {
 				os.Remove(baseDir)
 			}
 		})
+	}
+}
+
+// Takes ~200ms on Mac
+func BenchmarkSortIDs(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		items := make([]string, 1_000_000)
+		for i := 0; i < 1_000_000; i++ {
+			id := ids.GenerateTestID()
+			items[i] = string(id[:])
+		}
+		b.StartTimer()
+		slices.Sort(items)
 	}
 }
