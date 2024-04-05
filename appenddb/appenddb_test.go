@@ -250,7 +250,7 @@ func TestAppendDBLarge(t *testing.T) {
 	batches := 10
 	batchSize := 1_000_000
 	keys, values := randomKeyValues(batches, batchSize, 32, 32, false)
-	var lastBatch ids.ID
+	checksums := make([]ids.ID, batches)
 	for i := 0; i < batches; i++ {
 		b, err := db.NewBatch(batchSize + 100)
 		require.NoError(err)
@@ -263,7 +263,7 @@ func TestAppendDBLarge(t *testing.T) {
 		for j := 0; j < batchSize; j++ {
 			b.Put(string(keys[i][j]), values[i][j])
 		}
-		lastBatch, err = b.Write()
+		checksum, err := b.Write()
 		require.NoError(err)
 
 		// Ensure data is correct
@@ -272,13 +272,14 @@ func TestAppendDBLarge(t *testing.T) {
 			require.NoError(err)
 			require.Equal(values[i][j], v)
 		}
+		checksums[i] = checksum
 	}
 
 	// Restart
 	require.NoError(db.Close())
 	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
 	require.NoError(err)
-	require.Equal(lastBatch, last)
+	require.Equal(checksums[batches-1], last)
 
 	// Ensure data is correct after restart
 	for i := 0; i < batchSize; i++ {
@@ -287,6 +288,22 @@ func TestAppendDBLarge(t *testing.T) {
 		require.Equal(values[9][i], v)
 	}
 	require.NoError(db.Close())
+
+	// Create another database and ensure checksums match
+	db2, last, err := New(logger, t.TempDir(), defaultInitialSize, defaultBufferSize, 5)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+	for i := 0; i < batches; i++ {
+		b, err := db2.NewBatch(batchSize + 100)
+		require.NoError(err)
+		b.Prepare()
+		for j := 0; j < batchSize; j++ {
+			b.Put(string(keys[i][j]), values[i][j])
+		}
+		checksum, err := b.Write()
+		require.NoError(err)
+		require.Equal(checksums[i], checksum)
+	}
 }
 
 func BenchmarkAppendDB(b *testing.B) {
