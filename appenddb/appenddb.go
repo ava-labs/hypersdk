@@ -275,16 +275,6 @@ func (a *AppendDB) Close() error {
 	return nil
 }
 
-// prune is async
-func (a *AppendDB) preparePrune() {
-	// TODO: will deadlock rn
-	a.commitLock.Lock()
-
-	go func() {
-		defer a.commitLock.Unlock()
-	}()
-}
-
 // Batch is not thread-safe
 type Batch struct {
 	a     *AppendDB
@@ -312,7 +302,7 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		return nil, err
 	}
 	a.nextBatch++
-	b := &Batch{
+	return &Batch{
 		a:     a,
 		path:  path,
 		batch: batch,
@@ -320,8 +310,7 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		hasher:  sha256.New(),
 		f:       f,
 		changes: make(map[string]*record, changes),
-	}
-	return b, nil
+	}, nil
 }
 
 // Prepare reads all keys from the oldest batch
@@ -330,8 +319,14 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 // A byproduct of this approach is that batches may contain duplicate
 // keys (if a key is replaced in this batch), however, we are willing to make
 // that tradeoff to begin writing the new batch as soon as possible.
+//
+// It is safe to call prepare multiple times.
 func (b *Batch) Prepare() {
 	defer b.prepared.Store(true)
+
+	if b.prepared.Load() {
+		return
+	}
 
 	// Determine if we should delete the oldest batch
 	if b.batch < b.a.history {
