@@ -7,7 +7,7 @@ toolchain go1.21.1
 require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
-	github.com/ava-labs/avalanchego v1.11.4-rc.2.0.20240404222418-0eea0bd820d6
+	github.com/ava-labs/avalanchego v1.11.4-rc.2.0.20240405164029-4b1500efeb27
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gizak/termui/v3 v3.1.0

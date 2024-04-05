@@ -367,7 +367,7 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 
 		buf:    make([]byte, defaultBatchBufferSize),
 		writer: bufio.NewWriterSize(f, a.bufferSize),
-		alive:  linked.NewHashmap[string, *record](),
+		alive:  linked.NewHashmapWithSize[string, *record](changes),
 	}, nil
 }
 
