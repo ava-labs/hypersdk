@@ -31,14 +31,18 @@ const (
 	opDelete = uint8(1)
 
 	defaultBatchBufferSize = 16_384 // per item encoding
+	minDiskValueSize       = 512
 )
 
 type record struct {
+	batch uint64
+
+	value []byte
+
 	// Location of value in file (does not include
 	// operation, key length, key, or value length)
-	batch uint64
-	loc   int64
-	size  uint32
+	loc  int64
+	size uint32
 }
 
 type tracker struct {
@@ -107,11 +111,15 @@ func readRecord(batch uint64, reader io.Reader, cursor int64, hasher hash.Hash) 
 			}
 		}
 		cursor += int64(len(value))
-		return key, &record{
-			batch: batch,
-			loc:   valueStart,
-			size:  valueLen,
-		}, cursor, nil
+		r := &record{batch: batch}
+		if valueLen >= minDiskValueSize {
+			r.loc = valueStart
+			r.size = valueLen
+		} else {
+			r.value = value
+			r.loc = -1
+		}
+		return key, r, cursor, nil
 	case opDelete:
 		// Read key
 		key := make([]byte, keyLen)
@@ -299,6 +307,9 @@ func (a *AppendDB) Get(key string) ([]byte, error) {
 	if !ok {
 		return nil, database.ErrNotFound
 	}
+	if entry.loc < 0 {
+		return slices.Clone(entry.value), nil
+	}
 	value := make([]byte, entry.size)
 	_, err := a.batches[entry.batch].reader.ReadAt(value, entry.loc)
 	return value, err
@@ -461,11 +472,16 @@ func (b *Batch) put(key string, value []byte) *record {
 	// Furnish record for future usage
 	//
 	// Note: this batch is not mmap'd yet and should not be used until it is.
-	return &record{
-		batch: b.batch,
-		loc:   valueStart,
-		size:  uint32(len(value)),
+	r := &record{batch: b.batch}
+	lv := len(value)
+	if lv >= minDiskValueSize {
+		r.loc = valueStart
+		r.size = uint32(lv)
+	} else {
+		r.value = value
+		r.loc = -1
 	}
+	return r
 }
 
 // Prepare should be called write before we begin writing to the batch. As soon as

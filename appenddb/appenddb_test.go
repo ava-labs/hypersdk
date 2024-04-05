@@ -229,81 +229,85 @@ func TestAppendDBPrune(t *testing.T) {
 }
 
 func TestAppendDBLarge(t *testing.T) {
-	// Prepare
-	require := require.New(t)
-	baseDir := t.TempDir()
-	logger := logging.NewLogger(
-		"appenddb",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stdout,
-			logging.Colors.ConsoleEncoder(),
-		),
-	)
-	logger.Info("created directory", zap.String("path", baseDir))
+	for _, valueSize := range []int{32, minDiskValueSize * 2} { // ensure mem and mmap work
+		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
+			// Prepare
+			require := require.New(t)
+			baseDir := t.TempDir()
+			logger := logging.NewLogger(
+				"appenddb",
+				logging.NewWrappedCore(
+					logging.Debug,
+					os.Stdout,
+					logging.Colors.ConsoleEncoder(),
+				),
+			)
+			logger.Info("created directory", zap.String("path", baseDir))
 
-	// Create
-	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
-	require.NoError(err)
-	require.Equal(ids.Empty, last)
-
-	// Write 1M unique keys in 10 batches
-	batches := 10
-	batchSize := 1_000_000
-	keys, values := randomKeyValues(batches, batchSize, 32, 32, false)
-	checksums := make([]ids.ID, batches)
-	for i := 0; i < batches; i++ {
-		b, err := db.NewBatch(batchSize + 100)
-		require.NoError(err)
-		recycled := b.Prepare()
-		if i < 5 {
-			require.Zero(recycled)
-		} else {
-			require.Equal(batchSize, recycled)
-		}
-		for j := 0; j < batchSize; j++ {
-			b.Put(string(keys[i][j]), values[i][j])
-		}
-		checksum, err := b.Write()
-		require.NoError(err)
-
-		// Ensure data is correct
-		for j := 0; j < batchSize; j++ {
-			v, err := db.Get(string(keys[i][j]))
+			// Create
+			db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
 			require.NoError(err)
-			require.Equal(values[i][j], v)
-		}
-		checksums[i] = checksum
-	}
+			require.Equal(ids.Empty, last)
 
-	// Restart
-	require.NoError(db.Close())
-	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
-	require.NoError(err)
-	require.Equal(checksums[batches-1], last)
+			// Write 1M unique keys in 10 batches
+			batches := 10
+			batchSize := 1_000_000
+			keys, values := randomKeyValues(batches, batchSize, 32, 32, false)
+			checksums := make([]ids.ID, batches)
+			for i := 0; i < batches; i++ {
+				b, err := db.NewBatch(batchSize + 100)
+				require.NoError(err)
+				recycled := b.Prepare()
+				if i < 5 {
+					require.Zero(recycled)
+				} else {
+					require.Equal(batchSize, recycled)
+				}
+				for j := 0; j < batchSize; j++ {
+					b.Put(string(keys[i][j]), values[i][j])
+				}
+				checksum, err := b.Write()
+				require.NoError(err)
 
-	// Ensure data is correct after restart
-	for i := 0; i < batchSize; i++ {
-		v, err := db.Get(string(keys[9][i]))
-		require.NoError(err)
-		require.Equal(values[9][i], v)
-	}
-	require.NoError(db.Close())
+				// Ensure data is correct
+				for j := 0; j < batchSize; j++ {
+					v, err := db.Get(string(keys[i][j]))
+					require.NoError(err)
+					require.Equal(values[i][j], v)
+				}
+				checksums[i] = checksum
+			}
 
-	// Create another database and ensure checksums match
-	db2, last, err := New(logger, t.TempDir(), defaultInitialSize, defaultBufferSize, 5)
-	require.NoError(err)
-	require.Equal(ids.Empty, last)
-	for i := 0; i < batches; i++ {
-		b, err := db2.NewBatch(batchSize + 100)
-		require.NoError(err)
-		b.Prepare()
-		for j := 0; j < batchSize; j++ {
-			b.Put(string(keys[i][j]), values[i][j])
-		}
-		checksum, err := b.Write()
-		require.NoError(err)
-		require.Equal(checksums[i], checksum)
+			// Restart
+			require.NoError(db.Close())
+			db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
+			require.NoError(err)
+			require.Equal(checksums[batches-1], last)
+
+			// Ensure data is correct after restart
+			for i := 0; i < batchSize; i++ {
+				v, err := db.Get(string(keys[9][i]))
+				require.NoError(err)
+				require.Equal(values[9][i], v)
+			}
+			require.NoError(db.Close())
+
+			// Create another database and ensure checksums match
+			db2, last, err := New(logger, t.TempDir(), defaultInitialSize, defaultBufferSize, 5)
+			require.NoError(err)
+			require.Equal(ids.Empty, last)
+			for i := 0; i < batches; i++ {
+				b, err := db2.NewBatch(batchSize + 100)
+				require.NoError(err)
+				b.Prepare()
+				for j := 0; j < batchSize; j++ {
+					b.Put(string(keys[i][j]), values[i][j])
+				}
+				checksum, err := b.Write()
+				require.NoError(err)
+				require.Equal(checksums[i], checksum)
+			}
+		})
 	}
 }
 
@@ -334,9 +338,11 @@ func BenchmarkAppendDB(b *testing.B) {
 
 					// Write 1M unique keys in 10 batches
 					for j := 0; j < batches; j++ {
+						start := time.Now()
 						b, err := db.NewBatch(batchSize + 100)
 						require.NoError(err)
-						start := time.Now()
+						newBatchDuration := time.Since(start)
+						start = time.Now()
 						recycled := b.Prepare()
 						prepareDuration := time.Since(start)
 						start = time.Now()
@@ -348,6 +354,7 @@ func BenchmarkAppendDB(b *testing.B) {
 						_, err = b.Write()
 						logger.Info(
 							"latency",
+							zap.Duration("new batch", newBatchDuration),
 							zap.Duration("prepare", prepareDuration),
 							zap.Int("recycled", recycled),
 							zap.Duration("puts", putDuration),
