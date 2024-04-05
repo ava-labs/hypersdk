@@ -250,14 +250,26 @@ func New(
 		for aliveIter.Next() {
 			key, entry := aliveIter.Key(), aliveIter.Value()
 			past, ok := keys[key]
+
+			// Delete old value from previous batch before reuse
+			if ok {
+				batches[past.batch].alive.Delete(key)
+			}
+
+			// Update entry
 			if entry == nil {
 				delete(keys, key)
 				alive.Delete(key) // only track keys that are alive
 			} else {
-				keys[key] = entry
-			}
-			if ok {
-				batches[past.batch].alive.Delete(key)
+				if ok {
+					// Reuse record if already exists
+					past.batch = entry.batch
+					past.value = entry.value
+					past.loc = entry.loc
+					past.size = entry.size
+				} else {
+					keys[key] = entry
+				}
 			}
 		}
 		if i == 0 {
@@ -501,9 +513,17 @@ func (b *Batch) Prepare() int {
 	for aliveIter.Next() {
 		key, record := aliveIter.Key(), aliveIter.Value()
 		past, ok := b.a.keys[key]
-		b.a.keys[key] = record
 		if ok {
+			// Delete old items from linked hashmap
 			b.a.batches[past.batch].alive.Delete(key)
+
+			// Use existing value instead of inserting a new value
+			past.batch = record.batch
+			past.value = record.value
+			past.loc = record.loc
+			past.size = record.size
+		} else {
+			b.a.keys[key] = record
 		}
 	}
 	return b.recycled
@@ -519,9 +539,17 @@ func (b *Batch) Put(key string, value []byte) {
 
 	// Cleanup old record
 	past, ok := b.a.keys[key]
-	b.a.keys[key] = record
 	if ok {
+		// Delete old items from linked hashmap
 		b.a.batches[past.batch].alive.Delete(key)
+
+		// Use existing value instead of inserting a new value
+		past.batch = record.batch
+		past.value = record.value
+		past.loc = record.loc
+		past.size = record.size
+	} else {
+		b.a.keys[key] = record
 	}
 }
 
