@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -328,13 +327,15 @@ func (a *AppendDB) Close() error {
 //
 // Batch assumes that keys are inserted in a **deterministic** order
 // otherwise the checksum will differ across nodes.
+//
+// Batch assumes there is only one interaction per key per batch.
 type Batch struct {
 	a     *AppendDB
 	path  string
 	batch uint64
 
-	prepared       atomic.Bool
 	pruneableBatch *uint64
+	recycled       int
 
 	hasher hash.Hash
 	f      *os.File
@@ -357,7 +358,7 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		return nil, err
 	}
 	a.nextBatch++
-	return &Batch{
+	b := &Batch{
 		a:     a,
 		path:  path,
 		batch: batch,
@@ -368,7 +369,9 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		buf:    make([]byte, defaultBatchBufferSize),
 		writer: bufio.NewWriterSize(f, a.bufferSize),
 		alive:  linked.NewHashmapWithSize[string, *record](changes),
-	}, nil
+	}
+	b.recycle()
+	return b, nil
 }
 
 func (b *Batch) growBuffer(size int) {
@@ -379,7 +382,7 @@ func (b *Batch) growBuffer(size int) {
 	}
 }
 
-// Prepare reads all keys from the oldest batch
+// recycle reads all keys from the oldest batch
 // and puts them into the new file.
 //
 // A byproduct of this approach is that batches may contain duplicate
@@ -387,27 +390,20 @@ func (b *Batch) growBuffer(size int) {
 // that tradeoff to begin writing the new batch as soon as possible.
 //
 // It is safe to call prepare multiple times.
-func (b *Batch) Prepare() int {
-	defer b.prepared.Store(true)
-
-	if b.prepared.Load() {
-		panic("batch already prepared")
-	}
-
+func (b *Batch) recycle() {
 	// Determine if we should delete the oldest batch
 	if b.batch < b.a.historyLen {
-		return 0
+		return
 	}
 	if b.a.oldestBatch == nil {
-		return 0
+		return
 	}
 	oldestBatch := *b.a.oldestBatch
 	if b.batch-b.a.historyLen < oldestBatch {
-		return 0
+		return
 	}
 
 	// Collect all alive records and add them to the batch file
-	recycled := 0
 	aliveIter := b.a.batches[oldestBatch].alive.NewIterator()
 	for aliveIter.Next() {
 		k, record := aliveIter.Key(), aliveIter.Value()
@@ -423,23 +419,22 @@ func (b *Batch) Prepare() int {
 		value, err := b.a.Get(k)
 		if err != nil {
 			b.err = err
-			return 0
+			return
 		}
-		b.Put(k, value)
-		recycled++
+		b.alive.Put(k, b.put(k, value))
+		b.recycled++
 	}
 	b.pruneableBatch = &oldestBatch
-	return recycled
 }
 
-func (b *Batch) Put(key string, value []byte) {
+func (b *Batch) put(key string, value []byte) *record {
 	// Check input
 	if b.err != nil {
-		return
+		return nil
 	}
 	if len(key) > int(consts.MaxUint16) {
 		b.err = ErrKeyTooLong
-		return
+		return nil
 	}
 
 	// Create operation to write
@@ -455,20 +450,56 @@ func (b *Batch) Put(key string, value []byte) {
 	// Write to disk
 	if _, err := b.writer.Write(b.buf); err != nil {
 		b.err = err
-		return
+		return nil
 	}
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		b.err = err
-		return
+		return nil
 	}
+	b.cursor += int64(l)
 
-	// Add to changes
-	b.alive.Put(key, &record{
+	// Furnish record for future usage
+	//
+	// Note: this batch is not mmap'd yet and should not be used until it is.
+	return &record{
 		batch: b.batch,
 		loc:   valueStart,
 		size:  uint32(len(value)),
-	})
-	b.cursor += int64(l)
+	}
+}
+
+// Prepare should be called write before we begin writing to the batch. As soon as
+// this function is called, all reads to the database will be blocked.
+func (b *Batch) Prepare() int {
+	b.a.keyLock.Lock()
+
+	// Iterate over [alive] and update [keys] that were recycled
+	aliveIter := b.alive.NewIterator()
+	for aliveIter.Next() {
+		key, record := aliveIter.Key(), aliveIter.Value()
+		past, ok := b.a.keys[key]
+		b.a.keys[key] = record
+		if ok {
+			b.a.batches[past.batch].alive.Delete(key)
+		}
+	}
+	return b.recycled
+}
+
+func (b *Batch) Put(key string, value []byte) {
+	record := b.put(key, value)
+	if record == nil {
+		// An error occurred
+		return
+	}
+	b.alive.Put(key, record)
+
+	// Cleanup old record
+	past, ok := b.a.keys[key]
+	b.a.keys[key] = record
+	if ok {
+		b.a.batches[past.batch].alive.Delete(key)
+	}
 }
 
 func (b *Batch) Delete(key string) {
@@ -497,50 +528,37 @@ func (b *Batch) Delete(key string) {
 		b.err = err
 		return
 	}
-
-	// Add to changes
-	b.alive.Put(key, nil)
 	b.cursor += int64(l)
-}
 
-// ungracefulWrite cleans up any partial file writes
-// in the case of an error and resets the database file count.
-func (b *Batch) ungracefulWrite() {
-	b.a.nextBatch--
-	_ = b.f.Close()
-	_ = os.Remove(b.path)
-	return
-}
-
-// Write fsyncs the changes to disk and opens
-// the file for reading.
-//
-// It then begins a cleanup routine to remove old
-// files (to prevent the disk from filling up).
-func (b *Batch) Write() (ids.ID, error) {
-	defer b.a.commitLock.Unlock()
-
-	// Check if we properly prepared this batch
-	if !b.prepared.Load() && b.err == nil {
-		b.err = ErrNotPrepared
+	// Cleanup any old keys
+	past, ok := b.a.keys[key]
+	delete(b.a.keys, key)
+	if ok {
+		b.a.batches[past.batch].alive.Delete(key)
 	}
+}
+
+// Write failure is not expected. If an error is returned,
+// it should be treated as fatal.
+func (b *Batch) Write() (ids.ID, error) {
+	defer func() {
+		b.a.keyLock.Unlock()
+		b.a.commitLock.Unlock()
+	}()
 
 	// If we already encountered an error, return that immediately
 	if b.err != nil {
-		b.ungracefulWrite()
 		return ids.Empty, b.err
 	}
 
 	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
 	checksum := b.hasher.Sum(nil)
 	if _, err := b.writer.Write(checksum); err != nil {
-		b.ungracefulWrite()
 		return ids.Empty, err
 	}
 
 	// Flush all unwritten data to disk
 	if err := b.writer.Flush(); err != nil {
-		b.ungracefulWrite()
 		return ids.Empty, err
 	}
 
@@ -549,7 +567,6 @@ func (b *Batch) Write() (ids.ID, error) {
 	// Note: we don't require the file to be fsync'd here and assume
 	// we can recover the current state on restart.
 	if err := b.f.Close(); err != nil {
-		b.ungracefulWrite()
 		return ids.Empty, err
 	}
 
@@ -561,29 +578,8 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 	b.a.size += uint64(reader.Len())
 
-	// Update in-memory values with new locations
-	//
-	// We wait to do this until now to avoid locking all reads
-	// while we update the keys.
-	start := time.Now()
-	b.a.keyLock.Lock()
+	// Register the batch for reading
 	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.alive}
-	aliveIter := b.alive.NewIterator()
-	for aliveIter.Next() {
-		key, entry := aliveIter.Key(), aliveIter.Value()
-		past, ok := b.a.keys[key]
-		if entry == nil {
-			delete(b.a.keys, key)
-			b.alive.Delete(key) // only track keys that are alive
-		} else {
-			b.a.keys[key] = entry
-		}
-		if ok {
-			b.a.batches[past.batch].alive.Delete(key)
-		}
-	}
-	b.a.keyLock.Unlock()
-	b.a.logger.Info("update keys", zap.Duration("duration", time.Since(start)))
 
 	// Delete old batch once keys are updated to new batch
 	if b.pruneableBatch != nil {
