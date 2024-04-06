@@ -40,7 +40,7 @@ if ! aws sts get-caller-identity >/dev/null 2>&1 ; then
 fi
 
 # Set AvalancheGo Build (should have canPop disabled)
-AVALANCHEGO_COMMIT=d8ca8137975ec3940ea6b4a7e341cbdfcb3f4930
+AVALANCHEGO_COMMIT=29d8a7b11aa8dbaff90ea4d8e1d41524a593f68a
 
 # Create temporary directory for the deployment
 TMPDIR=/tmp/morpheusvm-deploy
@@ -120,7 +120,6 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authExecutionCores": 16,
   "precheckCores": 8,
   "actionExecutionCores": 8,
-  "rootGenerationCores": 16,
   "missingChunkFetchers": 48,
   "verifyAuth": true,
   "authRPCCores": 32,
@@ -130,6 +129,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "chunkStorageCores": 16,
   "chunkStorageBacklog": 10000000,
   "streamingBacklogSize": 10000000,
+  "continuousProfilerDir":"/home/ubuntu/morpheusvm-profiles",
   "logLevel": "INFO"
 }
 EOF
@@ -161,9 +161,9 @@ cat <<EOF > "${TMPDIR}"/node.config
   "throttler-outbound-node-max-at-large-bytes":"10737418240",
   "consensus-on-accept-gossip-validator-size":"10",
   "consensus-on-accept-gossip-peer-size":"10",
-  "network-compression-type":"none",
-  "consensus-app-concurrency":"64",
-  "profile-continuous-enabled":false,
+  "network-compression-type":"zstd",
+  "consensus-app-concurrency":"128",
+  "profile-continuous-enabled":true,
   "profile-continuous-freq":"1m",
   "http-host":"",
   "http-allowed-origins": "*",
