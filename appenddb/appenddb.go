@@ -430,6 +430,13 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	return b, nil
 }
 
+// TODO: make this a true abort as long as called before Prepare
+//
+// We must release this lock to shutdown properly
+func (b *Batch) Abort() {
+	b.a.commitLock.Unlock()
+}
+
 func (b *Batch) growBuffer(size int) {
 	if cap(b.buf) < size {
 		b.buf = make([]byte, size, size*2)

@@ -353,6 +353,8 @@ func (e *Engine) Run() {
 				panic(err) // unrecoverable error
 			}
 		case <-e.vm.StopChan():
+			// Give up latest batch
+			batch.Abort()
 			return
 		}
 	}
