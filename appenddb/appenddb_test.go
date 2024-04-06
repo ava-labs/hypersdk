@@ -114,6 +114,51 @@ func TestAppendDB(t *testing.T) {
 	require.NoError(db.Close())
 }
 
+func TestAppendDBReinsertHistory(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	ctx := context.TODO()
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"appenddb",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Insert key
+	b, err := db.NewBatch(10)
+	require.NoError(err)
+	require.Zero(b.Prepare())
+	require.NoError(b.Put(ctx, "hello", []byte("world")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Create a batch gap
+	b, err = db.NewBatch(10)
+	require.NoError(err)
+	require.Zero(b.Prepare())
+	require.NoError(b.Put(ctx, "world", []byte("hello")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Modify recycled key
+	b, err = db.NewBatch(10)
+	require.NoError(err)
+	require.Equal(1, b.Prepare())
+	require.NoError(b.Put(ctx, "hello", []byte("world2")))
+	_, err = b.Write()
+	require.NoError(err)
+}
+
 func TestAppendDBPrune(t *testing.T) {
 	// Prepare
 	require := require.New(t)
