@@ -70,10 +70,9 @@ type AppendDB struct {
 	nextBatch   uint64
 	size        uint64
 
-	keyLock       sync.RWMutex
-	leftoverAlive *linked.Hashmap[string, *record] // avoid reallocation
-	batches       map[uint64]*tracker
-	keys          map[string]*record
+	keyLock sync.RWMutex
+	batches map[uint64]*tracker
+	keys    map[string]*record
 }
 
 func readRecord(batch uint64, reader io.Reader, cursor int64, hasher hash.Hash) (string, *record, int64, error) {
@@ -416,14 +415,11 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		buf:    make([]byte, defaultBatchBufferSize),
 		writer: bufio.NewWriterSize(f, a.bufferSize),
 	}
-	if a.leftoverAlive == nil {
+	// If we don't need to recycle, we should create a new hashmap for this
+	// batch.
+	if !b.recycle() {
 		b.alive = linked.NewHashmapWithSize[string, *record](changes)
-	} else {
-		b.alive = a.leftoverAlive
-		a.leftoverAlive = nil
-		b.alive.Clear()
 	}
-	b.recycle()
 	return b, nil
 }
 
@@ -443,43 +439,48 @@ func (b *Batch) growBuffer(size int) {
 // that tradeoff to begin writing the new batch as soon as possible.
 //
 // It is safe to call prepare multiple times.
-func (b *Batch) recycle() {
+func (b *Batch) recycle() bool {
 	// Determine if we should delete the oldest batch
 	if b.batch < b.a.historyLen {
-		return
+		return false
 	}
 	if b.a.oldestBatch == nil {
-		return
+		return false
 	}
 	oldestBatch := *b.a.oldestBatch
 	if b.batch-b.a.historyLen <= oldestBatch {
 		// This means that if we are working on batch 2, we will prune batch 0
 		// but keep batch 1 around.
-		return
+		return false
 	}
 
-	// Collect all alive records and add them to the batch file
-	aliveIter := b.a.batches[oldestBatch].alive.NewIterator()
-	for aliveIter.Next() {
-		k, record := aliveIter.Key(), aliveIter.Value()
+	// Reuse alive tracker we have been keeping up-to-date
+	b.alive = b.a.batches[oldestBatch].alive
 
-		// Do nothing if the record was a delete (state would already have this accounted
-		// for on restart)
-		if record == nil {
-			continue
+	// Iterate over alive records and add them to the batch file
+	items := b.alive.Len()
+	aliveIter := b.alive.NewIterator()
+	for i := 0; i < items; i++ {
+		// Iterate over all items in [alive] and write them to the batch file
+		if !aliveIter.Next() {
+			b.err = ErrCorrupt
+			return true
 		}
 
-		// Anything left in [alive] is should be written, so we don't
-		// need to check the batch in key.
+		// Anything left in [alive] should be written
+		k := aliveIter.Key()
 		value, err := b.a.Get(context.TODO(), k)
 		if err != nil {
 			b.err = err
-			return
+			return true
 		}
+
+		// Create a new record for the key in the batch file
 		b.alive.Put(k, b.put(k, value))
 		b.recycled++
 	}
 	b.pruneableBatch = &oldestBatch
+	return true
 }
 
 // TODO: make this a true abort as long as called before Prepare
@@ -545,26 +546,14 @@ func (b *Batch) put(key string, value []byte) *record {
 func (b *Batch) Prepare() int {
 	b.a.keyLock.Lock()
 
-	// Iterate over [alive] and update [keys] that were recycled
+	// Iterate over [alive] and update records for [keys] that were recycled
 	aliveIter := b.alive.NewIterator()
 	for aliveIter.Next() {
 		key, record := aliveIter.Key(), aliveIter.Value()
-		past, ok := b.a.keys[key]
-		if ok {
-			// Delete old items from linked hashmap
-			b.a.batches[past.batch].alive.Delete(key)
 
-			// Use existing value instead of inserting a new value
-			//
-			// This value was also used in [alive], so we don't need
-			// to reclaim that too.
-			past.batch = record.batch
-			past.value = record.value
-			past.loc = record.loc
-			past.size = record.size
-		} else {
-			b.a.keys[key] = record
-		}
+		// Any past value stored in keys must be the [key] stored in [alive], so
+		// we don't need to worry about deleting old values from alive.
+		b.a.keys[key] = record
 	}
 	return b.recycled
 }
@@ -714,7 +703,6 @@ func (b *Batch) Write() (ids.ID, error) {
 		b.a.size -= preparedSize
 		oldestBatch := preparedBatch + 1
 		b.a.oldestBatch = &oldestBatch
-		b.a.leftoverAlive = preparedReader.alive
 	}
 	if b.a.oldestBatch == nil {
 		b.a.oldestBatch = &b.batch
