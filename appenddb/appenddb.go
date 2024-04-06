@@ -427,13 +427,6 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 	return b, nil
 }
 
-// TODO: make this a true abort as long as called before Prepare
-//
-// We must release this lock to shutdown properly
-func (b *Batch) Abort() {
-	b.a.commitLock.Unlock()
-}
-
 func (b *Batch) growBuffer(size int) {
 	if cap(b.buf) < size {
 		b.buf = make([]byte, size, size*2)
@@ -487,6 +480,18 @@ func (b *Batch) recycle() {
 		b.recycled++
 	}
 	b.pruneableBatch = &oldestBatch
+}
+
+// TODO: make this a true abort as long as called before Prepare
+//
+// We must release this lock to shutdown properly
+func (b *Batch) Abort() {
+	// Delete in-progress file
+	_ = b.f.Close()
+	_ = os.Remove(b.path)
+
+	// Release lock held acquired during [recycle]
+	b.a.commitLock.Unlock()
 }
 
 func (b *Batch) put(key string, value []byte) *record {
