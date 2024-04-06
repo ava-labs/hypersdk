@@ -157,6 +157,14 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
+
+	// Delete recycled key
+	b, err = db.NewBatch(10)
+	require.NoError(err)
+	require.Equal(1, b.Prepare())
+	require.NoError(b.Delete(ctx, "world"))
+	_, err = b.Write()
+	require.NoError(err)
 }
 
 func TestAppendDBPrune(t *testing.T) {

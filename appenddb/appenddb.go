@@ -580,7 +580,13 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	past, ok := b.a.keys[key]
 	if ok {
 		// Delete old items from linked hashmap
-		b.a.batches[past.batch].alive.Delete(key)
+		//
+		// We check to see if the past batch is less
+		// than the current batch because we may have just recycled
+		// this key and it is already in [alive].
+		if past.batch < b.batch {
+			b.a.batches[past.batch].alive.Delete(key)
+		}
 
 		// Use existing value instead of inserting a new value
 		//
@@ -626,7 +632,16 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	past, ok := b.a.keys[key]
 	delete(b.a.keys, key)
 	if ok {
-		b.a.batches[past.batch].alive.Delete(key)
+		// Delete old items from linked hashmap
+		//
+		// We check to see if the past batch is less
+		// than the current batch because we may have just recycled
+		// this key and it is already in [alive].
+		if past.batch < b.batch {
+			b.a.batches[past.batch].alive.Delete(key)
+		} else {
+			b.alive.Delete(key)
+		}
 	}
 	return nil
 }
