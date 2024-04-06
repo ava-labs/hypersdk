@@ -328,7 +328,7 @@ func (e *Engine) Run() {
 
 	// Get last accepted state
 	e.db = e.vm.State()
-	batch, err := e.db.NewBatch(500_000) // TODO: set to max txs in a block
+	batch, err := e.db.NewBatch(16_384) // will grow if needed over time
 	if err != nil {
 		panic(err)
 	}
@@ -340,7 +340,7 @@ func (e *Engine) Run() {
 			switch {
 			case err == nil:
 				// Start preparation for new batch
-				batch, err = e.db.NewBatch(500_000) // TODO: set to max txs in a block
+				batch, err = e.db.NewBatch(16_384) // will grow if needed over time
 				if err != nil {
 					panic(err)
 				}

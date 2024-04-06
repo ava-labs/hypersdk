@@ -19,7 +19,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/consts"
@@ -162,7 +161,7 @@ func loadBatch(path string, file uint64) (ids.ID, *linked.Hashmap[string, *recor
 
 	// Read all operations from the file
 	var (
-		alive    = linked.NewHashmap[string, *record]()
+		alive    = linked.NewHashmapWithSize[string, *record](16_384) // TODO: handle this better
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
 		hasher   = sha256.New()
@@ -389,10 +388,9 @@ type Batch struct {
 	f      *os.File
 	cursor int64
 
-	deadRecords buffer.Deque[*record]
-	buf         []byte
-	writer      *bufio.Writer
-	alive       *linked.Hashmap[string, *record]
+	buf    []byte
+	writer *bufio.Writer
+	alive  *linked.Hashmap[string, *record]
 
 	err error
 }
@@ -415,9 +413,8 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		hasher: sha256.New(),
 		f:      f,
 
-		deadRecords: buffer.NewUnboundedDeque[*record](max(changes/2, 16_384)),
-		buf:         make([]byte, defaultBatchBufferSize),
-		writer:      bufio.NewWriterSize(f, a.bufferSize),
+		buf:    make([]byte, defaultBatchBufferSize),
+		writer: bufio.NewWriterSize(f, a.bufferSize),
 	}
 	if a.leftoverAlive == nil {
 		b.alive = linked.NewHashmapWithSize[string, *record](changes)
@@ -526,22 +523,14 @@ func (b *Batch) put(key string, value []byte) *record {
 	// Furnish record for future usage
 	//
 	// Note: this batch is not mmap'd yet and should not be used until it is.
-	var r *record
-	if rec, ok := b.deadRecords.PopRight(); ok {
-		r = rec
-	} else {
-		r = &record{}
-	}
-	r.batch = b.batch
+	r := &record{batch: b.batch}
 	lv := len(value)
 	if lv >= minDiskValueSize {
-		r.value = nil
 		r.loc = valueStart
 		r.size = uint32(lv)
 	} else {
 		r.value = value
 		r.loc = -1
-		r.size = 0
 	}
 	return r
 }
@@ -568,7 +557,6 @@ func (b *Batch) Prepare() int {
 			past.value = record.value
 			past.loc = record.loc
 			past.size = record.size
-			b.deadRecords.PushRight(record)
 		} else {
 			b.a.keys[key] = record
 		}
@@ -603,7 +591,6 @@ func (b *Batch) Insert(_ context.Context, bkey []byte, value []byte) error {
 		past.value = record.value
 		past.loc = record.loc
 		past.size = record.size
-		b.deadRecords.PushRight(record)
 	} else {
 		b.a.keys[key] = record
 	}
@@ -642,7 +629,6 @@ func (b *Batch) Remove(_ context.Context, bkey []byte) error {
 	delete(b.a.keys, key)
 	if ok {
 		b.a.batches[past.batch].alive.Delete(key)
-		b.deadRecords.PushRight(past)
 	}
 	return nil
 }
