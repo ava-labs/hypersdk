@@ -252,7 +252,7 @@ func (vm *VM) Initialize(
 	}
 	vm.blobDB = blobDB
 	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
-	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 64*units.KiB, 512) // TODO: make this a config
+	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 64*units.KiB, 128) // TODO: make these configs
 	if err != nil {
 		return err
 	}
