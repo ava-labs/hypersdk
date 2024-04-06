@@ -319,8 +319,8 @@ func New(
 	return adb, lastChecksum, nil
 }
 
-func (a *AppendDB) getValue(key []byte) ([]byte, error) {
-	entry, ok := a.keys[string(key)]
+func (a *AppendDB) get(key string) ([]byte, error) {
+	entry, ok := a.keys[key]
 	if !ok {
 		return nil, database.ErrNotFound
 	}
@@ -332,21 +332,21 @@ func (a *AppendDB) getValue(key []byte) ([]byte, error) {
 	return value, err
 }
 
-func (a *AppendDB) GetValue(_ context.Context, key []byte) ([]byte, error) {
+func (a *AppendDB) Get(_ context.Context, key string) ([]byte, error) {
 	a.keyLock.RLock()
 	defer a.keyLock.RUnlock()
 
-	return a.getValue(key)
+	return a.get(key)
 }
 
-func (a *AppendDB) GetValues(_ context.Context, keys [][]byte) ([][]byte, []error) {
+func (a *AppendDB) Gets(_ context.Context, keys []string) ([][]byte, []error) {
 	a.keyLock.RLock()
 	defer a.keyLock.RUnlock()
 
 	values := make([][]byte, len(keys))
 	errors := make([]error, len(keys))
 	for i, key := range keys {
-		values[i], errors[i] = a.getValue(key)
+		values[i], errors[i] = a.get(key)
 	}
 	return values, errors
 }
@@ -478,7 +478,7 @@ func (b *Batch) recycle() {
 
 		// Anything left in [alive] is should be written, so we don't
 		// need to check the batch in key.
-		value, err := b.a.GetValue(context.TODO(), []byte(k))
+		value, err := b.a.Get(context.TODO(), k)
 		if err != nil {
 			b.err = err
 			return
@@ -564,12 +564,11 @@ func (b *Batch) Prepare() int {
 	return b.recycled
 }
 
-func (b *Batch) Insert(_ context.Context, bkey []byte, value []byte) error {
+func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	if b.err != nil {
 		return b.err
 	}
 
-	key := string(bkey)
 	record := b.put(key, value)
 	if record == nil {
 		// An error occurred
@@ -597,13 +596,12 @@ func (b *Batch) Insert(_ context.Context, bkey []byte, value []byte) error {
 	return nil
 }
 
-func (b *Batch) Remove(_ context.Context, bkey []byte) error {
+func (b *Batch) Delete(_ context.Context, key string) error {
 	if b.err != nil {
 		return b.err
 	}
 
 	// Check input
-	key := string(bkey)
 	if len(key) > int(consts.MaxUint16) {
 		return ErrKeyTooLong
 	}
@@ -633,8 +631,8 @@ func (b *Batch) Remove(_ context.Context, bkey []byte) error {
 	return nil
 }
 
-func (b *Batch) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	return b.a.GetValue(ctx, key)
+func (b *Batch) Get(ctx context.Context, key string) ([]byte, error) {
+	return b.a.Get(ctx, key)
 }
 
 // Write failure is not expected. If an error is returned,

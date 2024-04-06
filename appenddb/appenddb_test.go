@@ -1,6 +1,7 @@
 package appenddb
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"os"
@@ -52,6 +53,7 @@ func randomKeyValues(batches int, itemsPerBatch int, keySize int, valueSize int,
 func TestAppendDB(t *testing.T) {
 	// Prepare
 	require := require.New(t)
+	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
 		"appenddb",
@@ -72,13 +74,13 @@ func TestAppendDB(t *testing.T) {
 	b, err := db.NewBatch(10)
 	require.NoError(err)
 	require.Zero(b.Prepare())
-	b.Put("hello", []byte("world"))
+	require.NoError(b.Put(ctx, "hello", []byte("world")))
 	batch, err := b.Write()
 	require.NoError(err)
 	require.NotEqual(ids.Empty, batch)
 
 	// Get
-	v, err := db.Get("hello")
+	v, err := db.Get(ctx, "hello")
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 
@@ -89,7 +91,7 @@ func TestAppendDB(t *testing.T) {
 	require.Equal(batch, last)
 
 	// Get
-	v, err = db.Get("hello")
+	v, err = db.Get(ctx, "hello")
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 
@@ -107,7 +109,7 @@ func TestAppendDB(t *testing.T) {
 	require.Equal(ids.Empty, last)
 
 	// Get
-	v, err = db.Get("hello")
+	v, err = db.Get(ctx, "hello")
 	require.ErrorIs(err, database.ErrNotFound)
 	require.NoError(db.Close())
 }
@@ -115,6 +117,7 @@ func TestAppendDB(t *testing.T) {
 func TestAppendDBPrune(t *testing.T) {
 	// Prepare
 	require := require.New(t)
+	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
 		"appenddb",
@@ -140,13 +143,13 @@ func TestAppendDBPrune(t *testing.T) {
 		switch {
 		case i == 0:
 			// Never modify again
-			b.Put("hello", []byte("world"))
+			require.NoError(b.Put(ctx, "hello", []byte("world")))
 		case i < 99:
 			for j := 0; j < 10; j++ {
-				b.Put(strconv.Itoa(j), []byte(strconv.Itoa(i)))
+				require.NoError(b.Put(ctx, strconv.Itoa(j), []byte(strconv.Itoa(i))))
 			}
 		default:
-			b.Delete(strconv.Itoa(0))
+			require.NoError(b.Delete(ctx, strconv.Itoa(0)))
 		}
 		lastBatch, err = b.Write()
 		require.NoError(err)
@@ -154,11 +157,11 @@ func TestAppendDBPrune(t *testing.T) {
 	}
 
 	// Ensure data is correct
-	v, err := db.Get("hello")
+	v, err := db.Get(ctx, "hello")
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 	for i := 0; i < 10; i++ {
-		v, err = db.Get(strconv.Itoa(i))
+		v, err = db.Get(ctx, strconv.Itoa(i))
 		if i == 0 {
 			require.ErrorIs(err, database.ErrNotFound)
 		} else {
@@ -171,7 +174,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 	files, err := os.ReadDir(baseDir)
 	require.NoError(err)
-	require.Len(files, 10) // 10 for the data files
+	require.Len(files, 11) // 10 historical batches
 
 	// Restart
 	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
@@ -179,11 +182,11 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Equal(lastBatch, last)
 
 	// Ensure data is correct after restart
-	v, err = db.Get("hello")
+	v, err = db.Get(ctx, "hello")
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 	for i := 0; i < 10; i++ {
-		v, err = db.Get(strconv.Itoa(i))
+		v, err = db.Get(ctx, strconv.Itoa(i))
 		if i == 0 {
 			require.ErrorIs(err, database.ErrNotFound)
 		} else {
@@ -199,9 +202,9 @@ func TestAppendDBPrune(t *testing.T) {
 		b.Prepare()
 		for j := 0; j < 10; j++ {
 			if i == 5 {
-				b.Delete(strconv.Itoa(j))
+				require.NoError(b.Delete(ctx, strconv.Itoa(j)))
 			} else {
-				b.Put(strconv.Itoa(j), []byte(strconv.Itoa(i)))
+				require.NoError(b.Put(ctx, strconv.Itoa(j), []byte(strconv.Itoa(i))))
 			}
 		}
 		lastBatch, err = b.Write()
@@ -211,18 +214,18 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 	files, err = os.ReadDir(baseDir)
 	require.NoError(err)
-	require.Len(files, 10) // 10 for the data files
+	require.Len(files, 11) // 10 historical batches
 
 	// Read from new batches
 	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 	for i := 0; i < 10; i++ {
-		v, err = db.Get(strconv.Itoa(i))
+		v, err = db.Get(ctx, strconv.Itoa(i))
 		require.NoError(err)
 		require.Equal([]byte(strconv.Itoa(9)), v)
 	}
-	v, err = db.Get("hello")
+	v, err = db.Get(ctx, "hello")
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 	require.NoError(db.Close())
@@ -233,6 +236,7 @@ func TestAppendDBLarge(t *testing.T) {
 		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
 			// Prepare
 			require := require.New(t)
+			ctx := context.TODO()
 			baseDir := t.TempDir()
 			logger := logging.NewLogger(
 				"appenddb",
@@ -258,20 +262,20 @@ func TestAppendDBLarge(t *testing.T) {
 				b, err := db.NewBatch(batchSize + 100)
 				require.NoError(err)
 				recycled := b.Prepare()
-				if i < 5 {
+				if i <= 5 {
 					require.Zero(recycled)
 				} else {
 					require.Equal(batchSize, recycled)
 				}
 				for j := 0; j < batchSize; j++ {
-					b.Put(string(keys[i][j]), values[i][j])
+					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
 				}
 				checksum, err := b.Write()
 				require.NoError(err)
 
 				// Ensure data is correct
 				for j := 0; j < batchSize; j++ {
-					v, err := db.Get(string(keys[i][j]))
+					v, err := db.Get(ctx, string(keys[i][j]))
 					require.NoError(err)
 					require.Equal(values[i][j], v)
 				}
@@ -286,7 +290,7 @@ func TestAppendDBLarge(t *testing.T) {
 
 			// Ensure data is correct after restart
 			for i := 0; i < batchSize; i++ {
-				v, err := db.Get(string(keys[9][i]))
+				v, err := db.Get(ctx, string(keys[9][i]))
 				require.NoError(err)
 				require.Equal(values[9][i], v)
 			}
@@ -301,7 +305,7 @@ func TestAppendDBLarge(t *testing.T) {
 				require.NoError(err)
 				b.Prepare()
 				for j := 0; j < batchSize; j++ {
-					b.Put(string(keys[i][j]), values[i][j])
+					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
 				}
 				checksum, err := b.Write()
 				require.NoError(err)
@@ -314,6 +318,7 @@ func TestAppendDBLarge(t *testing.T) {
 func BenchmarkAppendDB(b *testing.B) {
 	// Prepare
 	require := require.New(b)
+	ctx := context.TODO()
 
 	batches := 10
 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
@@ -330,7 +335,7 @@ func BenchmarkAppendDB(b *testing.B) {
 							require.NoError(err)
 							b.Prepare()
 							for k := 0; k < batchSize; k++ {
-								b.Put(string(keys[j][k]), values[j][k])
+								require.NoError(b.Put(ctx, string(keys[j][k]), values[j][k]))
 							}
 							_, err = b.Write()
 							require.NoError(err)
