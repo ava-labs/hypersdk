@@ -184,14 +184,14 @@ type Rules interface {
 }
 
 type MetadataManager interface {
-	HeightKey() []byte
-	PHeightKey() []byte
-	TimestampKey() []byte
+	HeightKey() string
+	PHeightKey() string
+	TimestampKey() string
 }
 
 type WarpManager interface {
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
+	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) string
+	OutgoingWarpKeyPrefix(txID ids.ID) string
 }
 
 type FeeHandler interface {
@@ -224,7 +224,7 @@ type FeeHandler interface {
 type EpochManager interface {
 	// EpochKey is the key that corresponds to the height of the P-Chain to use for
 	// validation of a given epoch and the fees to use for verifying transactions.
-	EpochKey(epoch uint64) []byte
+	EpochKey(epoch uint64) string
 }
 
 type RewardHandler interface {

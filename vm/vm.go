@@ -333,10 +333,10 @@ func (vm *VM) Initialize(
 		}
 
 		// Update chain metadata
-		if err := batch.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := batch.Put(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := batch.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
+		if err := batch.Put(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
 			return err
 		}
 
@@ -447,7 +447,7 @@ func (vm *VM) isReady() bool {
 }
 
 // ReadState reads the latest executed state
-func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+func (vm *VM) ReadState(ctx context.Context, keys []string) ([][]byte, []error) {
 	if !vm.isReady() {
 		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
 	}

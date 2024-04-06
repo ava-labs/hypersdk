@@ -153,14 +153,14 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 }
 
 // checkScope returns whether [k] is in scope and has appropriate permissions.
-func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
-	return ts.scope[string(k)].Has(perm)
+func (ts *TStateView) checkScope(_ context.Context, k string, perm state.Permissions) bool {
+	return ts.scope[k].Has(perm)
 }
 
-// GetValue returns the value associated from tempStorage with the
+// Get returns the value associated from tempStorage with the
 // associated [key]. If [key] does not exist in scope, or is not read/rw, or if it is not found
 // in storage an error is returned.
-func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
+func (ts *TStateView) Get(ctx context.Context, key string) ([]byte, error) {
 	// Getting a value requires a Read permission, so we pass state.Read
 	if !ts.checkScope(ctx, key, state.Read) {
 		return nil, ErrInvalidKeyOrPermission
@@ -183,7 +183,7 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return v, exists
 	}
-	if v, err := ts.im.GetValue(ctx, []byte(key)); err == nil {
+	if v, err := ts.im.Get(ctx, key); err == nil {
 		return v, true
 	}
 	return nil, false
@@ -195,16 +195,16 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
 	}
-	if v, err := ts.im.GetValue(ctx, []byte(key)); err == nil {
+	if v, err := ts.im.Get(ctx, key); err == nil {
 		return nexists && bytes.Equal(v, nval)
 	}
 	return !nexists
 }
 
-// Insert allocates and writes (or just writes) a new key to [tstate]. If this
+// Put allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
-func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	// Inserting requires a Write Permissions, so we pass state.Write
+func (ts *TStateView) Put(ctx context.Context, key string, value []byte) error {
+	// Puting requires a Write Permissions, so we pass state.Write
 	if !ts.checkScope(ctx, key, state.Write) {
 		return ErrInvalidKeyOrPermission
 	}
@@ -246,9 +246,9 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	return nil
 }
 
-// Remove deletes a key from [tstate]. If this action returns the
+// Delete deletes a key from [tstate]. If this action returns the
 // value of [key] to the parent view, it reverts any pending changes.
-func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
+func (ts *TStateView) Delete(ctx context.Context, key string) error {
 	// Removing requires writing & deleting that key, so we pass state.Write
 	if !ts.checkScope(ctx, key, state.Write) {
 		return ErrInvalidKeyOrPermission
@@ -332,7 +332,7 @@ func (ts *TState) NewWriteView(chunkIdx, txIdx int) *TStateWriteView {
 	}
 }
 
-func (ts *TStateWriteView) Insert(ctx context.Context, key []byte, value []byte) error {
+func (ts *TStateWriteView) Put(ctx context.Context, key string, value []byte) error {
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}

@@ -47,7 +47,7 @@ func (ts *TState) PrepareChunk(idx, size int) {
 // Iterate over changes in deterministic order
 //
 // Iterate should only be called once tstate is done being modified.
-func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
+func (ts *TState) Iterate(f func(string, maybe.Maybe[[]byte]) error) error {
 	// TODO: make naming more generic
 	for chunkIdx, txs := range ts.viewKeys {
 		if txs == nil {
@@ -71,7 +71,7 @@ func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
 					// If we weren't the latest modification, skip
 					continue
 				}
-				if err := f([]byte(key), v.v); err != nil {
+				if err := f(key, v.v); err != nil {
 					return err
 				}
 			}

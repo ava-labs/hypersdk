@@ -75,7 +75,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 
 	// Fetch parent height key and ensure block height is valid
 	heightKey := HeightKey(e.vm.StateManager().HeightKey())
-	parentHeightRaw, err := e.db.GetValue(ctx, heightKey)
+	parentHeightRaw, err := e.db.Get(ctx, heightKey)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 		shouldUpdatePHeight bool
 	)
 	pHeightKey := PHeightKey(e.vm.StateManager().PHeightKey())
-	pHeightRaw, err := e.db.GetValue(ctx, pHeightKey)
+	pHeightRaw, err := e.db.Get(ctx, pHeightKey)
 	if err == nil {
 		h := binary.BigEndian.Uint64(pHeightRaw)
 		pHeight = &h
@@ -216,7 +216,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	tsv := ts.NewWriteView(metaChunk, 0)
 	if job.blk.PHeight > 0 { // if context is not set, don't update P-Chain height in state or populate epochs
 		if shouldUpdatePHeight {
-			if err := tsv.Insert(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
+			if err := tsv.Put(ctx, pHeightKey, binary.BigEndian.AppendUint64(nil, job.blk.PHeight)); err != nil {
 				panic(err)
 			}
 			e.vm.Logger().Info("setting current p-chain height", zap.Uint64("height", job.blk.PHeight))
@@ -233,7 +233,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 		// expected to set to the p-chain hegiht for an epoch.
 		nextEpoch := epoch + 3
 		nextEpochKey := EpochKey(e.vm.StateManager().EpochKey(nextEpoch))
-		epochValueRaw, err := e.db.GetValue(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
+		epochValueRaw, err := e.db.Get(ctx, nextEpochKey) // <P-Chain Height>|<Fee Dimensions>
 		switch {
 		case err == nil:
 			e.vm.Logger().Debug(
@@ -244,7 +244,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 		case err != nil && errors.Is(err, database.ErrNotFound):
 			value := make([]byte, consts.Uint64Len)
 			binary.BigEndian.PutUint64(value, job.blk.PHeight)
-			if err := tsv.Insert(ctx, nextEpochKey, value); err != nil {
+			if err := tsv.Put(ctx, nextEpochKey, value); err != nil {
 				panic(err)
 			}
 			e.vm.CacheValidators(ctx, job.blk.PHeight) // optimistically fetch validators to prevent lockbacks
@@ -263,10 +263,10 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	}
 
 	// Update chain metadata
-	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
+	if err := tsv.Put(ctx, heightKey, binary.BigEndian.AppendUint64(nil, job.blk.StatefulBlock.Height)); err != nil {
 		return err
 	}
-	if err := tsv.Insert(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
+	if err := tsv.Put(ctx, HeightKey(e.vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(job.blk.StatefulBlock.Timestamp))); err != nil {
 		return err
 	}
 	tsv.Commit()
@@ -275,12 +275,12 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	commitStart := time.Now()
 	recycled := batch.Prepare()
 	changes := 0
-	if err := ts.Iterate(func(key []byte, value maybe.Maybe[[]byte]) error {
+	if err := ts.Iterate(func(key string, value maybe.Maybe[[]byte]) error {
 		changes++
 		if value.IsNothing() {
-			return batch.Remove(context.TODO(), key)
+			return batch.Delete(context.TODO(), key)
 		} else {
-			return batch.Insert(context.TODO(), key, value.Value())
+			return batch.Put(context.TODO(), key, value.Value())
 		}
 	}); err != nil {
 		return err
@@ -434,8 +434,8 @@ func (e *Engine) IsRepeatTx(
 	return e.vm.IsRepeatTx(ctx, txs, marker), nil
 }
 
-func (e *Engine) ReadLatestState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
-	return e.db.GetValues(ctx, keys)
+func (e *Engine) ReadLatestState(ctx context.Context, keys []string) ([][]byte, []error) {
+	return e.db.Gets(ctx, keys)
 }
 
 func (e *Engine) Done() {
@@ -443,7 +443,7 @@ func (e *Engine) Done() {
 }
 
 func (e *Engine) GetEpochHeights(ctx context.Context, epochs []uint64) (int64, []*uint64, error) {
-	keys := [][]byte{HeightKey(e.vm.StateManager().TimestampKey())}
+	keys := []string{HeightKey(e.vm.StateManager().TimestampKey())}
 	for _, epoch := range epochs {
 		keys = append(keys, EpochKey(e.vm.StateManager().EpochKey(epoch)))
 	}
