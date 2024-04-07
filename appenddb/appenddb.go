@@ -36,8 +36,15 @@ var (
 )
 
 const (
-	opPut    = uint8(0)
-	opDelete = uint8(1)
+	opPut      = uint8(0) // keyLen|key|valueLen|value
+	opDelete   = uint8(1) // keyLen|key
+	opChecksum = uint8(2) // batch|checksum
+	opNullify  = uint8(3) // keyLen|key (serve same purpose as opDelete but used for batch reuse)
+
+	// When mutliple checksums are in a single file (we chose not to rewrite file because
+	// many keys unchanged), we opNullify any keys that are no longer active and compute
+	// the next checksum using the base as the previous checksum (rather than re-iterating
+	// over the entire file).
 
 	batchBufferSize  = 16 * units.KiB
 	minDiskValueSize = 512
