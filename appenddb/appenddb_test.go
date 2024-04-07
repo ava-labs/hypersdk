@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -416,62 +417,61 @@ func TestAppendDBLarge(t *testing.T) {
 	}
 }
 
-//
-// func BenchmarkAppendDB(b *testing.B) {
-// 	// Prepare
-// 	require := require.New(b)
-// 	ctx := context.TODO()
-//
-// 	batches := 10
-// 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
-// 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
-// 			for _, historyLen := range []int{1, 5, 10} {
-// 				keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
-// 				b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d", batchSize, reuse, historyLen), func(b *testing.B) {
-// 					for i := 0; i < b.N; i++ {
-// 						db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, batchSize, defaultBufferSize, historyLen)
-// 						require.NoError(err)
-// 						require.Equal(ids.Empty, last)
-// 						for j := 0; j < batches; j++ {
-// 							b, err := db.NewBatch()
-// 							require.NoError(err)
-// 							b.Prepare()
-// 							for k := 0; k < batchSize; k++ {
-// 								require.NoError(b.Put(ctx, string(keys[j][k]), values[j][k]))
-// 							}
-// 							_, err = b.Write()
-// 							require.NoError(err)
-// 						}
-// 						require.NoError(db.Close())
-// 					}
-// 				})
-// 			}
-// 		}
-// 	}
-// }
-//
-// func BenchmarkPebbleDB(b *testing.B) {
-// 	// Prepare
-// 	require := require.New(b)
-//
-// 	batches := 10
-// 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
-// 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
-// 			keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
-// 			b.Run(fmt.Sprintf("keys=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
-// 				for i := 0; i < b.N; i++ {
-// 					db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
-// 					require.NoError(err)
-// 					for j := 0; j < batches; j++ {
-// 						b := db.NewBatch()
-// 						for k := 0; k < batchSize; k++ {
-// 							b.Put(keys[j][k], values[j][k])
-// 						}
-// 						require.NoError(b.Write())
-// 					}
-// 					require.NoError(db.Close())
-// 				}
-// 			})
-// 		}
-// 	}
-// }
+func BenchmarkAppendDB(b *testing.B) {
+	// Prepare
+	require := require.New(b)
+	ctx := context.TODO()
+
+	batches := 10
+	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
+		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
+			for _, historyLen := range []int{1, 5, 10} {
+				keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
+				b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d", batchSize, reuse, historyLen), func(b *testing.B) {
+					for i := 0; i < b.N; i++ {
+						db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, batchSize, defaultBufferSize, historyLen)
+						require.NoError(err)
+						require.Equal(ids.Empty, last)
+						for j := 0; j < batches; j++ {
+							b, err := db.NewBatch()
+							require.NoError(err)
+							b.Prepare()
+							for k := 0; k < batchSize; k++ {
+								require.NoError(b.Put(ctx, string(keys[j][k]), values[j][k]))
+							}
+							_, err = b.Write()
+							require.NoError(err)
+						}
+						require.NoError(db.Close())
+					}
+				})
+			}
+		}
+	}
+}
+
+func BenchmarkPebbleDB(b *testing.B) {
+	// Prepare
+	require := require.New(b)
+
+	batches := 10
+	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
+		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
+			keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
+			b.Run(fmt.Sprintf("keys=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
+					require.NoError(err)
+					for j := 0; j < batches; j++ {
+						b := db.NewBatch()
+						for k := 0; k < batchSize; k++ {
+							b.Put(keys[j][k], values[j][k])
+						}
+						require.NoError(b.Write())
+					}
+					require.NoError(db.Close())
+				}
+			})
+		}
+	}
+}
