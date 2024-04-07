@@ -110,7 +110,8 @@ type AppendDB struct {
 	bufferSize int
 	historyLen int
 
-	preallocAlive buffer.Deque[*linked.Hashmap[string, *record]]
+	preallocAlive   buffer.Deque[*linked.Hashmap[string, *record]]
+	preallocNullify buffer.Deque[*linked.Hashmap[string, uint64]]
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -270,6 +271,14 @@ func loadBatch(
 			} else {
 				record.value = value
 				record.loc = -1
+			}
+			previousRecord, ok := alive.Get(key)
+			if ok {
+				// This could happen if we put a key in the same batch twice (when reading
+				// keys during prepare).
+				opSize := opPutLenWithValueLen(key, previousRecord.valueSize())
+				aliveBytes -= opSize
+				uselessBytes += opSize
 			}
 			alive.Put(key, record)
 			changes.Put(key, record)
@@ -472,7 +481,8 @@ func New(
 		bufferSize: bufferSize,
 		historyLen: historyLen,
 
-		preallocAlive: preallocAlive,
+		preallocAlive:   preallocAlive,
+		preallocNullify: preallocNullify,
 
 		batches: batches,
 		keys:    keys,
@@ -561,8 +571,12 @@ type Batch struct {
 
 	alive          *linked.Hashmap[string, *record]
 	pendingNullify *linked.Hashmap[string, uint64]
+
+	aliveBytes   uint64
+	uselessBytes uint64
 }
 
+// TODO: cleanup batch creation errors
 func (a *AppendDB) NewBatch() (*Batch, error) {
 	a.commitLock.Lock()
 	batch := a.nextBatch
@@ -587,9 +601,7 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	}
 	if newBatch {
 		b.alive, _ = a.preallocAlive.PopLeft()
-	}
-	if b.alive == nil {
-		panic("empty alive")
+		b.pendingNullify, _ = a.preallocNullify.PopLeft()
 	}
 	return b, nil
 }
@@ -784,69 +796,81 @@ func (b *Batch) nullify(key string) error {
 	return nil
 }
 
-// Prepare should be called write before we begin writing to the batch. As soon as
+// Prepare should be called right before we begin writing to the batch. As soon as
 // this function is called, all reads to the database will be blocked.
-func (b *Batch) Prepare() int {
+//
+// Prepare returns how many bytes were written to prepare the batch
+// and whether or not we are reusing an old batch file.
+func (b *Batch) Prepare() (uint64, bool) {
 	b.a.keyLock.Lock()
 
-	// Iterate over [alive] and update records for [keys] that were recycled
-	aliveIter := b.alive.NewIterator()
-	for aliveIter.Next() {
-		key, record := aliveIter.Key(), aliveIter.Value()
+	if len(b.movingPath) == 0 {
+		// Iterate over [alive] and update records for [keys] that were recycled
+		aliveIter := b.alive.NewIterator()
+		for aliveIter.Next() {
+			key, record := aliveIter.Key(), aliveIter.Value()
 
-		// Any past value stored in keys must be the [key] stored in [alive], so
-		// we don't need to worry about deleting old values from alive.
-		b.a.keys[key] = record
+			// Any past value stored in keys must be the [key] stored in [alive], so
+			// we don't need to worry about deleting old values from alive.
+			b.a.keys[key] = record
+		}
+	} else {
+		// Migrate all alive keys to the new batch lookup.
+		aliveIter := b.alive.NewIterator()
+		for aliveIter.Next() {
+			record := aliveIter.Value()
+			record.batch = b.batch
+
+			// We don't need to update [keys] because we share a pointer
+			// to [record] in [alive].
+		}
 	}
-	return b.recycled
+	return b.openWrites, len(b.movingPath) > 0
 }
 
 func (b *Batch) Put(_ context.Context, key string, value []byte) error {
-	if b.err != nil {
-		return b.err
-	}
-
-	record := b.put(key, value)
-	if record == nil {
-		// An error occurred
-		return b.err
+	record, err := b.put(key, value)
+	if err != nil {
+		return err
 	}
 	b.alive.Put(key, record)
 
-	// Cleanup old record
+	// If key never existed before, just exit
 	past, ok := b.a.keys[key]
-	if ok {
-		// Delete old items from linked hashmap
-		//
-		// We check to see if the past batch is less
-		// than the current batch because we may have just recycled
-		// this key and it is already in [alive].
-		if past.batch < b.batch {
-			b.a.batches[past.batch].alive.Delete(key)
-		}
-
-		// Use existing value instead of inserting a new value
-		//
-		// This value was also used in [alive], so we don't need
-		// to reclaim that too.
-		past.batch = record.batch
-		past.value = record.value
-		past.loc = record.loc
-		past.size = record.size
-	} else {
-		b.a.keys[key] = record
+	if !ok {
+		return nil
 	}
+
+	// If key existed before, update the previous alive record
+	//
+	// We check to see if the past batch is less
+	// than the current batch because we may have just recycled
+	// this key and it is already in [alive].
+	if past.batch < b.batch {
+		b.a.batches[past.batch].Nullify(key)
+	} else {
+		// In the case that we are putting the same key in the same batch,
+		// we will have 2 put records for the same key. We mark this as [uselessBytes]
+		// for the purposes of later pruning the value.
+		opSize := opPutLenWithValueLen(key, past.valueSize())
+		b.aliveBytes -= opSize
+		b.uselessBytes += opSize
+	}
+	b.a.keys[key] = record
+	b.aliveBytes += opPutLen(key, value)
 	return nil
 }
 
 func (b *Batch) Delete(_ context.Context, key string) error {
-	if b.err != nil {
-		return b.err
-	}
-
 	// Check input
 	if len(key) > int(consts.MaxUint16) {
 		return ErrKeyTooLong
+	}
+
+	// Check if key even exists
+	past, ok := b.a.keys[key]
+	if !ok {
+		return nil
 	}
 
 	// Create operation to write
@@ -865,21 +889,21 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	}
 	b.cursor += int64(l)
 
-	// Cleanup any old keys
-	past, ok := b.a.keys[key]
-	delete(b.a.keys, key)
-	if ok {
-		// Delete old items from linked hashmap
-		//
-		// We check to see if the past batch is less
-		// than the current batch because we may have just recycled
-		// this key and it is already in [alive].
-		if past.batch < b.batch {
-			b.a.batches[past.batch].alive.Delete(key)
-		} else {
-			b.alive.Delete(key)
-		}
+	// Account for useless bytes
+	//
+	// We check to see if the past batch is less
+	// than the current batch because we may have just recycled
+	// this key and it is already in [alive].
+	if past.batch < b.batch {
+		b.a.batches[past.batch].Nullify(key)
+	} else {
+		b.alive.Delete(key)
+		opSize := opPutLenWithValueLen(key, past.valueSize())
+		b.aliveBytes -= opSize
+		b.uselessBytes += opSize
 	}
+	delete(b.a.keys, key)
+	b.uselessBytes += opDeleteLen(key)
 	return nil
 }
 
