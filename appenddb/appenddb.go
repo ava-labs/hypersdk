@@ -25,7 +25,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
 	"golang.org/x/exp/mmap"
 )
@@ -116,7 +115,6 @@ type AppendDB struct {
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
 	nextBatch   uint64
-	size        uint64
 
 	keyLock sync.RWMutex
 	batches map[uint64]*tracker
@@ -413,7 +411,6 @@ func New(
 	var (
 		keys    = make(map[string]*record, initialSize)
 		batches = make(map[uint64]*tracker, historyLen+1)
-		size    uint64
 
 		lastChecksum ids.ID
 		firstBatch   uint64
@@ -463,7 +460,6 @@ func New(
 		batches[file] = track
 		lastChecksum = track.checksum
 		lastBatch = file
-		size += uint64(track.reader.Len())
 	}
 	log.Info(
 		"loaded batches",
@@ -472,7 +468,6 @@ func New(
 		zap.Uint64("first batch", firstBatch),
 		zap.Uint64("last batch", lastBatch),
 		zap.Stringer("last checksum", lastChecksum),
-		zap.String("size", humanize.Bytes(size)),
 		zap.Duration("duration", time.Since(start)),
 	)
 	adb := &AppendDB{
@@ -490,7 +485,6 @@ func New(
 	if len(batches) > 0 {
 		adb.oldestBatch = &firstBatch
 		adb.nextBatch = lastBatch + 1
-		adb.size = size
 	}
 	return adb, lastChecksum, nil
 }
@@ -538,7 +532,6 @@ func (a *AppendDB) Close() error {
 	}
 	a.logger.Info(
 		"closing appenddb",
-		zap.String("size", humanize.Bytes(a.size)),
 		zap.Int("keys", len(a.keys)),
 		zap.Uint64("next batch", a.nextBatch),
 		zap.Uint64("batches", uint64(len(a.batches))),
@@ -690,6 +683,8 @@ func (b *Batch) recycle() (bool /* new batch */, error) {
 	b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
 	b.cursor = int64(previous.reader.Len())
 	b.startingCursor = b.cursor
+	b.uselessBytes = previous.uselessBytes
+	b.aliveBytes = previous.aliveBytes
 	if _, err := b.hasher.Write(previous.checksum[:]); err != nil {
 		return false, err
 	}
@@ -966,11 +961,6 @@ func (b *Batch) Write() (ids.ID, error) {
 		}
 		if len(b.movingPath) == 0 {
 			preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
-			s, err := os.Stat(preparedPath)
-			if err != nil {
-				b.a.logger.Error("could not stat old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
-			}
-			b.a.size -= uint64(s.Size())
 			if err := os.Remove(preparedPath); err != nil {
 				b.a.logger.Error("could not remove old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
 			}
@@ -991,7 +981,6 @@ func (b *Batch) Write() (ids.ID, error) {
 		// Should never happen
 		return ids.Empty, err
 	}
-	b.a.size += uint64(reader.Len())
 
 	// Register the batch for reading
 	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.alive}
@@ -1003,9 +992,20 @@ func (b *Batch) Write() (ids.ID, error) {
 	return ids.ID(checksum), nil
 }
 
-func (a *AppendDB) Usage() (int, uint64) {
+func (a *AppendDB) Usage() (int, uint64 /* alive bytes */, uint64 /* useless bytes */) {
 	a.commitLock.RLock()
 	defer a.commitLock.RUnlock()
 
-	return len(a.keys), a.size
+	var (
+		aliveBytes   uint64
+		uselessBytes uint64
+	)
+	for _, batch := range a.batches {
+		aliveBytes += batch.aliveBytes
+
+		// This includes pending nullifies and may be a little inaccurate as to what
+		// is actually on-disk.
+		uselessBytes += batch.uselessBytes
+	}
+	return len(a.keys), aliveBytes, uselessBytes
 }
