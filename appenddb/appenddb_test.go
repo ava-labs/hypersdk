@@ -178,6 +178,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Delete(ctx, "world"))
 	checksum, err := b.Write()
 	require.NoError(err)
+	keys, alive, useless := db.Usage()
 
 	// Restart and ensure data is correct
 	require.NoError(db.Close())
@@ -189,6 +190,10 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.Equal([]byte("world2"), v)
 	_, err = db.Get(ctx, "world")
 	require.ErrorIs(err, database.ErrNotFound)
+	keys2, alive2, useless2 := db.Usage()
+	require.Equal(keys, keys2)
+	require.Equal(alive, alive2)
+	require.Equal(useless, useless2)
 }
 
 // func TestAppendDBPrune(t *testing.T) {
