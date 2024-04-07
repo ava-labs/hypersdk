@@ -47,6 +47,7 @@ const (
 
 	batchBufferSize  = 16 * units.KiB
 	minDiskValueSize = 512
+	forceRecycle     = 128 * units.MiB // TODO: make this tuneable
 )
 
 type record struct {
@@ -244,7 +245,8 @@ func loadBatch(
 	var (
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
-		hasher   = sha256.New()
+
+		hasher = sha256.New()
 
 		changes      = linked.NewHashmap[string, *record]()
 		aliveBytes   uint64
@@ -546,7 +548,9 @@ type Batch struct {
 	batch uint64
 
 	pruneableBatch *uint64
-	recycled       int
+	openWrites     uint64 // bytes
+	movingPath     string
+	startingCursor int64
 
 	hasher hash.Hash
 	f      *os.File
@@ -554,20 +558,15 @@ type Batch struct {
 
 	buf    []byte
 	writer *bufio.Writer
-	alive  *linked.Hashmap[string, *record]
 
-	err error
+	alive          *linked.Hashmap[string, *record]
+	pendingNullify *linked.Hashmap[string, uint64]
 }
 
 func (a *AppendDB) NewBatch() (*Batch, error) {
 	a.commitLock.Lock()
 	batch := a.nextBatch
 	path := filepath.Join(a.baseDir, strconv.FormatUint(batch, 10))
-	f, err := os.Create(path)
-	if err != nil {
-		a.commitLock.Unlock()
-		return nil, err
-	}
 	a.nextBatch++
 	b := &Batch{
 		a:     a,
@@ -575,20 +574,18 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 		batch: batch,
 
 		hasher: sha256.New(),
-		f:      f,
 
-		buf:    make([]byte, batchBufferSize),
-		writer: bufio.NewWriterSize(f, a.bufferSize),
+		buf: make([]byte, batchBufferSize),
 	}
 	// If we don't need to recycle, we should create a new hashmap for this
 	// batch.
-	recycled, err := b.recycle()
+	newBatch, err := b.recycle()
 	if err != nil {
-		_ = f.Close()
-		_ = os.Remove(path)
+		_ = b.f.Close()
+		// We don't remove this file because it may be a reuse file that we want to recover
 		return nil, err
 	}
-	if !recycled {
+	if newBatch {
 		b.alive, _ = a.preallocAlive.PopLeft()
 	}
 	if b.alive == nil {
@@ -613,7 +610,7 @@ func (b *Batch) growBuffer(size int) {
 // that tradeoff to begin writing the new batch as soon as possible.
 //
 // It is safe to call prepare multiple times.
-func (b *Batch) recycle() (bool, error) {
+func (b *Batch) recycle() (bool /* new batch */, error) {
 	// Determine if we should delete the oldest batch
 	if b.batch < uint64(b.a.historyLen) {
 		return false, nil
@@ -629,52 +626,104 @@ func (b *Batch) recycle() (bool, error) {
 	}
 
 	// Reuse alive tracker we have been keeping up-to-date
-	b.alive = b.a.batches[oldestBatch].alive
+	previous := b.a.batches[oldestBatch]
+	b.alive = previous.alive
+	b.pendingNullify = previous.pendingNullify
 
-	// Iterate over alive records and add them to the batch file
-	items := b.alive.Len()
-	aliveIter := b.alive.NewIterator()
-	for i := 0; i < items; i++ {
-		// Iterate over all items in [alive] and write them to the batch file
-		if !aliveIter.Next() {
-			return false, ErrCorrupt
-		}
-
-		// Anything left in [alive] should be written
-		k := aliveIter.Key()
-		value, err := b.a.Get(context.TODO(), k)
+	// Determine if we should continue writing to the file or create a new one
+	b.pruneableBatch = &oldestBatch
+	if previous.aliveBytes < previous.uselessBytes || previous.uselessBytes > forceRecycle {
+		// Create new file
+		f, err := os.Create(b.path)
 		if err != nil {
 			return false, err
 		}
+		b.f = f
+		b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
 
-		// Create a new record for the key in the batch file
-		b.alive.Put(k, b.put(k, value))
-		b.recycled++
+		// Iterate over alive records and add them to the batch file
+		items := b.alive.Len()
+		aliveIter := b.alive.NewIterator()
+		for i := 0; i < items; i++ {
+			// Iterate over all items in [alive] and write them to the batch file
+			if !aliveIter.Next() {
+				return false, ErrCorrupt
+			}
+
+			// Anything left in [alive] should be written
+			k := aliveIter.Key()
+			value, err := b.a.Get(context.TODO(), k)
+			if err != nil {
+				return false, err
+			}
+
+			// Create a new record for the key in the batch file
+			record, err := b.put(k, value)
+			if err != nil {
+				return false, err
+			}
+			b.openWrites += opPutLen(k, value)
+			b.alive.Put(k, record)
+		}
+		return true, nil
 	}
-	b.pruneableBatch = &oldestBatch
+
+	// Open old batch file
+	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
+	f, err := os.Open(b.movingPath)
+	if err != nil {
+		return false, err
+	}
+	b.f = f
+	b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
+	b.cursor = int64(previous.reader.Len())
+	b.startingCursor = b.cursor
+	if _, err := b.hasher.Write(previous.checksum[:]); err != nil {
+		return false, err
+	}
+
+	// Add to existing file
+	nullifyIter := b.pendingNullify.NewIterator()
+	for nullifyIter.Next() {
+		key := nullifyIter.Key()
+		if err := b.nullify(key); err != nil {
+			return false, err
+		}
+		b.openWrites += opNullifyLen(key)
+	}
+	b.pendingNullify.Clear()
 	return true, nil
 }
 
 // TODO: make this a true abort as long as called before Prepare
 //
 // We must release this lock to shutdown properly
-func (b *Batch) Abort() {
-	// Delete in-progress file
-	_ = b.f.Close()
-	_ = os.Remove(b.path)
+func (b *Batch) Abort() error {
+	// Close in-progress file
+	if err := b.f.Close(); err != nil {
+		return err
+	}
+
+	// Cleanup aborted work
+	if len(b.movingPath) == 0 {
+		if err := os.Remove(b.path); err != nil {
+			return err
+		}
+	} else {
+		if err := os.Truncate(b.movingPath, b.startingCursor); err != nil {
+			return err
+		}
+	}
 
 	// Release lock held acquired during [recycle]
 	b.a.commitLock.Unlock()
+	return nil
 }
 
-func (b *Batch) put(key string, value []byte) *record {
+func (b *Batch) put(key string, value []byte) (*record, error) {
 	// Check input
-	if b.err != nil {
-		return nil
-	}
 	if len(key) > int(consts.MaxUint16) {
-		b.err = ErrKeyTooLong
-		return nil
+		return nil, ErrKeyTooLong
 	}
 
 	// Create operation to write
@@ -689,12 +738,10 @@ func (b *Batch) put(key string, value []byte) *record {
 
 	// Write to disk
 	if _, err := b.writer.Write(b.buf); err != nil {
-		b.err = err
-		return nil
+		return nil, err
 	}
 	if _, err := b.hasher.Write(b.buf); err != nil {
-		b.err = err
-		return nil
+		return nil, err
 	}
 	b.cursor += int64(l)
 
@@ -710,7 +757,31 @@ func (b *Batch) put(key string, value []byte) *record {
 		r.value = value
 		r.loc = -1
 	}
-	return r
+	return r, nil
+}
+
+func (b *Batch) nullify(key string) error {
+	// Check input
+	if len(key) > int(consts.MaxUint16) {
+		return ErrKeyTooLong
+	}
+
+	// Create operation to write
+	l := consts.Uint8Len + consts.Uint16Len + len(key)
+	b.growBuffer(l)
+	b.buf[0] = opNullify
+	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
+	copy(b.buf[1+consts.Uint16Len:], key)
+
+	// Write to disk
+	if _, err := b.writer.Write(b.buf); err != nil {
+		return err
+	}
+	if _, err := b.hasher.Write(b.buf); err != nil {
+		return err
+	}
+	b.cursor += int64(l)
+	return nil
 }
 
 // Prepare should be called write before we begin writing to the batch. As soon as
