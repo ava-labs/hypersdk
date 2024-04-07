@@ -379,10 +379,15 @@ func TestAppendDBLarge(t *testing.T) {
 			}
 
 			// Restart
+			aliveKeys, aliveBytes, uselessBytes := db.Usage()
 			require.NoError(db.Close())
 			db, last, err = New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
 			require.NoError(err)
 			require.Equal(checksums[batches-1], last)
+			aliveKeys2, aliveBytes2, uselessBytes2 := db.Usage()
+			require.Equal(aliveKeys, aliveKeys2)
+			require.Equal(aliveBytes, aliveBytes2)
+			require.Equal(uselessBytes, uselessBytes2)
 
 			// Ensure data is correct after restart
 			for i := 0; i < batchSize; i++ {
