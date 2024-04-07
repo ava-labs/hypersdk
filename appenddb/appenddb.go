@@ -569,7 +569,6 @@ type Batch struct {
 	uselessBytes uint64
 }
 
-// TODO: cleanup batch creation errors
 func (a *AppendDB) NewBatch() (*Batch, error) {
 	a.commitLock.Lock()
 	batch := a.nextBatch
@@ -586,16 +585,28 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	}
 	// If we don't need to recycle, we should create a new hashmap for this
 	// batch.
-	newBatch, err := b.recycle()
+	//
+	// TODO: cleanup batch creation errors
+	reused, err := b.recycle()
 	if err != nil {
 		_ = b.f.Close()
 		// We don't remove this file because it may be a reuse file that we want to recover
 		return nil, err
 	}
-	if newBatch {
-		b.alive, _ = a.preallocAlive.PopLeft()
-		b.pendingNullify, _ = a.preallocNullify.PopLeft()
+	if reused {
+		return b, nil
 	}
+
+	// Setup new batch info
+	b.alive, _ = a.preallocAlive.PopLeft()
+	b.pendingNullify, _ = a.preallocNullify.PopLeft()
+	// Create new file
+	f, err := os.Create(b.path)
+	if err != nil {
+		return nil, err
+	}
+	b.f = f
+	b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
 	return b, nil
 }
 
@@ -855,9 +866,11 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 		return err
 	}
 	b.alive.Put(key, record)
-
-	// If key never existed before, just exit
 	past, ok := b.a.keys[key]
+	b.a.keys[key] = record
+	b.aliveBytes += opPutLen(key, value)
+
+	// If key did not exist before, just exit
 	if !ok {
 		return nil
 	}
@@ -877,8 +890,6 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 		b.aliveBytes -= opSize
 		b.uselessBytes += opSize
 	}
-	b.a.keys[key] = record
-	b.aliveBytes += opPutLen(key, value)
 	return nil
 }
 
