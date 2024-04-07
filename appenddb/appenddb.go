@@ -61,19 +61,35 @@ type record struct {
 	size uint32
 }
 
+func (r *record) valueSize() uint32 {
+	if r.loc >= 0 {
+		return r.size
+	}
+	return uint32(len(r.value))
+}
+
 type tracker struct {
 	reader *mmap.ReaderAt
 
+	alive *linked.Hashmap[string, *record]
+
 	lastChecksum  ids.ID
-	alive         *linked.Hashmap[string, *record]
 	pendingNulify set.Set[string]
-	totalNulified int
+
+	aliveBytes   uint64
+	uselessBytes uint64 // already includes all nulifies and deletes
 }
 
 func (t *tracker) Nulify(key string) {
+	// Get bytes of nulified object
+	record, _ := t.alive.Get(key)
+	size := uint32(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + record.valueSize()
 	t.alive.Delete(key)
+	t.aliveBytes -= uint64(size)
+
+	// Mark key for nulification
 	t.pendingNulify.Add(key)
-	t.totalNulified++
+	t.uselessBytes += uint64(size) + uint64(consts.Uint8Len+consts.Uint16Len+len(key))
 }
 
 // This sits under the MerkleDB and won't be used
@@ -201,8 +217,9 @@ func loadBatch(
 		cursor   = int64(0)
 		hasher   = sha256.New()
 
-		deletes  = set.NewSet[string](1_024)
-		nulified = 0
+		deletes      = set.NewSet[string](1_024)
+		aliveBytes   uint64
+		uselessBytes uint64
 	)
 	for {
 		op, newCursor, err := readOp(reader, cursor, hasher)
@@ -224,14 +241,21 @@ func loadBatch(
 				record.loc = -1
 			}
 			alive.Put(key, record)
+			aliveBytes += uint64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
 			cursor = newCursor
 		case opDelete:
 			key, newCursor, err := readKey(reader, newCursor, hasher)
 			if err != nil {
 				return nil, nil, err
 			}
-			alive.Delete(key)
+			if past, ok := alive.Get(key); ok {
+				opSize := uint64(uint32(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + past.valueSize())
+				aliveBytes -= opSize
+				uselessBytes += opSize
+				alive.Delete(key)
+			}
 			deletes.Add(key)
+			uselessBytes += uint64(consts.Uint8Len + consts.Uint16Len + len(key))
 			cursor = newCursor
 		case opChecksum:
 			batch, checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
@@ -241,6 +265,7 @@ func loadBatch(
 			if !bytes.Equal(checksum[:], hasher.Sum(nil)) {
 				return nil, nil, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
 			}
+			uselessBytes += uint64(consts.Uint8Len + consts.Uint64Len + sha256.Size)
 			cursor = newCursor
 
 			// Check if we should leave the file
@@ -255,10 +280,13 @@ func loadBatch(
 				return &tracker{
 					reader: mf,
 
+					alive: alive,
+
 					lastChecksum:  checksum,
-					alive:         alive,
 					pendingNulify: set.NewSet[string](1_024),
-					totalNulified: nulified,
+
+					aliveBytes:   aliveBytes,
+					uselessBytes: uselessBytes,
 				}, deletes, nil
 			}
 
@@ -272,9 +300,14 @@ func loadBatch(
 			if err != nil {
 				return nil, nil, err
 			}
-			alive.Delete(key)
+			if past, ok := alive.Get(key); ok {
+				opSize := uint64(uint32(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + past.valueSize())
+				aliveBytes -= opSize
+				uselessBytes += opSize
+				alive.Delete(key)
+			}
 			deletes.Remove(key)
-			nulified++
+			uselessBytes += uint64(consts.Uint8Len + consts.Uint16Len + len(key))
 			cursor = newCursor
 		default:
 			return nil, nil, fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
