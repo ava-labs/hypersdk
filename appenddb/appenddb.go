@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
@@ -36,15 +37,14 @@ var (
 )
 
 const (
-	opPut      = uint8(0) // keyLen|key|valueLen|value
-	opDelete   = uint8(1) // keyLen|key
-	opChecksum = uint8(2) // batch|checksum
-	opNullify  = uint8(3) // keyLen|key (serve same purpose as opDelete but used for batch reuse)
-
 	// When mutliple checksums are in a single file (we chose not to rewrite file because
 	// many keys unchanged), we opNullify any keys that are no longer active and compute
 	// the next checksum using the base as the previous checksum (rather than re-iterating
 	// over the entire file).
+	opPut      = uint8(0) // keyLen|key|valueLen|value
+	opDelete   = uint8(1) // keyLen|key
+	opChecksum = uint8(2) // batch|checksum
+	opNullify  = uint8(3) // keyLen|key (serve same purpose as opDelete but used for batch reuse)
 
 	batchBufferSize  = 16 * units.KiB
 	minDiskValueSize = 512
@@ -63,7 +63,17 @@ type record struct {
 
 type tracker struct {
 	reader *mmap.ReaderAt
-	alive  *linked.Hashmap[string, *record]
+
+	lastChecksum  ids.ID
+	alive         *linked.Hashmap[string, *record]
+	pendingNulify set.Set[string]
+	totalNulified int
+}
+
+func (t *tracker) Nulify(key string) {
+	t.alive.Delete(key)
+	t.pendingNulify.Add(key)
+	t.totalNulified++
 }
 
 // This sits under the MerkleDB and won't be used
@@ -86,86 +96,102 @@ type AppendDB struct {
 	keys    map[string]*record
 }
 
-func readRecord(batch uint64, reader io.Reader, cursor int64, hasher hash.Hash) (string, *record, int64, error) {
-	// Read op and key len
-	opAndKeyLen := make([]byte, 1+consts.Uint16Len)
-	if _, err := io.ReadFull(reader, opAndKeyLen); err != nil {
-		return "", nil, -1, err
+func readOp(reader io.Reader, cursor int64, hasher hash.Hash) (uint8, int64, error) {
+	op := make([]byte, consts.Uint8Len)
+	if _, err := io.ReadFull(reader, op); err != nil {
+		return 0, -1, err
 	}
-	if hasher != nil {
-		if _, err := hasher.Write(opAndKeyLen); err != nil {
-			return "", nil, -1, err
-		}
+	if _, err := hasher.Write(op); err != nil {
+		return 0, -1, err
 	}
-	cursor += int64(len(opAndKeyLen))
-	op := opAndKeyLen[0]
-	keyLen := binary.BigEndian.Uint16(opAndKeyLen[1:])
-
-	switch op {
-	case opPut:
-		// Read key and value len
-		keyAndValueLen := make([]byte, keyLen+consts.Uint32Len)
-		if _, err := io.ReadFull(reader, keyAndValueLen); err != nil {
-			return "", nil, -1, err
-		}
-		if hasher != nil {
-			if _, err := hasher.Write(keyAndValueLen); err != nil {
-				return "", nil, -1, err
-			}
-		}
-		cursor += int64(len(keyAndValueLen))
-		key := string(keyAndValueLen[:keyLen])
-		valueLen := binary.BigEndian.Uint32(keyAndValueLen[keyLen:])
-
-		// Read value
-		valueStart := cursor
-		value := make([]byte, valueLen)
-		if _, err := io.ReadFull(reader, value); err != nil {
-			return "", nil, -1, err
-		}
-		if hasher != nil {
-			if _, err := hasher.Write(value); err != nil {
-				return "", nil, -1, err
-			}
-		}
-		cursor += int64(len(value))
-		r := &record{batch: batch}
-		if valueLen >= minDiskValueSize {
-			r.loc = valueStart
-			r.size = valueLen
-		} else {
-			r.value = value
-			r.loc = -1
-		}
-		return key, r, cursor, nil
-	case opDelete:
-		// Read key
-		key := make([]byte, keyLen)
-		if _, err := io.ReadFull(reader, key); err != nil {
-			return "", nil, -1, err
-		}
-		if hasher != nil {
-			if _, err := hasher.Write(key); err != nil {
-				return "", nil, -1, err
-			}
-		}
-		cursor += int64(len(key))
-		return string(key), nil, cursor, nil
-	default:
-		return "", nil, -1, fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
-	}
+	cursor++
+	return op[0], cursor, nil
 }
 
-func loadBatch(path string, alive *linked.Hashmap[string, *record], file uint64) (ids.ID, error) {
+func readKey(reader io.Reader, cursor int64, hasher hash.Hash) (string, int64, error) {
+	op := make([]byte, consts.Uint16Len)
+	if _, err := io.ReadFull(reader, op); err != nil {
+		return "", -1, err
+	}
+	if _, err := hasher.Write(op); err != nil {
+		return "", -1, err
+	}
+	cursor += int64(len(op))
+	keyLen := binary.BigEndian.Uint16(op)
+	key := make([]byte, keyLen)
+	if _, err := io.ReadFull(reader, key); err != nil {
+		return "", -1, err
+	}
+	if _, err := hasher.Write(key); err != nil {
+		return "", -1, err
+	}
+	cursor += int64(len(key))
+	return string(key), cursor, nil
+}
+
+func readPut(reader io.Reader, cursor int64, hasher hash.Hash) (string, []byte, int64, error) {
+	key, cursor, err := readKey(reader, cursor, hasher)
+	if err != nil {
+		return "", nil, -1, err
+	}
+
+	// Read value
+	op := make([]byte, consts.Uint32Len)
+	if _, err := io.ReadFull(reader, op); err != nil {
+		return "", nil, -1, err
+	}
+	if _, err := hasher.Write(op); err != nil {
+		return "", nil, -1, err
+	}
+	cursor += int64(len(op))
+	valueLen := binary.BigEndian.Uint32(op)
+	value := make([]byte, valueLen)
+	if _, err := io.ReadFull(reader, value); err != nil {
+		return "", nil, -1, err
+	}
+	if _, err := hasher.Write(value); err != nil {
+		return "", nil, -1, err
+	}
+	cursor += int64(len(value))
+	return key, value, cursor, nil
+}
+
+func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids.ID, int64, error) {
+	op := make([]byte, consts.Uint64Len)
+	if _, err := io.ReadFull(reader, op); err != nil {
+		return 0, ids.Empty, -1, err
+	}
+	if _, err := hasher.Write(op); err != nil {
+		return 0, ids.Empty, -1, err
+	}
+	cursor += int64(len(op))
+	batch := binary.BigEndian.Uint64(op)
+	op = make([]byte, sha256.Size)
+	if _, err := io.ReadFull(reader, op); err != nil {
+		return 0, ids.Empty, -1, err
+	}
+	cursor += int64(len(op))
+	return batch, ids.ID(op), cursor, nil
+}
+
+func loadBatch(
+	path string,
+	alive *linked.Hashmap[string, *record],
+	file uint64,
+) (
+	*tracker,
+	set.Set[string],
+	error,
+) {
 	// Load file into buffer
 	f, err := os.Open(path)
 	if err != nil {
-		return ids.Empty, err
+		return nil, nil, err
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		return ids.Empty, err
+		return nil, nil, err
 	}
 	reader := bufio.NewReader(f)
 
@@ -174,26 +200,86 @@ func loadBatch(path string, alive *linked.Hashmap[string, *record], file uint64)
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
 		hasher   = sha256.New()
+
+		deletes  = set.NewSet[string](1_024)
+		nulified = 0
 	)
-	for cursor < fileSize-ids.IDLen {
-		key, entry, newCursor, err := readRecord(file, reader, cursor, hasher)
+	for {
+		op, newCursor, err := readOp(reader, cursor, hasher)
 		if err != nil {
-			return ids.Empty, err
+			return nil, nil, err
 		}
-		alive.Put(key, entry)
-		cursor = newCursor
+		switch op {
+		case opPut:
+			key, value, newCursor, err := readPut(reader, newCursor, hasher)
+			if err != nil {
+				return nil, nil, err
+			}
+			record := &record{batch: file}
+			if len(value) >= minDiskValueSize {
+				record.loc = cursor
+				record.size = uint32(len(value))
+			} else {
+				record.value = value
+				record.loc = -1
+			}
+			alive.Put(key, record)
+			cursor = newCursor
+		case opDelete:
+			key, newCursor, err := readKey(reader, newCursor, hasher)
+			if err != nil {
+				return nil, nil, err
+			}
+			alive.Delete(key)
+			deletes.Add(key)
+			cursor = newCursor
+		case opChecksum:
+			batch, checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
+			if err != nil {
+				return nil, nil, err
+			}
+			if !bytes.Equal(checksum[:], hasher.Sum(nil)) {
+				return nil, nil, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
+			}
+			cursor = newCursor
+
+			// Check if we should leave the file
+			if cursor == fileSize {
+				if batch != file {
+					return nil, nil, fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
+				}
+				mf, err := mmap.Open(path)
+				if err != nil {
+					return nil, nil, err
+				}
+				return &tracker{
+					reader: mf,
+
+					lastChecksum:  checksum,
+					alive:         alive,
+					pendingNulify: set.NewSet[string](1_024),
+					totalNulified: nulified,
+				}, deletes, nil
+			}
+
+			// Initialize hasher for next batch (assuming continues)
+			hasher = sha256.New()
+			if _, err := hasher.Write(checksum[:]); err != nil {
+				return nil, nil, err
+			}
+		case opNullify:
+			key, newCursor, err := readKey(reader, newCursor, hasher)
+			if err != nil {
+				return nil, nil, err
+			}
+			alive.Delete(key)
+			deletes.Remove(key)
+			nulified++
+			cursor = newCursor
+		default:
+			return nil, nil, fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
+		}
 	}
-	checksum := make([]byte, sha256.Size)
-	if _, err := io.ReadFull(reader, checksum); err != nil {
-		return ids.Empty, err
-	}
-	if !bytes.Equal(checksum, hasher.Sum(nil)) {
-		return ids.Empty, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
-	}
-	if cursor+sha256.Size != fileSize {
-		return ids.Empty, fmt.Errorf("%w: incorrect size", ErrCorrupt)
-	}
-	return ids.ID(checksum), nil
 }
 
 // New returns a new AppendDB instance and the ID of the last committed file.
@@ -265,17 +351,11 @@ func New(
 			log.Warn("exceeded prealloc allocation") // can happen if we don't delete files we expected
 			alive = linked.NewHashmapWithSize[string, *record](batchSize)
 		}
-		checksum, err := loadBatch(path, alive, file)
+		checksum, deletes, err := loadBatch(path, alive, file)
 		if err != nil {
-			if errors.Is(err, ErrCorrupt) {
-				log.Warn("detected corrupt batch", zap.String("path", path), zap.Error(err))
-				for j := i; j < len(files); j++ {
-					corruptPath := filepath.Join(baseDir, strconv.FormatUint(files[j], 10))
-					_ = os.Remove(corruptPath)
-					log.Warn("removed corrupt batch", zap.String("path", corruptPath))
-				}
-				break
-			}
+			// We chose not to fix storage if we encounter an error
+			//
+			// TODO: make corruption fix optional/add tool
 			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
