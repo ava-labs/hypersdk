@@ -630,6 +630,8 @@ func (b *Batch) growBuffer(size int64) {
 //
 // It is safe to call prepare multiple times.
 func (b *Batch) recycle() (bool, error) {
+	b.a.logger.Debug("attempting to recycle previous batch", zap.Uint64("batch", b.batch))
+
 	// Determine if we should delete the oldest batch
 	if b.batch < uint64(b.a.historyLen) {
 		return false, nil
@@ -652,6 +654,8 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes || previous.uselessBytes > forceRecycle {
+		b.a.logger.Debug("rewriting alive data to a new file", zap.Int64("alive bytes", previous.aliveBytes), zap.Int64("useless bytes", previous.uselessBytes), zap.Uint64("batch", b.batch))
+
 		// Create new file
 		f, err := os.Create(b.path)
 		if err != nil {
@@ -688,6 +692,7 @@ func (b *Batch) recycle() (bool, error) {
 	}
 
 	// Open old batch file
+	b.a.logger.Debug("appending nulifiers to existing file", zap.Int("nullifiers", b.pendingNullify.Len()), zap.Uint64("batch", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
 	f, err := os.Open(b.movingPath)
 	if err != nil {
