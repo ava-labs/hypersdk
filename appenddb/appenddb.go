@@ -739,9 +739,9 @@ func (b *Batch) put(key string, value []byte) (*record, error) {
 	}
 
 	// Create operation to write
-	valueStart := b.cursor + int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len)
-	l := consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value)
-	b.growBuffer(l)
+	l := opPutLen(key, value)
+	valueStart := b.cursor + int64(l) - int64(len(value))
+	b.growBuffer(int(l))
 	b.buf[0] = opPut
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
@@ -779,8 +779,8 @@ func (b *Batch) nullify(key string) error {
 	}
 
 	// Create operation to write
-	l := consts.Uint8Len + consts.Uint16Len + len(key)
-	b.growBuffer(l)
+	l := opNullifyLen(key)
+	b.growBuffer(int(l))
 	b.buf[0] = opNullify
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
@@ -794,6 +794,25 @@ func (b *Batch) nullify(key string) error {
 	}
 	b.cursor += int64(l)
 	return nil
+}
+
+func (b *Batch) checkusm() (ids.ID, error) {
+	l := opChecksumLen()
+	b.growBuffer(int(l))
+	b.buf[0] = opChecksum
+	binary.BigEndian.PutUint64(b.buf[1:], b.batch)
+	if _, err := b.hasher.Write(b.buf[:1+consts.Uint64Len]); err != nil {
+		return ids.Empty, err
+	}
+	checksum := ids.ID(b.hasher.Sum(nil))
+	copy(b.buf[1+consts.Uint64Len:], checksum[:])
+
+	// Write to disk
+	if _, err := b.writer.Write(b.buf); err != nil {
+		return ids.Empty, err
+	}
+	b.cursor += int64(l)
+	return checksum, nil
 }
 
 // Prepare should be called right before we begin writing to the batch. As soon as
@@ -874,8 +893,8 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	}
 
 	// Create operation to write
-	l := consts.Uint8Len + consts.Uint16Len + len(key)
-	b.growBuffer(l)
+	l := opDeleteLen(key)
+	b.growBuffer(int(l))
 	b.buf[0] = opDelete
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
@@ -919,14 +938,9 @@ func (b *Batch) Write() (ids.ID, error) {
 		b.a.commitLock.Unlock()
 	}()
 
-	// If we already encountered an error, return that immediately
-	if b.err != nil {
-		return ids.Empty, b.err
-	}
-
-	// Add checksum to file (allows for crash recovery on restart in the case that a file is partially written)
-	checksum := b.hasher.Sum(nil)
-	if _, err := b.writer.Write(checksum); err != nil {
+	// Add batch and checksum to file (allows for crash recovery on restart in the case that a file is partially written)
+	checksum, err := b.checkusm()
+	if err != nil {
 		return ids.Empty, err
 	}
 
@@ -943,6 +957,34 @@ func (b *Batch) Write() (ids.ID, error) {
 		return ids.Empty, err
 	}
 
+	// Handle old batch cleanup
+	if b.pruneableBatch != nil {
+		preparedBatch := *b.pruneableBatch
+		preparedReader := b.a.batches[preparedBatch]
+		if err := preparedReader.reader.Close(); err != nil {
+			b.a.logger.Error("could not close old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+		}
+		if len(b.movingPath) == 0 {
+			preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
+			s, err := os.Stat(preparedPath)
+			if err != nil {
+				b.a.logger.Error("could not stat old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+			}
+			b.a.size -= uint64(s.Size())
+			if err := os.Remove(preparedPath); err != nil {
+				b.a.logger.Error("could not remove old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+			}
+		} else {
+			// TODO: ensure size is updated correctly
+			if err := os.Rename(b.movingPath, b.path); err != nil {
+				return ids.Empty, err
+			}
+		}
+		delete(b.a.batches, preparedBatch)
+		oldestBatch := preparedBatch + 1
+		b.a.oldestBatch = &oldestBatch
+	}
+
 	// Open file for mmap before keys become acessible
 	reader, err := mmap.Open(b.path)
 	if err != nil {
@@ -954,23 +996,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	// Register the batch for reading
 	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.alive}
 
-	// Delete old batch once keys are updated to new batch
-	if b.pruneableBatch != nil {
-		preparedBatch := *b.pruneableBatch
-		preparedReader := b.a.batches[preparedBatch]
-		preparedSize := uint64(preparedReader.reader.Len())
-		if err := preparedReader.reader.Close(); err != nil {
-			b.a.logger.Error("could not close old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
-		}
-		preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
-		if err := os.Remove(preparedPath); err != nil {
-			b.a.logger.Error("could not remove old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
-		}
-		delete(b.a.batches, preparedBatch)
-		b.a.size -= preparedSize
-		oldestBatch := preparedBatch + 1
-		b.a.oldestBatch = &oldestBatch
-	}
+	// Set oldest batch if haven't done yet
 	if b.a.oldestBatch == nil {
 		b.a.oldestBatch = &b.batch
 	}
