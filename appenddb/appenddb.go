@@ -686,7 +686,9 @@ func (b *Batch) recycle() (bool, error) {
 			if err != nil {
 				return false, err
 			}
-			b.openWrites += opPutLen(k, value)
+			op := opPutLen(k, value)
+			b.openWrites += op
+			b.aliveBytes += op
 			b.alive.Put(k, record)
 		}
 		return true, nil

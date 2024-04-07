@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -196,123 +197,133 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.Equal(useless, useless2)
 }
 
-// func TestAppendDBPrune(t *testing.T) {
-// 	// Prepare
-// 	require := require.New(t)
-// 	ctx := context.TODO()
-// 	baseDir := t.TempDir()
-// 	logger := logging.NewLogger(
-// 		"appenddb",
-// 		logging.NewWrappedCore(
-// 			logging.Debug,
-// 			os.Stdout,
-// 			logging.Colors.ConsoleEncoder(),
-// 		),
-// 	)
-// 	logger.Info("created directory", zap.String("path", baseDir))
-//
-// 	// Create
-// 	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
-// 	require.NoError(err)
-// 	require.Equal(ids.Empty, last)
-//
-// 	// Insert 100 batches
-// 	var lastBatch ids.ID
-// 	for i := 0; i < 100; i++ {
-// 		b, err := db.NewBatch()
-// 		require.NoError(err)
-// 		b.Prepare()
-// 		switch {
-// 		case i == 0:
-// 			// Never modify again
-// 			require.NoError(b.Put(ctx, "hello", []byte("world")))
-// 		case i < 99:
-// 			for j := 0; j < 10; j++ {
-// 				require.NoError(b.Put(ctx, strconv.Itoa(j), []byte(strconv.Itoa(i))))
-// 			}
-// 		default:
-// 			require.NoError(b.Delete(ctx, strconv.Itoa(0)))
-// 		}
-// 		lastBatch, err = b.Write()
-// 		require.NoError(err)
-// 		require.NotEqual(ids.Empty, lastBatch)
-// 	}
-//
-// 	// Ensure data is correct
-// 	v, err := db.Get(ctx, "hello")
-// 	require.NoError(err)
-// 	require.Equal([]byte("world"), v)
-// 	for i := 0; i < 10; i++ {
-// 		v, err = db.Get(ctx, strconv.Itoa(i))
-// 		if i == 0 {
-// 			require.ErrorIs(err, database.ErrNotFound)
-// 		} else {
-// 			require.NoError(err)
-// 			require.Equal([]byte("98"), v)
-// 		}
-// 	}
-//
-// 	// Ensure files were pruned
-// 	require.NoError(db.Close())
-// 	files, err := os.ReadDir(baseDir)
-// 	require.NoError(err)
-// 	require.Len(files, 11) // 10 historical batches
-//
-// 	// Restart
-// 	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
-// 	require.NoError(err)
-// 	require.Equal(lastBatch, last)
-//
-// 	// Ensure data is correct after restart
-// 	v, err = db.Get(ctx, "hello")
-// 	require.NoError(err)
-// 	require.Equal([]byte("world"), v)
-// 	for i := 0; i < 10; i++ {
-// 		v, err = db.Get(ctx, strconv.Itoa(i))
-// 		if i == 0 {
-// 			require.ErrorIs(err, database.ErrNotFound)
-// 		} else {
-// 			require.NoError(err)
-// 			require.Equal([]byte("98"), v)
-// 		}
-// 	}
-//
-// 	// Write to new batches
-// 	for i := 0; i < 10; i++ {
-// 		b, err := db.NewBatch()
-// 		require.NoError(err)
-// 		b.Prepare()
-// 		for j := 0; j < 10; j++ {
-// 			if i == 5 {
-// 				require.NoError(b.Delete(ctx, strconv.Itoa(j)))
-// 			} else {
-// 				require.NoError(b.Put(ctx, strconv.Itoa(j), []byte(strconv.Itoa(i))))
-// 			}
-// 		}
-// 		lastBatch, err = b.Write()
-// 		require.NoError(err)
-// 		require.NotEqual(ids.Empty, lastBatch)
-// 	}
-// 	require.NoError(db.Close())
-// 	files, err = os.ReadDir(baseDir)
-// 	require.NoError(err)
-// 	require.Len(files, 11) // 10 historical batches
-//
-// 	// Read from new batches
-// 	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
-// 	require.NoError(err)
-// 	require.Equal(lastBatch, last)
-// 	for i := 0; i < 10; i++ {
-// 		v, err = db.Get(ctx, strconv.Itoa(i))
-// 		require.NoError(err)
-// 		require.Equal([]byte(strconv.Itoa(9)), v)
-// 	}
-// 	v, err = db.Get(ctx, "hello")
-// 	require.NoError(err)
-// 	require.Equal([]byte("world"), v)
-// 	require.NoError(db.Close())
-// }
-//
+func TestAppendDBPrune(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	ctx := context.TODO()
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"appenddb",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Insert 100 batches
+	var lastBatch ids.ID
+	for i := 0; i < 100; i++ {
+		b, err := db.NewBatch()
+		require.NoError(err)
+		b.Prepare()
+		switch {
+		case i == 0:
+			// Never modify again
+			require.NoError(b.Put(ctx, "hello", []byte("world")))
+		case i < 99:
+			for j := 0; j < 10; j++ {
+				require.NoError(b.Put(ctx, strconv.Itoa(j), []byte(strconv.Itoa(i))))
+			}
+		default:
+			require.NoError(b.Delete(ctx, strconv.Itoa(0)))
+		}
+		lastBatch, err = b.Write()
+		require.NoError(err)
+		require.NotEqual(ids.Empty, lastBatch)
+	}
+
+	// Ensure data is correct
+	v, err := db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world"), v)
+	for i := 0; i < 10; i++ {
+		v, err = db.Get(ctx, strconv.Itoa(i))
+		if i == 0 {
+			require.ErrorIs(err, database.ErrNotFound)
+		} else {
+			require.NoError(err)
+			require.Equal([]byte("98"), v)
+		}
+	}
+
+	// Ensure files were pruned
+	keys, alive, useless := db.Usage()
+	require.NoError(db.Close())
+	files, err := os.ReadDir(baseDir)
+	require.NoError(err)
+	require.Len(files, 11) // 10 historical batches
+
+	// Restart
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
+	require.NoError(err)
+	require.Equal(lastBatch, last)
+	keys2, alive2, useless2 := db.Usage()
+	require.Equal(keys, keys2)
+	require.Equal(alive, alive2)
+	require.Equal(useless, useless2)
+
+	// Ensure data is correct after restart
+	v, err = db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world"), v)
+	for i := 0; i < 10; i++ {
+		v, err = db.Get(ctx, strconv.Itoa(i))
+		if i == 0 {
+			require.ErrorIs(err, database.ErrNotFound)
+		} else {
+			require.NoError(err)
+			require.Equal([]byte("98"), v)
+		}
+	}
+
+	// Write to new batches
+	for i := 0; i < 10; i++ {
+		b, err := db.NewBatch()
+		require.NoError(err)
+		b.Prepare()
+		for j := 0; j < 10; j++ {
+			if i == 5 {
+				require.NoError(b.Delete(ctx, strconv.Itoa(j)))
+			} else {
+				require.NoError(b.Put(ctx, strconv.Itoa(j), []byte(strconv.Itoa(i))))
+			}
+		}
+		lastBatch, err = b.Write()
+		require.NoError(err)
+		require.NotEqual(ids.Empty, lastBatch)
+	}
+	keys, alive, useless = db.Usage()
+	require.NoError(db.Close())
+	files, err = os.ReadDir(baseDir)
+	require.NoError(err)
+	require.Len(files, 11) // 10 historical batches
+
+	// Read from new batches
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
+	require.NoError(err)
+	require.Equal(lastBatch, last)
+	keys2, alive2, useless2 = db.Usage()
+	require.Equal(keys, keys2)
+	require.Equal(alive, alive2)
+	require.Equal(useless, useless2)
+	for i := 0; i < 10; i++ {
+		v, err = db.Get(ctx, strconv.Itoa(i))
+		require.NoError(err)
+		require.Equal([]byte(strconv.Itoa(9)), v)
+	}
+	v, err = db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world"), v)
+	require.NoError(db.Close())
+}
+
 // func TestAppendDBLarge(t *testing.T) {
 // 	for _, valueSize := range []int{32, minDiskValueSize * 2} { // ensure mem and mmap work
 // 		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
@@ -396,6 +407,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 // 		})
 // 	}
 // }
+
 //
 // func BenchmarkAppendDB(b *testing.B) {
 // 	// Prepare
