@@ -60,11 +60,11 @@ type record struct {
 	size uint32
 }
 
-func (r *record) valueSize() uint32 {
+func (r *record) valueSize() int64 {
 	if r.loc >= 0 {
-		return r.size
+		return int64(r.size)
 	}
-	return uint32(len(r.value))
+	return int64(len(r.value))
 }
 
 type tracker struct {
@@ -77,11 +77,11 @@ type tracker struct {
 	//
 	// pendingNullify is just used to track pending
 	// changes to keys for the next batch.
-	pendingNullify *linked.Hashmap[string, uint64]
+	pendingNullify *linked.Hashmap[string, any]
 
 	checksum     ids.ID
-	aliveBytes   uint64
-	uselessBytes uint64 // already includes all nullifies and deletes
+	aliveBytes   int64
+	uselessBytes int64 // already includes all nullifies and deletes
 }
 
 func (t *tracker) Nullify(key string) {
@@ -110,7 +110,7 @@ type AppendDB struct {
 	historyLen int
 
 	preallocAlive   buffer.Deque[*linked.Hashmap[string, *record]]
-	preallocNullify buffer.Deque[*linked.Hashmap[string, uint64]]
+	preallocNullify buffer.Deque[*linked.Hashmap[string, any]]
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -181,24 +181,24 @@ func readPut(reader io.Reader, cursor int64, hasher hash.Hash) (string, []byte, 
 	return key, value, cursor, nil
 }
 
-func opPutLen(key string, value []byte) uint64 {
-	return uint64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
+func opPutLen(key string, value []byte) int64 {
+	return int64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
 }
 
-func opPutLenWithValueLen(key string, valueLen uint32) uint64 {
-	return uint64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + uint64(valueLen)
+func opPutLenWithValueLen(key string, valueLen int64) int64 {
+	return int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + valueLen
 }
 
-func opDeleteLen(key string) uint64 {
-	return uint64(consts.Uint8Len + consts.Uint16Len + len(key))
+func opDeleteLen(key string) int64 {
+	return int64(consts.Uint8Len + consts.Uint16Len + len(key))
 }
 
-func opNullifyLen(key string) uint64 {
+func opNullifyLen(key string) int64 {
 	return opDeleteLen(key)
 }
 
-func opChecksumLen() uint64 {
-	return uint64(consts.Uint8Len + consts.Uint64Len + ids.IDLen)
+func opChecksumLen() int64 {
+	return int64(consts.Uint8Len + consts.Uint64Len + ids.IDLen)
 }
 
 func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids.ID, int64, error) {
@@ -248,8 +248,8 @@ func loadBatch(
 		hasher = sha256.New()
 
 		changes      = linked.NewHashmap[string, *record]()
-		aliveBytes   uint64
-		uselessBytes uint64
+		aliveBytes   int64
+		uselessBytes int64
 	)
 	for {
 		op, newCursor, err := readOp(reader, cursor, hasher)
@@ -397,10 +397,10 @@ func New(
 	// Provision all batch trackers ahead of time
 	preallocs := (historyLen + 1) // keep history + current
 	preallocAlive := buffer.NewUnboundedDeque[*linked.Hashmap[string, *record]](preallocs)
-	preallocNullify := buffer.NewUnboundedDeque[*linked.Hashmap[string, uint64]](preallocs)
+	preallocNullify := buffer.NewUnboundedDeque[*linked.Hashmap[string, any]](preallocs)
 	for i := 0; i < preallocs; i++ {
 		preallocAlive.PushRight(linked.NewHashmapWithSize[string, *record](batchSize))
-		preallocNullify.PushRight(linked.NewHashmapWithSize[string, uint64](batchSize))
+		preallocNullify.PushRight(linked.NewHashmapWithSize[string, any](batchSize))
 	}
 
 	// Replay all changes on-disk
@@ -436,7 +436,7 @@ func New(
 		nullify, ok := preallocNullify.PopLeft()
 		if !ok {
 			log.Warn("exceeded prealloc nullify allocation")
-			nullify = linked.NewHashmapWithSize[string, uint64](batchSize)
+			nullify = linked.NewHashmapWithSize[string, any](batchSize)
 		}
 		track.pendingNullify = nullify
 		changeIter := changes.NewIterator()
@@ -551,7 +551,7 @@ type Batch struct {
 	batch uint64
 
 	pruneableBatch *uint64
-	openWrites     uint64 // bytes
+	openWrites     int64 // bytes
 	movingPath     string
 	startingCursor int64
 
@@ -563,10 +563,10 @@ type Batch struct {
 	writer *bufio.Writer
 
 	alive          *linked.Hashmap[string, *record]
-	pendingNullify *linked.Hashmap[string, uint64]
+	pendingNullify *linked.Hashmap[string, any]
 
-	aliveBytes   uint64
-	uselessBytes uint64
+	aliveBytes   int64
+	uselessBytes int64
 }
 
 func (a *AppendDB) NewBatch() (*Batch, error) {
@@ -610,8 +610,11 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	return b, nil
 }
 
-func (b *Batch) growBuffer(size int) {
-	if cap(b.buf) < size {
+func (b *Batch) growBuffer(size int64) {
+	if size > int64(consts.MaxInt) {
+		panic("buffer too large")
+	}
+	if cap(b.buf) < int(size) {
 		b.buf = make([]byte, size, size*2)
 	} else {
 		b.buf = b.buf[:size]
@@ -746,8 +749,8 @@ func (b *Batch) put(key string, value []byte) (*record, error) {
 
 	// Create operation to write
 	l := opPutLen(key, value)
-	valueStart := b.cursor + int64(l) - int64(len(value))
-	b.growBuffer(int(l))
+	valueStart := b.cursor + l - int64(len(value))
+	b.growBuffer(l)
 	b.buf[0] = opPut
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
@@ -761,7 +764,7 @@ func (b *Batch) put(key string, value []byte) (*record, error) {
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		return nil, err
 	}
-	b.cursor += int64(l)
+	b.cursor += l
 
 	// Furnish record for future usage
 	//
@@ -786,7 +789,7 @@ func (b *Batch) nullify(key string) error {
 
 	// Create operation to write
 	l := opNullifyLen(key)
-	b.growBuffer(int(l))
+	b.growBuffer(l)
 	b.buf[0] = opNullify
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
@@ -798,7 +801,7 @@ func (b *Batch) nullify(key string) error {
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		return err
 	}
-	b.cursor += int64(l)
+	b.cursor += l
 
 	// uselessBytes already updated during runtime, don't need
 	// to re-calculate here.
@@ -807,7 +810,7 @@ func (b *Batch) nullify(key string) error {
 
 func (b *Batch) checksum() (ids.ID, error) {
 	l := opChecksumLen()
-	b.growBuffer(int(l))
+	b.growBuffer(l)
 	b.buf[0] = opChecksum
 	binary.BigEndian.PutUint64(b.buf[1:], b.batch)
 	if _, err := b.hasher.Write(b.buf[:1+consts.Uint64Len]); err != nil {
@@ -820,7 +823,7 @@ func (b *Batch) checksum() (ids.ID, error) {
 	if _, err := b.writer.Write(b.buf); err != nil {
 		return ids.Empty, err
 	}
-	b.cursor += int64(l)
+	b.cursor += l
 
 	// We always consider previous checksums useless in the case
 	// that we are reusing a file.
@@ -833,7 +836,7 @@ func (b *Batch) checksum() (ids.ID, error) {
 //
 // Prepare returns how many bytes were written to prepare the batch
 // and whether or not we are reusing an old batch file.
-func (b *Batch) Prepare() (uint64, bool) {
+func (b *Batch) Prepare() (int64, bool) {
 	b.a.keyLock.Lock()
 
 	if len(b.movingPath) == 0 {
@@ -907,7 +910,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 
 	// Create operation to write
 	l := opDeleteLen(key)
-	b.growBuffer(int(l))
+	b.growBuffer(l)
 	b.buf[0] = opDelete
 	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
 	copy(b.buf[1+consts.Uint16Len:], key)
@@ -919,7 +922,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	if _, err := b.hasher.Write(b.buf); err != nil {
 		return err
 	}
-	b.cursor += int64(l)
+	b.cursor += l
 
 	// Account for useless bytes
 	//
@@ -1020,13 +1023,13 @@ func (b *Batch) Write() (ids.ID, error) {
 	return checksum, nil
 }
 
-func (a *AppendDB) Usage() (int, uint64 /* alive bytes */, uint64 /* useless bytes */) {
+func (a *AppendDB) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes */) {
 	a.commitLock.RLock()
 	defer a.commitLock.RUnlock()
 
 	var (
-		aliveBytes   uint64
-		uselessBytes uint64
+		aliveBytes   int64
+		uselessBytes int64
 	)
 	for _, batch := range a.batches {
 		aliveBytes += batch.aliveBytes
