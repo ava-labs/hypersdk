@@ -61,10 +61,10 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_recycled_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_recycled_sum[5s])", chainID, chainID))
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_recycled_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_recycled_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}state recycled per block:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_changes_sum[5s])", chainID, chainID))
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_changes_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}state changes per block:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_count[5s])", chainID, chainID))
