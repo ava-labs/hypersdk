@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -95,7 +96,6 @@ func TestAppendDB(t *testing.T) {
 	v, err = db.Get(ctx, "hello")
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
-	require.NoError(db.Close())
 
 	// Move file
 	require.NoError(os.Rename(filepath.Join(baseDir, "0"), filepath.Join(baseDir, "100")))
@@ -152,7 +152,9 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Create a batch gap
 	b, err = db.NewBatch()
 	require.NoError(err)
-	require.Zero(b.Prepare())
+	openBytes, movedFile := b.Prepare()
+	require.Equal(int64(0), openBytes)
+	require.False(movedFile)
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
 	_, err = b.Write()
 	require.NoError(err)
@@ -160,9 +162,9 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Modify recycled key
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, movedFile := b.Prepare()
-	require.Equal(int64(17), openBytes)
-	require.False(movedFile)
+	openBytes, movedFile = b.Prepare()
+	require.Equal(int64(0), openBytes) // no changes since last opened
+	require.True(movedFile)
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
@@ -171,11 +173,22 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, movedFile = b.Prepare()
-	require.Equal(int64(17), openBytes)
-	require.False(movedFile)
+	require.Equal(int64(0), openBytes)
+	require.True(movedFile)
 	require.NoError(b.Delete(ctx, "world"))
-	_, err = b.Write()
+	checksum, err := b.Write()
 	require.NoError(err)
+
+	// Restart and ensure data is correct
+	require.NoError(db.Close())
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(checksum, last)
+	v, err := db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world2"), v)
+	_, err = db.Get(ctx, "world")
+	require.ErrorIs(err, database.ErrNotFound)
 }
 
 // func TestAppendDBPrune(t *testing.T) {

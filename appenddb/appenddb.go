@@ -44,9 +44,10 @@ const (
 	opChecksum = uint8(2) // batch|checksum
 	opNullify  = uint8(3) // keyLen|key
 
-	batchBufferSize  = 16 * units.KiB
-	minDiskValueSize = 512
-	forceRecycle     = 128 * units.MiB // TODO: make this tuneable
+	batchBufferSize       = 16 * units.KiB
+	minDiskValueSize      = 512
+	uselessDividerRecycle = 3
+	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
 
 type record struct {
@@ -630,7 +631,7 @@ func (b *Batch) growBuffer(size int64) {
 //
 // It is safe to call prepare multiple times.
 func (b *Batch) recycle() (bool, error) {
-	b.a.logger.Debug("attempting to recycle previous batch", zap.Uint64("batch", b.batch))
+	b.a.logger.Debug("recycling previous batch file", zap.Uint64("batch", b.batch))
 
 	// Determine if we should delete the oldest batch
 	if b.batch < uint64(b.a.historyLen) {
@@ -653,7 +654,7 @@ func (b *Batch) recycle() (bool, error) {
 	b.pruneableBatch = &oldestBatch
 
 	// Determine if we should continue writing to the file or create a new one
-	if previous.aliveBytes < previous.uselessBytes || previous.uselessBytes > forceRecycle {
+	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
 		b.a.logger.Debug("rewriting alive data to a new file", zap.Int64("alive bytes", previous.aliveBytes), zap.Int64("useless bytes", previous.uselessBytes), zap.Uint64("batch", b.batch))
 
 		// Create new file
@@ -691,10 +692,10 @@ func (b *Batch) recycle() (bool, error) {
 		return true, nil
 	}
 
-	// Open old batch file
-	b.a.logger.Debug("appending nulifiers to existing file", zap.Int("nullifiers", b.pendingNullify.Len()), zap.Uint64("batch", b.batch))
+	// Open old batch for writing
+	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", b.pendingNullify.Len()), zap.Uint64("batch", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
-	f, err := os.Open(b.movingPath)
+	f, err := os.OpenFile(b.movingPath, os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		return false, err
 	}
@@ -967,7 +968,7 @@ func (b *Batch) Write() (ids.ID, error) {
 
 	// Flush all unwritten data to disk
 	if err := b.writer.Flush(); err != nil {
-		return ids.Empty, err
+		return ids.Empty, fmt.Errorf("%w: could not flush file", err)
 	}
 
 	// Close file now that we don't need to write to it anymore
@@ -975,7 +976,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	// Note: we don't require the file to be fsync'd here and assume
 	// we can recover the current state on restart.
 	if err := b.f.Close(); err != nil {
-		return ids.Empty, err
+		return ids.Empty, fmt.Errorf("%w: could not close file", err)
 	}
 
 	// Handle old batch cleanup
@@ -983,17 +984,17 @@ func (b *Batch) Write() (ids.ID, error) {
 		preparedBatch := *b.pruneableBatch
 		preparedReader := b.a.batches[preparedBatch]
 		if err := preparedReader.reader.Close(); err != nil {
-			b.a.logger.Error("could not close old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+			return ids.Empty, fmt.Errorf("%w: could not close old batch", err)
 		}
 		if len(b.movingPath) == 0 {
 			preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
 			if err := os.Remove(preparedPath); err != nil {
-				b.a.logger.Error("could not remove old batch", zap.Uint64("batch", preparedBatch), zap.Error(err))
+				return ids.Empty, fmt.Errorf("%w: could not remove old batch", err)
 			}
 		} else {
 			// TODO: ensure size is updated correctly
 			if err := os.Rename(b.movingPath, b.path); err != nil {
-				return ids.Empty, err
+				return ids.Empty, fmt.Errorf("%w: could not rename file", err)
 			}
 		}
 		delete(b.a.batches, preparedBatch)
@@ -1005,7 +1006,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	reader, err := mmap.Open(b.path)
 	if err != nil {
 		// Should never happen
-		return ids.Empty, err
+		return ids.Empty, fmt.Errorf("%w: could not mmap new batch", err)
 	}
 
 	// Register the batch for reading
