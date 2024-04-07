@@ -615,7 +615,7 @@ func (b *Batch) growBuffer(size int) {
 // that tradeoff to begin writing the new batch as soon as possible.
 //
 // It is safe to call prepare multiple times.
-func (b *Batch) recycle() (bool /* new batch */, error) {
+func (b *Batch) recycle() (bool, error) {
 	// Determine if we should delete the oldest batch
 	if b.batch < uint64(b.a.historyLen) {
 		return false, nil
@@ -630,13 +630,13 @@ func (b *Batch) recycle() (bool /* new batch */, error) {
 		return false, nil
 	}
 
-	// Reuse alive tracker we have been keeping up-to-date
+	// Reuse linked hashmaps for both [alive] and [pendingNullify]
 	previous := b.a.batches[oldestBatch]
 	b.alive = previous.alive
 	b.pendingNullify = previous.pendingNullify
+	b.pruneableBatch = &oldestBatch
 
 	// Determine if we should continue writing to the file or create a new one
-	b.pruneableBatch = &oldestBatch
 	if previous.aliveBytes < previous.uselessBytes || previous.uselessBytes > forceRecycle {
 		// Create new file
 		f, err := os.Create(b.path)
@@ -788,10 +788,13 @@ func (b *Batch) nullify(key string) error {
 		return err
 	}
 	b.cursor += int64(l)
+
+	// uselessBytes already updated during runtime, don't need
+	// to re-calculate here.
 	return nil
 }
 
-func (b *Batch) checkusm() (ids.ID, error) {
+func (b *Batch) checksum() (ids.ID, error) {
 	l := opChecksumLen()
 	b.growBuffer(int(l))
 	b.buf[0] = opChecksum
@@ -807,6 +810,10 @@ func (b *Batch) checkusm() (ids.ID, error) {
 		return ids.Empty, err
 	}
 	b.cursor += int64(l)
+
+	// We always consider previous checksums useless in the case
+	// that we are reusing a file.
+	b.uselessBytes += l
 	return checksum, nil
 }
 
@@ -934,7 +941,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	}()
 
 	// Add batch and checksum to file (allows for crash recovery on restart in the case that a file is partially written)
-	checksum, err := b.checkusm()
+	checksum, err := b.checksum()
 	if err != nil {
 		return ids.Empty, err
 	}
@@ -983,13 +990,23 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 
 	// Register the batch for reading
-	b.a.batches[b.batch] = &tracker{reader: reader, alive: b.alive}
+	b.a.batches[b.batch] = &tracker{
+		reader: reader,
+
+		alive: b.alive,
+
+		pendingNullify: b.pendingNullify,
+
+		checksum:     checksum,
+		aliveBytes:   b.aliveBytes,
+		uselessBytes: b.uselessBytes,
+	}
 
 	// Set oldest batch if haven't done yet
 	if b.a.oldestBatch == nil {
 		b.a.oldestBatch = &b.batch
 	}
-	return ids.ID(checksum), nil
+	return checksum, nil
 }
 
 func (a *AppendDB) Usage() (int, uint64 /* alive bytes */, uint64 /* useless bytes */) {
