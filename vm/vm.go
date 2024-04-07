@@ -252,7 +252,7 @@ func (vm *VM) Initialize(
 	}
 	vm.blobDB = blobDB
 	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
-	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 64*units.KiB, 128) // TODO: make these configs
+	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
 	if err != nil {
 		return err
 	}
@@ -320,7 +320,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		// Prepare AppendDB
-		batch, err := stateDB.NewBatch(16_384)
+		batch, err := stateDB.NewBatch()
 		if err != nil {
 			return err
 		}
