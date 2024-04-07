@@ -22,7 +22,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
@@ -73,23 +72,33 @@ type tracker struct {
 
 	alive *linked.Hashmap[string, *record]
 
-	lastChecksum  ids.ID
-	pendingNulify set.Set[string]
+	// Byte adjustments for [pendingNullify] are taken care of
+	// prior to use to speed up the rewrite/continue decision in [recycle].
+	//
+	// pendingNullify is just used to track pending
+	// changes to keys for the next batch.
+	pendingNullify *linked.Hashmap[string, uint64]
 
+	checksum     ids.ID
 	aliveBytes   uint64
-	uselessBytes uint64 // already includes all nulifies and deletes
+	uselessBytes uint64 // already includes all nullifies and deletes
 }
 
-func (t *tracker) Nulify(key string) {
-	// Get bytes of nulified object
-	record, _ := t.alive.Get(key)
-	size := uint32(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + record.valueSize()
+func (t *tracker) Nullify(key string) {
+	// Get bytes of nullified object
+	record, ok := t.alive.Get(key)
+	if !ok {
+		// Exit loudly as this could be a sign of a bug or corruption
+		panic("nullifying key that is not in batch")
+	}
+	opSize := opPutLenWithValueLen(key, record.valueSize())
 	t.alive.Delete(key)
-	t.aliveBytes -= uint64(size)
+	t.aliveBytes -= opSize
+	t.uselessBytes += opSize
 
-	// Mark key for nulification
-	t.pendingNulify.Add(key)
-	t.uselessBytes += uint64(size) + uint64(consts.Uint8Len+consts.Uint16Len+len(key))
+	// Mark key for nullification
+	t.pendingNullify.Put(key, opSize)
+	t.uselessBytes += opNullifyLen(key)
 }
 
 // This sits under the MerkleDB and won't be used
@@ -172,6 +181,26 @@ func readPut(reader io.Reader, cursor int64, hasher hash.Hash) (string, []byte, 
 	return key, value, cursor, nil
 }
 
+func opPutLen(key string, value []byte) uint64 {
+	return uint64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
+}
+
+func opPutLenWithValueLen(key string, valueLen uint32) uint64 {
+	return uint64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + uint64(valueLen)
+}
+
+func opDeleteLen(key string) uint64 {
+	return uint64(consts.Uint8Len + consts.Uint16Len + len(key))
+}
+
+func opNullifyLen(key string) uint64 {
+	return opDeleteLen(key)
+}
+
+func opChecksumLen() uint64 {
+	return uint64(consts.Uint8Len + consts.Uint64Len + ids.IDLen)
+}
+
 func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids.ID, int64, error) {
 	op := make([]byte, consts.Uint64Len)
 	if _, err := io.ReadFull(reader, op); err != nil {
@@ -196,7 +225,7 @@ func loadBatch(
 	file uint64,
 ) (
 	*tracker,
-	set.Set[string],
+	*linked.Hashmap[string, *record], // change order is important
 	error,
 ) {
 	// Load file into buffer
@@ -217,7 +246,7 @@ func loadBatch(
 		cursor   = int64(0)
 		hasher   = sha256.New()
 
-		deletes      = set.NewSet[string](1_024)
+		changes      = linked.NewHashmap[string, *record]()
 		aliveBytes   uint64
 		uselessBytes uint64
 	)
@@ -241,7 +270,8 @@ func loadBatch(
 				record.loc = -1
 			}
 			alive.Put(key, record)
-			aliveBytes += uint64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
+			changes.Put(key, record)
+			aliveBytes += opPutLen(key, value)
 			cursor = newCursor
 		case opDelete:
 			key, newCursor, err := readKey(reader, newCursor, hasher)
@@ -249,13 +279,13 @@ func loadBatch(
 				return nil, nil, err
 			}
 			if past, ok := alive.Get(key); ok {
-				opSize := uint64(uint32(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + past.valueSize())
+				opSize := opPutLenWithValueLen(key, past.valueSize())
 				aliveBytes -= opSize
 				uselessBytes += opSize
 				alive.Delete(key)
 			}
-			deletes.Add(key)
-			uselessBytes += uint64(consts.Uint8Len + consts.Uint16Len + len(key))
+			changes.Put(key, nil)
+			uselessBytes += opDeleteLen(key)
 			cursor = newCursor
 		case opChecksum:
 			batch, checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
@@ -265,7 +295,7 @@ func loadBatch(
 			if !bytes.Equal(checksum[:], hasher.Sum(nil)) {
 				return nil, nil, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
 			}
-			uselessBytes += uint64(consts.Uint8Len + consts.Uint64Len + sha256.Size)
+			uselessBytes += opChecksumLen()
 			cursor = newCursor
 
 			// Check if we should leave the file
@@ -282,12 +312,12 @@ func loadBatch(
 
 					alive: alive,
 
-					lastChecksum:  checksum,
-					pendingNulify: set.NewSet[string](1_024),
+					checksum: checksum,
+					// pendingNullify is populated by caller
 
 					aliveBytes:   aliveBytes,
 					uselessBytes: uselessBytes,
-				}, deletes, nil
+				}, changes, nil
 			}
 
 			// Initialize hasher for next batch (assuming continues)
@@ -295,19 +325,19 @@ func loadBatch(
 			if _, err := hasher.Write(checksum[:]); err != nil {
 				return nil, nil, err
 			}
-		case opNullify:
+		case opNullify: // key was updated (either put/delete in another batch file)
 			key, newCursor, err := readKey(reader, newCursor, hasher)
 			if err != nil {
 				return nil, nil, err
 			}
 			if past, ok := alive.Get(key); ok {
-				opSize := uint64(uint32(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + past.valueSize())
+				opSize := opPutLenWithValueLen(key, past.valueSize())
 				aliveBytes -= opSize
 				uselessBytes += opSize
 				alive.Delete(key)
 			}
-			deletes.Remove(key)
-			uselessBytes += uint64(consts.Uint8Len + consts.Uint16Len + len(key))
+			changes.Delete(key) // if we were going to do something with key, don't
+			uselessBytes += opNullifyLen(key)
 			cursor = newCursor
 		default:
 			return nil, nil, fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
@@ -356,10 +386,12 @@ func New(
 	}
 
 	// Provision all batch trackers ahead of time
-	preallocs := historyLen + 1 // keep history + current
+	preallocs := (historyLen + 1) // keep history + current
 	preallocAlive := buffer.NewUnboundedDeque[*linked.Hashmap[string, *record]](preallocs)
+	preallocNullify := buffer.NewUnboundedDeque[*linked.Hashmap[string, uint64]](preallocs)
 	for i := 0; i < preallocs; i++ {
 		preallocAlive.PushRight(linked.NewHashmapWithSize[string, *record](batchSize))
+		preallocNullify.PushRight(linked.NewHashmapWithSize[string, uint64](batchSize))
 	}
 
 	// Replay all changes on-disk
@@ -381,57 +413,46 @@ func New(
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
 		alive, ok := preallocAlive.PopLeft()
 		if !ok {
-			log.Warn("exceeded prealloc allocation") // can happen if we don't delete files we expected
+			log.Warn("exceeded prealloc alive allocation")
 			alive = linked.NewHashmapWithSize[string, *record](batchSize)
 		}
-		checksum, deletes, err := loadBatch(path, alive, file)
+		track, changes, err := loadBatch(path, alive, file)
 		if err != nil {
-			// We chose not to fix storage if we encounter an error
+			// We chose not to fix storage if we encounter an error as it
+			// could be destructive.
 			//
 			// TODO: make corruption fix optional/add tool
 			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
-		aliveIter := alive.NewIterator()
-		for aliveIter.Next() {
-			key, entry := aliveIter.Key(), aliveIter.Value()
+		nullify, ok := preallocNullify.PopLeft()
+		if !ok {
+			log.Warn("exceeded prealloc nullify allocation")
+			nullify = linked.NewHashmapWithSize[string, uint64](batchSize)
+		}
+		track.pendingNullify = nullify
+		changeIter := changes.NewIterator()
+		for changeIter.Next() {
+			key, entry := changeIter.Key(), changeIter.Value()
 			past, ok := keys[key]
-
-			// Delete old value from previous batch before reuse
 			if ok {
-				batches[past.batch].alive.Delete(key)
+				batches[past.batch].Nullify(key)
 			}
 
 			// Update entry
 			if entry == nil {
 				delete(keys, key)
-				alive.Delete(key) // only track keys that are alive
 			} else {
-				if ok {
-					// Reuse record if already exists
-					past.batch = entry.batch
-					past.value = entry.value
-					past.loc = entry.loc
-					past.size = entry.size
-				} else {
-					keys[key] = entry
-				}
+				keys[key] = entry
 			}
 		}
 		if i == 0 {
 			firstBatch = file
 		}
-		reader, err := mmap.Open(path)
-		if err != nil {
-			log.Warn("could not mmap batch", zap.String("path", path), zap.Error(err))
-			return nil, ids.Empty, err
-		}
-		batches[file] = &tracker{reader: reader, alive: alive}
-		lastChecksum = checksum
+		batches[file] = track
+		lastChecksum = track.checksum
 		lastBatch = file
-		size += uint64(reader.Len())
-
-		// TODO: delete files that exceed our history on restart (would be part of crash recovery)
+		size += uint64(track.reader.Len())
 	}
 	log.Info(
 		"loaded batches",
