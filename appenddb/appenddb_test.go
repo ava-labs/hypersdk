@@ -66,12 +66,12 @@ func TestAppendDB(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, defaultHistoryLen)
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
 	// Put
-	b, err := db.NewBatch(10)
+	b, err := db.NewBatch()
 	require.NoError(err)
 	require.Zero(b.Prepare())
 	require.NoError(b.Put(ctx, "hello", []byte("world")))
@@ -86,7 +86,7 @@ func TestAppendDB(t *testing.T) {
 
 	// Restart
 	require.NoError(db.Close())
-	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, defaultHistoryLen)
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
 	require.NoError(err)
 	require.Equal(batch, last)
 
@@ -104,7 +104,7 @@ func TestAppendDB(t *testing.T) {
 	require.NoError(f.Close())
 
 	// Restart
-	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, defaultHistoryLen)
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
@@ -130,12 +130,12 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 1)
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
 	// Insert key
-	b, err := db.NewBatch(10)
+	b, err := db.NewBatch()
 	require.NoError(err)
 	require.Zero(b.Prepare())
 	require.NoError(b.Put(ctx, "hello", []byte("world")))
@@ -143,7 +143,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(err)
 
 	// Create a batch gap
-	b, err = db.NewBatch(10)
+	b, err = db.NewBatch()
 	require.NoError(err)
 	require.Zero(b.Prepare())
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
@@ -151,7 +151,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(err)
 
 	// Modify recycled key
-	b, err = db.NewBatch(10)
+	b, err = db.NewBatch()
 	require.NoError(err)
 	require.Equal(1, b.Prepare())
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
@@ -159,7 +159,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(err)
 
 	// Delete recycled key
-	b, err = db.NewBatch(10)
+	b, err = db.NewBatch()
 	require.NoError(err)
 	require.Equal(1, b.Prepare())
 	require.NoError(b.Delete(ctx, "world"))
@@ -183,14 +183,14 @@ func TestAppendDBPrune(t *testing.T) {
 	logger.Info("created directory", zap.String("path", baseDir))
 
 	// Create
-	db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
 	// Insert 100 batches
 	var lastBatch ids.ID
 	for i := 0; i < 100; i++ {
-		b, err := db.NewBatch(10)
+		b, err := db.NewBatch()
 		require.NoError(err)
 		b.Prepare()
 		switch {
@@ -230,7 +230,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Len(files, 11) // 10 historical batches
 
 	// Restart
-	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 
@@ -250,7 +250,7 @@ func TestAppendDBPrune(t *testing.T) {
 
 	// Write to new batches
 	for i := 0; i < 10; i++ {
-		b, err := db.NewBatch(10)
+		b, err := db.NewBatch()
 		require.NoError(err)
 		b.Prepare()
 		for j := 0; j < 10; j++ {
@@ -270,7 +270,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.Len(files, 11) // 10 historical batches
 
 	// Read from new batches
-	db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 10)
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 10)
 	require.NoError(err)
 	require.Equal(lastBatch, last)
 	for i := 0; i < 10; i++ {
@@ -302,17 +302,17 @@ func TestAppendDBLarge(t *testing.T) {
 			logger.Info("created directory", zap.String("path", baseDir))
 
 			// Create
-			db, last, err := New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
+			batchSize := 10_000
+			db, last, err := New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
 			require.NoError(err)
 			require.Equal(ids.Empty, last)
 
 			// Write 1M unique keys in 10 batches
 			batches := 10
-			batchSize := 10_000
 			keys, values := randomKeyValues(batches, batchSize, 32, 32, 0)
 			checksums := make([]ids.ID, batches)
 			for i := 0; i < batches; i++ {
-				b, err := db.NewBatch(batchSize + 100)
+				b, err := db.NewBatch()
 				require.NoError(err)
 				recycled := b.Prepare()
 				if i <= 5 {
@@ -337,7 +337,7 @@ func TestAppendDBLarge(t *testing.T) {
 
 			// Restart
 			require.NoError(db.Close())
-			db, last, err = New(logger, baseDir, defaultInitialSize, defaultBufferSize, 5)
+			db, last, err = New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
 			require.NoError(err)
 			require.Equal(checksums[batches-1], last)
 
@@ -350,11 +350,11 @@ func TestAppendDBLarge(t *testing.T) {
 			require.NoError(db.Close())
 
 			// Create another database and ensure checksums match
-			db2, last, err := New(logger, t.TempDir(), defaultInitialSize, defaultBufferSize, 5)
+			db2, last, err := New(logger, t.TempDir(), defaultInitialSize, batchSize, defaultBufferSize, 5)
 			require.NoError(err)
 			require.Equal(ids.Empty, last)
 			for i := 0; i < batches; i++ {
-				b, err := db2.NewBatch(batchSize + 100)
+				b, err := db2.NewBatch()
 				require.NoError(err)
 				b.Prepare()
 				for j := 0; j < batchSize; j++ {
@@ -376,15 +376,15 @@ func BenchmarkAppendDB(b *testing.B) {
 	batches := 10
 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
-			for _, historyLen := range []uint64{1, 5, 10} {
+			for _, historyLen := range []int{1, 5, 10} {
 				keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
 				b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d", batchSize, reuse, historyLen), func(b *testing.B) {
 					for i := 0; i < b.N; i++ {
-						db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, defaultBufferSize, historyLen)
+						db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, batchSize, defaultBufferSize, historyLen)
 						require.NoError(err)
 						require.Equal(ids.Empty, last)
 						for j := 0; j < batches; j++ {
-							b, err := db.NewBatch(batchSize + 100)
+							b, err := db.NewBatch()
 							require.NoError(err)
 							b.Prepare()
 							for k := 0; k < batchSize; k++ {

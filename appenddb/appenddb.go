@@ -19,8 +19,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/dustin/go-humanize"
@@ -37,8 +39,8 @@ const (
 	opPut    = uint8(0)
 	opDelete = uint8(1)
 
-	defaultBatchBufferSize = 16_384 // per item encoding
-	minDiskValueSize       = 512
+	batchBufferSize  = 16 * units.KiB
+	minDiskValueSize = 512
 )
 
 type record struct {
@@ -63,7 +65,9 @@ type AppendDB struct {
 	logger     logging.Logger
 	baseDir    string
 	bufferSize int
-	historyLen uint64
+	historyLen int
+
+	preallocAlive buffer.Deque[*linked.Hashmap[string, *record]]
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -145,22 +149,21 @@ func readRecord(batch uint64, reader io.Reader, cursor int64, hasher hash.Hash) 
 	}
 }
 
-func loadBatch(path string, file uint64) (ids.ID, *linked.Hashmap[string, *record], error) {
+func loadBatch(path string, alive *linked.Hashmap[string, *record], file uint64) (ids.ID, error) {
 	// Load file into buffer
 	f, err := os.Open(path)
 	if err != nil {
-		return ids.Empty, nil, err
+		return ids.Empty, err
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		return ids.Empty, nil, err
+		return ids.Empty, err
 	}
 	reader := bufio.NewReader(f)
 
 	// Read all operations from the file
 	var (
-		alive    = linked.NewHashmapWithSize[string, *record](16_384) // TODO: handle this better
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
 		hasher   = sha256.New()
@@ -168,22 +171,22 @@ func loadBatch(path string, file uint64) (ids.ID, *linked.Hashmap[string, *recor
 	for cursor < fileSize-ids.IDLen {
 		key, entry, newCursor, err := readRecord(file, reader, cursor, hasher)
 		if err != nil {
-			return ids.Empty, nil, err
+			return ids.Empty, err
 		}
 		alive.Put(key, entry)
 		cursor = newCursor
 	}
 	checksum := make([]byte, sha256.Size)
 	if _, err := io.ReadFull(reader, checksum); err != nil {
-		return ids.Empty, nil, err
+		return ids.Empty, err
 	}
 	if !bytes.Equal(checksum, hasher.Sum(nil)) {
-		return ids.Empty, nil, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
+		return ids.Empty, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
 	}
 	if cursor+sha256.Size != fileSize {
-		return ids.Empty, nil, fmt.Errorf("%w: incorrect size", ErrCorrupt)
+		return ids.Empty, fmt.Errorf("%w: incorrect size", ErrCorrupt)
 	}
-	return ids.ID(checksum), alive, nil
+	return ids.ID(checksum), nil
 }
 
 // New returns a new AppendDB instance and the ID of the last committed file.
@@ -191,8 +194,9 @@ func New(
 	log logging.Logger,
 	baseDir string,
 	initialSize int,
+	batchSize int,
 	bufferSize int,
-	historyLen uint64, // should not be changed
+	historyLen int, // should not be changed
 ) (*AppendDB, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
 	start := time.Now()
@@ -220,6 +224,17 @@ func New(
 	if err != nil {
 		return nil, ids.Empty, err
 	}
+	if len(files) > historyLen+1 /* last file could've been in-progress */ {
+		log.Warn("found too many files", zap.Int("count", len(files)))
+		return nil, ids.Empty, errors.New("too many files")
+	}
+
+	// Provision all batch trackers ahead of time
+	preallocs := historyLen + 1 // keep history + current
+	preallocAlive := buffer.NewUnboundedDeque[*linked.Hashmap[string, *record]](preallocs)
+	for i := 0; i < preallocs; i++ {
+		preallocAlive.PushRight(linked.NewHashmapWithSize[string, *record](batchSize))
+	}
 
 	// Replay all changes on-disk
 	//
@@ -238,7 +253,12 @@ func New(
 	slices.Sort(files)
 	for i, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		checksum, alive, err := loadBatch(path, file)
+		alive, ok := preallocAlive.PopLeft()
+		if !ok {
+			log.Warn("exceeded prealloc allocation") // can happen if we don't delete files we expected
+			alive = linked.NewHashmapWithSize[string, *record](batchSize)
+		}
+		checksum, err := loadBatch(path, alive, file)
 		if err != nil {
 			if errors.Is(err, ErrCorrupt) {
 				log.Warn("detected corrupt batch", zap.String("path", path), zap.Error(err))
@@ -290,6 +310,8 @@ func New(
 		lastChecksum = checksum
 		lastBatch = file
 		size += uint64(reader.Len())
+
+		// TODO: delete files that exceed our history on restart (would be part of crash recovery)
 	}
 	log.Info(
 		"loaded batches",
@@ -306,6 +328,8 @@ func New(
 		baseDir:    baseDir,
 		bufferSize: bufferSize,
 		historyLen: historyLen,
+
+		preallocAlive: preallocAlive,
 
 		batches: batches,
 		keys:    keys,
@@ -394,7 +418,7 @@ type Batch struct {
 	err error
 }
 
-func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
+func (a *AppendDB) NewBatch() (*Batch, error) {
 	a.commitLock.Lock()
 	batch := a.nextBatch
 	path := filepath.Join(a.baseDir, strconv.FormatUint(batch, 10))
@@ -412,13 +436,22 @@ func (a *AppendDB) NewBatch(changes int) (*Batch, error) {
 		hasher: sha256.New(),
 		f:      f,
 
-		buf:    make([]byte, defaultBatchBufferSize),
+		buf:    make([]byte, batchBufferSize),
 		writer: bufio.NewWriterSize(f, a.bufferSize),
 	}
 	// If we don't need to recycle, we should create a new hashmap for this
 	// batch.
-	if !b.recycle() {
-		b.alive = linked.NewHashmapWithSize[string, *record](changes)
+	recycled, err := b.recycle()
+	if err != nil {
+		_ = f.Close()
+		_ = os.Remove(path)
+		return nil, err
+	}
+	if !recycled {
+		b.alive, _ = a.preallocAlive.PopLeft()
+	}
+	if b.alive == nil {
+		panic("empty alive")
 	}
 	return b, nil
 }
@@ -439,19 +472,19 @@ func (b *Batch) growBuffer(size int) {
 // that tradeoff to begin writing the new batch as soon as possible.
 //
 // It is safe to call prepare multiple times.
-func (b *Batch) recycle() bool {
+func (b *Batch) recycle() (bool, error) {
 	// Determine if we should delete the oldest batch
-	if b.batch < b.a.historyLen {
-		return false
+	if b.batch < uint64(b.a.historyLen) {
+		return false, nil
 	}
 	if b.a.oldestBatch == nil {
-		return false
+		return false, nil
 	}
 	oldestBatch := *b.a.oldestBatch
-	if b.batch-b.a.historyLen <= oldestBatch {
+	if b.batch-uint64(b.a.historyLen) <= oldestBatch {
 		// This means that if we are working on batch 2, we will prune batch 0
 		// but keep batch 1 around.
-		return false
+		return false, nil
 	}
 
 	// Reuse alive tracker we have been keeping up-to-date
@@ -463,16 +496,14 @@ func (b *Batch) recycle() bool {
 	for i := 0; i < items; i++ {
 		// Iterate over all items in [alive] and write them to the batch file
 		if !aliveIter.Next() {
-			b.err = ErrCorrupt
-			return true
+			return false, ErrCorrupt
 		}
 
 		// Anything left in [alive] should be written
 		k := aliveIter.Key()
 		value, err := b.a.Get(context.TODO(), k)
 		if err != nil {
-			b.err = err
-			return true
+			return false, err
 		}
 
 		// Create a new record for the key in the batch file
@@ -480,7 +511,7 @@ func (b *Batch) recycle() bool {
 		b.recycled++
 	}
 	b.pruneableBatch = &oldestBatch
-	return true
+	return true, nil
 }
 
 // TODO: make this a true abort as long as called before Prepare
