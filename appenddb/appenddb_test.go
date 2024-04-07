@@ -3,6 +3,7 @@ package appenddb
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -324,89 +325,91 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 }
 
-// func TestAppendDBLarge(t *testing.T) {
-// 	for _, valueSize := range []int{32, minDiskValueSize * 2} { // ensure mem and mmap work
-// 		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
-// 			// Prepare
-// 			require := require.New(t)
-// 			ctx := context.TODO()
-// 			baseDir := t.TempDir()
-// 			logger := logging.NewLogger(
-// 				"appenddb",
-// 				logging.NewWrappedCore(
-// 					logging.Debug,
-// 					os.Stdout,
-// 					logging.Colors.ConsoleEncoder(),
-// 				),
-// 			)
-// 			logger.Info("created directory", zap.String("path", baseDir))
-//
-// 			// Create
-// 			batchSize := 10_000
-// 			db, last, err := New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
-// 			require.NoError(err)
-// 			require.Equal(ids.Empty, last)
-//
-// 			// Write 1M unique keys in 10 batches
-// 			batches := 10
-// 			keys, values := randomKeyValues(batches, batchSize, 32, 32, 0)
-// 			checksums := make([]ids.ID, batches)
-// 			for i := 0; i < batches; i++ {
-// 				b, err := db.NewBatch()
-// 				require.NoError(err)
-// 				recycled := b.Prepare()
-// 				if i <= 5 {
-// 					require.Zero(recycled)
-// 				} else {
-// 					require.Equal(batchSize, recycled)
-// 				}
-// 				for j := 0; j < batchSize; j++ {
-// 					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
-// 				}
-// 				checksum, err := b.Write()
-// 				require.NoError(err)
-//
-// 				// Ensure data is correct
-// 				for j := 0; j < batchSize; j++ {
-// 					v, err := db.Get(ctx, string(keys[i][j]))
-// 					require.NoError(err)
-// 					require.Equal(values[i][j], v)
-// 				}
-// 				checksums[i] = checksum
-// 			}
-//
-// 			// Restart
-// 			require.NoError(db.Close())
-// 			db, last, err = New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
-// 			require.NoError(err)
-// 			require.Equal(checksums[batches-1], last)
-//
-// 			// Ensure data is correct after restart
-// 			for i := 0; i < batchSize; i++ {
-// 				v, err := db.Get(ctx, string(keys[9][i]))
-// 				require.NoError(err)
-// 				require.Equal(values[9][i], v)
-// 			}
-// 			require.NoError(db.Close())
-//
-// 			// Create another database and ensure checksums match
-// 			db2, last, err := New(logger, t.TempDir(), defaultInitialSize, batchSize, defaultBufferSize, 5)
-// 			require.NoError(err)
-// 			require.Equal(ids.Empty, last)
-// 			for i := 0; i < batches; i++ {
-// 				b, err := db2.NewBatch()
-// 				require.NoError(err)
-// 				b.Prepare()
-// 				for j := 0; j < batchSize; j++ {
-// 					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
-// 				}
-// 				checksum, err := b.Write()
-// 				require.NoError(err)
-// 				require.Equal(checksums[i], checksum)
-// 			}
-// 		})
-// 	}
-// }
+func TestAppendDBLarge(t *testing.T) {
+	for _, valueSize := range []int{32, minDiskValueSize * 2} { // ensure mem and mmap work
+		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
+			// Prepare
+			require := require.New(t)
+			ctx := context.TODO()
+			baseDir := t.TempDir()
+			logger := logging.NewLogger(
+				"appenddb",
+				logging.NewWrappedCore(
+					logging.Debug,
+					os.Stdout,
+					logging.Colors.ConsoleEncoder(),
+				),
+			)
+			logger.Info("created directory", zap.String("path", baseDir))
+
+			// Create
+			batchSize := 10_000
+			db, last, err := New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
+			require.NoError(err)
+			require.Equal(ids.Empty, last)
+
+			// Write 1M unique keys in 10 batches
+			batches := 10
+			keys, values := randomKeyValues(batches, batchSize, 32, 32, 0)
+			checksums := make([]ids.ID, batches)
+			for i := 0; i < batches; i++ {
+				b, err := db.NewBatch()
+				require.NoError(err)
+				openBytes, movedFile := b.Prepare()
+				if i <= 5 {
+					require.Zero(openBytes)
+					require.False(movedFile)
+				} else {
+					require.Equal(int64(0), openBytes) // all no keys, no nullifiers
+					require.True(movedFile)
+				}
+				for j := 0; j < batchSize; j++ {
+					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
+				}
+				checksum, err := b.Write()
+				require.NoError(err)
+
+				// Ensure data is correct
+				for j := 0; j < batchSize; j++ {
+					v, err := db.Get(ctx, string(keys[i][j]))
+					require.NoError(err)
+					require.Equal(values[i][j], v)
+				}
+				checksums[i] = checksum
+			}
+
+			// Restart
+			require.NoError(db.Close())
+			db, last, err = New(logger, baseDir, defaultInitialSize, batchSize, defaultBufferSize, 5)
+			require.NoError(err)
+			require.Equal(checksums[batches-1], last)
+
+			// Ensure data is correct after restart
+			for i := 0; i < batchSize; i++ {
+				v, err := db.Get(ctx, string(keys[9][i]))
+				require.NoError(err)
+				require.Equal(values[9][i], v)
+			}
+			require.NoError(db.Close())
+
+			// Create another database and ensure checksums match
+			db2, last, err := New(logger, t.TempDir(), defaultInitialSize, batchSize, defaultBufferSize, 5)
+			require.NoError(err)
+			require.Equal(ids.Empty, last)
+			for i := 0; i < batches; i++ {
+				b, err := db2.NewBatch()
+				require.NoError(err)
+				b.Prepare()
+				for j := 0; j < batchSize; j++ {
+					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
+				}
+				checksum, err := b.Write()
+				require.NoError(err)
+				require.Equal(checksums[i], checksum)
+			}
+		})
+	}
+}
 
 //
 // func BenchmarkAppendDB(b *testing.B) {
