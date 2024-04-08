@@ -51,10 +51,32 @@ const (
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
 
-type record struct {
-	batch uint64
+type record interface {
+	Batch() uint64
+	SetBatch(uint64)
 
+	Size() int64
+}
+
+type memRecord struct {
+	batch uint64
 	value []byte
+}
+
+func (m *memRecord) Batch() uint64 {
+	return m.batch
+}
+
+func (m *memRecord) SetBatch(b uint64) {
+	m.batch = b
+}
+
+func (m *memRecord) Size() int64 {
+	return int64(len(m.value))
+}
+
+type diskRecord struct {
+	batch uint64
 
 	// Location of value in file (does not include
 	// operation, key length, key, or value length)
@@ -62,17 +84,22 @@ type record struct {
 	size uint32
 }
 
-func (r *record) valueSize() int64 {
-	if r.loc >= 0 {
-		return int64(r.size)
-	}
-	return int64(len(r.value))
+func (d *diskRecord) Batch() uint64 {
+	return d.batch
+}
+
+func (d *diskRecord) SetBatch(b uint64) {
+	d.batch = b
+}
+
+func (d *diskRecord) Size() int64 {
+	return int64(d.size)
 }
 
 type tracker struct {
 	reader *mmap.ReaderAt
 
-	alive *linked.Hashmap[string, *record]
+	alive *linked.Hashmap[string, record]
 
 	// Byte adjustments for [pendingNullify] are taken care of
 	// prior to use to speed up the rewrite/continue decision in [recycle].
@@ -93,7 +120,7 @@ func (t *tracker) Nullify(key string) {
 		// Exit loudly as this could be a sign of a bug or corruption
 		panic("nullifying key that is not in batch")
 	}
-	opSize := opPutLenWithValueLen(key, record.valueSize())
+	opSize := opPutLenWithValueLen(key, record.Size())
 	t.alive.Delete(key)
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
@@ -111,7 +138,7 @@ type AppendDB struct {
 	bufferSize int
 	historyLen int
 
-	preallocAlive   buffer.Deque[*linked.Hashmap[string, *record]]
+	preallocAlive   buffer.Deque[*linked.Hashmap[string, record]]
 	preallocNullify buffer.Deque[*linked.Hashmap[string, any]]
 
 	commitLock  sync.RWMutex
@@ -120,7 +147,7 @@ type AppendDB struct {
 
 	keyLock sync.RWMutex
 	batches map[uint64]*tracker
-	keys    map[string]*record
+	keys    map[string]record
 }
 
 func readOp(reader io.Reader, cursor int64, hasher hash.Hash) (uint8, int64, error) {
@@ -223,11 +250,11 @@ func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids
 
 func loadBatch(
 	path string,
-	alive *linked.Hashmap[string, *record],
+	alive *linked.Hashmap[string, record],
 	file uint64,
 ) (
 	*tracker,
-	*linked.Hashmap[string, *record], // change order is important
+	*linked.Hashmap[string, record], // change order is important
 	error,
 ) {
 	// Load file into buffer
@@ -249,7 +276,7 @@ func loadBatch(
 
 		hasher = sha256.New()
 
-		changes      = linked.NewHashmap[string, *record]()
+		changes      = linked.NewHashmap[string, record]()
 		aliveBytes   int64
 		uselessBytes int64
 	)
@@ -264,24 +291,29 @@ func loadBatch(
 			if err != nil {
 				return nil, nil, err
 			}
-			record := &record{batch: file}
+			var r record
 			if len(value) >= minDiskValueSize {
-				record.loc = cursor
-				record.size = uint32(len(value))
+				r = &diskRecord{
+					batch: file,
+					loc:   cursor,
+					size:  uint32(len(value)),
+				}
 			} else {
-				record.value = value
-				record.loc = -1
+				r = &memRecord{
+					batch: file,
+					value: value,
+				}
 			}
 			previousRecord, ok := alive.Get(key)
 			if ok {
 				// This could happen if we put a key in the same batch twice (when reading
 				// keys during prepare).
-				opSize := opPutLenWithValueLen(key, previousRecord.valueSize())
+				opSize := opPutLenWithValueLen(key, previousRecord.Size())
 				aliveBytes -= opSize
 				uselessBytes += opSize
 			}
-			alive.Put(key, record)
-			changes.Put(key, record)
+			alive.Put(key, r)
+			changes.Put(key, r)
 			aliveBytes += opPutLen(key, value)
 			cursor = newCursor
 		case opDelete:
@@ -290,7 +322,7 @@ func loadBatch(
 				return nil, nil, err
 			}
 			if past, ok := alive.Get(key); ok {
-				opSize := opPutLenWithValueLen(key, past.valueSize())
+				opSize := opPutLenWithValueLen(key, past.Size())
 				aliveBytes -= opSize
 				uselessBytes += opSize
 				alive.Delete(key)
@@ -342,7 +374,7 @@ func loadBatch(
 				return nil, nil, err
 			}
 			if past, ok := alive.Get(key); ok {
-				opSize := opPutLenWithValueLen(key, past.valueSize())
+				opSize := opPutLenWithValueLen(key, past.Size())
 				aliveBytes -= opSize
 				uselessBytes += opSize
 				alive.Delete(key)
@@ -398,10 +430,10 @@ func New(
 
 	// Provision all batch trackers ahead of time
 	preallocs := (historyLen + 1) // keep history + current
-	preallocAlive := buffer.NewUnboundedDeque[*linked.Hashmap[string, *record]](preallocs)
+	preallocAlive := buffer.NewUnboundedDeque[*linked.Hashmap[string, record]](preallocs)
 	preallocNullify := buffer.NewUnboundedDeque[*linked.Hashmap[string, any]](preallocs)
 	for i := 0; i < preallocs; i++ {
-		preallocAlive.PushRight(linked.NewHashmapWithSize[string, *record](batchSize))
+		preallocAlive.PushRight(linked.NewHashmapWithSize[string, record](batchSize))
 		preallocNullify.PushRight(linked.NewHashmapWithSize[string, any](batchSize))
 	}
 
@@ -411,7 +443,7 @@ func New(
 	// to reconstruct data. If any files were not fully written or have become corrupt,
 	// this will error.
 	var (
-		keys    = make(map[string]*record, initialSize)
+		keys    = make(map[string]record, initialSize)
 		batches = make(map[uint64]*tracker, historyLen+1)
 
 		lastChecksum ids.ID
@@ -424,7 +456,7 @@ func New(
 		alive, ok := preallocAlive.PopLeft()
 		if !ok {
 			log.Warn("exceeded prealloc alive allocation")
-			alive = linked.NewHashmapWithSize[string, *record](batchSize)
+			alive = linked.NewHashmapWithSize[string, record](batchSize)
 		}
 		track, changes, err := loadBatch(path, alive, file)
 		if err != nil {
@@ -446,7 +478,7 @@ func New(
 			key, entry := changeIter.Key(), changeIter.Value()
 			past, ok := keys[key]
 			if ok {
-				batches[past.batch].Nullify(key)
+				batches[past.Batch()].Nullify(key)
 			}
 
 			// Update entry
@@ -496,12 +528,16 @@ func (a *AppendDB) get(key string) ([]byte, error) {
 	if !ok {
 		return nil, database.ErrNotFound
 	}
-	if entry.loc < 0 {
-		return slices.Clone(entry.value), nil
+	switch r := entry.(type) {
+	case *memRecord:
+		return slices.Clone(r.value), nil
+	case *diskRecord:
+		value := make([]byte, r.size)
+		_, err := a.batches[r.batch].reader.ReadAt(value, r.loc)
+		return value, err
+	default:
+		panic("unknown record type")
 	}
-	value := make([]byte, entry.size)
-	_, err := a.batches[entry.batch].reader.ReadAt(value, entry.loc)
-	return value, err
 }
 
 func (a *AppendDB) Get(_ context.Context, key string) ([]byte, error) {
@@ -564,7 +600,7 @@ type Batch struct {
 	buf    []byte
 	writer *bufio.Writer
 
-	alive          *linked.Hashmap[string, *record]
+	alive          *linked.Hashmap[string, record]
 	pendingNullify *linked.Hashmap[string, any]
 
 	aliveBytes   int64
@@ -755,7 +791,7 @@ func (b *Batch) Abort() error {
 	return nil
 }
 
-func (b *Batch) put(key string, value []byte) (*record, error) {
+func (b *Batch) put(key string, value []byte) (record, error) {
 	// Check input
 	if len(key) > int(consts.MaxUint16) {
 		return nil, ErrKeyTooLong
@@ -782,14 +818,19 @@ func (b *Batch) put(key string, value []byte) (*record, error) {
 	// Furnish record for future usage
 	//
 	// Note: this batch is not mmap'd yet and should not be used until it is.
-	r := &record{batch: b.batch}
+	var r record
 	lv := len(value)
 	if lv >= minDiskValueSize {
-		r.loc = valueStart
-		r.size = uint32(lv)
+		r = &diskRecord{
+			batch: b.batch,
+			loc:   valueStart,
+			size:  uint32(lv),
+		}
 	} else {
-		r.value = value
-		r.loc = -1
+		r = &memRecord{
+			batch: b.batch,
+			value: value,
+		}
 	}
 	return r, nil
 }
@@ -862,7 +903,7 @@ func (b *Batch) Prepare() (int64, bool) {
 		aliveIter := b.alive.NewIterator()
 		for aliveIter.Next() {
 			record := aliveIter.Value()
-			record.batch = b.batch
+			record.SetBatch(b.batch)
 
 			// We don't need to update [keys] because we share a pointer
 			// to [record] in [alive].
@@ -891,13 +932,13 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	if past.batch < b.batch {
-		b.a.batches[past.batch].Nullify(key)
+	if pb := past.Batch(); pb < b.batch {
+		b.a.batches[pb].Nullify(key)
 	} else {
 		// In the case that we are putting the same key in the same batch,
 		// we will have 2 put records for the same key. We mark this as [uselessBytes]
 		// for the purposes of later pruning the value.
-		opSize := opPutLenWithValueLen(key, past.valueSize())
+		opSize := opPutLenWithValueLen(key, past.Size())
 		b.aliveBytes -= opSize
 		b.uselessBytes += opSize
 	}
@@ -934,11 +975,11 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	if past.batch < b.batch {
-		b.a.batches[past.batch].Nullify(key)
+	if pb := past.Batch(); pb < b.batch {
+		b.a.batches[pb].Nullify(key)
 	} else {
 		b.alive.Delete(key)
-		opSize := opPutLenWithValueLen(key, past.valueSize())
+		opSize := opPutLenWithValueLen(key, past.Size())
 		b.aliveBytes -= opSize
 		b.uselessBytes += opSize
 	}

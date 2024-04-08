@@ -622,3 +622,59 @@ func BenchmarkPebbleDB(b *testing.B) {
 		}
 	}
 }
+
+func simpleRandomKeyValues(items int, size int) ([]string, [][]byte) {
+	keys := make([]string, items)
+	values := make([][]byte, items)
+	for i := 0; i < items; i++ {
+		k := make([]byte, size)
+		rand.Read(k)
+		keys[i] = string(k)
+		v := make([]byte, size)
+		rand.Read(v)
+		values[i] = v
+	}
+	return keys, values
+}
+
+func BenchmarkRecord(b *testing.B) {
+	// Allocate objects outside of inner benchmarks
+	// to avoid erroneous allocation tracking.
+	type oldRecord struct {
+		batch uint64
+		value []byte
+
+		loc  int64
+		size uint32
+	}
+	var (
+		pkeys, pvalues = simpleRandomKeyValues(1_000_000, 32)
+		mold           = make(map[string]*oldRecord, 1_000_000)
+		mnew           = make(map[string]record, 1_000_000)
+		mraw           = make(map[string][]byte, 1_000_000)
+	)
+
+	// Perform actual allocations
+	b.Run("old", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < 1_000_000; i++ {
+			mold[pkeys[i]] = &oldRecord{
+				value: pvalues[i],
+			}
+		}
+	})
+	b.Run("new", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < 1_000_000; i++ {
+			mnew[pkeys[i]] = &memRecord{
+				value: pvalues[i],
+			}
+		}
+	})
+	b.Run("raw", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < 1_000_000; i++ {
+			mraw[pkeys[i]] = pvalues[i]
+		}
+	})
+}
