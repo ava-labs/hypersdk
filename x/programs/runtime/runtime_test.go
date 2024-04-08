@@ -156,13 +156,17 @@ func TestMetering(t *testing.T) {
 
 	// example has 2 ops codes and should cost 2 units
 	wasm, err := wasmtime.Wat2Wasm(`
-	(module $test
-	(type (;0;) (func (result i32)))
-	(export "get_guest" (func 0))
-	(func (;0;) (type 0) (result i32)
-		(local i32)
-		i32.const 1
-	  )
+	(module
+		(memory 1) ;; 1 pages
+		(func $get (param i64) (result i32)
+			i32.const 0
+		)
+		(func $alloc (param i32) (result i32)
+			i32.const 0
+		)
+		(export "memory" (memory 0))
+		(export "get_guest" (func $get))
+		(export "alloc" (func $alloc))
 	)
 	`)
 	require.NoError(err)
@@ -183,7 +187,8 @@ func TestMetering(t *testing.T) {
 	require.NoError(err)
 
 	require.Equal(balance, maxUnits)
-	for i := 0; i < 10; i++ {
+	// spend 2 units for alloc and 2 units for get_guest
+	for i := 0; i < 5; i++ {
 		_, err = runtime.Call(ctx, "get", programContext)
 		require.NoError(err)
 	}
