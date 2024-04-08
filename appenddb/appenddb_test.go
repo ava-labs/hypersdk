@@ -124,6 +124,96 @@ func TestAppendDB(t *testing.T) {
 	require.ErrorIs(err, ErrCorrupt)
 }
 
+func TestAppendDBAbort(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	ctx := context.TODO()
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"appenddb",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Insert key (add enough items such that nullifiers will be written rather than rewriting file)
+	b, err := db.NewBatch()
+	require.NoError(err)
+	require.Zero(b.Prepare())
+	require.NoError(b.Put(ctx, "hello", []byte("world")))
+	require.NoError(b.Put(ctx, "hello2", []byte("world2")))
+	require.NoError(b.Put(ctx, "hello3", []byte("world3")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Create a batch gap
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, movedFile := b.Prepare()
+	require.Equal(int64(0), openBytes)
+	require.False(movedFile)
+	require.NoError(b.Put(ctx, "hello", []byte("world10")))
+	checksum, err := b.Write()
+	require.NoError(err)
+	keys, alive, useless := db.Usage()
+
+	// Create new batch then abort
+	b, err = db.NewBatch()
+	require.NoError(err)
+	require.NoError(b.Abort())
+	require.NoError(db.Close())
+
+	// Reload database
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(checksum, last)
+	keys2, alive2, useless2 := db.Usage()
+	require.Equal(keys, keys2)
+	require.Equal(alive, alive2)
+	require.Equal(useless, useless2)
+
+	// Write batch
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, movedFile = b.Prepare()
+	require.Equal(int64(8), openBytes)
+	require.True(movedFile)
+	require.NoError(b.Put(ctx, "hello", []byte("world11")))
+	require.NoError(b.Delete(ctx, "hello2"))
+	checksum, err = b.Write()
+	require.NoError(err)
+	keys, alive, useless = db.Usage()
+	require.NoError(db.Close())
+
+	// Reload database and ensure nullifiers were written
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(checksum, last)
+	keys2, alive2, useless2 = db.Usage()
+	require.Equal(keys, keys2)
+	require.Equal(alive, alive2)
+	require.Equal(useless, useless2)
+
+	// Ensure data is correct
+	v, err := db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world11"), v)
+	_, err = db.Get(ctx, "hello2")
+	require.ErrorIs(err, database.ErrNotFound)
+	v, err = db.Get(ctx, "hello3")
+	require.NoError(err)
+	require.Equal([]byte("world3"), v)
+	require.NoError(db.Close())
+}
+
 func TestAppendDBReinsertHistory(t *testing.T) {
 	// Prepare
 	require := require.New(t)
