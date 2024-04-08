@@ -26,10 +26,16 @@ func TestStop(t *testing.T) {
 	// infinite loop
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-	  (func (export "run_guest")
-	    (loop
-	      br 0)
-	  )
+		(memory 1) ;; 1 pages
+		(func $run (param i64)
+			(loop br 0)
+		)
+		(func $alloc (param i32) (result i32)
+	      i32.const 2
+	 	)
+		(export "memory" (memory 0))
+		(export "run_guest" (func $run))
+		(export "alloc" (func $alloc))
 	)
 	`)
 	require.NoError(err)
