@@ -2136,210 +2136,6 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 51
-      },
-      "id": 46,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_chain_state_size",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Active State Size",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 51
-      },
-      "id": 47,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_chain_state_len",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Active State Items",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
           }
         },
         "overrides": []
@@ -2347,7 +2143,7 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 16,
+        "x": 0,
         "y": 51
       },
       "id": 17,
@@ -2371,14 +2167,39 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_state_changes[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_state_changes_sum[30s])",
           "fullMetaSearch": false,
+          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_state_changes_count[30s])",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A/$B",
+          "hide": false,
+          "refId": "C",
+          "type": "math"
         }
       ],
       "title": "State Changes",
@@ -2389,7 +2210,6 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2402,7 +2222,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "points",
+            "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2442,17 +2262,17 @@
               }
             ]
           },
-          "unit": "ns"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 0,
-        "y": 59
+        "x": 8,
+        "y": 51
       },
-      "id": 60,
+      "id": 109,
       "options": {
         "legend": {
           "calcs": [],
@@ -2473,42 +2293,17 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_modifications_sum[30s])",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_appenddb_batches_recycled[30s])",
           "fullMetaSearch": false,
-          "hide": true,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_modifications_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
         }
       ],
-      "title": "Wait Trie Modifications",
+      "title": "Batches Recycled",
       "type": "timeseries"
     },
     {
@@ -2516,7 +2311,6 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2529,7 +2323,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "points",
+            "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2569,7 +2363,235 @@
               }
             ]
           },
-          "unit": "ns"
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 51
+      },
+      "id": 108,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_appenddb_batch_init_bytes_sum[30s])",
+          "fullMetaSearch": false,
+          "hide": true,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_appenddb_batch_init_bytes_count[30s])",
+          "hide": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "name": "Expression",
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A/$B",
+          "hide": false,
+          "refId": "C",
+          "type": "math"
+        }
+      ],
+      "title": "Batch Initialization Writes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 59
+      },
+      "id": 46,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_appenddb_keys",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "State Keys",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
         },
         "overrides": []
       },
@@ -2579,7 +2601,7 @@
         "x": 8,
         "y": 59
       },
-      "id": 73,
+      "id": 47,
       "options": {
         "legend": {
           "calcs": [],
@@ -2600,42 +2622,18 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_root_sum[30s])",
+          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_appenddb_alive_bytes",
           "fullMetaSearch": false,
-          "hide": true,
+          "hide": false,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_root_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
         }
       ],
-      "title": "Wait Trie Root",
+      "title": "Alive Bytes",
       "type": "timeseries"
     },
     {
@@ -2643,7 +2641,6 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2656,7 +2653,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "points",
+            "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -2696,7 +2693,7 @@
               }
             ]
           },
-          "unit": "ns"
+          "unit": "bytes"
         },
         "overrides": []
       },
@@ -2706,7 +2703,7 @@
         "x": 16,
         "y": 59
       },
-      "id": 48,
+      "id": 107,
       "options": {
         "legend": {
           "calcs": [],
@@ -2727,949 +2724,18 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_sum[30s])",
+          "expr": "avalanche_${CHAIN_ID}_vm_hypersdk_appenddb_useless_bytes",
           "fullMetaSearch": false,
-          "hide": true,
+          "hide": false,
           "includeNullMetadata": true,
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "A",
           "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
         }
       ],
-      "title": "Wait Trie Commit",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 0,
-        "y": 67
-      },
-      "id": 62,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_skipped_value_changes_sum[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_skipped_value_changes_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
-        }
-      ],
-      "title": "Skipped Value Changes Per Root Generation",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 6,
-        "y": 67
-      },
-      "id": 92,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_max_backlog_sum[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_max_backlog_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
-        }
-      ],
-      "title": "Max Modification Backlog Per Root Generation",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 12,
-        "y": 67
-      },
-      "id": 49,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_value_changes_sum[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "rate(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_value_changes_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
-        }
-      ],
-      "title": "Value Changes Per Root Generation",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 18,
-        "y": 67
-      },
-      "id": 61,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_node_changes_sum[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_trie_node_changes_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
-        }
-      ],
-      "title": "Node Changes Per Root Generation",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 75
-      },
-      "id": 43,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_state_merkleDB_hashes_calculated[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_root_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A/$B",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
-        }
-      ],
-      "title": "MerkleDB Hashes Calculated Per Root",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 75
-      },
-      "id": 45,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_state_merkleDB_io_key_write[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$B/$A",
-          "hide": false,
-          "refId": "C",
-          "type": "math"
-        }
-      ],
-      "title": "MerkleDB Keys Written to Disk Per Commit",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "points",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 75
-      },
-      "id": 51,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_statedb_pebble_l0_compactions[30s])",
-          "fullMetaSearch": false,
-          "hide": true,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_statedb_pebble_other_compactions[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$A+$B",
-          "hide": true,
-          "refId": "C",
-          "type": "math"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "increase(avalanche_${CHAIN_ID}_vm_hypersdk_chain_wait_trie_commit_count[30s])",
-          "hide": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "name": "Expression",
-            "type": "__expr__",
-            "uid": "__expr__"
-          },
-          "expression": "$C/$D",
-          "hide": false,
-          "refId": "E",
-          "type": "math"
-        }
-      ],
-      "title": "MerkleDB Compactions Per Commit",
+      "title": "Useless Bytes",
       "type": "timeseries"
     },
     {
@@ -3678,7 +2744,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 83
+        "y": 67
       },
       "id": 89,
       "panels": [],
@@ -3748,7 +2814,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 84
+        "y": 68
       },
       "id": 2,
       "options": {
@@ -3848,7 +2914,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 84
+        "y": 68
       },
       "id": 11,
       "options": {
@@ -3948,7 +3014,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 84
+        "y": 68
       },
       "id": 41,
       "options": {
@@ -4049,7 +3115,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 92
+        "y": 76
       },
       "id": 83,
       "options": {
@@ -4150,7 +3216,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 92
+        "y": 76
       },
       "id": 86,
       "options": {
@@ -4251,7 +3317,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 92
+        "y": 76
       },
       "id": 84,
       "options": {
@@ -4352,7 +3418,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 100
+        "y": 84
       },
       "id": 87,
       "options": {
@@ -4453,7 +3519,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 100
+        "y": 84
       },
       "id": 85,
       "options": {
@@ -4554,7 +3620,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 100
+        "y": 84
       },
       "id": 88,
       "options": {
@@ -4596,7 +3662,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 108
+        "y": 92
       },
       "id": 36,
       "panels": [],
@@ -4669,7 +3735,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 109
+        "y": 93
       },
       "id": 57,
       "options": {
@@ -4771,7 +3837,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 109
+        "y": 93
       },
       "id": 58,
       "options": {
@@ -4872,7 +3938,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 109
+        "y": 93
       },
       "id": 59,
       "options": {
@@ -4973,7 +4039,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 117
+        "y": 101
       },
       "id": 99,
       "options": {
@@ -5074,7 +4140,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 117
+        "y": 101
       },
       "id": 97,
       "options": {
@@ -5175,7 +4241,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 117
+        "y": 101
       },
       "id": 96,
       "options": {
@@ -5276,7 +4342,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 117
+        "y": 101
       },
       "id": 98,
       "options": {
@@ -5375,7 +4441,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 125
+        "y": 109
       },
       "id": 20,
       "options": {
@@ -5477,7 +4543,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 125
+        "y": 109
       },
       "id": 22,
       "options": {
@@ -5603,7 +4669,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 133
+        "y": 117
       },
       "id": 100,
       "options": {
@@ -5704,7 +4770,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 133
+        "y": 117
       },
       "id": 101,
       "options": {
@@ -5805,7 +4871,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 133
+        "y": 117
       },
       "id": 32,
       "options": {
@@ -5904,7 +4970,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 141
+        "y": 125
       },
       "id": 28,
       "options": {
@@ -6004,7 +5070,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 141
+        "y": 125
       },
       "id": 76,
       "options": {
@@ -6104,7 +5170,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 141
+        "y": 125
       },
       "id": 102,
       "options": {
@@ -6207,7 +5273,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 141
+        "y": 125
       },
       "id": 27,
       "options": {
@@ -6332,7 +5398,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 149
+        "y": 133
       },
       "id": 23,
       "options": {
@@ -6433,7 +5499,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 149
+        "y": 133
       },
       "id": 66,
       "options": {
@@ -6533,7 +5599,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 149
+        "y": 133
       },
       "id": 64,
       "options": {
@@ -6631,7 +5697,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 157
+        "y": 141
       },
       "id": 26,
       "options": {
@@ -6759,7 +5825,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 157
+        "y": 141
       },
       "id": 5,
       "options": {
@@ -6858,7 +5924,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 157
+        "y": 141
       },
       "id": 18,
       "options": {
@@ -6959,7 +6025,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 165
+        "y": 149
       },
       "id": 67,
       "options": {
@@ -7060,7 +6126,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 165
+        "y": 149
       },
       "id": 70,
       "options": {
@@ -7161,7 +6227,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 165
+        "y": 149
       },
       "id": 69,
       "options": {
@@ -7262,7 +6328,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 173
+        "y": 157
       },
       "id": 71,
       "options": {
@@ -7363,7 +6429,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 173
+        "y": 157
       },
       "id": 72,
       "options": {
@@ -7464,7 +6530,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 173
+        "y": 157
       },
       "id": 10,
       "options": {
@@ -7563,7 +6629,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 181
+        "y": 165
       },
       "id": 39,
       "options": {
@@ -7662,7 +6728,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 181
+        "y": 165
       },
       "id": 65,
       "options": {
@@ -7762,7 +6828,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 181
+        "y": 165
       },
       "id": 40,
       "options": {
@@ -7801,7 +6867,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 189
+        "y": 173
       },
       "id": 35,
       "panels": [],
@@ -7913,7 +6979,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 190
+        "y": 174
       },
       "id": 9,
       "options": {
@@ -8059,7 +7125,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 190
+        "y": 174
       },
       "id": 6,
       "options": {
@@ -8159,7 +7225,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 190
+        "y": 174
       },
       "id": 93,
       "options": {
@@ -8276,7 +7342,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 190
+        "y": 174
       },
       "id": 94,
       "options": {
@@ -8384,7 +7450,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 198
+        "y": 182
       },
       "id": 8,
       "options": {
@@ -8491,7 +7557,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 198
+        "y": 182
       },
       "id": 74,
       "options": {
@@ -8598,7 +7664,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 198
+        "y": 182
       },
       "id": 7,
       "options": {
@@ -8705,7 +7771,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 198
+        "y": 182
       },
       "id": 75,
       "options": {
@@ -8808,7 +7874,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 206
+        "y": 190
       },
       "id": 16,
       "options": {
@@ -8906,7 +7972,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 206
+        "y": 190
       },
       "id": 90,
       "options": {
@@ -9004,7 +8070,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 206
+        "y": 190
       },
       "id": 77,
       "options": {
@@ -9102,7 +8168,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 206
+        "y": 190
       },
       "id": 80,
       "options": {
@@ -9225,7 +8291,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 214
+        "y": 198
       },
       "id": 15,
       "options": {
@@ -9323,7 +8389,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 214
+        "y": 198
       },
       "id": 91,
       "options": {
@@ -9421,7 +8487,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 214
+        "y": 198
       },
       "id": 78,
       "options": {
@@ -9519,7 +8585,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 214
+        "y": 198
       },
       "id": 81,
       "options": {
@@ -9642,7 +8708,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 222
+        "y": 206
       },
       "id": 79,
       "options": {
@@ -9740,7 +8806,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 222
+        "y": 206
       },
       "id": 82,
       "options": {
@@ -9838,7 +8904,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 222
+        "y": 206
       },
       "id": 95,
       "options": {
@@ -9886,7 +8952,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 230
+        "y": 214
       },
       "id": 103,
       "panels": [],
@@ -9956,7 +9022,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 231
+        "y": 215
       },
       "id": 105,
       "options": {
@@ -10051,7 +9117,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 231
+        "y": 215
       },
       "id": 104,
       "options": {
@@ -10146,7 +9212,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 231
+        "y": 215
       },
       "id": 106,
       "options": {
