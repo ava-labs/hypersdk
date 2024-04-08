@@ -648,16 +648,17 @@ func BenchmarkRecord(b *testing.B) {
 		size uint32
 	}
 	var (
-		pkeys, pvalues = simpleRandomKeyValues(1_000_000, 32)
-		mold           = make(map[string]*oldRecord, 1_000_000)
-		mnew           = make(map[string]record, 1_000_000)
-		mraw           = make(map[string][]byte, 1_000_000)
+		items          = 1_000_000
+		pkeys, pvalues = simpleRandomKeyValues(items, 32)
+		mold           = make(map[string]*oldRecord, items)
+		mnew           = make(map[string]record, items)
+		mraw           = make(map[string][]byte, items)
 	)
 
 	// Perform actual allocations
 	b.Run("old", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < 1_000_000; i++ {
+		for i := 0; i < items; i++ {
 			mold[pkeys[i]] = &oldRecord{
 				value: pvalues[i],
 			}
@@ -665,7 +666,7 @@ func BenchmarkRecord(b *testing.B) {
 	})
 	b.Run("new", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < 1_000_000; i++ {
+		for i := 0; i < items; i++ {
 			mnew[pkeys[i]] = &memRecord{
 				value: pvalues[i],
 			}
@@ -673,7 +674,7 @@ func BenchmarkRecord(b *testing.B) {
 	})
 	b.Run("raw", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < 1_000_000; i++ {
+		for i := 0; i < items; i++ {
 			mraw[pkeys[i]] = pvalues[i]
 		}
 	})
