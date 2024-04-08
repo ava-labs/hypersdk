@@ -290,9 +290,9 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 		return err
 	}
 	e.vm.RecordStateChanges(changes)
-	e.vm.RecordAppendDBOpenBytes(openBytes)
+	e.vm.RecordAppendDBBatchInitBytes(openBytes)
 	if moved {
-		e.vm.RecordAppendDBMoved()
+		e.vm.RecordAppendDBBatchesRecycled()
 	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 

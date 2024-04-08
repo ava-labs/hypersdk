@@ -60,8 +60,8 @@ type Metrics interface {
 
 	RecordStateChanges(int)
 
-	RecordAppendDBOpenBytes(int64)
-	RecordAppendDBMoved()
+	RecordAppendDBBatchInitBytes(int64)
+	RecordAppendDBBatchesRecycled()
 }
 
 type Monitoring interface {

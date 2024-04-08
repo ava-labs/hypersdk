@@ -685,10 +685,10 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
-func (vm *VM) RecordAppendDBOpenBytes(b int64) {
-	vm.metrics.appendDBOpenBytes.Observe(float64(b))
+func (vm *VM) RecordAppendDBBatchInitBytes(b int64) {
+	vm.metrics.appendDBBatchInitBytes.Observe(float64(b))
 }
 
-func (vm *VM) RecordAppendDBMoved() {
-	vm.metrics.appendDBMoved.Inc()
+func (vm *VM) RecordAppendDBBatchesRecycled() {
+	vm.metrics.appendDBBatchesRecycled.Inc()
 }

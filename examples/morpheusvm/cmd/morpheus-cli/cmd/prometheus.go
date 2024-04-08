@@ -61,10 +61,10 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_open_bytes_sum[5s])/increase(avalanche_%s_vm_hypersdk_appenddb_open_bytes_count[5s])", chainID, chainID))
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_batch_init_bytes_sum[5s])/increase(avalanche_%s_vm_hypersdk_appenddb_batch_init_bytes_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}appenddb batch creation bytes written per block:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_moved[5s])/5", chainID))
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_batches_recycled[5s])/5", chainID))
 			utils.Outf("{{yellow}}appenddb files moved per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_appenddb_keys", chainID))
