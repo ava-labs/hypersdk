@@ -31,7 +31,7 @@ func TestStop(t *testing.T) {
 			(loop br 0)
 		)
 		(func $alloc (param i32) (result i32)
-	      i32.const 2
+	      i32.const 0
 	 	)
 		(export "memory" (memory 0))
 		(export "run_guest" (func $run))
@@ -70,11 +70,18 @@ func TestCallParams(t *testing.T) {
 	// add param[0] + param[1]
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-      (func $add_guest (param $a i32) (param $b i32) (result i32)
-        (i32.add (local.get $a) (local.get $b))
-      )
-	  (export "add_guest" (func $add_guest))
-    )
+		(memory 1) ;; 1 pages
+		;; first argument is always the pointer to the context
+		(func $add (param i64 i64 i64) (result i64)
+			(i64.add local.get 1 local.get 2)
+		)
+		(func $alloc (param i32) (result i32)
+	      i32.const 0
+	 	)
+		(export "memory" (memory 0))
+		(export "add_guest" (func $add))
+		(export "alloc" (func $alloc))
+	)
 	`)
 	require.NoError(err)
 	maxUnits := uint64(10000)
@@ -91,9 +98,12 @@ func TestCallParams(t *testing.T) {
 	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
-	resp, err := runtime.Call(ctx, "add", programContext, 10, 10)
+	arg := 10
+
+	// all arguments are smart-pointers so this is a bit of a hack
+	resp, err := runtime.Call(ctx, "add", programContext, program.SmartPtr(arg), program.SmartPtr(arg))
 	require.NoError(err)
-	require.Equal(int64(20), resp[0])
+	require.Equal(int64(arg+arg), resp[0])
 
 	// pass 3 params when 2 are expected.
 	_, err = runtime.Call(ctx, "add", programContext, 10, 10, 10)
