@@ -355,13 +355,17 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 func TestWithMaxWasmStack(t *testing.T) {
 	require := require.New(t)
 	wasm, err := wasmtime.Wat2Wasm(`
-	(module $test
-	(type (;0;) (func (result i32)))
-	(export "get_guest" (func 0))
-	(func (;0;) (type 0) (result i32)
-		(local i32)
-		i32.const 1
-	  )
+	(module
+		(memory 1) ;; 1 pages
+		(func $get (param i64) (result i32)
+			i32.const 0
+		)
+		(func $alloc (param i32) (result i32)
+			i32.const 0
+		)
+		(export "memory" (memory 0))
+		(export "get_guest" (func $get))
+		(export "alloc" (func $alloc))
 	)
 	`)
 	require.NoError(err)
