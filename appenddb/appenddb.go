@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"go.uber.org/zap"
@@ -44,7 +45,7 @@ const (
 	opChecksum = uint8(2) // batch|checksum
 	opNullify  = uint8(3) // keyLen|key
 
-	batchBufferSize       = 16 * units.KiB
+	batchBufferSize       = 16 // just need to be big enough for any binary numbers
 	minDiskValueSize      = 512
 	uselessDividerRecycle = 3
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
@@ -611,15 +612,17 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	return b, nil
 }
 
-func (b *Batch) growBuffer(size int64) {
-	if size > int64(consts.MaxInt) {
-		panic("buffer too large")
+func (b *Batch) writeBuffer(value []byte, hash bool) error {
+	if _, err := b.writer.Write(value); err != nil {
+		return err
 	}
-	if cap(b.buf) < int(size) {
-		b.buf = make([]byte, size, size*2)
-	} else {
-		b.buf = b.buf[:size]
+	if hash {
+		if _, err := b.hasher.Write(value); err != nil {
+			return err
+		}
 	}
+	b.cursor += int64(len(value))
+	return nil
 }
 
 // recycle reads all keys from the oldest batch
@@ -755,24 +758,23 @@ func (b *Batch) put(key string, value []byte) (*record, error) {
 		return nil, ErrKeyTooLong
 	}
 
-	// Create operation to write
-	l := opPutLen(key, value)
-	valueStart := b.cursor + l - int64(len(value))
-	b.growBuffer(l)
-	b.buf[0] = opPut
-	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
-	copy(b.buf[1+consts.Uint16Len:], key)
-	binary.BigEndian.PutUint32(b.buf[1+consts.Uint16Len+len(key):], uint32(len(value)))
-	copy(b.buf[1+consts.Uint16Len+len(key)+consts.Uint32Len:], value)
-
 	// Write to disk
-	if _, err := b.writer.Write(b.buf); err != nil {
-		return nil, err
+	errs := &wrappers.Errs{}
+	b.buf = b.buf[:1]
+	b.buf[0] = opPut
+	errs.Add(b.writeBuffer(b.buf, true))
+	b.buf = b.buf[:consts.Uint16Len]
+	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
+	errs.Add(b.writeBuffer(b.buf, true))
+	errs.Add(b.writeBuffer([]byte(key), true))
+	b.buf = b.buf[:consts.Uint32Len]
+	binary.BigEndian.PutUint32(b.buf, uint32(len(value)))
+	errs.Add(b.writeBuffer(b.buf, true))
+	valueStart := b.cursor
+	errs.Add(b.writeBuffer(value, true))
+	if errs.Err != nil {
+		return nil, errs.Err
 	}
-	if _, err := b.hasher.Write(b.buf); err != nil {
-		return nil, err
-	}
-	b.cursor += l
 
 	// Furnish record for future usage
 	//
@@ -795,21 +797,18 @@ func (b *Batch) nullify(key string) error {
 		return ErrKeyTooLong
 	}
 
-	// Create operation to write
-	l := opNullifyLen(key)
-	b.growBuffer(l)
-	b.buf[0] = opNullify
-	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
-	copy(b.buf[1+consts.Uint16Len:], key)
-
 	// Write to disk
-	if _, err := b.writer.Write(b.buf); err != nil {
-		return err
+	errs := &wrappers.Errs{}
+	b.buf = b.buf[:1]
+	b.buf[0] = opNullify
+	errs.Add(b.writeBuffer(b.buf, true))
+	b.buf = b.buf[:consts.Uint16Len]
+	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
+	errs.Add(b.writeBuffer(b.buf, true))
+	errs.Add(b.writeBuffer([]byte(key), true))
+	if errs.Err != nil {
+		return errs.Err
 	}
-	if _, err := b.hasher.Write(b.buf); err != nil {
-		return err
-	}
-	b.cursor += l
 
 	// uselessBytes already updated during runtime, don't need
 	// to re-calculate here.
@@ -817,25 +816,23 @@ func (b *Batch) nullify(key string) error {
 }
 
 func (b *Batch) checksum() (ids.ID, error) {
-	l := opChecksumLen()
-	b.growBuffer(l)
-	b.buf[0] = opChecksum
-	binary.BigEndian.PutUint64(b.buf[1:], b.batch)
-	if _, err := b.hasher.Write(b.buf[:1+consts.Uint64Len]); err != nil {
-		return ids.Empty, err
-	}
-	checksum := ids.ID(b.hasher.Sum(nil))
-	copy(b.buf[1+consts.Uint64Len:], checksum[:])
-
 	// Write to disk
-	if _, err := b.writer.Write(b.buf); err != nil {
-		return ids.Empty, err
+	errs := &wrappers.Errs{}
+	b.buf = b.buf[:1]
+	b.buf[0] = opChecksum
+	errs.Add(b.writeBuffer(b.buf, true))
+	b.buf = b.buf[:consts.Uint64Len]
+	binary.BigEndian.PutUint64(b.buf, b.batch)
+	errs.Add(b.writeBuffer(b.buf, true))
+	checksum := ids.ID(b.hasher.Sum(nil))
+	errs.Add(b.writeBuffer(checksum[:], false))
+	if errs.Err != nil {
+		return ids.Empty, errs.Err
 	}
-	b.cursor += l
 
 	// We always consider previous checksums useless in the case
 	// that we are reusing a file.
-	b.uselessBytes += l
+	b.uselessBytes += opChecksumLen()
 	return checksum, nil
 }
 
@@ -916,21 +913,18 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 		return nil
 	}
 
-	// Create operation to write
-	l := opDeleteLen(key)
-	b.growBuffer(l)
-	b.buf[0] = opDelete
-	binary.BigEndian.PutUint16(b.buf[1:], uint16(len(key)))
-	copy(b.buf[1+consts.Uint16Len:], key)
-
 	// Write to disk
-	if _, err := b.writer.Write(b.buf); err != nil {
-		return err
+	errs := &wrappers.Errs{}
+	b.buf = b.buf[:1]
+	b.buf[0] = opDelete
+	errs.Add(b.writeBuffer(b.buf, true))
+	b.buf = b.buf[:consts.Uint16Len]
+	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
+	errs.Add(b.writeBuffer(b.buf, true))
+	errs.Add(b.writeBuffer([]byte(key), true))
+	if errs.Err != nil {
+		return errs.Err
 	}
-	if _, err := b.hasher.Write(b.buf); err != nil {
-		return err
-	}
-	b.cursor += l
 
 	// Account for useless bytes
 	//
