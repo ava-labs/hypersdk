@@ -694,6 +694,9 @@ func (b *Batch) recycle() (bool, error) {
 			b.aliveBytes += op
 			b.alive.Put(k, record)
 		}
+
+		// Nullifications aren't used when rewriting the file but we still need to drop them
+		b.pendingNullify.Clear()
 		return true, nil
 	}
 

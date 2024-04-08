@@ -342,8 +342,8 @@ func TestAppendDBClearNullifyOnNew(t *testing.T) {
 	require.Equal(int64(0), initBytes)
 	_, err = b.Write()
 	require.NoError(err)
-	require.NoError(db.Close())
 	require.Zero(db.batches[2].pendingNullify.Len())
+	require.NoError(db.Close())
 }
 
 func TestAppendDBPrune(t *testing.T) {
