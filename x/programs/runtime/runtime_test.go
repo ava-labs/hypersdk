@@ -204,14 +204,18 @@ func TestMeterAfterStop(t *testing.T) {
 
 	// example has 2 ops codes and should cost 2 units
 	wasm, err := wasmtime.Wat2Wasm(`
-	(module $test
-	(type (;0;) (func (result i32)))
-	(export "get_guest" (func 0))
-	(func (;0;) (type 0) (result i32)
-		(local i32)
-		i32.const 1
-	  )
-	) 
+	(module
+		(memory 1) ;; 1 pages
+		(func $get (param i64) (result i32)
+			i32.const 0
+		)
+		(func $alloc (param i32) (result i32)
+			i32.const 0
+		)
+		(export "memory" (memory 0))
+		(export "get_guest" (func $get))
+		(export "alloc" (func $alloc))
+	)
 	`)
 	require.NoError(err)
 	maxUnits := uint64(20)
@@ -228,7 +232,7 @@ func TestMeterAfterStop(t *testing.T) {
 	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
-	// spend 2 units
+	// spend 4 units
 	_, err = runtime.Call(ctx, "get", programContext)
 	require.NoError(err)
 	// stop engine
@@ -238,7 +242,7 @@ func TestMeterAfterStop(t *testing.T) {
 	// ensure meter is still operational
 	balance, err := runtime.Meter().GetBalance()
 	require.NoError(err)
-	require.Equal(balance, maxUnits-2)
+	require.Equal(balance, maxUnits-4)
 }
 
 func TestLimitMaxMemory(t *testing.T) {
@@ -247,7 +251,6 @@ func TestLimitMaxMemory(t *testing.T) {
 	// memory has a single page
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-
 	  (memory 2) ;; 2 pages
 	  (export "memory" (memory 0))
 	)
@@ -276,12 +279,12 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	// we require an exported alloc function
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-	(func (result i32)
-		(i32.const 42)
-	)
-	(export "alloc" (func 0))
-	(memory 1) ;; 1 pages
-	(export "memory" (memory 0))
+		(memory 1) ;; 1 pages
+		(func $alloc (param i32) (result i32)
+			i32.const 0
+		)
+		(export "memory" (memory 0))
+		(export "alloc" (func $alloc))
 	)
 	`)
 	require.NoError(err)
