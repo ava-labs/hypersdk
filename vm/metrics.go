@@ -85,15 +85,17 @@ type Metrics struct {
 	websocketConnections      prometheus.Gauge
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
-	stateSize                 prometheus.Gauge
-	stateLen                  prometheus.Gauge
+	appendDBKeys              prometheus.Gauge
+	appendDBAliveBytes        prometheus.Gauge
+	appendDBUselessBytes      prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
-	stateRecycled             metric.Averager
+	appendDBOpenBytes         metric.Averager
+	appendDBMoved             prometheus.Counter
 	stateChanges              metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
@@ -295,10 +297,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	stateRecycled, err := metric.NewAverager(
-		"chain",
-		"state_recycled",
-		"state recycled in a block",
+	appendDBOpenBytes, err := metric.NewAverager(
+		"appenddb",
+		"open_bytes",
+		"bytes written during batch creation",
 		r,
 	)
 	if err != nil {
@@ -306,6 +308,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 
 	m := &Metrics{
+		appendDBMoved: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "appenddb",
+			Name:      "moved",
+			Help:      "number of files moved during batch creation",
+		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -576,15 +583,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
-		stateSize: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "state_size",
-			Help:      "size of the state",
+		appendDBKeys: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "appenddb",
+			Name:      "keys",
+			Help:      "number of keys",
 		}),
-		stateLen: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "state_len",
-			Help:      "number of items in the state",
+		appendDBAliveBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "appenddb",
+			Name:      "alive_bytes",
+			Help:      "number of alive bytes on disk",
+		}),
+		appendDBUselessBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "appenddb",
+			Name:      "useless_bytes",
+			Help:      "number of useless bytes on disk",
 		}),
 		waitRepeat:             waitRepeat,
 		waitQueue:              waitQueue,
@@ -606,7 +618,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		txTimeRemainingMempool: txTimeRemainingMempool,
 		chunkAuth:              chunkAuth,
 		stateChanges:           stateChanges,
-		stateRecycled:          stateRecycled,
+		appendDBOpenBytes:      appendDBOpenBytes,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -666,8 +678,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
 		r.Register(m.optimisticCertifiedGossip),
-		r.Register(m.stateSize),
-		r.Register(m.stateLen),
+		r.Register(m.appendDBMoved),
+		r.Register(m.appendDBKeys),
+		r.Register(m.appendDBAliveBytes),
+		r.Register(m.appendDBUselessBytes),
 	)
 	return r, m, errs.Err
 }

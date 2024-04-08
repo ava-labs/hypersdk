@@ -273,7 +273,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 
 	// Persist changes to state
 	commitStart := time.Now()
-	recycled := batch.Prepare()
+	openBytes, moved := batch.Prepare()
 	changes := 0
 	if err := ts.Iterate(func(key string, value maybe.Maybe[[]byte]) error {
 		changes++
@@ -290,7 +290,10 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 		return err
 	}
 	e.vm.RecordStateChanges(changes)
-	e.vm.RecordStateRecycled(recycled)
+	e.vm.RecordAppendDBOpenBytes(openBytes)
+	if moved {
+		e.vm.RecordAppendDBMoved()
+	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view

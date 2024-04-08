@@ -59,7 +59,9 @@ type Metrics interface {
 	RecordEngineBacklog(int)
 
 	RecordStateChanges(int)
-	RecordStateRecycled(int)
+
+	RecordAppendDBOpenBytes(int64)
+	RecordAppendDBMoved()
 }
 
 type Monitoring interface {

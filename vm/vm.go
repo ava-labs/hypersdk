@@ -411,10 +411,16 @@ func (vm *VM) trackChainDataSize() {
 			vm.metrics.chainDataSize.Set(float64(size))
 			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
 
-			stateLen, stateSize := vm.stateDB.Usage()
-			vm.metrics.stateLen.Set(float64(stateLen))
-			vm.metrics.stateSize.Set(float64(stateSize))
-			vm.snowCtx.Log.Info("stateDB size", zap.Int("len", stateLen), zap.String("size", humanize.Bytes(stateSize)))
+			keys, aliveBytes, uselessBytes := vm.stateDB.Usage()
+			vm.metrics.appendDBKeys.Set(float64(keys))
+			vm.metrics.appendDBAliveBytes.Set(float64(aliveBytes))
+			vm.metrics.appendDBUselessBytes.Set(float64(uselessBytes))
+			vm.snowCtx.Log.Info(
+				"stateDB size",
+				zap.Int("len", keys),
+				zap.String("alive", humanize.Bytes(uint64(aliveBytes))),
+				zap.String("useless", humanize.Bytes(uint64(uselessBytes))),
+			)
 		case <-vm.stop:
 			return
 		}
