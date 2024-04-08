@@ -100,7 +100,7 @@ func (m *Memory) Alloc(length uint32) (uint32, error) {
 
 	result, err := allocFn.Call(m.store, int32(length))
 	if err != nil {
-		return 0, err
+		return 0, HandleTrapError(err)
 	}
 
 	addr, ok := result.(int32)
