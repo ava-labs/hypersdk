@@ -118,10 +118,16 @@ func TestInfiniteLoop(t *testing.T) {
 	// infinite loop
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
-	  (func (export "get_guest")
-	    (loop
-	      br 0)
-	  )
+		(memory 1) ;; 1 pages
+		(func $run (param i64)
+			(loop br 0)
+		)
+		(func $alloc (param i32) (result i32)
+	      i32.const 0
+	 	)
+		(export "memory" (memory 0))
+		(export "run_guest" (func $run))
+		(export "alloc" (func $alloc))
 	)
 	`)
 	require.NoError(err)
@@ -139,7 +145,7 @@ func TestInfiniteLoop(t *testing.T) {
 	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
-	_, err = runtime.Call(ctx, "get", programContext)
+	_, err = runtime.Call(ctx, "run", programContext)
 	require.ErrorIs(err, program.ErrTrapOutOfFuel)
 }
 
