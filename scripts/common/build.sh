@@ -11,14 +11,16 @@ realpath() {
 }
 
 build_project() {
-    local project_path=$1
+    local project_path
+    project_path=$(realpath "$1")
     local project_name=$2
 
     local binary_path
     if [[ $# -eq 3 ]]; then
         local binary_dir
         local binary_name
-        binary_dir=$(cd "$(dirname "build/$3")" && pwd)
+        # Ensure binary_dir is an absolute path
+        binary_dir=$(realpath "$project_path/build/$(dirname "$3")")
         binary_name=$(basename "$3")
         binary_path=$binary_dir/$binary_name
     else
