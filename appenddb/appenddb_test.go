@@ -159,9 +159,9 @@ func TestAppendDBAbort(t *testing.T) {
 	// Create a batch gap
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, movedFile := b.Prepare()
+	openBytes, rewrite := b.Prepare()
 	require.Equal(int64(0), openBytes)
-	require.False(movedFile)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world10")))
 	checksum, err := b.Write()
 	require.NoError(err)
@@ -185,9 +185,9 @@ func TestAppendDBAbort(t *testing.T) {
 	// Write batch
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, movedFile = b.Prepare()
+	openBytes, rewrite = b.Prepare()
 	require.Equal(int64(8), openBytes)
-	require.True(movedFile)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world11")))
 	require.NoError(b.Delete(ctx, "hello2"))
 	checksum, err = b.Write()
@@ -247,9 +247,9 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Create a batch gap
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, movedFile := b.Prepare()
+	openBytes, rewrite := b.Prepare()
 	require.Equal(int64(0), openBytes)
-	require.False(movedFile)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
 	_, err = b.Write()
 	require.NoError(err)
@@ -258,9 +258,9 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Modify recycled key
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, movedFile = b.Prepare()
+	openBytes, rewrite = b.Prepare()
 	require.Equal(int64(0), openBytes) // no changes since last opened
-	require.True(movedFile)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
@@ -269,9 +269,9 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Delete recycled key
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, movedFile = b.Prepare()
+	openBytes, rewrite = b.Prepare()
 	require.Equal(int64(0), openBytes)
-	require.True(movedFile)
+	require.False(rewrite)
 	require.NoError(b.Delete(ctx, "world"))
 	checksum, err := b.Write()
 	require.NoError(err)
@@ -336,11 +336,11 @@ func TestAppendDBClearNullifyOnNew(t *testing.T) {
 	_, err = b.Write()
 	require.NoError(err)
 
-	// Reuse batch
+	// Rewrite batch
 	b, err = db.NewBatch()
 	require.NoError(err)
-	initBytes, recycled := b.Prepare()
-	require.False(recycled)
+	initBytes, rewrite := b.Prepare()
+	require.True(rewrite)
 	require.Equal(int64(0), initBytes)
 	_, err = b.Write()
 	require.NoError(err)
@@ -505,13 +505,13 @@ func TestAppendDBLarge(t *testing.T) {
 			for i := 0; i < batches; i++ {
 				b, err := db.NewBatch()
 				require.NoError(err)
-				openBytes, movedFile := b.Prepare()
+				openBytes, rewrite := b.Prepare()
 				if i <= 5 {
 					require.Zero(openBytes)
-					require.False(movedFile)
+					require.False(rewrite)
 				} else {
 					require.Equal(int64(0), openBytes) // all no keys, no nullifiers
-					require.True(movedFile)
+					require.False(rewrite)
 				}
 				for j := 0; j < batchSize; j++ {
 					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
