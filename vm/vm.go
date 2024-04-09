@@ -246,7 +246,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	blobDB := filedb.New(blobPath, true, 1024, 512*units.MiB) // TODO: make configurable
+	blobDB := filedb.New(blobPath, true, 1024, 1*units.GiB) // TODO: make configurable
 	if err != nil {
 		return err
 	}
