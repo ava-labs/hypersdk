@@ -684,6 +684,20 @@ func BenchmarkRecord(b *testing.B) {
 	})
 }
 
+type hasmapIterator struct {
+	hm *linked.Hashmap[string, []byte]
+}
+
+func (hi *hasmapIterator) Iterate(f func(k string, v []byte) error) error {
+	iter := hi.hm.NewIterator()
+	for iter.Next() {
+		if err := f(iter.Key(), iter.Value()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func BenchmarkWriter(b *testing.B) {
 	var (
 		items          = 100_000
@@ -761,6 +775,26 @@ func BenchmarkWriter(b *testing.B) {
 			for iter.Next() {
 				require.NoError(b.Put(context.TODO(), iter.Key(), iter.Value()))
 			}
+			_, err = b.Write()
+			require.NoError(err)
+		}
+		require.NoError(db.Close())
+	})
+
+	hmi := &hasmapIterator{hm: hm}
+	b.Run("iterate", func(b *testing.B) {
+		require := require.New(b)
+		db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
+		require.NoError(err)
+		require.Equal(ids.Empty, last)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			b, err := db.NewBatch()
+			require.NoError(err)
+			b.Prepare()
+			require.NoError(hmi.Iterate(func(k string, v []byte) error {
+				return b.Put(context.TODO(), k, v)
+			}))
 			_, err = b.Write()
 			require.NoError(err)
 		}
