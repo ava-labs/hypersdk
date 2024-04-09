@@ -253,7 +253,6 @@ func TestManyReads(t *testing.T) {
 		for k := 0; k < i+1; k++ {
 			s.Add(ids.GenerateTestID().String(), state.Write)
 		}
-		//s := make(state.Keys, 1)
 		s.Add(conflictKey, state.Read)
 		ti := i
 		e.Run(s, func() error {

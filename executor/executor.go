@@ -67,8 +67,7 @@ func (e *Executor) work() {
 }
 
 type task struct {
-	id int
-	f  func() error
+	f func() error
 
 	l        sync.Mutex
 	blocking map[int]*task
@@ -117,7 +116,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	// Add task to map
 	id := len(e.tasks)
 	t := &task{
-		id:       id,
 		f:        f,
 		blocking: make(map[int]*task),
 	}
