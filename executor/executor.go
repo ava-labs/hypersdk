@@ -33,8 +33,8 @@ type Executor struct {
 }
 
 type node struct {
-	id              int
-	isAllocateWrite bool
+	id           int
+	modification bool
 }
 
 // New creates a new [Executor].
@@ -133,7 +133,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				switch {
 				// concurrent Reads or Read(s)-after-Write
 				case v == state.Read:
-					if n.isAllocateWrite {
+					if n.modification {
 						t.dependencies.Add(int64(1))
 					}
 					lt.blocking[id] = t
@@ -141,7 +141,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					continue
 				case v.Has(state.Allocate) || v.Has(state.Write):
 					// Write-after-Write
-					if n.isAllocateWrite && len(lt.blocking) == 0 {
+					if n.modification && len(lt.blocking) == 0 {
 						t.dependencies.Add(int64(1))
 						lt.blocking[id] = t
 						e.update(id, k, v)
@@ -181,7 +181,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 }
 
 func (e *Executor) update(id int, k string, v state.Permissions) {
-	e.nodes[k] = &node{id: id, isAllocateWrite: v.Has(state.Allocate) || v.Has(state.Write)}
+	e.nodes[k] = &node{id: id, modification: v.Has(state.Allocate) || v.Has(state.Write)}
 }
 
 func (e *Executor) Stop() {
