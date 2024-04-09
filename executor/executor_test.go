@@ -330,7 +330,7 @@ func TestReadThenWrite(t *testing.T) {
 		}
 		ti := i
 		e.Run(s, func() error {
-			if ti == 9 {
+			if ti < 10 {
 				time.Sleep(1 * time.Second)
 			}
 
@@ -427,4 +427,45 @@ func TestReadThenWriteRepeated(t *testing.T) {
 	// 13..99 are ran in parallel, so non-deterministic
 	require.Len(completed, 100)
 	fmt.Printf("TestReadThenWriteRepeated done\n")
+}
+
+func TestTwoConflictKeys(t *testing.T) {
+	var (
+		require      = require.New(t)
+		conflictKey1 = ids.GenerateTestID().String()
+		conflictKey2 = ids.GenerateTestID().String()
+		l            sync.Mutex
+		completed    = make([]int, 0, 100)
+		e            = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Write)
+		}
+		if i == 0 || i == 1 {
+			s.Add(conflictKey1, state.Write)
+			s.Add(conflictKey2, state.Write)
+		} else {
+			s.Add(conflictKey1, state.Read)
+			s.Add(conflictKey2, state.Read)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 10 {
+				time.Sleep(1 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	require.NoError(e.Wait())
+	require.Equal(0, completed[0])
+	require.Equal(1, completed[1])
+	// 2..99 are ran in parallel, so non-deterministic
+	require.Len(completed, 100)
+	fmt.Printf("TestTwoConflictKeys done\n")
 }

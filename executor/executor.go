@@ -148,12 +148,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					continue
 				case v.Has(state.Allocate) || v.Has(state.Write):
 					// Write-after-Write
-					if n.modification && len(lt.blocking) == 0 {
+					if n.modification {
 						previousDependencies.Add(n.id)
 						lt.blocking[id] = t
-						e.update(id, k, v)
-						lt.l.Unlock()
-						continue
 					}
 					// blocked by all Reads plus an Allocate/Write or the first Read
 					// case 1: w->r->r...w->r->r, the length of [blocking] on the
@@ -161,13 +158,14 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					// case 2: r->r->w..., the length of [blocking] is the number of
 					// reads called before the first [w]
 					for bid, bt := range lt.blocking {
-						previousDependencies.Add(bid)
+						if bid == id {
+							continue
+						}
 						bt.l.Lock()
+						previousDependencies.Add(bid) // may depend on the same task
 						bt.blocking[id] = t
 						bt.l.Unlock()
 					}
-					previousDependencies.Add(n.id)
-					lt.blocking[id] = t
 				}
 			}
 			lt.l.Unlock()
