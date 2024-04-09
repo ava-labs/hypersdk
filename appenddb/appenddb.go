@@ -884,7 +884,7 @@ func (b *Batch) checksum() (ids.ID, error) {
 // this function is called, all reads to the database will be blocked.
 //
 // Prepare returns how many bytes were written to prepare the batch
-// and whether or not we are reusing an old batch file.
+// and whether we are rewriting an old batch file.
 func (b *Batch) Prepare() (int64, bool) {
 	b.a.keyLock.Lock()
 
@@ -909,7 +909,7 @@ func (b *Batch) Prepare() (int64, bool) {
 			// to [record] in [alive].
 		}
 	}
-	return b.openWrites, len(b.movingPath) > 0
+	return b.openWrites, b.pruneableBatch != nil && len(b.movingPath) == 0
 }
 
 func (b *Batch) Put(_ context.Context, key string, value []byte) error {

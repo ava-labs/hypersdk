@@ -60,8 +60,9 @@ type Metrics interface {
 
 	RecordStateChanges(int)
 
+	RecordAppendDBBatchInit(time.Duration)
 	RecordAppendDBBatchInitBytes(int64)
-	RecordAppendDBBatchesRecycled()
+	RecordAppendDBBatchesRewritten()
 }
 
 type Monitoring interface {

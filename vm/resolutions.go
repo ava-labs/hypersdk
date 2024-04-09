@@ -685,10 +685,14 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
+func (vm *VM) RecordAppendDBBatchInit(t time.Duration) {
+	vm.metrics.appendDBBatchInit.Observe(float64(t))
+}
+
 func (vm *VM) RecordAppendDBBatchInitBytes(b int64) {
 	vm.metrics.appendDBBatchInitBytes.Observe(float64(b))
 }
 
-func (vm *VM) RecordAppendDBBatchesRecycled() {
-	vm.metrics.appendDBBatchesRecycled.Inc()
+func (vm *VM) RecordAppendDBBatchesRewritten() {
+	vm.metrics.appendDBBatchesRewritten.Inc()
 }

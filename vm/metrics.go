@@ -94,8 +94,9 @@ type Metrics struct {
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
+	appendDBBatchInit         metric.Averager
 	appendDBBatchInitBytes    metric.Averager
-	appendDBBatchesRecycled   prometheus.Counter
+	appendDBBatchesRewritten  prometheus.Counter
 	stateChanges              metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
@@ -297,6 +298,15 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	appendDBBatchInit, err := metric.NewAverager(
+		"appenddb",
+		"batch_init",
+		"batch initialization latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	appendDBBatchInitBytes, err := metric.NewAverager(
 		"appenddb",
 		"batch_init_bytes",
@@ -308,10 +318,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 
 	m := &Metrics{
-		appendDBBatchesRecycled: prometheus.NewCounter(prometheus.CounterOpts{
+		appendDBBatchesRewritten: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "appenddb",
-			Name:      "batches_recycled",
-			Help:      "number of batches reused",
+			Name:      "batches_rewritten",
+			Help:      "number of batches rewritten",
 		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
@@ -618,6 +628,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		txTimeRemainingMempool: txTimeRemainingMempool,
 		chunkAuth:              chunkAuth,
 		stateChanges:           stateChanges,
+		appendDBBatchInit:      appendDBBatchInit,
 		appendDBBatchInitBytes: appendDBBatchInitBytes,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
@@ -678,7 +689,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
 		r.Register(m.optimisticCertifiedGossip),
-		r.Register(m.appendDBBatchesRecycled),
+		r.Register(m.appendDBBatchesRewritten),
 		r.Register(m.appendDBKeys),
 		r.Register(m.appendDBAliveBytes),
 		r.Register(m.appendDBUselessBytes),

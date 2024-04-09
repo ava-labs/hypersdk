@@ -273,7 +273,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 
 	// Persist changes to state
 	commitStart := time.Now()
-	openBytes, moved := batch.Prepare()
+	openBytes, rewrite := batch.Prepare()
 	changes := 0
 	if err := ts.Iterate(func(key string, value maybe.Maybe[[]byte]) error {
 		changes++
@@ -291,8 +291,8 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	}
 	e.vm.RecordStateChanges(changes)
 	e.vm.RecordAppendDBBatchInitBytes(openBytes)
-	if moved {
-		e.vm.RecordAppendDBBatchesRecycled()
+	if rewrite {
+		e.vm.RecordAppendDBBatchesRewritten()
 	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
@@ -331,10 +331,12 @@ func (e *Engine) Run() {
 
 	// Get last accepted state
 	e.db = e.vm.State()
+	batchStart := time.Now()
 	batch, err := e.db.NewBatch()
 	if err != nil {
 		panic(err)
 	}
+	e.vm.RecordAppendDBBatchInit(time.Since(batchStart))
 
 	for {
 		select {
@@ -343,10 +345,12 @@ func (e *Engine) Run() {
 			switch {
 			case err == nil:
 				// Start preparation for new batch
+				batchStart := time.Now()
 				batch, err = e.db.NewBatch()
 				if err != nil {
 					panic(err)
 				}
+				e.vm.RecordAppendDBBatchInit(time.Since(batchStart))
 				continue
 			case errors.Is(ErrMissingChunks, err):
 				// Should only happen on shutdown
