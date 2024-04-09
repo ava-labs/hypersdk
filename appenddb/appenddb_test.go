@@ -1,6 +1,7 @@
 package appenddb
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -678,6 +679,31 @@ func BenchmarkRecord(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < items; i++ {
 			mraw[pkeys[i]] = pvalues[i]
+		}
+	})
+}
+
+func BenchmarkWriter(b *testing.B) {
+	var (
+		items          = 100_000
+		pkeys, pvalues = simpleRandomKeyValues(items, 32)
+	)
+
+	b.Run("bufio", func(b *testing.B) {
+		require := require.New(b)
+		for i := 0; i < b.N; i++ {
+			dir := b.TempDir()
+			f, err := os.Create(filepath.Join(dir, "file"))
+			require.NoError(err)
+			w := bufio.NewWriterSize(f, defaultBufferSize)
+			for j := 0; j < items; j++ {
+				_, err := w.Write([]byte(pkeys[j]))
+				require.NoError(err)
+				_, err = w.Write(pvalues[j])
+				require.NoError(err)
+			}
+			require.NoError(w.Flush())
+			require.NoError(f.Close())
 		}
 	})
 }
