@@ -814,3 +814,37 @@ func BenchmarkMapUpdate(b *testing.B) {
 		m[pkeysu[j]] = pvaluesu[j]
 	}
 }
+
+func BenchmarkBatchRewrite(b *testing.B) {
+	require := require.New(b)
+	keys, values := randomKeyValues(30, 100_000, 32, 32, 100_000)
+	db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	b.Run("initial", func(b *testing.B) {
+		batch, err := db.NewBatch()
+		require.NoError(err)
+		batch.Prepare()
+		for i := 0; i < 100_000; i++ {
+			require.NoError(batch.Put(context.TODO(), string(keys[0][i]), values[0][i]))
+		}
+		_, err = batch.Write()
+		require.NoError(err)
+	})
+
+	for j := 1; j < 30; j++ {
+		b.Run(fmt.Sprintf("rewrite=%d", j), func(b *testing.B) {
+			batch, err := db.NewBatch()
+			require.NoError(err)
+			batch.Prepare()
+			for i := 0; i < 100_000; i++ {
+				require.NoError(batch.Put(context.TODO(), string(keys[j][i]), values[j][i]))
+			}
+			_, err = batch.Write()
+			require.NoError(err)
+		})
+
+		require.NoError(db.Close())
+	}
+}
