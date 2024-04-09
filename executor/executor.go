@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/state"
 
 	uatomic "go.uber.org/atomic"
@@ -121,7 +123,12 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	}
 	e.tasks[id] = t
 
+	// Add dummy dependencies to ensure we don't execute the task
+	dummyDependencies := int64(len(keys) + 1)
+	t.dependencies.Add(dummyDependencies)
+
 	// Record dependencies
+	previousDependencies := set.NewSet[int](len(keys))
 	for k, v := range keys {
 		n, ok := e.nodes[k]
 		if ok {
@@ -131,8 +138,10 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				switch {
 				// concurrent Reads or Read(s)-after-Write
 				case v == state.Read:
+					// Reads aren't dependent on each other, so we
+					// only consider Read(s)-after-Write case
 					if n.modification {
-						t.dependencies.Add(int64(1))
+						previousDependencies.Add(n.id)
 					}
 					lt.blocking[id] = t
 					lt.l.Unlock()
@@ -140,7 +149,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				case v.Has(state.Allocate) || v.Has(state.Write):
 					// Write-after-Write
 					if n.modification && len(lt.blocking) == 0 {
-						t.dependencies.Add(int64(1))
+						previousDependencies.Add(n.id)
 						lt.blocking[id] = t
 						e.update(id, k, v)
 						lt.l.Unlock()
@@ -148,13 +157,14 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					}
 					// blocked by all Reads plus an Allocate/Write or the first Read
 					// example: w->r->r...w->r->r OR r->r->w...
-					t.dependencies.Add(int64(len(lt.blocking) + 1))
 					for b := range lt.blocking {
 						bt := e.tasks[b]
+						previousDependencies.Add(b)
 						bt.l.Lock()
 						bt.blocking[id] = t
 						bt.l.Unlock()
 					}
+					previousDependencies.Add(n.id)
 					lt.blocking[id] = t
 				}
 			}
@@ -163,8 +173,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		e.update(id, k, v)
 	}
 
-	// Start execution if there are no blocking dependencies
-	if t.dependencies.Load() > 0 {
+	// Adjust dependency traker and execute if necessary
+	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
+	if t.dependencies.Add(-extraDependencies) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}
