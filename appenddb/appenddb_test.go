@@ -689,6 +689,22 @@ func BenchmarkWriter(b *testing.B) {
 		pkeys, pvalues = simpleRandomKeyValues(items, 32)
 	)
 
+	b.Run("direct", func(b *testing.B) {
+		require := require.New(b)
+		for i := 0; i < b.N; i++ {
+			dir := b.TempDir()
+			f, err := os.Create(filepath.Join(dir, "file"))
+			require.NoError(err)
+			for j := 0; j < items; j++ {
+				_, err := f.Write([]byte(pkeys[j]))
+				require.NoError(err)
+				_, err = f.Write(pvalues[j])
+				require.NoError(err)
+			}
+			require.NoError(f.Close())
+		}
+	})
+
 	b.Run("bufio", func(b *testing.B) {
 		require := require.New(b)
 		for i := 0; i < b.N; i++ {
