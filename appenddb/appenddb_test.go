@@ -801,3 +801,16 @@ func BenchmarkWriter(b *testing.B) {
 		require.NoError(db.Close())
 	})
 }
+
+func BenchmarkMapUpdate(b *testing.B) {
+	m := make(map[string][]byte, 10_000_000)
+	pkeys, pvalues := simpleRandomKeyValues(10_000_000, 32)
+	for i := 0; i < 10_000_000; i++ {
+		m[pkeys[i]] = pvalues[i]
+	}
+	pkeysu, pvaluesu := simpleRandomKeyValues(100_000, 32)
+	b.ResetTimer()
+	for j := 0; j < 100_000; j++ {
+		m[pkeysu[j]] = pvaluesu[j]
+	}
+}
