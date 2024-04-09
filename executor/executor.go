@@ -156,10 +156,12 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 						continue
 					}
 					// blocked by all Reads plus an Allocate/Write or the first Read
-					// example: w->r->r...w->r->r OR r->r->w...
-					for b := range lt.blocking {
-						bt := e.tasks[b]
-						previousDependencies.Add(b)
+					// case 1: w->r->r...w->r->r, the length of [blocking] on the
+					// second [w] is the number of reads from the first [w].
+					// case 2: r->r->w..., the length of [blocking] is the number of
+					// reads called before the first [w]
+					for bid, bt := range lt.blocking {
+						previousDependencies.Add(bid)
 						bt.l.Lock()
 						bt.blocking[id] = t
 						bt.l.Unlock()
