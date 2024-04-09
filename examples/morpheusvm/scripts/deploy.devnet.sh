@@ -122,7 +122,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "actionExecutionCores": 8,
   "missingChunkFetchers": 48,
   "verifyAuth": true,
-  "authRPCCores": 32,
+  "authRPCCores": 48,
   "authRPCBacklog": 10000000,
   "authGossipCores": 16,
   "authGossipBacklog": 10000000,
