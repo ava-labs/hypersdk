@@ -415,32 +415,6 @@ func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, 
 	return output.chunkResults, output.chunks, nil
 }
 
-func (e *Engine) IsRepeatTx(
-	ctx context.Context,
-	txs []*Transaction,
-	marker set.Bits,
-) (set.Bits, error) {
-	e.outputsLock.RLock()
-	if e.largestOutput != nil {
-		for start := *e.largestOutput; start > 0; start-- {
-			output, ok := e.outputs[start]
-			if !ok {
-				break
-			}
-			for i, tx := range txs {
-				if marker.Contains(i) {
-					continue
-				}
-				if _, ok := output.txs[tx.ID()]; ok {
-					marker.Add(i)
-				}
-			}
-		}
-	}
-	e.outputsLock.RUnlock()
-	return e.vm.IsRepeatTx(ctx, txs, marker), nil
-}
-
 func (e *Engine) ReadLatestState(ctx context.Context, keys []string) ([][]byte, []error) {
 	return e.db.Gets(ctx, keys)
 }

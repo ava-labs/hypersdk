@@ -147,6 +147,13 @@ func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
+	// Mark all txs as seen (prevent replay in subsequent blocks)
+	//
+	// We do this before Accept to avoid maintaining a set of diffs
+	// that we need to check for repeats on top of this.
+	vm.seenTxs.Add(chunk.Txs)
+
+	// Add chunk to backlog for async processing
 	vm.metrics.executedProcessingBacklog.Inc()
 	vm.executedQueue <- &executedWrapper{blk, chunk, results, invalidTxs}
 
@@ -375,10 +382,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	// transform [blkTime] when calling [SetMin] here.
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(vm.seenTxs.SetMin(blkTime))))
 	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(vm.seenChunks.SetMin(blkTime))))
-	for _, fc := range chunks {
-		// Mark all valid txs as seen
-		vm.seenTxs.Add(fc.Txs)
-	}
 	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
