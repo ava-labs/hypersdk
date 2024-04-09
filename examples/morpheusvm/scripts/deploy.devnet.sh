@@ -199,7 +199,7 @@ sleep $SLEEP_DUR
 #
 # Zipf parameters expected to lead to ~1M active accounts per 60s
 echo -e "\n${YELLOW}starting load test...${NC}"
-$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.1 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.0001 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
 
 # Log dashboard information
 echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"
