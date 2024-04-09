@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -735,6 +736,30 @@ func BenchmarkWriter(b *testing.B) {
 			b.Prepare()
 			for j := 0; j < items; j++ {
 				require.NoError(b.Put(context.TODO(), pkeys[j], pvalues[j]))
+			}
+			_, err = b.Write()
+			require.NoError(err)
+		}
+		require.NoError(db.Close())
+	})
+
+	hm := linked.NewHashmap[string, []byte]()
+	for i := 0; i < items; i++ {
+		hm.Put(pkeys[i], pvalues[i])
+	}
+	b.Run("hashmap", func(b *testing.B) {
+		require := require.New(b)
+		db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
+		require.NoError(err)
+		require.Equal(ids.Empty, last)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			b, err := db.NewBatch()
+			require.NoError(err)
+			b.Prepare()
+			iter := hm.NewIterator()
+			for iter.Next() {
+				require.NoError(b.Put(context.TODO(), iter.Key(), iter.Value()))
 			}
 			_, err = b.Write()
 			require.NoError(err)
