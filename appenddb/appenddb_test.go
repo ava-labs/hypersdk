@@ -781,7 +781,11 @@ func BenchmarkWriter(b *testing.B) {
 		require.NoError(db.Close())
 	})
 
-	hmi := &hasmapIterator{hm: hm}
+	hm2 := linked.NewHashmap[string, []byte]()
+	for i := 0; i < items; i++ {
+		hm2.Put(pkeys[i], pvalues[i])
+	}
+	hmi := &hasmapIterator{hm: hm2}
 	b.Run("iterate", func(b *testing.B) {
 		require := require.New(b)
 		db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
