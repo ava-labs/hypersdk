@@ -834,10 +834,11 @@ func BenchmarkWriter(b *testing.B) {
 
 	ts := tstate.New(100_000 * 2)
 	for i := 0; i < 10; i++ {
-		ts.PrepareChunk(i, 10_000)
+		ts.PrepareChunk(i, 100_000) // purposely add gaps
 		for j := 0; j < 10_000; j++ {
-			tsv := ts.NewWriteView(i, j)
+			tsv := ts.NewWriteView(i, 10_000+j) // purposely add gap
 			tsv.Put(context.TODO(), pkeys[i*10_000+j], pvalues[i*10_000+j])
+			tsv.Put(context.TODO(), "blah", []byte("blah")) // ensure multiple values
 			tsv.Commit()
 		}
 	}
