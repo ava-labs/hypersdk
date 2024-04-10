@@ -330,7 +330,7 @@ func TestReadThenWrite(t *testing.T) {
 		}
 		ti := i
 		e.Run(s, func() error {
-			if ti < 10 {
+			if ti == 9 {
 				time.Sleep(1 * time.Second)
 			}
 

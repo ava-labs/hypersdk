@@ -99,9 +99,13 @@ func (e *Executor) runTask(t *task) {
 			continue
 		}
 		// This might happen in Read-after-Read, so don't enqueue again
+		bt.l.Lock()
 		if !bt.executed {
+			bt.l.Unlock()
 			e.executable <- bt
+			bt.l.Lock()
 		}
+		bt.l.Unlock()
 	}
 	t.blocking = nil // free memory
 	t.executed = true
@@ -147,11 +151,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					lt.l.Unlock()
 					continue
 				case v.Has(state.Allocate) || v.Has(state.Write):
-					// Write-after-Write
-					if n.modification {
-						previousDependencies.Add(n.id)
-						lt.blocking[id] = t
-					}
 					// blocked by all Reads plus an Allocate/Write or the first Read
 					// case 1: w->r->r...w->r->r, the length of [blocking] on the
 					// second [w] is the number of reads from the first [w].
@@ -162,10 +161,18 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 							continue
 						}
 						bt.l.Lock()
-						previousDependencies.Add(bid) // may depend on the same task
-						bt.blocking[id] = t
+						if !bt.executed {
+							previousDependencies.Add(bid) // may depend on the same task
+							if bt.blocking == nil {
+								bt.blocking = make(map[int]*task)
+							}
+							bt.blocking[id] = t
+						}
 						bt.l.Unlock()
 					}
+					// case 3: Write-after-Write
+					previousDependencies.Add(n.id)
+					lt.blocking[id] = t
 				}
 			}
 			lt.l.Unlock()
