@@ -14,9 +14,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/smap"
+	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -824,6 +826,38 @@ func BenchmarkWriter(b *testing.B) {
 				value, _ := smap.Get(key)
 				require.NoError(b.Put(context.TODO(), key, value))
 			}
+			_, err = b.Write()
+			require.NoError(err)
+		}
+		require.NoError(db.Close())
+	})
+
+	ts := tstate.New(100_000 * 2)
+	for i := 0; i < 10; i++ {
+		ts.PrepareChunk(i, 10_000)
+		for j := 0; j < 10_000; j++ {
+			tsv := ts.NewWriteView(i, j)
+			tsv.Put(context.TODO(), pkeys[i*10_000+j], pvalues[i*10_000+j])
+			tsv.Commit()
+		}
+	}
+	b.Run("tstate", func(b *testing.B) {
+		require := require.New(b)
+		db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
+		require.NoError(err)
+		require.Equal(ids.Empty, last)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			b, err := db.NewBatch()
+			require.NoError(err)
+			b.Prepare()
+			require.NoError(ts.Iterate(func(k string, v maybe.Maybe[[]byte]) error {
+				if v.IsNothing() {
+					return b.Delete(context.TODO(), k)
+				} else {
+					return b.Put(context.TODO(), k, v.Value())
+				}
+			}))
 			_, err = b.Write()
 			require.NoError(err)
 		}
