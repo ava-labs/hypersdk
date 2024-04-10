@@ -1,18 +1,18 @@
 # Program VM simulator (work in progress)
 
 The `Simulator` is currently a work-in-progress.
- It is a cli-tool built in Go, but meant to be used from the `wasmlanche-sdk` as a way to run automated tests on your HyperSDK wasm programs. For relatively up-to-date documentation, run `cargo doc --no-deps -p simulator --open`. Create a `Client`, create a `Plan`, then call `client.execute(plan)`, to execute the plan.
 
-And please, if you see any inconsistencies in the `README.md`` here, [open a PR](https://github.com/ava-labs/hypersdk/edit/main/x/programs/cmd/simulator/README.md)!
+It is a CLI-tool built in Go, but meant to be used from the `wasmlanche-sdk` as a way to run automated tests on your HyperSDK Wasm programs. For relatively up-to-date documentation, run `cargo doc --no-deps -p simulator --open`. Create a `Client`, create a `Plan`, then call `client.execute(plan)`, to execute the plan.
+
+And please, if you see any inconsistencies in the `README.md` here, [open a PR](https://github.com/ava-labs/hypersdk/edit/main/x/programs/cmd/simulator/README.md)!
 
 #### Note
 
-Are we calling a Go based-cli from Rust? Yes. The Go-cli re-uses primitives from the HyperSDK, but we wanted to wrap that code in a Rust client to give a seamless experience testing.
+Are we calling a Go-based CLI from Rust? Yes. The Go-CLI re-uses primitives from the HyperSDK, but we wanted to wrap that code in a Rust client to give a seamless experience testing.
 
-## Cli Useage on its own
+## CLI Usage on its own
 
-The VM simulator provides a tool for testing and interacting with HyperSDK Wasm
-`Programs`.
+The VM simulator provides a tool for testing and interacting with HyperSDK Wasm Programs.
 
 ## Build
 
@@ -22,10 +22,10 @@ go build
 
 ## Getting Started
 
-To try out out test token program its as easy as one command.
+To try out the test token program, it's as easy as running one command from this working directory:
 
 ```sh
-./simulator run ./cmd/testdata/basic_token.yaml
+./bin/simulator run ./cmd/testdata/basic_token.yaml
 ```
 
 ```json
@@ -37,15 +37,15 @@ To try out out test token program its as easy as one command.
 {"id":5,"result":{"response":[10000],"timestamp":1697835142}}
 ```
 
-## Testing a HyperSDK Programs
+## Testing a HyperSDK Program
 
-To test a HyperSDK Program you will need to create a `Plan` file which can be
+To test a HyperSDK Program, you will need to create a `Plan` file which can be
 either `JSON` and `YAML`. Look at the example `./cmd/testdata/basic_token.yaml`
 for hints on usage.
 
-### Deploy a HyperSDK Program
+### Deploying a HyperSDK Program
 
-In this example we will create a new key `my_key` and deploy a new program
+In this example we will create a new key `my_key` and deploy a new program.
 
 ```yaml
 # new_program.yaml
@@ -68,10 +68,10 @@ steps:
         value: ./my_program.wasm
 ```
 
-Next we will run the simulation
+Next we will run the simulation from this working directory:
 
 ```sh
-$./simulator run ./new_program.yaml
+./bin/simulator run cmd/my_program/new_program.yaml
 ```
 
 ```json
@@ -79,13 +79,13 @@ $./simulator run ./new_program.yaml
 {"id":2,"result":{"id":"2ut4fwdGE5FJG5w89CF3pVCjLrhiqCRZxB7ojtPnigh7QVU51i","timestamp":1697835142}}
 ```
 
-Congratulations you have just deployed your first HyperSDK program! Lets make
-sure to keep track of the transaction ID
+Congratulations, you have just deployed your first HyperSDK program! Lets make
+sure to keep track of the transaction ID.
 `2ut4fwdGE5FJG5w89CF3pVCjLrhiqCRZxB7ojtPnigh7QVU51i`.
 
 ### Interact with a HyperSDK Program
 
-Now that the program is on chain lets interact with it.
+Now that the program is on chain, let's interact with it.
 
 ```yaml
 # play_program.yaml
