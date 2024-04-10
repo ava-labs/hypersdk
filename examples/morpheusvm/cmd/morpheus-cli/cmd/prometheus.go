@@ -67,6 +67,15 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_batch_init_bytes_sum[5s])/increase(avalanche_%s_vm_hypersdk_appenddb_batch_init_bytes_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}appenddb batch creation bytes written per block:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_batch_prepare_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_appenddb_batch_prepare_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}appenddb batch prepare latency per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tstate_iterate_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_tstate_iterate_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}tstate iteration latency per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_batch_write_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_appenddb_batch_write_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}appenddb batch write latency per block:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_appenddb_batches_rewritten[5s])/5", chainID))
 			utils.Outf("{{yellow}}appenddb files rewritten per second:{{/}} %s\n", panels[len(panels)-1])
 
