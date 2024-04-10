@@ -51,83 +51,67 @@ const (
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
 
-type record interface {
-	Batch() uint64
-	SetBatch(uint64)
-
-	Size() int64
-}
-
-type memRecord struct {
+type record struct {
 	batch uint64
+
+	// Only populated if the value is less than [minDiskValueSize]
 	value []byte
-}
-
-func (m *memRecord) Batch() uint64 {
-	return m.batch
-}
-
-func (m *memRecord) SetBatch(b uint64) {
-	m.batch = b
-}
-
-func (m *memRecord) Size() int64 {
-	return int64(len(m.value))
-}
-
-type diskRecord struct {
-	batch uint64
 
 	// Location of value in file (does not include
 	// operation, key length, key, or value length)
 	loc  int64
 	size uint32
+
+	// doubly-linked list allows for removals
+	prev *record
+	next *record
 }
 
-func (d *diskRecord) Batch() uint64 {
-	return d.batch
-}
-
-func (d *diskRecord) SetBatch(b uint64) {
-	d.batch = b
-}
-
-func (d *diskRecord) Size() int64 {
-	return int64(d.size)
+func (r *record) Size() int64 {
+	if r.loc >= 0 {
+		return int64(r.size)
+	}
+	return int64(len(r.value))
 }
 
 type tracker struct {
+	db     *AppendDB
 	reader *mmap.ReaderAt
 
-	alive *linked.Hashmap[string, record]
-
-	// Byte adjustments for [pendingNullify] are taken care of
-	// prior to use to speed up the rewrite/continue decision in [recycle].
-	//
-	// pendingNullify is just used to track pending
-	// changes to keys for the next batch.
-	pendingNullify *linked.Hashmap[string, any]
+	alive          *record  // first record in list
+	pendingNullify []string // never needs to be updated, so we can just keep an array
 
 	checksum     ids.ID
 	aliveBytes   int64
 	uselessBytes int64 // already includes all nullifies and deletes
 }
 
-func (t *tracker) Nullify(key string) {
+// we return the record to allow for memory reuse + less map ops
+func (t *tracker) Nullify(key string) *record {
 	// Get bytes of nullified object
-	record, ok := t.alive.Get(key)
+	record, ok := t.db.keys[key]
 	if !ok {
 		// Exit loudly as this could be a sign of a bug or corruption
 		panic("nullifying key that is not in batch")
 	}
 	opSize := opPutLenWithValueLen(key, record.Size())
-	t.alive.Delete(key)
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
 
+	// Remove from linked list
+	if record.prev == nil {
+		t.alive = record.next
+	} else {
+		record.prev.next = record.next
+	}
+	if record.next != nil {
+		record.next.prev = record.prev
+	}
+
 	// Mark key for nullification
-	t.pendingNullify.Put(key, opSize)
 	t.uselessBytes += opNullifyLen(key)
+	t.pendingNullify = append(t.pendingNullify, key)
+	return record
 }
 
 // This sits under the MerkleDB and won't be used
@@ -138,16 +122,13 @@ type AppendDB struct {
 	bufferSize int
 	historyLen int
 
-	preallocAlive   buffer.Deque[*linked.Hashmap[string, record]]
-	preallocNullify buffer.Deque[*linked.Hashmap[string, any]]
-
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
 	nextBatch   uint64
 
 	keyLock sync.RWMutex
 	batches map[uint64]*tracker
-	keys    map[string]record
+	keys    map[string]*record
 }
 
 func readOp(reader io.Reader, cursor int64, hasher hash.Hash) (uint8, int64, error) {
@@ -443,7 +424,7 @@ func New(
 	// to reconstruct data. If any files were not fully written or have become corrupt,
 	// this will error.
 	var (
-		keys    = make(map[string]record, initialSize)
+		keys    = make(map[string]*record, initialSize)
 		batches = make(map[uint64]*tracker, historyLen+1)
 
 		lastChecksum ids.ID
