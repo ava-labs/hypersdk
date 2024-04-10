@@ -598,7 +598,7 @@ type Batch struct {
 	cursor int64
 
 	buf    []byte
-	writer *bufio.Writer
+	writer *writer
 
 	alive          *linked.Hashmap[string, record]
 	pendingNullify *linked.Hashmap[string, any]
@@ -644,14 +644,12 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 		return nil, err
 	}
 	b.f = f
-	b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
+	b.writer = newWriter(f, 0, b.a.bufferSize)
 	return b, nil
 }
 
 func (b *Batch) writeBuffer(value []byte, hash bool) error {
-	if _, err := b.writer.Write(value); err != nil {
-		return err
-	}
+	b.writer.Write(value)
 	if hash {
 		if _, err := b.hasher.Write(value); err != nil {
 			return err
@@ -702,7 +700,7 @@ func (b *Batch) recycle() (bool, error) {
 			return false, err
 		}
 		b.f = f
-		b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
+		b.writer = newWriter(f, 0, b.a.bufferSize)
 
 		// Iterate over alive records and add them to the batch file
 		items := b.alive.Len()
@@ -739,12 +737,16 @@ func (b *Batch) recycle() (bool, error) {
 	// Open old batch for writing
 	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", b.pendingNullify.Len()), zap.Uint64("batch", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
-	f, err := os.OpenFile(b.movingPath, os.O_APPEND|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
+	if err != nil {
+		return false, err
+	}
+	fi, err := f.Stat()
 	if err != nil {
 		return false, err
 	}
 	b.f = f
-	b.writer = bufio.NewWriterSize(f, b.a.bufferSize)
+	b.writer = newWriter(f, fi.Size(), b.a.bufferSize)
 	b.cursor = int64(previous.reader.Len())
 	b.startingCursor = b.cursor
 	b.uselessBytes = previous.uselessBytes

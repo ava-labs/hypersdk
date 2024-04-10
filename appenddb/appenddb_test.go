@@ -741,6 +741,22 @@ func BenchmarkWriter(b *testing.B) {
 		}
 	})
 
+	b.Run("no-block writer", func(b *testing.B) {
+		require := require.New(b)
+		for i := 0; i < b.N; i++ {
+			dir := b.TempDir()
+			f, err := os.Create(filepath.Join(dir, "file"))
+			require.NoError(err)
+			w := newWriter(f, 0, defaultBufferSize)
+			for j := 0; j < items; j++ {
+				w.Write([]byte(pkeys[j]))
+				w.Write(pvalues[j])
+			}
+			require.NoError(w.Flush())
+			require.NoError(f.Close())
+		}
+	})
+
 	b.Run("batch", func(b *testing.B) {
 		require := require.New(b)
 		db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
