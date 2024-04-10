@@ -157,15 +157,15 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					// case 2: r->r->w..., the length of [blocking] is the number of
 					// reads called before the first [w]
 					for bid, bt := range lt.blocking {
+						// this may happen in multi-key conflicts, where the id already
+						// exists in blocking, so we don't want to record that we're
+						// blocked on ourself
 						if bid == id {
 							continue
 						}
 						bt.l.Lock()
 						if !bt.executed {
 							previousDependencies.Add(bid) // may depend on the same task
-							if bt.blocking == nil {
-								bt.blocking = make(map[int]*task)
-							}
 							bt.blocking[id] = t
 						}
 						bt.l.Unlock()

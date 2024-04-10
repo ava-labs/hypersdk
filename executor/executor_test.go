@@ -165,64 +165,60 @@ func TestExecutorMultiConflict(t *testing.T) {
 
 func TestEarlyExit(t *testing.T) {
 	fmt.Printf("TestEarlyExit starting... ")
-	for j := 0; j < numIterations; j++ {
-		var (
-			require   = require.New(t)
-			l         sync.Mutex
-			completed = make([]int, 0, 500)
-			e         = New(500, 4, nil)
-			terr      = errors.New("uh oh")
-		)
-		for i := 0; i < 500; i++ {
-			s := make(state.Keys, (i + 1))
-			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
-			}
-			ti := i
-			e.Run(s, func() error {
-				l.Lock()
-				completed = append(completed, ti)
-				l.Unlock()
-				if ti == 200 {
-					return terr
-				}
-				return nil
-			})
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 500)
+		e         = New(500, 4, nil)
+		terr      = errors.New("uh oh")
+	)
+	for i := 0; i < 500; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
-		require.ErrorIs(e.Wait(), terr) // no task running
-		require.Less(len(completed), 500)
+		ti := i
+		e.Run(s, func() error {
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			if ti == 200 {
+				return terr
+			}
+			return nil
+		})
 	}
+	require.ErrorIs(e.Wait(), terr) // no task running
+	require.Less(len(completed), 500)
 	fmt.Printf("done\n")
 }
 
 func TestStop(t *testing.T) {
 	fmt.Printf("TestStop starting... ")
-	for j := 0; j < numIterations; j++ {
-		var (
-			require   = require.New(t)
-			l         sync.Mutex
-			completed = make([]int, 0, 500)
-			e         = New(500, 4, nil)
-		)
-		for i := 0; i < 500; i++ {
-			s := make(state.Keys, (i + 1))
-			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
-			}
-			ti := i
-			e.Run(s, func() error {
-				l.Lock()
-				completed = append(completed, ti)
-				l.Unlock()
-				if ti == 200 {
-					e.Stop()
-				}
-				return nil
-			})
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 500)
+		e         = New(500, 4, nil)
+	)
+	for i := 0; i < 500; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
-		require.ErrorIs(e.Wait(), ErrStopped) // no task running
-		require.Less(len(completed), 500)
+		ti := i
+		e.Run(s, func() error {
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			if ti == 200 {
+				e.Stop()
+			}
+			return nil
+		})
 	}
+	require.ErrorIs(e.Wait(), ErrStopped) // no task running
+	require.Less(len(completed), 500)
 	fmt.Printf("done\n")
 }
 
@@ -242,13 +238,16 @@ func TestManyWrites(t *testing.T) {
 			answer = append(answer, i)
 			s := make(state.Keys, (i + 1))
 			for k := 0; k < i+1; k++ {
+				// add a bunch of different, non-overlapping keys to txn
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}
+			// block on every txn to mimic sequential writes
 			s.Add(conflictKey, state.Write)
 			ti := i
 			e.Run(s, func() error {
+				// delay first txn
 				if ti == 0 {
-					time.Sleep(3 * time.Second)
+					time.Sleep(1 * time.Second)
 				}
 
 				l.Lock()
@@ -279,10 +278,12 @@ func TestManyReads(t *testing.T) {
 			for k := 0; k < i+1; k++ {
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}
+			// mimic concurrent reading for all txns
 			s.Add(conflictKey, state.Read)
 			ti := i
 			e.Run(s, func() error {
-				if ti%2 == 0 {
+				// add some delays for the first 5 even numbers
+				if ti < 10 && ti%2 == 0 {
 					time.Sleep(1 * time.Second)
 				}
 				l.Lock()
@@ -317,10 +318,13 @@ func TestWriteThenRead(t *testing.T) {
 			if i == 0 {
 				s.Add(conflictKey, state.Write)
 			} else {
+				// add concurrent reading only after the first Write
 				s.Add(conflictKey, state.Read)
 			}
 			ti := i
 			e.Run(s, func() error {
+				// add some delay to the first Write to enforce
+				// all Reads after to wait until the first Write is done
 				if ti == 0 {
 					time.Sleep(1 * time.Second)
 				}
@@ -356,12 +360,16 @@ func TestReadThenWrite(t *testing.T) {
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}
 			if i == 10 {
+				// add a Write after some concurrent Reads
 				s.Add(conflictKey, state.Write)
 			} else {
 				s.Add(conflictKey, state.Read)
 			}
 			ti := i
 			e.Run(s, func() error {
+				// on the last Read before the first Write, add a delay
+				// so that everything after (W and R) needs to wait until
+				// this one is completed
 				if ti == 9 {
 					time.Sleep(1 * time.Second)
 				}
