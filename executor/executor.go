@@ -95,7 +95,7 @@ func (e *Executor) runTask(t *task) {
 	t.l.Lock()
 	for _, bt := range t.blocking {
 		// Reads would have zero dependencies
-		if bt.dependencies.Load() == 0 || bt.dependencies.Add(-1) > 0 {
+		if bt.dependencies.Add(-1) != 0 {
 			continue
 		}
 		// This might happen in Read-after-Read, so don't enqueue again
@@ -139,6 +139,8 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			lt := e.tasks[n.id]
 			lt.l.Lock()
 			if !lt.executed {
+				lt.blocking[id] = t
+
 				switch {
 				// concurrent Reads or Read(s)-after-Write
 				case v == state.Read:
@@ -147,7 +149,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					if n.modification {
 						previousDependencies.Add(n.id)
 					}
-					lt.blocking[id] = t
 					lt.l.Unlock()
 					continue
 				case v.Has(state.Allocate) || v.Has(state.Write):
@@ -172,7 +173,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					}
 					// case 3: Write-after-Write
 					previousDependencies.Add(n.id)
-					lt.blocking[id] = t
 				}
 			}
 			lt.l.Unlock()
