@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/smap"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -799,6 +800,30 @@ func BenchmarkWriter(b *testing.B) {
 			require.NoError(hmi.Iterate(func(k string, v []byte) error {
 				return b.Put(context.TODO(), k, v)
 			}))
+			_, err = b.Write()
+			require.NoError(err)
+		}
+		require.NoError(db.Close())
+	})
+
+	smap := smap.New[[]byte](100_000)
+	for i, key := range pkeys {
+		smap.Put(key, pvalues[i])
+	}
+	b.Run("smap", func(b *testing.B) {
+		require := require.New(b)
+		db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, 100_000, defaultBufferSize, 15)
+		require.NoError(err)
+		require.Equal(ids.Empty, last)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			b, err := db.NewBatch()
+			require.NoError(err)
+			b.Prepare()
+			for _, key := range pkeys {
+				value, _ := smap.Get(key)
+				require.NoError(b.Put(context.TODO(), key, value))
+			}
 			_, err = b.Write()
 			require.NoError(err)
 		}
