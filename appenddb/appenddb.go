@@ -19,7 +19,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/buffer"
 	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
@@ -78,7 +77,8 @@ type tracker struct {
 	db     *AppendDB
 	reader *mmap.ReaderAt
 
-	alive          *record  // first record in list
+	first          *record // first record in list
+	last           *record
 	pendingNullify []string // never needs to be updated, so we can just keep an array
 
 	checksum     ids.ID
@@ -87,31 +87,29 @@ type tracker struct {
 }
 
 // we return the record to allow for memory reuse + less map ops
-func (t *tracker) Nullify(key string) *record {
-	// Get bytes of nullified object
-	record, ok := t.db.keys[key]
-	if !ok {
-		// Exit loudly as this could be a sign of a bug or corruption
-		panic("nullifying key that is not in batch")
-	}
+func (t *tracker) Nullify(key string, record *record, addNullify bool) {
 	opSize := opPutLenWithValueLen(key, record.Size())
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
 
 	// Remove from linked list
 	if record.prev == nil {
-		t.alive = record.next
+		t.first = record.next
 	} else {
 		record.prev.next = record.next
 	}
-	if record.next != nil {
+	if record.next == nil {
+		t.last = record.prev
+	} else {
 		record.next.prev = record.prev
 	}
 
-	// Mark key for nullification
-	t.uselessBytes += opNullifyLen(key)
-	t.pendingNullify = append(t.pendingNullify, key)
-	return record
+	// We only add to [pendingNullify] if this is called when there is a
+	// [Put] or [Delete] op.
+	if addNullify {
+		t.uselessBytes += opNullifyLen(key)
+		t.pendingNullify = append(t.pendingNullify, key)
+	}
 }
 
 // This sits under the MerkleDB and won't be used
@@ -229,142 +227,133 @@ func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids
 	return batch, ids.ID(op), cursor, nil
 }
 
-func loadBatch(
+func (a *AppendDB) loadBatch(
 	path string,
-	alive *linked.Hashmap[string, record],
 	file uint64,
-) (
-	*tracker,
-	*linked.Hashmap[string, record], // change order is important
-	error,
-) {
+) error {
 	// Load file into buffer
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	reader := bufio.NewReader(f)
 
 	// Read all operations from the file
 	var (
+		t = &tracker{
+			db:             a,
+			pendingNullify: []string{},
+		}
+
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
-
-		hasher = sha256.New()
-
-		changes      = linked.NewHashmap[string, record]()
-		aliveBytes   int64
-		uselessBytes int64
+		hasher   = sha256.New()
 	)
+	a.batches[file] = t
 	for {
 		op, newCursor, err := readOp(reader, cursor, hasher)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 		switch op {
 		case opPut:
 			key, value, newCursor, err := readPut(reader, newCursor, hasher)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
-			var r record
-			if len(value) >= minDiskValueSize {
-				r = &diskRecord{
-					batch: file,
-					loc:   cursor,
-					size:  uint32(len(value)),
-				}
-			} else {
-				r = &memRecord{
-					batch: file,
-					value: value,
-				}
-			}
-			previousRecord, ok := alive.Get(key)
+			r, ok := a.keys[key]
 			if ok {
-				// This could happen if we put a key in the same batch twice (when reading
-				// keys during prepare).
-				opSize := opPutLenWithValueLen(key, previousRecord.Size())
-				aliveBytes -= opSize
-				uselessBytes += opSize
+				a.batches[r.batch].Nullify(key, r, true)
+			} else {
+				r = &record{}
+				a.keys[key] = r
 			}
-			alive.Put(key, r)
-			changes.Put(key, r)
-			aliveBytes += opPutLen(key, value)
+			r.batch = file
+			if len(value) >= minDiskValueSize {
+				r.value = nil
+				r.loc = cursor
+				r.size = uint32(len(value))
+			} else {
+				r.value = value
+				r.loc = -1
+				r.size = 0
+			}
+			r.prev = nil
+			r.next = nil
+			if t.first == nil {
+				t.first = r
+				t.last = r
+			} else {
+				r.prev = t.last
+				t.last.next = r
+				t.last = r
+			}
+			t.aliveBytes += opPutLen(key, value)
 			cursor = newCursor
 		case opDelete:
 			key, newCursor, err := readKey(reader, newCursor, hasher)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
-			if past, ok := alive.Get(key); ok {
-				opSize := opPutLenWithValueLen(key, past.Size())
-				aliveBytes -= opSize
-				uselessBytes += opSize
-				alive.Delete(key)
+			r, ok := a.keys[key]
+			if ok {
+				a.batches[r.batch].Nullify(key, r, true)
+			} else {
+				return errors.New("invalid delete")
 			}
-			changes.Put(key, nil)
-			uselessBytes += opDeleteLen(key)
+			delete(a.keys, key)
+			t.uselessBytes += opDeleteLen(key)
 			cursor = newCursor
 		case opChecksum:
 			batch, checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
 			if !bytes.Equal(checksum[:], hasher.Sum(nil)) {
-				return nil, nil, fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
+				return fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
 			}
-			uselessBytes += opChecksumLen()
+			t.uselessBytes += opChecksumLen()
 			cursor = newCursor
 
 			// Check if we should leave the file
 			if cursor == fileSize {
 				if batch != file {
-					return nil, nil, fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
+					return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
 				}
 				mf, err := mmap.Open(path)
 				if err != nil {
-					return nil, nil, err
+					return err
 				}
-				return &tracker{
-					reader: mf,
-
-					alive: alive,
-
-					checksum: checksum,
-					// pendingNullify is populated by caller
-
-					aliveBytes:   aliveBytes,
-					uselessBytes: uselessBytes,
-				}, changes, nil
+				t.reader = mf
+				t.checksum = checksum
+				return nil
 			}
+			t.pendingNullify = t.pendingNullify[:0]
 
 			// Initialize hasher for next batch (assuming continues)
 			hasher = sha256.New()
 			if _, err := hasher.Write(checksum[:]); err != nil {
-				return nil, nil, err
+				return err
 			}
 		case opNullify: // key was updated (either put/delete in another batch file)
+			// TODO: ensure happen right after checksum only
 			key, newCursor, err := readKey(reader, newCursor, hasher)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
-			if past, ok := alive.Get(key); ok {
-				opSize := opPutLenWithValueLen(key, past.Size())
-				aliveBytes -= opSize
-				uselessBytes += opSize
-				alive.Delete(key)
+			r, ok := a.keys[key]
+			if ok {
+				a.batches[r.batch].Nullify(key, r, false)
 			}
-			changes.Delete(key) // if we were going to do something with key, don't
-			uselessBytes += opNullifyLen(key)
+			t.uselessBytes += opNullifyLen(key)
 			cursor = newCursor
 		default:
-			return nil, nil, fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
+			return fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
 		}
 	}
 }
@@ -409,13 +398,15 @@ func New(
 		return nil, ids.Empty, errors.New("too many files")
 	}
 
-	// Provision all batch trackers ahead of time
-	preallocs := (historyLen + 1) // keep history + current
-	preallocAlive := buffer.NewUnboundedDeque[*linked.Hashmap[string, record]](preallocs)
-	preallocNullify := buffer.NewUnboundedDeque[*linked.Hashmap[string, any]](preallocs)
-	for i := 0; i < preallocs; i++ {
-		preallocAlive.PushRight(linked.NewHashmapWithSize[string, record](batchSize))
-		preallocNullify.PushRight(linked.NewHashmapWithSize[string, any](batchSize))
+	// Instantiate DB
+	adb := &AppendDB{
+		logger:     log,
+		baseDir:    baseDir,
+		bufferSize: bufferSize,
+		historyLen: historyLen,
+
+		keys:    make(map[string]*record, initialSize),
+		batches: make(map[uint64]*tracker, historyLen+1),
 	}
 
 	// Replay all changes on-disk
@@ -424,9 +415,6 @@ func New(
 	// to reconstruct data. If any files were not fully written or have become corrupt,
 	// this will error.
 	var (
-		keys    = make(map[string]*record, initialSize)
-		batches = make(map[uint64]*tracker, historyLen+1)
-
 		lastChecksum ids.ID
 		firstBatch   uint64
 		lastBatch    uint64
@@ -434,13 +422,7 @@ func New(
 	slices.Sort(files)
 	for i, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		alive, ok := preallocAlive.PopLeft()
-		if !ok {
-			log.Warn("exceeded prealloc alive allocation")
-			alive = linked.NewHashmapWithSize[string, record](batchSize)
-		}
-		track, changes, err := loadBatch(path, alive, file)
-		if err != nil {
+		if err := adb.loadBatch(path, file); err != nil {
 			// We chose not to fix storage if we encounter an error as it
 			// could be destructive.
 			//
@@ -448,56 +430,21 @@ func New(
 			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
-		nullify, ok := preallocNullify.PopLeft()
-		if !ok {
-			log.Warn("exceeded prealloc nullify allocation")
-			nullify = linked.NewHashmapWithSize[string, any](batchSize)
-		}
-		track.pendingNullify = nullify
-		changeIter := changes.NewIterator()
-		for changeIter.Next() {
-			key, entry := changeIter.Key(), changeIter.Value()
-			past, ok := keys[key]
-			if ok {
-				batches[past.Batch()].Nullify(key)
-			}
-
-			// Update entry
-			if entry == nil {
-				delete(keys, key)
-			} else {
-				keys[key] = entry
-			}
-		}
 		if i == 0 {
 			firstBatch = file
 		}
-		batches[file] = track
-		lastChecksum = track.checksum
 		lastBatch = file
 	}
 	log.Info(
 		"loaded batches",
-		zap.Int("count", len(batches)),
-		zap.Int("keys", len(keys)),
+		zap.Int("count", len(adb.batches)),
+		zap.Int("keys", len(adb.keys)),
 		zap.Uint64("first batch", firstBatch),
 		zap.Uint64("last batch", lastBatch),
 		zap.Stringer("last checksum", lastChecksum),
 		zap.Duration("duration", time.Since(start)),
 	)
-	adb := &AppendDB{
-		logger:     log,
-		baseDir:    baseDir,
-		bufferSize: bufferSize,
-		historyLen: historyLen,
-
-		preallocAlive:   preallocAlive,
-		preallocNullify: preallocNullify,
-
-		batches: batches,
-		keys:    keys,
-	}
-	if len(batches) > 0 {
+	if len(adb.batches) > 0 {
 		adb.oldestBatch = &firstBatch
 		adb.nextBatch = lastBatch + 1
 	}
@@ -509,16 +456,12 @@ func (a *AppendDB) get(key string) ([]byte, error) {
 	if !ok {
 		return nil, database.ErrNotFound
 	}
-	switch r := entry.(type) {
-	case *memRecord:
-		return slices.Clone(r.value), nil
-	case *diskRecord:
-		value := make([]byte, r.size)
-		_, err := a.batches[r.batch].reader.ReadAt(value, r.loc)
-		return value, err
-	default:
-		panic("unknown record type")
+	if entry.loc < 0 {
+		return slices.Clone(entry.value), nil
 	}
+	value := make([]byte, entry.size)
+	_, err := a.batches[entry.batch].reader.ReadAt(value, entry.loc)
+	return value, err
 }
 
 func (a *AppendDB) Get(_ context.Context, key string) ([]byte, error) {
