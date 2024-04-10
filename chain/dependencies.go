@@ -60,9 +60,16 @@ type Metrics interface {
 
 	RecordStateChanges(int)
 
+	// TODO: make each name a string and then
+	// allow dynamic registering of metrics
+	// as needed rather than this approach (just
+	// have gauge, counter, averager).
 	RecordAppendDBBatchInit(time.Duration)
 	RecordAppendDBBatchInitBytes(int64)
 	RecordAppendDBBatchesRewritten()
+	RecordAppendDBBatchPrepare(time.Duration)
+	RecordTStateIterate(time.Duration)
+	RecordAppendDBBatchWrite(time.Duration)
 }
 
 type Monitoring interface {

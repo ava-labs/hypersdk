@@ -273,7 +273,10 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 
 	// Persist changes to state
 	commitStart := time.Now()
+	tstart := time.Now()
 	openBytes, rewrite := batch.Prepare()
+	e.vm.RecordAppendDBBatchPrepare(time.Since(tstart))
+	tstart = time.Now()
 	changes := 0
 	if err := ts.Iterate(func(key string, value maybe.Maybe[[]byte]) error {
 		changes++
@@ -285,10 +288,13 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	}); err != nil {
 		return err
 	}
+	e.vm.RecordTStateIterate(time.Since(tstart))
+	tstart = time.Now()
 	checksum, err := batch.Write()
 	if err != nil {
 		return err
 	}
+	e.vm.RecordAppendDBBatchWrite(time.Since(tstart))
 	e.vm.RecordStateChanges(changes)
 	e.vm.RecordAppendDBBatchInitBytes(openBytes)
 	if rewrite {

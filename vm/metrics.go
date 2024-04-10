@@ -95,6 +95,9 @@ type Metrics struct {
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
 	appendDBBatchInit         metric.Averager
+	appendDBBatchPrepare      metric.Averager
+	tstateIterate             metric.Averager
+	appendDBBatchWrite        metric.Averager
 	appendDBBatchInitBytes    metric.Averager
 	appendDBBatchesRewritten  prometheus.Counter
 	stateChanges              metric.Averager
@@ -311,6 +314,33 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"appenddb",
 		"batch_init_bytes",
 		"bytes written during batch initialization",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchPrepare, err := metric.NewAverager(
+		"appenddb",
+		"batch_prepare",
+		"batch preparation latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	tstateIterate, err := metric.NewAverager(
+		"chain",
+		"tstate_iterate",
+		"time spent iterating over tstate",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchWrite, err := metric.NewAverager(
+		"appenddb",
+		"batch_write",
+		"batch write latency",
 		r,
 	)
 	if err != nil {
@@ -630,6 +660,9 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		stateChanges:           stateChanges,
 		appendDBBatchInit:      appendDBBatchInit,
 		appendDBBatchInitBytes: appendDBBatchInitBytes,
+		appendDBBatchPrepare:   appendDBBatchPrepare,
+		tstateIterate:          tstateIterate,
+		appendDBBatchWrite:     appendDBBatchWrite,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
