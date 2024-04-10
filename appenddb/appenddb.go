@@ -19,7 +19,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/linked"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
@@ -52,6 +51,7 @@ const (
 
 type record struct {
 	batch uint64
+	key   string
 
 	// Only populated if the value is less than [minDiskValueSize]
 	value []byte
@@ -117,6 +117,7 @@ func (t *tracker) Nullify(key string, record *record, addNullify bool) {
 type AppendDB struct {
 	logger     logging.Logger
 	baseDir    string
+	batchSize  int
 	bufferSize int
 	historyLen int
 
@@ -247,7 +248,7 @@ func (a *AppendDB) loadBatch(
 	var (
 		t = &tracker{
 			db:             a,
-			pendingNullify: []string{},
+			pendingNullify: make([]string, 0, a.batchSize),
 		}
 
 		fileSize = int64(fi.Size())
@@ -270,7 +271,7 @@ func (a *AppendDB) loadBatch(
 			if ok {
 				a.batches[r.batch].Nullify(key, r, true)
 			} else {
-				r = &record{}
+				r = &record{key: key}
 				a.keys[key] = r
 			}
 			r.batch = file
@@ -402,6 +403,7 @@ func New(
 	adb := &AppendDB{
 		logger:     log,
 		baseDir:    baseDir,
+		batchSize:  batchSize,
 		bufferSize: bufferSize,
 		historyLen: historyLen,
 
@@ -524,8 +526,12 @@ type Batch struct {
 	buf    []byte
 	writer *writer
 
-	alive          *linked.Hashmap[string, record]
-	pendingNullify *linked.Hashmap[string, any]
+	pending   []*record
+	prevFirst *record
+
+	first          *record
+	last           *record
+	pendingNullify []string
 
 	aliveBytes   int64
 	uselessBytes int64
@@ -559,9 +565,6 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 		return b, nil
 	}
 
-	// Setup new batch info
-	b.alive, _ = a.preallocAlive.PopLeft()
-	b.pendingNullify, _ = a.preallocNullify.PopLeft()
 	// Create new file
 	f, err := os.Create(b.path)
 	if err != nil {
@@ -610,9 +613,10 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Reuse linked hashmaps for both [alive] and [pendingNullify]
 	previous := b.a.batches[oldestBatch]
-	b.alive = previous.alive
 	b.pendingNullify = previous.pendingNullify
 	b.pruneableBatch = &oldestBatch
+	b.pending = make([]*record, 0, b.a.batchSize)
+	b.prevFirst = previous.first
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
@@ -627,39 +631,47 @@ func (b *Batch) recycle() (bool, error) {
 		b.writer = newWriter(f, 0, b.a.bufferSize)
 
 		// Iterate over alive records and add them to the batch file
-		items := b.alive.Len()
-		aliveIter := b.alive.NewIterator()
-		for i := 0; i < items; i++ {
-			// Iterate over all items in [alive] and write them to the batch file
-			if !aliveIter.Next() {
-				return false, ErrCorrupt
-			}
-
-			// Anything left in [alive] should be written
-			k := aliveIter.Key()
-			value, err := b.a.Get(context.TODO(), k)
+		next := b.prevFirst
+		for next != nil {
+			value, err := b.a.Get(context.TODO(), next.key)
 			if err != nil {
 				return false, err
 			}
 
 			// Create a new record for the key in the batch file
-			record, err := b.put(k, value)
+			//
+			// This is the only time we can't reuse a record and need
+			// to re-add to the map (this is to keep a set of pending records
+			// prior to grabbing the key lock).
+			r := &record{
+				batch: b.batch,
+				key:   next.key,
+			}
+			start, err := b.put(next.key, value)
 			if err != nil {
 				return false, err
 			}
-			op := opPutLen(k, value)
+			if len(value) >= minDiskValueSize {
+				r.loc = start
+				r.size = uint32(len(value))
+			} else {
+				r.value = value
+				r.loc = -1
+			}
+			op := opPutLen(next.key, value)
 			b.openWrites += op
 			b.aliveBytes += op
-			b.alive.Put(k, record)
+			b.pending = append(b.pending)
+			next = next.next
 		}
 
 		// Nullifications aren't used when rewriting the file but we still need to drop them
-		b.pendingNullify.Clear()
+		b.pendingNullify = b.pendingNullify[:0]
 		return true, nil
 	}
 
 	// Open old batch for writing
-	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", b.pendingNullify.Len()), zap.Uint64("batch", b.batch))
+	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", len(b.pendingNullify)), zap.Uint64("batch", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
 	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
 	if err != nil {
@@ -680,15 +692,13 @@ func (b *Batch) recycle() (bool, error) {
 	}
 
 	// Add to existing file
-	nullifyIter := b.pendingNullify.NewIterator()
-	for nullifyIter.Next() {
-		key := nullifyIter.Key()
+	for _, key := range b.pendingNullify {
 		if err := b.nullify(key); err != nil {
 			return false, err
 		}
 		b.openWrites += opNullifyLen(key)
 	}
-	b.pendingNullify.Clear()
+	b.pendingNullify = b.pendingNullify[:0]
 	return true, nil
 }
 
@@ -717,10 +727,10 @@ func (b *Batch) Abort() error {
 	return nil
 }
 
-func (b *Batch) put(key string, value []byte) (record, error) {
+func (b *Batch) put(key string, value []byte) (int64, error) {
 	// Check input
 	if len(key) > int(consts.MaxUint16) {
-		return nil, ErrKeyTooLong
+		return -1, ErrKeyTooLong
 	}
 
 	// Write to disk
@@ -738,27 +748,13 @@ func (b *Batch) put(key string, value []byte) (record, error) {
 	valueStart := b.cursor
 	errs.Add(b.writeBuffer(value, true))
 	if errs.Err != nil {
-		return nil, errs.Err
+		return -1, errs.Err
 	}
 
 	// Furnish record for future usage
 	//
 	// Note: this batch is not mmap'd yet and should not be used until it is.
-	var r record
-	lv := len(value)
-	if lv >= minDiskValueSize {
-		r = &diskRecord{
-			batch: b.batch,
-			loc:   valueStart,
-			size:  uint32(lv),
-		}
-	} else {
-		r = &memRecord{
-			batch: b.batch,
-			value: value,
-		}
-	}
-	return r, nil
+	return valueStart, nil
 }
 
 func (b *Batch) nullify(key string) error {
@@ -816,34 +812,26 @@ func (b *Batch) Prepare() (int64, bool) {
 
 	if len(b.movingPath) == 0 {
 		// Iterate over [alive] and update records for [keys] that were recycled
-		aliveIter := b.alive.NewIterator()
-		for aliveIter.Next() {
-			key, record := aliveIter.Key(), aliveIter.Value()
-
-			// Any past value stored in keys must be the [key] stored in [alive], so
-			// we don't need to worry about deleting old values from alive.
-			b.a.keys[key] = record
+		for _, record := range b.pending {
+			// TODO: we need to update list
+			b.a.keys[record.key] = record
 		}
 	} else {
 		// Migrate all alive keys to the new batch lookup.
-		aliveIter := b.alive.NewIterator()
-		for aliveIter.Next() {
-			record := aliveIter.Value()
-			record.SetBatch(b.batch)
-
-			// We don't need to update [keys] because we share a pointer
-			// to [record] in [alive].
+		next := b.prevFirst
+		for next != nil {
+			next.batch = b.batch
+			next = next.next
 		}
 	}
 	return b.openWrites, b.pruneableBatch != nil && len(b.movingPath) == 0
 }
 
 func (b *Batch) Put(_ context.Context, key string, value []byte) error {
-	record, err := b.put(key, value)
+	start, err := b.put(key, value)
 	if err != nil {
 		return err
 	}
-	b.alive.Put(key, record)
 	past, ok := b.a.keys[key]
 	b.a.keys[key] = record
 	b.aliveBytes += opPutLen(key, value)
