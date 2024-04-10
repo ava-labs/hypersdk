@@ -699,3 +699,15 @@ func (vm *VM) RecordAppendDBBatchInitBytes(b int64) {
 func (vm *VM) RecordAppendDBBatchesRewritten() {
 	vm.metrics.appendDBBatchesRewritten.Inc()
 }
+
+func (vm *VM) RecordAppendDBBatchPrepare(t time.Duration) {
+	vm.metrics.appendDBBatchPrepare.Observe(float64(t))
+}
+
+func (vm *VM) RecordTStateIterate(t time.Duration) {
+	vm.metrics.tstateIterate.Observe(float64(t))
+}
+
+func (vm *VM) RecordAppendDBBatchWrite(t time.Duration) {
+	vm.metrics.appendDBBatchWrite.Observe(float64(t))
+}
