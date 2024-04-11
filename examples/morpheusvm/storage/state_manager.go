@@ -16,23 +16,23 @@ var _ (chain.StateManager) = (*StateManager)(nil)
 
 type StateManager struct{}
 
-func (*StateManager) HeightKey() []byte {
+func (*StateManager) HeightKey() string {
 	return HeightKey()
 }
 
-func (*StateManager) PHeightKey() []byte {
+func (*StateManager) PHeightKey() string {
 	return PHeightKey()
 }
 
-func (*StateManager) TimestampKey() []byte {
+func (*StateManager) TimestampKey() string {
 	return TimestampKey()
 }
 
-func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
+func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) string {
 	return IncomingWarpKeyPrefix(sourceChainID, msgID)
 }
 
-func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
+func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) string {
 	return OutgoingWarpKeyPrefix(txID)
 }
 
@@ -64,6 +64,6 @@ func (*StateManager) Deduct(
 	return SubBalance(ctx, mu, addr, amount)
 }
 
-func (*StateManager) EpochKey(epoch uint64) []byte {
+func (*StateManager) EpochKey(epoch uint64) string {
 	return EpochKey(epoch)
 }

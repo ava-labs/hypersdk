@@ -105,30 +105,18 @@ func BuildBlock(
 		vm.FinishCertStream(ctx, restorableChunks)
 	}
 
-	// Fetch root
-	frequency := r.GetRootFrequency()
-	if b.StatefulBlock.Height > frequency && b.StatefulBlock.Height%frequency == 0 {
-		rootHeight := b.StatefulBlock.Height - frequency
-		root, err := vm.Engine().Root(rootHeight)
-		if err != nil {
-			vm.RestoreChunkCertificates(ctx, b.AvailableChunks)
-			return nil, err
-		}
-		b.rootHeight = &rootHeight
-		b.Root = root
-	}
-
 	// Fetch executed blocks
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height > depth {
 		execHeight := b.StatefulBlock.Height - depth
-		executed, err := vm.Engine().Results(execHeight)
+		executed, checksum, err := vm.Engine().Results(execHeight)
 		if err != nil {
 			vm.RestoreChunkCertificates(ctx, b.AvailableChunks)
 			return nil, err
 		}
 		b.execHeight = &execHeight
 		b.ExecutedChunks = executed
+		b.Checksum = checksum
 	}
 
 	// Populate all fields in block
@@ -153,7 +141,7 @@ func BuildBlock(
 		zap.Stringer("parentID", b.Parent()),
 		zap.Int("available chunks", len(b.AvailableChunks)),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
-		zap.Stringer("root", b.Root),
+		zap.Stringer("checksum", b.Checksum),
 		zap.Int("size", len(b.bytes)),
 	)
 	return b, nil

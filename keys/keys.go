@@ -15,12 +15,13 @@ func Valid(key string) bool {
 	return len(key) >= consts.Uint16Len
 }
 
-func MaxChunks(key []byte) (uint16, bool) {
-	l := len(key)
+func MaxChunks(key string) (uint16, bool) {
+	bkey := []byte(key)
+	l := len(bkey)
 	if l < consts.Uint16Len {
 		return 0, false
 	}
-	return binary.BigEndian.Uint16(key[l-consts.Uint16Len:]), true
+	return binary.BigEndian.Uint16(bkey[l-consts.Uint16Len:]), true
 }
 
 func NumChunks(value []byte) (uint16, bool) {
@@ -39,7 +40,7 @@ func numChunks(valueLen int) (uint16, bool) {
 	return uint16(raw), true
 }
 
-func Verify(maxKeySize uint32, maxValueChunks uint16, key []byte) bool {
+func Verify(maxKeySize uint32, maxValueChunks uint16, key string) bool {
 	if uint32(len(key)) > maxKeySize {
 		return false
 	}
@@ -50,7 +51,7 @@ func Verify(maxKeySize uint32, maxValueChunks uint16, key []byte) bool {
 	return keyChunks <= maxValueChunks
 }
 
-func VerifyValue(key []byte, value []byte) bool {
+func VerifyValue(key string, value []byte) bool {
 	valueChunks, ok := NumChunks(value)
 	if !ok {
 		return false
@@ -62,14 +63,18 @@ func VerifyValue(key []byte, value []byte) bool {
 	return valueChunks <= keyChunks
 }
 
-func Encode(key []byte, maxSize int) ([]byte, bool) {
+func Encode(key string, maxSize int) (string, bool) {
 	numChunks, ok := numChunks(maxSize)
 	if !ok {
-		return nil, false
+		return "", false
 	}
-	return binary.BigEndian.AppendUint16(key, numChunks), true
+	bkey := []byte(key)
+	bkey = binary.BigEndian.AppendUint16(bkey, numChunks)
+	return string(bkey), true
 }
 
-func EncodeChunks(key []byte, maxChunks uint16) []byte {
-	return binary.BigEndian.AppendUint16(key, maxChunks)
+func EncodeChunks(key string, maxChunks uint16) string {
+	bkey := []byte(key)
+	bkey = binary.BigEndian.AppendUint16(bkey, maxChunks)
+	return string(bkey)
 }
