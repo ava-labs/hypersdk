@@ -189,7 +189,7 @@ func TestAppendDBAbort(t *testing.T) {
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(int64(8), openBytes)
+	require.Zero(openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world11")))
 	require.NoError(b.Delete(ctx, "hello2"))

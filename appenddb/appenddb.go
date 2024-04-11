@@ -244,7 +244,7 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok && lastBatch > r.batch {
+			if ok && lastBatch >= r.batch {
 				a.batches[r.batch].Remove(r)
 				r.batch = file
 			} else if !ok {
@@ -273,7 +273,7 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok && lastBatch > r.batch {
+			if ok && lastBatch >= r.batch {
 				// Drop this key from our tracking and mark the operation as useless
 				a.batches[r.batch].Remove(r)
 				delete(a.keys, key)
@@ -540,7 +540,11 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
 	b.t.alive = &dll{}
-	return b, b.writeBatch()
+	if err := b.writeBatch(); err != nil {
+		return nil, err
+	}
+	b.t.uselessBytes += opBatchLen()
+	return b, nil
 }
 
 func (b *Batch) writeBuffer(value []byte, hash bool) error {
@@ -596,6 +600,7 @@ func (b *Batch) recycle() (bool, error) {
 		if err := b.writeBatch(); err != nil {
 			return false, err
 		}
+		b.t.uselessBytes += opBatchLen()
 
 		// Iterate over alive records and add them to the batch file
 		b.t.alive = &dll{}
@@ -652,7 +657,11 @@ func (b *Batch) recycle() (bool, error) {
 		return false, err
 	}
 	b.t.alive = previous.alive
-	return true, b.writeBatch()
+	if err := b.writeBatch(); err != nil {
+		return false, err
+	}
+	b.t.uselessBytes += opBatchLen()
+	return true, nil
 }
 
 // TODO: make this a true abort as long as called before Prepare
