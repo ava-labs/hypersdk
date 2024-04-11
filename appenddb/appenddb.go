@@ -49,36 +49,11 @@ const (
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
 
-type record struct {
-	batch uint64
-	key   string
-
-	// Only populated if the value is less than [minDiskValueSize]
-	value []byte
-
-	// Location of value in file (does not include
-	// operation, key length, key, or value length)
-	loc  int64
-	size uint32
-
-	// doubly-linked list allows for removals
-	prev *record
-	next *record
-}
-
-func (r *record) Size() int64 {
-	if r.loc >= 0 {
-		return int64(r.size)
-	}
-	return int64(len(r.value))
-}
-
 type tracker struct {
 	db     *AppendDB
 	reader *mmap.ReaderAt
 
-	first          *record // first record in list
-	last           *record
+	alive          *dll
 	pendingNullify []string // never needs to be updated, so we can just keep an array
 
 	checksum     ids.ID
@@ -87,28 +62,19 @@ type tracker struct {
 }
 
 // we return the record to allow for memory reuse + less map ops
-func (t *tracker) Nullify(key string, record *record, addNullify bool) {
-	opSize := opPutLenWithValueLen(key, record.Size())
+func (t *tracker) Nullify(record *record, addNullify bool) {
+	opSize := opPutLenWithValueLen(record.key, record.Size())
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
 
 	// Remove from linked list
-	if record.prev == nil {
-		t.first = record.next
-	} else {
-		record.prev.next = record.next
-	}
-	if record.next == nil {
-		t.last = record.prev
-	} else {
-		record.next.prev = record.prev
-	}
+	t.alive.Remove(record)
 
 	// We only add to [pendingNullify] if this is called when there is a
 	// [Put] or [Delete] op.
 	if addNullify {
-		t.uselessBytes += opNullifyLen(key)
-		t.pendingNullify = append(t.pendingNullify, key)
+		t.uselessBytes += opNullifyLen(record.key)
+		t.pendingNullify = append(t.pendingNullify, record.key)
 	}
 }
 
@@ -248,6 +214,7 @@ func (a *AppendDB) loadBatch(
 	var (
 		t = &tracker{
 			db:             a,
+			alive:          &dll{},
 			pendingNullify: make([]string, 0, a.batchSize),
 		}
 
@@ -269,7 +236,7 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Nullify(key, r, true)
+				a.batches[r.batch].Nullify(r, r.batch < file)
 			} else {
 				r = &record{key: key}
 				a.keys[key] = r
@@ -284,16 +251,7 @@ func (a *AppendDB) loadBatch(
 				r.loc = -1
 				r.size = 0
 			}
-			r.prev = nil
-			r.next = nil
-			if t.first == nil {
-				t.first = r
-				t.last = r
-			} else {
-				r.prev = t.last
-				t.last.next = r
-				t.last = r
-			}
+			t.alive.Add(r)
 			t.aliveBytes += opPutLen(key, value)
 			cursor = newCursor
 		case opDelete:
@@ -303,7 +261,7 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Nullify(key, r, true)
+				a.batches[r.batch].Nullify(r, r.batch < file)
 			} else {
 				return errors.New("invalid delete")
 			}
@@ -349,7 +307,7 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Nullify(key, r, false)
+				a.batches[r.batch].Nullify(r, false)
 			}
 			t.uselessBytes += opNullifyLen(key)
 			cursor = newCursor
@@ -436,6 +394,7 @@ func New(
 			firstBatch = file
 		}
 		lastBatch = file
+		lastChecksum = adb.batches[file].checksum
 	}
 	log.Info(
 		"loaded batches",
@@ -526,15 +485,10 @@ type Batch struct {
 	buf    []byte
 	writer *writer
 
+	prevAlive *dll
 	pending   []*record
-	prevFirst *record
 
-	first          *record
-	last           *record
-	pendingNullify []string
-
-	aliveBytes   int64
-	uselessBytes int64
+	t *tracker
 }
 
 func (a *AppendDB) NewBatch() (*Batch, error) {
@@ -550,6 +504,8 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 		hasher: sha256.New(),
 
 		buf: make([]byte, batchBufferSize),
+
+		t: &tracker{},
 	}
 	// If we don't need to recycle, we should create a new hashmap for this
 	// batch.
@@ -572,6 +528,8 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	}
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
+	b.t.alive = &dll{}
+	b.t.pendingNullify = make([]string, 0, b.a.batchSize)
 	return b, nil
 }
 
@@ -613,10 +571,9 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Reuse linked hashmaps for both [alive] and [pendingNullify]
 	previous := b.a.batches[oldestBatch]
-	b.pendingNullify = previous.pendingNullify
 	b.pruneableBatch = &oldestBatch
-	b.pending = make([]*record, 0, b.a.batchSize)
-	b.prevFirst = previous.first
+	b.t.pendingNullify = previous.pendingNullify
+	b.prevAlive = previous.alive
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
@@ -631,8 +588,10 @@ func (b *Batch) recycle() (bool, error) {
 		b.writer = newWriter(f, 0, b.a.bufferSize)
 
 		// Iterate over alive records and add them to the batch file
-		next := b.prevFirst
-		for next != nil {
+		b.pending = make([]*record, 0, b.a.batchSize)
+		b.t.alive = &dll{}
+		iter := b.prevAlive.Iterator()
+		for next := iter.Next(); next != nil; {
 			value, err := b.a.Get(context.TODO(), next.key)
 			if err != nil {
 				return false, err
@@ -660,18 +619,18 @@ func (b *Batch) recycle() (bool, error) {
 			}
 			op := opPutLen(next.key, value)
 			b.openWrites += op
-			b.aliveBytes += op
-			b.pending = append(b.pending)
-			next = next.next
+			b.t.aliveBytes += op
+			b.t.alive.Add(r)
+			b.pending = append(b.pending, r)
 		}
 
 		// Nullifications aren't used when rewriting the file but we still need to drop them
-		b.pendingNullify = b.pendingNullify[:0]
+		b.t.pendingNullify = make([]string, 0, b.a.batchSize)
 		return true, nil
 	}
 
 	// Open old batch for writing
-	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", len(b.pendingNullify)), zap.Uint64("batch", b.batch))
+	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", len(b.t.pendingNullify)), zap.Uint64("batch", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
 	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
 	if err != nil {
@@ -685,20 +644,22 @@ func (b *Batch) recycle() (bool, error) {
 	b.writer = newWriter(f, fi.Size(), b.a.bufferSize)
 	b.cursor = int64(previous.reader.Len())
 	b.startingCursor = b.cursor
-	b.uselessBytes = previous.uselessBytes
-	b.aliveBytes = previous.aliveBytes
+	b.t.uselessBytes = previous.uselessBytes
+	b.t.aliveBytes = previous.aliveBytes
 	if _, err := b.hasher.Write(previous.checksum[:]); err != nil {
 		return false, err
 	}
 
 	// Add to existing file
-	for _, key := range b.pendingNullify {
+	b.t.alive = b.prevAlive
+	for i, key := range b.t.pendingNullify {
 		if err := b.nullify(key); err != nil {
 			return false, err
 		}
 		b.openWrites += opNullifyLen(key)
+		b.t.pendingNullify[i] = "" // clear memory for GC
 	}
-	b.pendingNullify = b.pendingNullify[:0]
+	b.t.pendingNullify = b.t.pendingNullify[:0] // reuse slice given we've already zero'd it
 	return true, nil
 }
 
@@ -798,7 +759,7 @@ func (b *Batch) checksum() (ids.ID, error) {
 
 	// We always consider previous checksums useless in the case
 	// that we are reusing a file.
-	b.uselessBytes += opChecksumLen()
+	b.t.uselessBytes += opChecksumLen()
 	return checksum, nil
 }
 
@@ -813,17 +774,20 @@ func (b *Batch) Prepare() (int64, bool) {
 	if len(b.movingPath) == 0 {
 		// Iterate over [alive] and update records for [keys] that were recycled
 		for _, record := range b.pending {
-			// TODO: we need to update list
 			b.a.keys[record.key] = record
 		}
+		// Remove reference to new records as soon as possible
+		b.pending = nil
 	} else {
 		// Migrate all alive keys to the new batch lookup.
-		next := b.prevFirst
-		for next != nil {
+		iter := b.t.alive.Iterator()
+		for next := iter.Next(); next != nil; {
 			next.batch = b.batch
-			next = next.next
 		}
 	}
+
+	// Setup tracker for reference by this batch
+	b.a.batches[b.batch] = b.t
 	return b.openWrites, b.pruneableBatch != nil && len(b.movingPath) == 0
 }
 
@@ -833,29 +797,23 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 		return err
 	}
 	past, ok := b.a.keys[key]
-	b.a.keys[key] = record
-	b.aliveBytes += opPutLen(key, value)
-
-	// If key did not exist before, just exit
-	if !ok {
-		return nil
-	}
-
-	// If key existed before, update the previous alive record
-	//
-	// We check to see if the past batch is less
-	// than the current batch because we may have just recycled
-	// this key and it is already in [alive].
-	if pb := past.Batch(); pb < b.batch {
-		b.a.batches[pb].Nullify(key)
+	if ok {
+		b.a.batches[past.batch].Nullify(past, past.batch < b.batch)
 	} else {
-		// In the case that we are putting the same key in the same batch,
-		// we will have 2 put records for the same key. We mark this as [uselessBytes]
-		// for the purposes of later pruning the value.
-		opSize := opPutLenWithValueLen(key, past.Size())
-		b.aliveBytes -= opSize
-		b.uselessBytes += opSize
+		past = &record{batch: b.batch, key: key}
+		b.a.keys[key] = past
 	}
+	if len(value) >= minDiskValueSize {
+		past.value = nil
+		past.loc = start
+		past.size = uint32(len(value))
+	} else {
+		past.value = value
+		past.loc = -1
+		past.size = 0
+	}
+	b.t.alive.Add(past)
+	b.t.aliveBytes += opPutLen(key, value)
 	return nil
 }
 
@@ -889,16 +847,10 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	if pb := past.Batch(); pb < b.batch {
-		b.a.batches[pb].Nullify(key)
-	} else {
-		b.alive.Delete(key)
-		opSize := opPutLenWithValueLen(key, past.Size())
-		b.aliveBytes -= opSize
-		b.uselessBytes += opSize
-	}
+	b.a.batches[past.batch].Nullify(past, past.batch < b.batch)
+	b.t.alive.Remove(past)
 	delete(b.a.keys, key)
-	b.uselessBytes += opDeleteLen(key)
+	b.t.uselessBytes += opDeleteLen(key)
 	return nil
 }
 
@@ -964,17 +916,8 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 
 	// Register the batch for reading
-	b.a.batches[b.batch] = &tracker{
-		reader: reader,
-
-		alive: b.alive,
-
-		pendingNullify: b.pendingNullify,
-
-		checksum:     checksum,
-		aliveBytes:   b.aliveBytes,
-		uselessBytes: b.uselessBytes,
-	}
+	b.t.reader = reader
+	b.t.checksum = checksum
 
 	// Set oldest batch if haven't done yet
 	if b.a.oldestBatch == nil {

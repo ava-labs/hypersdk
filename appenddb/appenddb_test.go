@@ -256,7 +256,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(db.batches[1].pendingNullify.Len())
+	require.Zero(len(db.batches[1].pendingNullify))
 
 	// Modify recycled key
 	b, err = db.NewBatch()
@@ -267,7 +267,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(db.batches[2].pendingNullify.Len())
+	require.Zero(len(db.batches[2].pendingNullify))
 
 	// Delete recycled key
 	b, err = db.NewBatch()
@@ -279,7 +279,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	checksum, err := b.Write()
 	require.NoError(err)
 	keys, alive, useless := db.Usage()
-	require.Zero(db.batches[3].pendingNullify.Len())
+	require.Zero(len(db.batches[3].pendingNullify))
 
 	// Restart and ensure data is correct
 	require.NoError(db.Close())
@@ -347,7 +347,7 @@ func TestAppendDBClearNullifyOnNew(t *testing.T) {
 	require.Equal(int64(0), initBytes)
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(db.batches[2].pendingNullify.Len())
+	require.Zero(len(db.batches[2].pendingNullify))
 	require.NoError(db.Close())
 }
 
@@ -642,49 +642,6 @@ func simpleRandomKeyValues(items int, size int) ([]string, [][]byte) {
 		values[i] = v
 	}
 	return keys, values
-}
-
-func BenchmarkRecord(b *testing.B) {
-	// Allocate objects outside of inner benchmarks
-	// to avoid erroneous allocation tracking.
-	type oldRecord struct {
-		batch uint64
-		value []byte
-
-		loc  int64
-		size uint32
-	}
-	var (
-		items          = 1_000_000
-		pkeys, pvalues = simpleRandomKeyValues(items, 32)
-		mold           = make(map[string]*oldRecord, items)
-		mnew           = make(map[string]record, items)
-		mraw           = make(map[string][]byte, items)
-	)
-
-	// Perform actual allocations
-	b.Run("old", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < items; i++ {
-			mold[pkeys[i]] = &oldRecord{
-				value: pvalues[i],
-			}
-		}
-	})
-	b.Run("new", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < items; i++ {
-			mnew[pkeys[i]] = &memRecord{
-				value: pvalues[i],
-			}
-		}
-	})
-	b.Run("raw", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < items; i++ {
-			mraw[pkeys[i]] = pvalues[i]
-		}
-	})
 }
 
 type hasmapIterator struct {
