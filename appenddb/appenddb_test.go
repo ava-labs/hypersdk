@@ -256,7 +256,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(db.batches[1].pendingNullify.Len())
+	require.Zero(len(db.batches[1].pendingNullify))
 
 	// Modify recycled key
 	b, err = db.NewBatch()
@@ -267,7 +267,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(db.batches[2].pendingNullify.Len())
+	require.Zero(len(db.batches[2].pendingNullify))
 
 	// Delete recycled key
 	b, err = db.NewBatch()
@@ -279,7 +279,7 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	checksum, err := b.Write()
 	require.NoError(err)
 	keys, alive, useless := db.Usage()
-	require.Zero(db.batches[3].pendingNullify.Len())
+	require.Zero(len(db.batches[3].pendingNullify))
 
 	// Restart and ensure data is correct
 	require.NoError(db.Close())
@@ -347,7 +347,7 @@ func TestAppendDBClearNullifyOnNew(t *testing.T) {
 	require.Equal(int64(0), initBytes)
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(db.batches[2].pendingNullify.Len())
+	require.Zero(len(db.batches[2].pendingNullify))
 	require.NoError(db.Close())
 }
 
@@ -570,10 +570,7 @@ func TestAppendDBLarge(t *testing.T) {
 }
 
 func BenchmarkAppendDB(b *testing.B) {
-	// Prepare
-	require := require.New(b)
 	ctx := context.TODO()
-
 	batches := 10
 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
@@ -582,20 +579,28 @@ func BenchmarkAppendDB(b *testing.B) {
 					keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
 					b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d buffer=%d", batchSize, reuse, historyLen, bufferSize), func(b *testing.B) {
 						for i := 0; i < b.N; i++ {
-							db, last, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, batchSize, bufferSize, historyLen)
-							require.NoError(err)
-							require.Equal(ids.Empty, last)
-							for j := 0; j < batches; j++ {
-								b, err := db.NewBatch()
-								require.NoError(err)
-								b.Prepare()
-								for k := 0; k < batchSize; k++ {
-									require.NoError(b.Put(ctx, string(keys[j][k]), values[j][k]))
-								}
-								_, err = b.Write()
-								require.NoError(err)
+							db, _, err := New(logging.NoLog{}, b.TempDir(), defaultInitialSize, batchSize, bufferSize, historyLen)
+							if err != nil {
+								b.Error(err)
 							}
-							require.NoError(db.Close())
+							for j := 0; j < batches; j++ {
+								batch, err := db.NewBatch()
+								if err != nil {
+									b.Error(err)
+								}
+								batch.Prepare()
+								for k := 0; k < batchSize; k++ {
+									if err := batch.Put(ctx, string(keys[j][k]), values[j][k]); err != nil {
+										b.Error(err)
+									}
+								}
+								if _, err = batch.Write(); err != nil {
+									b.Error(err)
+								}
+							}
+							if err := db.Close(); err != nil {
+								b.Error(err)
+							}
 						}
 					})
 				}
@@ -605,9 +610,6 @@ func BenchmarkAppendDB(b *testing.B) {
 }
 
 func BenchmarkPebbleDB(b *testing.B) {
-	// Prepare
-	require := require.New(b)
-
 	batches := 10
 	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
 		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
@@ -615,15 +617,23 @@ func BenchmarkPebbleDB(b *testing.B) {
 			b.Run(fmt.Sprintf("keys=%d reuse=%d", batchSize, reuse), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					db, _, err := pebble.New(b.TempDir(), pebble.NewDefaultConfig())
-					require.NoError(err)
-					for j := 0; j < batches; j++ {
-						b := db.NewBatch()
-						for k := 0; k < batchSize; k++ {
-							b.Put(keys[j][k], values[j][k])
-						}
-						require.NoError(b.Write())
+					if err != nil {
+						b.Error(err)
 					}
-					require.NoError(db.Close())
+					for j := 0; j < batches; j++ {
+						batch := db.NewBatch()
+						for k := 0; k < batchSize; k++ {
+							if err := batch.Put(keys[j][k], values[j][k]); err != nil {
+								b.Error(err)
+							}
+						}
+						if err := batch.Write(); err != nil {
+							b.Error(err)
+						}
+					}
+					if err := db.Close(); err != nil {
+						b.Error(err)
+					}
 				}
 			})
 		}
@@ -642,49 +652,6 @@ func simpleRandomKeyValues(items int, size int) ([]string, [][]byte) {
 		values[i] = v
 	}
 	return keys, values
-}
-
-func BenchmarkRecord(b *testing.B) {
-	// Allocate objects outside of inner benchmarks
-	// to avoid erroneous allocation tracking.
-	type oldRecord struct {
-		batch uint64
-		value []byte
-
-		loc  int64
-		size uint32
-	}
-	var (
-		items          = 1_000_000
-		pkeys, pvalues = simpleRandomKeyValues(items, 32)
-		mold           = make(map[string]*oldRecord, items)
-		mnew           = make(map[string]record, items)
-		mraw           = make(map[string][]byte, items)
-	)
-
-	// Perform actual allocations
-	b.Run("old", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < items; i++ {
-			mold[pkeys[i]] = &oldRecord{
-				value: pvalues[i],
-			}
-		}
-	})
-	b.Run("new", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < items; i++ {
-			mnew[pkeys[i]] = &memRecord{
-				value: pvalues[i],
-			}
-		}
-	})
-	b.Run("raw", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < items; i++ {
-			mraw[pkeys[i]] = pvalues[i]
-		}
-	})
 }
 
 type hasmapIterator struct {
