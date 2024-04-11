@@ -503,7 +503,6 @@ type Batch struct {
 	writer *writer
 
 	prevAlive *dll
-	pending   []*record
 
 	t *tracker
 }
@@ -605,7 +604,6 @@ func (b *Batch) recycle() (bool, error) {
 		b.writer = newWriter(f, 0, b.a.bufferSize)
 
 		// Iterate over alive records and add them to the batch file
-		b.pending = make([]*record, 0, b.a.batchSize)
 		b.t.alive = &dll{}
 		iter := b.prevAlive.Iterator()
 		for next := iter.Next(); next != nil; {
@@ -635,7 +633,6 @@ func (b *Batch) recycle() (bool, error) {
 			b.openWrites += op
 			b.t.aliveBytes += op
 			b.t.alive.Add(r)
-			b.pending = append(b.pending, r)
 		}
 
 		// Nullifications aren't used when rewriting the file but we still need to drop them
@@ -791,11 +788,10 @@ func (b *Batch) Prepare() (int64, bool) {
 
 	if len(b.movingPath) == 0 {
 		// Iterate over [alive] and update records for [keys] that were recycled
-		for _, record := range b.pending {
-			b.a.keys[record.key] = record
+		iter := b.t.alive.Iterator()
+		for next := iter.Next(); next != nil; {
+			b.a.keys[next.key] = next
 		}
-		// Remove reference to new records as soon as possible
-		b.pending = nil
 	} else {
 		// Migrate all alive keys to the new batch lookup.
 		iter := b.t.alive.Iterator()
