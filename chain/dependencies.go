@@ -15,7 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
@@ -64,12 +64,12 @@ type Metrics interface {
 	// allow dynamic registering of metrics
 	// as needed rather than this approach (just
 	// have gauge, counter, averager).
-	RecordAppendDBBatchInit(time.Duration)
-	RecordAppendDBBatchInitBytes(int64)
-	RecordAppendDBBatchesRewritten()
-	RecordAppendDBBatchPrepare(time.Duration)
+	RecordVilmoBatchInit(time.Duration)
+	RecordVilmoBatchInitBytes(int64)
+	RecordVilmoBatchesRewritten()
+	RecordVilmoBatchPrepare(time.Duration)
 	RecordTStateIterate(time.Duration)
-	RecordAppendDBBatchWrite(time.Duration)
+	RecordVilmoBatchWrite(time.Duration)
 }
 
 type Monitoring interface {
@@ -91,7 +91,7 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() *appenddb.AppendDB
+	State() *vilmo.Vilmo
 	StateManager() StateManager
 	ValidatorState() validators.State
 

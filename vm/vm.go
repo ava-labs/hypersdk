@@ -28,7 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -69,7 +69,7 @@ type VM struct {
 	genesis        Genesis
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
-	stateDB        *appenddb.AppendDB
+	stateDB        *vilmo.Vilmo
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
@@ -252,7 +252,7 @@ func (vm *VM) Initialize(
 	}
 	vm.blobDB = blobDB
 	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
-	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
+	stateDB, _, err := vilmo.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func (vm *VM) Initialize(
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
-		// Prepare AppendDB
+		// Prepare Vilmo
 		batch, err := stateDB.NewBatch()
 		if err != nil {
 			return err

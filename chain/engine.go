@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ type Engine struct {
 
 	backlog chan *engineJob
 
-	db *appenddb.AppendDB
+	db *vilmo.Vilmo
 
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
@@ -63,7 +63,7 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	}
 }
 
-func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
+func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 	log := e.vm.Logger()
 	e.vm.RecordEngineBacklog(-1)
 
@@ -275,7 +275,7 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	commitStart := time.Now()
 	tstart := time.Now()
 	openBytes, rewrite := batch.Prepare()
-	e.vm.RecordAppendDBBatchPrepare(time.Since(tstart))
+	e.vm.RecordVilmoBatchPrepare(time.Since(tstart))
 	tstart = time.Now()
 	changes := 0
 	if err := ts.Iterate(func(key string, value maybe.Maybe[[]byte]) error {
@@ -294,11 +294,11 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	if err != nil {
 		return err
 	}
-	e.vm.RecordAppendDBBatchWrite(time.Since(tstart))
+	e.vm.RecordVilmoBatchWrite(time.Since(tstart))
 	e.vm.RecordStateChanges(changes)
-	e.vm.RecordAppendDBBatchInitBytes(openBytes)
+	e.vm.RecordVilmoBatchInitBytes(openBytes)
 	if rewrite {
-		e.vm.RecordAppendDBBatchesRewritten()
+		e.vm.RecordVilmoBatchesRewritten()
 	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
@@ -342,7 +342,7 @@ func (e *Engine) Run() {
 	if err != nil {
 		panic(err)
 	}
-	e.vm.RecordAppendDBBatchInit(time.Since(batchStart))
+	e.vm.RecordVilmoBatchInit(time.Since(batchStart))
 
 	for {
 		select {
@@ -356,7 +356,7 @@ func (e *Engine) Run() {
 				if err != nil {
 					panic(err)
 				}
-				e.vm.RecordAppendDBBatchInit(time.Since(batchStart))
+				e.vm.RecordVilmoBatchInit(time.Since(batchStart))
 				continue
 			case errors.Is(ErrMissingChunks, err):
 				// Should only happen on shutdown
