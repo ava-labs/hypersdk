@@ -28,7 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -69,7 +69,7 @@ type VM struct {
 	genesis        Genesis
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
-	stateDB        *appenddb.AppendDB
+	stateDB        *vilmo.Vilmo
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
@@ -246,13 +246,13 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	blobDB := filedb.New(blobPath, true, 1024, 512*units.MiB) // TODO: make configurable
+	blobDB := filedb.New(blobPath, true, 1024, 1*units.GiB) // TODO: make configurable
 	if err != nil {
 		return err
 	}
 	vm.blobDB = blobDB
 	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
-	stateDB, _, err := appenddb.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
+	stateDB, _, err := vilmo.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func (vm *VM) Initialize(
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
-		// Prepare AppendDB
+		// Prepare Vilmo
 		batch, err := stateDB.NewBatch()
 		if err != nil {
 			return err
@@ -411,10 +411,16 @@ func (vm *VM) trackChainDataSize() {
 			vm.metrics.chainDataSize.Set(float64(size))
 			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
 
-			stateLen, stateSize := vm.stateDB.Usage()
-			vm.metrics.stateLen.Set(float64(stateLen))
-			vm.metrics.stateSize.Set(float64(stateSize))
-			vm.snowCtx.Log.Info("stateDB size", zap.Int("len", stateLen), zap.String("size", humanize.Bytes(stateSize)))
+			keys, aliveBytes, uselessBytes := vm.stateDB.Usage()
+			vm.metrics.appendDBKeys.Set(float64(keys))
+			vm.metrics.appendDBAliveBytes.Set(float64(aliveBytes))
+			vm.metrics.appendDBUselessBytes.Set(float64(uselessBytes))
+			vm.snowCtx.Log.Info(
+				"stateDB size",
+				zap.Int("len", keys),
+				zap.String("alive", humanize.Bytes(uint64(aliveBytes))),
+				zap.String("useless", humanize.Bytes(uint64(uselessBytes))),
+			)
 		case <-vm.stop:
 			return
 		}

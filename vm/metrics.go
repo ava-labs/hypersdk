@@ -85,15 +85,21 @@ type Metrics struct {
 	websocketConnections      prometheus.Gauge
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
-	stateSize                 prometheus.Gauge
-	stateLen                  prometheus.Gauge
+	appendDBKeys              prometheus.Gauge
+	appendDBAliveBytes        prometheus.Gauge
+	appendDBUselessBytes      prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
-	stateRecycled             metric.Averager
+	appendDBBatchInit         metric.Averager
+	appendDBBatchPrepare      metric.Averager
+	tstateIterate             metric.Averager
+	appendDBBatchWrite        metric.Averager
+	appendDBBatchInitBytes    metric.Averager
+	appendDBBatchesRewritten  prometheus.Counter
 	stateChanges              metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
@@ -295,10 +301,46 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	stateRecycled, err := metric.NewAverager(
+	appendDBBatchInit, err := metric.NewAverager(
+		"vilmo",
+		"batch_init",
+		"batch initialization latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchInitBytes, err := metric.NewAverager(
+		"vilmo",
+		"batch_init_bytes",
+		"bytes written during batch initialization",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchPrepare, err := metric.NewAverager(
+		"vilmo",
+		"batch_prepare",
+		"batch preparation latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	tstateIterate, err := metric.NewAverager(
 		"chain",
-		"state_recycled",
-		"state recycled in a block",
+		"tstate_iterate",
+		"time spent iterating over tstate",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchWrite, err := metric.NewAverager(
+		"vilmo",
+		"batch_write",
+		"batch write latency",
 		r,
 	)
 	if err != nil {
@@ -306,6 +348,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	}
 
 	m := &Metrics{
+		appendDBBatchesRewritten: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vilmo",
+			Name:      "batches_rewritten",
+			Help:      "number of batches rewritten",
+		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -576,15 +623,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
-		stateSize: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "state_size",
-			Help:      "size of the state",
+		appendDBKeys: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "vilmo",
+			Name:      "keys",
+			Help:      "number of keys",
 		}),
-		stateLen: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "state_len",
-			Help:      "number of items in the state",
+		appendDBAliveBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "vilmo",
+			Name:      "alive_bytes",
+			Help:      "number of alive bytes on disk",
+		}),
+		appendDBUselessBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "vilmo",
+			Name:      "useless_bytes",
+			Help:      "number of useless bytes on disk",
 		}),
 		waitRepeat:             waitRepeat,
 		waitQueue:              waitQueue,
@@ -606,7 +658,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		txTimeRemainingMempool: txTimeRemainingMempool,
 		chunkAuth:              chunkAuth,
 		stateChanges:           stateChanges,
-		stateRecycled:          stateRecycled,
+		appendDBBatchInit:      appendDBBatchInit,
+		appendDBBatchInitBytes: appendDBBatchInitBytes,
+		appendDBBatchPrepare:   appendDBBatchPrepare,
+		tstateIterate:          tstateIterate,
+		appendDBBatchWrite:     appendDBBatchWrite,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -666,8 +722,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
 		r.Register(m.optimisticCertifiedGossip),
-		r.Register(m.stateSize),
-		r.Register(m.stateLen),
+		r.Register(m.appendDBBatchesRewritten),
+		r.Register(m.appendDBKeys),
+		r.Register(m.appendDBAliveBytes),
+		r.Register(m.appendDBUselessBytes),
 	)
 	return r, m, errs.Err
 }

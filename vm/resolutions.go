@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
@@ -72,7 +72,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() *appenddb.AppendDB {
+func (vm *VM) State() *vilmo.Vilmo {
 	return vm.stateDB
 }
 
@@ -147,6 +147,13 @@ func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
+	// Mark all txs as seen (prevent replay in subsequent blocks)
+	//
+	// We do this before Accept to avoid maintaining a set of diffs
+	// that we need to check for repeats on top of this.
+	vm.seenTxs.Add(chunk.Txs)
+
+	// Add chunk to backlog for async processing
 	vm.metrics.executedProcessingBacklog.Inc()
 	vm.executedQueue <- &executedWrapper{blk, chunk, results, invalidTxs}
 
@@ -375,10 +382,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	// transform [blkTime] when calling [SetMin] here.
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(vm.seenTxs.SetMin(blkTime))))
 	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(vm.seenChunks.SetMin(blkTime))))
-	for _, fc := range chunks {
-		// Mark all valid txs as seen
-		vm.seenTxs.Add(fc.Txs)
-	}
 	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
@@ -685,6 +688,26 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
-func (vm *VM) RecordStateRecycled(c int) {
-	vm.metrics.stateRecycled.Observe(float64(c))
+func (vm *VM) RecordVilmoBatchInit(t time.Duration) {
+	vm.metrics.appendDBBatchInit.Observe(float64(t))
+}
+
+func (vm *VM) RecordVilmoBatchInitBytes(b int64) {
+	vm.metrics.appendDBBatchInitBytes.Observe(float64(b))
+}
+
+func (vm *VM) RecordVilmoBatchesRewritten() {
+	vm.metrics.appendDBBatchesRewritten.Inc()
+}
+
+func (vm *VM) RecordVilmoBatchPrepare(t time.Duration) {
+	vm.metrics.appendDBBatchPrepare.Observe(float64(t))
+}
+
+func (vm *VM) RecordTStateIterate(t time.Duration) {
+	vm.metrics.tstateIterate.Observe(float64(t))
+}
+
+func (vm *VM) RecordVilmoBatchWrite(t time.Duration) {
+	vm.metrics.appendDBBatchWrite.Observe(float64(t))
 }

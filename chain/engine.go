@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ type Engine struct {
 
 	backlog chan *engineJob
 
-	db *appenddb.AppendDB
+	db *vilmo.Vilmo
 
 	outputsLock   sync.RWMutex
 	outputs       map[uint64]*output
@@ -63,7 +63,7 @@ func NewEngine(vm VM, maxBacklog int) *Engine {
 	}
 }
 
-func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
+func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 	log := e.vm.Logger()
 	e.vm.RecordEngineBacklog(-1)
 
@@ -273,7 +273,10 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 
 	// Persist changes to state
 	commitStart := time.Now()
-	recycled := batch.Prepare()
+	tstart := time.Now()
+	openBytes, rewrite := batch.Prepare()
+	e.vm.RecordVilmoBatchPrepare(time.Since(tstart))
+	tstart = time.Now()
 	changes := 0
 	if err := ts.Iterate(func(key string, value maybe.Maybe[[]byte]) error {
 		changes++
@@ -285,12 +288,18 @@ func (e *Engine) processJob(batch *appenddb.Batch, job *engineJob) error {
 	}); err != nil {
 		return err
 	}
+	e.vm.RecordTStateIterate(time.Since(tstart))
+	tstart = time.Now()
 	checksum, err := batch.Write()
 	if err != nil {
 		return err
 	}
+	e.vm.RecordVilmoBatchWrite(time.Since(tstart))
 	e.vm.RecordStateChanges(changes)
-	e.vm.RecordStateRecycled(recycled)
+	e.vm.RecordVilmoBatchInitBytes(openBytes)
+	if rewrite {
+		e.vm.RecordVilmoBatchesRewritten()
+	}
 	e.vm.RecordWaitCommit(time.Since(commitStart))
 
 	// Store and update parent view
@@ -328,10 +337,12 @@ func (e *Engine) Run() {
 
 	// Get last accepted state
 	e.db = e.vm.State()
+	batchStart := time.Now()
 	batch, err := e.db.NewBatch()
 	if err != nil {
 		panic(err)
 	}
+	e.vm.RecordVilmoBatchInit(time.Since(batchStart))
 
 	for {
 		select {
@@ -340,10 +351,12 @@ func (e *Engine) Run() {
 			switch {
 			case err == nil:
 				// Start preparation for new batch
+				batchStart := time.Now()
 				batch, err = e.db.NewBatch()
 				if err != nil {
 					panic(err)
 				}
+				e.vm.RecordVilmoBatchInit(time.Since(batchStart))
 				continue
 			case errors.Is(ErrMissingChunks, err):
 				// Should only happen on shutdown
@@ -406,32 +419,6 @@ func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, 
 		e.largestOutput = nil
 	}
 	return output.chunkResults, output.chunks, nil
-}
-
-func (e *Engine) IsRepeatTx(
-	ctx context.Context,
-	txs []*Transaction,
-	marker set.Bits,
-) (set.Bits, error) {
-	e.outputsLock.RLock()
-	if e.largestOutput != nil {
-		for start := *e.largestOutput; start > 0; start-- {
-			output, ok := e.outputs[start]
-			if !ok {
-				break
-			}
-			for i, tx := range txs {
-				if marker.Contains(i) {
-					continue
-				}
-				if _, ok := output.txs[tx.ID()]; ok {
-					marker.Add(i)
-				}
-			}
-		}
-	}
-	e.outputsLock.RUnlock()
-	return e.vm.IsRepeatTx(ctx, txs, marker), nil
 }
 
 func (e *Engine) ReadLatestState(ctx context.Context, keys []string) ([][]byte, []error) {
