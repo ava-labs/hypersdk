@@ -308,6 +308,7 @@ func (a *AppendDB) loadBatch(
 			// keys.
 			if c := cap(t.pendingNullify); c > a.nullifySize {
 				a.nullifySize = c
+				a.logger.Info("increasing nullify size", zap.Int("size", a.nullifySize))
 			}
 			t.pendingNullify = make([]string, 0, a.nullifySize)
 
@@ -677,6 +678,7 @@ func (b *Batch) recycle() (bool, error) {
 	// to prevent growing during batch.
 	if c := cap(b.t.pendingNullify); c > b.a.nullifySize {
 		b.a.nullifySize = c
+		b.a.logger.Info("increasing nullify size", zap.Int("size", b.a.nullifySize))
 	}
 	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 	return true, nil
