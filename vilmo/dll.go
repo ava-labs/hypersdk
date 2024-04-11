@@ -1,4 +1,4 @@
-package appenddb
+package vilmo
 
 type record struct {
 	batch uint64

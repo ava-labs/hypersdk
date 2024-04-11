@@ -1,4 +1,4 @@
-package appenddb
+package vilmo
 
 import (
 	"bufio"
@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	_ state.Immutable = (*AppendDB)(nil)
+	_ state.Immutable = (*Vilmo)(nil)
 	_ state.Mutable   = (*Batch)(nil)
 )
 
@@ -59,7 +59,7 @@ func string2bytes(str string) []byte {
 }
 
 type tracker struct {
-	db     *AppendDB
+	db     *Vilmo
 	reader *mmap.ReaderAt
 
 	alive *dll
@@ -81,7 +81,7 @@ func (t *tracker) Remove(record *record) {
 
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
-type AppendDB struct {
+type Vilmo struct {
 	logger     logging.Logger
 	baseDir    string
 	bufferSize int
@@ -198,7 +198,7 @@ func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (ids.ID, int
 	return ids.ID(op), cursor, nil
 }
 
-func (a *AppendDB) loadBatch(
+func (a *Vilmo) loadBatch(
 	path string,
 	file uint64,
 ) error {
@@ -332,7 +332,7 @@ func (a *AppendDB) loadBatch(
 	}
 }
 
-// New returns a new AppendDB instance and the ID of the last committed file.
+// New returns a new Vilmo instance and the ID of the last committed file.
 func New(
 	log logging.Logger,
 	baseDir string,
@@ -340,7 +340,7 @@ func New(
 	batchSize int,
 	bufferSize int,
 	historyLen int, // should not be changed
-) (*AppendDB, ids.ID, error) {
+) (*Vilmo, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
 	start := time.Now()
 	files := []uint64{}
@@ -373,7 +373,7 @@ func New(
 	}
 
 	// Instantiate DB
-	adb := &AppendDB{
+	adb := &Vilmo{
 		logger:     log,
 		baseDir:    baseDir,
 		bufferSize: bufferSize,
@@ -426,7 +426,7 @@ func New(
 	return adb, lastChecksum, nil
 }
 
-func (a *AppendDB) get(key string) ([]byte, error) {
+func (a *Vilmo) get(key string) ([]byte, error) {
 	entry, ok := a.keys[key]
 	if !ok {
 		return nil, database.ErrNotFound
@@ -439,14 +439,14 @@ func (a *AppendDB) get(key string) ([]byte, error) {
 	return value, err
 }
 
-func (a *AppendDB) Get(_ context.Context, key string) ([]byte, error) {
+func (a *Vilmo) Get(_ context.Context, key string) ([]byte, error) {
 	a.keyLock.RLock()
 	defer a.keyLock.RUnlock()
 
 	return a.get(key)
 }
 
-func (a *AppendDB) Gets(_ context.Context, keys []string) ([][]byte, []error) {
+func (a *Vilmo) Gets(_ context.Context, keys []string) ([][]byte, []error) {
 	a.keyLock.RLock()
 	defer a.keyLock.RUnlock()
 
@@ -458,7 +458,7 @@ func (a *AppendDB) Gets(_ context.Context, keys []string) ([][]byte, []error) {
 	return values, errors
 }
 
-func (a *AppendDB) Close() error {
+func (a *Vilmo) Close() error {
 	a.commitLock.Lock()
 	defer a.commitLock.Unlock()
 
@@ -468,7 +468,7 @@ func (a *AppendDB) Close() error {
 		}
 	}
 	a.logger.Info(
-		"closing appenddb",
+		"closing vilmo",
 		zap.Int("keys", len(a.keys)),
 		zap.Uint64("next batch", a.nextBatch),
 		zap.Uint64("batches", uint64(len(a.batches))),
@@ -483,7 +483,7 @@ func (a *AppendDB) Close() error {
 //
 // Batch assumes there is only one interaction per key per batch.
 type Batch struct {
-	a     *AppendDB
+	a     *Vilmo
 	path  string
 	batch uint64
 
@@ -502,7 +502,7 @@ type Batch struct {
 	t *tracker
 }
 
-func (a *AppendDB) NewBatch() (*Batch, error) {
+func (a *Vilmo) NewBatch() (*Batch, error) {
 	a.commitLock.Lock()
 	batch := a.nextBatch
 	path := filepath.Join(a.baseDir, strconv.FormatUint(batch, 10))
@@ -917,7 +917,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	return checksum, nil
 }
 
-func (a *AppendDB) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes */) {
+func (a *Vilmo) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes */) {
 	a.commitLock.RLock()
 	defer a.commitLock.RUnlock()
 

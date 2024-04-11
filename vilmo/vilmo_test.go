@@ -1,4 +1,4 @@
-package appenddb
+package vilmo
 
 import (
 	"bufio"
@@ -55,13 +55,13 @@ func randomKeyValues(batches int, itemsPerBatch int, keySize int, valueSize int,
 	return keys, values
 }
 
-func TestAppendDB(t *testing.T) {
+func TestVilmo(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -131,13 +131,13 @@ func TestAppendDB(t *testing.T) {
 	require.ErrorIs(err, ErrCorrupt)
 }
 
-func TestAppendDBAbort(t *testing.T) {
+func TestVilmoAbort(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -223,13 +223,13 @@ func TestAppendDBAbort(t *testing.T) {
 	require.NoError(db.Close())
 }
 
-func TestAppendDBReinsertHistory(t *testing.T) {
+func TestVilmoReinsertHistory(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -300,13 +300,13 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.Equal(useless, useless2)
 }
 
-func TestAppendDBPrune(t *testing.T) {
+func TestVilmoPrune(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -427,7 +427,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 }
 
-func TestAppendDBLarge(t *testing.T) {
+func TestVilmoLarge(t *testing.T) {
 	for _, valueSize := range []int{32, minDiskValueSize * 2} { // ensure mem and mmap work
 		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
 			// Prepare
@@ -435,7 +435,7 @@ func TestAppendDBLarge(t *testing.T) {
 			ctx := context.TODO()
 			baseDir := t.TempDir()
 			logger := logging.NewLogger(
-				"appenddb",
+				"vilmo",
 				logging.NewWrappedCore(
 					logging.Debug,
 					os.Stdout,
@@ -513,7 +513,7 @@ func TestAppendDBLarge(t *testing.T) {
 	}
 }
 
-func BenchmarkAppendDB(b *testing.B) {
+func BenchmarkVilmo(b *testing.B) {
 	ctx := context.TODO()
 	batches := 10
 	for _, batchSize := range []int{100_000} {
