@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -48,6 +49,13 @@ const (
 	uselessDividerRecycle = 3
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
+
+// string2bytes avoid copying the string to a byte slice (which we need
+// when writing to disk).
+func string2bytes(str string) []byte {
+	d := unsafe.StringData(str)
+	return unsafe.Slice(d, len(str))
+}
 
 type tracker struct {
 	db     *AppendDB
@@ -725,7 +733,7 @@ func (b *Batch) writePut(key string, value []byte) (int64, error) {
 	b.buf = b.buf[:consts.Uint16Len]
 	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
 	errs.Add(b.writeBuffer(b.buf, true))
-	errs.Add(b.writeBuffer([]byte(key), true))
+	errs.Add(b.writeBuffer(string2bytes(key), true))
 	b.buf = b.buf[:consts.Uint32Len]
 	binary.BigEndian.PutUint32(b.buf, uint32(len(value)))
 	errs.Add(b.writeBuffer(b.buf, true))
@@ -748,7 +756,7 @@ func (b *Batch) writeNullify(key string) error {
 	b.buf = b.buf[:consts.Uint16Len]
 	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
 	errs.Add(b.writeBuffer(b.buf, true))
-	errs.Add(b.writeBuffer([]byte(key), true))
+	errs.Add(b.writeBuffer(string2bytes(key), true))
 	return errs.Err
 }
 
@@ -849,7 +857,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	b.buf = b.buf[:consts.Uint16Len]
 	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
 	errs.Add(b.writeBuffer(b.buf, true))
-	errs.Add(b.writeBuffer([]byte(key), true))
+	errs.Add(b.writeBuffer(string2bytes(key), true))
 	if errs.Err != nil {
 		return errs.Err
 	}
