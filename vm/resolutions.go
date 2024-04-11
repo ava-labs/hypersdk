@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/appenddb"
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
@@ -72,7 +72,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() *appenddb.AppendDB {
+func (vm *VM) State() *vilmo.Vilmo {
 	return vm.stateDB
 }
 
@@ -688,19 +688,19 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
-func (vm *VM) RecordAppendDBBatchInit(t time.Duration) {
+func (vm *VM) RecordVilmoBatchInit(t time.Duration) {
 	vm.metrics.appendDBBatchInit.Observe(float64(t))
 }
 
-func (vm *VM) RecordAppendDBBatchInitBytes(b int64) {
+func (vm *VM) RecordVilmoBatchInitBytes(b int64) {
 	vm.metrics.appendDBBatchInitBytes.Observe(float64(b))
 }
 
-func (vm *VM) RecordAppendDBBatchesRewritten() {
+func (vm *VM) RecordVilmoBatchesRewritten() {
 	vm.metrics.appendDBBatchesRewritten.Inc()
 }
 
-func (vm *VM) RecordAppendDBBatchPrepare(t time.Duration) {
+func (vm *VM) RecordVilmoBatchPrepare(t time.Duration) {
 	vm.metrics.appendDBBatchPrepare.Observe(float64(t))
 }
 
@@ -708,6 +708,6 @@ func (vm *VM) RecordTStateIterate(t time.Duration) {
 	vm.metrics.tstateIterate.Observe(float64(t))
 }
 
-func (vm *VM) RecordAppendDBBatchWrite(t time.Duration) {
+func (vm *VM) RecordVilmoBatchWrite(t time.Duration) {
 	vm.metrics.appendDBBatchWrite.Observe(float64(t))
 }

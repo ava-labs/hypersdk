@@ -1,4 +1,4 @@
-package appenddb
+package vilmo
 
 import (
 	"bufio"
@@ -30,19 +30,20 @@ import (
 )
 
 var (
-	_ state.Immutable = (*AppendDB)(nil)
+	_ state.Immutable = (*Vilmo)(nil)
 	_ state.Mutable   = (*Batch)(nil)
 )
 
 const (
 	// When mutliple checksums are in a single file (we chose not to rewrite file because
-	// many keys unchanged), we opNullify any keys that are no longer active in a batch file (may be
-	// active in other batch files still) and compute the next checksum using the base as the previous
-	// checksum (rather than re-iterating over the entire file).
+	// many keys unchanged), we add new changes  and compute the next checksum using the base
+	// as the previous checksum (rather than re-iterating over the entire file).
+	//
+	// We only utilize an op if it is newer (newer batch) than the one currently stored.
 	opPut      = uint8(0) // keyLen|key|valueLen|value
 	opDelete   = uint8(1) // keyLen|key
-	opChecksum = uint8(2) // batch|checksum
-	opNullify  = uint8(3) // keyLen|key
+	opBatch    = uint8(2) // batch (starts all segments)
+	opChecksum = uint8(3) // checksum (ends all segments)
 
 	batchBufferSize       = 16 // just need to be big enough for any binary numbers
 	minDiskValueSize      = 64
@@ -58,54 +59,33 @@ func string2bytes(str string) []byte {
 }
 
 type tracker struct {
-	db     *AppendDB
+	db     *Vilmo
 	reader *mmap.ReaderAt
 
 	alive *dll
 
-	// Byte adjustments for [pendingNullify] are taken care of
-	// prior to use to speed up the rewrite/continue decision in [recycle].
-	//
-	// pendingNullify is just used to track pending
-	// changes to keys for the next batch.
-	//
-	// Items never need to be deleted from [pendingNullify], so we can just keep
-	// an array.
-	//
-	// We don't reuse pendingNullify because we don't want to hold onto references
-	// to old keys (which may be deleted).
-	pendingNullify []string
-
 	checksum     ids.ID
 	aliveBytes   int64
-	uselessBytes int64 // already includes all nullifies and deletes
+	uselessBytes int64 // already includes all overwritten data, checksums, and deletes
 }
 
 // we return the record to allow for memory reuse + less map ops
-func (t *tracker) Remove(record *record, markPending bool) {
+func (t *tracker) Remove(record *record) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
 
 	// Remove from linked list
 	t.alive.Remove(record)
-
-	// We only add to [pendingNullify] if this is called when there is a
-	// [Put] or [Delete] op.
-	if markPending {
-		t.uselessBytes += opNullifyLen(record.key)
-		t.pendingNullify = append(t.pendingNullify, record.key)
-	}
 }
 
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
-type AppendDB struct {
-	logger      logging.Logger
-	baseDir     string
-	nullifySize int
-	bufferSize  int
-	historyLen  int
+type Vilmo struct {
+	logger     logging.Logger
+	baseDir    string
+	bufferSize int
+	historyLen int
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -188,33 +168,37 @@ func opDeleteLen(key string) int64 {
 	return int64(consts.Uint8Len + consts.Uint16Len + len(key))
 }
 
-func opNullifyLen(key string) int64 {
-	return opDeleteLen(key)
+func opBatchLen() int64 {
+	return int64(consts.Uint8Len + consts.Uint64Len)
 }
 
 func opChecksumLen() int64 {
-	return int64(consts.Uint8Len + consts.Uint64Len + ids.IDLen)
+	return int64(consts.Uint8Len + ids.IDLen)
 }
 
-func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids.ID, int64, error) {
+func readBatch(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, int64, error) {
 	op := make([]byte, consts.Uint64Len)
 	if _, err := io.ReadFull(reader, op); err != nil {
-		return 0, ids.Empty, -1, err
+		return 0, -1, err
 	}
 	if _, err := hasher.Write(op); err != nil {
-		return 0, ids.Empty, -1, err
+		return 0, -1, err
 	}
 	cursor += int64(len(op))
 	batch := binary.BigEndian.Uint64(op)
-	op = make([]byte, sha256.Size)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return 0, ids.Empty, -1, err
-	}
-	cursor += int64(len(op))
-	return batch, ids.ID(op), cursor, nil
+	return batch, cursor, nil
 }
 
-func (a *AppendDB) loadBatch(
+func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (ids.ID, int64, error) {
+	op := make([]byte, sha256.Size)
+	if _, err := io.ReadFull(reader, op); err != nil {
+		return ids.Empty, -1, err
+	}
+	cursor += int64(len(op))
+	return ids.ID(op), cursor, nil
+}
+
+func (a *Vilmo) loadBatch(
 	path string,
 	file uint64,
 ) error {
@@ -233,20 +217,25 @@ func (a *AppendDB) loadBatch(
 	// Read all operations from the file
 	var (
 		t = &tracker{
-			db:             a,
-			alive:          &dll{},
-			pendingNullify: make([]string, 0, a.nullifySize),
+			db:    a,
+			alive: &dll{},
 		}
 
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
 		hasher   = sha256.New()
+
+		lastBatch uint64
+		batchSet  bool
 	)
 	a.batches[file] = t
 	for {
 		op, newCursor, err := readOp(reader, cursor, hasher)
 		if err != nil {
 			return err
+		}
+		if op != opBatch && !batchSet {
+			return fmt.Errorf("%w: batch not found", ErrCorrupt)
 		}
 		switch op {
 		case opPut:
@@ -255,12 +244,16 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok {
-				a.batches[r.batch].Remove(r, r.batch < file)
+			if ok && lastBatch >= r.batch {
+				a.batches[r.batch].Remove(r)
 				r.batch = file
-			} else {
+			} else if !ok {
 				r = &record{batch: file, key: key}
 				a.keys[key] = r
+			} else {
+				t.uselessBytes += opPutLen(key, value)
+				cursor = newCursor
+				continue
 			}
 			if len(value) >= minDiskValueSize {
 				r.value = nil
@@ -280,9 +273,9 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok {
+			if ok && lastBatch >= r.batch {
 				// Drop this key from our tracking and mark the operation as useless
-				a.batches[r.batch].Remove(r, r.batch < file)
+				a.batches[r.batch].Remove(r)
 				delete(a.keys, key)
 			}
 			// It is ok if the key doesn't exist when processing a delete op as we may be processing
@@ -290,8 +283,20 @@ func (a *AppendDB) loadBatch(
 
 			t.uselessBytes += opDeleteLen(key)
 			cursor = newCursor
+		case opBatch:
+			batch, newCursor, err := readBatch(reader, newCursor, hasher)
+			if err != nil {
+				return err
+			}
+			if batchSet {
+				return fmt.Errorf("%w: multiple batch set operations", ErrCorrupt)
+			}
+			lastBatch = batch
+			batchSet = true
+			t.uselessBytes += opBatchLen()
+			cursor = newCursor
 		case opChecksum:
-			batch, checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
+			checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
 			if err != nil {
 				return err
 			}
@@ -303,8 +308,8 @@ func (a *AppendDB) loadBatch(
 
 			// Check if we should leave the file
 			if cursor == fileSize {
-				if batch != file {
-					return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
+				if lastBatch != file {
+					return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, lastBatch)
 				}
 				mf, err := mmap.Open(path)
 				if err != nil {
@@ -315,42 +320,19 @@ func (a *AppendDB) loadBatch(
 				return nil
 			}
 
-			// Refresh [pendingNullify] to avoid hanging on to references to old
-			// keys.
-			if c := cap(t.pendingNullify); c > a.nullifySize {
-				a.nullifySize = c
-				a.logger.Info("increasing nullify size", zap.Int("size", a.nullifySize))
-			}
-			t.pendingNullify = make([]string, 0, a.nullifySize)
-
 			// Initialize hasher for next batch (assuming continues)
 			hasher = sha256.New()
 			if _, err := hasher.Write(checksum[:]); err != nil {
 				return err
 			}
-		case opNullify: // key was updated (either put/delete in another batch file)
-			// TODO: ensure happen right after checksum only
-			key, newCursor, err := readKey(reader, newCursor, hasher)
-			if err != nil {
-				return err
-			}
-			r, ok := a.keys[key]
-			if !ok {
-				return errors.New("nullifying unset key")
-			}
-
-			// opNullify means this key will be set later, so let's delete our reference for now
-			a.batches[r.batch].Remove(r, false)
-			delete(a.keys, key)
-			t.uselessBytes += opNullifyLen(key)
-			cursor = newCursor
+			batchSet = false
 		default:
 			return fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
 		}
 	}
 }
 
-// New returns a new AppendDB instance and the ID of the last committed file.
+// New returns a new Vilmo instance and the ID of the last committed file.
 func New(
 	log logging.Logger,
 	baseDir string,
@@ -358,7 +340,7 @@ func New(
 	batchSize int,
 	bufferSize int,
 	historyLen int, // should not be changed
-) (*AppendDB, ids.ID, error) {
+) (*Vilmo, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
 	start := time.Now()
 	files := []uint64{}
@@ -391,12 +373,11 @@ func New(
 	}
 
 	// Instantiate DB
-	adb := &AppendDB{
-		logger:      log,
-		baseDir:     baseDir,
-		nullifySize: batchSize,
-		bufferSize:  bufferSize,
-		historyLen:  historyLen,
+	adb := &Vilmo{
+		logger:     log,
+		baseDir:    baseDir,
+		bufferSize: bufferSize,
+		historyLen: historyLen,
 
 		keys:    make(map[string]*record, initialSize),
 		batches: make(map[uint64]*tracker, historyLen+1),
@@ -445,7 +426,7 @@ func New(
 	return adb, lastChecksum, nil
 }
 
-func (a *AppendDB) get(key string) ([]byte, error) {
+func (a *Vilmo) get(key string) ([]byte, error) {
 	entry, ok := a.keys[key]
 	if !ok {
 		return nil, database.ErrNotFound
@@ -458,14 +439,14 @@ func (a *AppendDB) get(key string) ([]byte, error) {
 	return value, err
 }
 
-func (a *AppendDB) Get(_ context.Context, key string) ([]byte, error) {
+func (a *Vilmo) Get(_ context.Context, key string) ([]byte, error) {
 	a.keyLock.RLock()
 	defer a.keyLock.RUnlock()
 
 	return a.get(key)
 }
 
-func (a *AppendDB) Gets(_ context.Context, keys []string) ([][]byte, []error) {
+func (a *Vilmo) Gets(_ context.Context, keys []string) ([][]byte, []error) {
 	a.keyLock.RLock()
 	defer a.keyLock.RUnlock()
 
@@ -477,7 +458,7 @@ func (a *AppendDB) Gets(_ context.Context, keys []string) ([][]byte, []error) {
 	return values, errors
 }
 
-func (a *AppendDB) Close() error {
+func (a *Vilmo) Close() error {
 	a.commitLock.Lock()
 	defer a.commitLock.Unlock()
 
@@ -487,7 +468,7 @@ func (a *AppendDB) Close() error {
 		}
 	}
 	a.logger.Info(
-		"closing appenddb",
+		"closing vilmo",
 		zap.Int("keys", len(a.keys)),
 		zap.Uint64("next batch", a.nextBatch),
 		zap.Uint64("batches", uint64(len(a.batches))),
@@ -502,7 +483,7 @@ func (a *AppendDB) Close() error {
 //
 // Batch assumes there is only one interaction per key per batch.
 type Batch struct {
-	a     *AppendDB
+	a     *Vilmo
 	path  string
 	batch uint64
 
@@ -521,7 +502,7 @@ type Batch struct {
 	t *tracker
 }
 
-func (a *AppendDB) NewBatch() (*Batch, error) {
+func (a *Vilmo) NewBatch() (*Batch, error) {
 	a.commitLock.Lock()
 	batch := a.nextBatch
 	path := filepath.Join(a.baseDir, strconv.FormatUint(batch, 10))
@@ -559,7 +540,12 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
 	b.t.alive = &dll{}
-	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
+	if err := b.writeBatch(); err != nil {
+		return nil, err
+	}
+	opLen := opBatchLen()
+	b.openWrites += opLen
+	b.t.uselessBytes += opLen
 	return b, nil
 }
 
@@ -599,10 +585,8 @@ func (b *Batch) recycle() (bool, error) {
 		return false, nil
 	}
 
-	// Reuse linked hashmaps for both [alive] and [pendingNullify]
 	previous := b.a.batches[oldestBatch]
 	b.pruneableBatch = &oldestBatch
-	b.t.pendingNullify = previous.pendingNullify
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
@@ -615,6 +599,12 @@ func (b *Batch) recycle() (bool, error) {
 		}
 		b.f = f
 		b.writer = newWriter(f, 0, b.a.bufferSize)
+		if err := b.writeBatch(); err != nil {
+			return false, err
+		}
+		opLen := opBatchLen()
+		b.openWrites += opLen
+		b.t.uselessBytes += opLen
 
 		// Iterate over alive records and add them to the batch file
 		b.t.alive = &dll{}
@@ -647,14 +637,11 @@ func (b *Batch) recycle() (bool, error) {
 			b.t.aliveBytes += op
 			b.t.alive.Add(r)
 		}
-
-		// Nullifications aren't used when rewriting the file but we still need to drop them
-		b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 		return true, nil
 	}
 
 	// Open old batch for writing
-	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", len(b.t.pendingNullify)), zap.Uint64("batch", b.batch))
+	b.a.logger.Debug("continuing to build on old batch", zap.Uint64("old", oldestBatch), zap.Uint64("new", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
 	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
 	if err != nil {
@@ -673,25 +660,13 @@ func (b *Batch) recycle() (bool, error) {
 	if _, err := b.hasher.Write(previous.checksum[:]); err != nil {
 		return false, err
 	}
-
-	// Add to existing file
 	b.t.alive = previous.alive
-	for _, key := range b.t.pendingNullify {
-		if err := b.writeNullify(key); err != nil {
-			return false, err
-		}
-		// We already incremented [uselessBytes] when calling [tracker.Remove], so we don't
-		// call it again here.
-		b.openWrites += opNullifyLen(key)
+	if err := b.writeBatch(); err != nil {
+		return false, err
 	}
-
-	// If we are nullifying more data than expected, begin allocating larger slices
-	// to prevent growing during batch.
-	if c := cap(b.t.pendingNullify); c > b.a.nullifySize {
-		b.a.nullifySize = c
-		b.a.logger.Info("increasing nullify size", zap.Int("size", b.a.nullifySize))
-	}
-	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
+	opLen := opBatchLen()
+	b.openWrites += opLen
+	b.t.uselessBytes += opLen
 	return true, nil
 }
 
@@ -745,21 +720,15 @@ func (b *Batch) writePut(key string, value []byte) (int64, error) {
 	return valueStart, errs.Err
 }
 
-func (b *Batch) writeNullify(key string) error {
-	// Check input
-	if len(key) > int(consts.MaxUint16) {
-		return ErrKeyTooLong
-	}
-
+func (b *Batch) writeBatch() error {
 	// Write to disk
 	errs := &wrappers.Errs{}
 	b.buf = b.buf[:1]
-	b.buf[0] = opNullify
+	b.buf[0] = opBatch
 	errs.Add(b.writeBuffer(b.buf, true))
-	b.buf = b.buf[:consts.Uint16Len]
-	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
+	b.buf = b.buf[:consts.Uint64Len]
+	binary.BigEndian.PutUint64(b.buf, b.batch)
 	errs.Add(b.writeBuffer(b.buf, true))
-	errs.Add(b.writeBuffer(string2bytes(key), true))
 	return errs.Err
 }
 
@@ -768,9 +737,6 @@ func (b *Batch) writeChecksum() (ids.ID, error) {
 	errs := &wrappers.Errs{}
 	b.buf = b.buf[:1]
 	b.buf[0] = opChecksum
-	errs.Add(b.writeBuffer(b.buf, true))
-	b.buf = b.buf[:consts.Uint64Len]
-	binary.BigEndian.PutUint64(b.buf, b.batch)
 	errs.Add(b.writeBuffer(b.buf, true))
 	checksum := ids.ID(b.hasher.Sum(nil))
 	errs.Add(b.writeBuffer(checksum[:], false))
@@ -817,7 +783,7 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	}
 	past, ok := b.a.keys[key]
 	if ok {
-		b.a.batches[past.batch].Remove(past, past.batch < b.batch)
+		b.a.batches[past.batch].Remove(past)
 		past.batch = b.batch
 
 		// We avoid updating [keys] when just updating the value of a [record]
@@ -870,7 +836,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	b.a.batches[past.batch].Remove(past, past.batch < b.batch)
+	b.a.batches[past.batch].Remove(past)
 	delete(b.a.keys, key)
 	b.t.uselessBytes += opDeleteLen(key)
 	return nil
@@ -951,7 +917,7 @@ func (b *Batch) Write() (ids.ID, error) {
 	return checksum, nil
 }
 
-func (a *AppendDB) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes */) {
+func (a *Vilmo) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes */) {
 	a.commitLock.RLock()
 	defer a.commitLock.RUnlock()
 
@@ -962,8 +928,7 @@ func (a *AppendDB) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes
 	for n, batch := range a.batches {
 		aliveBytes += batch.aliveBytes
 
-		// This includes pending nullifies and may be a little inaccurate as to what
-		// is actually on-disk.
+		// This includes discarded data that may be deleted (may be a little inaccurate)
 		uselessBytes += batch.uselessBytes
 		a.logger.Debug(
 			"batch usage",

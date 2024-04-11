@@ -1,4 +1,4 @@
-package appenddb
+package vilmo
 
 import (
 	"bufio"
@@ -55,13 +55,13 @@ func randomKeyValues(batches int, itemsPerBatch int, keySize int, valueSize int,
 	return keys, values
 }
 
-func TestAppendDB(t *testing.T) {
+func TestVilmo(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -78,7 +78,9 @@ func TestAppendDB(t *testing.T) {
 	// Put
 	b, err := db.NewBatch()
 	require.NoError(err)
-	require.Zero(b.Prepare())
+	openBytes, rewrite := b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world")))
 	batch, err := b.Write()
 	require.NoError(err)
@@ -129,13 +131,13 @@ func TestAppendDB(t *testing.T) {
 	require.ErrorIs(err, ErrCorrupt)
 }
 
-func TestAppendDBAbort(t *testing.T) {
+func TestVilmoAbort(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -149,10 +151,12 @@ func TestAppendDBAbort(t *testing.T) {
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
-	// Insert key (add enough items such that nullifiers will be written rather than rewriting file)
+	// Insert key (add enough items such that we will not rewrite file)
 	b, err := db.NewBatch()
 	require.NoError(err)
-	require.Zero(b.Prepare())
+	openBytes, rewrite := b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world")))
 	require.NoError(b.Put(ctx, "hello2", []byte("world2")))
 	require.NoError(b.Put(ctx, "hello3", []byte("world3")))
@@ -162,8 +166,8 @@ func TestAppendDBAbort(t *testing.T) {
 	// Create a batch gap
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, rewrite := b.Prepare()
-	require.Equal(int64(0), openBytes)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world10")))
 	checksum, err := b.Write()
@@ -189,7 +193,7 @@ func TestAppendDBAbort(t *testing.T) {
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(int64(8), openBytes)
+	require.Equal(opBatchLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world11")))
 	require.NoError(b.Delete(ctx, "hello2"))
@@ -198,7 +202,7 @@ func TestAppendDBAbort(t *testing.T) {
 	keys, alive, useless = db.Usage()
 	require.NoError(db.Close())
 
-	// Reload database and ensure nullifiers were written
+	// Reload database and ensure correct values set in keys
 	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
 	require.NoError(err)
 	require.Equal(checksum, last)
@@ -219,13 +223,13 @@ func TestAppendDBAbort(t *testing.T) {
 	require.NoError(db.Close())
 }
 
-func TestAppendDBReinsertHistory(t *testing.T) {
+func TestVilmoReinsertHistory(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -242,7 +246,9 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Insert key
 	b, err := db.NewBatch()
 	require.NoError(err)
-	require.Zero(b.Prepare())
+	openBytes, rewrite := b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world")))
 	_, err = b.Write()
 	require.NoError(err)
@@ -250,36 +256,33 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	// Create a batch gap
 	b, err = db.NewBatch()
 	require.NoError(err)
-	openBytes, rewrite := b.Prepare()
-	require.Equal(int64(0), openBytes)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(len(db.batches[1].pendingNullify))
 
 	// Modify recycled key
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(int64(0), openBytes) // no changes since last opened
+	require.Equal(opBatchLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(len(db.batches[2].pendingNullify))
 
 	// Delete recycled key
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(int64(0), openBytes)
+	require.Equal(opBatchLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Delete(ctx, "world"))
 	checksum, err := b.Write()
 	require.NoError(err)
 	keys, alive, useless := db.Usage()
-	require.Zero(len(db.batches[3].pendingNullify))
 
 	// Restart and ensure data is correct
 	require.NoError(db.Close())
@@ -297,67 +300,13 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.Equal(useless, useless2)
 }
 
-func TestAppendDBClearNullifyOnNew(t *testing.T) {
+func TestVilmoPrune(t *testing.T) {
 	// Prepare
 	require := require.New(t)
 	ctx := context.TODO()
 	baseDir := t.TempDir()
 	logger := logging.NewLogger(
-		"appenddb",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stdout,
-			logging.Colors.ConsoleEncoder(),
-		),
-	)
-	logger.Info("created directory", zap.String("path", baseDir))
-
-	// Create
-	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
-	require.NoError(err)
-	require.Equal(ids.Empty, last)
-
-	// Insert key
-	b, err := db.NewBatch()
-	require.NoError(err)
-	require.Zero(b.Prepare())
-	require.NoError(b.Put(ctx, "hello", []byte("world")))
-	require.NoError(b.Put(ctx, "hello1", []byte("world")))
-	require.NoError(b.Put(ctx, "hello2", []byte("world")))
-	require.NoError(b.Put(ctx, "hello3", []byte("world")))
-	_, err = b.Write()
-	require.NoError(err)
-
-	// Insert a batch gap (add nullifiers)
-	b, err = db.NewBatch()
-	require.NoError(err)
-	require.Zero(b.Prepare())
-	require.NoError(b.Delete(ctx, "hello"))
-	require.NoError(b.Delete(ctx, "hello1"))
-	require.NoError(b.Delete(ctx, "hello2"))
-	require.NoError(b.Delete(ctx, "hello3"))
-	_, err = b.Write()
-	require.NoError(err)
-
-	// Rewrite batch
-	b, err = db.NewBatch()
-	require.NoError(err)
-	initBytes, rewrite := b.Prepare()
-	require.True(rewrite)
-	require.Equal(int64(0), initBytes)
-	_, err = b.Write()
-	require.NoError(err)
-	require.Zero(len(db.batches[2].pendingNullify))
-	require.NoError(db.Close())
-}
-
-func TestAppendDBPrune(t *testing.T) {
-	// Prepare
-	require := require.New(t)
-	ctx := context.TODO()
-	baseDir := t.TempDir()
-	logger := logging.NewLogger(
-		"appenddb",
+		"vilmo",
 		logging.NewWrappedCore(
 			logging.Debug,
 			os.Stdout,
@@ -478,7 +427,7 @@ func TestAppendDBPrune(t *testing.T) {
 	require.NoError(db.Close())
 }
 
-func TestAppendDBLarge(t *testing.T) {
+func TestVilmoLarge(t *testing.T) {
 	for _, valueSize := range []int{32, minDiskValueSize * 2} { // ensure mem and mmap work
 		t.Run(fmt.Sprintf("valueSize=%d", valueSize), func(t *testing.T) {
 			// Prepare
@@ -486,7 +435,7 @@ func TestAppendDBLarge(t *testing.T) {
 			ctx := context.TODO()
 			baseDir := t.TempDir()
 			logger := logging.NewLogger(
-				"appenddb",
+				"vilmo",
 				logging.NewWrappedCore(
 					logging.Debug,
 					os.Stdout,
@@ -509,13 +458,8 @@ func TestAppendDBLarge(t *testing.T) {
 				b, err := db.NewBatch()
 				require.NoError(err)
 				openBytes, rewrite := b.Prepare()
-				if i <= 5 {
-					require.Zero(openBytes)
-					require.False(rewrite)
-				} else {
-					require.Equal(int64(0), openBytes) // all no keys, no nullifiers
-					require.False(rewrite)
-				}
+				require.Equal(opBatchLen(), openBytes)
+				require.False(rewrite)
 				for j := 0; j < batchSize; j++ {
 					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
 				}
@@ -569,13 +513,13 @@ func TestAppendDBLarge(t *testing.T) {
 	}
 }
 
-func BenchmarkAppendDB(b *testing.B) {
+func BenchmarkVilmo(b *testing.B) {
 	ctx := context.TODO()
 	batches := 10
-	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
-		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
-			for _, historyLen := range []int{1, 5, 10} {
-				for _, bufferSize := range []int{2 * units.KiB, 4 * units.KiB, defaultBufferSize, 4 * defaultBufferSize} {
+	for _, batchSize := range []int{100_000} {
+		for _, reuse := range []int{batchSize} {
+			for _, historyLen := range []int{1} {
+				for _, bufferSize := range []int{defaultBufferSize} {
 					keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
 					b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d buffer=%d", batchSize, reuse, historyLen, bufferSize), func(b *testing.B) {
 						for i := 0; i < b.N; i++ {

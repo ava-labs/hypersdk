@@ -302,7 +302,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchInit, err := metric.NewAverager(
-		"appenddb",
+		"vilmo",
 		"batch_init",
 		"batch initialization latency",
 		r,
@@ -311,7 +311,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchInitBytes, err := metric.NewAverager(
-		"appenddb",
+		"vilmo",
 		"batch_init_bytes",
 		"bytes written during batch initialization",
 		r,
@@ -320,7 +320,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchPrepare, err := metric.NewAverager(
-		"appenddb",
+		"vilmo",
 		"batch_prepare",
 		"batch preparation latency",
 		r,
@@ -338,7 +338,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchWrite, err := metric.NewAverager(
-		"appenddb",
+		"vilmo",
 		"batch_write",
 		"batch write latency",
 		r,
@@ -349,7 +349,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 
 	m := &Metrics{
 		appendDBBatchesRewritten: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "appenddb",
+			Namespace: "vilmo",
 			Name:      "batches_rewritten",
 			Help:      "number of batches rewritten",
 		}),
@@ -624,17 +624,17 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Help:      "last executed epoch",
 		}),
 		appendDBKeys: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "appenddb",
+			Namespace: "vilmo",
 			Name:      "keys",
 			Help:      "number of keys",
 		}),
 		appendDBAliveBytes: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "appenddb",
+			Namespace: "vilmo",
 			Name:      "alive_bytes",
 			Help:      "number of alive bytes on disk",
 		}),
 		appendDBUselessBytes: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "appenddb",
+			Namespace: "vilmo",
 			Name:      "useless_bytes",
 			Help:      "number of useless bytes on disk",
 		}),
