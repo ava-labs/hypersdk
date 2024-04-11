@@ -149,7 +149,7 @@ func TestAppendDBAbort(t *testing.T) {
 	require.NoError(err)
 	require.Equal(ids.Empty, last)
 
-	// Insert key (add enough items such that nullifiers will be written rather than rewriting file)
+	// Insert key (add enough items such that we will not rewrite file)
 	b, err := db.NewBatch()
 	require.NoError(err)
 	require.Zero(b.Prepare())
@@ -198,7 +198,7 @@ func TestAppendDBAbort(t *testing.T) {
 	keys, alive, useless = db.Usage()
 	require.NoError(db.Close())
 
-	// Reload database and ensure nullifiers were written
+	// Reload database and ensure correct values set in keys
 	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
 	require.NoError(err)
 	require.Equal(checksum, last)
@@ -452,13 +452,8 @@ func TestAppendDBLarge(t *testing.T) {
 				b, err := db.NewBatch()
 				require.NoError(err)
 				openBytes, rewrite := b.Prepare()
-				if i <= 5 {
-					require.Zero(openBytes)
-					require.False(rewrite)
-				} else {
-					require.Equal(int64(0), openBytes) // all no keys, no nullifiers
-					require.False(rewrite)
-				}
+				require.Zero(openBytes)
+				require.False(rewrite)
 				for j := 0; j < batchSize; j++ {
 					require.NoError(b.Put(ctx, string(keys[i][j]), values[i][j]))
 				}
@@ -515,10 +510,10 @@ func TestAppendDBLarge(t *testing.T) {
 func BenchmarkAppendDB(b *testing.B) {
 	ctx := context.TODO()
 	batches := 10
-	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
-		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
-			for _, historyLen := range []int{1, 5, 10} {
-				for _, bufferSize := range []int{2 * units.KiB, 4 * units.KiB, defaultBufferSize, 4 * defaultBufferSize} {
+	for _, batchSize := range []int{100_000} {
+		for _, reuse := range []int{batchSize} {
+			for _, historyLen := range []int{1} {
+				for _, bufferSize := range []int{defaultBufferSize} {
 					keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
 					b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d buffer=%d", batchSize, reuse, historyLen, bufferSize), func(b *testing.B) {
 						for i := 0; i < b.N; i++ {
