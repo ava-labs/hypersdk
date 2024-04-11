@@ -43,13 +43,15 @@ func BuildBlock(
 	b.chunks = set.NewSet[ids.ID](16)
 	b.AvailableChunks = make([]*ChunkCertificate, 0, 16)
 	if pHeight > 0 { // even if epoch is set, we use this height to verify warp messages
+		vm.StartCertStream(ctx)
 		restorableChunks := []*ChunkCertificate{}
 		for {
 			// TODO: ensure chunk producer is in this epoch
 			// TODO: ensure only 1 chunk per producer
 			// TOOD: prefer old chunks to new chunks for a given producer
 
-			cert, ok := vm.NextChunkCertificate(ctx)
+			// It is assumed that [NextChunkCertificate] will never return a duplicate chunk.
+			cert, ok := vm.StreamCert(ctx)
 			if !ok {
 				break
 			}
@@ -76,10 +78,13 @@ func BuildBlock(
 			// Check if the chunk is a repeat
 			repeats, err := parent.IsRepeatChunk(ctx, []*ChunkCertificate{cert}, set.NewBits())
 			if err != nil {
-				return nil, err
+				log.Warn("failed to check if chunk is a repeat", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
+				b.vm.RecordBlockBuildCertDropped()
+				continue
 			}
 			if repeats.Len() > 0 {
 				log.Debug("skipping duplicate chunk", zap.Stringer("chunkID", cert.Chunk))
+				b.vm.RecordBlockBuildCertDropped()
 				continue
 			}
 
@@ -96,28 +101,29 @@ func BuildBlock(
 				zap.Stringer("chunkID", cert.Chunk),
 				zap.Uint64("epoch", utils.Epoch(cert.Slot, r.GetEpochDuration())),
 			)
-
 		}
-		vm.RestoreChunkCertificates(ctx, restorableChunks)
+		vm.FinishCertStream(ctx, restorableChunks)
 	}
 
 	// Fetch executed blocks
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height > depth {
 		execHeight := b.StatefulBlock.Height - depth
-		root, executed, err := vm.Engine().Results(execHeight)
+		executed, checksum, err := vm.Engine().Results(execHeight)
 		if err != nil {
+			vm.RestoreChunkCertificates(ctx, b.AvailableChunks)
 			return nil, err
 		}
 		b.execHeight = &execHeight
-		b.Root = root
 		b.ExecutedChunks = executed
+		b.Checksum = checksum
 	}
 
 	// Populate all fields in block
 	b.built = true
 	bytes, err := b.Marshal()
 	if err != nil {
+		vm.RestoreChunkCertificates(ctx, b.AvailableChunks)
 		return nil, err
 	}
 	b.id = utils.ToID(bytes)
@@ -135,7 +141,7 @@ func BuildBlock(
 		zap.Stringer("parentID", b.Parent()),
 		zap.Int("available chunks", len(b.AvailableChunks)),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
-		zap.Stringer("root", b.Root),
+		zap.Stringer("checksum", b.Checksum),
 		zap.Int("size", len(b.bytes)),
 	)
 	return b, nil

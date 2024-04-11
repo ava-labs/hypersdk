@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
@@ -33,22 +32,44 @@ type Parser interface {
 }
 
 type Metrics interface {
+	RecordRPCAuthorizedTx()
+	RecordExecutedChunks(int)
+
+	RecordWaitRepeat(time.Duration)
+	RecordWaitQueue(time.Duration)
 	RecordWaitAuth(time.Duration)
+	RecordWaitPrecheck(time.Duration)
 	RecordWaitExec(time.Duration)
-	RecordWaitProcessor(time.Duration)
 	RecordWaitCommit(time.Duration)
 
-	RecordClearedMempool()
+	RecordRemainingMempool(int)
 
+	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordAcceptedEpoch(uint64)
+	RecordExecutedEpoch(uint64)
 
 	GetExecutorRecorder() executor.Metrics
 	RecordBlockExecute(time.Duration)
 	RecordTxsIncluded(int)
-	RecordTxsValid(int)
+	RecordChunkBuildTxDropped()
+	RecordBlockBuildCertDropped()
+	RecordTxsInvalid(int)
+	RecordEngineBacklog(int)
+
 	RecordStateChanges(int)
-	RecordStateOperations(int)
+
+	// TODO: make each name a string and then
+	// allow dynamic registering of metrics
+	// as needed rather than this approach (just
+	// have gauge, counter, averager).
+	RecordVilmoBatchInit(time.Duration)
+	RecordVilmoBatchInitBytes(int64)
+	RecordVilmoBatchesRewritten()
+	RecordVilmoBatchPrepare(time.Duration)
+	RecordTStateIterate(time.Duration)
+	RecordVilmoBatchWrite(time.Duration)
 }
 
 type Monitoring interface {
@@ -63,44 +84,34 @@ type VM interface {
 
 	// TODO: cleanup
 	Engine() *Engine
-	RequestChunks([]*ChunkCertificate, chan *Chunk)
+	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
-
-	// We don't include this in registry because it would never be used
-	// by any client of the hypersdk.
-	GetVerifyAuth() bool
-	GetAuthVerifyCores() int
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() (merkledb.MerkleDB, error)
-	ForceState() merkledb.MerkleDB
+	State() *vilmo.Vilmo
 	StateManager() StateManager
 	ValidatorState() validators.State
 
 	IsIssuedTx(context.Context, *Transaction) bool
 	IssueTx(context.Context, *Transaction)
 
+	GetAuthResult(ids.ID) bool
 	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
 	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
 
 	Mempool() Mempool
-	GetTargetBuildDuration() time.Duration
-	GetTransactionExecutionCores() int
+	GetTargetChunkBuildDuration() time.Duration
+	GetPrecheckCores() int
+	GetActionExecutionCores() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
-	Executed(context.Context, uint64, *FilteredChunk, []*Result)
-	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
-
-	// UpdateSyncTarget returns a bool that is true if the root
-	// was updated and the sync is continuing with the new specified root
-	// and false if the sync completed with the previous root.
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
-	StateReady() bool
+	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
+	ExecutedBlock(context.Context, *StatefulBlock)
 
 	// TODO: cleanup
 	NodeID() ids.NodeID
@@ -110,15 +121,19 @@ type VM interface {
 	Sign(*warp.UnsignedMessage) ([]byte, error)
 	StopChan() chan struct{}
 
-	NextChunkCertificate(ctx context.Context) (*ChunkCertificate, bool)
+	StartCertStream(context.Context)
+	StreamCert(context.Context) (*ChunkCertificate, bool)
+	FinishCertStream(context.Context, []*ChunkCertificate)
 	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
 	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+	IsSeenChunk(context.Context, ids.ID) bool
+	GetChunk(int64, ids.ID) (*Chunk, error)
 
 	IsValidHeight(ctx context.Context, height uint64) (bool, error)
 	CacheValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
-	AddressPartition(ctx context.Context, height uint64, addr codec.Address) (ids.NodeID, error)
+	AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -126,16 +141,9 @@ type Mempool interface {
 	Size(context.Context) int // bytes
 	Add(context.Context, []*Transaction)
 
-	Top(
-		context.Context,
-		time.Duration,
-		func(context.Context, *Transaction) (cont bool, rest bool, err error),
-	) error
-
 	StartStreaming(context.Context)
-	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
-	FinishStreaming(context.Context, []*Transaction) int
+	Stream(context.Context) (*Transaction, bool)
+	FinishStreaming(context.Context, []*Transaction)
 }
 
 type Rules interface {
@@ -144,6 +152,8 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
+	// TODO: make immutable rules (that don't expect to be changed)
+	GetPartitions() uint8
 	GetBlockExecutionDepth() uint64
 	GetEpochDuration() int64
 
@@ -184,14 +194,14 @@ type Rules interface {
 }
 
 type MetadataManager interface {
-	HeightKey() []byte
-	PHeightKey() []byte
-	TimestampKey() []byte
+	HeightKey() string
+	PHeightKey() string
+	TimestampKey() string
 }
 
 type WarpManager interface {
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
+	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) string
+	OutgoingWarpKeyPrefix(txID ids.ID) string
 }
 
 type FeeHandler interface {
@@ -224,7 +234,7 @@ type FeeHandler interface {
 type EpochManager interface {
 	// EpochKey is the key that corresponds to the height of the P-Chain to use for
 	// validation of a given epoch and the fees to use for verifying transactions.
-	EpochKey(epoch uint64) []byte
+	EpochKey(epoch uint64) string
 }
 
 type RewardHandler interface {

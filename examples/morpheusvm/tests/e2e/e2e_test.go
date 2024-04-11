@@ -44,10 +44,11 @@ func TestE2e(t *testing.T) {
 var (
 	requestTimeout time.Duration
 
-	networkRunnerLogLevel string
-	avalanchegoLogLevel   string
-	gRPCEp                string
-	gRPCGatewayEp         string
+	networkRunnerLogLevel      string
+	avalanchegoLogLevel        string
+	avalanchegoLogDisplayLevel string
+	gRPCEp                     string
+	gRPCGatewayEp              string
 
 	execPath  string
 	pluginDir string
@@ -90,6 +91,13 @@ func init() {
 		"avalanchego-log-level",
 		"info",
 		"log level for avalanchego",
+	)
+
+	flag.StringVar(
+		&avalanchegoLogDisplayLevel,
+		"avalanchego-log-display-level",
+		"error",
+		"log display level for avalanchego",
 	)
 
 	flag.StringVar(
@@ -240,15 +248,17 @@ var _ = ginkgo.BeforeSuite(func() {
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",
-				"throttler-inbound-node-max-processing-msgs":"100000",
+				"throttler-inbound-node-max-at-large-bytes":"10737418240",
+				"throttler-inbound-node-max-processing-msgs":"1000000",
 				"throttler-inbound-bandwidth-refill-rate":"1073741824",
 				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
 				"throttler-inbound-cpu-validator-alloc":"100000",
+				"throttler-inbound-cpu-max-non-validator-usage":"100000",
+				"throttler-inbound-cpu-max-non-validator-node-usage":"100000",
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
 				"throttler-outbound-validator-alloc-size":"10737418240",
 				"throttler-outbound-at-large-alloc-size":"10737418240",
-				"consensus-on-accept-gossip-validator-size":"10",
-				"consensus-on-accept-gossip-peer-size":"10",
+				"throttler-outbound-node-max-at-large-bytes": "10737418240",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"16",
 				"profile-continuous-enabled":true,
@@ -258,7 +268,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"http-allowed-hosts": "*"
 			}`,
 			avalanchegoLogLevel,
-			avalanchegoLogLevel,
+			avalanchegoLogDisplayLevel,
 		)),
 	)
 	cancel()
@@ -270,10 +280,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 5 new validators (which should have BLS key registered)
+	// Add 5 nodes to subnet (already have BLS key registered)
 	subnet := []string{}
 	for i := 1; i <= int(numValidators); i++ {
-		n := fmt.Sprintf("node%d-bls", i)
+		n := fmt.Sprintf("node%d", i)
 		subnet = append(subnet, n)
 	}
 	specs := []*rpcpb.BlockchainSpec{

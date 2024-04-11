@@ -5,92 +5,77 @@ package tstate
 
 import (
 	"context"
-	"sync"
 
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/ava-labs/hypersdk/keys"
-	"github.com/ava-labs/hypersdk/state"
-	"go.opentelemetry.io/otel/attribute"
-	oteltrace "go.opentelemetry.io/otel/trace"
+	"github.com/ava-labs/hypersdk/smap"
 )
+
+type change struct {
+	chunkIdx int
+	txIdx    int
+	v        maybe.Maybe[[]byte]
+}
 
 // TState defines a struct for storing temporary state.
 type TState struct {
-	l           sync.RWMutex
-	ops         int
-	changedKeys map[string]maybe.Maybe[[]byte]
+	viewKeys    [][][]string
+	changedKeys *smap.SMap[*change]
 }
 
-// New returns a new instance of TState. Initializes the storage and changedKeys
-// maps to have an initial size of [storageSize] and [changedSize] respectively.
+// New returns a new instance of TState.
 func New(changedSize int) *TState {
 	return &TState{
-		changedKeys: make(map[string]maybe.Maybe[[]byte], changedSize),
+		viewKeys:    make([][][]string, 1024), // set to max chunks that could ever be in a single block
+		changedKeys: smap.New[*change](changedSize),
 	}
 }
 
 func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, bool) {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	if v, ok := ts.changedKeys[key]; ok {
-		if v.IsNothing() {
+	if v, ok := ts.changedKeys.Get(key); ok {
+		if v.v.IsNothing() {
 			return nil, true, false
 		}
-		return v.Value(), true, true
+		return v.v.Value(), true, true
 	}
 	return nil, false, false
 }
 
-func (ts *TState) PendingChanges() int {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	return len(ts.changedKeys)
+func (ts *TState) PrepareChunk(idx, size int) {
+	ts.viewKeys[idx] = make([][]string, size)
 }
 
-// Insert should only be called if you know what you are doing (updates
-// here may not be reflected in get calls in tstate views and/or may overwrite
-// identical keys on disk).
-func (ts *TState) Insert(ctx context.Context, key, value []byte) error {
-	if !keys.VerifyValue(key, value) {
-		return ErrInvalidKeyValue
+// Iterate over changes in deterministic order
+//
+// Iterate should only be called once tstate is done being modified.
+func (ts *TState) Iterate(f func(string, maybe.Maybe[[]byte]) error) error {
+	// TODO: make naming more generic
+	for chunkIdx, txs := range ts.viewKeys {
+		if txs == nil {
+			// Once we run out of views, exit
+			break
+		}
+
+		for txIdx, keys := range txs {
+			// Skip invalid txs
+			if keys == nil {
+				continue
+			}
+
+			// Ensure we iterate deterministically
+			for _, key := range keys {
+				v, ok := ts.changedKeys.Get(key)
+				if !ok {
+					continue
+				}
+				if v.chunkIdx != chunkIdx || v.txIdx != txIdx {
+					// If we weren't the latest modification, skip
+					continue
+				}
+				if err := f(key, v.v); err != nil {
+					return err
+				}
+			}
+		}
 	}
-
-	ts.l.Lock()
-	defer ts.l.Unlock()
-	ts.changedKeys[string(key)] = maybe.Some(value) // we don't care if key is equivalent to key on-disk or in `changedKeys`
-	ts.ops++
 	return nil
-}
-
-// OpIndex returns the number of operations done on ts.
-func (ts *TState) OpIndex() int {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	return ts.ops
-}
-
-// ExportMerkleDBView creates a slice of [database.BatchOp] of all
-// changes in [TState] that can be used to commit to [merkledb].
-func (ts *TState) ExportMerkleDBView(
-	ctx context.Context,
-	t trace.Tracer, //nolint:interfacer
-	view state.View,
-) (merkledb.View, error) {
-	ts.l.RLock()
-	defer ts.l.RUnlock()
-
-	ctx, span := t.Start(
-		ctx, "TState.ExportMerkleDBView",
-		oteltrace.WithAttributes(
-			attribute.Int("items", len(ts.changedKeys)),
-		),
-	)
-	defer span.End()
-
-	return view.NewView(ctx, merkledb.ViewChanges{MapOps: ts.changedKeys, ConsumeBytes: true})
 }

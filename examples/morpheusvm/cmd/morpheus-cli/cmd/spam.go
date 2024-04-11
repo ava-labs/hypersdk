@@ -5,11 +5,13 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
@@ -58,15 +60,30 @@ var runSpamCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, args []string) error {
 		var bclient *brpc.JSONRPCClient
 		var wclient *rpc.WebSocketClient
-		var maxFeeParsed *uint64
-		if maxFee >= 0 {
-			v := uint64(maxFee)
-			maxFeeParsed = &v
+		var pk *cli.PrivateKey
+		if len(privateKey) > 0 {
+			b, err := hex.DecodeString(privateKey)
+			if err != nil {
+				return err
+			}
+			pk = &cli.PrivateKey{
+				Address: auth.NewED25519Address(ed25519.PrivateKey(b).PublicKey()),
+				Bytes:   b,
+			}
 		}
-		return handler.Root().Spam(maxTxBacklog, maxFeeParsed, randomRecipient,
+		return handler.Root().Spam(
+			numAccounts, txsPerSecond, minCapacity, stepSize,
+			sZipf, vZipf, plotZipf,
+			connsPerHost, clusterInfo, consts.HRP, pk,
 			func(uri string, networkID uint32, chainID ids.ID) error { // createClient
 				bclient = brpc.NewJSONRPCClient(uri, networkID, chainID)
-				ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+				ws, err := rpc.NewWebSocketClient(
+					uri,
+					rpc.DefaultHandshakeTimeout,
+					pubsub.MaxPendingMessages,
+					hconsts.MTU,
+					pubsub.MaxReadMessageSize,
+				)
 				if err != nil {
 					return err
 				}
@@ -82,22 +99,26 @@ var runSpamCmd = &cobra.Command{
 				if err != nil {
 					return 0, err
 				}
-				utils.Outf(
-					"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
-					choice,
-					address,
-					utils.FormatBalance(balance, consts.Decimals),
-					consts.Symbol,
-				)
+				if choice != -1 {
+					utils.Outf(
+						"%d) {{cyan}}address:{{/}} %s {{cyan}}balance:{{/}} %s %s\n",
+						choice,
+						address,
+						utils.FormatBalance(balance, consts.Decimals),
+						consts.Symbol,
+					)
+				}
 				return balance, err
 			},
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return bclient.Parser(ctx)
 			},
-			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
+			func(addr codec.Address, create bool, amount uint64, memo []byte) chain.Action { // getTransfer
 				return &actions.Transfer{
-					To:    addr,
-					Value: amount,
+					To:     addr,
+					Create: create,
+					Value:  amount,
+					Memo:   memo,
 				}
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy

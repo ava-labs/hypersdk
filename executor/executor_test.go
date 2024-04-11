@@ -197,3 +197,33 @@ func TestStop(t *testing.T) {
 	require.True(len(completed) < 500)
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
 }
+
+func TestExecutorMultipleConflictsSameTask(t *testing.T) {
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 100)
+		s         = make(state.Keys, 10)
+		e         = New(100, 4, nil)
+	)
+	for i := 0; i < 10; i++ {
+		s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
+	}
+	enqueued := make([]int, 100)
+	for i := 0; i < 100; i++ {
+		enqueued[i] = i
+		ti := i
+		e.Run(s, func() error {
+			if ti == 0 {
+				time.Sleep(3 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	require.NoError(e.Wait())
+	require.Equal(enqueued, completed)
+}

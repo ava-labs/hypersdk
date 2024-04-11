@@ -28,6 +28,12 @@ type Base struct {
 	//
 	// If the fee is too low to pay all fees, the transaction will be dropped.
 	MaxFee uint64 `json:"maxFee"`
+
+	// Partition is used in the seed to compute the parition assignment of the transaction.
+	// This allows an issuer to trivially avoid censoring assignments and to uniformly distribute
+	// load across the network (to minimize their fee burden, which may otherwise require the payment
+	// of priority fees).
+	Partition uint8 `json:"partition"`
 }
 
 // TODO: get chainID from Rules
@@ -42,6 +48,8 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
+	case b.Partition >= r.GetPartitions():
+		return fmt.Errorf("%w: %d >= %d", ErrInvalidPartition, b.Partition, r.GetPartitions())
 	default:
 		return nil
 	}
@@ -55,6 +63,7 @@ func (b *Base) Marshal(p *codec.Packer) {
 	p.PackInt64(b.Timestamp)
 	p.PackID(b.ChainID)
 	p.PackUint64(b.MaxFee)
+	p.PackByte(b.Partition)
 }
 
 func UnmarshalBase(p *codec.Packer) (*Base, error) {
@@ -66,5 +75,6 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 	}
 	p.UnpackID(true, &base.ChainID)
 	base.MaxFee = p.UnpackUint64(true)
+	base.Partition = p.UnpackByte()
 	return &base, p.Err()
 }

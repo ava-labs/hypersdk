@@ -6,6 +6,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -197,13 +199,21 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	maxFee uint64,
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, error) {
-	// Construct transaction
-	now := time.Now().UnixMilli()
+	// Construct rules
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	rules := parser.Rules(now)
+
+	// Not safe to call [rand] concurrently, so we create our own instance
+	// for this transaction
+	r := rand.New(rand.NewSource(time.Now().UnixMicro()))
+	partition := uint8(r.Intn(int(rules.GetPartitions())))
+
+	// Create base transaction
 	base := &chain.Base{
 		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
 		ChainID:   rules.ChainID(),
 		MaxFee:    maxFee,
+		Partition: partition,
 	}
 
 	// Modify gathered data

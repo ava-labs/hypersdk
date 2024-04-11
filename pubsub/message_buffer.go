@@ -14,27 +14,35 @@ import (
 	"go.uber.org/zap"
 )
 
+const batchOverhead = consts.IntLen // msg count
+
 type MessageBuffer struct {
 	Queue chan []byte
 
 	l            sync.Mutex
+	count        uint64
 	log          logging.Logger
 	pending      [][]byte
 	pendingSize  int
+	targetSize   int
 	maxSize      int
+	maxPackSize  int
 	timeout      time.Duration
 	pendingTimer *timer.Timer
 	closed       bool
 }
 
-func NewMessageBuffer(log logging.Logger, pending int, maxSize int, timeout time.Duration) *MessageBuffer {
+func NewMessageBuffer(log logging.Logger, pending int, targetSize int, maxSize int, timeout time.Duration) *MessageBuffer {
 	m := &MessageBuffer{
 		Queue: make(chan []byte, pending),
 
-		log:     log,
-		pending: [][]byte{},
-		maxSize: maxSize,
-		timeout: timeout,
+		log:         log,
+		pending:     [][]byte{},
+		pendingSize: batchOverhead,
+		targetSize:  targetSize,
+		maxSize:     maxSize,
+		maxPackSize: maxSize,
+		timeout:     timeout,
 	}
 	m.pendingTimer = timer.NewTimer(func() {
 		m.l.Lock()
@@ -86,44 +94,50 @@ func (m *MessageBuffer) clearPending() error {
 	if err != nil {
 		return err
 	}
+
 	select {
 	case m.Queue <- bm:
 	default:
-		m.log.Debug("dropped pending message")
+		m.log.Warn("dropping message", zap.Int("size", len(bm)))
 	}
 
-	m.pendingSize = 0
+	m.pendingSize = batchOverhead
 	m.pending = [][]byte{}
 	return nil
 }
 
-func (m *MessageBuffer) Send(msg []byte) error {
+func (m *MessageBuffer) Send(msg []byte) (uint64, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
 	if m.closed {
-		return ErrClosed
+		return 0, ErrClosed
 	}
 
-	l := len(msg)
-	if l > m.maxSize {
-		return ErrMessageTooLarge
+	l := codec.BytesLen(msg)
+	if l > m.maxPackSize {
+		return 0, ErrMessageTooLarge
 	}
 
-	// Clear existing buffer if too large
-	if m.pendingSize+l > m.maxSize {
+	// Clear existing buffer if would be greater than target
+	if len(m.pending) > 0 && m.pendingSize+l > m.targetSize {
 		m.pendingTimer.Cancel()
 		if err := m.clearPending(); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
+	// Add pending
 	m.pendingSize += l
 	m.pending = append(m.pending, msg)
+
+	// Set timer if this is the only message
 	if len(m.pending) == 1 {
 		m.pendingTimer.SetTimeoutIn(m.timeout)
 	}
-	return nil
+	c := m.count
+	m.count++
+	return c, nil
 }
 
 func CreateBatchMessage(maxSize int, msgs [][]byte) ([]byte, error) {

@@ -26,16 +26,27 @@ var _ vm.Config = (*Config)(nil)
 const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
-	defaultStoreTransactions           = true
 )
 
 type Config struct {
 	*config.Config
 
+	// Building
+	ChunkBuildFrequency      int64 `json:"chunkBuildFrequency"`      // in milliseconds
+	TargetChunkBuildDuration int64 `json:"targetChunkBuildDuration"` // in milliseconds
+	BlockBuildFrequency      int64 `json:"blockBuildFrequency"`      // in milliseconds
+
 	// Concurrency
-	AuthVerificationCores     int `json:"authVerificationCores"`
-	RootGenerationCores       int `json:"rootGenerationCores"`
-	TransactionExecutionCores int `json:"transactionExecutionCores"`
+	AuthExecutionCores   int `json:"authExecutionCores"`
+	PrecheckCores        int `json:"precheckCores"`
+	ActionExecutionCores int `json:"actionExecutionCores"`
+	MissingChunkFetchers int `json:"missingChunkFetchers"`
+	AuthGossipCores      int `json:"authGossipCores"`
+	AuthGossipBacklog    int `json:"authGossipBacklog"`
+	AuthRPCCores         int `json:"authRPCCores"`
+	AuthRPCBacklog       int `json:"authRPCBacklog"`
+	ChunkStorageCores    int `json:"chunkStorageCores"`
+	ChunkStorageBacklog  int `json:"chunkStorageBacklog"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -53,13 +64,9 @@ type Config struct {
 	MempoolExemptSponsors []string `json:"mempoolExemptSponsors"`
 
 	// Misc
-	VerifyAuth        bool          `json:"verifyAuth"`
-	StoreTransactions bool          `json:"storeTransactions"`
-	TestMode          bool          `json:"testMode"` // makes gossip/building manual
-	LogLevel          logging.Level `json:"logLevel"`
-
-	// State Sync
-	StateSyncServerDelay time.Duration `json:"stateSyncServerDelay"` // for testing
+	VerifyAuth bool          `json:"verifyAuth"`
+	TestMode   bool          `json:"testMode"` // makes gossip/building manual
+	LogLevel   logging.Level `json:"logLevel"`
 
 	loaded               bool
 	nodeID               ids.NodeID
@@ -91,22 +98,29 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
-	c.AuthVerificationCores = c.Config.GetAuthVerificationCores()
-	c.RootGenerationCores = c.Config.GetRootGenerationCores()
-	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
+	c.ChunkBuildFrequency = c.Config.GetChunkBuildFrequency().Milliseconds()
+	c.TargetChunkBuildDuration = c.Config.GetTargetChunkBuildDuration().Milliseconds()
+	c.BlockBuildFrequency = c.Config.GetBlockBuildFrequency().Milliseconds()
+	c.AuthExecutionCores = c.Config.GetAuthExecutionCores()
+	c.PrecheckCores = c.Config.GetPrecheckCores()
+	c.ActionExecutionCores = c.Config.GetActionExecutionCores()
+	c.MissingChunkFetchers = c.Config.GetMissingChunkFetchers()
 	c.MempoolSize = c.Config.GetMempoolSize()
 	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
-	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifyAuth = c.Config.GetVerifyAuth()
-	c.StoreTransactions = defaultStoreTransactions
+	c.AuthRPCCores = c.Config.GetAuthRPCCores()
+	c.AuthRPCBacklog = c.Config.GetAuthRPCBacklog()
+	c.AuthGossipCores = c.Config.GetAuthGossipCores()
+	c.AuthGossipBacklog = c.Config.GetAuthGossipBacklog()
+	c.ChunkStorageCores = c.Config.GetChunkStorageCores()
+	c.ChunkStorageBacklog = c.Config.GetChunkStorageBacklog()
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
 func (c *Config) GetTestMode() bool                         { return c.TestMode }
-func (c *Config) GetAuthVerificationCores() int             { return c.AuthVerificationCores }
-func (c *Config) GetRootGenerationCores() int               { return c.RootGenerationCores }
-func (c *Config) GetTransactionExecutionCores() int         { return c.TransactionExecutionCores }
+func (c *Config) GetAuthExecutionCores() int                { return c.AuthExecutionCores }
+func (c *Config) GetActionExecutionCores() int              { return c.ActionExecutionCores }
 func (c *Config) GetMempoolSize() int                       { return c.MempoolSize }
 func (c *Config) GetMempoolSponsorSize() int                { return c.MempoolSponsorSize }
 func (c *Config) GetMempoolExemptSponsors() []codec.Address { return c.parsedExemptSponsors }
@@ -119,8 +133,7 @@ func (c *Config) GetTraceConfig() *trace.Config {
 		Version:         version.Version.String(),
 	}
 }
-func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
-func (c *Config) GetStreamingBacklogSize() int           { return c.StreamingBacklogSize }
+func (c *Config) GetStreamingBacklogSize() int { return c.StreamingBacklogSize }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}
@@ -135,9 +148,52 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		MaxNumFiles: defaultContinuousProfilerMaxFiles,
 	}
 }
-func (c *Config) GetVerifyAuth() bool        { return c.VerifyAuth }
-func (c *Config) GetStoreTransactions() bool { return false }
-func (c *Config) Loaded() bool               { return c.loaded }
+func (c *Config) GetVerifyAuth() bool { return c.VerifyAuth }
+func (c *Config) Loaded() bool        { return c.loaded }
 func (c *Config) GetBeneficiary() codec.Address {
 	return codec.BlackholeAddress
+}
+
+func (c *Config) GetChunkBuildFrequency() time.Duration {
+	return time.Duration(c.ChunkBuildFrequency) * time.Millisecond
+}
+
+func (c *Config) GetTargetChunkBuildDuration() time.Duration {
+	return time.Duration(c.TargetChunkBuildDuration) * time.Millisecond
+}
+
+func (c *Config) GetBlockBuildFrequency() time.Duration {
+	return time.Duration(c.BlockBuildFrequency) * time.Millisecond
+}
+
+func (c *Config) GetAuthRPCCores() int {
+	return c.AuthRPCCores
+}
+
+func (c *Config) GetAuthRPCBacklog() int {
+	return c.AuthRPCBacklog
+}
+
+func (c *Config) GetMissingChunkFetchers() int {
+	return c.MissingChunkFetchers
+}
+
+func (c *Config) GetAuthGossipCores() int {
+	return c.AuthGossipCores
+}
+
+func (c *Config) GetAuthGossipBacklog() int {
+	return c.AuthGossipBacklog
+}
+
+func (c *Config) GetPrecheckCores() int {
+	return c.PrecheckCores
+}
+
+func (c *Config) GetChunkStorageCores() int {
+	return c.ChunkStorageCores
+}
+
+func (c *Config) GetChunkStorageBacklog() int {
+	return c.ChunkStorageBacklog
 }

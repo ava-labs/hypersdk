@@ -12,8 +12,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/cockroachdb/pebble"
-	"github.com/cockroachdb/pebble/bloom"
+	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/patrick-ogrady/pebble"
+	"github.com/patrick-ogrady/pebble/bloom"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 )
@@ -30,6 +31,9 @@ type Database struct {
 	db      *pebble.DB
 	metrics *metrics
 
+	wo           *pebble.WriteOptions
+	maxBatchSize int
+
 	// We use an atomic bool for most
 	// checks because it is much faster
 	// than checking if a channel is closed.
@@ -38,31 +42,44 @@ type Database struct {
 }
 
 type Config struct {
+	Sync                        bool
+	MaxBatchSize                int // B // TODO: make this an arg once NewBatchWithSize is added to db interface
 	CacheSize                   int // B
-	BytesPerSync                int // B
-	MemTableStopWritesThreshold int // num tables
-	MemTableSize                int // B
+	L0CompactionThreshold       int
+	L0StopWritesThreshold       int
+	MemTableStopWritesThreshold int    // num tables
+	MemTableSize                uint64 // B
 	MaxOpenFiles                int
 	ConcurrentCompactions       func() int
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		CacheSize:                   1024 * 1024 * 1024,
-		BytesPerSync:                4 * 1024 * 1024, // block size is usually at least 2MB
-		MemTableStopWritesThreshold: 8,
-		MemTableSize:                16 * 1024 * 1024,
+		Sync:                        false,         // explicitly specified for clarity
+		MaxBatchSize:                1 * units.GiB, // Avoid growing during batch construction (this is reused across batches)
+		CacheSize:                   2 * units.GiB,
+		L0CompactionThreshold:       2,              // avoid large compaction spikes: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L496
+		L0StopWritesThreshold:       1000,           // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
+		MemTableStopWritesThreshold: 4,              // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L502
+		MemTableSize:                64 * units.MiB, // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L501
 		MaxOpenFiles:                4_096,
-		ConcurrentCompactions:       func() int { return 1 },
+		ConcurrentCompactions:       func() int { return 1 }, // TODO: make a config
 	}
 }
 
 func New(file string, cfg Config) (database.Database, *prometheus.Registry, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
-	d := &Database{closing: make(chan struct{})}
+	//
+	// TODO: migrate to avalanchego impl
+	wo := pebble.NoSync
+	if cfg.Sync {
+		wo = pebble.Sync
+	}
+	d := &Database{wo: wo, maxBatchSize: cfg.MaxBatchSize, closing: make(chan struct{})}
 	opts := &pebble.Options{
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
-		BytesPerSync:                cfg.BytesPerSync,
+		L0CompactionThreshold:       cfg.L0CompactionThreshold,
+		L0StopWritesThreshold:       cfg.L0StopWritesThreshold,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
 		MemTableSize:                cfg.MemTableSize,
 		MaxOpenFiles:                cfg.MaxOpenFiles,
@@ -81,14 +98,17 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	// https://github.com/cockroachdb/pebble/blob/master/cmd/pebble/db.go#L76-L86
 	for i := 0; i < len(opts.Levels); i++ {
 		l := &opts.Levels[i]
-		l.BlockSize = 64 * 1024
-		l.IndexBlockSize = 256 * 1024
+		l.BlockSize = 64 * units.KiB
+		l.IndexBlockSize = 256 * units.KiB
 		l.FilterPolicy = bloom.FilterPolicy(10)
 		l.FilterType = pebble.TableFilter
 		if i > 0 {
 			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * 2
 		}
+		// TODO: activate zstd when update to production (panics before then)
+		l.EnsureDefaults()
 	}
+	opts.Levels[len(opts.Levels)-1].FilterPolicy = nil
 	opts.Experimental.ReadSamplingMultiplier = -1 // explicitly disable seek compaction
 	registry, metrics, err := newMetrics()
 	if err != nil {
@@ -143,12 +163,12 @@ func (db *Database) Get(key []byte) ([]byte, error) {
 
 // Put sets the value of the provided key to the provided value
 func (db *Database) Put(key []byte, value []byte) error {
-	return updateError(db.db.Set(key, value, pebble.Sync))
+	return updateError(db.db.Set(key, value, db.wo))
 }
 
 // Delete removes the key from the database
 func (db *Database) Delete(key []byte) error {
-	return updateError(db.db.Delete(key, pebble.Sync))
+	return updateError(db.db.Delete(key, db.wo))
 }
 
 func (db *Database) Compact(start []byte, limit []byte) error {
@@ -157,24 +177,27 @@ func (db *Database) Compact(start []byte, limit []byte) error {
 
 // batch is a wrapper around a pebbleDB batch to contain sizes.
 type batch struct {
+	db    *Database
 	batch *pebble.Batch
 	size  int
 }
 
 // NewBatch creates a write/delete-only buffer that is atomically committed to
 // the database when write is called
-func (db *Database) NewBatch() database.Batch { return &batch{batch: db.db.NewBatch()} }
+func (db *Database) NewBatch() database.Batch {
+	return &batch{db: db, batch: db.db.NewBatchWithSize(db.maxBatchSize)}
+}
 
 // Put the value into the batch for later writing
 func (b *batch) Put(key, value []byte) error {
 	b.size += len(key) + len(value) + 8 // TODO: find byte overhead
-	return b.batch.Set(key, value, pebble.Sync)
+	return b.batch.Set(key, value, b.db.wo)
 }
 
 // Delete the key during writing
 func (b *batch) Delete(key []byte) error {
 	b.size += len(key) + 8 // TODO: find byte overhead
-	return b.batch.Delete(key, pebble.Sync)
+	return b.batch.Delete(key, b.db.wo)
 }
 
 // Size retrieves the amount of data queued up for writing.
@@ -182,8 +205,7 @@ func (b *batch) Size() int { return b.size }
 
 // Write flushes any accumulated data to disk.
 func (b *batch) Write() error {
-	defer b.batch.Close()
-	return updateError(b.batch.Commit(pebble.Sync))
+	return updateError(b.batch.Commit(b.db.wo))
 }
 
 // Reset resets the batch for reuse.
@@ -196,7 +218,10 @@ func (b *batch) Reset() {
 func (b *batch) Replay(w database.KeyValueWriterDeleter) error {
 	reader := b.batch.Reader()
 	for {
-		kind, k, v, ok := reader.Next()
+		kind, k, v, ok, err := reader.Next()
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return nil
 		}
@@ -227,21 +252,29 @@ type iter struct {
 	err   error
 }
 
+func (db *Database) newIter(args *pebble.IterOptions) *iter {
+	it := &iter{
+		db: db,
+	}
+	dbIt, err := db.db.NewIter(args)
+	if err != nil {
+		it.err = err
+		it.valid = false
+		return it
+	}
+	it.iter = dbIt
+	return it
+}
+
 // NewIterator creates a lexicographically ordered iterator over the database
 func (db *Database) NewIterator() database.Iterator {
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{}),
-	}
+	return db.newIter(&pebble.IterOptions{})
 }
 
 // NewIteratorWithStart creates a lexicographically ordered iterator over the
 // database starting at the provided key
 func (db *Database) NewIteratorWithStart(start []byte) database.Iterator {
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{LowerBound: start}),
-	}
+	return db.newIter(&pebble.IterOptions{LowerBound: start})
 }
 
 // bytesPrefix returns key range that satisfy the given prefix.
@@ -263,10 +296,7 @@ func bytesPrefix(prefix []byte) *pebble.IterOptions {
 // NewIteratorWithPrefix creates a lexicographically ordered iterator over the
 // database ignoring keys that do not start with the provided prefix
 func (db *Database) NewIteratorWithPrefix(prefix []byte) database.Iterator {
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(bytesPrefix(prefix)),
-	}
+	return db.newIter(bytesPrefix(prefix))
 }
 
 // NewIteratorWithStartAndPrefix creates a lexicographically ordered iterator
@@ -280,10 +310,7 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 	if bytes.Compare(start, prefix) == 1 {
 		iterRange.LowerBound = start
 	}
-	return &iter{
-		db:   db,
-		iter: db.db.NewIter(iterRange),
-	}
+	return db.newIter(iterRange)
 }
 
 func (it *iter) Next() bool {
@@ -291,6 +318,13 @@ func (it *iter) Next() bool {
 	if it.db.closed.Get() {
 		it.valid = false
 		it.err = database.ErrClosed
+		return false
+	}
+
+	// If the iterator has already errored, just return.
+	//
+	// This could happen in the construction of the iterator.
+	if it.err != nil {
 		return false
 	}
 

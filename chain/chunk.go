@@ -3,7 +3,6 @@ package chain
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
@@ -17,6 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const chunkPrealloc = 16_384
+
 type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
@@ -27,18 +28,20 @@ type Chunk struct {
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
 
-	id    ids.ID
-	units *Dimensions
+	id         ids.ID
+	units      *Dimensions
+	bytes      []byte
+	authCounts map[uint8]int
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
-	nowT := time.Now()
-	now := nowT.UnixMilli()
+	start := time.Now()
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	sm := vm.StateManager()
 	r := vm.Rules(now)
 	c := &Chunk{
 		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
-		Txs:  make([]*Transaction, 0, 256),
+		Txs:  make([]*Transaction, 0, chunkPrealloc),
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
 
@@ -63,87 +66,97 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		return nil, err
 	}
 	if !amValidator {
-		return nil, errors.New("not a validator during this epoch, so no one will sign my chunk")
+		return nil, ErrNotAValidator
 	}
 
 	// Pack chunk for build duration
 	//
 	// TODO: sort mempool by priority and fit (only fetch items that can be included)
 	var (
-		chunkUnits = Dimensions{}
-		full       bool
-		cleared    bool
-		mempool    = vm.Mempool()
+		maxChunkUnits = r.GetMaxChunkUnits()
+		chunkUnits    = Dimensions{}
+		full          bool
+		mempool       = vm.Mempool()
+		authCounts    = make(map[uint8]int)
+
+		restorableTxs = make([]*Transaction, 0, chunkPrealloc)
 	)
 	mempool.StartStreaming(ctx)
-	for time.Since(nowT) < vm.GetTargetBuildDuration() {
-		txs := mempool.Stream(ctx, 256)
-		for i, tx := range txs {
-			// Ensure we haven't included this transaction in a chunk yet
-			//
-			// Should protect us from issuing repeat txs (if others get duplicates,
-			// there will be duplicate inclusion but this is fixed with partitions)
-			if vm.IsIssuedTx(ctx, tx) {
-				continue
-			}
-
-			// TODO: count outstanding for an account and ensure less than epoch bond
-			// if too many, just put back into mempool and try again later
-
-			// TODO: ensure tx can still be processed (bond not frozen)
-
-			// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
-			// of activity).
-
-			// TODO: check if chunk units greater than limit
-
-			// TODO: verify transactions
-			if tx.Base.Timestamp > c.Slot {
-				continue
-			}
-
-			// Check if tx can fit in chunk
-			txUnits, err := tx.Units(sm, r)
-			if err != nil {
-				vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
-				continue
-			}
-			nextUnits, err := Add(chunkUnits, txUnits)
-			if err != nil {
-				full = true
-				// TODO: update mempool to only provide txs that can fit in chunk
-				// Want to maximize how "full" chunk is, so need to be a little complex
-				// if there are transactions with uneven usage of resources.
-
-				// Restore unused txs
-				mempool.FinishStreaming(ctx, txs[i:])
-				break
-			}
-			chunkUnits = nextUnits
-
-			// Add transaction to chunk
-			vm.IssueTx(ctx, tx)
-			c.Txs = append(c.Txs, tx)
-		}
-		if len(txs) < 256 {
-			cleared = true
-			vm.RecordClearedMempool()
+	for time.Since(start) < vm.GetTargetChunkBuildDuration() {
+		tx, ok := mempool.Stream(ctx)
+		if !ok {
 			break
 		}
+		// Ensure we haven't included this transaction in a chunk yet
+		//
+		// Should protect us from issuing repeat txs (if others get duplicates,
+		// there will be duplicate inclusion but this is fixed with partitions)
+		if vm.IsIssuedTx(ctx, tx) {
+			vm.RecordChunkBuildTxDropped()
+			continue
+		}
+
+		// TODO: count outstanding for an account and ensure less than epoch bond
+		// if too many, just put back into mempool and try again later
+
+		// TODO: ensure tx can still be processed (bond not frozen)
+
+		// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
+		// of activity).
+
+		// TODO: check if chunk units greater than limit
+
+		// TODO: verify transactions
+		if tx.Base.Timestamp > c.Slot {
+			vm.RecordChunkBuildTxDropped()
+			continue
+		}
+
+		// Check if tx can fit in chunk
+		txUnits, err := tx.Units(sm, r)
+		if err != nil {
+			vm.RecordChunkBuildTxDropped()
+			vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
+			continue
+		}
+		nextUnits, err := Add(chunkUnits, txUnits)
+		if err != nil || !maxChunkUnits.Greater(nextUnits) {
+			full = true
+			// TODO: update mempool to only provide txs that can fit in chunk
+			// Want to maximize how "full" chunk is, so need to be a little complex
+			// if there are transactions with uneven usage of resources.
+			restorableTxs = append(restorableTxs, tx)
+			vm.RecordRemainingMempool(vm.Mempool().Len(ctx))
+			break
+		}
+		chunkUnits = nextUnits
+
+		// Add transaction to chunk
+		vm.IssueTx(ctx, tx) // prevents duplicate from being re-added to mempool
+		c.Txs = append(c.Txs, tx)
+		authCounts[tx.Auth.GetTypeID()]++
 	}
-	if !full {
-		mempool.FinishStreaming(ctx, nil)
-	}
+
+	// Always close stream
+	defer func() {
+		if c.id == ids.Empty { // only happens if there is an error
+			mempool.FinishStreaming(ctx, append(c.Txs, restorableTxs...))
+			return
+		}
+		mempool.FinishStreaming(ctx, restorableTxs)
+	}()
 
 	// Discard chunk if nothing produced
 	if len(c.Txs) == 0 {
-		return nil, errors.New("no transactions")
+		return nil, ErrNoTxs
 	}
 
 	// Setup chunk
 	c.Producer = vm.NodeID()
 	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
+	c.units = &chunkUnits
+	c.authCounts = authCounts
 
 	// Sign chunk
 	digest, err := c.Digest()
@@ -162,6 +175,11 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
+	bytes, err := c.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	c.id = utils.ToID(bytes)
 
 	vm.Logger().Info(
 		"built chunk with signature",
@@ -170,12 +188,12 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Stringer("chainID", r.ChainID()),
 		zap.Int64("slot", c.Slot),
 		zap.Uint64("epoch", epoch),
-		zap.Bool("cleared mempool", cleared),
 		zap.Bool("full", full),
+		zap.Int("txs", len(c.Txs)),
 		zap.Any("units", chunkUnits),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
-		zap.Duration("t", time.Since(nowT)),
+		zap.Duration("t", time.Since(start)),
 	)
 	return c, nil
 }
@@ -201,17 +219,8 @@ func (c *Chunk) Digest() ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
-func (c *Chunk) ID() (ids.ID, error) {
-	if c.id != ids.Empty {
-		return c.id, nil
-	}
-
-	bytes, err := c.Marshal()
-	if err != nil {
-		return ids.ID{}, err
-	}
-	c.id = utils.ToID(bytes)
-	return c.id, nil
+func (c *Chunk) ID() ids.ID {
+	return c.id
 }
 
 func (c *Chunk) Size() int {
@@ -239,6 +248,10 @@ func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {
 }
 
 func (c *Chunk) Marshal() ([]byte, error) {
+	if c.bytes != nil {
+		return c.bytes, nil
+	}
+
 	p := codec.NewWriter(c.Size(), consts.NetworkSizeLimit)
 
 	// Marshal transactions
@@ -255,8 +268,12 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	p.PackAddress(c.Beneficiary)
 	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
-
-	return p.Bytes(), p.Err()
+	bytes, err := p.Bytes(), p.Err()
+	if err != nil {
+		return nil, err
+	}
+	c.bytes = bytes
+	return bytes, nil
 }
 
 func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {
@@ -272,11 +289,16 @@ func (c *Chunk) VerifySignature(networkID uint32, chainID ids.ID) bool {
 	return bls.Verify(c.Signer, c.Signature, msg.Bytes())
 }
 
+func (c *Chunk) AuthCounts() map[uint8]int {
+	return c.authCounts
+}
+
 func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	var (
 		actionRegistry, authRegistry = parser.Registry()
 		p                            = codec.NewReader(raw, consts.NetworkSizeLimit)
 		c                            Chunk
+		authCounts                   = make(map[uint8]int)
 	)
 	c.id = utils.ToID(raw)
 
@@ -290,7 +312,9 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 			return nil, err
 		}
 		c.Txs = append(c.Txs, tx)
+		authCounts[tx.Auth.GetTypeID()]++
 	}
+	c.authCounts = authCounts
 
 	// Parse signer
 	p.UnpackNodeID(true, &c.Producer)

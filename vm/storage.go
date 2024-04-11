@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -38,6 +39,9 @@ var (
 	lastAccepted = []byte("last_accepted")
 
 	signatureLRU = &cache.LRU[string, *chain.WarpSignature]{Size: 1024}
+
+	// chunkLRU is a cache on top of the fileDB byte cache that prevents repeated unmarshaling of chunks
+	chunkLRU = cache.NewSizedLRU[ids.ID, *chain.Chunk](2048*units.MiB, func(K ids.ID, V *chain.Chunk) int { return ids.IDLen + V.Size() })
 )
 
 func PrefixBlockIDHeightKey(id ids.ID) []byte {
@@ -136,26 +140,38 @@ func (vm *VM) PruneBlockAndChunks(height uint64) error {
 	// to perform concurrent file operations (which are not possible in PebbleDB).
 	g, _ := errgroup.WithContext(context.TODO())
 	g.Go(func() error {
-		return vm.RemoveDiskBlock(expiryHeight)
+		if err := vm.RemoveDiskBlock(expiryHeight); err != nil {
+			return fmt.Errorf("%w: cannot remove block", err)
+		}
+		return nil
 	})
 	for _, cert := range blk.AvailableChunks {
 		vm.cm.RemoveStored(cert.Chunk) // ensures we don't delete the same chunk twice
 		tcert := cert
 		g.Go(func() error {
-			return vm.RemoveChunk(tcert.Slot, tcert.Chunk)
+			if err := vm.RemoveChunk(tcert.Slot, tcert.Chunk); err != nil {
+				return fmt.Errorf("%w: cannot remove included chunk", err)
+			}
+			return nil
 		})
 	}
 	for _, chunk := range blk.ExecutedChunks {
 		tchunk := chunk
 		g.Go(func() error {
-			return vm.RemoveFilteredChunk(tchunk)
+			if err := vm.RemoveFilteredChunk(tchunk); err != nil {
+				return fmt.Errorf("%w: cannot remove filtered chunk", err)
+			}
+			return nil
 		})
 	}
 	uselessChunks := vm.cm.SetStoredMin(blk.StatefulBlock.Timestamp)
 	for _, chunk := range uselessChunks {
 		tchunk := chunk
 		g.Go(func() error {
-			return vm.RemoveChunk(tchunk.slot, tchunk.chunk)
+			if err := vm.RemoveChunk(tchunk.slot, tchunk.chunk); err != nil {
+				return fmt.Errorf("%w: cannot remove useless chunk", err)
+			}
+			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -181,11 +197,11 @@ func BlockFile(height uint64) string {
 }
 
 func (vm *VM) PutDiskBlock(blk *chain.StatelessBlock) error {
-	return vm.blobDB.Put(BlockFile(blk.Height()), blk.Bytes())
+	return vm.blobDB.Put(BlockFile(blk.Height()), blk.Bytes(), true)
 }
 
 func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	b, err := vm.blobDB.Get(BlockFile(height))
+	b, err := vm.blobDB.Get(BlockFile(height), true)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +253,7 @@ func (vm *VM) PutDiskIsSyncing(v bool) error {
 func (vm *VM) GetOutgoingWarpMessage(txID ids.ID) (*warp.UnsignedMessage, error) {
 	p := vm.c.StateManager().OutgoingWarpKeyPrefix(txID)
 	k := keys.EncodeChunks(p, chain.MaxOutgoingWarpChunks)
-	vs, errs := vm.ReadState(context.TODO(), [][]byte{k})
+	vs, errs := vm.ReadState(context.TODO(), []string{k})
 	v, err := vs[0], errs[0]
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
@@ -333,20 +349,21 @@ func ChunkFile(slot int64, id ids.ID) string {
 }
 
 func (vm *VM) StoreChunk(chunk *chain.Chunk) error {
-	cid, err := chunk.ID()
-	if err != nil {
-		return err
-	}
+	chunkLRU.Put(chunk.ID(), chunk)
 	b, err := chunk.Marshal()
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(ChunkFile(chunk.Slot, cid), b)
+	return vm.blobDB.Put(ChunkFile(chunk.Slot, chunk.ID()), b, false)
 }
 
 func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
-	b, err := vm.blobDB.Get(ChunkFile(slot, chunk))
+	if c, ok := chunkLRU.Get(chunk); ok {
+		return c, nil
+	}
+	b, err := vm.blobDB.Get(ChunkFile(slot, chunk), false)
 	if errors.Is(err, database.ErrNotFound) {
+		// TODO: remove this pattern
 		return nil, nil
 	}
 	if err != nil {
@@ -355,13 +372,21 @@ func (vm *VM) GetChunk(slot int64, chunk ids.ID) (*chain.Chunk, error) {
 	return chain.UnmarshalChunk(b, vm)
 }
 
+func (vm *VM) GetChunkBytes(slot int64, chunk ids.ID) ([]byte, error) {
+	return vm.blobDB.Get(ChunkFile(slot, chunk), false)
+}
+
 func (vm *VM) HasChunk(_ context.Context, slot int64, chunk ids.ID) bool {
+	if _, ok := chunkLRU.Get(chunk); ok {
+		return true
+	}
 	// TODO: add error
 	has, _ := vm.blobDB.Has(ChunkFile(slot, chunk))
 	return has
 }
 
 func (vm *VM) RemoveChunk(slot int64, chunk ids.ID) error {
+	chunkLRU.Evict(chunk)
 	return vm.blobDB.Remove(ChunkFile(slot, chunk))
 }
 
@@ -378,11 +403,11 @@ func (vm *VM) StoreFilteredChunk(chunk *chain.FilteredChunk) error {
 	if err != nil {
 		return err
 	}
-	return vm.blobDB.Put(FilteredChunkFile(cid), b)
+	return vm.blobDB.Put(FilteredChunkFile(cid), b, true)
 }
 
 func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
-	b, err := vm.blobDB.Get(FilteredChunkFile(chunk))
+	b, err := vm.blobDB.Get(FilteredChunkFile(chunk), true)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, nil
 	}
@@ -390,6 +415,10 @@ func (vm *VM) GetFilteredChunk(chunk ids.ID) (*chain.FilteredChunk, error) {
 		return nil, err
 	}
 	return chain.UnmarshalFilteredChunk(b, vm)
+}
+
+func (vm *VM) GetFilteredChunkBytes(chunk ids.ID) ([]byte, error) {
+	return vm.blobDB.Get(FilteredChunkFile(chunk), true)
 }
 
 func (vm *VM) RemoveFilteredChunk(chunk ids.ID) error {
