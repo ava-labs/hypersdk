@@ -70,7 +70,10 @@ type tracker struct {
 	// changes to keys for the next batch.
 	//
 	// Items never need to be deleted from [pendingNullify], so we can just keep
-	// an array
+	// an array.
+	//
+	// We don't reuse pendingNullify because we don't want to hold onto references
+	// to old keys (which may be deleted).
 	pendingNullify []string
 
 	checksum     ids.ID
@@ -79,7 +82,7 @@ type tracker struct {
 }
 
 // we return the record to allow for memory reuse + less map ops
-func (t *tracker) Remove(record *record, addNullify bool) {
+func (t *tracker) Remove(record *record, markPending bool) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
@@ -89,7 +92,7 @@ func (t *tracker) Remove(record *record, addNullify bool) {
 
 	// We only add to [pendingNullify] if this is called when there is a
 	// [Put] or [Delete] op.
-	if addNullify {
+	if markPending {
 		t.uselessBytes += opNullifyLen(record.key)
 		t.pendingNullify = append(t.pendingNullify, record.key)
 	}
