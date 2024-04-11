@@ -269,13 +269,12 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if !ok {
-				return errors.New("invalid delete")
+			if ok {
+				// Drop this key from our tracking and mark the operation as useless
+				a.batches[r.batch].Remove(r, r.batch < file)
+				delete(a.keys, key)
 			}
 
-			// Drop this key from our tracking and mark the operation as useless
-			a.batches[r.batch].Remove(r, r.batch < file)
-			delete(a.keys, key)
 			t.uselessBytes += opDeleteLen(key)
 			cursor = newCursor
 		case opChecksum:
