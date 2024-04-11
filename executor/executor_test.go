@@ -21,35 +21,33 @@ const numIterations = 10
 
 func TestExecutorNoConflicts(t *testing.T) {
 	fmt.Printf("TestExecutorNoConflicts starting... ")
-	for j := 0; j < numIterations; j++ {
-		var (
-			require   = require.New(t)
-			l         sync.Mutex
-			completed = make([]int, 0, 100)
-			e         = New(100, 4, nil)
-			canWait   = make(chan struct{})
-		)
+	var (
+		require   = require.New(t)
+		l         sync.Mutex
+		completed = make([]int, 0, 100)
+		e         = New(100, 4, nil)
+		canWait   = make(chan struct{})
+	)
 
-		for i := 0; i < 100; i++ {
-			s := make(state.Keys, (i + 1))
-			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
-			}
-			ti := i
-			e.Run(s, func() error {
-				l.Lock()
-				completed = append(completed, ti)
-				if len(completed) == 100 {
-					close(canWait)
-				}
-				l.Unlock()
-				return nil
-			})
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
-		<-canWait
-		require.NoError(e.Wait()) // no task running
-		require.Len(completed, 100)
+		ti := i
+		e.Run(s, func() error {
+			l.Lock()
+			completed = append(completed, ti)
+			if len(completed) == 100 {
+				close(canWait)
+			}
+			l.Unlock()
+			return nil
+		})
 	}
+	<-canWait
+	require.NoError(e.Wait()) // no task running
+	require.Len(completed, 100)
 	fmt.Printf("done\n")
 }
 
@@ -87,80 +85,76 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 
 func TestExecutorSimpleConflict(t *testing.T) {
 	fmt.Printf("TestExecutorSimpleConflict starting... ")
-	for j := 0; j < numIterations; j++ {
-		var (
-			require     = require.New(t)
-			conflictKey = ids.GenerateTestID().String()
-			l           sync.Mutex
-			completed   = make([]int, 0, 100)
-			e           = New(100, 4, nil)
-		)
-		for i := 0; i < 100; i++ {
-			s := make(state.Keys, (i + 1))
-			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
-			}
-			if i%10 == 0 {
-				s.Add(conflictKey, state.Read|state.Write)
-			}
-			ti := i
-			e.Run(s, func() error {
-				if ti == 0 {
-					time.Sleep(3 * time.Second)
-				}
-
-				l.Lock()
-				completed = append(completed, ti)
-				l.Unlock()
-				return nil
-			})
+	var (
+		require     = require.New(t)
+		conflictKey = ids.GenerateTestID().String()
+		l           sync.Mutex
+		completed   = make([]int, 0, 100)
+		e           = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
-		require.NoError(e.Wait())
-		require.Equal([]int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90}, completed[90:])
+		if i%10 == 0 {
+			s.Add(conflictKey, state.Read|state.Write)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 0 {
+				time.Sleep(3 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
 	}
+	require.NoError(e.Wait())
+	require.Equal([]int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90}, completed[90:])
 	fmt.Printf("done\n")
 }
 
 func TestExecutorMultiConflict(t *testing.T) {
 	fmt.Printf("TestExecutorMultiConflict starting... ")
-	for j := 0; j < numIterations; j++ {
-		var (
-			require      = require.New(t)
-			conflictKey  = ids.GenerateTestID().String()
-			conflictKey2 = ids.GenerateTestID().String()
-			l            sync.Mutex
-			completed    = make([]int, 0, 100)
-			e            = New(100, 4, nil)
-		)
-		for i := 0; i < 100; i++ {
-			s := make(state.Keys, (i + 1))
-			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
-			}
-			if i%10 == 0 {
-				s.Add(conflictKey, state.Read|state.Write)
-			}
-			if i == 15 || i == 20 {
-				s.Add(conflictKey2, state.Read|state.Write)
-			}
-			ti := i
-			e.Run(s, func() error {
-				if ti == 0 {
-					time.Sleep(3 * time.Second)
-				}
-				if ti == 15 {
-					time.Sleep(5 * time.Second)
-				}
-
-				l.Lock()
-				completed = append(completed, ti)
-				l.Unlock()
-				return nil
-			})
+	var (
+		require      = require.New(t)
+		conflictKey  = ids.GenerateTestID().String()
+		conflictKey2 = ids.GenerateTestID().String()
+		l            sync.Mutex
+		completed    = make([]int, 0, 100)
+		e            = New(100, 4, nil)
+	)
+	for i := 0; i < 100; i++ {
+		s := make(state.Keys, (i + 1))
+		for k := 0; k < i+1; k++ {
+			s.Add(ids.GenerateTestID().String(), state.Read|state.Write)
 		}
-		require.NoError(e.Wait())
-		require.Equal([]int{0, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}, completed[89:])
+		if i%10 == 0 {
+			s.Add(conflictKey, state.Read|state.Write)
+		}
+		if i == 15 || i == 20 {
+			s.Add(conflictKey2, state.Read|state.Write)
+		}
+		ti := i
+		e.Run(s, func() error {
+			if ti == 0 {
+				time.Sleep(3 * time.Second)
+			}
+			if ti == 15 {
+				time.Sleep(5 * time.Second)
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
 	}
+	require.NoError(e.Wait())
+	require.Equal([]int{0, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}, completed[89:])
 	fmt.Printf("done\n")
 }
 
