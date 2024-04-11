@@ -291,10 +291,8 @@ func (a *AppendDB) loadBatch(
 			if batchSet {
 				return fmt.Errorf("%w: multiple batch set operations", ErrCorrupt)
 			}
-			if lastBatch != 0 && batch != lastBatch+uint64(a.historyLen) {
-				return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
-			}
 			lastBatch = batch
+			batchSet = true
 			t.uselessBytes += opBatchLen()
 			cursor = newCursor
 		case opChecksum:

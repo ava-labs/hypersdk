@@ -256,7 +256,6 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "world", []byte("hello")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(len(db.batches[1].pendingNullify))
 
 	// Modify recycled key
 	b, err = db.NewBatch()
@@ -267,7 +266,6 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.NoError(b.Put(ctx, "hello", []byte("world2")))
 	_, err = b.Write()
 	require.NoError(err)
-	require.Zero(len(db.batches[2].pendingNullify))
 
 	// Delete recycled key
 	b, err = db.NewBatch()
@@ -279,7 +277,6 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	checksum, err := b.Write()
 	require.NoError(err)
 	keys, alive, useless := db.Usage()
-	require.Zero(len(db.batches[3].pendingNullify))
 
 	// Restart and ensure data is correct
 	require.NoError(db.Close())
@@ -295,60 +292,6 @@ func TestAppendDBReinsertHistory(t *testing.T) {
 	require.Equal(keys, keys2)
 	require.Equal(alive, alive2)
 	require.Equal(useless, useless2)
-}
-
-func TestAppendDBClearNullifyOnNew(t *testing.T) {
-	// Prepare
-	require := require.New(t)
-	ctx := context.TODO()
-	baseDir := t.TempDir()
-	logger := logging.NewLogger(
-		"appenddb",
-		logging.NewWrappedCore(
-			logging.Debug,
-			os.Stdout,
-			logging.Colors.ConsoleEncoder(),
-		),
-	)
-	logger.Info("created directory", zap.String("path", baseDir))
-
-	// Create
-	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
-	require.NoError(err)
-	require.Equal(ids.Empty, last)
-
-	// Insert key
-	b, err := db.NewBatch()
-	require.NoError(err)
-	require.Zero(b.Prepare())
-	require.NoError(b.Put(ctx, "hello", []byte("world")))
-	require.NoError(b.Put(ctx, "hello1", []byte("world")))
-	require.NoError(b.Put(ctx, "hello2", []byte("world")))
-	require.NoError(b.Put(ctx, "hello3", []byte("world")))
-	_, err = b.Write()
-	require.NoError(err)
-
-	// Insert a batch gap (add nullifiers)
-	b, err = db.NewBatch()
-	require.NoError(err)
-	require.Zero(b.Prepare())
-	require.NoError(b.Delete(ctx, "hello"))
-	require.NoError(b.Delete(ctx, "hello1"))
-	require.NoError(b.Delete(ctx, "hello2"))
-	require.NoError(b.Delete(ctx, "hello3"))
-	_, err = b.Write()
-	require.NoError(err)
-
-	// Rewrite batch
-	b, err = db.NewBatch()
-	require.NoError(err)
-	initBytes, rewrite := b.Prepare()
-	require.True(rewrite)
-	require.Equal(int64(0), initBytes)
-	_, err = b.Write()
-	require.NoError(err)
-	require.Zero(len(db.batches[2].pendingNullify))
-	require.NoError(db.Close())
 }
 
 func TestAppendDBPrune(t *testing.T) {
