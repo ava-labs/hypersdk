@@ -413,6 +413,10 @@ func New(
 		lastBatch = file
 		lastChecksum = adb.batches[file].checksum
 	}
+	if len(adb.batches) > 0 {
+		adb.oldestBatch = &firstBatch
+		adb.nextBatch = lastBatch + 1
+	}
 	log.Info(
 		"loaded batches",
 		zap.Int("count", len(adb.batches)),
@@ -422,10 +426,6 @@ func New(
 		zap.Stringer("last checksum", lastChecksum),
 		zap.Duration("duration", time.Since(start)),
 	)
-	if len(adb.batches) > 0 {
-		adb.oldestBatch = &firstBatch
-		adb.nextBatch = lastBatch + 1
-	}
 	return adb, lastChecksum, nil
 }
 
@@ -801,7 +801,6 @@ func (b *Batch) Prepare() (int64, bool) {
 		iter := b.t.alive.Iterator()
 		for next := iter.Next(); next != nil; {
 			next.batch = b.batch
-			// b.a.logger.Debug("iter", zap.String("key", next.key), zap.Uint64("batch", next.batch))
 		}
 	}
 
