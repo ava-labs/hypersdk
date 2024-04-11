@@ -38,7 +38,6 @@ type Metrics struct {
 	txsInvalid                prometheus.Counter
 	chunkBuildTxsDropped      prometheus.Counter
 	blockBuildCertsDropped    prometheus.Counter
-	stateChanges              prometheus.Counter
 	remainingMempool          prometheus.Counter
 	chunkBytesBuilt           prometheus.Counter
 	deletedBlocks             prometheus.Counter
@@ -57,6 +56,7 @@ type Metrics struct {
 	blockVerifyFailed         prometheus.Counter
 	gossipTxMsgInvalid        prometheus.Counter
 	gossipTxInvalid           prometheus.Counter
+	chunkGossipDropped        prometheus.Counter
 	gossipChunkInvalid        prometheus.Counter
 	gossipChunkSigInvalid     prometheus.Counter
 	gossipCertInvalid         prometheus.Counter
@@ -81,19 +81,26 @@ type Metrics struct {
 	mempoolLen                prometheus.Gauge
 	mempoolSize               prometheus.Gauge
 	gossipTxBacklog           prometheus.Gauge
+	gossipChunkBacklog        prometheus.Gauge
 	websocketConnections      prometheus.Gauge
 	lastAcceptedEpoch         prometheus.Gauge
 	lastExecutedEpoch         prometheus.Gauge
-	stateSize                 prometheus.Gauge
-	stateLen                  prometheus.Gauge
+	appendDBKeys              prometheus.Gauge
+	appendDBAliveBytes        prometheus.Gauge
+	appendDBUselessBytes      prometheus.Gauge
 	waitRepeat                metric.Averager
 	waitQueue                 metric.Averager
 	waitAuth                  metric.Averager
 	waitExec                  metric.Averager
 	waitPrecheck              metric.Averager
 	waitCommit                metric.Averager
-	waitRoot                  metric.Averager
-	rootChanges               metric.Averager
+	appendDBBatchInit         metric.Averager
+	appendDBBatchPrepare      metric.Averager
+	tstateIterate             metric.Averager
+	appendDBBatchWrite        metric.Averager
+	appendDBBatchInitBytes    metric.Averager
+	appendDBBatchesRewritten  prometheus.Counter
+	stateChanges              metric.Averager
 	chunkBuild                metric.Averager
 	blockBuild                metric.Averager
 	blockParse                metric.Averager
@@ -163,24 +170,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		"chain",
 		"wait_commit",
 		"time spent waiting to commit state after execution",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	waitRoot, err := metric.NewAverager(
-		"chain",
-		"wait_root",
-		"time spent waiting to generate root",
-		r,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	rootChanges, err := metric.NewAverager(
-		"chain",
-		"root_changes",
-		"changes enqueued to generate root",
 		r,
 	)
 	if err != nil {
@@ -303,8 +292,67 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	stateChanges, err := metric.NewAverager(
+		"chain",
+		"state_changes",
+		"changes to state in a block",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchInit, err := metric.NewAverager(
+		"vilmo",
+		"batch_init",
+		"batch initialization latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchInitBytes, err := metric.NewAverager(
+		"vilmo",
+		"batch_init_bytes",
+		"bytes written during batch initialization",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchPrepare, err := metric.NewAverager(
+		"vilmo",
+		"batch_prepare",
+		"batch preparation latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	tstateIterate, err := metric.NewAverager(
+		"chain",
+		"tstate_iterate",
+		"time spent iterating over tstate",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	appendDBBatchWrite, err := metric.NewAverager(
+		"vilmo",
+		"batch_write",
+		"batch write latency",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	m := &Metrics{
+		appendDBBatchesRewritten: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "vilmo",
+			Name:      "batches_rewritten",
+			Help:      "number of batches rewritten",
+		}),
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
 			Name:      "txs_submitted",
@@ -339,11 +387,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "vm",
 			Name:      "txs_invalid",
 			Help:      "number of invalid txs included in accepted blocks",
-		}),
-		stateChanges: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "chain",
-			Name:      "state_changes",
-			Help:      "number of state changes",
 		}),
 		remainingMempool: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
@@ -485,6 +528,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "tx_gossip_dropped",
 			Help:      "number of tx gossip messages dropped",
 		}),
+		chunkGossipDropped: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "chain",
+			Name:      "chunk_gossip_dropped",
+			Help:      "number of chunks dropped from gossip",
+		}),
 		unitsExecutedBandwidth: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "chain",
 			Name:      "units_executed_bandwidth",
@@ -550,6 +598,11 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "mempool_size",
 			Help:      "bytes in the mempool",
 		}),
+		gossipChunkBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "chain",
+			Name:      "gossip_chunk_backlog",
+			Help:      "number of chunks waiting to be processed from gossip",
+		}),
 		gossipTxBacklog: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "chain",
 			Name:      "gossip_tx_backlog",
@@ -570,15 +623,20 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "last_executed_epoch",
 			Help:      "last executed epoch",
 		}),
-		stateSize: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "state_size",
-			Help:      "size of the state",
+		appendDBKeys: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "vilmo",
+			Name:      "keys",
+			Help:      "number of keys",
 		}),
-		stateLen: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "chain",
-			Name:      "state_len",
-			Help:      "number of items in the state",
+		appendDBAliveBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "vilmo",
+			Name:      "alive_bytes",
+			Help:      "number of alive bytes on disk",
+		}),
+		appendDBUselessBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "vilmo",
+			Name:      "useless_bytes",
+			Help:      "number of useless bytes on disk",
 		}),
 		waitRepeat:             waitRepeat,
 		waitQueue:              waitQueue,
@@ -586,8 +644,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		waitExec:               waitExec,
 		waitPrecheck:           waitPrecheck,
 		waitCommit:             waitCommit,
-		waitRoot:               waitRoot,
-		rootChanges:            rootChanges,
 		chunkBuild:             chunkBuild,
 		blockBuild:             blockBuild,
 		blockParse:             blockParse,
@@ -601,6 +657,12 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		collectChunkSignatures: collectChunkSignatures,
 		txTimeRemainingMempool: txTimeRemainingMempool,
 		chunkAuth:              chunkAuth,
+		stateChanges:           stateChanges,
+		appendDBBatchInit:      appendDBBatchInit,
+		appendDBBatchInitBytes: appendDBBatchInitBytes,
+		appendDBBatchPrepare:   appendDBBatchPrepare,
+		tstateIterate:          tstateIterate,
+		appendDBBatchWrite:     appendDBBatchWrite,
 	}
 	m.executorRecorder = &executorMetrics{blocked: m.executorBlocked, executable: m.executorExecutable}
 
@@ -613,7 +675,6 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.txsInvalid),
 		r.Register(m.chunkBuildTxsDropped),
 		r.Register(m.blockBuildCertsDropped),
-		r.Register(m.stateChanges),
 		r.Register(m.remainingMempool),
 		r.Register(m.chunkBytesBuilt),
 		r.Register(m.deletedBlocks),
@@ -632,6 +693,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.blockVerifyFailed),
 		r.Register(m.gossipTxMsgInvalid),
 		r.Register(m.gossipTxInvalid),
+		r.Register(m.chunkGossipDropped),
 		r.Register(m.gossipChunkInvalid),
 		r.Register(m.gossipChunkSigInvalid),
 		r.Register(m.gossipCertInvalid),
@@ -647,6 +709,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.executedProcessingBacklog),
 		r.Register(m.mempoolLen),
 		r.Register(m.mempoolSize),
+		r.Register(m.gossipChunkBacklog),
 		r.Register(m.gossipTxBacklog),
 		r.Register(m.websocketConnections),
 		r.Register(m.lastAcceptedEpoch),
@@ -659,8 +722,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.unitsExecutedWrite),
 		r.Register(m.uselessChunkAuth),
 		r.Register(m.optimisticCertifiedGossip),
-		r.Register(m.stateSize),
-		r.Register(m.stateLen),
+		r.Register(m.appendDBBatchesRewritten),
+		r.Register(m.appendDBKeys),
+		r.Register(m.appendDBAliveBytes),
+		r.Register(m.appendDBUselessBytes),
 	)
 	return r, m, errs.Err
 }

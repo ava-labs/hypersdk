@@ -35,8 +35,8 @@ type Chunk struct {
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
-	nowT := time.Now()
-	now := nowT.UnixMilli()
+	start := time.Now()
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	sm := vm.StateManager()
 	r := vm.Rules(now)
 	c := &Chunk{
@@ -82,7 +82,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		restorableTxs = make([]*Transaction, 0, chunkPrealloc)
 	)
 	mempool.StartStreaming(ctx)
-	for time.Since(nowT) < vm.GetTargetChunkBuildDuration() {
+	for time.Since(start) < vm.GetTargetChunkBuildDuration() {
 		tx, ok := mempool.Stream(ctx)
 		if !ok {
 			break
@@ -193,7 +193,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		zap.Any("units", chunkUnits),
 		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
 		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
-		zap.Duration("t", time.Since(nowT)),
+		zap.Duration("t", time.Since(start)),
 	)
 	return c, nil
 }

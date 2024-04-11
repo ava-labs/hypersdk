@@ -5,28 +5,17 @@ package state
 
 import (
 	"context"
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/hypersdk/smap"
 )
 
+// We use string here because we often store items in a map before storage
+// in a database. This allows us to avoid casting back and forth.
 type Immutable interface {
-	GetValue(ctx context.Context, key []byte) (value []byte, err error)
+	Get(ctx context.Context, key string) (value []byte, err error)
 }
 
 type Mutable interface {
 	Immutable
 
-	Insert(ctx context.Context, key []byte, value []byte) error
-	Remove(ctx context.Context, key []byte) error
-}
-
-type Database interface {
-	Mutable
-
-	GetValues(ctx context.Context, keys [][]byte) (values [][]byte, errs []error)
-
-	Update(ctx context.Context, ops *smap.SMap[maybe.Maybe[[]byte]]) int
-	PrepareCommit(ctx context.Context) (func(context.Context) (ids.ID, error), int)
+	Put(ctx context.Context, key string, value []byte) error
+	Delete(ctx context.Context, key string) error
 }

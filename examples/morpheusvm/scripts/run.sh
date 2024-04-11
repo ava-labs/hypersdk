@@ -23,7 +23,6 @@ MODE=${MODE:-run}
 LOG_LEVEL=${LOG_LEVEL:-INFO}
 AGO_LOG_LEVEL=${AGO_LOG_LEVEL:-INFO}
 AGO_LOG_DISPLAY_LEVEL=${AGO_LOG_DISPLAY_LEVEL:-INFO}
-STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 EPOCH_DURATION=${EPOCH_DURATION:-10000}
 VALIDITY_WINDOW=${VALIDITY_WINDOW:-9000}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-1000}
@@ -31,7 +30,6 @@ UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 if [[ ${MODE} != "run" ]]; then
   LOG_LEVEL=debug
   AGO_LOG_DISPLAY_LEVEL=info
-  STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
   UNLIMITED_USAGE=true
 fi
@@ -48,7 +46,6 @@ echo AGO_LOG_DISPLAY_LEVEL: "${AGO_LOG_DISPLAY_LEVEL}"
 echo AGO_VERSION: "${AGO_VERSION}"
 echo MODE: "${MODE}"
 echo LOG LEVEL: "${LOG_LEVEL}"
-echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
 echo EPOCH_DURATION \(ms\): "${EPOCH_DURATION}"
 echo VALIDITY_WINDOW \(ms\): "${VALIDITY_WINDOW}"
 echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
@@ -165,17 +162,17 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authExecutionCores": 4,
   "precheckCores": 4,
   "actionExecutionCores": 2,
-  "rootGenerationCores": 4,
   "missingChunkFetchers": 48,
   "verifyAuth":true,
   "authRPCCores": 4,
   "authRPCBacklog": 10000000,
   "authGossipCores": 4,
   "authGossipBacklog": 10000000,
+  "chunkStorageCores": 4,
+  "chunkStorageBacklog": 10000000,
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOG_LEVEL}",
-  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
-  "stateSyncServerDelay": ${STATESYNC_DELAY}
+  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*"
 }
 EOF
 mkdir -p "${TMPDIR}"/morpheusvm-e2e-profiles

@@ -34,8 +34,6 @@ func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
 
 func (f *FileDB) Put(key string, value []byte, cache bool) error {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lm.Lock(filePath)
-	defer f.lm.Unlock(filePath)
 
 	// Don't do anything if already in cache and bytes equal
 	if cachedValue, exists := f.fileCache.Get(filePath); exists {
@@ -44,7 +42,15 @@ func (f *FileDB) Put(key string, value []byte, cache bool) error {
 		}
 	}
 
+	// Put in cache before writing to disk so readers can still access if there
+	// is a write backlog.
+	if cache {
+		f.fileCache.Put(filePath, value)
+	}
+
 	// Store the value on disk
+	f.lm.Lock(filePath)
+	defer f.lm.Unlock(filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("%w: unable to create file", err)
@@ -65,21 +71,20 @@ func (f *FileDB) Put(key string, value []byte, cache bool) error {
 			return fmt.Errorf("%w: unable to sync file", err)
 		}
 	}
-	if cache {
-		f.fileCache.Put(filePath, value)
-	}
 	return nil
 }
 
 func (f *FileDB) Get(key string, cache bool) ([]byte, error) {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lm.RLock(filePath)
-	defer f.lm.RUnlock(filePath)
 
+	// Attempt to read from cache
 	if value, exists := f.fileCache.Get(filePath); exists {
 		return value, nil
 	}
 
+	// Attempt to read from disk
+	f.lm.RLock(filePath)
+	defer f.lm.RUnlock(filePath)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, database.ErrNotFound
@@ -112,13 +117,15 @@ func (f *FileDB) Get(key string, cache bool) ([]byte, error) {
 
 func (f *FileDB) Has(key string) (bool, error) {
 	filePath := filepath.Join(f.baseDir, key)
-	f.lm.RLock(filePath)
-	defer f.lm.RUnlock(filePath)
 
+	// Attempt to reach from cache
 	if _, exists := f.fileCache.Get(filePath); exists {
 		return true, nil
 	}
 
+	// Attempt to read from disk
+	f.lm.RLock(filePath)
+	defer f.lm.RUnlock(filePath)
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return false, nil

@@ -20,16 +20,15 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/merkle"
 )
 
 var (
 	_ chain.VM                           = (*VM)(nil)
 	_ block.ChainVM                      = (*VM)(nil)
-	_ block.StateSyncableVM              = (*VM)(nil)
 	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
 
@@ -73,16 +72,7 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (*merkle.Merkle, error) {
-	// As soon as synced (before ready), we can safely request data from the db.
-	if !vm.StateReady() {
-		return nil, ErrStateMissing
-	}
-	return vm.stateDB, nil
-}
-
-// TODO: correctly handle engine.Execute during state sync
-func (vm *VM) ForceState() *merkle.Merkle {
+func (vm *VM) State() *vilmo.Vilmo {
 	return vm.stateDB
 }
 
@@ -157,6 +147,13 @@ func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk
 	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
+	// Mark all txs as seen (prevent replay in subsequent blocks)
+	//
+	// We do this before Accept to avoid maintaining a set of diffs
+	// that we need to check for repeats on top of this.
+	vm.seenTxs.Add(chunk.Txs)
+
+	// Add chunk to backlog for async processing
 	vm.metrics.executedProcessingBacklog.Inc()
 	vm.executedQueue <- &executedWrapper{blk, chunk, results, invalidTxs}
 
@@ -385,10 +382,6 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	// transform [blkTime] when calling [SetMin] here.
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(vm.seenTxs.SetMin(blkTime))))
 	vm.Logger().Debug("chunks evicted from seen", zap.Int("len", len(vm.seenChunks.SetMin(blkTime))))
-	for _, fc := range chunks {
-		// Mark all valid txs as seen
-		vm.seenTxs.Add(fc.Txs)
-	}
 	vm.seenChunks.Add(b.AvailableChunks)
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
@@ -477,33 +470,6 @@ func (vm *VM) EngineChan() chan<- common.Message {
 	return vm.toEngine
 }
 
-func (vm *VM) AcceptedSyncableBlock(
-	ctx context.Context,
-	sb *chain.SyncableBlock,
-) (block.StateSyncMode, error) {
-	return vm.stateSyncClient.AcceptedSyncableBlock(ctx, sb)
-}
-
-func (vm *VM) StateReady() bool {
-	if vm.stateSyncClient == nil {
-		// Can occur in test
-		return false
-	}
-	return vm.stateSyncClient.StateReady()
-}
-
-func (vm *VM) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
-	return vm.stateSyncClient.UpdateSyncTarget(b)
-}
-
-func (vm *VM) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
-	return vm.stateSyncClient.GetOngoingSyncStateSummary(ctx)
-}
-
-func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
-	return vm.stateSyncClient.StateSyncEnabled(ctx)
-}
-
 func (vm *VM) StateManager() chain.StateManager {
 	return vm.c.StateManager()
 }
@@ -524,12 +490,8 @@ func (vm *VM) RecordWaitCommit(t time.Duration) {
 	vm.metrics.waitCommit.Observe(float64(t))
 }
 
-func (vm *VM) RecordWaitRoot(t time.Duration) {
-	vm.metrics.waitRoot.Observe(float64(t))
-}
-
 func (vm *VM) RecordStateChanges(c int) {
-	vm.metrics.stateChanges.Add(float64(c))
+	vm.metrics.stateChanges.Observe(float64(c))
 }
 
 func (vm *VM) GetVerifyAuth() bool {
@@ -726,6 +688,26 @@ func (vm *VM) GetPrecheckCores() int {
 	return vm.config.GetPrecheckCores()
 }
 
-func (vm *VM) RecordRootChanges(c int) {
-	vm.metrics.rootChanges.Observe(float64(c))
+func (vm *VM) RecordVilmoBatchInit(t time.Duration) {
+	vm.metrics.appendDBBatchInit.Observe(float64(t))
+}
+
+func (vm *VM) RecordVilmoBatchInitBytes(b int64) {
+	vm.metrics.appendDBBatchInitBytes.Observe(float64(b))
+}
+
+func (vm *VM) RecordVilmoBatchesRewritten() {
+	vm.metrics.appendDBBatchesRewritten.Inc()
+}
+
+func (vm *VM) RecordVilmoBatchPrepare(t time.Duration) {
+	vm.metrics.appendDBBatchPrepare.Observe(float64(t))
+}
+
+func (vm *VM) RecordTStateIterate(t time.Duration) {
+	vm.metrics.tstateIterate.Observe(float64(t))
+}
+
+func (vm *VM) RecordVilmoBatchWrite(t time.Duration) {
+	vm.metrics.appendDBBatchWrite.Observe(float64(t))
 }

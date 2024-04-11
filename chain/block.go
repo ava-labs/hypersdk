@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,10 +34,7 @@ import (
 // .../vms/proposervm/pre_fork_block.go#L201
 var GenesisTime = time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
 
-var (
-	_ snowman.Block      = &StatelessBlock{}
-	_ block.StateSummary = &SyncableBlock{}
-)
+var _ snowman.Block = &StatelessBlock{}
 
 type StatefulBlock struct {
 	PHeight uint64 `json:"pHeight"` // 0 means no context
@@ -52,7 +48,7 @@ type StatefulBlock struct {
 	AvailableChunks []*ChunkCertificate `json:"availableChunks"`
 
 	ExecutedChunks []ids.ID `json:"executedChunks"`
-	Root           ids.ID   `json:"root"`
+	Checksum       ids.ID   `json:"checksum"`
 
 	built bool
 }
@@ -91,7 +87,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	for _, chunk := range b.ExecutedChunks {
 		p.PackID(chunk)
 	}
-	p.PackID(b.Root)
+	p.PackID(b.Checksum)
 
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
@@ -136,7 +132,7 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 		p.UnpackID(true, &id)
 		b.ExecutedChunks = append(b.ExecutedChunks, id)
 	}
-	p.UnpackID(false, &b.Root) // only some roots are populated
+	p.UnpackID(false, &b.Checksum) // some batches may be empty
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
@@ -145,10 +141,10 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	return &b, p.Err()
 }
 
-func NewGenesisBlock(root ids.ID) *StatefulBlock {
+func NewGenesisBlock(checksum ids.ID) *StatefulBlock {
 	return &StatefulBlock{
 		Timestamp: GenesisTime,
-		Root:      root,
+		Checksum:  checksum,
 	}
 }
 
@@ -168,7 +164,6 @@ type StatelessBlock struct {
 	verifiedCerts bool
 
 	parent     *StatelessBlock
-	rootHeight *uint64
 	execHeight *uint64
 
 	chunks set.Set[ids.ID]
@@ -215,8 +210,8 @@ func ParseStatefulBlock(
 	defer span.End()
 
 	// Perform basic correctness checks before doing any expensive work
-	if blk.Timestamp > time.Now().Add(FutureBound).UnixMilli() {
-		return nil, ErrTimestampTooLate
+	if blk.Timestamp > time.Now().UnixMilli()+consts.ClockSkewAllowance {
+		return nil, ErrTimestampTooEarly
 	}
 
 	if len(source) == 0 {
@@ -337,8 +332,8 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		// We allow verfication to proceed if no available chunks and no epochs stored so that epochs could be set.
 
 		// Perform basic correctness checks before doing any expensive work
-		if b.Timestamp().UnixMilli() > time.Now().Add(FutureBound).UnixMilli() {
-			return ErrTimestampTooLate
+		if b.Timestamp().UnixMilli() > time.Now().UnixMilli()+consts.ClockSkewAllowance {
+			return ErrTimestampTooEarly
 		}
 
 		// Check that gap between parent is at least minimum
@@ -429,40 +424,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		b.verifiedCerts = true
 	}
 
-	// Verify roots
-	frequency := r.GetRootFrequency()
-	if b.StatefulBlock.Height > frequency && b.StatefulBlock.Height%frequency == 0 {
-		var (
-			rootHeight = b.StatefulBlock.Height - frequency
-			root       ids.ID
-			err        error
-		)
-		for {
-			root, err = b.vm.Engine().Root(rootHeight)
-			if err != nil {
-				if b.vm.IsBootstrapped() {
-					log.Debug("could not get root for block", zap.Uint64("height", rootHeight))
-					return fmt.Errorf("%w: no results for execHeight", err)
-				}
-				// If we haven't finished bootstrapping, we can't fail.
-				//
-				// TODO: we should actually not verify any of this (long p-chain lookbacks)
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			break
-		}
-		if b.Root != root {
-			log.Error("block has invalid root", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedRoot", root), zap.Stringer("actualRoot", b.Root))
-			panic("root mismatch") // could help us debug
-		}
-		b.rootHeight = &rootHeight
-	} else {
-		if b.Root != ids.Empty {
-			panic("root should be empty")
-		}
-	}
-
 	// Verify execution results
 	depth := r.GetBlockExecutionDepth()
 	if b.StatefulBlock.Height <= depth {
@@ -473,10 +434,11 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		var (
 			execHeight = b.StatefulBlock.Height - depth
 			executed   []ids.ID
+			checksum   ids.ID
 			err        error
 		)
 		for {
-			executed, err = b.vm.Engine().Results(execHeight)
+			executed, checksum, err = b.vm.Engine().Results(execHeight)
 			if err != nil {
 				// TODO: handle case where we state synced and don't have results
 				if b.vm.IsBootstrapped() {
@@ -501,6 +463,10 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 				panic("executed chunk mismatch") // could help us debug
 			}
 		}
+		if b.Checksum != checksum {
+			log.Error("block has invalid checksum", zap.Stringer("blockID", b.ID()), zap.Stringer("expectedChecksum", checksum), zap.Stringer("actualChecksum", b.Checksum))
+			panic("checksum mismatch") // could help us debug
+		}
 		b.execHeight = &execHeight
 	}
 
@@ -512,8 +478,8 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 		zap.Any("execHeight", b.execHeight),
 		zap.Stringer("parentID", b.Parent()),
 		zap.Int("available chunks", len(b.AvailableChunks)),
-		zap.Stringer("root", b.Root),
 		zap.Int("executed chunks", len(b.ExecutedChunks)),
+		zap.Stringer("checksum", b.Checksum),
 	)
 	success = true
 	return nil
@@ -531,14 +497,6 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 
 	// Mark block as accepted
 	b.st = choices.Accepted
-
-	// Prune root (if any)
-	if b.rootHeight != nil {
-		_, err := b.vm.Engine().PruneRoot(ctx, *b.rootHeight)
-		if err != nil {
-			return fmt.Errorf("%w: cannot prune root", err)
-		}
-	}
 
 	// Prune async results (if any)
 	var filteredChunks []*FilteredChunk
@@ -629,20 +587,4 @@ func (b *StatelessBlock) IsRepeatChunk(ctx context.Context, certs []*ChunkCertif
 		return marker, err
 	}
 	return parent.IsRepeatChunk(ctx, certs, marker)
-}
-
-type SyncableBlock struct {
-	*StatelessBlock
-}
-
-func (sb *SyncableBlock) Accept(ctx context.Context) (block.StateSyncMode, error) {
-	return sb.vm.AcceptedSyncableBlock(ctx, sb)
-}
-
-func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
-	return &SyncableBlock{sb}
-}
-
-func (sb *SyncableBlock) String() string {
-	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.Root)
 }
