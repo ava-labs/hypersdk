@@ -77,7 +77,7 @@ type task struct {
 
 	dependencies atomic.Int64
 
-	allowConcurrentReading bool
+	isConcurrentlyReading bool
 }
 
 func (e *Executor) runTask(t *task) {
@@ -100,9 +100,9 @@ func (e *Executor) runTask(t *task) {
 			continue
 		}
 		bt.l.Lock()
-		// We shouldn't be enqueuing concurrent Reads since they're not
-		// dependent on each other
-		if !bt.executed && !bt.allowConcurrentReading {
+		// We shouldn't be re-enqueuing concurrent Reads since
+		// they're not dependent on each other
+		if !bt.executed && !bt.isConcurrentlyReading {
 			bt.l.Unlock()
 			e.executable <- bt
 			bt.l.Lock()
@@ -142,30 +142,31 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			lt := e.tasks[n.id]
 			lt.l.Lock()
 			if !lt.executed {
-				lt.blocking[id] = t
+				lt.blocking[id] = t // add edge
 
 				switch {
-				// concurrent Reads or Read(s)-after-Write
 				case v == state.Read:
-					// Reads aren't dependent on each other, so we
-					// only consider Read(s)-after-Write case
 					if n.modification {
+						// case: Read(s)-after-Write
 						previousDependencies.Add(n.id)
 					} else {
+						// concurrent Reads aren't dependent on each other
 						hasConcurrentReads = true
 					}
 					lt.l.Unlock()
 					continue
 				case v.Has(state.Allocate) || v.Has(state.Write):
-					// blocked by all Reads plus an Allocate/Write or the first Read
-					// case 1: w->r->r...w->r->r, the length of [blocking] on the
-					// second [w] is the number of reads from the first [w].
-					// case 2: r->r->w..., the length of [blocking] is the number of
-					// reads called before the first [w]
+					// case 1: w->w->w... (Write-after-Write)
+					// case 2: w->r->r...w->r->r...
+					// case 3: r->r->w...
+
+					// blocked by the first Read or Write
+					previousDependencies.Add(n.id)
+
+					// blocked by all Reads after the first Read or Write
 					for bid, bt := range lt.blocking {
-						// this may happen in multi-key conflicts, where the id already
-						// exists in blocking, so we don't want to record that we're
-						// blocked on ourself
+						// don't record that we're blocked on ourself in multi-key
+						// conflicts or in Write-after-Write scenarios
 						if bid == id {
 							continue
 						}
@@ -176,8 +177,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 						}
 						bt.l.Unlock()
 					}
-					// case 3: Write-after-Write
-					previousDependencies.Add(n.id)
 				}
 			}
 			lt.l.Unlock()
@@ -194,9 +193,13 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		return
 	}
 
+	// invariant: [t.dependencies] == 0
+	// Need a way to identify that a task is doing concurrent Reading when we
+	// scan the latest's [blocking]. If there are no overlapping conflicts, other
+	// than Reads to a seen key, then we can identify it as such.
 	if hasConcurrentReads {
 		t.l.Lock()
-		t.allowConcurrentReading = true
+		t.isConcurrentlyReading = true
 		t.l.Unlock()
 	}
 	// Mark task for execution if we aren't waiting on any other tasks

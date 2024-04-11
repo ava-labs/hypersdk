@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
+// Run several times to catch non-determinism
 const numIterations = 10
 
 func TestExecutorNoConflicts(t *testing.T) {
@@ -276,7 +277,7 @@ func TestManyReads(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
 			for k := 0; k < i+1; k++ {
-				s.Add(ids.GenerateTestID().String(), state.Write)
+				s.Add(ids.GenerateTestID().String(), state.Read)
 			}
 			// mimic concurrent reading for all txns
 			s.Add(conflictKey, state.Read)
