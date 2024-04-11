@@ -502,8 +502,6 @@ type Batch struct {
 	buf    []byte
 	writer *writer
 
-	prevAlive *dll
-
 	t *tracker
 }
 
@@ -521,7 +519,7 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 
 		buf: make([]byte, batchBufferSize),
 
-		t: &tracker{},
+		t: &tracker{db: a},
 	}
 	// If we don't need to recycle, we should create a new hashmap for this
 	// batch.
@@ -589,7 +587,6 @@ func (b *Batch) recycle() (bool, error) {
 	previous := b.a.batches[oldestBatch]
 	b.pruneableBatch = &oldestBatch
 	b.t.pendingNullify = previous.pendingNullify
-	b.prevAlive = previous.alive
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
@@ -605,7 +602,7 @@ func (b *Batch) recycle() (bool, error) {
 
 		// Iterate over alive records and add them to the batch file
 		b.t.alive = &dll{}
-		iter := b.prevAlive.Iterator()
+		iter := previous.alive.Iterator()
 		for next := iter.Next(); next != nil; {
 			value, err := b.a.Get(context.TODO(), next.key)
 			if err != nil {
@@ -618,7 +615,7 @@ func (b *Batch) recycle() (bool, error) {
 			// to re-add to the map (this is to keep a set of pending records
 			// prior to grabbing the key lock).
 			r := &record{batch: b.batch, key: next.key}
-			start, err := b.put(next.key, value)
+			start, err := b.writePut(next.key, value)
 			if err != nil {
 				return false, err
 			}
@@ -662,9 +659,9 @@ func (b *Batch) recycle() (bool, error) {
 	}
 
 	// Add to existing file
-	b.t.alive = b.prevAlive
+	b.t.alive = previous.alive
 	for i, key := range b.t.pendingNullify {
-		if err := b.nullify(key); err != nil {
+		if err := b.writeNullify(key); err != nil {
 			return false, err
 		}
 		// We already incremented [uselessBytes] when calling [tracker.Remove], so we don't
@@ -703,7 +700,7 @@ func (b *Batch) Abort() error {
 	return nil
 }
 
-func (b *Batch) put(key string, value []byte) (int64, error) {
+func (b *Batch) writePut(key string, value []byte) (int64, error) {
 	// Check input
 	if len(key) > int(consts.MaxUint16) {
 		return -1, ErrKeyTooLong
@@ -726,14 +723,10 @@ func (b *Batch) put(key string, value []byte) (int64, error) {
 	if errs.Err != nil {
 		return -1, errs.Err
 	}
-
-	// Furnish record for future usage
-	//
-	// Note: this batch is not mmap'd yet and should not be used until it is.
 	return valueStart, nil
 }
 
-func (b *Batch) nullify(key string) error {
+func (b *Batch) writeNullify(key string) error {
 	// Check input
 	if len(key) > int(consts.MaxUint16) {
 		return ErrKeyTooLong
@@ -751,13 +744,10 @@ func (b *Batch) nullify(key string) error {
 	if errs.Err != nil {
 		return errs.Err
 	}
-
-	// uselessBytes already updated during runtime, don't need
-	// to re-calculate here.
 	return nil
 }
 
-func (b *Batch) checksum() (ids.ID, error) {
+func (b *Batch) writeChecksum() (ids.ID, error) {
 	// Write to disk
 	errs := &wrappers.Errs{}
 	b.buf = b.buf[:1]
@@ -771,10 +761,6 @@ func (b *Batch) checksum() (ids.ID, error) {
 	if errs.Err != nil {
 		return ids.Empty, errs.Err
 	}
-
-	// We always consider previous checksums useless in the case
-	// that we are reusing a file.
-	b.t.uselessBytes += opChecksumLen()
 	return checksum, nil
 }
 
@@ -795,8 +781,14 @@ func (b *Batch) Prepare() (int64, bool) {
 	} else {
 		// Migrate all alive keys to the new batch lookup.
 		iter := b.t.alive.Iterator()
+		count := 0
 		for next := iter.Next(); next != nil; {
 			next.batch = b.batch
+			b.a.logger.Debug("migrating key to new batch", zap.String("key", next.key), zap.Uint64("batch", b.batch))
+			count++
+			if count > 10 {
+				panic("something wrong")
+			}
 		}
 	}
 
@@ -810,7 +802,7 @@ func (b *Batch) Prepare() (int64, bool) {
 }
 
 func (b *Batch) Put(_ context.Context, key string, value []byte) error {
-	start, err := b.put(key, value)
+	start, err := b.writePut(key, value)
 	if err != nil {
 		return err
 	}
@@ -818,6 +810,8 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	if ok {
 		b.a.batches[past.batch].Remove(past, past.batch < b.batch)
 		past.batch = b.batch
+
+		// We avoid updating [keys] when just updating the value of a [record]
 	} else {
 		past = &record{batch: b.batch, key: key}
 		b.a.keys[key] = past
@@ -886,10 +880,13 @@ func (b *Batch) Write() (ids.ID, error) {
 	}()
 
 	// Add batch and checksum to file (allows for crash recovery on restart in the case that a file is partially written)
-	checksum, err := b.checksum()
+	checksum, err := b.writeChecksum()
 	if err != nil {
 		return ids.Empty, err
 	}
+	// We always consider previous checksums useless in the case
+	// that we are reusing a file.
+	b.t.uselessBytes += opChecksumLen()
 
 	// Flush all unwritten data to disk
 	if err := b.writer.Flush(); err != nil {
