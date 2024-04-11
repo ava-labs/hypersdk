@@ -24,6 +24,10 @@ func (r *record) Size() int64 {
 	return int64(len(r.value))
 }
 
+func (r *record) Cached() bool {
+	return r.loc < 0
+}
+
 type dll struct {
 	first *record
 	last  *record

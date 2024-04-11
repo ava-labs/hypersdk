@@ -447,7 +447,7 @@ func (a *AppendDB) get(key string) ([]byte, error) {
 	if !ok {
 		return nil, database.ErrNotFound
 	}
-	if entry.loc < 0 {
+	if entry.Cached() {
 		return slices.Clone(entry.value), nil
 	}
 	value := make([]byte, entry.size)
