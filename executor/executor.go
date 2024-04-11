@@ -76,6 +76,8 @@ type task struct {
 	executed bool
 
 	dependencies atomic.Int64
+
+	allowConcurrentReading bool
 }
 
 func (e *Executor) runTask(t *task) {
@@ -94,13 +96,13 @@ func (e *Executor) runTask(t *task) {
 
 	t.l.Lock()
 	for _, bt := range t.blocking {
-		// Reads would have zero dependencies
-		if bt.dependencies.Add(-1) != 0 {
+		if bt.dependencies.Add(-1) > 0 {
 			continue
 		}
-		// This might happen in Read-after-Read, so don't enqueue again
 		bt.l.Lock()
-		if !bt.executed {
+		// We shouldn't be enqueuing concurrent Reads since they're not
+		// dependent on each other
+		if !bt.executed && !bt.allowConcurrentReading {
 			bt.l.Unlock()
 			e.executable <- bt
 			bt.l.Lock()
@@ -133,6 +135,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 
 	// Record dependencies
 	previousDependencies := set.NewSet[int](len(keys))
+	hasConcurrentReads := false
 	for k, v := range keys {
 		n, ok := e.nodes[k]
 		if ok {
@@ -148,6 +151,8 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 					// only consider Read(s)-after-Write case
 					if n.modification {
 						previousDependencies.Add(n.id)
+					} else {
+						hasConcurrentReads = true
 					}
 					lt.l.Unlock()
 					continue
@@ -189,6 +194,11 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		return
 	}
 
+	if hasConcurrentReads {
+		t.l.Lock()
+		t.allowConcurrentReading = true
+		t.l.Unlock()
+	}
 	// Mark task for execution if we aren't waiting on any other tasks
 	e.executable <- t
 	if e.metrics != nil {
