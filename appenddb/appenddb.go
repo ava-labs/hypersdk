@@ -36,13 +36,13 @@ var (
 
 const (
 	// When mutliple checksums are in a single file (we chose not to rewrite file because
-	// many keys unchanged), we opNullify any keys that are no longer active in a batch file (may be
-	// active in other batch files still) and compute the next checksum using the base as the previous
-	// checksum (rather than re-iterating over the entire file).
+	// many keys unchanged), we add new changes  and compute the next checksum using the base
+	// as the previous checksum (rather than re-iterating over the entire file).
+	//
+	// We only utilize an op if it is newer (newer batch) than the one currently stored.
 	opPut      = uint8(0) // keyLen|key|valueLen|value
 	opDelete   = uint8(1) // keyLen|key
-	opChecksum = uint8(2) // batch|checksum
-	opNullify  = uint8(3) // keyLen|key
+	opChecksum = uint8(2) // checksum
 
 	batchBufferSize       = 16 // just need to be big enough for any binary numbers
 	minDiskValueSize      = 64
@@ -63,49 +63,28 @@ type tracker struct {
 
 	alive *dll
 
-	// Byte adjustments for [pendingNullify] are taken care of
-	// prior to use to speed up the rewrite/continue decision in [recycle].
-	//
-	// pendingNullify is just used to track pending
-	// changes to keys for the next batch.
-	//
-	// Items never need to be deleted from [pendingNullify], so we can just keep
-	// an array.
-	//
-	// We don't reuse pendingNullify because we don't want to hold onto references
-	// to old keys (which may be deleted).
-	pendingNullify []string
-
 	checksum     ids.ID
 	aliveBytes   int64
-	uselessBytes int64 // already includes all nullifies and deletes
+	uselessBytes int64 // already includes all overwritten data, checksums, and deletes
 }
 
 // we return the record to allow for memory reuse + less map ops
-func (t *tracker) Remove(record *record, markPending bool) {
+func (t *tracker) Remove(record *record) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
 
 	// Remove from linked list
 	t.alive.Remove(record)
-
-	// We only add to [pendingNullify] if this is called when there is a
-	// [Put] or [Delete] op.
-	if markPending {
-		t.uselessBytes += opNullifyLen(record.key)
-		t.pendingNullify = append(t.pendingNullify, record.key)
-	}
 }
 
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
 type AppendDB struct {
-	logger      logging.Logger
-	baseDir     string
-	nullifySize int
-	bufferSize  int
-	historyLen  int
+	logger     logging.Logger
+	baseDir    string
+	bufferSize int
+	historyLen int
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -188,10 +167,6 @@ func opDeleteLen(key string) int64 {
 	return int64(consts.Uint8Len + consts.Uint16Len + len(key))
 }
 
-func opNullifyLen(key string) int64 {
-	return opDeleteLen(key)
-}
-
 func opChecksumLen() int64 {
 	return int64(consts.Uint8Len + consts.Uint64Len + ids.IDLen)
 }
@@ -233,9 +208,8 @@ func (a *AppendDB) loadBatch(
 	// Read all operations from the file
 	var (
 		t = &tracker{
-			db:             a,
-			alive:          &dll{},
-			pendingNullify: make([]string, 0, a.nullifySize),
+			db:    a,
+			alive: &dll{},
 		}
 
 		fileSize = int64(fi.Size())
@@ -256,7 +230,7 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Remove(r, r.batch < file)
+				a.batches[r.batch].Remove(r)
 				r.batch = file
 			} else {
 				r = &record{batch: file, key: key}
@@ -282,7 +256,7 @@ func (a *AppendDB) loadBatch(
 			r, ok := a.keys[key]
 			if ok {
 				// Drop this key from our tracking and mark the operation as useless
-				a.batches[r.batch].Remove(r, r.batch < file)
+				a.batches[r.batch].Remove(r)
 				delete(a.keys, key)
 			}
 			// It is ok if the key doesn't exist when processing a delete op as we may be processing
@@ -315,35 +289,11 @@ func (a *AppendDB) loadBatch(
 				return nil
 			}
 
-			// Refresh [pendingNullify] to avoid hanging on to references to old
-			// keys.
-			if c := cap(t.pendingNullify); c > a.nullifySize {
-				a.nullifySize = c
-				a.logger.Info("increasing nullify size", zap.Int("size", a.nullifySize))
-			}
-			t.pendingNullify = make([]string, 0, a.nullifySize)
-
 			// Initialize hasher for next batch (assuming continues)
 			hasher = sha256.New()
 			if _, err := hasher.Write(checksum[:]); err != nil {
 				return err
 			}
-		case opNullify: // key was updated (either put/delete in another batch file)
-			// TODO: ensure happen right after checksum only
-			key, newCursor, err := readKey(reader, newCursor, hasher)
-			if err != nil {
-				return err
-			}
-			r, ok := a.keys[key]
-			if !ok {
-				return errors.New("nullifying unset key")
-			}
-
-			// opNullify means this key will be set later, so let's delete our reference for now
-			a.batches[r.batch].Remove(r, false)
-			delete(a.keys, key)
-			t.uselessBytes += opNullifyLen(key)
-			cursor = newCursor
 		default:
 			return fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
 		}
@@ -392,11 +342,10 @@ func New(
 
 	// Instantiate DB
 	adb := &AppendDB{
-		logger:      log,
-		baseDir:     baseDir,
-		nullifySize: batchSize,
-		bufferSize:  bufferSize,
-		historyLen:  historyLen,
+		logger:     log,
+		baseDir:    baseDir,
+		bufferSize: bufferSize,
+		historyLen: historyLen,
 
 		keys:    make(map[string]*record, initialSize),
 		batches: make(map[uint64]*tracker, historyLen+1),
@@ -559,7 +508,6 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
 	b.t.alive = &dll{}
-	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 	return b, nil
 }
 
@@ -599,10 +547,8 @@ func (b *Batch) recycle() (bool, error) {
 		return false, nil
 	}
 
-	// Reuse linked hashmaps for both [alive] and [pendingNullify]
 	previous := b.a.batches[oldestBatch]
 	b.pruneableBatch = &oldestBatch
-	b.t.pendingNullify = previous.pendingNullify
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
@@ -647,14 +593,11 @@ func (b *Batch) recycle() (bool, error) {
 			b.t.aliveBytes += op
 			b.t.alive.Add(r)
 		}
-
-		// Nullifications aren't used when rewriting the file but we still need to drop them
-		b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 		return true, nil
 	}
 
 	// Open old batch for writing
-	b.a.logger.Debug("appending nullifiers to existing file", zap.Int("count", len(b.t.pendingNullify)), zap.Uint64("batch", b.batch))
+	b.a.logger.Debug("continuing to build on old batch", zap.Uint64("old", oldestBatch), zap.Uint64("new", b.batch))
 	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
 	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
 	if err != nil {
@@ -673,25 +616,7 @@ func (b *Batch) recycle() (bool, error) {
 	if _, err := b.hasher.Write(previous.checksum[:]); err != nil {
 		return false, err
 	}
-
-	// Add to existing file
 	b.t.alive = previous.alive
-	for _, key := range b.t.pendingNullify {
-		if err := b.writeNullify(key); err != nil {
-			return false, err
-		}
-		// We already incremented [uselessBytes] when calling [tracker.Remove], so we don't
-		// call it again here.
-		b.openWrites += opNullifyLen(key)
-	}
-
-	// If we are nullifying more data than expected, begin allocating larger slices
-	// to prevent growing during batch.
-	if c := cap(b.t.pendingNullify); c > b.a.nullifySize {
-		b.a.nullifySize = c
-		b.a.logger.Info("increasing nullify size", zap.Int("size", b.a.nullifySize))
-	}
-	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 	return true, nil
 }
 
@@ -743,24 +668,6 @@ func (b *Batch) writePut(key string, value []byte) (int64, error) {
 	valueStart := b.cursor
 	errs.Add(b.writeBuffer(value, true))
 	return valueStart, errs.Err
-}
-
-func (b *Batch) writeNullify(key string) error {
-	// Check input
-	if len(key) > int(consts.MaxUint16) {
-		return ErrKeyTooLong
-	}
-
-	// Write to disk
-	errs := &wrappers.Errs{}
-	b.buf = b.buf[:1]
-	b.buf[0] = opNullify
-	errs.Add(b.writeBuffer(b.buf, true))
-	b.buf = b.buf[:consts.Uint16Len]
-	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
-	errs.Add(b.writeBuffer(b.buf, true))
-	errs.Add(b.writeBuffer(string2bytes(key), true))
-	return errs.Err
 }
 
 func (b *Batch) writeChecksum() (ids.ID, error) {
@@ -817,7 +724,7 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	}
 	past, ok := b.a.keys[key]
 	if ok {
-		b.a.batches[past.batch].Remove(past, past.batch < b.batch)
+		b.a.batches[past.batch].Remove(past)
 		past.batch = b.batch
 
 		// We avoid updating [keys] when just updating the value of a [record]
@@ -870,7 +777,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	b.a.batches[past.batch].Remove(past, past.batch < b.batch)
+	b.a.batches[past.batch].Remove(past)
 	delete(b.a.keys, key)
 	b.t.uselessBytes += opDeleteLen(key)
 	return nil
@@ -962,8 +869,7 @@ func (a *AppendDB) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes
 	for n, batch := range a.batches {
 		aliveBytes += batch.aliveBytes
 
-		// This includes pending nullifies and may be a little inaccurate as to what
-		// is actually on-disk.
+		// This includes discarded data that may be deleted (may be a little inaccurate)
 		uselessBytes += batch.uselessBytes
 		a.logger.Debug(
 			"batch usage",
