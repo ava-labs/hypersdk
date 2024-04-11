@@ -619,10 +619,7 @@ func (b *Batch) recycle() (bool, error) {
 			// This is the only time we can't reuse a record and need
 			// to re-add to the map (this is to keep a set of pending records
 			// prior to grabbing the key lock).
-			r := &record{
-				batch: b.batch,
-				key:   next.key,
-			}
+			r := &record{batch: b.batch, key: next.key}
 			start, err := b.put(next.key, value)
 			if err != nil {
 				return false, err
@@ -673,6 +670,8 @@ func (b *Batch) recycle() (bool, error) {
 		if err := b.nullify(key); err != nil {
 			return false, err
 		}
+		// We already incremented [uselessBytes] when calling [tracker.Remove], so we don't
+		// call it again here.
 		b.openWrites += opNullifyLen(key)
 		b.t.pendingNullify[i] = "" // clear memory for GC
 	}
@@ -699,9 +698,11 @@ func (b *Batch) Abort() error {
 			return err
 		}
 	}
+	b.a.nextBatch--
 
 	// Release lock held acquired during [recycle]
 	b.a.commitLock.Unlock()
+	b.a.logger.Debug("aborted batch", zap.Uint64("batch", b.batch))
 	return nil
 }
 
