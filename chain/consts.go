@@ -4,20 +4,11 @@
 package chain
 
 import (
-	"time"
-
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/keys"
 )
 
 const (
-	// FutureBound is used to ignore blocks that have a timestamp more than
-	// [FutureBound] ahead of the current time (when verifying a block).
-	//
-	// This value should be (much) less than the value of [ProposerWindow], otherwise honest
-	// nodes may not build during their allocated window to avoid increasing the skew of the
-	// chain time.
-	FutureBound = 1 * time.Second
 	// MaxWarpMessageSize is the maximum size of a warp message.
 	MaxWarpMessageSize = 256 * units.KiB
 	// MaxWarpMessages is the maximum number of warp messages allows in a single
@@ -38,22 +29,22 @@ const (
 	EpochKeyChunks        = 1
 )
 
-func HeightKey(prefix []byte) []byte {
+func HeightKey(prefix string) string {
 	return keys.EncodeChunks(prefix, HeightKeyChunks)
 }
 
-func PHeightKey(prefix []byte) []byte {
+func PHeightKey(prefix string) string {
 	return keys.EncodeChunks(prefix, PHeightKeyChunks)
 }
 
-func TimestampKey(prefix []byte) []byte {
+func TimestampKey(prefix string) string {
 	return keys.EncodeChunks(prefix, TimestampKeyChunks)
 }
 
-func FeeKey(prefix []byte) []byte {
+func FeeKey(prefix string) string {
 	return keys.EncodeChunks(prefix, FeeKeyChunks)
 }
 
-func EpochKey(prefix []byte) []byte {
+func EpochKey(prefix string) string {
 	return keys.EncodeChunks(prefix, EpochKeyChunks)
 }

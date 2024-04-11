@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -16,9 +15,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
+	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
-	"github.com/ava-labs/hypersdk/merkle"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -42,7 +41,6 @@ type Metrics interface {
 	RecordWaitPrecheck(time.Duration)
 	RecordWaitExec(time.Duration)
 	RecordWaitCommit(time.Duration)
-	RecordWaitRoot(time.Duration)
 
 	RecordRemainingMempool(int)
 
@@ -58,9 +56,20 @@ type Metrics interface {
 	RecordChunkBuildTxDropped()
 	RecordBlockBuildCertDropped()
 	RecordTxsInvalid(int)
-	RecordStateChanges(int)
-	RecordRootChanges(int)
 	RecordEngineBacklog(int)
+
+	RecordStateChanges(int)
+
+	// TODO: make each name a string and then
+	// allow dynamic registering of metrics
+	// as needed rather than this approach (just
+	// have gauge, counter, averager).
+	RecordVilmoBatchInit(time.Duration)
+	RecordVilmoBatchInitBytes(int64)
+	RecordVilmoBatchesRewritten()
+	RecordVilmoBatchPrepare(time.Duration)
+	RecordTStateIterate(time.Duration)
+	RecordVilmoBatchWrite(time.Duration)
 }
 
 type Monitoring interface {
@@ -82,8 +91,7 @@ type VM interface {
 	LastAcceptedBlock() *StatelessBlock
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	State() (*merkle.Merkle, error)
-	ForceState() *merkle.Merkle
+	State() *vilmo.Vilmo
 	StateManager() StateManager
 	ValidatorState() validators.State
 
@@ -104,15 +112,6 @@ type VM interface {
 	Accepted(context.Context, *StatelessBlock, []*FilteredChunk)
 	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
 	ExecutedBlock(context.Context, *StatefulBlock)
-	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
-
-	// UpdateSyncTarget returns a bool that is true if the root
-	// was updated and the sync is continuing with the new specified root
-	// and false if the sync completed with the previous root.
-	//
-	// TODO: only call when root is non-empty
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
-	StateReady() bool
 
 	// TODO: cleanup
 	NodeID() ids.NodeID
@@ -156,7 +155,6 @@ type Rules interface {
 	// TODO: make immutable rules (that don't expect to be changed)
 	GetPartitions() uint8
 	GetBlockExecutionDepth() uint64
-	GetRootFrequency() uint64
 	GetEpochDuration() int64
 
 	GetMinBlockGap() int64    // in milliseconds
@@ -196,14 +194,14 @@ type Rules interface {
 }
 
 type MetadataManager interface {
-	HeightKey() []byte
-	PHeightKey() []byte
-	TimestampKey() []byte
+	HeightKey() string
+	PHeightKey() string
+	TimestampKey() string
 }
 
 type WarpManager interface {
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
+	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) string
+	OutgoingWarpKeyPrefix(txID ids.ID) string
 }
 
 type FeeHandler interface {
@@ -236,7 +234,7 @@ type FeeHandler interface {
 type EpochManager interface {
 	// EpochKey is the key that corresponds to the height of the P-Chain to use for
 	// validation of a given epoch and the fees to use for verifying transactions.
-	EpochKey(epoch uint64) []byte
+	EpochKey(epoch uint64) string
 }
 
 type RewardHandler interface {

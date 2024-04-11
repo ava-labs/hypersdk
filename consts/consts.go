@@ -34,6 +34,10 @@ const (
 	// https://www.openmymind.net/WebSocket-Framing-Masking-Fragmentation-and-More/
 	MTU = 1_200
 
+	// ClockSkewAllowance should be used whenever constructing an expiry time (outside of block production)
+	// to account for potential skew between nodes (which will lead to drops).
+	ClockSkewAllowance = 2 * MillisecondsPerSecond
+
 	MaxUint8                  = ^uint8(0)
 	MaxUint16                 = ^uint16(0)
 	MaxUint8Offset            = 7

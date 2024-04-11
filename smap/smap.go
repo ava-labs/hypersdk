@@ -49,6 +49,19 @@ func (m *SMap[V]) Get(key string) (V, bool) {
 	return value, ok
 }
 
+func (m *SMap[V]) GetAndDelete(key string) (V, bool) {
+	h := xxh3.HashString(key)
+	shard := m.shards[h%m.count]
+
+	shard.l.Lock()
+	defer shard.l.Unlock()
+	value, ok := shard.data[key]
+	if ok {
+		delete(shard.data, key)
+	}
+	return value, ok
+}
+
 func (m *SMap[V]) Delete(key string) {
 	h := xxh3.HashString(key)
 	shard := m.shards[h%m.count]

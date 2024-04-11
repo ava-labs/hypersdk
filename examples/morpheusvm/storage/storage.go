@@ -20,7 +20,7 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
-type ReadState func(context.Context, [][]byte) ([][]byte, []error)
+type ReadState func(context.Context, []string) ([][]byte, []error)
 
 // Metadata
 // 0x0/ (tx)
@@ -59,10 +59,10 @@ const BalanceChunks uint16 = 1
 var (
 	failureByte  = byte(0x0)
 	successByte  = byte(0x1)
-	heightKey    = []byte{heightPrefix}
-	pHeightKey   = []byte{pHeightPrefix}
-	timestampKey = []byte{timestampPrefix}
-	feeKey       = []byte{feePrefix}
+	heightKey    = string(heightPrefix)
+	pHeightKey   = string(pHeightPrefix)
+	timestampKey = string(timestampPrefix)
+	feeKey       = string(feePrefix)
 )
 
 // [txPrefix] + [txID]
@@ -122,12 +122,12 @@ func GetTransaction(
 }
 
 // [balancePrefix] + [address]
-func BalanceKey(addr codec.Address) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+func BalanceKey(addr codec.Address) string {
+	k := make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = balancePrefix
 	copy(k[1:], addr[:])
 	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
-	return
+	return string(k)
 }
 
 // If locked is 0, then account does not exist
@@ -144,9 +144,9 @@ func getBalance(
 	ctx context.Context,
 	im state.Immutable,
 	addr codec.Address,
-) ([]byte, uint64, bool, error) {
+) (string, uint64, bool, error) {
 	k := BalanceKey(addr)
-	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
+	bal, exists, err := innerGetBalance(im.Get(ctx, k))
 	return k, bal, exists, err
 }
 
@@ -157,7 +157,7 @@ func GetBalanceFromState(
 	addr codec.Address,
 ) (uint64, error) {
 	k := BalanceKey(addr)
-	values, errs := f(ctx, [][]byte{k})
+	values, errs := f(ctx, []string{k})
 	bal, _, err := innerGetBalance(values[0], errs[0])
 	return bal, err
 }
@@ -188,10 +188,10 @@ func SetBalance(
 func setBalance(
 	ctx context.Context,
 	mu state.Mutable,
-	key []byte,
+	key string,
 	balance uint64,
 ) error {
-	return mu.Insert(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
+	return mu.Put(ctx, key, binary.BigEndian.AppendUint64(nil, balance))
 }
 
 func AddBalance(
@@ -240,45 +240,45 @@ func SubBalance(
 	if nbal == 0 {
 		// If there is no balance left, we should delete the record instead of
 		// setting it to 0.
-		return mu.Remove(ctx, key)
+		return mu.Delete(ctx, key)
 	}
 	return setBalance(ctx, mu, key, nbal)
 }
 
-func HeightKey() (k []byte) {
+func HeightKey() string {
 	return heightKey
 }
 
-func PHeightKey() (k []byte) {
+func PHeightKey() string {
 	return pHeightKey
 }
 
-func TimestampKey() (k []byte) {
+func TimestampKey() string {
 	return timestampKey
 }
 
-func FeeKey() (k []byte) {
+func FeeKey() string {
 	return feeKey
 }
 
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
+func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) string {
+	k := make([]byte, 1+consts.IDLen*2)
 	k[0] = incomingWarpPrefix
 	copy(k[1:], sourceChainID[:])
 	copy(k[1+consts.IDLen:], msgID[:])
-	return k
+	return string(k)
 }
 
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+func OutgoingWarpKeyPrefix(txID ids.ID) string {
+	k := make([]byte, 1+consts.IDLen)
 	k[0] = outgoingWarpPrefix
 	copy(k[1:], txID[:])
-	return k
+	return string(k)
 }
 
-func EpochKey(epoch uint64) (k []byte) {
-	k = make([]byte, 1+consts.Uint64Len)
+func EpochKey(epoch uint64) string {
+	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = epochPrefix
 	binary.BigEndian.PutUint64(k[1:], epoch)
-	return k
+	return string(k)
 }

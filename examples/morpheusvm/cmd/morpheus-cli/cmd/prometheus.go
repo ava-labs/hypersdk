@@ -52,14 +52,44 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tx_gossip_dropped[5s])/5", chainID))
 			utils.Outf("{{yellow}}transaction gossip dropped per second:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_chunk_gossip_dropped[5s])/5", chainID))
+			utils.Outf("{{yellow}}chunk gossip dropped per second:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_received[5s])/5", chainID))
 			utils.Outf("{{yellow}}transactions received per second:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vm_txs_invalid[5s])/5", chainID))
 			utils.Outf("{{yellow}}invalid transactions processed per second:{{/}} %s\n", panels[len(panels)-1])
 
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes[5s])/5", chainID))
-			utils.Outf("{{yellow}}state changes per second:{{/}} %s\n", panels[len(panels)-1])
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vilmo_batch_init_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_vilmo_batch_init_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}vilmo batch creation latency per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vilmo_batch_init_bytes_sum[5s])/increase(avalanche_%s_vm_hypersdk_vilmo_batch_init_bytes_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}vilmo batch creation bytes written per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vilmo_batch_prepare_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_vilmo_batch_prepare_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}vilmo batch prepare latency per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_tstate_iterate_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_tstate_iterate_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}tstate iteration latency per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vilmo_batch_write_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_vilmo_batch_write_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}vilmo batch write latency per block:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_vilmo_batches_rewritten[5s])/5", chainID))
+			utils.Outf("{{yellow}}vilmo files rewritten per second:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_vilmo_keys", chainID))
+			utils.Outf("{{yellow}}vilmo keys:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_vilmo_alive_bytes", chainID))
+			utils.Outf("{{yellow}}vilmo alive bytes:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_vilmo_useless_bytes", chainID))
+			utils.Outf("{{yellow}}vilmo useless bytes:{{/}} %s\n", panels[len(panels)-1])
+
+			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_state_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_state_changes_count[5s])", chainID, chainID))
+			utils.Outf("{{yellow}}state changes per block:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_repeat_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}repeat wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
@@ -78,12 +108,6 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_commit_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_commit_count[5s])", chainID, chainID))
 			utils.Outf("{{yellow}}commit wait (ms/block):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_root_changes_sum[5s])/increase(avalanche_%s_vm_hypersdk_chain_root_changes_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}root changes (changes/attempt):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_wait_root_sum[5s])/1000000/increase(avalanche_%s_vm_hypersdk_chain_wait_root_count[5s])", chainID, chainID))
-			utils.Outf("{{yellow}}root wait (ms/attempt):{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_remaining_mempool[5s])/5", chainID))
 			utils.Outf("{{yellow}}remaining mempool per second:{{/}} %s\n", panels[len(panels)-1])
@@ -105,12 +129,6 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_data_size", chainID))
 			utils.Outf("{{yellow}}chainData size:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_state_size", chainID))
-			utils.Outf("{{yellow}}state size:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_state_len", chainID))
-			utils.Outf("{{yellow}}state items:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_handler_chits_sum[5s])/1000000/5 + increase(avalanche_%s_handler_notify_sum[5s])/1000000/5 + increase(avalanche_%s_handler_get_sum[5s])/1000000/5 + increase(avalanche_%s_handler_push_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_put_sum[5s])/1000000/5 + increase(avalanche_%s_handler_pull_query_sum[5s])/1000000/5 + increase(avalanche_%s_handler_query_failed_sum[5s])/1000000/5", chainID, chainID, chainID, chainID, chainID, chainID, chainID))
 			utils.Outf("{{yellow}}consensus engine processing (ms/s):{{/}} %s\n", panels[len(panels)-1])
@@ -223,6 +241,9 @@ var generatePrometheusCmd = &cobra.Command{
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_gossip_tx_backlog", chainID))
 			utils.Outf("{{yellow}}gossip transaction backlog:{{/}} %s\n", panels[len(panels)-1])
 
+			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_gossip_chunk_backlog", chainID))
+			utils.Outf("{{yellow}}gossip chunk backlog:{{/}} %s\n", panels[len(panels)-1])
+
 			panels = append(panels, fmt.Sprintf("avalanche_%s_vm_hypersdk_chain_rpc_tx_backlog", chainID))
 			utils.Outf("{{yellow}}RPC transaction backlog:{{/}} %s\n", panels[len(panels)-1])
 
@@ -249,12 +270,6 @@ var generatePrometheusCmd = &cobra.Command{
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executed_block_process_sum[5s])/1000000/5", chainID))
 			utils.Outf("{{yellow}}executed block process [async] (ms/s):{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_intermediate_node_cache_hit[5s]))", chainID, chainID, chainID))
-			utils.Outf("{{yellow}}intermediate node cache hit rate:{{/}} %s\n", panels[len(panels)-1])
-
-			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_state_merkleDB_value_node_cache_hit[5s])/(increase(avalanche_%s_vm_state_merkleDB_value_node_cache_miss[5s]) + increase(avalanche_%s_vm_state_merkleDB_value_node_cache_hit[5s]))", chainID, chainID, chainID))
-			utils.Outf("{{yellow}}value node cache hit rate:{{/}} %s\n", panels[len(panels)-1])
 
 			panels = append(panels, fmt.Sprintf("increase(avalanche_%s_vm_hypersdk_chain_executor_executable[5s]) / (increase(avalanche_%s_vm_hypersdk_chain_executor_blocked[5s]) + increase(avalanche_%s_vm_hypersdk_chain_executor_executable[5s]))", chainID, chainID, chainID))
 			utils.Outf("{{yellow}}txs executable (%%) per second:{{/}} %s\n", panels[len(panels)-1])

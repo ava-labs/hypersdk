@@ -25,15 +25,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/avalanchego/x/merkledb"
-	syncEng "github.com/ava-labs/avalanchego/x/sync"
+	"github.com/ava-labs/hypersdk/vilmo"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
-	"github.com/ava-labs/hypersdk/merkle"
-	"github.com/ava-labs/hypersdk/storage"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ava-labs/hypersdk/pebble"
 
 	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
@@ -69,10 +67,9 @@ type VM struct {
 
 	config         Config
 	genesis        Genesis
-	rawStateDB     database.Database
-	stateDB        *merkle.Merkle
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
+	stateDB        *vilmo.Vilmo
 	handlers       Handlers
 	actionRegistry chain.ActionRegistry
 	authRegistry   chain.AuthRegistry
@@ -128,11 +125,6 @@ type VM struct {
 	preferred    ids.ID
 	lastAccepted *chain.StatelessBlock
 	toEngine     chan<- common.Message
-
-	// State Sync client and AppRequest handlers
-	stateSyncClient        *stateSyncerClient
-	stateSyncNetworkClient syncEng.NetworkClient
-	stateSyncNetworkServer *syncEng.NetworkServer
 
 	// Warp manager fetches signatures from other validators for a given accepted
 	// txID
@@ -234,36 +226,41 @@ func (vm *VM) Initialize(
 	}
 
 	// Instantiate DBs
-	vm.vmDB, vm.blobDB, vm.rawStateDB, err = storage.New(snowCtx.ChainDataDir, gatherer)
+	vmCfg := pebble.NewDefaultConfig()
+	vmCfg.Sync = true
+	vmPath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "vmdb")
 	if err != nil {
 		return err
 	}
-	merkleRegistry := prometheus.NewRegistry()
-	vm.stateDB, err = merkle.New(ctx, vm.rawStateDB, merkledb.Config{
-		BranchFactor: vm.genesis.GetStateBranchFactor(),
-		// RootGenConcurrency limits the number of goroutines
-		// that will be used across all concurrent root generations.
-		RootGenConcurrency:          uint(vm.config.GetRootGenerationCores()),
-		HistoryLength:               uint(vm.config.GetStateHistoryLength()),
-		ValueNodeCacheSize:          uint(vm.config.GetValueNodeCacheSize()),
-		IntermediateNodeCacheSize:   uint(vm.config.GetIntermediateNodeCacheSize()),
-		IntermediateWriteBufferSize: uint(vm.config.GetStateIntermediateWriteBufferSize()),
-		IntermediateWriteBatchSize:  uint(vm.config.GetStateIntermediateWriteBatchSize()),
-		Reg:                         merkleRegistry,
-		TraceLevel:                  merkledb.InfoTrace,
-		Tracer:                      vm.tracer,
-	})
+	vmDB, vmDBRegistry, err := pebble.New(vmPath, vmCfg)
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("state", merkleRegistry); err != nil {
+	if gatherer != nil {
+		if err := gatherer.Register("vmdb", vmDBRegistry); err != nil {
+			return err
+		}
+	}
+	vm.vmDB = vmDB
+	blobPath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "blobdb")
+	if err != nil {
 		return err
 	}
+	blobDB := filedb.New(blobPath, true, 1024, 1*units.GiB) // TODO: make configurable
+	if err != nil {
+		return err
+	}
+	vm.blobDB = blobDB
+	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
+	stateDB, _, err := vilmo.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
+	if err != nil {
+		return err
+	}
+	// TODO: rollback to last checksum on unclean shutdown
+	vm.stateDB = stateDB
 
 	// Track size of [chainData]
 	go vm.trackChainDataSize()
-
-	// TODO: Compare stateDB with vmDB to determine if any reprocessing is necessary
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
@@ -322,23 +319,29 @@ func (vm *VM) Initialize(
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
+		// Prepare Vilmo
+		batch, err := stateDB.NewBatch()
+		if err != nil {
+			return err
+		}
+		batch.Prepare() // should be a no-op
+
 		// Set balances and compute genesis root
-		if err := vm.genesis.Load(ctx, vm.tracer, vm.stateDB); err != nil {
+		if err := vm.genesis.Load(ctx, vm.tracer, batch); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}
 
 		// Update chain metadata
-		if err := vm.stateDB.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := batch.Put(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := vm.stateDB.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
+		if err := batch.Put(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, uint64(chain.GenesisTime))); err != nil {
 			return err
 		}
 
 		// Commit genesis block post-execution state and compute root
-		commit, _ := vm.stateDB.PrepareCommit(ctx)
-		root, err := commit(ctx)
+		checksum, err := batch.Write()
 		if err != nil {
 			return err
 		}
@@ -346,7 +349,7 @@ func (vm *VM) Initialize(
 		// Create genesis block
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
-			chain.NewGenesisBlock(root),
+			chain.NewGenesisBlock(checksum),
 			nil,
 			choices.Accepted,
 			vm,
@@ -366,7 +369,7 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis",
 			zap.Stringer("block", gBlkID),
-			zap.Stringer("root", root),
+			zap.Stringer("checksum", checksum),
 		)
 	}
 	go vm.processExecutedChunks()
@@ -375,28 +378,6 @@ func (vm *VM) Initialize(
 	// Setup chain engine
 	vm.engine = chain.NewEngine(vm, 128)
 	go vm.engine.Run()
-
-	// Setup state syncing
-	stateSyncHandler, stateSyncSender := vm.networkManager.Register()
-	syncRegistry := prometheus.NewRegistry()
-	vm.stateSyncNetworkClient, err = syncEng.NewNetworkClient(
-		stateSyncSender,
-		vm.snowCtx.NodeID,
-		int64(vm.config.GetStateSyncParallelism()),
-		vm.Logger(),
-		"",
-		syncRegistry,
-		&version.Application{}, // TODO: populate this
-	)
-	if err != nil {
-		return err
-	}
-	if err := gatherer.Register("sync", syncRegistry); err != nil {
-		return err
-	}
-	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
-	vm.stateSyncNetworkServer = syncEng.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
-	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -430,10 +411,16 @@ func (vm *VM) trackChainDataSize() {
 			vm.metrics.chainDataSize.Set(float64(size))
 			vm.snowCtx.Log.Info("chainData size", zap.String("size", humanize.Bytes(size)), zap.Duration("t", time.Since(start)))
 
-			stateLen, stateSize := vm.stateDB.Usage()
-			vm.metrics.stateLen.Set(float64(stateLen))
-			vm.metrics.stateSize.Set(float64(stateSize))
-			vm.snowCtx.Log.Info("stateDB size", zap.Int("len", stateLen), zap.String("size", humanize.Bytes(stateSize)))
+			keys, aliveBytes, uselessBytes := vm.stateDB.Usage()
+			vm.metrics.appendDBKeys.Set(float64(keys))
+			vm.metrics.appendDBAliveBytes.Set(float64(aliveBytes))
+			vm.metrics.appendDBUselessBytes.Set(float64(uselessBytes))
+			vm.snowCtx.Log.Info(
+				"stateDB size",
+				zap.Int("len", keys),
+				zap.String("alive", humanize.Bytes(uint64(aliveBytes))),
+				zap.String("useless", humanize.Bytes(uint64(uselessBytes))),
+			)
 		case <-vm.stop:
 			return
 		}
@@ -441,18 +428,6 @@ func (vm *VM) trackChainDataSize() {
 }
 
 func (vm *VM) markReady() {
-	// Wait for state syncing to complete
-	select {
-	case <-vm.stop:
-		return
-	case <-vm.stateSyncClient.done:
-	}
-
-	// We can begin partailly verifying blocks here because
-	// we have the full state but can't detect duplicate transactions
-	// because we haven't yet observed a full [ValidityWindow].
-	vm.snowCtx.Log.Info("state sync client ready")
-
 	// Wait for a full [ValidityWindow] before
 	// we are willing to vote on blocks.
 	select {
@@ -461,16 +436,10 @@ func (vm *VM) markReady() {
 	case <-vm.seenValidityWindow:
 	}
 	vm.snowCtx.Log.Info("validity window ready")
-	if vm.stateSyncClient.Started() {
-		vm.toEngine <- common.StateSyncDone
-	}
 	close(vm.ready)
 
 	// Mark node ready and attempt to build a block.
-	vm.snowCtx.Log.Info(
-		"node is now ready",
-		zap.Bool("synced", vm.stateSyncClient.Started()),
-	)
+	vm.snowCtx.Log.Info("node is now ready")
 }
 
 func (vm *VM) isReady() bool {
@@ -484,7 +453,7 @@ func (vm *VM) isReady() bool {
 }
 
 // ReadState reads the latest executed state
-func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+func (vm *VM) ReadState(ctx context.Context, keys []string) ([][]byte, []error) {
 	if !vm.isReady() {
 		return hutils.Repeat[[]byte](nil, len(keys)), hutils.Repeat(ErrNotReady, len(keys))
 	}
@@ -494,48 +463,18 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 
 func (vm *VM) SetState(_ context.Context, state snow.State) error {
 	switch state {
-	case snow.StateSyncing:
-		vm.Logger().Info("state sync started")
-		return nil
 	case snow.Bootstrapping:
-		// Ensure state sync client marks itself as done if it was never started
-		syncStarted := vm.stateSyncClient.Started()
-		if !syncStarted {
-			// We must check if we finished syncing before starting bootstrapping.
-			// This should only ever occur if we began a state sync, restarted, and
-			// were unable to find any acceptable summaries.
-			syncing, err := vm.GetDiskIsSyncing()
-			if err != nil {
-				vm.Logger().Error("could not determine if syncing", zap.Error(err))
-				return err
-			}
-			if syncing {
-				vm.Logger().Error("cannot start bootstrapping", zap.Error(ErrStateSyncing))
-				// This is a fatal error that will require retrying sync or deleting the
-				// node database.
-				return ErrStateSyncing
-			}
-
-			// If we weren't previously syncing, we force state syncer completion so
-			// that the node will mark itself as ready.
-			vm.stateSyncClient.ForceDone()
-
-			// TODO: add a config to FATAL here if could not state sync (likely won't be
-			// able to recover in networks where no one has the full state, bypass
-			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
-		}
-
 		// Backfill seen transactions, if any. This will exit as soon as we reach
 		// a block we no longer have on disk or if we have walked back the full
 		// [ValidityWindow].
 		vm.backfillSeenTransactions()
 
 		// Trigger that bootstrapping has started
-		vm.Logger().Info("bootstrapping started", zap.Bool("state sync started", syncStarted))
+		vm.Logger().Info("bootstrapping started")
 		return vm.onBootstrapStarted()
 	case snow.NormalOp:
 		vm.Logger().
-			Info("normal operation started", zap.Bool("state sync started", vm.stateSyncClient.Started()))
+			Info("normal operation started")
 		return vm.onNormalOperationsStarted()
 	default:
 		return snow.ErrUnknownState
@@ -551,7 +490,6 @@ func (vm *VM) onBootstrapStarted() error {
 // ForceReady is used in integration testing
 func (vm *VM) ForceReady() {
 	// Only works if haven't already started syncing
-	vm.stateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
 		close(vm.seenValidityWindow)
 	})
@@ -569,11 +507,6 @@ func (vm *VM) onNormalOperationsStarted() error {
 // implements "block.ChainVM.common.VM"
 func (vm *VM) Shutdown(ctx context.Context) error {
 	close(vm.stop)
-
-	// Shutdown state sync client if still running
-	if err := vm.stateSyncClient.Shutdown(); err != nil {
-		return err
-	}
 
 	// Shutdown engine
 	vm.engine.Done()
@@ -607,7 +540,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	errs.Add(
 		vm.vmDB.Close(),
 		vm.stateDB.Close(),
-		vm.rawStateDB.Close(),
 		vm.blobDB.Close(),
 	)
 	return errs.Err

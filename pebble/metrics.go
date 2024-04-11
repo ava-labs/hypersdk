@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/cockroachdb/pebble"
+	"github.com/patrick-ogrady/pebble"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

@@ -20,6 +20,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/utils"
 )
@@ -199,7 +200,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, error) {
 	// Construct rules
-	now := time.Now().UnixMilli()
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	rules := parser.Rules(now)
 
 	// Not safe to call [rand] concurrently, so we create our own instance
