@@ -46,10 +46,6 @@ func (d *dll) Add(r *record) {
 }
 
 func (d *dll) Remove(r *record) {
-	// Clean record
-	r.prev = nil
-	r.next = nil
-
 	// Remove from linked list
 	if r.prev == nil {
 		d.first = r.next

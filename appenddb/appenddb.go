@@ -269,11 +269,12 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok {
-				a.batches[r.batch].Remove(r, r.batch < file)
-			} else {
+			if !ok {
 				return errors.New("invalid delete")
 			}
+
+			// Drop this key from our tracking and mark the operation as useless
+			a.batches[r.batch].Remove(r, r.batch < file)
 			delete(a.keys, key)
 			t.uselessBytes += opDeleteLen(key)
 			cursor = newCursor
@@ -318,9 +319,13 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok {
-				a.batches[r.batch].Remove(r, false)
+			if !ok {
+				return errors.New("nullifying unset key")
 			}
+
+			// opNullify means this key will be set later, so let's delete our reference for now
+			a.batches[r.batch].Remove(r, false)
+			delete(a.keys, key)
 			t.uselessBytes += opNullifyLen(key)
 			cursor = newCursor
 		default:
@@ -795,6 +800,7 @@ func (b *Batch) Prepare() (int64, bool) {
 		iter := b.t.alive.Iterator()
 		for next := iter.Next(); next != nil; {
 			next.batch = b.batch
+			// b.a.logger.Debug("iter", zap.String("key", next.key), zap.Uint64("batch", next.batch))
 		}
 	}
 
@@ -843,6 +849,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// Check if key even exists
 	past, ok := b.a.keys[key]
 	if !ok {
+		b.a.logger.Debug("attempted to delete non-existent key", zap.String("key", key))
 		return nil
 	}
 
@@ -950,12 +957,19 @@ func (a *AppendDB) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes
 		aliveBytes   int64
 		uselessBytes int64
 	)
-	for _, batch := range a.batches {
+	for n, batch := range a.batches {
 		aliveBytes += batch.aliveBytes
 
 		// This includes pending nullifies and may be a little inaccurate as to what
 		// is actually on-disk.
 		uselessBytes += batch.uselessBytes
+		a.logger.Debug(
+			"batch usage",
+			zap.Uint64("batch", n),
+			zap.Int64("alive", batch.aliveBytes),
+			zap.Int64("useless", batch.uselessBytes),
+			zap.Int64("total", batch.aliveBytes+batch.uselessBytes),
+		)
 	}
 	return len(a.keys), aliveBytes, uselessBytes
 }
