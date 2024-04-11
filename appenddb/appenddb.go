@@ -42,7 +42,8 @@ const (
 	// We only utilize an op if it is newer (newer batch) than the one currently stored.
 	opPut      = uint8(0) // keyLen|key|valueLen|value
 	opDelete   = uint8(1) // keyLen|key
-	opChecksum = uint8(2) // checksum
+	opBatch    = uint8(2) // batch (starts all segments)
+	opChecksum = uint8(3) // checksum (ends all segments)
 
 	batchBufferSize       = 16 // just need to be big enough for any binary numbers
 	minDiskValueSize      = 64
@@ -167,26 +168,34 @@ func opDeleteLen(key string) int64 {
 	return int64(consts.Uint8Len + consts.Uint16Len + len(key))
 }
 
-func opChecksumLen() int64 {
-	return int64(consts.Uint8Len + consts.Uint64Len + ids.IDLen)
+func opBatchLen() int64 {
+	return int64(consts.Uint8Len + consts.Uint64Len)
 }
 
-func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, ids.ID, int64, error) {
+func opChecksumLen() int64 {
+	return int64(consts.Uint8Len + ids.IDLen)
+}
+
+func readBatch(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, int64, error) {
 	op := make([]byte, consts.Uint64Len)
 	if _, err := io.ReadFull(reader, op); err != nil {
-		return 0, ids.Empty, -1, err
+		return 0, -1, err
 	}
 	if _, err := hasher.Write(op); err != nil {
-		return 0, ids.Empty, -1, err
+		return 0, -1, err
 	}
 	cursor += int64(len(op))
 	batch := binary.BigEndian.Uint64(op)
-	op = make([]byte, sha256.Size)
+	return batch, cursor, nil
+}
+
+func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (ids.ID, int64, error) {
+	op := make([]byte, sha256.Size)
 	if _, err := io.ReadFull(reader, op); err != nil {
-		return 0, ids.Empty, -1, err
+		return ids.Empty, -1, err
 	}
 	cursor += int64(len(op))
-	return batch, ids.ID(op), cursor, nil
+	return ids.ID(op), cursor, nil
 }
 
 func (a *AppendDB) loadBatch(
@@ -215,12 +224,18 @@ func (a *AppendDB) loadBatch(
 		fileSize = int64(fi.Size())
 		cursor   = int64(0)
 		hasher   = sha256.New()
+
+		lastBatch uint64
+		batchSet  bool
 	)
 	a.batches[file] = t
 	for {
 		op, newCursor, err := readOp(reader, cursor, hasher)
 		if err != nil {
 			return err
+		}
+		if op != opBatch && !batchSet {
+			return fmt.Errorf("%w: batch not found", ErrCorrupt)
 		}
 		switch op {
 		case opPut:
@@ -229,12 +244,16 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok {
+			if ok && lastBatch > r.batch {
 				a.batches[r.batch].Remove(r)
 				r.batch = file
-			} else {
+			} else if !ok {
 				r = &record{batch: file, key: key}
 				a.keys[key] = r
+			} else {
+				t.uselessBytes += opPutLen(key, value)
+				cursor = newCursor
+				continue
 			}
 			if len(value) >= minDiskValueSize {
 				r.value = nil
@@ -254,7 +273,7 @@ func (a *AppendDB) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
-			if ok {
+			if ok && lastBatch > r.batch {
 				// Drop this key from our tracking and mark the operation as useless
 				a.batches[r.batch].Remove(r)
 				delete(a.keys, key)
@@ -264,8 +283,22 @@ func (a *AppendDB) loadBatch(
 
 			t.uselessBytes += opDeleteLen(key)
 			cursor = newCursor
+		case opBatch:
+			batch, newCursor, err := readBatch(reader, newCursor, hasher)
+			if err != nil {
+				return err
+			}
+			if batchSet {
+				return fmt.Errorf("%w: multiple batch set operations", ErrCorrupt)
+			}
+			if lastBatch != 0 && batch != lastBatch+uint64(a.historyLen) {
+				return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
+			}
+			lastBatch = batch
+			t.uselessBytes += opBatchLen()
+			cursor = newCursor
 		case opChecksum:
-			batch, checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
+			checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
 			if err != nil {
 				return err
 			}
@@ -277,8 +310,8 @@ func (a *AppendDB) loadBatch(
 
 			// Check if we should leave the file
 			if cursor == fileSize {
-				if batch != file {
-					return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, batch)
+				if lastBatch != file {
+					return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, lastBatch)
 				}
 				mf, err := mmap.Open(path)
 				if err != nil {
@@ -294,6 +327,7 @@ func (a *AppendDB) loadBatch(
 			if _, err := hasher.Write(checksum[:]); err != nil {
 				return err
 			}
+			batchSet = false
 		default:
 			return fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
 		}
@@ -508,7 +542,7 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
 	b.t.alive = &dll{}
-	return b, nil
+	return b, b.writeBatch()
 }
 
 func (b *Batch) writeBuffer(value []byte, hash bool) error {
@@ -561,6 +595,9 @@ func (b *Batch) recycle() (bool, error) {
 		}
 		b.f = f
 		b.writer = newWriter(f, 0, b.a.bufferSize)
+		if err := b.writeBatch(); err != nil {
+			return false, err
+		}
 
 		// Iterate over alive records and add them to the batch file
 		b.t.alive = &dll{}
@@ -617,7 +654,7 @@ func (b *Batch) recycle() (bool, error) {
 		return false, err
 	}
 	b.t.alive = previous.alive
-	return true, nil
+	return true, b.writeBatch()
 }
 
 // TODO: make this a true abort as long as called before Prepare
@@ -670,14 +707,23 @@ func (b *Batch) writePut(key string, value []byte) (int64, error) {
 	return valueStart, errs.Err
 }
 
+func (b *Batch) writeBatch() error {
+	// Write to disk
+	errs := &wrappers.Errs{}
+	b.buf = b.buf[:1]
+	b.buf[0] = opBatch
+	errs.Add(b.writeBuffer(b.buf, true))
+	b.buf = b.buf[:consts.Uint64Len]
+	binary.BigEndian.PutUint64(b.buf, b.batch)
+	errs.Add(b.writeBuffer(b.buf, true))
+	return errs.Err
+}
+
 func (b *Batch) writeChecksum() (ids.ID, error) {
 	// Write to disk
 	errs := &wrappers.Errs{}
 	b.buf = b.buf[:1]
 	b.buf[0] = opChecksum
-	errs.Add(b.writeBuffer(b.buf, true))
-	b.buf = b.buf[:consts.Uint64Len]
-	binary.BigEndian.PutUint64(b.buf, b.batch)
 	errs.Add(b.writeBuffer(b.buf, true))
 	checksum := ids.ID(b.hasher.Sum(nil))
 	errs.Add(b.writeBuffer(checksum[:], false))
