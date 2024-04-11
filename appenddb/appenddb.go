@@ -274,6 +274,8 @@ func (a *AppendDB) loadBatch(
 				a.batches[r.batch].Remove(r, r.batch < file)
 				delete(a.keys, key)
 			}
+			// It is ok if the key doesn't exist when processing a delete op as we may be processing
+			// an old batch that has been reused.
 
 			t.uselessBytes += opDeleteLen(key)
 			cursor = newCursor
