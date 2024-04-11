@@ -720,10 +720,7 @@ func (b *Batch) writePut(key string, value []byte) (int64, error) {
 	errs.Add(b.writeBuffer(b.buf, true))
 	valueStart := b.cursor
 	errs.Add(b.writeBuffer(value, true))
-	if errs.Err != nil {
-		return -1, errs.Err
-	}
-	return valueStart, nil
+	return valueStart, errs.Err
 }
 
 func (b *Batch) writeNullify(key string) error {
@@ -741,10 +738,7 @@ func (b *Batch) writeNullify(key string) error {
 	binary.BigEndian.PutUint16(b.buf, uint16(len(key)))
 	errs.Add(b.writeBuffer(b.buf, true))
 	errs.Add(b.writeBuffer([]byte(key), true))
-	if errs.Err != nil {
-		return errs.Err
-	}
-	return nil
+	return errs.Err
 }
 
 func (b *Batch) writeChecksum() (ids.ID, error) {
@@ -758,10 +752,7 @@ func (b *Batch) writeChecksum() (ids.ID, error) {
 	errs.Add(b.writeBuffer(b.buf, true))
 	checksum := ids.ID(b.hasher.Sum(nil))
 	errs.Add(b.writeBuffer(checksum[:], false))
-	if errs.Err != nil {
-		return ids.Empty, errs.Err
-	}
-	return checksum, nil
+	return checksum, errs.Err
 }
 
 // Prepare should be called right before we begin writing to the batch. As soon as
