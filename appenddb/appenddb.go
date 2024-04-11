@@ -543,7 +543,9 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	if err := b.writeBatch(); err != nil {
 		return nil, err
 	}
-	b.t.uselessBytes += opBatchLen()
+	opLen := opBatchLen()
+	b.openWrites += opLen
+	b.t.uselessBytes += opLen
 	return b, nil
 }
 
@@ -600,7 +602,9 @@ func (b *Batch) recycle() (bool, error) {
 		if err := b.writeBatch(); err != nil {
 			return false, err
 		}
-		b.t.uselessBytes += opBatchLen()
+		opLen := opBatchLen()
+		b.openWrites += opLen
+		b.t.uselessBytes += opLen
 
 		// Iterate over alive records and add them to the batch file
 		b.t.alive = &dll{}
@@ -660,7 +664,9 @@ func (b *Batch) recycle() (bool, error) {
 	if err := b.writeBatch(); err != nil {
 		return false, err
 	}
-	b.t.uselessBytes += opBatchLen()
+	opLen := opBatchLen()
+	b.openWrites += opLen
+	b.t.uselessBytes += opLen
 	return true, nil
 }
 
