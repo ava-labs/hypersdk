@@ -40,7 +40,7 @@ if ! aws sts get-caller-identity >/dev/null 2>&1 ; then
 fi
 
 # Set AvalancheGo Build (should have canPop disabled)
-AVALANCHEGO_COMMIT=d8ca8137975ec3940ea6b4a7e341cbdfcb3f4930
+AVALANCHEGO_COMMIT=29d8a7b11aa8dbaff90ea4d8e1d41524a593f68a
 
 # Create temporary directory for the deployment
 TMPDIR=/tmp/morpheusvm-deploy
@@ -48,8 +48,8 @@ rm -rf $TMPDIR && mkdir -p $TMPDIR
 echo -e "${YELLOW}set working directory:${NC} $TMPDIR"
 
 # Install avalanche-cli
-LOCAL_CLI_COMMIT=cebf8376e42a4a6b90c66761fca3313ee2fce712
-REMOTE_CLI_COMMIT=v1.4.3-rc.2
+LOCAL_CLI_COMMIT=v1.5.1
+REMOTE_CLI_COMMIT=v1.5.1
 cd $TMPDIR
 git clone https://github.com/ava-labs/avalanche-cli
 cd avalanche-cli
@@ -59,7 +59,7 @@ mv ./bin/avalanche "${TMPDIR}/avalanche"
 cd $pw
 
 # Install morpheus-cli
-MORPHEUS_VM_COMMIT=9622510bddce9f7b0ed43dc23645ea9a859e206e
+MORPHEUS_VM_COMMIT=4d108755ecf3202f21a596e3d4fca22c3f857a79
 echo -e "${YELLOW}building morpheus-cli${NC}"
 cd $TMPDIR
 git clone https://github.com/ava-labs/hypersdk
@@ -118,18 +118,18 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "mempoolSize": 2147483648,
   "mempoolSponsorSize": 10000000,
   "authExecutionCores": 16,
-  "precheckCores": 8,
+  "precheckCores": 16,
   "actionExecutionCores": 8,
-  "rootGenerationCores": 16,
   "missingChunkFetchers": 48,
   "verifyAuth": true,
-  "authRPCCores": 32,
+  "authRPCCores": 48,
   "authRPCBacklog": 10000000,
   "authGossipCores": 16,
   "authGossipBacklog": 10000000,
   "chunkStorageCores": 16,
   "chunkStorageBacklog": 10000000,
   "streamingBacklogSize": 10000000,
+  "continuousProfilerDir":"/home/ubuntu/morpheusvm-profiles",
   "logLevel": "INFO"
 }
 EOF
@@ -161,9 +161,9 @@ cat <<EOF > "${TMPDIR}"/node.config
   "throttler-outbound-node-max-at-large-bytes":"10737418240",
   "consensus-on-accept-gossip-validator-size":"10",
   "consensus-on-accept-gossip-peer-size":"10",
-  "network-compression-type":"none",
-  "consensus-app-concurrency":"64",
-  "profile-continuous-enabled":false,
+  "network-compression-type":"zstd",
+  "consensus-app-concurrency":"128",
+  "profile-continuous-enabled":true,
   "profile-continuous-freq":"1m",
   "http-host":"",
   "http-allowed-origins": "*",
@@ -181,7 +181,7 @@ trap cleanup EXIT
 #
 # It is not recommended to use an instance with burstable network performance.
 echo -e "${YELLOW}creating devnet${NC}"
-$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.16xlarge --aws-volume-type=io2 --aws-iops=1000 --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
+$TMPDIR/avalanche node devnet wiz ${CLUSTER} ${VMID} --aws --node-type c7g.8xlarge --aws-volume-type=io2 --aws-iops=2000 --aws-volume-size=100 --num-apis 1,1,1,1,1 --num-validators 5,5,5,5,5 --region us-west-2,us-east-1,ap-south-1,ap-northeast-1,eu-west-1 --use-static-ip=false --enable-monitoring --default-validator-params --custom-avalanchego-version $AVALANCHEGO_COMMIT --custom-vm-repo-url="https://www.github.com/ava-labs/hypersdk" --custom-vm-branch $VM_COMMIT --custom-vm-build-script="examples/morpheusvm/scripts/build.sh" --custom-subnet=true --subnet-genesis="${TMPDIR}/morpheusvm.genesis" --subnet-config="${TMPDIR}/morpheusvm.genesis" --chain-config="${TMPDIR}/morpheusvm.config" --node-config="${TMPDIR}/node.config" --remote-cli-version $REMOTE_CLI_COMMIT --grafana-pkg="https://dl.grafana.com/oss/release/grafana_10.4.1_arm64.deb" --add-grafana-dashboard="${TMPDIR}/hypersdk/examples/morpheusvm/grafana.json"
 EPOCH_WAIT_START=$(date +%s)
 
 # Import the cluster into morpheus-cli for local interaction
@@ -199,7 +199,7 @@ sleep $SLEEP_DUR
 #
 # Zipf parameters expected to lead to ~1M active accounts per 60s
 echo -e "\n${YELLOW}starting load test...${NC}"
-$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.1 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
+$TMPDIR/avalanche node loadtest start "default" ${CLUSTER} ${VMID} --region eu-west-1 --aws --node-type c7gn.8xlarge --load-test-repo="https://github.com/ava-labs/hypersdk" --load-test-branch=$VM_COMMIT --load-test-build-cmd="cd /home/ubuntu/hypersdk/examples/morpheusvm; CGO_CFLAGS=\"-O -D__BLST_PORTABLE__\" go build -o ~/simulator ./cmd/morpheus-cli" --load-test-cmd="/home/ubuntu/simulator spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.0001 --v-zipf=2.7 --conns-per-host=10 --cluster-info=/home/ubuntu/clusterInfo.yaml --private-key=323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7"
 
 # Log dashboard information
 echo -e "\n\n${CYAN}dashboards:${NC} (username: admin, password: admin)"

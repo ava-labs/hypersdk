@@ -7,45 +7,75 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/smap"
 )
 
+type change struct {
+	chunkIdx int
+	txIdx    int
+	v        maybe.Maybe[[]byte]
+}
+
 // TState defines a struct for storing temporary state.
 type TState struct {
-	changedKeys *smap.SMap[maybe.Maybe[[]byte]]
+	viewKeys    [][][]string
+	changedKeys *smap.SMap[*change]
 }
 
 // New returns a new instance of TState.
-//
-// [changedSize] is an estimate of the number of keys that will be changed and is
-// used to optimize the creation of [ExportMerkleDBView].
 func New(changedSize int) *TState {
-	return &TState{changedKeys: smap.New[maybe.Maybe[[]byte]](changedSize)}
+	return &TState{
+		viewKeys:    make([][][]string, 1024), // set to max chunks that could ever be in a single block
+		changedKeys: smap.New[*change](changedSize),
+	}
 }
 
 func (ts *TState) getChangedValue(_ context.Context, key string) ([]byte, bool, bool) {
 	if v, ok := ts.changedKeys.Get(key); ok {
-		if v.IsNothing() {
+		if v.v.IsNothing() {
 			return nil, true, false
 		}
-		return v.Value(), true, true
+		return v.v.Value(), true, true
 	}
 	return nil, false, false
 }
 
-// Insert should only be called if you know what you are doing (updates
-// here may not be reflected in get calls in tstate views and/or may overwrite
-// identical keys on disk).
-func (ts *TState) Insert(ctx context.Context, key, value []byte) error {
-	if !keys.VerifyValue(key, value) {
-		return ErrInvalidKeyValue
-	}
-
-	ts.changedKeys.Put(string(key), maybe.Some(value)) // we don't care if key is equivalent to key on-disk or in `changedKeys`
-	return nil
+func (ts *TState) PrepareChunk(idx, size int) {
+	ts.viewKeys[idx] = make([][]string, size)
 }
 
-func (ts *TState) Keys() *smap.SMap[maybe.Maybe[[]byte]] {
-	return ts.changedKeys
+// Iterate over changes in deterministic order
+//
+// Iterate should only be called once tstate is done being modified.
+func (ts *TState) Iterate(f func(string, maybe.Maybe[[]byte]) error) error {
+	// TODO: make naming more generic
+	for chunkIdx, txs := range ts.viewKeys {
+		if txs == nil {
+			// Once we run out of views, exit
+			break
+		}
+
+		for txIdx, keys := range txs {
+			// Skip invalid txs
+			if keys == nil {
+				continue
+			}
+
+			// Ensure we iterate deterministically
+			for _, key := range keys {
+				v, ok := ts.changedKeys.Get(key)
+				if !ok {
+					continue
+				}
+				if v.chunkIdx != chunkIdx || v.txIdx != txIdx {
+					// If we weren't the latest modification, skip
+					continue
+				}
+				if err := f(key, v.v); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }

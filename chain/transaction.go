@@ -146,12 +146,12 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.WarpMessage != nil {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(string(k), state.Read|state.Write)
+		stateKeys.Add(k, state.Read|state.Write)
 	}
 	if t.Action.OutputsWarpMessage() {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(string(k), state.Write)
+		stateKeys.Add(k, state.Write)
 	}
 
 	// Cache keys if called again
@@ -193,7 +193,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (Dimensions, error) {
 	writesOp := math.NewUint64Operator(0)
 	for k, perms := range stateKeys {
 		// Compute value costs
-		maxChunks, ok := keys.MaxChunks([]byte(k))
+		maxChunks, ok := keys.MaxChunks(k)
 		if !ok {
 			return Dimensions{}, ErrInvalidKeyValue
 		}
@@ -361,7 +361,7 @@ func (t *Transaction) Execute(
 	if t.WarpMessage != nil {
 		p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		_, err := ts.GetValue(ctx, k)
+		_, err := ts.Get(ctx, k)
 		switch {
 		case err == nil:
 			// Override all errors because warp message is a duplicate
@@ -426,7 +426,7 @@ func (t *Transaction) Execute(
 		if t.WarpMessage != nil {
 			p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 			k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-			if err := ts.Insert(ctx, k, nil); err != nil {
+			if err := ts.Put(ctx, k, nil); err != nil {
 				return handleRevert(err)
 			}
 		}
@@ -445,7 +445,7 @@ func (t *Transaction) Execute(
 			// we pre-reserve this key for the processor).
 			p := s.OutgoingWarpKeyPrefix(t.id)
 			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-			if err := ts.Insert(ctx, k, warpMessage.Bytes()); err != nil {
+			if err := ts.Put(ctx, k, warpMessage.Bytes()); err != nil {
 				return handleRevert(err)
 			}
 		}

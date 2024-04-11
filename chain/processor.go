@@ -90,7 +90,7 @@ func (p *Processor) process(ctx context.Context, chunkIndex int, txIndex int, pc
 		//
 		// It is critical we explicitly set the scope before each transaction is
 		// processed
-		tsv := p.ts.NewView(p.im, stateKeys)
+		tsv := p.ts.NewView(chunkIndex, txIndex, p.im, stateKeys)
 
 		// Deduct fees
 		sponsor := tx.Auth.Sponsor()
@@ -171,6 +171,10 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	ctx, span := p.vm.Tracer().Start(ctx, "Processor.Add")
 	defer span.End()
 
+	// Prepare TState
+	chunkTxs := len(chunk.Txs)
+	p.ts.PrepareChunk(chunkIndex, chunkTxs)
+
 	// Kickoff async signature verification (auth + warp)
 	//
 	// Wait to start any disk lookup until signature verification is done for that transaction.
@@ -180,7 +184,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	//
 	// Don't wait for all transactions to finish verification to kickoff execution (should
 	// be interleaved).
-	chunkTxs := len(chunk.Txs)
 	p.results[chunkIndex] = make([]*Result, chunkTxs)
 
 	// Verify chunk signatures
@@ -199,12 +202,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	//
 	// All of these can be avoided by chunk producer.
 	repeatStart := time.Now()
-	repeats, err := p.eng.IsRepeatTx(ctx, chunk.Txs, set.NewBits())
-	if err != nil {
-		p.vm.Logger().Warn("chunk has repeat transaction", zap.Stringer("chunk", chunk.ID()), zap.Error(err))
-		p.markChunkTxsInvalid(chunkIndex, chunkTxs)
-		return
-	}
+	repeats := p.vm.IsRepeatTx(ctx, chunk.Txs, set.NewBits()) // checks prior to block
 	p.repeatWait += time.Since(repeatStart)
 	chunkUnits, err := chunk.Units(p.sm, p.r)
 	if err != nil {
