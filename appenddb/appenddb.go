@@ -90,11 +90,11 @@ func (t *tracker) Remove(record *record, addNullify bool) {
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
 type AppendDB struct {
-	logger     logging.Logger
-	baseDir    string
-	batchSize  int
-	bufferSize int
-	historyLen int
+	logger      logging.Logger
+	baseDir     string
+	nullifySize int
+	bufferSize  int
+	historyLen  int
 
 	commitLock  sync.RWMutex
 	oldestBatch *uint64
@@ -224,7 +224,7 @@ func (a *AppendDB) loadBatch(
 		t = &tracker{
 			db:             a,
 			alive:          &dll{},
-			pendingNullify: make([]string, 0, a.batchSize),
+			pendingNullify: make([]string, 0, a.nullifySize),
 		}
 
 		fileSize = int64(fi.Size())
@@ -306,7 +306,10 @@ func (a *AppendDB) loadBatch(
 
 			// Refresh [pendingNullify] to avoid hanging on to references to old
 			// keys.
-			t.pendingNullify = make([]string, 0, a.batchSize)
+			if c := cap(t.pendingNullify); c > a.nullifySize {
+				a.nullifySize = c
+			}
+			t.pendingNullify = make([]string, 0, a.nullifySize)
 
 			// Initialize hasher for next batch (assuming continues)
 			hasher = sha256.New()
@@ -377,11 +380,11 @@ func New(
 
 	// Instantiate DB
 	adb := &AppendDB{
-		logger:     log,
-		baseDir:    baseDir,
-		batchSize:  batchSize,
-		bufferSize: bufferSize,
-		historyLen: historyLen,
+		logger:      log,
+		baseDir:     baseDir,
+		nullifySize: batchSize,
+		bufferSize:  bufferSize,
+		historyLen:  historyLen,
 
 		keys:    make(map[string]*record, initialSize),
 		batches: make(map[uint64]*tracker, historyLen+1),
@@ -544,7 +547,7 @@ func (a *AppendDB) NewBatch() (*Batch, error) {
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
 	b.t.alive = &dll{}
-	b.t.pendingNullify = make([]string, 0, b.a.batchSize)
+	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 	return b, nil
 }
 
@@ -634,7 +637,7 @@ func (b *Batch) recycle() (bool, error) {
 		}
 
 		// Nullifications aren't used when rewriting the file but we still need to drop them
-		b.t.pendingNullify = make([]string, 0, b.a.batchSize)
+		b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 		return true, nil
 	}
 
@@ -661,16 +664,21 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Add to existing file
 	b.t.alive = previous.alive
-	for i, key := range b.t.pendingNullify {
+	for _, key := range b.t.pendingNullify {
 		if err := b.writeNullify(key); err != nil {
 			return false, err
 		}
 		// We already incremented [uselessBytes] when calling [tracker.Remove], so we don't
 		// call it again here.
 		b.openWrites += opNullifyLen(key)
-		b.t.pendingNullify[i] = "" // clear memory for GC
 	}
-	b.t.pendingNullify = b.t.pendingNullify[:0] // reuse slice given we've already zero'd it
+
+	// If we are nullifying more data than expected, begin allocating larger slices
+	// to prevent growing during batch.
+	if c := cap(b.t.pendingNullify); c > b.a.nullifySize {
+		b.a.nullifySize = c
+	}
+	b.t.pendingNullify = make([]string, 0, b.a.nullifySize)
 	return true, nil
 }
 
