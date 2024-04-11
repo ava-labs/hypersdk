@@ -53,8 +53,17 @@ type tracker struct {
 	db     *AppendDB
 	reader *mmap.ReaderAt
 
-	alive          *dll
-	pendingNullify []string // never needs to be updated, so we can just keep an array
+	alive *dll
+
+	// Byte adjustments for [pendingNullify] are taken care of
+	// prior to use to speed up the rewrite/continue decision in [recycle].
+	//
+	// pendingNullify is just used to track pending
+	// changes to keys for the next batch.
+	//
+	// Items never need to be deleted from [pendingNullify], so we can just keep
+	// an array
+	pendingNullify []string
 
 	checksum     ids.ID
 	aliveBytes   int64
@@ -62,7 +71,7 @@ type tracker struct {
 }
 
 // we return the record to allow for memory reuse + less map ops
-func (t *tracker) Nullify(record *record, addNullify bool) {
+func (t *tracker) Remove(record *record, addNullify bool) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	t.aliveBytes -= opSize
 	t.uselessBytes += opSize
@@ -236,12 +245,12 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Nullify(r, r.batch < file)
+				a.batches[r.batch].Remove(r, r.batch < file)
+				r.batch = file
 			} else {
-				r = &record{key: key}
+				r = &record{batch: file, key: key}
 				a.keys[key] = r
 			}
-			r.batch = file
 			if len(value) >= minDiskValueSize {
 				r.value = nil
 				r.loc = cursor
@@ -261,7 +270,7 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Nullify(r, r.batch < file)
+				a.batches[r.batch].Remove(r, r.batch < file)
 			} else {
 				return errors.New("invalid delete")
 			}
@@ -292,7 +301,10 @@ func (a *AppendDB) loadBatch(
 				t.checksum = checksum
 				return nil
 			}
-			t.pendingNullify = t.pendingNullify[:0]
+
+			// Refresh [pendingNullify] to avoid hanging on to references to old
+			// keys.
+			t.pendingNullify = make([]string, 0, a.batchSize)
 
 			// Initialize hasher for next batch (assuming continues)
 			hasher = sha256.New()
@@ -307,7 +319,7 @@ func (a *AppendDB) loadBatch(
 			}
 			r, ok := a.keys[key]
 			if ok {
-				a.batches[r.batch].Nullify(r, false)
+				a.batches[r.batch].Remove(r, false)
 			}
 			t.uselessBytes += opNullifyLen(key)
 			cursor = newCursor
@@ -787,6 +799,10 @@ func (b *Batch) Prepare() (int64, bool) {
 	}
 
 	// Setup tracker for reference by this batch
+	//
+	// We wait to do this until here because we need to hold
+	// [keyLock] to ensure that [b.a.batches] is not referenced
+	// at the same time.
 	b.a.batches[b.batch] = b.t
 	return b.openWrites, b.pruneableBatch != nil && len(b.movingPath) == 0
 }
@@ -798,7 +814,8 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	}
 	past, ok := b.a.keys[key]
 	if ok {
-		b.a.batches[past.batch].Nullify(past, past.batch < b.batch)
+		b.a.batches[past.batch].Remove(past, past.batch < b.batch)
+		past.batch = b.batch
 	} else {
 		past = &record{batch: b.batch, key: key}
 		b.a.keys[key] = past
@@ -847,8 +864,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	b.a.batches[past.batch].Nullify(past, past.batch < b.batch)
-	b.t.alive.Remove(past)
+	b.a.batches[past.batch].Remove(past, past.batch < b.batch)
 	delete(b.a.keys, key)
 	b.t.uselessBytes += opDeleteLen(key)
 	return nil
