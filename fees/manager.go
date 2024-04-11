@@ -162,6 +162,19 @@ func (f *Manager) Consume(d Dimensions, l Dimensions) (bool, Dimension) {
 	return true, 0
 }
 
+func (f *Manager) String() string {
+	f.l.RLock()
+	defer f.l.RUnlock()
+
+	return fmt.Sprintf("Bandwidth: %d, Compute: %d, StorageRead: %d, StorageAllocate: %d, StorageWrite: %d",
+		f.lastConsumed(Bandwidth),
+		f.lastConsumed(Compute),
+		f.lastConsumed(StorageRead),
+		f.lastConsumed(StorageAllocate),
+		f.lastConsumed(StorageWrite),
+	)
+}
+
 func (f *Manager) Bytes() []byte {
 	f.l.RLock()
 	defer f.l.RUnlock()
@@ -336,6 +349,16 @@ func (d Dimensions) Bytes() []byte {
 		binary.BigEndian.PutUint64(bytes[i*consts.Uint64Len:], d[i])
 	}
 	return bytes
+}
+
+func (d Dimensions) String() string {
+	return fmt.Sprintf("Bandwidth: %d, Compute: %d, StorageRead: %d, StorageAllocate: %d, StorageWrite: %d",
+		d[Bandwidth],
+		d[Compute],
+		d[StorageRead],
+		d[StorageAllocate],
+		d[StorageWrite],
+	)
 }
 
 // Greater is used to determine if the max units allowed

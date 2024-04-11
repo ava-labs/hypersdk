@@ -29,6 +29,6 @@ run \
 -- \
 --dist "uniform" \
 --vms 5 \
---accts 10000 \
---txs 500000 \
+--accts 1000 \
+--txs 1000 \
 --trace="${TRACE}"

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -50,7 +51,11 @@ const (
 	outgoingWarpPrefix = 0x5
 )
 
-const BalanceChunks uint16 = 1
+const (
+	BalanceChunks uint16 = 1
+
+	balanceAddrLen = 20 // Ethereum compatible address length
+)
 
 var (
 	failureByte  = byte(0x0)
@@ -116,13 +121,19 @@ func GetTransaction(
 	return true, t, success, d, fee, nil
 }
 
-// [balancePrefix] + [address]
-func BalanceKey(addr codec.Address) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+// [balancePrefix] + last [balanceAddrLen] bytes of [hashed] + [BalanceChunks]
+// it's expected that [hashed] the of the hash of the address
+func balanceKey(hashed []byte) (k []byte) {
+	k = make([]byte, 1+balanceAddrLen+consts.Uint16Len)
 	k[0] = balancePrefix
-	copy(k[1:], addr[:])
-	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], BalanceChunks)
-	return
+	copy(k[1:], hashed[len(hashed)-balanceAddrLen:])
+	binary.BigEndian.PutUint16(k[1+balanceAddrLen:], BalanceChunks)
+	return k
+}
+
+func BalanceKey(addr codec.Address) (k []byte) {
+	hashed := hashing.ComputeHash256(addr[:])
+	return balanceKey(hashed)
 }
 
 // If locked is 0, then account does not exist
@@ -132,6 +143,16 @@ func GetBalance(
 	addr codec.Address,
 ) (uint64, error) {
 	_, bal, _, err := getBalance(ctx, im, addr)
+	return bal, err
+}
+
+func GetBalanceHashed(
+	ctx context.Context,
+	im state.Immutable,
+	hashed []byte,
+) (uint64, error) {
+	k := balanceKey(hashed)
+	bal, _, err := innerGetBalance(im.GetValue(ctx, k))
 	return bal, err
 }
 
@@ -177,6 +198,16 @@ func SetBalance(
 	balance uint64,
 ) error {
 	k := BalanceKey(addr)
+	return setBalance(ctx, mu, k, balance)
+}
+
+func SetBalanceHashed(
+	ctx context.Context,
+	mu state.Mutable,
+	hashed []byte,
+	balance uint64,
+) error {
+	k := balanceKey(hashed)
 	return setBalance(ctx, mu, k, balance)
 }
 
