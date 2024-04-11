@@ -57,6 +57,9 @@ func (d *dll) Remove(r *record) {
 	} else {
 		r.next.prev = r.prev
 	}
+	if r.next == r {
+		panic("next is self")
+	}
 }
 
 type dllIterator struct {

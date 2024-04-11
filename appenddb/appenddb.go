@@ -603,7 +603,7 @@ func (b *Batch) recycle() (bool, error) {
 		// Iterate over alive records and add them to the batch file
 		b.t.alive = &dll{}
 		iter := previous.alive.Iterator()
-		for next := iter.Next(); next != nil; {
+		for next := iter.Next(); next != nil; next = iter.Next() {
 			value, err := b.a.Get(context.TODO(), next.key)
 			if err != nil {
 				return false, err
@@ -766,20 +766,16 @@ func (b *Batch) Prepare() (int64, bool) {
 	if len(b.movingPath) == 0 {
 		// Iterate over [alive] and update records for [keys] that were recycled
 		iter := b.t.alive.Iterator()
-		for next := iter.Next(); next != nil; {
+		for next := iter.Next(); next != nil; next = iter.Next() {
 			b.a.keys[next.key] = next
+			b.a.logger.Debug("updating key to new record", zap.String("key", next.key), zap.Uint64("batch", next.batch))
 		}
 	} else {
 		// Migrate all alive keys to the new batch lookup.
 		iter := b.t.alive.Iterator()
-		count := 0
-		for next := iter.Next(); next != nil; {
+		for next := iter.Next(); next != nil; next = iter.Next() {
 			next.batch = b.batch
-			b.a.logger.Debug("migrating key to new batch", zap.String("key", next.key), zap.Uint64("batch", b.batch))
-			count++
-			if count > 10 {
-				panic("something wrong")
-			}
+			b.a.logger.Debug("migrating key to new batch", zap.String("key", next.key), zap.Uint64("prev", next.batch), zap.Uint64("new", b.batch))
 		}
 	}
 
