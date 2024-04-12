@@ -81,6 +81,8 @@ type task struct {
 	// a key.
 	readers map[int]*task
 
+	// dependencies is synchronized outside of [l] so it can be adjusted while
+	// we are setting up [task].
 	dependencies atomic.Int64
 }
 
@@ -162,6 +164,10 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			} else {
 				// If we do need exclusive access to a key, we need to
 				// mark ourselves blocked on all readers ahead of us.
+				//
+				// If a task is a reader, that means it is not executed yet
+				// and can't mark itself as executed until all [reading] are
+				// cleared (which can't be done while we hold the lock for [lt]).
 				for _, rt := range lt.readers {
 					rt.l.Lock()
 					rt.blocked[id] = t
@@ -172,6 +178,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			}
 			if !lt.executed {
 				// If the task hasn't executed yet, we need to block on it.
+				//
+				// Note: this means that we first read as a block for subsequent reads. This
+				// isn't the worst thing in the world because it prevents a cache stampede.
 				lt.blocked[id] = t
 				dependencies.Add(lt.id)
 			}
