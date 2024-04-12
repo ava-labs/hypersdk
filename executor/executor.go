@@ -110,7 +110,7 @@ func (e *Executor) runTask(t *task) {
 		// As soon as we clear a requester, make sure we mark
 		// that they are now reading us.
 		if bt.perms == state.Read {
-			t.reading[bt.t.id] = bt.t
+			t.readers[bt.t.id] = bt.t
 		}
 
 		// If we are the last dependency, mark the task as executable.
