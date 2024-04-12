@@ -110,7 +110,6 @@ func (e *Executor) runTask(t *task) {
 		t.blocked = nil // free memory
 		t.executed = true
 		t.l.Unlock()
-
 		e.outstanding.Done()
 	}()
 
@@ -131,6 +130,10 @@ func (e *Executor) runTask(t *task) {
 // overlapping [keys] are executed.
 //
 // Run is not safe to call concurrently.
+//
+// If there is an error, all remaining task execution will be skipped. It is up
+// to the caller to ensure correctness does not depend on exactly when work begins
+// to be skipped (i.e. not safe to rely on this functionality for block verification).
 func (e *Executor) Run(keys state.Keys, f func() error) {
 	e.outstanding.Add(1)
 
