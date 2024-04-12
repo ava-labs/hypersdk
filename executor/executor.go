@@ -25,6 +25,10 @@ const baseDependencies = 100_000_000
 // Executor ensures that conflicting tasks
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
+//
+// It is assumed that no single task has more than [baseDependencies]. If
+// this invariant is violated, some tasks will never execute and this code
+// could deadlock.
 type Executor struct {
 	metrics Metrics
 
