@@ -28,23 +28,17 @@ type Executor struct {
 	outstanding sync.WaitGroup
 	executable  chan *task
 
-	tasks map[int]*task
-	nodes map[string]*node
+	nodes map[string]*task
+	tasks int
 
 	err uatomic.Error
-}
-
-type node struct {
-	id           int
-	modification bool
 }
 
 // New creates a new [Executor].
 func New(items, concurrency int, metrics Metrics) *Executor {
 	e := &Executor{
 		metrics:    metrics,
-		tasks:      make(map[int]*task, items),
-		nodes:      make(map[string]*node, items*2), // TODO: tune this
+		nodes:      make(map[string]*task, items*2), // TODO: tune this
 		executable: make(chan *task, items),         // ensure we don't block while holding lock
 	}
 	e.workers.Add(concurrency)
@@ -57,27 +51,31 @@ func New(items, concurrency int, metrics Metrics) *Executor {
 func (e *Executor) work() {
 	defer e.workers.Done()
 
-	for { //nolint:gosimple
-		select {
-		case t, ok := <-e.executable:
-			if !ok {
-				return
-			}
-			e.runTask(t)
+	for {
+		t, ok := <-e.executable
+		if !ok {
+			return
 		}
+		e.runTask(t)
 	}
 }
 
+type blockingRequest struct {
+	t     *task
+	perms state.Permissions
+}
+
 type task struct {
-	f func() error
+	id      int
+	f       func() error
+	readers []*task
 
 	l        sync.Mutex
-	blocking map[int]*task
 	executed bool
+	blocking map[int]*blockingRequest // next to be executed
+	reading  map[int]*task            // using after execution
 
 	dependencies atomic.Int64
-
-	isConcurrentlyReading bool
 }
 
 func (e *Executor) runTask(t *task) {
@@ -94,20 +92,27 @@ func (e *Executor) runTask(t *task) {
 		return
 	}
 
+	// Clear readers
+	for _, rt := range t.readers {
+		rt.l.Lock()
+		delete(rt.reading, t.id)
+		rt.l.Unlock()
+	}
+
+	// Nodify blocking and mark as reading if needed
 	t.l.Lock()
 	for _, bt := range t.blocking {
-		if bt.dependencies.Add(-1) > 0 {
+		// Mark this task as reading, even if it isn't
+		// executable yet.
+		if bt.perms == state.Read {
+			t.reading[bt.t.id] = bt.t
+		}
+
+		// If we are the last dependency, mark the task as executable.
+		if bt.t.dependencies.Add(-1) > 0 {
 			continue
 		}
-		bt.l.Lock()
-		// We shouldn't be re-enqueuing concurrent Reads since
-		// they're not dependent on each other
-		if !bt.executed && !bt.isConcurrentlyReading {
-			bt.l.Unlock()
-			e.executable <- bt
-			bt.l.Lock()
-		}
-		bt.l.Unlock()
+		e.executable <- bt.t
 	}
 	t.blocking = nil // free memory
 	t.executed = true
@@ -122,70 +127,72 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	e.outstanding.Add(1)
 
 	// Add task to map
-	id := len(e.tasks)
+	id := e.tasks
+	e.tasks++
 	t := &task{
-		f:        f,
-		blocking: make(map[int]*task),
-	}
-	e.tasks[id] = t
+		id:      id,
+		f:       f,
+		readers: []*task{},
 
-	// Add dummy dependencies to ensure we don't execute the task
-	dummyDependencies := int64(len(keys) + 1)
-	t.dependencies.Add(dummyDependencies)
+		blocking: make(map[int]*blockingRequest),
+		reading:  make(map[int]*task),
+	}
+
+	// Add fake dependencies to ensure we don't execute the task
+	// before we are finished enqueuing all dependencies.
+	//
+	// We can't have more than 1 dependency per key, so this effectively
+	// ensures we don't get to 0 before the iteration is finished.
+	dependenciesRemaining := int64(len(keys) + 1)
+	t.dependencies.Add(dependenciesRemaining)
 
 	// Record dependencies
-	previousDependencies := set.NewSet[int](len(keys))
-	hasConcurrentReads := false
+	dependencies := set.NewSet[int](len(keys))
 	for k, v := range keys {
-		n, ok := e.nodes[k]
+		exclusive := v.Has(state.Allocate) || v.Has(state.Write)
+		lt, ok := e.nodes[k]
 		if ok {
-			lt := e.tasks[n.id]
 			lt.l.Lock()
+
+			// Handle the case where the dependency hasn't been executed yet
 			if !lt.executed {
-				lt.blocking[id] = t // add edge
+				// Provide the blocking task with enough
+				// information to update its [reading] map
+				// after it is executed.
+				lt.blocking[id] = &blockingRequest{t, v}
+				lt.l.Unlock()
 
-				switch {
-				case v == state.Read:
-					if n.modification {
-						// case: Read(s)-after-Write
-						previousDependencies.Add(n.id)
-					} else {
-						// concurrent Reads aren't dependent on each other
-						hasConcurrentReads = true
-					}
-					lt.l.Unlock()
-					continue
-				case v.Has(state.Allocate) || v.Has(state.Write):
-					// case 1: w->w->w... (Write-after-Write)
-					// case 2: w->r->r...w->r->r...
-					// case 3: r->r->w...
-
-					// blocked by the first Read or Write
-					previousDependencies.Add(n.id)
-
-					// blocked by all Reads after the first Read or Write
-					for bid, bt := range lt.blocking {
-						// don't record that we're blocked on ourself in multi-key
-						// conflicts or in Write-after-Write scenarios
-						if bid == id {
-							continue
-						}
-						bt.l.Lock()
-						if !bt.executed {
-							previousDependencies.Add(bid) // may depend on the same task
-							bt.blocking[id] = t
-						}
-						bt.l.Unlock()
-					}
+				// Update the latest node if we neeed exclusive access
+				// to the key.
+				dependencies.Add(lt.id)
+				if exclusive {
+					e.nodes[k] = t
+				} else {
+					t.readers = append(t.readers, lt)
 				}
+				continue
+			}
+
+			// Handle the case where the dependency has already been executed
+			if exclusive {
+				for _, rt := range lt.reading {
+					// TODO: May cause a deadlock here
+					rt.l.Lock()
+					rt.blocking[id] = &blockingRequest{t, v}
+					rt.l.Unlock()
+					dependencies.Add(rt.id)
+				}
+				e.nodes[k] = t
+			} else {
+				lt.reading[id] = t
+				t.readers = append(t.readers, lt)
 			}
 			lt.l.Unlock()
 		}
-		e.update(id, k, v)
 	}
 
 	// Adjust dependency traker and execute if necessary
-	extraDependencies := dummyDependencies - int64(previousDependencies.Len())
+	extraDependencies := dependenciesRemaining - int64(dependencies.Len())
 	if t.dependencies.Add(-extraDependencies) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
@@ -193,24 +200,11 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		return
 	}
 
-	// invariant: [t.dependencies] == 0
-	// Need a way to identify that a task is doing concurrent Reading when we
-	// scan the latest's [blocking]. If there are no overlapping conflicts, other
-	// than Reads to a seen key, then we can identify it as such.
-	if hasConcurrentReads {
-		t.l.Lock()
-		t.isConcurrentlyReading = true
-		t.l.Unlock()
-	}
 	// Mark task for execution if we aren't waiting on any other tasks
 	e.executable <- t
 	if e.metrics != nil {
 		e.metrics.RecordExecutable()
 	}
-}
-
-func (e *Executor) update(id int, k string, v state.Permissions) {
-	e.nodes[k] = &node{id: id, modification: v.Has(state.Allocate) || v.Has(state.Write)}
 }
 
 func (e *Executor) Stop() {
