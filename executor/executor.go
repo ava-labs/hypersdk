@@ -14,7 +14,10 @@ import (
 	uatomic "go.uber.org/atomic"
 )
 
-const baseDependencies = 1_000_000
+// baseDependencies must be greater than the maximum number of dependencies
+// any single task could have. This is used to ensure a dependent task
+// does not begin executing a task until all dependencies have been enqueued.
+const baseDependencies = 100_000_000
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -30,8 +33,8 @@ type Executor struct {
 	outstanding sync.WaitGroup
 	executable  chan *task
 
-	nodes map[string]*task
 	tasks int
+	nodes map[string]*task
 
 	err uatomic.Error
 }
@@ -62,20 +65,21 @@ func (e *Executor) work() {
 	}
 }
 
-type requester struct {
-	t     *task
-	perms state.Permissions
-}
-
 type task struct {
-	id      int
-	f       func() error
+	id int
+	f  func() error
+	// reading are the tasks that this task is using non-exclusively.
 	reading []*task
 
-	l          sync.Mutex
-	executed   bool
-	requesters map[int]*requester
-	readers    map[int]*task
+	l        sync.Mutex
+	executed bool
+	// blocked are the tasks that are waiting on this task to execute
+	// before they can be executed. tasks should not be added to
+	// [blocked] after the task has been executed.
+	blocked map[int]*task
+	// readers are the tasks that only require non-exclusive access to
+	// a key.
+	readers map[int]*task
 
 	dependencies atomic.Int64
 }
@@ -95,8 +99,7 @@ func (e *Executor) runTask(t *task) {
 		return
 	}
 
-	// Notify other tasks that we are done reading
-	// them (if we only require non-exclusive access)
+	// Notify other tasks that we are done reading them
 	for _, rt := range t.reading {
 		rt.l.Lock()
 		delete(rt.readers, t.id)
@@ -104,16 +107,16 @@ func (e *Executor) runTask(t *task) {
 	}
 	t.reading = nil
 
-	// Nodify requesters that they can execute
+	// Nodify blocked tasks that they can execute
 	t.l.Lock()
-	for _, bt := range t.requesters {
+	for _, bt := range t.blocked {
 		// If we are the last dependency, mark the task as executable.
-		if bt.t.dependencies.Add(-1) > 0 {
+		if bt.dependencies.Add(-1) > 0 {
 			continue
 		}
-		e.executable <- bt.t
+		e.executable <- bt
 	}
-	t.requesters = nil // free memory
+	t.blocked = nil // free memory
 	t.executed = true
 	t.l.Unlock()
 }
@@ -133,8 +136,8 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		f:       f,
 		reading: []*task{},
 
-		requesters: make(map[int]*requester),
-		readers:    make(map[int]*task),
+		blocked: make(map[int]*task),
+		readers: make(map[int]*task),
 	}
 
 	// Add fake dependencies to ensure we don't execute the task
@@ -148,57 +151,30 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	// Record dependencies
 	dependencies := set.NewSet[int](len(keys))
 	for k, v := range keys {
-		exclusive := v.Has(state.Allocate) || v.Has(state.Write)
 		lt, ok := e.nodes[k]
 		if ok {
-			// If we don't need exclusive access to a key, make sure
-			// to mark that we are reading it.
-			if !exclusive {
+			lt.l.Lock()
+			if v == state.Read {
+				// If we don't need exclusive access to a key, just mark
+				// that we are reading it and that we are a reader of it.
 				t.reading = append(t.reading, lt)
 				lt.readers[id] = t
-			}
-
-			// Handle the case where the dependency hasn't been executed yet
-			lt.l.Lock()
-			if !lt.executed {
-				lt.requesters[id] = &requester{t, v}
-				dependencies.Add(lt.id)
-
-				// If we need exclusive access to the node, we update
-				// [nodes] to ensure anyone else that needs access to the key
-				// after us can only do so after we are done and we mark
-				// ourself as a requester on any of the existing readers.
-				if exclusive {
-					for _, rt := range lt.readers {
-						rt.l.Lock()
-						rt.requesters[id] = &requester{t, v}
-						rt.l.Unlock()
-						dependencies.Add(rt.id)
-					}
-					e.nodes[k] = t
+			} else {
+				// If we do need exclusive access to a key, we need to
+				// mark ourselves blocked on all readers ahead of us.
+				for _, rt := range lt.readers {
+					rt.l.Lock()
+					rt.blocked[id] = t
+					rt.l.Unlock()
+					dependencies.Add(rt.id)
 				}
-				lt.l.Unlock()
-				continue
+				e.nodes[k] = t
 			}
-
-			// Handle the case where we need to read something that has already been executed
-			if !exclusive {
-				lt.readers[id] = t
-				lt.l.Unlock()
-				continue
+			if !lt.executed {
+				// If the task hasn't executed yet, we need to block on it.
+				lt.blocked[id] = t
+				dependencies.Add(lt.id)
 			}
-
-			// Handle the case where the dependency has already been executed and we need exclusive access
-			//
-			// We are guaranteed that any [reader] has not been executed yet, so we can safely put a dependency
-			// on these readers.
-			for _, rt := range lt.readers {
-				rt.l.Lock()
-				rt.requesters[id] = &requester{t, v}
-				rt.l.Unlock()
-				dependencies.Add(rt.id)
-			}
-			e.nodes[k] = t
 			lt.l.Unlock()
 			continue
 		}
