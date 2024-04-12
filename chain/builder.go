@@ -60,6 +60,7 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
+// Note: This code is terrible and will be removed during the Vryx integration.
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
@@ -135,12 +136,15 @@ func BuildBlock(
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
 		// asynchronously.
 		prepareStreamLock sync.Mutex
+
+		// stop is used to trigger that we should stop building, assuming we are no longer executing
+		stop bool
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
-	for time.Since(start) < vm.GetTargetBuildDuration() {
+	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
@@ -372,6 +376,7 @@ func BuildBlock(
 					// stop building. This prevents a full mempool iteration looking for the
 					// "perfect fit".
 					if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+						stop = true
 						return errBlockFull
 					}
 				}
