@@ -7,7 +7,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
@@ -55,6 +54,7 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 			l         sync.Mutex
 			completed = make([]int, 0, 100)
 			e         = New(100, 4, nil)
+			slow      = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -64,10 +64,13 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 			ti := i
 			e.Run(s, func() error {
 				if ti == 0 {
-					time.Sleep(3 * time.Second)
+					<-slow
 				}
 				l.Lock()
 				completed = append(completed, ti)
+				if len(completed) == 99 {
+					close(slow)
+				}
 				l.Unlock()
 				return nil
 			})
@@ -85,6 +88,7 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		l           sync.Mutex
 		completed   = make([]int, 0, 100)
 		e           = New(100, 4, nil)
+		slow        = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
@@ -97,11 +101,14 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		ti := i
 		e.Run(s, func() error {
 			if ti == 0 {
-				time.Sleep(3 * time.Second)
+				<-slow
 			}
 
 			l.Lock()
 			completed = append(completed, ti)
+			if len(completed) == 90 {
+				close(slow)
+			}
 			l.Unlock()
 			return nil
 		})
@@ -118,6 +125,8 @@ func TestExecutorMultiConflict(t *testing.T) {
 		l            sync.Mutex
 		completed    = make([]int, 0, 100)
 		e            = New(100, 4, nil)
+		slow1        = make(chan struct{})
+		slow2        = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
 		s := make(state.Keys, (i + 1))
@@ -133,14 +142,18 @@ func TestExecutorMultiConflict(t *testing.T) {
 		ti := i
 		e.Run(s, func() error {
 			if ti == 0 {
-				time.Sleep(3 * time.Second)
+				<-slow1
+				close(slow2)
 			}
 			if ti == 15 {
-				time.Sleep(5 * time.Second)
+				<-slow2
 			}
 
 			l.Lock()
 			completed = append(completed, ti)
+			if len(completed) == 89 {
+				close(slow1)
+			}
 			l.Unlock()
 			return nil
 		})
@@ -214,6 +227,7 @@ func TestManyWrites(t *testing.T) {
 			completed   = make([]int, 0, 100)
 			answer      = make([]int, 0, 100)
 			e           = New(100, 4, nil)
+			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			answer = append(answer, i)
@@ -228,7 +242,7 @@ func TestManyWrites(t *testing.T) {
 			e.Run(s, func() error {
 				// delay first txn
 				if ti == 0 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 
 				l.Lock()
@@ -237,6 +251,7 @@ func TestManyWrites(t *testing.T) {
 				return nil
 			})
 		}
+		close(slow)
 		require.NoError(e.Wait())
 		require.Equal(answer, completed)
 	}
@@ -251,6 +266,7 @@ func TestManyReads(t *testing.T) {
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
 			e           = New(100, 4, nil)
+			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -263,7 +279,7 @@ func TestManyReads(t *testing.T) {
 			e.Run(s, func() error {
 				// add some delays for the first 5 even numbers
 				if ti < 10 && ti%2 == 0 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 				l.Lock()
 				completed = append(completed, ti)
@@ -271,6 +287,10 @@ func TestManyReads(t *testing.T) {
 				return nil
 			})
 		}
+		for i := 0; i < 5; i++ {
+			slow <- struct{}{}
+		}
+		close(slow)
 		require.NoError(e.Wait())
 		// 0..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
@@ -286,6 +306,7 @@ func TestWriteThenRead(t *testing.T) {
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
 			e           = New(100, 4, nil)
+			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -303,7 +324,7 @@ func TestWriteThenRead(t *testing.T) {
 				// add some delay to the first Write to enforce
 				// all Reads after to wait until the first Write is done
 				if ti == 0 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 
 				l.Lock()
@@ -312,6 +333,7 @@ func TestWriteThenRead(t *testing.T) {
 				return nil
 			})
 		}
+		close(slow)
 		require.NoError(e.Wait())
 		require.Equal(0, completed[0]) // Write first to execute
 		// 1..99 are ran in parallel, so non-deterministic
@@ -328,6 +350,7 @@ func TestReadThenWrite(t *testing.T) {
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
 			e           = New(100, 4, nil)
+			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -346,7 +369,7 @@ func TestReadThenWrite(t *testing.T) {
 				// so that everything after (W and R) needs to wait until
 				// this one is completed
 				if ti == 9 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 
 				l.Lock()
@@ -355,6 +378,7 @@ func TestReadThenWrite(t *testing.T) {
 				return nil
 			})
 		}
+		close(slow)
 		require.NoError(e.Wait())
 		// 0..9 are ran in parallel, so non-deterministic
 		require.Equal(10, completed[10]) // First write to execute
@@ -372,6 +396,7 @@ func TestWriteThenReadRepeated(t *testing.T) {
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
 			e           = New(100, 4, nil)
+			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -386,7 +411,7 @@ func TestWriteThenReadRepeated(t *testing.T) {
 			ti := i
 			e.Run(s, func() error {
 				if ti == 0 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 
 				l.Lock()
@@ -395,6 +420,7 @@ func TestWriteThenReadRepeated(t *testing.T) {
 				return nil
 			})
 		}
+		close(slow)
 		require.NoError(e.Wait())
 		require.Equal(0, completed[0]) // First write to execute
 		// 1..48 are ran in parallel, so non-deterministic
@@ -413,6 +439,7 @@ func TestReadThenWriteRepeated(t *testing.T) {
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
 			e           = New(100, 4, nil)
+			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -427,7 +454,7 @@ func TestReadThenWriteRepeated(t *testing.T) {
 			ti := i
 			e.Run(s, func() error {
 				if ti == 10 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 
 				l.Lock()
@@ -436,6 +463,7 @@ func TestReadThenWriteRepeated(t *testing.T) {
 				return nil
 			})
 		}
+		close(slow)
 		require.NoError(e.Wait())
 		// 0..9 are ran in parallel, so non-deterministic
 		require.Equal(10, completed[10])
@@ -455,6 +483,7 @@ func TestTwoConflictKeys(t *testing.T) {
 			l            sync.Mutex
 			completed    = make([]int, 0, 100)
 			e            = New(100, 4, nil)
+			slow         = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
 			s := make(state.Keys, (i + 1))
@@ -471,7 +500,7 @@ func TestTwoConflictKeys(t *testing.T) {
 			ti := i
 			e.Run(s, func() error {
 				if ti == 10 {
-					time.Sleep(1 * time.Second)
+					<-slow
 				}
 
 				l.Lock()
@@ -480,6 +509,7 @@ func TestTwoConflictKeys(t *testing.T) {
 				return nil
 			})
 		}
+		close(slow)
 		require.NoError(e.Wait())
 		require.Equal(0, completed[0])
 		require.Equal(1, completed[1])
