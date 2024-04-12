@@ -5,7 +5,6 @@ package executor
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +19,6 @@ import (
 const numIterations = 10
 
 func TestExecutorNoConflicts(t *testing.T) {
-	fmt.Printf("TestExecutorNoConflicts starting... ")
 	var (
 		require   = require.New(t)
 		l         sync.Mutex
@@ -48,11 +46,9 @@ func TestExecutorNoConflicts(t *testing.T) {
 	<-canWait
 	require.NoError(e.Wait()) // no task running
 	require.Len(completed, 100)
-	fmt.Printf("done\n")
 }
 
 func TestExecutorNoConflictsSlow(t *testing.T) {
-	fmt.Printf("TestExecutorNoConflictsSlow starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require   = require.New(t)
@@ -80,11 +76,9 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 		require.Len(completed, 100)
 		require.Equal(0, completed[99])
 	}
-	fmt.Printf("done\n")
 }
 
 func TestExecutorSimpleConflict(t *testing.T) {
-	fmt.Printf("TestExecutorSimpleConflict starting... ")
 	var (
 		require     = require.New(t)
 		conflictKey = ids.GenerateTestID().String()
@@ -114,11 +108,9 @@ func TestExecutorSimpleConflict(t *testing.T) {
 	}
 	require.NoError(e.Wait())
 	require.Equal([]int{0, 10, 20, 30, 40, 50, 60, 70, 80, 90}, completed[90:])
-	fmt.Printf("done\n")
 }
 
 func TestExecutorMultiConflict(t *testing.T) {
-	fmt.Printf("TestExecutorMultiConflict starting... ")
 	var (
 		require      = require.New(t)
 		conflictKey  = ids.GenerateTestID().String()
@@ -155,11 +147,9 @@ func TestExecutorMultiConflict(t *testing.T) {
 	}
 	require.NoError(e.Wait())
 	require.Equal([]int{0, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90}, completed[89:])
-	fmt.Printf("done\n")
 }
 
 func TestEarlyExit(t *testing.T) {
-	fmt.Printf("TestEarlyExit starting... ")
 	var (
 		require   = require.New(t)
 		l         sync.Mutex
@@ -185,11 +175,9 @@ func TestEarlyExit(t *testing.T) {
 	}
 	require.ErrorIs(e.Wait(), terr) // no task running
 	require.Less(len(completed), 500)
-	fmt.Printf("done\n")
 }
 
 func TestStop(t *testing.T) {
-	fmt.Printf("TestStop starting... ")
 	var (
 		require   = require.New(t)
 		l         sync.Mutex
@@ -214,12 +202,10 @@ func TestStop(t *testing.T) {
 	}
 	require.ErrorIs(e.Wait(), ErrStopped) // no task running
 	require.Less(len(completed), 500)
-	fmt.Printf("done\n")
 }
 
 // W->W->W->...
 func TestManyWrites(t *testing.T) {
-	fmt.Printf("TestManyWrites starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require     = require.New(t)
@@ -254,12 +240,10 @@ func TestManyWrites(t *testing.T) {
 		require.NoError(e.Wait())
 		require.Equal(answer, completed)
 	}
-	fmt.Printf("done\n")
 }
 
 // R->R->R->...
 func TestManyReads(t *testing.T) {
-	fmt.Printf("TestManyReads starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require     = require.New(t)
@@ -291,12 +275,10 @@ func TestManyReads(t *testing.T) {
 		// 0..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
-	fmt.Printf("done\n")
 }
 
 // W->R->R->...
 func TestWriteThenRead(t *testing.T) {
-	fmt.Printf("TestWriteThenRead starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require     = require.New(t)
@@ -335,12 +317,10 @@ func TestWriteThenRead(t *testing.T) {
 		// 1..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
-	fmt.Printf("done\n")
 }
 
 // R->R->W...
 func TestReadThenWrite(t *testing.T) {
-	fmt.Printf("TestReadThenWrite starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require     = require.New(t)
@@ -381,12 +361,10 @@ func TestReadThenWrite(t *testing.T) {
 		// 11..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
-	fmt.Printf("done\n")
 }
 
 // W->R->R->...W->R->R->...
 func TestWriteThenReadRepeated(t *testing.T) {
-	fmt.Printf("TestWriteThenReadRepeated starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require     = require.New(t)
@@ -424,12 +402,10 @@ func TestWriteThenReadRepeated(t *testing.T) {
 		// 50..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
-	fmt.Printf("done\n")
 }
 
 // R->R->W->R->W->R->R...
 func TestReadThenWriteRepeated(t *testing.T) {
-	fmt.Printf("TestReadThenWriteRepeated starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require     = require.New(t)
@@ -468,11 +444,9 @@ func TestReadThenWriteRepeated(t *testing.T) {
 		// 13..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
-	fmt.Printf("done\n")
 }
 
 func TestTwoConflictKeys(t *testing.T) {
-	fmt.Printf("TestTwoConflictKeys starting... ")
 	for j := 0; j < numIterations; j++ {
 		var (
 			require      = require.New(t)
@@ -512,5 +486,4 @@ func TestTwoConflictKeys(t *testing.T) {
 		// 2..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
-	fmt.Printf("done\n")
 }
