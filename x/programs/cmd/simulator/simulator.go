@@ -18,5 +18,6 @@ func main() {
 		utils.Outf("{{red}}error: {{/}}%+v\n", err)
 		os.Exit(1)
 	}
+
 	os.Exit(0)
 }
