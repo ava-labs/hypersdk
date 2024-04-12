@@ -143,7 +143,6 @@ func TestExecutorMultiConflict(t *testing.T) {
 		e.Run(s, func() error {
 			if ti == 0 {
 				<-slow1
-				close(slow2)
 			}
 			if ti == 15 {
 				<-slow2
@@ -153,6 +152,9 @@ func TestExecutorMultiConflict(t *testing.T) {
 			completed = append(completed, ti)
 			if len(completed) == 89 {
 				close(slow1)
+			}
+			if len(completed) == 91 {
+				close(slow2)
 			}
 			l.Unlock()
 			return nil
