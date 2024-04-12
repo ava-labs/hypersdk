@@ -107,12 +107,6 @@ func (e *Executor) runTask(t *task) {
 	// Nodify requesters that they can execute
 	t.l.Lock()
 	for _, bt := range t.requesters {
-		// As soon as we clear a requester, make sure we mark
-		// that they are now reading us.
-		if bt.perms == state.Read {
-			t.readers[bt.t.id] = bt.t
-		}
-
 		// If we are the last dependency, mark the task as executable.
 		if bt.t.dependencies.Add(-1) > 0 {
 			continue
@@ -161,21 +155,29 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			// to mark that we are reading it.
 			if !exclusive {
 				t.reading = append(t.reading, lt)
+				lt.readers[id] = t
 			}
 
 			// Handle the case where the dependency hasn't been executed yet
 			lt.l.Lock()
 			if !lt.executed {
 				lt.requesters[id] = &requester{t, v}
-				lt.l.Unlock()
 				dependencies.Add(lt.id)
 
 				// If we need exclusive access to the node, we update
 				// [nodes] to ensure anyone else that needs access to the key
-				// after us can only do so after we are done.
+				// after us can only do so after we are done and we mark
+				// ourself as a requester on any of the existing readers.
 				if exclusive {
+					for _, rt := range lt.readers {
+						rt.l.Lock()
+						rt.requesters[id] = &requester{t, v}
+						rt.l.Unlock()
+						dependencies.Add(rt.id)
+					}
 					e.nodes[k] = t
 				}
+				lt.l.Unlock()
 				continue
 			}
 
