@@ -87,7 +87,32 @@ type task struct {
 }
 
 func (e *Executor) runTask(t *task) {
-	defer e.outstanding.Done()
+	// No matter what happens, we need to clear our dependencies
+	// to ensure we can exit.
+	defer func() {
+		// Notify other tasks that we are done reading them
+		for _, rt := range t.reading {
+			rt.l.Lock()
+			delete(rt.readers, t.id)
+			rt.l.Unlock()
+		}
+		t.reading = nil
+
+		// Nodify blocked tasks that they can execute
+		t.l.Lock()
+		for _, bt := range t.blocked {
+			// If we are the last dependency, mark the task as executable.
+			if bt.dependencies.Add(-1) > 0 {
+				continue
+			}
+			e.executable <- bt
+		}
+		t.blocked = nil // free memory
+		t.executed = true
+		t.l.Unlock()
+
+		e.outstanding.Done()
+	}()
 
 	// We avoid doing this check when adding tasks to the queue
 	// because it would require more synchronization.
@@ -100,27 +125,6 @@ func (e *Executor) runTask(t *task) {
 		e.err.CompareAndSwap(nil, err)
 		return
 	}
-
-	// Notify other tasks that we are done reading them
-	for _, rt := range t.reading {
-		rt.l.Lock()
-		delete(rt.readers, t.id)
-		rt.l.Unlock()
-	}
-	t.reading = nil
-
-	// Nodify blocked tasks that they can execute
-	t.l.Lock()
-	for _, bt := range t.blocked {
-		// If we are the last dependency, mark the task as executable.
-		if bt.dependencies.Add(-1) > 0 {
-			continue
-		}
-		e.executable <- bt
-	}
-	t.blocked = nil // free memory
-	t.executed = true
-	t.l.Unlock()
 }
 
 // Run executes [f] after all previously enqueued [f] with
