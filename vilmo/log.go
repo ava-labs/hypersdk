@@ -61,24 +61,34 @@ func (r *reader) Read(p []byte) error {
 	return err
 }
 
+type pendingLog struct {
+	Batch    uint64
+	Checksum ids.ID
+	Ops      []op
+
+	// UselessBytes only includes bytes from [opBatch] and [opChecksum]
+	// because we do not yet know if any [opPut] or [opDelete] are useless.
+	UselessBytes int64
+}
+
 // load will attempt to load a log file from disk.
 //
 // If a batch is partially written or corrupt, the batch will be removed
 // from the log file and the last non-corrupt batch will be returned. If
-// there are no non-corrupt batches the file will be deleted and [ErrEmpty]
-// will be returned.
+// there are no non-corrupt batches the file will be deleted and a nil
+// [pendingLog] will be returned.
 //
 // Partial batch writing should not occur unless there is an unclean shutdown,
 // as the usage of [Abort] prevents this.
-func load(logger logging.Logger, path string) (uint64, ids.ID, []op, int64, error) {
+func load(logger logging.Logger, path string) (*pendingLog, error) {
 	// Open log file
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, ids.Empty, nil, -1, err
+		return nil, err
 	}
 	fi, err := f.Stat()
 	if err != nil {
-		return 0, ids.Empty, nil, -1, err
+		return nil, err
 	}
 	fileSize := int64(fi.Size())
 
@@ -178,7 +188,7 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, int64, erro
 
 	// Close file once we are done reading
 	if err := f.Close(); err != nil {
-		return 0, ids.Empty, nil, -1, err
+		return nil, err
 	}
 
 	// If the log file is corrupt, attempt to revert
@@ -186,6 +196,7 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, int64, erro
 	if corrupt != nil {
 		logger.Warn(
 			"log file is corrupt",
+			zap.String("path", path),
 			zap.Error(corrupt),
 			zap.Int("tip", len(ops)),
 			zap.Int("committed", lastCommitOps),
@@ -197,13 +208,22 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, int64, erro
 	if lastCommitByte == 0 {
 		// Remove the empty file
 		if err := os.Remove(path); err != nil {
-			return 0, ids.Empty, nil, -1, fmt.Errorf("%w: unable to remove useless file", err)
+			return nil, fmt.Errorf("%w: unable to remove useless file", err)
 		}
-		return 0, ids.Empty, nil, -1, ErrEmpty
+		logger.Warn(
+			"log file is empty",
+			zap.String("path", path),
+		)
+		return nil, nil
 	} else {
 		if err := os.Truncate(path, lastCommitByte); err != nil {
-			return 0, ids.Empty, nil, -1, fmt.Errorf("%w: unable to truncate file", err)
+			return nil, fmt.Errorf("%w: unable to truncate file", err)
 		}
 	}
-	return lastCommitBatch, lastCommitChecksum, ops, lastUselessBytes, nil
+	return &pendingLog{
+		Batch:        lastCommitBatch,
+		Checksum:     lastCommitChecksum,
+		Ops:          ops,
+		UselessBytes: lastUselessBytes,
+	}, nil
 }

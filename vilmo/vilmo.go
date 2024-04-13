@@ -39,8 +39,6 @@ const (
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
 
-// This sits under the MerkleDB and won't be used
-// directly by the VM.
 type Vilmo struct {
 	logger     logging.Logger
 	baseDir    string
@@ -198,7 +196,7 @@ func (a *Vilmo) loadBatch(
 
 // New returns a new Vilmo instance and the ID of the last committed file.
 func New(
-	log logging.Logger,
+	logger logging.Logger,
 	baseDir string,
 	initialSize int,
 	batchSize int,
@@ -218,7 +216,7 @@ func New(
 		}
 		if info.IsDir() {
 			// Skip anything unexpected
-			log.Warn("found unexpected directory", zap.String("path", path))
+			logger.Warn("found unexpected directory", zap.String("path", path))
 			return nil
 		}
 		file, err := strconv.ParseUint(info.Name(), 10, 64)
@@ -231,20 +229,42 @@ func New(
 	if err != nil {
 		return nil, ids.Empty, err
 	}
-	if len(files) > historyLen+1 /* last file could've been in-progress */ {
-		log.Warn("found too many files", zap.Int("count", len(files)))
+
+	// Load log files from disk
+	//
+	// During this process, we attempt to recover any corrupt files
+	// on-disk and ensure that we don't have any gaps. We also ensure we don't
+	// end up with too many files.
+	pendingLogs := make([]*pendingLog, 0, len(files))
+	for _, file := range files {
+		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
+		pl, err := load(logger, path)
+		if err != nil {
+			logger.Warn("could not load log", zap.String("path", path), zap.Error(err))
+			return nil, ids.Empty, err
+		}
+		if pl == nil {
+			// This means the file was empty and is now deleted
+			continue
+		}
+		pendingLogs = append(pendingLogs, pl)
+	}
+	if len(pendingLogs) > historyLen+1 {
+		logger.Warn("found too many files", zap.Int("count", len(files)))
 		return nil, ids.Empty, errors.New("too many files")
 	}
 
+	// Build current state from all log files
+
 	// Instantiate DB
 	adb := &Vilmo{
-		logger:     log,
+		logger:     logger,
 		baseDir:    baseDir,
 		bufferSize: bufferSize,
 		historyLen: historyLen,
 
 		keys:    make(map[string]*record, initialSize),
-		batches: make(map[uint64]*tracker, historyLen+1),
+		batches: make(map[uint64]*log, historyLen+1),
 	}
 
 	// Replay all changes on-disk
@@ -257,7 +277,6 @@ func New(
 		firstBatch   uint64
 		lastBatch    uint64
 	)
-	slices.Sort(files)
 	for i, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
 		if err := adb.loadBatch(path, file); err != nil {
@@ -265,7 +284,7 @@ func New(
 			// could be destructive.
 			//
 			// TODO: make corruption fix optional/add tool
-			log.Warn("could not open batch", zap.String("path", path), zap.Error(err))
+			logger.Warn("could not open batch", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
 		if i == 0 {
@@ -278,7 +297,7 @@ func New(
 		adb.oldestBatch = &firstBatch
 		adb.nextBatch = lastBatch + 1
 	}
-	log.Info(
+	logger.Info(
 		"loaded batches",
 		zap.Int("count", len(adb.batches)),
 		zap.Int("keys", len(adb.keys)),
