@@ -27,6 +27,8 @@ type log struct {
 	aliveBytes   int64
 	uselessBytes int64 // already includes all overwritten data, checksums, and deletes
 
+	// batch is the last batch in a log file.
+	batch uint64
 	// checksum is the last checkpoint in a log file.
 	checksum ids.ID
 
@@ -80,15 +82,15 @@ type pendingLog struct {
 //
 // Partial batch writing should not occur unless there is an unclean shutdown,
 // as the usage of [Abort] prevents this.
-func load(logger logging.Logger, path string) (*pendingLog, error) {
+func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 	// Open log file
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	fi, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	fileSize := int64(fi.Size())
 
@@ -211,7 +213,7 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 
 	// Close file once we are done reading
 	if err := f.Close(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// If the log file is corrupt, attempt to revert
@@ -228,16 +230,16 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 	if committedByte == 0 {
 		// Remove the empty file
 		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("%w: unable to remove useless file", err)
+			return nil, nil, fmt.Errorf("%w: unable to remove useless file", err)
 		}
 		logger.Warn(
 			"removing corrupt log",
 			zap.String("path", path),
 		)
-		return nil, nil
+		return nil, nil, nil
 	} else {
 		if err := os.Truncate(path, committedByte); err != nil {
-			return nil, fmt.Errorf("%w: unable to truncate file", err)
+			return nil, nil, fmt.Errorf("%w: unable to truncate file", err)
 		}
 		logger.Warn(
 			"truncating corrupt log",
@@ -246,10 +248,21 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 			zap.Int64("committed", committedByte),
 		)
 	}
-	return &pendingLog{
-		Batch:        committedBatch,
-		Checksum:     committedChecksum,
-		Ops:          committedOps,
-		UselessBytes: committedUselessBytes,
-	}, nil
+
+	// Open file for mmap
+	m, err := mmap.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &log{
+		reader: m,
+
+		uselessBytes: committedUselessBytes,
+
+		batch:    committedBatch,
+		checksum: committedChecksum,
+
+		// Note: alive nor aliveBytes is not populated and must be updated
+		// by the caller
+	}, committedOps, nil
 }
