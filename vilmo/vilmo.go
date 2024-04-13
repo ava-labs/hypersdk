@@ -489,7 +489,7 @@ type Batch struct {
 
 	pruneableBatch *uint64
 	openWrites     int64 // bytes
-	movingPath     string
+	reuseFile      bool
 	startingCursor int64
 
 	hasher hash.Hash
@@ -642,8 +642,8 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Open old batch for writing
 	b.a.logger.Debug("continuing to build on old batch", zap.Uint64("old", oldestBatch), zap.Uint64("new", b.batch))
-	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
-	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
+	oldFile := filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
+	f, err := os.OpenFile(oldFile, os.O_WRONLY, 0666)
 	if err != nil {
 		return false, err
 	}

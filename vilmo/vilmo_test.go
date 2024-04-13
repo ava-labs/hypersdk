@@ -513,6 +513,14 @@ func TestVilmoLarge(t *testing.T) {
 	}
 }
 
+func TestMMapReuse(t *testing.T) {
+	require := require.New(t)
+	tdir := t.TempDir()
+	f, err := os.Create(filepath.Join(tdir, "file"))
+	require.NoError(err)
+	f.Write([]byte("hello"))
+}
+
 func BenchmarkVilmo(b *testing.B) {
 	ctx := context.TODO()
 	batches := 10
