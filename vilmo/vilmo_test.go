@@ -225,6 +225,70 @@ func TestVilmoAbort(t *testing.T) {
 	require.NoError(db.Close())
 }
 
+func TestVilmoComplexReload(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	ctx := context.TODO()
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"vilmo",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Insert key
+	b, err := db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite := b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Put(ctx, "hello", []byte("world")))
+	require.NoError(b.Put(ctx, "unrelated", []byte("junk"))) // add extra data to prevent rewrite
+	require.NoError(b.Put(ctx, "unrelated2", []byte("junk2")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Delete key
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Delete(ctx, "hello"))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Put new key
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Put(ctx, "hello2", []byte("world2")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Reload and ensure values match
+	require.NoError(db.Close())
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.NotEqual(ids.Empty, last)
+	_, err = db.Get(ctx, "hello")
+	require.ErrorIs(err, database.ErrNotFound)
+	v, err := db.Get(ctx, "hello2")
+	require.NoError(err)
+	require.Equal([]byte("world2"), v)
+}
+
 func TestVilmoReinsertHistory(t *testing.T) {
 	// Prepare
 	require := require.New(t)
