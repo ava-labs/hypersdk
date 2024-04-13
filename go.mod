@@ -9,7 +9,7 @@ require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
 	github.com/ava-labs/avalanchego v1.11.4-rc.2.0.20240405173859-4a1d0bbaf044
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
-	github.com/cockroachdb/pebble v0.0.0-20230209160836-829675f94811
+	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/golang/mock v1.6.0

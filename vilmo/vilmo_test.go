@@ -21,6 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"golang.org/x/exp/mmap"
 )
 
 const (
@@ -514,11 +515,35 @@ func TestVilmoLarge(t *testing.T) {
 }
 
 func TestMMapReuse(t *testing.T) {
+	// Put value in file
 	require := require.New(t)
 	tdir := t.TempDir()
-	f, err := os.Create(filepath.Join(tdir, "file"))
+	path := filepath.Join(tdir, "file")
+	f, err := os.Create(path)
 	require.NoError(err)
-	f.Write([]byte("hello"))
+	_, err = f.Write([]byte("hello"))
+	require.NoError(err)
+	require.NoError(f.Close())
+
+	// Read from file
+	m, err := mmap.Open(path)
+	require.NoError(err)
+	b := make([]byte, 5)
+	_, err = m.ReadAt(b, 0)
+	require.NoError(err)
+	require.Equal([]byte("hello"), b)
+
+	// Write to file
+	f, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0666)
+	require.NoError(err)
+	_, err = f.Write([]byte("world"))
+	require.NoError(err)
+	require.NoError(f.Close())
+
+	// Read from modified file
+	_, err = m.ReadAt(b, 5)
+	require.NoError(err)
+	require.Equal([]byte("world"), b)
 }
 
 func BenchmarkVilmo(b *testing.B) {
