@@ -14,18 +14,14 @@ const (
 	opDelete   = uint8(1) // keyLen|key
 	opBatch    = uint8(2) // batch (starts all segments)
 	opChecksum = uint8(3) // checksum (ends all segments)
+	opNullify  = uint8(4) // keyLoc
 )
 
 type op interface {
 	Type() uint8
-
-	SetBatch(uint64)
-	Batch() uint64
 }
 
 type putOp struct {
-	batch uint64
-
 	key   string
 	value []byte
 }
@@ -34,30 +30,12 @@ func (op *putOp) Type() uint8 {
 	return opPut
 }
 
-func (op *putOp) SetBatch(batch uint64) {
-	op.batch = batch
-}
-
-func (op *putOp) Batch() uint64 {
-	return op.batch
-}
-
 type deleteOp struct {
-	batch uint64
-
 	key string
 }
 
 func (op *deleteOp) Type() uint8 {
 	return opDelete
-}
-
-func (op *deleteOp) SetBatch(batch uint64) {
-	op.batch = batch
-}
-
-func (op *deleteOp) Batch() uint64 {
-	return op.batch
 }
 
 func readOpType(reader *reader, hasher hash.Hash) (uint8, error) {
@@ -143,6 +121,17 @@ func readChecksum(reader *reader) (ids.ID, error) {
 	return ids.ID(op), nil
 }
 
+func readNullify(reader *reader, hasher hash.Hash) (int64, error) {
+	op := make([]byte, consts.Uint64Len)
+	if err := reader.Read(op); err != nil {
+		return 0, err
+	}
+	if _, err := hasher.Write(op); err != nil {
+		return 0, err
+	}
+	return int64(binary.BigEndian.Uint64(op)), nil
+}
+
 func opPutLen(key string, value []byte) int64 {
 	return int64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
 }
@@ -161,4 +150,8 @@ func opBatchLen() int64 {
 
 func opChecksumLen() int64 {
 	return int64(consts.Uint8Len + ids.IDLen)
+}
+
+func opNullifyLen() int64 {
+	return int64(consts.Uint8Len + consts.Uint64Len)
 }

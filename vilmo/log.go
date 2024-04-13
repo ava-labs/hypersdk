@@ -98,6 +98,7 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 
 		lastBatch uint64
 		batchSet  bool
+		keys      = map[int64]string{}
 
 		hasher       = sha256.New()
 		ops          []op
@@ -123,12 +124,13 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 		}
 		switch opType {
 		case opPut:
+			keyLoc := reader.Cursor()
 			put, err := readPut(reader, hasher)
 			if err != nil {
 				corrupt = err
 				break
 			}
-			put.SetBatch(lastBatch)
+			keys[keyLoc] = put.key
 			ops = append(ops, put)
 		case opDelete:
 			del, err := readDelete(reader, hasher)
@@ -136,7 +138,6 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 				corrupt = err
 				break
 			}
-			del.SetBatch(lastBatch)
 			ops = append(ops, del)
 		case opBatch:
 			uselessBytes += opBatchLen()
@@ -185,6 +186,26 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 			}
 			batchSet = false
 			ops = nil
+		case opNullify:
+			uselessBytes += opNullifyLen()
+			loc, err := readNullify(reader, hasher)
+			if err != nil {
+				corrupt = err
+				break
+			}
+			key, ok := keys[loc]
+			if !ok {
+				corrupt = fmt.Errorf("nullify key not found at %d", loc)
+				break
+			}
+
+			// To simplify the processing of nullifications, we just
+			// treat them as deletes for the batch in which they were included (this may
+			// be a no-op if other log files were not rewritten).
+			ops = append(ops, &deleteOp{key: key})
+		default:
+			corrupt = fmt.Errorf("unknown op type %d", opType)
+			break
 		}
 	}
 
