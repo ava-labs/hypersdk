@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -34,42 +33,11 @@ var (
 )
 
 const (
-	// When mutliple checksums are in a single file (we chose not to rewrite file because
-	// many keys unchanged), we add new changes  and compute the next checksum using the base
-	// as the previous checksum (rather than re-iterating over the entire file).
-	//
-	// We only utilize an op if it is newer (newer batch) than the one currently stored.
-	opPut      = uint8(0) // keyLen|key|valueLen|value
-	opDelete   = uint8(1) // keyLen|key
-	opBatch    = uint8(2) // batch (starts all segments)
-	opChecksum = uint8(3) // checksum (ends all segments)
-
 	batchBufferSize       = 16 // just need to be big enough for any binary numbers
 	minDiskValueSize      = 64
 	uselessDividerRecycle = 3
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
-
-type tracker struct {
-	db     *Vilmo
-	reader *mmap.ReaderAt
-
-	alive *dll
-
-	checksum     ids.ID
-	aliveBytes   int64
-	uselessBytes int64 // already includes all overwritten data, checksums, and deletes
-}
-
-// we return the record to allow for memory reuse + less map ops
-func (t *tracker) Remove(record *record) {
-	opSize := opPutLenWithValueLen(record.key, record.Size())
-	t.aliveBytes -= opSize
-	t.uselessBytes += opSize
-
-	// Remove from linked list
-	t.alive.Remove(record)
-}
 
 // This sits under the MerkleDB and won't be used
 // directly by the VM.
@@ -84,110 +52,8 @@ type Vilmo struct {
 	nextBatch   uint64
 
 	keyLock sync.RWMutex
-	batches map[uint64]*tracker
+	batches map[uint64]*log
 	keys    map[string]*record
-}
-
-func readOp(reader io.Reader, cursor int64, hasher hash.Hash) (uint8, int64, error) {
-	op := make([]byte, consts.Uint8Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return 0, -1, err
-	}
-	if _, err := hasher.Write(op); err != nil {
-		return 0, -1, err
-	}
-	cursor++
-	return op[0], cursor, nil
-}
-
-func readKey(reader io.Reader, cursor int64, hasher hash.Hash) (string, int64, error) {
-	op := make([]byte, consts.Uint16Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return "", -1, err
-	}
-	if _, err := hasher.Write(op); err != nil {
-		return "", -1, err
-	}
-	cursor += int64(len(op))
-	keyLen := binary.BigEndian.Uint16(op)
-	key := make([]byte, keyLen)
-	if _, err := io.ReadFull(reader, key); err != nil {
-		return "", -1, err
-	}
-	if _, err := hasher.Write(key); err != nil {
-		return "", -1, err
-	}
-	cursor += int64(len(key))
-	return string(key), cursor, nil
-}
-
-func readPut(reader io.Reader, cursor int64, hasher hash.Hash) (string, []byte, int64, error) {
-	key, cursor, err := readKey(reader, cursor, hasher)
-	if err != nil {
-		return "", nil, -1, err
-	}
-
-	// Read value
-	op := make([]byte, consts.Uint32Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return "", nil, -1, err
-	}
-	if _, err := hasher.Write(op); err != nil {
-		return "", nil, -1, err
-	}
-	cursor += int64(len(op))
-	valueLen := binary.BigEndian.Uint32(op)
-	value := make([]byte, valueLen)
-	if _, err := io.ReadFull(reader, value); err != nil {
-		return "", nil, -1, err
-	}
-	if _, err := hasher.Write(value); err != nil {
-		return "", nil, -1, err
-	}
-	cursor += int64(len(value))
-	return key, value, cursor, nil
-}
-
-func opPutLen(key string, value []byte) int64 {
-	return int64(consts.Uint8Len + consts.Uint16Len + len(key) + consts.Uint32Len + len(value))
-}
-
-func opPutLenWithValueLen(key string, valueLen int64) int64 {
-	return int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + valueLen
-}
-
-func opDeleteLen(key string) int64 {
-	return int64(consts.Uint8Len + consts.Uint16Len + len(key))
-}
-
-func opBatchLen() int64 {
-	return int64(consts.Uint8Len + consts.Uint64Len)
-}
-
-func opChecksumLen() int64 {
-	return int64(consts.Uint8Len + ids.IDLen)
-}
-
-func readBatch(reader io.Reader, cursor int64, hasher hash.Hash) (uint64, int64, error) {
-	op := make([]byte, consts.Uint64Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return 0, -1, err
-	}
-	if _, err := hasher.Write(op); err != nil {
-		return 0, -1, err
-	}
-	cursor += int64(len(op))
-	batch := binary.BigEndian.Uint64(op)
-	return batch, cursor, nil
-}
-
-func readChecksum(reader io.Reader, cursor int64, hasher hash.Hash) (ids.ID, int64, error) {
-	op := make([]byte, sha256.Size)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return ids.Empty, -1, err
-	}
-	cursor += int64(len(op))
-	return ids.ID(op), cursor, nil
 }
 
 func (a *Vilmo) loadBatch(
