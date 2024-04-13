@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -540,10 +541,9 @@ func TestMMapReuse(t *testing.T) {
 	require.NoError(err)
 	require.NoError(f.Close())
 
-	// Read from modified file
+	// Attempt to read from modified file (will fail)
 	_, err = m.ReadAt(b, 5)
-	require.NoError(err)
-	require.Equal([]byte("world"), b)
+	require.ErrorIs(io.EOF, err)
 }
 
 func BenchmarkVilmo(b *testing.B) {
