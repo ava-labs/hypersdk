@@ -5,11 +5,15 @@ type record struct {
 	key string
 
 	// Only populated if the value is less than [minDiskValueSize]
-	value []byte
+	cached bool
+	value  []byte
 
-	// Location of value in file (does not include
-	// operation, key length, key, or value length)
-	loc  int64
+	// loc is the offset of the record in the log file
+	//
+	// We store the beginning of the record here for using
+	// in nullify operations.
+	loc int64
+	// size is the size fo the value in the log file
 	size uint32
 
 	// interleaved (across batches) doubly-linked list allows for removals
@@ -18,12 +22,10 @@ type record struct {
 }
 
 func (r *record) Size() int64 {
-	if r.loc >= 0 {
-		return int64(r.size)
-	}
-	return int64(len(r.value))
+	return int64(r.size)
 }
 
-func (r *record) Cached() bool {
-	return r.loc < 0
+// ValueLoc returns the locaction of the value in the log file
+func (r *record) ValueLoc() int64 {
+	return r.loc + opPutLenWithValueLen(r.key, 0)
 }

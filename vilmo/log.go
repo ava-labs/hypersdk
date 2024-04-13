@@ -115,6 +115,7 @@ func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 		corrupt error
 	)
 	for {
+		start := reader.Cursor()
 		opType, err := readOpType(reader, hasher)
 		if err != nil {
 			corrupt = err
@@ -126,7 +127,7 @@ func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 		}
 		switch opType {
 		case opPut:
-			keyLoc := reader.Cursor()
+			keyLoc := start
 			put, err := readPut(reader, hasher)
 			if err != nil {
 				corrupt = err
