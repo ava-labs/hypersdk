@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -50,13 +49,6 @@ const (
 	uselessDividerRecycle = 3
 	forceRecycle          = 128 * units.MiB // TODO: make this tuneable
 )
-
-// string2bytes avoid copying the string to a byte slice (which we need
-// when writing to disk).
-func string2bytes(str string) []byte {
-	d := unsafe.StringData(str)
-	return unsafe.Slice(d, len(str))
-}
 
 type tracker struct {
 	db     *Vilmo
