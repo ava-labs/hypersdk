@@ -70,15 +70,15 @@ func (r *reader) Read(p []byte) error {
 //
 // Partial batch writing should not occur unless there is an unclean shutdown,
 // as the usage of [Abort] prevents this.
-func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
+func load(logger logging.Logger, path string) (uint64, ids.ID, []op, int64, error) {
 	// Open log file
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, ids.Empty, nil, err
+		return 0, ids.Empty, nil, -1, err
 	}
 	fi, err := f.Stat()
 	if err != nil {
-		return 0, ids.Empty, nil, err
+		return 0, ids.Empty, nil, -1, err
 	}
 	fileSize := int64(fi.Size())
 
@@ -89,14 +89,17 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
 		lastBatch uint64
 		batchSet  bool
 
-		hasher = sha256.New()
-		ops    = []op{}
+		hasher       = sha256.New()
+		ops          = []op{}
+		uselessBytes int64
 
 		lastCommitByte     int64
 		lastCommitBatch    uint64
 		lastCommitChecksum ids.ID
 		lastCommitOps      int
-		corrupt            error
+		lastUselessBytes   int64
+
+		corrupt error
 	)
 	for {
 		op, err := readOpType(reader, hasher)
@@ -110,8 +113,23 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
 		}
 		switch op {
 		case opPut:
+			put, err := readPut(reader, hasher)
+			if err != nil {
+				corrupt = err
+				break
+			}
+			put.SetBatch(lastBatch)
+			ops = append(ops, put)
 		case opDelete:
+			del, err := readDelete(reader, hasher)
+			if err != nil {
+				corrupt = err
+				break
+			}
+			del.SetBatch(lastBatch)
+			ops = append(ops, del)
 		case opBatch:
+			uselessBytes += opBatchLen()
 			batch, err := readBatch(reader, hasher)
 			if err != nil {
 				corrupt = err
@@ -124,6 +142,7 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
 			lastBatch = batch
 			batchSet = true
 		case opChecksum:
+			uselessBytes += opChecksumLen()
 			checksum, err := readChecksum(reader)
 			if err != nil {
 				corrupt = err
@@ -140,6 +159,7 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
 			lastCommitBatch = lastBatch
 			lastCommitChecksum = checksum
 			lastCommitOps = len(ops)
+			lastUselessBytes = uselessBytes
 
 			// Check if we should exit (only clean exit)
 			if reader.Cursor() == fileSize {
@@ -158,15 +178,17 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
 
 	// Close file once we are done reading
 	if err := f.Close(); err != nil {
-		return 0, ids.Empty, nil, err
+		return 0, ids.Empty, nil, -1, err
 	}
 
 	// If the log file is corrupt, attempt to revert
-	// to the last non-corrupt batch.
+	// to the last non-corrupt op.
 	if corrupt != nil {
 		logger.Warn(
 			"log file is corrupt",
 			zap.Error(corrupt),
+			zap.Int("tip", len(ops)),
+			zap.Int("committed", lastCommitOps),
 		)
 		ops = ops[:lastCommitOps]
 	}
@@ -175,13 +197,13 @@ func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
 	if lastCommitByte == 0 {
 		// Remove the empty file
 		if err := os.Remove(path); err != nil {
-			return 0, ids.Empty, nil, fmt.Errorf("%w: unable to remove useless file", err)
+			return 0, ids.Empty, nil, -1, fmt.Errorf("%w: unable to remove useless file", err)
 		}
-		return 0, ids.Empty, nil, ErrEmpty
+		return 0, ids.Empty, nil, -1, ErrEmpty
 	} else {
 		if err := os.Truncate(path, lastCommitByte); err != nil {
-			return 0, ids.Empty, nil, fmt.Errorf("%w: unable to truncate file", err)
+			return 0, ids.Empty, nil, -1, fmt.Errorf("%w: unable to truncate file", err)
 		}
 	}
-	return lastCommitBatch, lastCommitChecksum, ops, nil
+	return lastCommitBatch, lastCommitChecksum, ops, lastUselessBytes, nil
 }
