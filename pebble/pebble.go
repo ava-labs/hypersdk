@@ -45,8 +45,8 @@ type Config struct {
 	CacheSize                   int // B
 	L0CompactionThreshold       int
 	L0StopWritesThreshold       int
-	MemTableStopWritesThreshold int    // num tables
-	MemTableSize                uint64 // B
+	MemTableStopWritesThreshold int // num tables
+	MemTableSize                int // B
 	MaxOpenFiles                int
 	ConcurrentCompactions       func() int
 }
@@ -215,10 +215,7 @@ func (b *batch) Reset() {
 func (b *batch) Replay(w database.KeyValueWriterDeleter) error {
 	reader := b.batch.Reader()
 	for {
-		kind, k, v, ok, err := reader.Next()
-		if err != nil {
-			return err
-		}
+		kind, k, v, ok := reader.Next()
 		if !ok {
 			return nil
 		}
@@ -250,17 +247,10 @@ type iter struct {
 }
 
 func (db *Database) newIter(args *pebble.IterOptions) *iter {
-	it := &iter{
-		db: db,
+	return &iter{
+		db:   db,
+		iter: db.db.NewIter(args),
 	}
-	dbIt, err := db.db.NewIter(args)
-	if err != nil {
-		it.err = err
-		it.valid = false
-		return it
-	}
-	it.iter = dbIt
-	return it
 }
 
 // NewIterator creates a lexicographically ordered iterator over the database
