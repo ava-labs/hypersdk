@@ -64,7 +64,7 @@ func (r *reader) Read(p []byte) error {
 type pendingLog struct {
 	Batch    uint64
 	Checksum ids.ID
-	Ops      []op
+	Ops      map[uint64][]op
 
 	// UselessBytes only includes bytes from [opBatch] and [opChecksum]
 	// because we do not yet know if any [opPut] or [opDelete] are useless.
@@ -100,28 +100,28 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 		batchSet  bool
 
 		hasher       = sha256.New()
-		ops          = []op{}
+		ops          []op
 		uselessBytes int64
 
-		lastCommitByte     int64
-		lastCommitBatch    uint64
-		lastCommitChecksum ids.ID
-		lastCommitOps      int
-		lastUselessBytes   int64
+		committedByte         int64
+		committedBatch        uint64
+		committedChecksum     ids.ID
+		committedUselessBytes int64
+		committedOps          = map[uint64][]op{}
 
 		corrupt error
 	)
 	for {
-		op, err := readOpType(reader, hasher)
+		opType, err := readOpType(reader, hasher)
 		if err != nil {
 			corrupt = err
 			break
 		}
-		if !batchSet && op != opBatch {
-			corrupt = fmt.Errorf("expected batch op but got %d", op)
+		if !batchSet && opType != opBatch {
+			corrupt = fmt.Errorf("expected batch op but got %d", opType)
 			break
 		}
-		switch op {
+		switch opType {
 		case opPut:
 			put, err := readPut(reader, hasher)
 			if err != nil {
@@ -151,6 +151,7 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 			}
 			lastBatch = batch
 			batchSet = true
+			ops = []op{}
 		case opChecksum:
 			uselessBytes += opChecksumLen()
 			checksum, err := readChecksum(reader)
@@ -165,11 +166,11 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 			}
 
 			// Update our track for last committed
-			lastCommitByte = reader.Cursor()
-			lastCommitBatch = lastBatch
-			lastCommitChecksum = checksum
-			lastCommitOps = len(ops)
-			lastUselessBytes = uselessBytes
+			committedByte = reader.Cursor()
+			committedBatch = lastBatch
+			committedChecksum = checksum
+			committedUselessBytes = uselessBytes
+			committedOps[lastBatch] = ops
 
 			// Check if we should exit (only clean exit)
 			if reader.Cursor() == fileSize {
@@ -183,6 +184,7 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 				break
 			}
 			batchSet = false
+			ops = nil
 		}
 	}
 
@@ -198,32 +200,35 @@ func load(logger logging.Logger, path string) (*pendingLog, error) {
 			"log file is corrupt",
 			zap.String("path", path),
 			zap.Error(corrupt),
-			zap.Int("tip", len(ops)),
-			zap.Int("committed", lastCommitOps),
 		)
-		ops = ops[:lastCommitOps]
 	}
 
 	// If after recovery the log file is empty, return to caller.
-	if lastCommitByte == 0 {
+	if committedByte == 0 {
 		// Remove the empty file
 		if err := os.Remove(path); err != nil {
 			return nil, fmt.Errorf("%w: unable to remove useless file", err)
 		}
 		logger.Warn(
-			"log file is empty",
+			"removing corrupt log",
 			zap.String("path", path),
 		)
 		return nil, nil
 	} else {
-		if err := os.Truncate(path, lastCommitByte); err != nil {
+		if err := os.Truncate(path, committedByte); err != nil {
 			return nil, fmt.Errorf("%w: unable to truncate file", err)
 		}
+		logger.Warn(
+			"truncating corrupt log",
+			zap.String("path", path),
+			zap.Int64("tip", fileSize),
+			zap.Int64("committed", committedByte),
+		)
 	}
 	return &pendingLog{
-		Batch:        lastCommitBatch,
-		Checksum:     lastCommitChecksum,
-		Ops:          ops,
-		UselessBytes: lastUselessBytes,
+		Batch:        committedBatch,
+		Checksum:     committedChecksum,
+		Ops:          committedOps,
+		UselessBytes: committedUselessBytes,
 	}, nil
 }
