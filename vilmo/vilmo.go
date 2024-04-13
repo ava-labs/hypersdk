@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/mmap"
 )
 
@@ -236,6 +237,7 @@ func New(
 	// on-disk and ensure that we don't have any gaps. We also ensure we don't
 	// end up with too many files.
 	pendingLogs := make([]*pendingLog, 0, len(files))
+	batchesRead := map[uint64]string{}
 	for _, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
 		pl, err := load(logger, path)
@@ -247,6 +249,14 @@ func New(
 			// This means the file was empty and is now deleted
 			continue
 		}
+		for batch := range pl.Ops {
+			previousPath, ok := batchesRead[batch]
+			if ok {
+				logger.Warn("found duplicate batch", zap.Uint64("batch", batch), zap.String("previous", previousPath), zap.String("current", path))
+				return nil, ids.Empty, errors.New("duplicate batch")
+			}
+			batchesRead[batch] = path
+		}
 		pendingLogs = append(pendingLogs, pl)
 	}
 	if len(pendingLogs) > historyLen+1 {
@@ -255,6 +265,14 @@ func New(
 	}
 
 	// Build current state from all log files
+	batches := maps.Keys(batchesRead)
+	slices.Sort(batches)
+	for i := 0; i < len(batches); i++ {
+		if i > 0 && batches[i] != batches[i-1]+1 {
+			logger.Warn("found gap in batches", zap.Uint64("previous", batches[i-1]), zap.Uint64("current", batches[i]))
+			return nil, ids.Empty, errors.New("gap in batches")
+		}
+	}
 
 	// Instantiate DB
 	adb := &Vilmo{
