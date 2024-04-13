@@ -17,27 +17,6 @@ const (
 	opNullify  = uint8(4) // keyLoc
 )
 
-type op interface {
-	Type() uint8
-}
-
-type putOp struct {
-	key   string
-	value []byte
-}
-
-func (op *putOp) Type() uint8 {
-	return opPut
-}
-
-type deleteOp struct {
-	key string
-}
-
-func (op *deleteOp) Type() uint8 {
-	return opDelete
-}
-
 func readOpType(reader *reader, hasher hash.Hash) (uint8, error) {
 	op := make([]byte, consts.Uint8Len)
 	if err := reader.Read(op); err != nil {
@@ -68,37 +47,37 @@ func readKey(reader *reader, hasher hash.Hash) (string, error) {
 	return string(key), nil
 }
 
-func readPut(reader *reader, hasher hash.Hash) (*putOp, error) {
+func readPut(reader *reader, hasher hash.Hash) (string, []byte, error) {
 	key, err := readKey(reader, hasher)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	// Read value
 	op := make([]byte, consts.Uint32Len)
 	if err := reader.Read(op); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if _, err := hasher.Write(op); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	valueLen := binary.BigEndian.Uint32(op)
 	value := make([]byte, valueLen)
 	if err := reader.Read(value); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if _, err := hasher.Write(value); err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return &putOp{key: key, value: value}, nil
+	return key, value, nil
 }
 
-func readDelete(reader *reader, hasher hash.Hash) (*deleteOp, error) {
+func readDelete(reader *reader, hasher hash.Hash) (string, error) {
 	key, err := readKey(reader, hasher)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return &deleteOp{key: key}, nil
+	return key, nil
 }
 
 func readBatch(reader *reader, hasher hash.Hash) (uint64, error) {

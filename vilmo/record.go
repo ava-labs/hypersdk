@@ -1,7 +1,13 @@
 package vilmo
 
 type record struct {
-	log uint64
+	// log is the log file that contains this record
+	//
+	// By storing a pointer here, we can avoid a map
+	// lookup if we need to access this log.
+	log *log
+
+	// TODO: determine if we can remove this
 	key string
 
 	// Only populated if the value is less than [minDiskValueSize]

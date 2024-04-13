@@ -66,7 +66,7 @@ func (r *reader) Read(p []byte) error {
 type pendingLog struct {
 	Batch    uint64
 	Checksum ids.ID
-	Ops      map[uint64][]op
+	Ops      map[uint64][]any
 
 	// UselessBytes only includes bytes from [opBatch] and [opChecksum]
 	// because we do not yet know if any [opPut] or [opDelete] are useless.
@@ -82,7 +82,7 @@ type pendingLog struct {
 //
 // Partial batch writing should not occur unless there is an unclean shutdown,
 // as the usage of [Abort] prevents this.
-func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
+func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][]any, error) {
 	// Open log file
 	f, err := os.Open(path)
 	if err != nil {
@@ -103,14 +103,14 @@ func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 		keys      = map[int64]string{}
 
 		hasher       = sha256.New()
-		ops          []op
+		ops          []any
 		uselessBytes int64
 
 		committedByte         int64
 		committedBatch        uint64
 		committedChecksum     ids.ID
 		committedUselessBytes int64
-		committedOps          = map[uint64][]op{}
+		committedOps          = map[uint64][]any{}
 
 		corrupt error
 	)
@@ -127,14 +127,23 @@ func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 		}
 		switch opType {
 		case opPut:
-			keyLoc := start
-			put, err := readPut(reader, hasher)
+			key, value, err := readPut(reader, hasher)
 			if err != nil {
 				corrupt = err
 				break
 			}
-			keys[keyLoc] = put.key
-			ops = append(ops, put)
+			keys[start] = key
+			r := &record{
+				key: key,
+
+				loc:  start,
+				size: uint32(len(value)),
+			}
+			if len(value) < minDiskValueSize {
+				r.cached = true
+				r.value = value
+			}
+			ops = append(ops, r)
 		case opDelete:
 			del, err := readDelete(reader, hasher)
 			if err != nil {
@@ -155,7 +164,7 @@ func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 			}
 			lastBatch = batch
 			batchSet = true
-			ops = []op{}
+			ops = []any{}
 		case opChecksum:
 			uselessBytes += opChecksumLen()
 			checksum, err := readChecksum(reader)
@@ -205,7 +214,7 @@ func load(logger logging.Logger, path string) (*log, map[uint64][]op, error) {
 			// To simplify the processing of nullifications, we just
 			// treat them as deletes for the batch in which they were included (this may
 			// be a no-op if other log files were not rewritten).
-			ops = append(ops, &deleteOp{key: key})
+			ops = append(ops, key)
 		default:
 			corrupt = fmt.Errorf("unknown op type %d", opType)
 			break
