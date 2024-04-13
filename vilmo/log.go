@@ -63,22 +63,12 @@ func (r *reader) Read(p []byte) error {
 	return err
 }
 
-type pendingLog struct {
-	Batch    uint64
-	Checksum ids.ID
-	Ops      map[uint64][]any
-
-	// UselessBytes only includes bytes from [opBatch] and [opChecksum]
-	// because we do not yet know if any [opPut] or [opDelete] are useless.
-	UselessBytes int64
-}
-
 // load will attempt to load a log file from disk.
 //
 // If a batch is partially written or corrupt, the batch will be removed
 // from the log file and the last non-corrupt batch will be returned. If
-// there are no non-corrupt batches the file will be deleted and a nil
-// [pendingLog] will be returned.
+// there are no non-corrupt batches the file will be deleted and a nil *log
+// will be retunred.
 //
 // Partial batch writing should not occur unless there is an unclean shutdown,
 // as the usage of [Abort] prevents this.
@@ -97,6 +87,9 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 	// Read log file ops
 	var (
 		reader = &reader{reader: bufio.NewReader(f)}
+
+		// We create the log here so that any read items can reference it.
+		l = &log{}
 
 		lastBatch uint64
 		batchSet  bool
@@ -134,6 +127,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			}
 			keys[start] = key
 			r := &record{
+				log: l,
 				key: key,
 
 				loc:  start,
@@ -264,15 +258,11 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 	if err != nil {
 		return nil, nil, err
 	}
-	return &log{
-		reader: m,
-
-		uselessBytes: committedUselessBytes,
-
-		batch:    committedBatch,
-		checksum: committedChecksum,
-
-		// Note: alive nor aliveBytes is not populated and must be updated
-		// by the caller
-	}, committedOps, nil
+	l.reader = m
+	l.uselessBytes = committedUselessBytes
+	l.batch = committedBatch
+	l.checksum = committedChecksum
+	// Note: alive nor aliveBytes is not populated and must be updated
+	// by the caller
+	return l, committedOps, nil
 }
