@@ -37,6 +37,15 @@ type log struct {
 	alive *dll
 }
 
+func (l *log) Add(record *record) {
+	opSize := opPutLenWithValueLen(record.key, record.Size())
+	l.aliveBytes += opSize
+
+	// Add to linked list
+	l.alive.Add(record)
+}
+
+// TODO: handle nullify bytes included
 func (l *log) Remove(record *record) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	l.aliveBytes -= opSize
@@ -137,6 +146,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				r.cached = true
 				r.value = value
 			}
+			l.Add(r)
 			ops = append(ops, r)
 		case opDelete:
 			del, err := readDelete(reader, hasher)
@@ -144,14 +154,15 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				corrupt = err
 				break
 			}
+			uselessBytes += opDeleteLen(del)
 			ops = append(ops, del)
 		case opBatch:
-			uselessBytes += opBatchLen()
 			batch, err := readBatch(reader, hasher)
 			if err != nil {
 				corrupt = err
 				break
 			}
+			uselessBytes += opBatchLen()
 			if batchSet {
 				corrupt = fmt.Errorf("batch %d already set", lastBatch)
 				break
@@ -160,12 +171,12 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			batchSet = true
 			ops = []any{}
 		case opChecksum:
-			uselessBytes += opChecksumLen()
 			checksum, err := readChecksum(reader)
 			if err != nil {
 				corrupt = err
 				break
 			}
+			uselessBytes += opChecksumLen()
 			computed := ids.ID(hasher.Sum(nil))
 			if checksum != computed {
 				corrupt = fmt.Errorf("checksum mismatch expected=%d got=%d", checksum, computed)
@@ -193,12 +204,12 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			batchSet = false
 			ops = nil
 		case opNullify:
-			uselessBytes += opNullifyLen()
 			loc, err := readNullify(reader, hasher)
 			if err != nil {
 				corrupt = err
 				break
 			}
+			uselessBytes += opNullifyLen()
 			key, ok := keys[loc]
 			if !ok {
 				corrupt = fmt.Errorf("nullify key not found at %d", loc)

@@ -236,55 +236,56 @@ func New(
 	// During this process, we attempt to recover any corrupt files
 	// on-disk and ensure that we don't have any gaps. We also ensure we don't
 	// end up with too many files.
-	pendingLogs := make([]*pendingLog, 0, len(files))
-	batchesRead := map[uint64][]op{}
+	batchesRead := map[uint64][]any{}
 	logs := make(map[uint64]*log, len(files))
 	for _, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		pl, err := load(logger, path)
+		l, allOps, err := load(logger, file, path)
 		if err != nil {
 			logger.Warn("could not load log", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
 		}
-		if pl == nil {
+		if l == nil {
 			// This means the file was empty and is now deleted
 			continue
 		}
-		for batch, ops := range pl.Ops {
+		for batch, ops := range allOps {
 			if _, ok := batchesRead[batch]; ok {
 				logger.Warn("found duplicate batch", zap.Uint64("batch", batch), zap.String("current", path))
 				return nil, ids.Empty, errors.New("duplicate batch")
 			}
 			batchesRead[batch] = ops
 		}
-		pendingLogs = append(pendingLogs, pl)
+		logs[file] = l
 	}
-	if len(pendingLogs) > historyLen+1 {
-		logger.Warn("found too many files", zap.Int("count", len(files)))
-		return nil, ids.Empty, errors.New("too many files")
+	if len(logs) > historyLen+1 {
+		logger.Warn("found too many logs", zap.Int("count", len(logs)))
+		return nil, ids.Empty, errors.New("too many logs")
 	}
 
 	// Build current state from all log files
 	keys := make(map[string]*record, initialSize)
 	batches := maps.Keys(batchesRead)
 	slices.Sort(batches)
-	for i := 0; i < len(batches); i++ {
-		if i > 0 && batches[i] != batches[i-1]+1 {
-			logger.Warn("found gap in batches", zap.Uint64("previous", batches[i-1]), zap.Uint64("current", batches[i]))
-			return nil, ids.Empty, errors.New("gap in batches")
-		}
-		for _, op := range batchesRead[batches[i]] {
-			switch op.Type() {
-			case opPut:
-				put := op.(*putOp)
-			case opDelete:
-				del := op.(*deleteOp)
-				delete(keys, del.key)
-
-				// TODO: add useless bytes if key was
-				// valid at this time
+	for _, batch := range batches {
+		// There may be gaps between batches depending on which files were rewritten,
+		// that's ok.
+		for _, op := range batchesRead[batch] {
+			switch o := op.(type) {
+			case *record:
+				r, ok := keys[o.key]
+				if ok {
+					r.log.Remove(r)
+				}
+				keys[o.key] = o
+			case string:
+				r, ok := keys[o]
+				if !ok {
+					continue
+				}
+				r.log.Remove(r)
 			default:
-				logger.Warn("found invalid operation", zap.Uint64("batch", batches[i]), zap.Int("op", int(op.Type())))
+				logger.Warn("found invalid operation", zap.Uint64("batch", batch), zap.Any("op", op))
 				return nil, ids.Empty, errors.New("invalid operation")
 			}
 		}
