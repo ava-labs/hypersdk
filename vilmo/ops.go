@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"hash"
-	"io"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/consts"
@@ -19,9 +18,14 @@ const (
 
 type op interface {
 	Type() uint8
+
+	SetBatch(uint64)
+	Batch() uint64
 }
 
 type putOp struct {
+	batch uint64
+
 	key   string
 	value []byte
 }
@@ -30,7 +34,17 @@ func (op *putOp) Type() uint8 {
 	return opPut
 }
 
+func (op *putOp) SetBatch(batch uint64) {
+	op.batch = batch
+}
+
+func (op *putOp) Batch() uint64 {
+	return op.batch
+}
+
 type deleteOp struct {
+	batch uint64
+
 	key string
 }
 
@@ -38,25 +52,17 @@ func (op *deleteOp) Type() uint8 {
 	return opDelete
 }
 
-type batchOp struct {
-	batch uint64
+func (op *deleteOp) SetBatch(batch uint64) {
+	op.batch = batch
 }
 
-func (op *batchOp) Type() uint8 {
-	return opBatch
+func (op *deleteOp) Batch() uint64 {
+	return op.batch
 }
 
-type checksumOp struct {
-	checksum ids.ID
-}
-
-func (op *checksumOp) Type() uint8 {
-	return opChecksum
-}
-
-func readOpType(reader io.Reader, hasher hash.Hash) (uint8, error) {
+func readOpType(reader *reader, hasher hash.Hash) (uint8, error) {
 	op := make([]byte, consts.Uint8Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
+	if err := reader.Read(op); err != nil {
 		return 0, err
 	}
 	if _, err := hasher.Write(op); err != nil {
@@ -65,9 +71,9 @@ func readOpType(reader io.Reader, hasher hash.Hash) (uint8, error) {
 	return op[0], nil
 }
 
-func readKey(reader io.Reader, hasher hash.Hash) (string, error) {
+func readKey(reader *reader, hasher hash.Hash) (string, error) {
 	op := make([]byte, consts.Uint16Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
+	if err := reader.Read(op); err != nil {
 		return "", err
 	}
 	if _, err := hasher.Write(op); err != nil {
@@ -75,7 +81,7 @@ func readKey(reader io.Reader, hasher hash.Hash) (string, error) {
 	}
 	keyLen := binary.BigEndian.Uint16(op)
 	key := make([]byte, keyLen)
-	if _, err := io.ReadFull(reader, key); err != nil {
+	if err := reader.Read(key); err != nil {
 		return "", err
 	}
 	if _, err := hasher.Write(key); err != nil {
@@ -84,7 +90,7 @@ func readKey(reader io.Reader, hasher hash.Hash) (string, error) {
 	return string(key), nil
 }
 
-func readPut(reader io.Reader, hasher hash.Hash) (*putOp, error) {
+func readPut(reader *reader, hasher hash.Hash) (*putOp, error) {
 	key, err := readKey(reader, hasher)
 	if err != nil {
 		return nil, err
@@ -92,7 +98,7 @@ func readPut(reader io.Reader, hasher hash.Hash) (*putOp, error) {
 
 	// Read value
 	op := make([]byte, consts.Uint32Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
+	if err := reader.Read(op); err != nil {
 		return nil, err
 	}
 	if _, err := hasher.Write(op); err != nil {
@@ -100,42 +106,41 @@ func readPut(reader io.Reader, hasher hash.Hash) (*putOp, error) {
 	}
 	valueLen := binary.BigEndian.Uint32(op)
 	value := make([]byte, valueLen)
-	if _, err := io.ReadFull(reader, value); err != nil {
+	if err := reader.Read(value); err != nil {
 		return nil, err
 	}
 	if _, err := hasher.Write(value); err != nil {
 		return nil, err
 	}
-	return &putOp{key, value}, nil
+	return &putOp{key: key, value: value}, nil
 }
 
-func readDelete(reader io.Reader, hasher hash.Hash) (*deleteOp, error) {
+func readDelete(reader *reader, hasher hash.Hash) (*deleteOp, error) {
 	key, err := readKey(reader, hasher)
 	if err != nil {
 		return nil, err
 	}
-	return &deleteOp{key}, nil
+	return &deleteOp{key: key}, nil
 }
 
-func readBatch(reader io.Reader, cursor int64, hasher hash.Hash) (*batchOp, error) {
+func readBatch(reader *reader, hasher hash.Hash) (uint64, error) {
 	op := make([]byte, consts.Uint64Len)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return nil, err
+	if err := reader.Read(op); err != nil {
+		return 0, err
 	}
 	if _, err := hasher.Write(op); err != nil {
-		return nil, err
+		return 0, err
 	}
-	cursor += int64(len(op))
 	batch := binary.BigEndian.Uint64(op)
-	return &batchOp{batch}, nil
+	return batch, nil
 }
 
-func readChecksum(reader io.Reader) (*checksumOp, error) {
+func readChecksum(reader *reader) (ids.ID, error) {
 	op := make([]byte, sha256.Size)
-	if _, err := io.ReadFull(reader, op); err != nil {
-		return nil, err
+	if err := reader.Read(op); err != nil {
+		return ids.Empty, err
 	}
-	return &checksumOp{ids.ID(op)}, nil
+	return ids.ID(op), nil
 }
 
 func opPutLen(key string, value []byte) int64 {

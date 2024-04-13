@@ -1,7 +1,15 @@
 package vilmo
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"os"
+
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 	"golang.org/x/exp/mmap"
 )
 
@@ -27,7 +35,6 @@ type log struct {
 	alive *dll
 }
 
-// we return the record to allow for memory reuse + less map ops
 func (l *log) Remove(record *record) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	l.aliveBytes -= opSize
@@ -37,5 +44,144 @@ func (l *log) Remove(record *record) {
 	l.alive.Remove(record)
 }
 
-func load(path string) (uint64, ids.ID, []op, error) {
+// reader tracks how many bytes we read of a file to support
+// arbitrary truncation.
+type reader struct {
+	cursor int64
+	reader *bufio.Reader
+}
+
+func (r *reader) Cursor() int64 {
+	return r.cursor
+}
+
+func (r *reader) Read(p []byte) error {
+	n, err := io.ReadFull(r.reader, p)
+	r.cursor += int64(n)
+	return err
+}
+
+// load will attempt to load a log file from disk.
+//
+// If a batch is partially written or corrupt, the batch will be removed
+// from the log file and the last non-corrupt batch will be returned. If
+// there are no non-corrupt batches the file will be deleted and [ErrEmpty]
+// will be returned.
+//
+// Partial batch writing should not occur unless there is an unclean shutdown,
+// as the usage of [Abort] prevents this.
+func load(logger logging.Logger, path string) (uint64, ids.ID, []op, error) {
+	// Open log file
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, ids.Empty, nil, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, ids.Empty, nil, err
+	}
+	fileSize := int64(fi.Size())
+
+	// Read log file ops
+	var (
+		reader = &reader{reader: bufio.NewReader(f)}
+
+		lastBatch uint64
+		batchSet  bool
+
+		hasher = sha256.New()
+		ops    = []op{}
+
+		lastCommitByte     int64
+		lastCommitBatch    uint64
+		lastCommitChecksum ids.ID
+		lastCommitOps      int
+		corrupt            error
+	)
+	for {
+		op, err := readOpType(reader, hasher)
+		if err != nil {
+			corrupt = err
+			break
+		}
+		if !batchSet && op != opBatch {
+			corrupt = fmt.Errorf("expected batch op but got %d", op)
+			break
+		}
+		switch op {
+		case opPut:
+		case opDelete:
+		case opBatch:
+			batch, err := readBatch(reader, hasher)
+			if err != nil {
+				corrupt = err
+				break
+			}
+			if batchSet {
+				corrupt = fmt.Errorf("batch %d already set", lastBatch)
+				break
+			}
+			lastBatch = batch
+			batchSet = true
+		case opChecksum:
+			checksum, err := readChecksum(reader)
+			if err != nil {
+				corrupt = err
+				break
+			}
+			computed := ids.ID(hasher.Sum(nil))
+			if checksum != computed {
+				corrupt = fmt.Errorf("checksum mismatch expected=%d got=%d", checksum, computed)
+				break
+			}
+
+			// Update our track for last committed
+			lastCommitByte = reader.Cursor()
+			lastCommitBatch = lastBatch
+			lastCommitChecksum = checksum
+			lastCommitOps = len(ops)
+
+			// Check if we should exit (only clean exit)
+			if reader.Cursor() == fileSize {
+				break
+			}
+
+			// Keep reading
+			hasher = sha256.New()
+			if _, err := hasher.Write(checksum[:]); err != nil {
+				corrupt = err
+				break
+			}
+			batchSet = false
+		}
+	}
+
+	// Close file once we are done reading
+	if err := f.Close(); err != nil {
+		return 0, ids.Empty, nil, err
+	}
+
+	// If the log file is corrupt, attempt to revert
+	// to the last non-corrupt batch.
+	if corrupt != nil {
+		logger.Warn(
+			"log file is corrupt",
+			zap.Error(corrupt),
+		)
+		ops = ops[:lastCommitOps]
+	}
+
+	// If after recovery the log file is empty, return to caller.
+	if lastCommitByte == 0 {
+		// Remove the empty file
+		if err := os.Remove(path); err != nil {
+			return 0, ids.Empty, nil, fmt.Errorf("%w: unable to remove useless file", err)
+		}
+		return 0, ids.Empty, nil, ErrEmpty
+	} else {
+		if err := os.Truncate(path, lastCommitByte); err != nil {
+			return 0, ids.Empty, nil, fmt.Errorf("%w: unable to truncate file", err)
+		}
+	}
+	return lastCommitBatch, lastCommitChecksum, ops, nil
 }
