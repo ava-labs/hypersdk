@@ -236,6 +236,12 @@ func (a *Vilmo) loadBatch(
 				return err
 			}
 			r, ok := a.keys[key]
+			// We store [file] as [r.batch] because we assume that the record
+			// is valid in the current batch. If it is not, we will remove it
+			// later.
+			//
+			// This trick allows us to avoid keeping a complete accounting of each
+			// batch as we process keys in memory (which isn't possible).
 			if ok && lastBatch >= r.batch {
 				a.batches[r.batch].Remove(r)
 				r.batch = file
