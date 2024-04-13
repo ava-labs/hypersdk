@@ -489,7 +489,7 @@ type Batch struct {
 
 	pruneableBatch *uint64
 	openWrites     int64 // bytes
-	reuseFile      bool
+	movingPath     string
 	startingCursor int64
 
 	hasher hash.Hash
@@ -642,9 +642,8 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Open old batch for writing
 	b.a.logger.Debug("continuing to build on old batch", zap.Uint64("old", oldestBatch), zap.Uint64("new", b.batch))
-	b.reuseFile = true
-	b.path = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
-	f, err := os.OpenFile(b.path, os.O_WRONLY, 0666)
+	b.movingPath = filepath.Join(b.a.baseDir, strconv.FormatUint(oldestBatch, 10))
+	f, err := os.OpenFile(b.movingPath, os.O_WRONLY, 0666)
 	if err != nil {
 		return false, err
 	}
@@ -681,12 +680,12 @@ func (b *Batch) Abort() error {
 	}
 
 	// Cleanup aborted work
-	if !b.reuseFile {
+	if len(b.movingPath) == 0 {
 		if err := os.Remove(b.path); err != nil {
 			return err
 		}
 	} else {
-		if err := os.Truncate(b.path, b.startingCursor); err != nil {
+		if err := os.Truncate(b.movingPath, b.startingCursor); err != nil {
 			return err
 		}
 	}
@@ -752,7 +751,7 @@ func (b *Batch) writeChecksum() (ids.ID, error) {
 func (b *Batch) Prepare() (int64, bool) {
 	b.a.keyLock.Lock()
 
-	if b.reuseFile {
+	if len(b.movingPath) == 0 {
 		// Iterate over [alive] and update records for [keys] that were recycled
 		iter := b.t.alive.Iterator()
 		for next := iter.Next(); next != nil; next = iter.Next() {
@@ -774,7 +773,7 @@ func (b *Batch) Prepare() (int64, bool) {
 	// [keyLock] to ensure that [b.a.batches] is not referenced
 	// at the same time.
 	b.a.batches[b.batch] = b.t
-	return b.openWrites, b.pruneableBatch != nil && !b.reuseFile
+	return b.openWrites, b.pruneableBatch != nil && len(b.movingPath) == 0
 }
 
 func (b *Batch) Put(_ context.Context, key string, value []byte) error {
@@ -884,10 +883,14 @@ func (b *Batch) Write() (ids.ID, error) {
 		if err := preparedReader.reader.Close(); err != nil {
 			return ids.Empty, fmt.Errorf("%w: could not close old batch", err)
 		}
-		if !b.reuseFile {
+		if len(b.movingPath) == 0 {
 			preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
 			if err := os.Remove(preparedPath); err != nil {
 				return ids.Empty, fmt.Errorf("%w: could not remove old batch", err)
+			}
+		} else {
+			if err := os.Rename(b.movingPath, b.path); err != nil {
+				return ids.Empty, fmt.Errorf("%w: could not rename file", err)
 			}
 		}
 		delete(b.a.batches, preparedBatch)
