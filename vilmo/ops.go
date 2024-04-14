@@ -119,6 +119,10 @@ func opPutLenWithValueLen(key string, valueLen int64) int64 {
 	return int64(consts.Uint8Len+consts.Uint16Len+len(key)+consts.Uint32Len) + valueLen
 }
 
+func opPutToValue(keyLen uint16) int64 {
+	return int64(consts.Uint8Len + consts.Uint16Len + keyLen + consts.Uint32Len)
+}
+
 func opDeleteLen(key string) int64 {
 	return int64(consts.Uint8Len + consts.Uint16Len + len(key))
 }

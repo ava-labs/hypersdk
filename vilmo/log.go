@@ -27,14 +27,18 @@ type log struct {
 	aliveBytes   int64
 	uselessBytes int64 // already includes all overwritten data, checksums, and deletes
 
-	// batch is the last batch in a log file.
-	batch uint64
 	// checksum is the last checkpoint in a log file.
 	checksum ids.ID
 
 	// alive is used to determine the order to write living
 	// data in the case a log needs to be rewritten.
 	alive *dll
+
+	// pendingNullify is a list of put records that have been deleted
+	// on other log files. In the case that this log file is recycled,
+	// we must persist these nullifications to ensure we can restore state
+	// on restart.
+	pendingNullify []int64
 }
 
 func (l *log) Add(record *record) {
@@ -46,13 +50,19 @@ func (l *log) Add(record *record) {
 }
 
 // TODO: handle nullify bytes included
-func (l *log) Remove(record *record) {
+func (l *log) Remove(record *record, nullify bool) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	l.aliveBytes -= opSize
 	l.uselessBytes += opSize
 
 	// Remove from linked list
 	l.alive.Remove(record)
+
+	// We should only nullify a record if the update/delete is on another log. If it is
+	// on the same log file, we don't need to nullify it.
+	if nullify {
+		l.pendingNullify = append(l.pendingNullify, record.loc)
+	}
 }
 
 // reader tracks how many bytes we read of a file to support
@@ -70,6 +80,21 @@ func (r *reader) Read(p []byte) error {
 	n, err := io.ReadFull(r.reader, p)
 	r.cursor += int64(n)
 	return err
+}
+
+type batchIndex struct {
+	batch uint64
+	index int
+}
+
+type putOp struct {
+	key    string
+	record *record
+}
+
+type deleteOp struct {
+	key string
+	log *log
 }
 
 // load will attempt to load a log file from disk.
@@ -98,18 +123,17 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 		reader = &reader{reader: bufio.NewReader(f)}
 
 		// We create the log here so that any read items can reference it.
-		l = &log{}
+		l = &log{alive: &dll{}}
 
 		lastBatch uint64
 		batchSet  bool
-		keys      = map[int64]string{}
+		keys      = map[int64]*batchIndex{}
 
 		hasher       = sha256.New()
 		ops          []any
 		uselessBytes int64
 
 		committedByte         int64
-		committedBatch        uint64
 		committedChecksum     ids.ID
 		committedUselessBytes int64
 		committedOps          = map[uint64][]any{}
@@ -134,7 +158,6 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				corrupt = err
 				break
 			}
-			keys[start] = key
 			r := &record{
 				log: l,
 				key: key,
@@ -146,8 +169,11 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				r.cached = true
 				r.value = value
 			}
-			l.Add(r)
 			ops = append(ops, r)
+			keys[start] = &batchIndex{batch: lastBatch, index: len(ops) - 1}
+
+			// We wait to adjust [aliveBytes] until we know if a value is actually
+			// added to [keys].
 		case opDelete:
 			del, err := readDelete(reader, hasher)
 			if err != nil {
@@ -155,7 +181,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				break
 			}
 			uselessBytes += opDeleteLen(del)
-			ops = append(ops, del)
+			ops = append(ops, &deleteOp{del, l})
 		case opBatch:
 			batch, err := readBatch(reader, hasher)
 			if err != nil {
@@ -185,7 +211,6 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 
 			// Update our track for last committed
 			committedByte = reader.Cursor()
-			committedBatch = lastBatch
 			committedChecksum = checksum
 			committedUselessBytes = uselessBytes
 			committedOps[lastBatch] = ops
@@ -210,16 +235,15 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				break
 			}
 			uselessBytes += opNullifyLen()
-			key, ok := keys[loc]
+			bi, ok := keys[loc]
 			if !ok {
 				corrupt = fmt.Errorf("nullify key not found at %d", loc)
 				break
 			}
 
-			// To simplify the processing of nullifications, we just
-			// treat them as deletes for the batch in which they were included (this may
-			// be a no-op if other log files were not rewritten).
-			ops = append(ops, key)
+			// It is not possible to nullify a put operation in the same
+			// batch, so this will not panic.
+			committedOps[bi.batch][bi.index] = nil
 		default:
 			corrupt = fmt.Errorf("unknown op type %d", opType)
 			break
@@ -271,9 +295,6 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 	}
 	l.reader = m
 	l.uselessBytes = committedUselessBytes
-	l.batch = committedBatch
 	l.checksum = committedChecksum
-	// Note: alive nor aliveBytes is not populated and must be updated
-	// by the caller
 	return l, committedOps, nil
 }

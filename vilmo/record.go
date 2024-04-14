@@ -7,8 +7,7 @@ type record struct {
 	// lookup if we need to access this log.
 	log *log
 
-	// TODO: determine if we can remove this
-	key string
+	key uint16
 
 	// Only populated if the value is less than [minDiskValueSize]
 	cached bool
@@ -33,5 +32,5 @@ func (r *record) Size() int64 {
 
 // ValueLoc returns the locaction of the value in the log file
 func (r *record) ValueLoc() int64 {
-	return r.loc + opPutLenWithValueLen(r.key, 0)
+	return r.loc + opPutToValue(r.key)
 }

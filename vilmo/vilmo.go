@@ -1,8 +1,6 @@
 package vilmo
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -53,146 +51,6 @@ type Vilmo struct {
 	keyLock sync.RWMutex
 	batches map[uint64]*log
 	keys    map[string]*record
-}
-
-func (a *Vilmo) loadBatch(
-	path string,
-	file uint64,
-) error {
-	// Load file into buffer
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	reader := bufio.NewReader(f)
-
-	// Read all operations from the file
-	var (
-		t = &tracker{
-			db:    a,
-			alive: &dll{},
-		}
-
-		fileSize = int64(fi.Size())
-		cursor   = int64(0)
-		hasher   = sha256.New()
-
-		lastBatch uint64
-		batchSet  bool
-	)
-	a.batches[file] = t
-	for {
-		op, newCursor, err := readOp(reader, cursor, hasher)
-		if err != nil {
-			return err
-		}
-		if op != opBatch && !batchSet {
-			return fmt.Errorf("%w: batch not found", ErrCorrupt)
-		}
-		switch op {
-		case opPut:
-			key, value, newCursor, err := readPut(reader, newCursor, hasher)
-			if err != nil {
-				return err
-			}
-			r, ok := a.keys[key]
-			// We store [file] as [r.batch] because we assume that the record
-			// is valid in the current batch. If it is not, we will remove it
-			// later.
-			//
-			// This trick allows us to avoid keeping a complete accounting of each
-			// batch as we process keys in memory (which isn't possible).
-			if ok && lastBatch >= r.batch {
-				a.batches[r.batch].Remove(r)
-				r.batch = file
-			} else if !ok {
-				r = &record{batch: file, key: key}
-				a.keys[key] = r
-			} else {
-				t.uselessBytes += opPutLen(key, value)
-				cursor = newCursor
-				continue
-			}
-			if len(value) >= minDiskValueSize {
-				r.value = nil
-				r.loc = cursor
-				r.size = uint32(len(value))
-			} else {
-				r.value = value
-				r.loc = -1
-				r.size = 0
-			}
-			t.alive.Add(r)
-			t.aliveBytes += opPutLen(key, value)
-			cursor = newCursor
-		case opDelete:
-			key, newCursor, err := readKey(reader, newCursor, hasher)
-			if err != nil {
-				return err
-			}
-			r, ok := a.keys[key]
-			if ok && lastBatch >= r.batch {
-				// Drop this key from our tracking and mark the operation as useless
-				a.batches[r.batch].Remove(r)
-				delete(a.keys, key)
-			}
-			// It is ok if the key doesn't exist when processing a delete op as we may be processing
-			// an old batch that has been reused.
-
-			t.uselessBytes += opDeleteLen(key)
-			cursor = newCursor
-		case opBatch:
-			batch, newCursor, err := readBatch(reader, newCursor, hasher)
-			if err != nil {
-				return err
-			}
-			if batchSet {
-				return fmt.Errorf("%w: multiple batch set operations", ErrCorrupt)
-			}
-			lastBatch = batch
-			batchSet = true
-			t.uselessBytes += opBatchLen()
-			cursor = newCursor
-		case opChecksum:
-			checksum, newCursor, err := readChecksum(reader, newCursor, hasher)
-			if err != nil {
-				return err
-			}
-			if !bytes.Equal(checksum[:], hasher.Sum(nil)) {
-				return fmt.Errorf("%w: checksum mismatch", ErrCorrupt)
-			}
-			t.uselessBytes += opChecksumLen()
-			cursor = newCursor
-
-			// Check if we should leave the file
-			if cursor == fileSize {
-				if lastBatch != file {
-					return fmt.Errorf("%w: batch at wrong location %d", ErrCorrupt, lastBatch)
-				}
-				mf, err := mmap.Open(path)
-				if err != nil {
-					return err
-				}
-				t.reader = mf
-				t.checksum = checksum
-				return nil
-			}
-
-			// Initialize hasher for next batch (assuming continues)
-			hasher = sha256.New()
-			if _, err := hasher.Write(checksum[:]); err != nil {
-				return err
-			}
-			batchSet = false
-		default:
-			return fmt.Errorf("%w: invalid operation %d", ErrCorrupt, op)
-		}
-	}
 }
 
 // New returns a new Vilmo instance and the ID of the last committed file.
@@ -272,18 +130,23 @@ func New(
 		// that's ok.
 		for _, op := range batchesRead[batch] {
 			switch o := op.(type) {
-			case *record:
-				r, ok := keys[o.key]
+			case nil:
+				// This happens when a put operation is nullified
+				continue
+			case *putOp:
+				past, ok := keys[o.key]
 				if ok {
-					r.log.Remove(r)
+					past.log.Remove(past, o.record.log != past.log)
 				}
-				keys[o.key] = o
-			case string:
-				r, ok := keys[o]
+				record := o.record
+				keys[o.key] = record
+				o.record.log.Add(record)
+			case *deleteOp:
+				past, ok := keys[o.key]
 				if !ok {
 					continue
 				}
-				r.log.Remove(r)
+				past.log.Remove(past, o.log != past.log)
 			default:
 				logger.Warn("found invalid operation", zap.Uint64("batch", batch), zap.Any("op", op))
 				return nil, ids.Empty, errors.New("invalid operation")
