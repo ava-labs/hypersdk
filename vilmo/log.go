@@ -208,6 +208,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				corrupt = fmt.Errorf("checksum mismatch expected=%d got=%d", checksum, computed)
 				break
 			}
+			ops = append(ops, checksum)
 
 			// Update our track for last committed
 			committedByte = reader.Cursor()
