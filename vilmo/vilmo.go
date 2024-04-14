@@ -187,11 +187,11 @@ func (a *Vilmo) get(key string) ([]byte, error) {
 	if !ok {
 		return nil, database.ErrNotFound
 	}
-	if entry.Cached() {
+	if entry.cached {
 		return slices.Clone(entry.value), nil
 	}
 	value := make([]byte, entry.size)
-	_, err := a.batches[entry.batch].reader.ReadAt(value, entry.loc)
+	_, err := entry.log.reader.ReadAt(value, entry.loc)
 	return value, err
 }
 
@@ -218,7 +218,7 @@ func (a *Vilmo) Close() error {
 	a.commitLock.Lock()
 	defer a.commitLock.Unlock()
 
-	for _, file := range a.batches {
+	for _, file := range a.logs {
 		if err := file.reader.Close(); err != nil {
 			return err
 		}
@@ -227,7 +227,7 @@ func (a *Vilmo) Close() error {
 		"closing vilmo",
 		zap.Int("keys", len(a.keys)),
 		zap.Uint64("next batch", a.nextBatch),
-		zap.Uint64("batches", uint64(len(a.batches))),
+		zap.Uint64("logs", uint64(len(a.logs))),
 	)
 	return nil
 }
