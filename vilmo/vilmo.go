@@ -271,13 +271,10 @@ func (a *Vilmo) NewBatch() (*Batch, error) {
 		hasher: sha256.New(),
 
 		buf: make([]byte, batchBufferSize),
-
-		t: &tracker{db: a},
 	}
+
 	// If we don't need to recycle, we should create a new hashmap for this
 	// batch.
-	//
-	// TODO: cleanup batch creation errors
 	reused, err := b.recycle()
 	if err != nil {
 		_ = b.f.Close()
@@ -329,15 +326,6 @@ func (b *Batch) recycle() (bool, error) {
 
 	// Determine if we should delete the oldest batch
 	if b.batch < uint64(b.a.historyLen) {
-		return false, nil
-	}
-	if b.a.oldestBatch == nil {
-		return false, nil
-	}
-	oldestBatch := *b.a.oldestBatch
-	if b.batch-uint64(b.a.historyLen) <= oldestBatch {
-		// This means that if we are working on batch 2, we will prune batch 0
-		// but keep batch 1 around.
 		return false, nil
 	}
 
