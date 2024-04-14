@@ -160,7 +160,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			}
 			r := &record{
 				log: l,
-				key: key,
+				key: uint16(len(key)),
 
 				loc:  start,
 				size: uint32(len(value)),

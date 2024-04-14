@@ -7,6 +7,7 @@ type record struct {
 	// lookup if we need to access this log.
 	log *log
 
+	// key is the length of the key
 	key uint16
 
 	// Only populated if the value is less than [minDiskValueSize]
@@ -26,8 +27,8 @@ type record struct {
 	next *record
 }
 
-func (r *record) Size() int64 {
-	return int64(r.size)
+func (r *record) Size() uint32 {
+	return r.size
 }
 
 // ValueLoc returns the locaction of the value in the log file
