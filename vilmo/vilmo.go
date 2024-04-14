@@ -46,7 +46,9 @@ type Vilmo struct {
 
 	commitLock sync.RWMutex
 	nextBatch  uint64
-	logs       map[uint64]*log
+	// TODO: store by batch number rather than file name (don't need to move on-disk but should
+	// move here)
+	logs map[uint64]*log
 
 	keyLock sync.RWMutex
 	keys    map[string]*record
