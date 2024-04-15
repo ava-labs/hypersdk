@@ -131,6 +131,9 @@ func New(
 				}
 				keys[o.key] = o
 				o.log.Add(o)
+
+				// UselessBytes attributable to opPut are not yet accounted for in the log,
+				// so we adjust them in log.Remove/log.Add above.
 			case string:
 				past, ok := keys[o]
 				if !ok {
@@ -138,6 +141,9 @@ func New(
 				}
 				past.log.Remove(past, opw.log)
 				delete(keys, o)
+
+				// UselessBytes attributable to opDelete are already accounted for in the log,
+				// so we don't adjust them here.
 			case ids.ID:
 				checksum = o
 			default:
