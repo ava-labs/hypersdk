@@ -137,6 +137,7 @@ func New(
 					continue
 				}
 				past.log.Remove(past, opw.log)
+				delete(keys, o)
 			case ids.ID:
 				checksum = o
 			default:
