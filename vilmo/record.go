@@ -7,6 +7,12 @@ type record struct {
 	// lookup if we need to access this log.
 	log *log
 
+	// loc is the offset of the record in the log file
+	//
+	// We store the beginning of the record here for using
+	// in nullify operations.
+	loc int64
+
 	// key is the length of the key
 	key string
 
@@ -14,12 +20,7 @@ type record struct {
 	cached bool
 	value  []byte
 
-	// loc is the offset of the record in the log file
-	//
-	// We store the beginning of the record here for using
-	// in nullify operations.
-	loc int64
-	// size is the size fo the value in the log file
+	// size is the size of the value in the log file
 	size uint32
 
 	// interleaved (across batches) doubly-linked list allows for removals
