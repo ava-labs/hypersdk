@@ -439,8 +439,7 @@ func (b *Batch) Write() (ids.ID, error) {
 			return ids.Empty, fmt.Errorf("%w: could not close old batch", err)
 		}
 		if !b.reused {
-			preparedPath := filepath.Join(b.a.baseDir, strconv.FormatUint(preparedBatch, 10))
-			if err := os.Remove(preparedPath); err != nil {
+			if err := os.Remove(preparedReader.path); err != nil {
 				return ids.Empty, fmt.Errorf("%w: could not remove old batch", err)
 			}
 		}
