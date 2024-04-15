@@ -14,10 +14,10 @@ import (
 	uatomic "go.uber.org/atomic"
 )
 
-// baseDependencies must be greater than the maximum number of dependencies
+// maxDependencies must be greater than the maximum number of dependencies
 // any single task could have. This is used to ensure a dependent task
 // does not begin executing a task until all dependencies have been enqueued.
-const baseDependencies = 100_000_000
+const maxDependencies = 100_000_000
 
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
@@ -26,7 +26,7 @@ const baseDependencies = 100_000_000
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
 //
-// It is assumed that no single task has more than [baseDependencies]. If
+// It is assumed that no single task has more than [maxDependencies]. If
 // this invariant is violated, some tasks will never execute and this code
 // could deadlock.
 type Executor struct {
@@ -72,8 +72,8 @@ func (e *Executor) work() {
 type task struct {
 	id int
 	f  func() error
-	// reading are the tasks that this task is using non-exclusively.
-	reading []*task
+	// shared are the tasks that this task is using non-exclusively.
+	shared []*task
 
 	l        sync.Mutex
 	executed bool
@@ -95,12 +95,12 @@ func (e *Executor) runTask(t *task) {
 	// to ensure we can exit.
 	defer func() {
 		// Notify other tasks that we are done reading them
-		for _, rt := range t.reading {
+		for _, rt := range t.shared {
 			rt.l.Lock()
 			delete(rt.readers, t.id)
 			rt.l.Unlock()
 		}
-		t.reading = nil
+		t.shared = nil
 
 		// Nodify blocked tasks that they can execute
 		t.l.Lock()
@@ -145,21 +145,21 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	id := e.tasks
 	e.tasks++
 	t := &task{
-		id:      id,
-		f:       f,
-		reading: []*task{},
+		id:     id,
+		f:      f,
+		shared: []*task{},
 
 		blocked: make(map[int]*task),
 		readers: make(map[int]*task),
 	}
 
-	// Add fake dependencies to ensure we don't execute the task
+	// Add maximum number of dependencies to ensure we don't execute the task
 	// before we are finished enqueuing all dependencies.
 	//
 	// We can have more than 1 dependency per key (in the case that there
 	// are many readers for a single key), so we set this higher than we ever
 	// expect to see.
-	t.dependencies.Add(baseDependencies)
+	t.dependencies.Add(maxDependencies)
 
 	// Record dependencies
 	dependencies := set.NewSet[int](len(keys))
@@ -170,14 +170,14 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			if v == state.Read {
 				// If we don't need exclusive access to a key, just mark
 				// that we are reading it and that we are a reader of it.
-				t.reading = append(t.reading, lt)
+				t.shared = append(t.shared, lt)
 				lt.readers[id] = t
 			} else {
 				// If we do need exclusive access to a key, we need to
 				// mark ourselves blocked on all readers ahead of us.
 				//
 				// If a task is a reader, that means it is not executed yet
-				// and can't mark itself as executed until all [reading] are
+				// and can't mark itself as executed until all [shared] are
 				// cleared (which can't be done while we hold the lock for [lt]).
 				for _, rt := range lt.readers {
 					rt.l.Lock()
@@ -202,8 +202,8 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	}
 
 	// Adjust dependency traker and execute if necessary
-	extraDependencies := baseDependencies - int64(dependencies.Len())
-	if t.dependencies.Add(-extraDependencies) > 0 {
+	difference := maxDependencies - int64(dependencies.Len())
+	if t.dependencies.Add(-difference) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()
 		}
