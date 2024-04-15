@@ -8,7 +8,7 @@ type record struct {
 	log *log
 
 	// key is the length of the key
-	key uint16
+	key string
 
 	// Only populated if the value is less than [minDiskValueSize]
 	cached bool

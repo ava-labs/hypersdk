@@ -173,7 +173,7 @@ func (a *Vilmo) get(key string) ([]byte, error) {
 		return slices.Clone(entry.value), nil
 	}
 	value := make([]byte, entry.size)
-	_, err := entry.log.reader.ReadAt(value, entry.loc)
+	_, err := entry.log.reader.ReadAt(value, entry.ValueLoc())
 	return value, err
 }
 

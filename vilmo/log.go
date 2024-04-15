@@ -50,6 +50,13 @@ type log struct {
 	pendingNullify []int64
 }
 
+func newLog(path string) *log {
+	return &log{
+		path:  path,
+		alive: &dll{},
+	}
+}
+
 func (l *log) Add(record *record) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	l.aliveBytes += opSize
@@ -58,7 +65,6 @@ func (l *log) Add(record *record) {
 	l.alive.Add(record)
 }
 
-// TODO: handle nullify bytes included
 func (l *log) Remove(record *record, nullify bool) {
 	opSize := opPutLenWithValueLen(record.key, record.Size())
 	l.aliveBytes -= opSize
@@ -71,6 +77,7 @@ func (l *log) Remove(record *record, nullify bool) {
 	// on the same log file, we don't need to nullify it.
 	if nullify {
 		l.pendingNullify = append(l.pendingNullify, record.loc)
+		l.uselessBytes += opNullifyLen()
 	}
 }
 
@@ -132,7 +139,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 		reader = &reader{reader: bufio.NewReader(f)}
 
 		// We create the log here so that any read items can reference it.
-		l = &log{path: path, alive: &dll{}}
+		l = newLog(path)
 
 		lastBatch uint64
 		batchSet  bool
