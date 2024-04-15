@@ -109,28 +109,27 @@ func TestVilmo(t *testing.T) {
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 
-	// Move file
-	require.NoError(os.Rename(filepath.Join(baseDir, "0"), filepath.Join(baseDir, "100")))
-	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
-	require.ErrorIs(err, ErrCorrupt)
-	require.NoError(os.Rename(filepath.Join(baseDir, "100"), filepath.Join(baseDir, "0")))
-
-	// Ensure restart still works
-	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
-	require.NoError(err)
-	require.Equal(batch, last)
-	require.NoError(db.Close())
-
 	// Modify file
-	f, err := os.OpenFile(filepath.Join(baseDir, "0"), os.O_RDWR, os.ModeAppend)
+	require.NoError(db.Close())
+	f, err := os.OpenFile(filepath.Join(baseDir, "0"), os.O_RDWR|os.O_APPEND, 0666)
 	require.NoError(err)
 	_, err = f.WriteString("corrupt")
 	require.NoError(err)
 	require.NoError(f.Close())
 
-	// Restart
+	// Repair corruption and restart
 	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
-	require.ErrorIs(err, ErrCorrupt)
+	require.NoError(err)
+	require.Equal(batch, last)
+	keys3, aliveBytes3, uselessBytes3 := db.Usage()
+	require.Equal(keys, keys3)
+	require.Equal(aliveBytes, aliveBytes3)
+	require.Equal(uselessBytes, uselessBytes3)
+
+	// Get
+	v, err = db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world"), v)
 }
 
 func TestVilmoAbort(t *testing.T) {
@@ -195,7 +194,7 @@ func TestVilmoAbort(t *testing.T) {
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(opBatchLen(), openBytes)
+	require.Equal(opBatchLen()+opNullifyLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world11")))
 	require.NoError(b.Delete(ctx, "hello2"))
