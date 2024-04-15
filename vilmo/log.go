@@ -38,6 +38,11 @@ type log struct {
 	// on other log files. In the case that this log file is recycled,
 	// we must persist these nullifications to ensure we can restore state
 	// on restart.
+	//
+	// Theoretically, we could wait to write nullifications until updates on
+	// other log files are actually discarded (assuming we don't rewrite this
+	// log). This is considered future work as it isn't necessarily clear
+	// this would be that much more efficient for the added complexity.
 	pendingNullify []int64
 }
 
