@@ -58,7 +58,7 @@ func newLog(path string) *log {
 }
 
 func (l *log) Add(record *record) {
-	opSize := opPutLenWithValueLen(record.key, record.Size())
+	opSize := opPutLenWithValueLen(record.key, record.size)
 	l.aliveBytes += opSize
 
 	// Add to linked list
@@ -66,7 +66,7 @@ func (l *log) Add(record *record) {
 }
 
 func (l *log) Remove(record *record, nullify bool) {
-	opSize := opPutLenWithValueLen(record.key, record.Size())
+	opSize := opPutLenWithValueLen(record.key, record.size)
 	l.aliveBytes -= opSize
 	l.uselessBytes += opSize
 
@@ -177,7 +177,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			}
 			r := &record{
 				log: l,
-				key: uint16(len(key)),
+				key: key,
 
 				loc:  start,
 				size: uint32(len(value)),
