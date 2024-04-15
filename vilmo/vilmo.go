@@ -117,14 +117,13 @@ func New(
 			case nil:
 				// This happens when a put operation is nullified
 				continue
-			case *putOp:
+			case *record:
 				past, ok := keys[o.key]
 				if ok {
-					past.log.Remove(past, o.record.log != past.log)
+					past.log.Remove(past, o.log != past.log)
 				}
-				record := o.record
-				keys[o.key] = record
-				o.record.log.Add(record)
+				keys[o.key] = o
+				o.log.Add(o)
 			case *deleteOp:
 				past, ok := keys[o.key]
 				if !ok {
@@ -155,7 +154,7 @@ func New(
 	}
 	logger.Info(
 		"loaded batches",
-		zap.Int("count", len(adb.batches)),
+		zap.Int("logs", len(adb.batches)),
 		zap.Int("keys", len(adb.keys)),
 		zap.Uint64("next batch", adb.nextBatch),
 		zap.Stringer("last checksum", checksum),
@@ -228,7 +227,7 @@ func (a *Vilmo) Usage() (int, int64 /* alive bytes */, int64 /* useless bytes */
 		// This includes discarded data that may be deleted (may be a little inaccurate)
 		uselessBytes += batch.uselessBytes
 		a.logger.Debug(
-			"batch usage",
+			"log usage",
 			zap.Uint64("batch", n),
 			zap.Int64("alive", batch.aliveBytes),
 			zap.Int64("useless", batch.uselessBytes),

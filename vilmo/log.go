@@ -103,11 +103,6 @@ type batchIndex struct {
 	index int
 }
 
-type putOp struct {
-	key    string
-	record *record
-}
-
 type deleteOp struct {
 	key string
 	log *log
@@ -155,9 +150,10 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 		committedUselessBytes int64
 		committedOps          = map[uint64][]any{}
 
+		done    bool
 		corrupt error
 	)
-	for {
+	for !done {
 		start := reader.Cursor()
 		opType, err := readOpType(reader, hasher)
 		if err != nil {
@@ -236,6 +232,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 
 			// Check if we should exit (only clean exit)
 			if reader.Cursor() == fileSize {
+				done = true
 				break
 			}
 
@@ -295,7 +292,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			zap.String("path", path),
 		)
 		return nil, nil, nil
-	} else {
+	} else if fileSize > committedByte {
 		if err := os.Truncate(path, committedByte); err != nil {
 			return nil, nil, fmt.Errorf("%w: unable to truncate file", err)
 		}
