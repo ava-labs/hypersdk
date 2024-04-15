@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"golang.org/x/exp/mmap"
 )
 
 const (
@@ -107,28 +109,27 @@ func TestVilmo(t *testing.T) {
 	require.NoError(err)
 	require.Equal([]byte("world"), v)
 
-	// Move file
-	require.NoError(os.Rename(filepath.Join(baseDir, "0"), filepath.Join(baseDir, "100")))
-	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
-	require.ErrorIs(err, ErrCorrupt)
-	require.NoError(os.Rename(filepath.Join(baseDir, "100"), filepath.Join(baseDir, "0")))
-
-	// Ensure restart still works
-	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
-	require.NoError(err)
-	require.Equal(batch, last)
-	require.NoError(db.Close())
-
 	// Modify file
-	f, err := os.OpenFile(filepath.Join(baseDir, "0"), os.O_RDWR, os.ModeAppend)
+	require.NoError(db.Close())
+	f, err := os.OpenFile(filepath.Join(baseDir, "0"), os.O_RDWR|os.O_APPEND, 0666)
 	require.NoError(err)
 	_, err = f.WriteString("corrupt")
 	require.NoError(err)
 	require.NoError(f.Close())
 
-	// Restart
+	// Repair corruption and restart
 	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, defaultHistoryLen)
-	require.ErrorIs(err, ErrCorrupt)
+	require.NoError(err)
+	require.Equal(batch, last)
+	keys3, aliveBytes3, uselessBytes3 := db.Usage()
+	require.Equal(keys, keys3)
+	require.Equal(aliveBytes, aliveBytes3)
+	require.Equal(uselessBytes, uselessBytes3)
+
+	// Get
+	v, err = db.Get(ctx, "hello")
+	require.NoError(err)
+	require.Equal([]byte("world"), v)
 }
 
 func TestVilmoAbort(t *testing.T) {
@@ -193,7 +194,7 @@ func TestVilmoAbort(t *testing.T) {
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(opBatchLen(), openBytes)
+	require.Equal(opBatchLen()+opNullifyLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello", []byte("world11")))
 	require.NoError(b.Delete(ctx, "hello2"))
@@ -221,6 +222,76 @@ func TestVilmoAbort(t *testing.T) {
 	require.NoError(err)
 	require.Equal([]byte("world3"), v)
 	require.NoError(db.Close())
+}
+
+func TestVilmoComplexReload(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	ctx := context.TODO()
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"vilmo",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Insert key
+	b, err := db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite := b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Put(ctx, "hello", []byte("world")))
+	require.NoError(b.Put(ctx, "unrelated", []byte("junk"))) // add extra data to prevent rewrite
+	require.NoError(b.Put(ctx, "unrelated2", []byte("junk2")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Delete key
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Delete(ctx, "hello"))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Put new key
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen()+opNullifyLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Put(ctx, "hello2", []byte("world2")))
+	lastChecksum, err := b.Write()
+	require.NoError(err)
+	require.NotEqual(ids.Empty, lastChecksum)
+
+	// Reload and ensure values match
+	keys, alive, useless := db.Usage()
+	require.NoError(db.Close())
+	db, last, err = New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(lastChecksum, last)
+	keys2, alive2, useless2 := db.Usage()
+	require.Equal(keys, keys2)
+	require.Equal(alive, alive2)
+	require.Equal(useless, useless2)
+	_, err = db.Get(ctx, "hello")
+	require.ErrorIs(err, database.ErrNotFound)
+	v, err := db.Get(ctx, "hello2")
+	require.NoError(err)
+	require.Equal([]byte("world2"), v)
 }
 
 func TestVilmoReinsertHistory(t *testing.T) {
@@ -298,6 +369,64 @@ func TestVilmoReinsertHistory(t *testing.T) {
 	require.Equal(keys, keys2)
 	require.Equal(alive, alive2)
 	require.Equal(useless, useless2)
+}
+
+func TestVilmoClearNullifyOnNew(t *testing.T) {
+	// Prepare
+	require := require.New(t)
+	ctx := context.TODO()
+	baseDir := t.TempDir()
+	logger := logging.NewLogger(
+		"appenddb",
+		logging.NewWrappedCore(
+			logging.Debug,
+			os.Stdout,
+			logging.Colors.ConsoleEncoder(),
+		),
+	)
+	logger.Info("created directory", zap.String("path", baseDir))
+
+	// Create
+	db, last, err := New(logger, baseDir, defaultInitialSize, 10, defaultBufferSize, 1)
+	require.NoError(err)
+	require.Equal(ids.Empty, last)
+
+	// Insert key
+	b, err := db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite := b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Put(ctx, "hello", []byte("world")))
+	require.NoError(b.Put(ctx, "hello1", []byte("world")))
+	require.NoError(b.Put(ctx, "hello2", []byte("world")))
+	require.NoError(b.Put(ctx, "hello3", []byte("world")))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Insert a batch gap (add nullifiers)
+	b, err = db.NewBatch()
+	require.NoError(err)
+	openBytes, rewrite = b.Prepare()
+	require.Equal(opBatchLen(), openBytes)
+	require.False(rewrite)
+	require.NoError(b.Delete(ctx, "hello"))
+	require.NoError(b.Delete(ctx, "hello1"))
+	require.NoError(b.Delete(ctx, "hello2"))
+	require.NoError(b.Delete(ctx, "hello3"))
+	_, err = b.Write()
+	require.NoError(err)
+
+	// Rewrite batch
+	b, err = db.NewBatch()
+	require.NoError(err)
+	initBytes, rewrite := b.Prepare()
+	require.True(rewrite)
+	require.Equal(opBatchLen(), initBytes)
+	_, err = b.Write()
+	require.NoError(err)
+	require.Zero(len(db.batches[2].pendingNullify))
+	require.NoError(db.Close())
 }
 
 func TestVilmoPrune(t *testing.T) {
@@ -465,6 +594,7 @@ func TestVilmoLarge(t *testing.T) {
 				}
 				checksum, err := b.Write()
 				require.NoError(err)
+				require.Zero(len(db.batches[b.batch].pendingNullify))
 
 				// Ensure data is correct
 				for j := 0; j < batchSize; j++ {
@@ -513,13 +643,44 @@ func TestVilmoLarge(t *testing.T) {
 	}
 }
 
+func TestMMapReuse(t *testing.T) {
+	// Put value in file
+	require := require.New(t)
+	tdir := t.TempDir()
+	path := filepath.Join(tdir, "file")
+	f, err := os.Create(path)
+	require.NoError(err)
+	_, err = f.Write([]byte("hello"))
+	require.NoError(err)
+	require.NoError(f.Close())
+
+	// Read from file
+	m, err := mmap.Open(path)
+	require.NoError(err)
+	b := make([]byte, 5)
+	_, err = m.ReadAt(b, 0)
+	require.NoError(err)
+	require.Equal([]byte("hello"), b)
+
+	// Write to file
+	f, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0666)
+	require.NoError(err)
+	_, err = f.Write([]byte("world"))
+	require.NoError(err)
+	require.NoError(f.Close())
+
+	// Attempt to read from modified file (will fail)
+	_, err = m.ReadAt(b, 5)
+	require.ErrorIs(io.EOF, err)
+}
+
 func BenchmarkVilmo(b *testing.B) {
 	ctx := context.TODO()
 	batches := 10
-	for _, batchSize := range []int{100_000} {
-		for _, reuse := range []int{batchSize} {
-			for _, historyLen := range []int{1} {
-				for _, bufferSize := range []int{defaultBufferSize} {
+	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
+		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
+			for _, historyLen := range []int{1, 5, 10} {
+				for _, bufferSize := range []int{2 * units.KiB, 4 * units.KiB, defaultBufferSize, 4 * defaultBufferSize} {
 					keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
 					b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d buffer=%d", batchSize, reuse, historyLen, bufferSize), func(b *testing.B) {
 						for i := 0; i < b.N; i++ {

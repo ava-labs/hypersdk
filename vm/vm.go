@@ -28,10 +28,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
-	"github.com/ava-labs/hypersdk/vilmo"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/vilmo"
 
 	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"

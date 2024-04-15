@@ -13,8 +13,8 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/patrick-ogrady/pebble"
-	"github.com/patrick-ogrady/pebble/bloom"
+	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/bloom"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 )
@@ -31,8 +31,7 @@ type Database struct {
 	db      *pebble.DB
 	metrics *metrics
 
-	wo           *pebble.WriteOptions
-	maxBatchSize int
+	wo *pebble.WriteOptions
 
 	// We use an atomic bool for most
 	// checks because it is much faster
@@ -43,20 +42,18 @@ type Database struct {
 
 type Config struct {
 	Sync                        bool
-	MaxBatchSize                int // B // TODO: make this an arg once NewBatchWithSize is added to db interface
 	CacheSize                   int // B
 	L0CompactionThreshold       int
 	L0StopWritesThreshold       int
-	MemTableStopWritesThreshold int    // num tables
-	MemTableSize                uint64 // B
+	MemTableStopWritesThreshold int // num tables
+	MemTableSize                int // B
 	MaxOpenFiles                int
 	ConcurrentCompactions       func() int
 }
 
 func NewDefaultConfig() Config {
 	return Config{
-		Sync:                        false,         // explicitly specified for clarity
-		MaxBatchSize:                1 * units.GiB, // Avoid growing during batch construction (this is reused across batches)
+		Sync:                        false, // explicitly specified for clarity
 		CacheSize:                   2 * units.GiB,
 		L0CompactionThreshold:       2,              // avoid large compaction spikes: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L496
 		L0StopWritesThreshold:       1000,           // from cockroachdb: https://github.com/cockroachdb/cockroach/blob/a3039fe628f2ab7c5fba31a30ba7bc7c38065230/pkg/storage/pebble.go#L497
@@ -75,7 +72,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 	if cfg.Sync {
 		wo = pebble.Sync
 	}
-	d := &Database{wo: wo, maxBatchSize: cfg.MaxBatchSize, closing: make(chan struct{})}
+	d := &Database{wo: wo, closing: make(chan struct{})}
 	opts := &pebble.Options{
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
 		L0CompactionThreshold:       cfg.L0CompactionThreshold,
@@ -185,7 +182,7 @@ type batch struct {
 // NewBatch creates a write/delete-only buffer that is atomically committed to
 // the database when write is called
 func (db *Database) NewBatch() database.Batch {
-	return &batch{db: db, batch: db.db.NewBatchWithSize(db.maxBatchSize)}
+	return &batch{db: db, batch: db.db.NewBatch()}
 }
 
 // Put the value into the batch for later writing
@@ -218,10 +215,7 @@ func (b *batch) Reset() {
 func (b *batch) Replay(w database.KeyValueWriterDeleter) error {
 	reader := b.batch.Reader()
 	for {
-		kind, k, v, ok, err := reader.Next()
-		if err != nil {
-			return err
-		}
+		kind, k, v, ok := reader.Next()
 		if !ok {
 			return nil
 		}
@@ -253,17 +247,10 @@ type iter struct {
 }
 
 func (db *Database) newIter(args *pebble.IterOptions) *iter {
-	it := &iter{
-		db: db,
+	return &iter{
+		db:   db,
+		iter: db.db.NewIter(args),
 	}
-	dbIt, err := db.db.NewIter(args)
-	if err != nil {
-		it.err = err
-		it.valid = false
-		return it
-	}
-	it.iter = dbIt
-	return it
 }
 
 // NewIterator creates a lexicographically ordered iterator over the database
