@@ -18,6 +18,9 @@ import (
 // They are structured as repeated sequences of:
 // [opBatch][opPut/opDelete]...[opPut/opDelete][opChecksum]...
 type log struct {
+	// path is the location of this log on disk
+	path string
+
 	// reader must be reopened anytime the underlying file
 	// is appended to.
 	reader *mmap.ReaderAt
@@ -27,7 +30,8 @@ type log struct {
 	aliveBytes   int64
 	uselessBytes int64 // already includes all overwritten data, checksums, and deletes
 
-	// checksum is the last checkpoint in a log file.
+	// batch and checksum are the latest checkpoints in a log file.
+	batch    uint64
 	checksum ids.ID
 
 	// alive is used to determine the order to write living
@@ -128,7 +132,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 		reader = &reader{reader: bufio.NewReader(f)}
 
 		// We create the log here so that any read items can reference it.
-		l = &log{alive: &dll{}}
+		l = &log{path: path, alive: &dll{}}
 
 		lastBatch uint64
 		batchSet  bool
@@ -140,6 +144,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 
 		committedByte         int64
 		committedChecksum     ids.ID
+		committedBatch        uint64
 		committedUselessBytes int64
 		committedOps          = map[uint64][]any{}
 
@@ -218,6 +223,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 			// Update our track for last committed
 			committedByte = reader.Cursor()
 			committedChecksum = checksum
+			committedBatch = lastBatch
 			committedUselessBytes = uselessBytes
 			committedOps[lastBatch] = ops
 
@@ -301,6 +307,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 	}
 	l.reader = m
 	l.uselessBytes = committedUselessBytes
+	l.batch = committedBatch
 	l.checksum = committedChecksum
 	return l, committedOps, nil
 }
