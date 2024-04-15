@@ -5,10 +5,12 @@ package executor
 
 import (
 	"errors"
+	"math/rand"
 	"sync"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -16,6 +18,14 @@ import (
 
 // Run several times to catch non-determinism
 const numIterations = 10
+
+func generateNumbers(start int, size int) []int {
+	array := make([]int, size)
+	for i := 0; i < 9999; i++ {
+		array[i] = i + start
+	}
+	return array
+}
 
 func TestExecutorNoConflicts(t *testing.T) {
 	var (
@@ -518,4 +528,305 @@ func TestTwoConflictKeys(t *testing.T) {
 		// 2..99 are ran in parallel, so non-deterministic
 		require.Len(completed, 100)
 	}
+}
+
+func TestLargeNumConcurrentReadTxs(t *testing.T) {
+	rand.Seed(1)
+
+	var (
+		require      = require.New(t)
+		numKeys      = 5
+		numTxs       = 100_000
+		conflictKeys = make([]string, 0, numKeys)
+		blocking     = set.Set[int]{}
+		l            sync.Mutex
+		completed    = make([]int, 0, numTxs)
+		e            = New(numTxs, 4, nil)
+		slow         = make(chan struct{})
+	)
+
+	// randomly wait on certain txs
+	for {
+		if blocking.Len() == 1000 {
+			break
+		}
+		blocking.Add(rand.Intn(100_000))
+	}
+
+	// make the conflict keys
+	for k := 0; k < numKeys; k++ {
+		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
+	}
+
+	// Generate txs
+	for i := 0; i < numTxs; i++ {
+		s := make(state.Keys, (numKeys + 1))
+
+		// all txs are concurrent Reads
+		for j := 0; j < numKeys; j++ {
+			s.Add(conflictKeys[j], state.Read)
+		}
+
+		// pass into executor
+		ti := i
+		e.Run(s, func() error {
+			shouldWait := false
+			for num := range blocking {
+				if num == ti {
+					shouldWait = true
+					break
+				}
+			}
+			if shouldWait {
+				<-slow
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	for i := 0; i < 1000; i++ {
+		slow <- struct{}{}
+	}
+	close(slow)
+	require.NoError(e.Wait())
+	// concurrent Reads is non-deterministic
+	require.Len(completed, numTxs)
+}
+
+func TestLargeNumSequentialWritesTxs(t *testing.T) {
+	rand.Seed(2)
+
+	var (
+		require      = require.New(t)
+		numKeys      = 5
+		numTxs       = 100_000
+		conflictKeys = make([]string, 0, numKeys)
+		blocking     = set.Set[int]{}
+		l            sync.Mutex
+		completed    = make([]int, 0, numTxs)
+		answer       = make([]int, 0, numTxs)
+		e            = New(numTxs, 4, nil)
+		slow         = make(chan struct{})
+	)
+
+	// randomly wait on certain txs
+	for {
+		if blocking.Len() == 1000 {
+			break
+		}
+		blocking.Add(rand.Intn(100_000))
+	}
+
+	// make the conflict keys
+	for k := 0; k < numKeys; k++ {
+		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
+	}
+
+	// Generate txs
+	for i := 0; i < numTxs; i++ {
+		answer = append(answer, i)
+		s := make(state.Keys, (numKeys + 1))
+
+		// all txs are sequential Writes
+		for j := 0; j < numKeys; j++ {
+			s.Add(conflictKeys[j], state.Write)
+		}
+
+		// pass into executor
+		ti := i
+		e.Run(s, func() error {
+			shouldWait := false
+			for num := range blocking {
+				if num == ti {
+					shouldWait = true
+					break
+				}
+			}
+			if shouldWait {
+				<-slow
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	for i := 0; i < 1000; i++ {
+		slow <- struct{}{}
+	}
+	close(slow)
+	require.NoError(e.Wait())
+	require.Len(completed, numTxs)
+	// Txs should be executed sequentially
+	require.Equal(answer, completed)
+}
+
+// This runs a little longer
+func TestLargeNumReadsThenWritesTxs(t *testing.T) {
+	rand.Seed(3)
+
+	var (
+		require      = require.New(t)
+		numKeys      = 5
+		numTxs       = 100_000
+		conflictKeys = make([]string, 0, numKeys)
+		blocking     = set.Set[int]{}
+		l            sync.Mutex
+		completed    = make([]int, 0, numTxs)
+		answers      = make([][]int, 5)
+		e            = New(numTxs, 4, nil)
+		slow         = make(chan struct{})
+	)
+
+	// make [answers] matrix
+	answers[0] = generateNumbers(10000, 9999)
+	answers[1] = generateNumbers(30000, 9999)
+	answers[2] = generateNumbers(50000, 9999)
+	answers[3] = generateNumbers(70000, 9999)
+	answers[4] = generateNumbers(90000, 9999)
+
+	// randomly wait on certain txs
+	for {
+		if blocking.Len() == 10000 {
+			break
+		}
+		blocking.Add(rand.Intn(100_000))
+	}
+
+	// make the conflict keys
+	for k := 0; k < numKeys; k++ {
+		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
+	}
+
+	// Generate txs
+	for i := 0; i < numTxs; i++ {
+		s := make(state.Keys, (numKeys + 1))
+		for j := 0; j < numKeys; j++ {
+			mode := (i / 10000) % 2
+			switch mode {
+			case 0:
+				s.Add(conflictKeys[j], state.Read)
+			case 1:
+				s.Add(conflictKeys[j], state.Write)
+			}
+		}
+
+		// pass into executor
+		ti := i
+		e.Run(s, func() error {
+			shouldWait := false
+			for num := range blocking {
+				if num == ti {
+					shouldWait = true
+					break
+				}
+			}
+			if shouldWait {
+				<-slow
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	for i := 0; i < 1000; i++ {
+		slow <- struct{}{}
+	}
+	close(slow)
+	require.NoError(e.Wait())
+	require.Len(completed, numTxs)
+	require.Equal(answers[0], completed[10000:19999])
+	require.Equal(answers[1], completed[30000:39999])
+	require.Equal(answers[2], completed[50000:59999])
+	require.Equal(answers[3], completed[70000:79999])
+	require.Equal(answers[4], completed[90000:99999])
+}
+
+// This runs a little longer
+func TestLargeNumWritesThenReadsTxs(t *testing.T) {
+	rand.Seed(4)
+
+	var (
+		require      = require.New(t)
+		numKeys      = 5
+		numTxs       = 100_000
+		conflictKeys = make([]string, 0, numKeys)
+		blocking     = set.Set[int]{}
+		l            sync.Mutex
+		completed    = make([]int, 0, numTxs)
+		answers      = make([][]int, 5)
+		e            = New(numTxs, 4, nil)
+		slow         = make(chan struct{})
+	)
+
+	// make [answers] matrix
+	answers[0] = generateNumbers(0, 9999)
+	answers[1] = generateNumbers(20000, 9999)
+	answers[2] = generateNumbers(40000, 9999)
+	answers[3] = generateNumbers(60000, 9999)
+	answers[4] = generateNumbers(80000, 9999)
+
+	// randomly wait on certain txs
+	for {
+		if blocking.Len() == 10000 {
+			break
+		}
+		blocking.Add(rand.Intn(100_000))
+	}
+
+	// make the conflict keys
+	for k := 0; k < numKeys; k++ {
+		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
+	}
+
+	// Generate txs
+	for i := 0; i < numTxs; i++ {
+		s := make(state.Keys, (numKeys + 1))
+		for j := 0; j < numKeys; j++ {
+			mode := (i / 10000) % 2
+			switch mode {
+			case 0:
+				s.Add(conflictKeys[j], state.Write)
+			case 1:
+				s.Add(conflictKeys[j], state.Read)
+			}
+		}
+
+		// pass into executor
+		ti := i
+		e.Run(s, func() error {
+			shouldWait := false
+			for num := range blocking {
+				if num == ti {
+					shouldWait = true
+					break
+				}
+			}
+			if shouldWait {
+				<-slow
+			}
+
+			l.Lock()
+			completed = append(completed, ti)
+			l.Unlock()
+			return nil
+		})
+	}
+	for i := 0; i < 1000; i++ {
+		slow <- struct{}{}
+	}
+	close(slow)
+	require.NoError(e.Wait())
+	require.Len(completed, numTxs)
+	require.Equal(answers[0], completed[0:9999])
+	require.Equal(answers[1], completed[20000:29999])
+	require.Equal(answers[2], completed[40000:49999])
+	require.Equal(answers[3], completed[60000:69999])
+	require.Equal(answers[4], completed[80000:89999])
 }
