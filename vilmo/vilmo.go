@@ -120,16 +120,16 @@ func New(
 			case *record:
 				past, ok := keys[o.key]
 				if ok {
-					past.log.Remove(past, o.log != past.log)
+					past.log.Remove(past)
 				}
 				keys[o.key] = o
 				o.log.Add(o)
-			case *deleteOp:
-				past, ok := keys[o.key]
+			case string:
+				past, ok := keys[o]
 				if !ok {
 					continue
 				}
-				past.log.Remove(past, o.log != past.log)
+				past.log.Remove(past)
 			case ids.ID:
 				checksum = o
 			default:

@@ -107,10 +107,10 @@ func (b *Batch) reclaim() (bool, error) {
 	b.a.logger.Debug("recycling previous batch file", zap.Uint64("batch", b.batch))
 
 	// Determine if we should delete the oldest batch
-	if b.batch < uint64(b.a.historyLen) {
+	if b.batch < uint64(b.a.historyLen)+1 {
 		return false, nil
 	}
-	batchToClear := b.batch - uint64(b.a.historyLen)
+	batchToClear := b.batch - uint64(b.a.historyLen) - 1
 	previous := b.a.batches[batchToClear]
 	b.toClear = &batchToClear
 
@@ -319,6 +319,7 @@ func (b *Batch) Prepare() (int64, bool) {
 		}
 	} else {
 		// Write nullify operations for keys that are no longer active
+		fmt.Println("pending nullify len", len(b.l.pendingNullify))
 		for _, loc := range b.l.pendingNullify {
 			if err := b.writeNullify(loc); err != nil {
 				// TODO: don't panic
@@ -344,7 +345,7 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	}
 	past, ok := b.a.keys[key]
 	if ok {
-		past.log.Remove(past, b.l != past.log)
+		past.log.Remove(past)
 		past.log = b.l
 
 		// We avoid updating [keys] when just updating the value of a [record]
@@ -388,7 +389,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	past.log.Remove(past, b.l != past.log)
+	past.log.Remove(past)
 	delete(b.a.keys, key)
 	b.l.uselessBytes += opDeleteLen(key)
 	return nil
