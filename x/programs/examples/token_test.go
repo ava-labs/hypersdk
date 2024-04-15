@@ -33,22 +33,20 @@ func TestTokenProgram(t *testing.T) {
 
 		rt := runtime.New(program.log, program.engine, program.imports, program.cfg)
 		ctx := context.Background()
-		err := rt.Initialize(ctx, program.programBytes, program.maxUnits)
+		callContext := program.Context()
+		err := rt.Initialize(ctx, callContext, program.programBytes, program.maxUnits)
 		require.NoError(err)
 
 		// simulate create program transaction
-		programID := ids.GenerateTestID()
+		programID := program.ProgramID()
 		err = storage.SetProgram(ctx, program.db, programID, program.programBytes)
 		require.NoError(err)
 
 		mem, err := rt.Memory()
 		require.NoError(err)
 
-		programIDPtr, err := argumentToSmartPtr(programID, mem)
-		require.NoError(err)
-
 		// initialize program
-		_, err = rt.Call(ctx, "init", programIDPtr)
+		_, err = rt.Call(ctx, "init", callContext)
 		require.NoError(err, "failed to initialize program")
 
 		// generate alice keys
@@ -64,11 +62,11 @@ func TestTokenProgram(t *testing.T) {
 		mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
 		require.NoError(err)
 
-		_, err = rt.Call(ctx, "mint_to", programIDPtr, alicePtr, mintAlicePtr)
+		_, err = rt.Call(ctx, "mint_to", callContext, alicePtr, mintAlicePtr)
 		require.NoError(err)
 
 		// check balance of alice
-		result, err := rt.Call(ctx, "get_balance", programIDPtr, alicePtr)
+		result, err := rt.Call(ctx, "get_balance", callContext, alicePtr)
 		require.NoError(err)
 		require.Equal(int64(1000), result[0])
 
@@ -78,7 +76,7 @@ func TestTokenProgram(t *testing.T) {
 		require.Equal(int64(1000), aliceBalance)
 
 		// burn alice tokens
-		_, err = rt.Call(ctx, "burn_from", programIDPtr, alicePtr)
+		_, err = rt.Call(ctx, "burn_from", callContext, alicePtr)
 		require.NoError(err)
 
 		// check balance of alice from state db
@@ -173,5 +171,7 @@ func newTokenProgram(maxUnits uint64, engine *engine.Engine, cfg *runtime.Config
 		return pstate.New(log, db)
 	})
 
-	return NewToken(log, engine, programBytes, db, cfg, importsBuilder.Build(), maxUnits)
+	id := ids.GenerateTestID()
+
+	return NewToken(id, log, engine, programBytes, db, cfg, importsBuilder.Build(), maxUnits)
 }
