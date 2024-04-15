@@ -676,10 +676,10 @@ func TestMMapReuse(t *testing.T) {
 func BenchmarkVilmo(b *testing.B) {
 	ctx := context.TODO()
 	batches := 10
-	for _, batchSize := range []int{100_000} {
-		for _, reuse := range []int{batchSize} {
-			for _, historyLen := range []int{1} {
-				for _, bufferSize := range []int{defaultBufferSize} {
+	for _, batchSize := range []int{25_000, 50_000, 100_000, 500_000, 1_000_000} {
+		for _, reuse := range []int{0, batchSize / 4, batchSize / 3, batchSize / 2, batchSize} {
+			for _, historyLen := range []int{1, 5, 10} {
+				for _, bufferSize := range []int{2 * units.KiB, 4 * units.KiB, defaultBufferSize, 4 * defaultBufferSize} {
 					keys, values := randomKeyValues(batches, batchSize, 32, 32, reuse)
 					b.Run(fmt.Sprintf("keys=%d reuse=%d history=%d buffer=%d", batchSize, reuse, historyLen, bufferSize), func(b *testing.B) {
 						for i := 0; i < b.N; i++ {
