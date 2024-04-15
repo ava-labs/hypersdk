@@ -104,15 +104,16 @@ func (b *Batch) writeBuffer(value []byte, hash bool) error {
 }
 
 func (b *Batch) reclaim() (bool, error) {
-	b.a.logger.Debug("recycling previous batch file", zap.Uint64("batch", b.batch))
-
 	// Determine if we should delete the oldest batch
 	if b.batch < uint64(b.a.historyLen)+1 {
 		return false, nil
 	}
+
+	// Find batch to reclaim
 	batchToClear := b.batch - uint64(b.a.historyLen) - 1
 	previous := b.a.batches[batchToClear]
 	b.toClear = &batchToClear
+	b.a.logger.Debug("reclaiming previous batch file", zap.Uint64("batch", batchToClear))
 
 	// Determine if we should continue writing to the file or create a new one
 	if previous.aliveBytes < previous.uselessBytes/uselessDividerRecycle || previous.uselessBytes > forceRecycle {
@@ -203,6 +204,16 @@ func (b *Batch) reclaim() (bool, error) {
 	opLen := opBatchLen()
 	b.openWrites += opLen
 	b.l.uselessBytes += opLen
+
+	// Write nullifications for all keys no longer alive
+	for _, loc := range b.l.pendingNullify {
+		if err := b.writeNullify(loc); err != nil {
+			return false, err
+		}
+		b.openWrites += opNullifyLen()
+		b.a.logger.Debug("writing nullify record", zap.Int64("loc", loc))
+	}
+	b.l.ResetNullify()
 	return true, nil
 }
 
@@ -310,25 +321,14 @@ func (b *Batch) writeChecksum() (ids.ID, error) {
 func (b *Batch) Prepare() (int64, bool) {
 	b.a.keyLock.Lock()
 
+	// Iterate over [alive] and update records for [keys] that were moved
+	// to a new log file.
 	if !b.reused {
-		// Iterate over [alive] and update records for [keys] that were recycled
 		iter := b.l.alive.Iterator()
 		for next := iter.Next(); next != nil; next = iter.Next() {
 			b.a.keys[next.key] = next
 			b.a.logger.Debug("updating key to new record", zap.String("key", next.key))
 		}
-	} else {
-		// Write nullify operations for keys that are no longer active
-		fmt.Println("pending nullify len", len(b.l.pendingNullify))
-		for _, loc := range b.l.pendingNullify {
-			if err := b.writeNullify(loc); err != nil {
-				// TODO: don't panic
-				panic(err)
-			}
-			b.openWrites += opNullifyLen()
-			b.a.logger.Debug("writing nullify record", zap.Int64("loc", loc))
-		}
-		b.l.ResetNullify()
 	}
 
 	// Setup tracker for reference by this batch

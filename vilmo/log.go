@@ -84,8 +84,6 @@ func (l *log) Remove(record *record, actor *log) {
 	if record.log != actor {
 		l.pendingNullify = append(l.pendingNullify, record.loc)
 		l.uselessBytes += opNullifyLen()
-	} else {
-		fmt.Println("skipping pending nullify", record.key, "record log", record.log, "actor log", actor)
 	}
 }
 
