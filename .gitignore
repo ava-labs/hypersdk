@@ -69,5 +69,4 @@ target/
 Cargo.lock
 **/*.rs.bk
 
-*.code-workspace
 x/programs/cmd/simulator/simulator
