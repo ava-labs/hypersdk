@@ -327,6 +327,8 @@ func (b *Batch) Prepare() (int64, bool) {
 			}
 			b.a.logger.Debug("writing nullify record", zap.Int64("loc", loc))
 		}
+		// TODO: better handle reuse (this could be nil)
+		b.l.pendingNullify = b.l.pendingNullify[:0]
 	}
 
 	// Setup tracker for reference by this batch
