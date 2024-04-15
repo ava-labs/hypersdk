@@ -594,6 +594,7 @@ func TestVilmoLarge(t *testing.T) {
 				}
 				checksum, err := b.Write()
 				require.NoError(err)
+				require.Zero(len(db.batches[b.batch].pendingNullify))
 
 				// Ensure data is correct
 				for j := 0; j < batchSize; j++ {
