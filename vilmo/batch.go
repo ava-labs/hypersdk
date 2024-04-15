@@ -82,8 +82,7 @@ func (a *Vilmo) NewBatch() (*Batch, error) {
 	}
 	b.f = f
 	b.writer = newWriter(f, 0, b.a.bufferSize)
-	b.l = newLog(b.newPath)
-	b.l.pendingNullify = make([]int64, 0, b.a.batchSize)
+	b.l = newLog(b.newPath, nil, b.a.batchSize)
 	if err := b.writeBatch(); err != nil {
 		return nil, err
 	}
@@ -131,9 +130,7 @@ func (b *Batch) reclaim() (bool, error) {
 		}
 		b.f = f
 		b.writer = newWriter(f, 0, b.a.bufferSize)
-		b.l = newLog(b.newPath)
-		b.l.pendingNullify = previous.pendingNullify
-		b.l.pendingNullify = b.l.pendingNullify[:0]
+		b.l = newLog(b.newPath, previous, b.a.batchSize)
 		if err := b.writeBatch(); err != nil {
 			return false, err
 		}
@@ -331,7 +328,7 @@ func (b *Batch) Prepare() (int64, bool) {
 			b.openWrites += opNullifyLen()
 			b.a.logger.Debug("writing nullify record", zap.Int64("loc", loc))
 		}
-		b.l.pendingNullify = b.l.pendingNullify[:0]
+		b.l.ResetNullify()
 	}
 
 	// Setup tracker for reference by this batch

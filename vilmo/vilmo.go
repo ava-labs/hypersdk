@@ -85,7 +85,7 @@ func New(
 	batches := make(map[uint64]*log, len(files))
 	for _, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		l, allOps, err := load(logger, file, path)
+		l, allOps, err := load(logger, file, path, batchSize)
 		if err != nil {
 			logger.Warn("could not load log", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
@@ -94,7 +94,6 @@ func New(
 			// This means the file was empty and is now deleted
 			continue
 		}
-		l.pendingNullify = make([]int64, 0, batchSize)
 		for batch, ops := range allOps {
 			if _, ok := batchOps[batch]; ok {
 				logger.Warn("found duplicate batch", zap.Uint64("batch", batch), zap.String("current", path))

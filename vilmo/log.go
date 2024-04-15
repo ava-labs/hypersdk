@@ -50,16 +50,22 @@ type log struct {
 	pendingNullify []int64
 }
 
-func newLog(path string) *log {
-	return &log{
+func newLog(path string, prev *log, batchSize int) *log {
+	l := &log{
 		path:  path,
 		alive: &dll{},
 	}
+	if prev != nil {
+		l.pendingNullify = prev.pendingNullify
+		l.pendingNullify = l.pendingNullify[:0]
+	} else {
+		l.pendingNullify = make([]int64, 0, batchSize)
+	}
+	return l
 }
 
 func (l *log) Add(record *record) {
-	opSize := opPutLenWithValueLen(record.key, record.size)
-	l.aliveBytes += opSize
+	l.aliveBytes += opPutLenWithValueLen(record.key, record.size)
 
 	// Add to linked list
 	l.alive.Add(record)
@@ -81,6 +87,10 @@ func (l *log) Remove(record *record, actor *log) {
 	} else {
 		fmt.Println("skipping pending nullify", record.key, "record log", record.log, "actor log", actor)
 	}
+}
+
+func (l *log) ResetNullify() {
+	l.pendingNullify = l.pendingNullify[:0]
 }
 
 // reader tracks how many bytes we read of a file to support
@@ -114,7 +124,7 @@ type batchIndex struct {
 //
 // Partial batch writing should not occur unless there is an unclean shutdown,
 // as the usage of [Abort] prevents this.
-func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][]any, error) {
+func load(logger logging.Logger, logNum uint64, path string, batchSize int) (*log, map[uint64][]any, error) {
 	// Open log file
 	f, err := os.Open(path)
 	if err != nil {
@@ -131,7 +141,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 		reader = &reader{reader: bufio.NewReader(f)}
 
 		// We create the log here so that any read items can reference it.
-		l = newLog(path)
+		l = newLog(path, nil, batchSize)
 
 		lastBatch uint64
 		batchSet  bool
@@ -253,6 +263,8 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 				corrupt = fmt.Errorf("nullify key not found at %d", loc)
 				break
 			}
+			record := committedOps[bi.batch][bi.index].(*record)
+			uselessBytes += opPutLenWithValueLen(record.key, record.size)
 
 			// It is not possible to nullify a put operation in the same
 			// batch, so this will not panic.
