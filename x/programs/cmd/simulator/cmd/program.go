@@ -88,7 +88,7 @@ func (p *programCreate) Verify(ctx context.Context) error {
 }
 
 func (p *programCreate) Run(ctx context.Context) (err error) {
-	p.id, err = programCreateFunc(ctx, p.db, p.path)
+	p.id, err = programCreateFunc(ctx, p.db, p.path, 0)
 	if err != nil {
 		return err
 	}
@@ -97,14 +97,20 @@ func (p *programCreate) Run(ctx context.Context) (err error) {
 }
 
 // createProgram simulates a create program transaction and stores the program to disk.
-func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (ids.ID, error) {
+func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string, salt uint64) (ids.ID, error) {
 	programBytes, err := os.ReadFile(path)
 	if err != nil {
 		return ids.Empty, err
 	}
 
 	// simulate create program transaction
-	programID, err := generateRandomID()
+	var programID ids.ID
+	if salt == 0 {
+			programID, err = generateRandomID()
+	} else {
+			programID, err = generateDeterministicID(salt)
+	}
+
 	if err != nil {
 		return ids.Empty, err
 	}

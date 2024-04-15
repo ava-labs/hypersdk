@@ -231,7 +231,11 @@ func runStepFunc(
 		if method == ProgramCreate {
 			// get program path from params
 			programPath := params[0].Value.(string)
-			id, err := programCreateFunc(ctx, db, programPath)
+			var salt uint64
+			if len(params) > 1 {
+				salt = params[1].Value.(uint64)
+			}
+			id, err := programCreateFunc(ctx, db, programPath, salt)
 			if err != nil {
 				return err
 			}
@@ -326,6 +330,18 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			default:
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
+		case Uint256:
+			switch v := param.Value.(type) {
+			case string:
+				// TODO Won't work, we need to parse to 32 bytes
+				number, err := strconv.ParseUint(v, 10, 256)
+				if err != nil {
+					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+				}
+				cp = append(cp, actions.CallParam{Value: number})
+			default:
+				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			}
 		default:
 			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
 		}
@@ -371,4 +387,13 @@ func generateRandomID() (ids.ID, error) {
 	}
 
 	return id, nil
+}
+
+// TODO 
+func generateDeterministicID(salt uint64) (ids.ID, error) {
+	if salt == 0 {
+		return ids.Empty, errors.New("invalid salt value")
+	}
+
+	return generateRandomID()
 }
