@@ -271,7 +271,7 @@ func TestVilmoComplexReload(t *testing.T) {
 	b, err = db.NewBatch()
 	require.NoError(err)
 	openBytes, rewrite = b.Prepare()
-	require.Equal(opBatchLen(), openBytes)
+	require.Equal(opBatchLen()+opNullifyLen(), openBytes)
 	require.False(rewrite)
 	require.NoError(b.Put(ctx, "hello2", []byte("world2")))
 	lastChecksum, err := b.Write()

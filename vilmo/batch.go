@@ -325,6 +325,7 @@ func (b *Batch) Prepare() (int64, bool) {
 				// TODO: don't panic
 				panic(err)
 			}
+			b.openWrites += opNullifyLen()
 			b.a.logger.Debug("writing nullify record", zap.Int64("loc", loc))
 		}
 		// TODO: better handle reuse (this could be nil)
@@ -347,7 +348,7 @@ func (b *Batch) Put(_ context.Context, key string, value []byte) error {
 	}
 	past, ok := b.a.keys[key]
 	if ok {
-		past.log.Remove(past)
+		past.log.Remove(past, b.l)
 		past.log = b.l
 
 		// We avoid updating [keys] when just updating the value of a [record]
@@ -391,7 +392,7 @@ func (b *Batch) Delete(_ context.Context, key string) error {
 	// We check to see if the past batch is less
 	// than the current batch because we may have just recycled
 	// this key and it is already in [alive].
-	past.log.Remove(past)
+	past.log.Remove(past, b.l)
 	delete(b.a.keys, key)
 	b.l.uselessBytes += opDeleteLen(key)
 	return nil

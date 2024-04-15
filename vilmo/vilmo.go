@@ -34,6 +34,11 @@ type Vilmo struct {
 	keys    map[string]*record
 }
 
+type opsWrapper struct {
+	log *log
+	ops []any
+}
+
 // New returns a new Vilmo instance and the ID of the last committed file.
 func New(
 	logger logging.Logger,
@@ -75,7 +80,7 @@ func New(
 	// During this process, we attempt to recover any corrupt files
 	// on-disk and ensure that we don't have any gaps. We also ensure we don't
 	// end up with too many files.
-	batchOps := map[uint64][]any{}
+	batchOps := map[uint64]*opsWrapper{}
 	batches := make(map[uint64]*log, len(files))
 	for _, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
@@ -93,7 +98,7 @@ func New(
 				logger.Warn("found duplicate batch", zap.Uint64("batch", batch), zap.String("current", path))
 				return nil, ids.Empty, errors.New("duplicate batch")
 			}
-			batchOps[batch] = ops
+			batchOps[batch] = &opsWrapper{l, ops}
 		}
 		batches[l.batch] = l
 	}
@@ -112,7 +117,8 @@ func New(
 	for _, batch := range replayableBatches {
 		// There may be gaps between batches depending on which files were rewritten,
 		// that's ok.
-		for _, op := range batchOps[batch] {
+		opw := batchOps[batch]
+		for _, op := range opw.ops {
 			switch o := op.(type) {
 			case nil:
 				// This happens when a put operation is nullified
@@ -120,7 +126,7 @@ func New(
 			case *record:
 				past, ok := keys[o.key]
 				if ok {
-					past.log.Remove(past)
+					past.log.Remove(past, opw.log)
 				}
 				keys[o.key] = o
 				o.log.Add(o)
@@ -129,7 +135,7 @@ func New(
 				if !ok {
 					continue
 				}
-				past.log.Remove(past)
+				past.log.Remove(past, opw.log)
 			case ids.ID:
 				checksum = o
 			default:

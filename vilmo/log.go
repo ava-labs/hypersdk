@@ -65,7 +65,7 @@ func (l *log) Add(record *record) {
 	l.alive.Add(record)
 }
 
-func (l *log) Remove(record *record) {
+func (l *log) Remove(record *record, actor *log) {
 	opSize := opPutLenWithValueLen(record.key, record.size)
 	l.aliveBytes -= opSize
 	l.uselessBytes += opSize
@@ -75,12 +75,11 @@ func (l *log) Remove(record *record) {
 
 	// We should only nullify a record if the update/delete is on another log. If it is
 	// on the same log file, we don't need to nullify it.
-	if l != record.log {
-		// TODO: this is always equal
+	if record.log != actor {
 		l.pendingNullify = append(l.pendingNullify, record.loc)
 		l.uselessBytes += opNullifyLen()
 	} else {
-		fmt.Println("skipping pending nullify", record.key, "batch key", record.log.batch, "batch log", l.batch)
+		fmt.Println("skipping pending nullify", record.key, "record log", record.log, "actor log", actor)
 	}
 }
 
@@ -151,7 +150,7 @@ func load(logger logging.Logger, logNum uint64, path string) (*log, map[uint64][
 		done    bool
 		corrupt error
 	)
-	for !done {
+	for !done && corrupt == nil {
 		start := reader.Cursor()
 		opType, err := readOpType(reader, hasher)
 		if err != nil {
