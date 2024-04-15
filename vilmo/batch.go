@@ -44,8 +44,8 @@ type Batch struct {
 
 	l *log
 
-	toClear *uint64
-	reused  bool
+	toReclaim *uint64
+	reused    bool
 }
 
 func (a *Vilmo) NewBatch() (*Batch, error) {
@@ -112,7 +112,7 @@ func (b *Batch) reclaim() (bool, error) {
 	// Find batch to reclaim
 	batchToClear := b.batch - uint64(b.a.historyLen) - 1
 	previous := b.a.batches[batchToClear]
-	b.toClear = &batchToClear
+	b.toReclaim = &batchToClear
 	b.a.logger.Debug("reclaiming previous batch file", zap.Uint64("batch", batchToClear))
 
 	// Determine if we should continue writing to the file or create a new one
@@ -337,7 +337,7 @@ func (b *Batch) Prepare() (int64, bool) {
 	// [keyLock] to ensure that [b.a.batches] is not referenced
 	// at the same time.
 	b.a.batches[b.batch] = b.l
-	return b.openWrites, b.toClear != nil && !b.reused
+	return b.openWrites, b.toReclaim != nil && !b.reused
 }
 
 func (b *Batch) Put(_ context.Context, key string, value []byte) error {
@@ -432,18 +432,18 @@ func (b *Batch) Write() (ids.ID, error) {
 	}
 
 	// Handle old batch cleanup
-	if b.toClear != nil {
-		preparedBatch := *b.toClear
-		preparedReader := b.a.batches[preparedBatch]
-		if err := preparedReader.reader.Close(); err != nil {
+	if b.toReclaim != nil {
+		reclaimed := *b.toReclaim
+		reclaimedBatch := b.a.batches[reclaimed]
+		if err := reclaimedBatch.reader.Close(); err != nil {
 			return ids.Empty, fmt.Errorf("%w: could not close old batch", err)
 		}
 		if !b.reused {
-			if err := os.Remove(preparedReader.path); err != nil {
+			if err := os.Remove(reclaimedBatch.path); err != nil {
 				return ids.Empty, fmt.Errorf("%w: could not remove old batch", err)
 			}
 		}
-		delete(b.a.batches, preparedBatch)
+		delete(b.a.batches, reclaimed)
 	}
 
 	// Open file for mmap before keys become acessible
