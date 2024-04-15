@@ -27,10 +27,6 @@ type record struct {
 	next *record
 }
 
-func (r *record) Size() uint32 {
-	return r.size
-}
-
 // ValueLoc returns the locaction of the value in the log file
 func (r *record) ValueLoc() int64 {
 	return r.loc + opPutToValue(r.key)
