@@ -23,6 +23,7 @@ var _ state.Immutable = (*Vilmo)(nil)
 type Vilmo struct {
 	logger     logging.Logger
 	baseDir    string
+	batchSize  int
 	bufferSize int
 	historyLen int
 
@@ -93,6 +94,7 @@ func New(
 			// This means the file was empty and is now deleted
 			continue
 		}
+		l.pendingNullify = make([]int64, 0, batchSize)
 		for batch, ops := range allOps {
 			if _, ok := batchOps[batch]; ok {
 				logger.Warn("found duplicate batch", zap.Uint64("batch", batch), zap.String("current", path))
@@ -149,6 +151,7 @@ func New(
 	adb := &Vilmo{
 		logger:     logger,
 		baseDir:    baseDir,
+		batchSize:  batchSize,
 		bufferSize: bufferSize,
 		historyLen: historyLen,
 
