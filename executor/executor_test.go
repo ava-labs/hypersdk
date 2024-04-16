@@ -540,9 +540,11 @@ func TestLargeConcurrentRead(t *testing.T) {
 		completed = make([]int, 0, numTxs)
 		e         = New(numTxs, 4, nil)
 
-		numBlocking  = 1000
-		blocking     = set.Set[int]{}
-		conflictKeys = make([]string, 0, numKeys)
+		numBlocking = 1000
+		blocking    = set.Set[int]{}
+
+		numConflicts = 100
+		conflictKeys = make([]string, 0, numConflicts)
 
 		l    sync.Mutex
 		slow = make(chan struct{})
@@ -554,7 +556,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 	}
 
 	// make the conflict keys
-	for k := 0; k < numKeys; k++ {
+	for k := 0; k < numConflicts; k++ {
 		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
 	}
 
@@ -564,10 +566,10 @@ func TestLargeConcurrentRead(t *testing.T) {
 		s := make(state.Keys, (numKeys + 1))
 
 		// random size of conflict keys to add
-		setSize := rand.Intn(numKeys + 1)                 //nolint:gosec
+		setSize := max(1, rand.Intn(6))                   //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
 		for randomConflictingKeys.Len() < setSize {
-			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
+			randomConflictingKeys.Add(rand.Intn(numConflicts)) //nolint:gosec
 		}
 
 		// add the random keys to tx
@@ -576,7 +578,6 @@ func TestLargeConcurrentRead(t *testing.T) {
 		}
 
 		// fill in rest with unique keys that are Reads
-		// [remaining] can be 0 here
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
 			s.Add(ids.GenerateTestID().String(), state.Read)
@@ -609,14 +610,16 @@ func TestLargeSequentialWrites(t *testing.T) {
 
 	var (
 		require   = require.New(t)
-		numKeys   = 5
+		numKeys   = 10
 		numTxs    = 100_000
 		completed = make([]int, 0, numTxs)
 		e         = New(numTxs, 4, nil)
 
-		numBlocking  = 1000
-		blocking     = set.Set[int]{}
-		conflictKeys = make([]string, 0, numKeys)
+		numBlocking = 1000
+		blocking    = set.Set[int]{}
+
+		numConflicts = 100
+		conflictKeys = make([]string, 0, numConflicts)
 
 		l    sync.Mutex
 		slow = make(chan struct{})
@@ -628,7 +631,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 	}
 
 	// make the conflict keys
-	for k := 0; k < numKeys; k++ {
+	for k := 0; k < numConflicts; k++ {
 		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
 	}
 
@@ -638,10 +641,10 @@ func TestLargeSequentialWrites(t *testing.T) {
 		s := make(state.Keys, (numKeys + 1))
 
 		// random size of conflict keys to add
-		setSize := rand.Intn(numKeys + 1)                 //nolint:gosec
+		setSize := max(1, rand.Intn(6))                   //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
 		for randomConflictingKeys.Len() < setSize {
-			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
+			randomConflictingKeys.Add(rand.Intn(numConflicts)) //nolint:gosec
 		}
 
 		// add the random keys to tx
@@ -650,7 +653,6 @@ func TestLargeSequentialWrites(t *testing.T) {
 		}
 
 		// fill in rest with unique keys that are Writes
-		// [remaining] can be 0 here
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
 			s.Add(ids.GenerateTestID().String(), state.Write)
@@ -892,7 +894,6 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		}
 
 		// fill in rest with unique keys
-		// invariant: [remaining] > 0
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
 			// randomly pick the permission for unique keys
