@@ -502,13 +502,8 @@ func TestTwoConflictKeys(t *testing.T) {
 			for k := 0; k < i+1; k++ {
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}
-			if i == 0 || i == 1 {
-				s.Add(conflictKey1, state.Write)
-				s.Add(conflictKey2, state.Write)
-			} else {
-				s.Add(conflictKey1, state.Read)
-				s.Add(conflictKey2, state.Read)
-			}
+			s.Add(conflictKey1, state.Read)
+			s.Add(conflictKey2, state.Write)
 			ti := i
 			e.Run(s, func() error {
 				if ti == 10 {
@@ -843,7 +838,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	var (
 		require   = require.New(t)
 		numKeys   = 10
-		numTxs    = 100000
+		numTxs    = 100_000
 		completed = make([]int, 0, numTxs)
 		e         = New(numTxs, 4, nil)
 

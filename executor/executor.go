@@ -180,6 +180,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				// and can't mark itself as executed until all [shared] are
 				// cleared (which can't be done while we hold the lock for [lt]).
 				for _, rt := range lt.readers {
+					// Don't block on ourself if we just recorded us reading
 					if rt.id == id {
 						continue
 					}
