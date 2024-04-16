@@ -550,7 +550,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 
 	// randomly wait on certain txs
 	for blocking.Len() < numBlocking {
-		blocking.Add(rand.Intn(100_000)) //nolint:gosec
+		blocking.Add(rand.Intn(numTxs)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -624,7 +624,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 
 	// randomly wait on certain txs
 	for blocking.Len() < numBlocking {
-		blocking.Add(rand.Intn(100_000)) //nolint:gosec
+		blocking.Add(rand.Intn(numTxs)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -708,7 +708,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 
 	// randomly wait on certain txs
 	for blocking.Len() < numBlocking {
-		blocking.Add(rand.Intn(100_000)) //nolint:gosec
+		blocking.Add(rand.Intn(numTxs)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -786,7 +786,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 
 	// randomly wait on certain txs
 	for blocking.Len() < numBlocking {
-		blocking.Add(rand.Intn(100_000)) //nolint:gosec
+		blocking.Add(rand.Intn(numTxs)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -857,7 +857,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 
 	// randomly wait on certain txs
 	for blocking.Len() < numBlocking {
-		blocking.Add(rand.Intn(100_000)) //nolint:gosec
+		blocking.Add(rand.Intn(numTxs)) //nolint:gosec
 	}
 
 	// make the conflict keys
