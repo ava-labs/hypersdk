@@ -550,7 +550,7 @@ func TestLargeNumConcurrentReadTxs(t *testing.T) {
 		if blocking.Len() == 1000 {
 			break
 		}
-		blocking.Add(rand.Intn(100_000))
+		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -617,7 +617,7 @@ func TestLargeNumSequentialWritesTxs(t *testing.T) {
 		if blocking.Len() == 1000 {
 			break
 		}
-		blocking.Add(rand.Intn(100_000))
+		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -694,7 +694,7 @@ func TestLargeNumReadsThenWritesTxs(t *testing.T) {
 		if blocking.Len() == 10000 {
 			break
 		}
-		blocking.Add(rand.Intn(100_000))
+		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
 	// make the conflict keys
@@ -777,7 +777,7 @@ func TestLargeNumWritesThenReadsTxs(t *testing.T) {
 		if blocking.Len() == 10000 {
 			break
 		}
-		blocking.Add(rand.Intn(100_000))
+		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
 	// make the conflict keys
