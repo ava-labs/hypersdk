@@ -864,7 +864,8 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		require      = require.New(t)
 		numKeys      = 10
 		numTxs       = 100_000
-		conflictKeys = make([]string, 0, numKeys)
+		conflictSize = 100
+		conflictKeys = make([]string, 0, conflictSize)
 		blocking     = set.Set[int]{}
 		l            sync.Mutex
 		completed    = make([]int, 0, numTxs)
@@ -878,7 +879,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	}
 
 	// make the conflict keys
-	for k := 0; k < numKeys; k++ {
+	for k := 0; k < conflictSize; k++ {
 		conflictKeys = append(conflictKeys, ids.GenerateTestID().String())
 	}
 
@@ -891,7 +892,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		setSize := max(1, rand.Intn(6))                   //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
 		for randomConflictingKeys.Len() < setSize {
-			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
+			randomConflictingKeys.Add(rand.Intn(conflictSize)) //nolint:gosec
 		}
 
 		// randomly pick if these conflict keys are
