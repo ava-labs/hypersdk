@@ -546,10 +546,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 	)
 
 	// randomly wait on certain txs
-	for {
-		if blocking.Len() == 1000 {
-			break
-		}
+	for blocking.Len() < 1000 {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -630,10 +627,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 	)
 
 	// randomly wait on certain txs
-	for {
-		if blocking.Len() == 1000 {
-			break
-		}
+	for blocking.Len() < 1000 {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -724,10 +718,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 	answers[4] = generateNumbers(90000)
 
 	// randomly wait on certain txs
-	for {
-		if blocking.Len() == 10000 {
-			break
-		}
+	for blocking.Len() < 10000 {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -809,10 +800,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 	answers[4] = generateNumbers(80000)
 
 	// randomly wait on certain txs
-	for {
-		if blocking.Len() == 10000 {
-			break
-		}
+	for blocking.Len() < 10000 {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -885,10 +873,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	)
 
 	// randomly wait on certain txs
-	for {
-		if blocking.Len() == 10000 {
-			break
-		}
+	for blocking.Len() < 10000 {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -907,10 +892,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		max := 6
 		setSize := rand.Intn(max-min+1) + min             //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
-		for {
-			if randomConflictingKeys.Len() == setSize {
-				break
-			}
+		for randomConflictingKeys.Len() < setSize {
 			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
 		}
 
