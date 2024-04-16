@@ -838,7 +838,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	var (
 		require   = require.New(t)
 		numKeys   = 10
-		numTxs    = 100_000
+		numTxs    = 100000
 		completed = make([]int, 0, numTxs)
 		e         = New(numTxs, 4, nil)
 
