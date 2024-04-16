@@ -534,16 +534,18 @@ func TestLargeConcurrentRead(t *testing.T) {
 	rand.Seed(1)
 
 	var (
-		require      = require.New(t)
-		numKeys      = 10
-		numTxs       = 100_000
+		require   = require.New(t)
+		numKeys   = 10
+		numTxs    = 100_000
+		completed = make([]int, 0, numTxs)
+		e         = New(numTxs, 4, nil)
+
 		numBlocking  = 1000
-		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
-		l            sync.Mutex
-		completed    = make([]int, 0, numTxs)
-		e            = New(numTxs, 4, nil)
-		slow         = make(chan struct{})
+		conflictKeys = make([]string, 0, numKeys)
+
+		l    sync.Mutex
+		slow = make(chan struct{})
 	)
 
 	// randomly wait on certain txs
@@ -606,16 +608,18 @@ func TestLargeSequentialWrites(t *testing.T) {
 	rand.Seed(2)
 
 	var (
-		require      = require.New(t)
-		numKeys      = 5
-		numTxs       = 100_000
+		require   = require.New(t)
+		numKeys   = 5
+		numTxs    = 100_000
+		completed = make([]int, 0, numTxs)
+		e         = New(numTxs, 4, nil)
+
 		numBlocking  = 1000
-		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
-		l            sync.Mutex
-		completed    = make([]int, 0, numTxs)
-		e            = New(numTxs, 4, nil)
-		slow         = make(chan struct{})
+		conflictKeys = make([]string, 0, numKeys)
+
+		l    sync.Mutex
+		slow = make(chan struct{})
 	)
 
 	// randomly wait on certain txs
@@ -680,17 +684,19 @@ func TestLargeReadsThenWrites(t *testing.T) {
 	rand.Seed(3)
 
 	var (
-		require      = require.New(t)
-		numKeys      = 5
-		numTxs       = 100_000
+		require   = require.New(t)
+		numKeys   = 5
+		numTxs    = 100_000
+		completed = make([]int, 0, numTxs)
+		answers   = make([][]int, 5)
+		e         = New(numTxs, 4, nil)
+
 		numBlocking  = 10000
-		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
-		l            sync.Mutex
-		completed    = make([]int, 0, numTxs)
-		answers      = make([][]int, 5)
-		e            = New(numTxs, 4, nil)
-		slow         = make(chan struct{})
+		conflictKeys = make([]string, 0, numKeys)
+
+		l    sync.Mutex
+		slow = make(chan struct{})
 	)
 
 	// make [answers] matrix
@@ -756,17 +762,19 @@ func TestLargeWritesThenReads(t *testing.T) {
 	rand.Seed(4)
 
 	var (
-		require      = require.New(t)
-		numKeys      = 5
-		numTxs       = 100_000
+		require   = require.New(t)
+		numKeys   = 5
+		numTxs    = 100_000
+		completed = make([]int, 0, numTxs)
+		answers   = make([][]int, 5)
+		e         = New(numTxs, 4, nil)
+
 		numBlocking  = 10000
-		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
-		l            sync.Mutex
-		completed    = make([]int, 0, numTxs)
-		answers      = make([][]int, 5)
-		e            = New(numTxs, 4, nil)
-		slow         = make(chan struct{})
+		conflictKeys = make([]string, 0, numKeys)
+
+		l    sync.Mutex
+		slow = make(chan struct{})
 	)
 
 	// make [answers] matrix
@@ -831,17 +839,20 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	rand.Seed(5)
 
 	var (
-		require      = require.New(t)
-		numKeys      = 10
-		numTxs       = 100_000
-		numBlocking  = 10000
+		require   = require.New(t)
+		numKeys   = 10
+		numTxs    = 100_000
+		completed = make([]int, 0, numTxs)
+		e         = New(numTxs, 4, nil)
+
 		conflictSize = 100
 		conflictKeys = make([]string, 0, conflictSize)
-		blocking     = set.Set[int]{}
-		l            sync.Mutex
-		completed    = make([]int, 0, numTxs)
-		e            = New(numTxs, 4, nil)
-		slow         = make(chan struct{})
+
+		numBlocking = 10000
+		blocking    = set.Set[int]{}
+
+		l    sync.Mutex
+		slow = make(chan struct{})
 	)
 
 	// randomly wait on certain txs
