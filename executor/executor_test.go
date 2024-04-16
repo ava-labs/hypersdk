@@ -880,14 +880,12 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 			}
 		}
 
-		// randomly pick what the key access should be
-		// for unique keys
-		uniqueMode := rand.Intn(2) //nolint:gosec
-
 		// fill in rest with unique keys
 		// invariant: [remaining] > 0
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
+			// randomly pick the permission for unique keys
+			uniqueMode := rand.Intn(2) //nolint:gosec
 			switch uniqueMode {
 			case 0:
 				s.Add(ids.GenerateTestID().String(), state.Read)
