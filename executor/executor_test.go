@@ -537,6 +537,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 		require      = require.New(t)
 		numKeys      = 10
 		numTxs       = 100_000
+		numBlocking  = 1000
 		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
 		l            sync.Mutex
@@ -546,7 +547,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 	)
 
 	// randomly wait on certain txs
-	for blocking.Len() < 1000 {
+	for blocking.Len() < numBlocking {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -602,7 +603,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 			return nil
 		})
 	}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numBlocking; i++ {
 		slow <- struct{}{}
 	}
 	close(slow)
@@ -618,6 +619,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 		require      = require.New(t)
 		numKeys      = 5
 		numTxs       = 100_000
+		numBlocking  = 1000
 		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
 		l            sync.Mutex
@@ -627,7 +629,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 	)
 
 	// randomly wait on certain txs
-	for blocking.Len() < 1000 {
+	for blocking.Len() < numBlocking {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -683,7 +685,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 			return nil
 		})
 	}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numBlocking; i++ {
 		slow <- struct{}{}
 	}
 	close(slow)
@@ -701,6 +703,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 		require      = require.New(t)
 		numKeys      = 5
 		numTxs       = 100_000
+		numBlocking  = 10000
 		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
 		l            sync.Mutex
@@ -718,7 +721,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 	answers[4] = generateNumbers(90000)
 
 	// randomly wait on certain txs
-	for blocking.Len() < 10000 {
+	for blocking.Len() < numBlocking {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -760,7 +763,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 			return nil
 		})
 	}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numBlocking; i++ {
 		slow <- struct{}{}
 	}
 	close(slow)
@@ -783,6 +786,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 		require      = require.New(t)
 		numKeys      = 5
 		numTxs       = 100_000
+		numBlocking  = 10000
 		conflictKeys = make([]string, 0, numKeys)
 		blocking     = set.Set[int]{}
 		l            sync.Mutex
@@ -800,7 +804,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 	answers[4] = generateNumbers(80000)
 
 	// randomly wait on certain txs
-	for blocking.Len() < 10000 {
+	for blocking.Len() < numBlocking {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -842,7 +846,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 			return nil
 		})
 	}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numBlocking; i++ {
 		slow <- struct{}{}
 	}
 	close(slow)
@@ -864,6 +868,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		require      = require.New(t)
 		numKeys      = 10
 		numTxs       = 100_000
+		numBlocking  = 10000
 		conflictSize = 100
 		conflictKeys = make([]string, 0, conflictSize)
 		blocking     = set.Set[int]{}
@@ -874,7 +879,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	)
 
 	// randomly wait on certain txs
-	for blocking.Len() < 10000 {
+	for blocking.Len() < numBlocking {
 		blocking.Add(rand.Intn(100_000)) //nolint:gosec
 	}
 
@@ -945,7 +950,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 			return nil
 		})
 	}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < numBlocking; i++ {
 		slow <- struct{}{}
 	}
 	close(slow)
