@@ -23,7 +23,7 @@ set `WithEnableTestingOnlyMode` for the runtime `Config`.
 from your program and recompile without `DEBUG`.
 
 ```sh
-cargo build --target wasm32-wasi --target-dir $CARGO_TARGET_DIR --release
+cargo build --target wasm32-wasi
 ```
 
 ## Storage
