@@ -180,6 +180,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				// and can't mark itself as executed until all [shared] are
 				// cleared (which can't be done while we hold the lock for [lt]).
 				for _, rt := range lt.readers {
+					if rt.id == id {
+						continue
+					}
 					rt.l.Lock()
 					rt.blocked[id] = t
 					rt.l.Unlock()

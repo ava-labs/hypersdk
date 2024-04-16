@@ -843,7 +843,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 	var (
 		require   = require.New(t)
 		numKeys   = 10
-		numTxs    = 100_000
+		numTxs    = 100000
 		completed = make([]int, 0, numTxs)
 		e         = New(numTxs, 4, nil)
 
@@ -879,12 +879,10 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 			randomConflictingKeys.Add(rand.Intn(conflictSize)) //nolint:gosec
 		}
 
-		// randomly pick if these conflict keys are
-		// going to be Read/Write
-		conflictMode := rand.Intn(2) //nolint:gosec
-
 		// add the random keys to tx
 		for k := range randomConflictingKeys {
+			// randomly pick if conflict key is Read/Write
+			conflictMode := rand.Intn(2) //nolint:gosec
 			switch conflictMode {
 			case 0:
 				s.Add(conflictKeys[k], state.Read)
