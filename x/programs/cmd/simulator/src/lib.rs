@@ -447,4 +447,41 @@ mod tests {
 
         assert_eq!(output_param, expected_param);
     }
+
+    #[test]
+    fn create_program_with_salt() {
+        const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+        let program_path = format!(
+            "{}/../../rust/examples/token/build/wasm32-unknown-unknown/debug/token.wasm",
+            MANIFEST_DIR
+        );
+
+        let simulator = Client::new();
+
+        let owner_key = String::from("owner");
+
+        let mut plan = Plan::new(owner_key.clone());
+
+        plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
+        plan.add_step(Step::create_program_with_salt(&program_path, 123));
+        plan.add_step(Step::create_program_with_salt(&program_path, 123));
+
+        // run plan
+        let plan_responses = simulator.run_plan(&plan).unwrap();
+
+        // ensure no errors
+        assert!(
+            plan_responses.iter().all(|resp| resp.error.is_none()),
+            "error: {:?}",
+            plan_responses
+                .iter()
+                .filter_map(|resp| resp.error.as_ref())
+                .next()
+        );
+
+        assert_eq!(
+            plan_responses[1].result.id.as_ref().unwrap(),
+            plan_responses[2].result.id.as_ref().unwrap()
+        )
+    }
 }

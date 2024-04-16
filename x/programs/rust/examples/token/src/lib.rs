@@ -174,37 +174,6 @@ mod tests {
     }
 
     #[test]
-    fn create_program_with_salt() {
-        let simulator = simulator::Client::new();
-
-        let owner_key = String::from("owner");
-
-        let mut plan = Plan::new(owner_key.clone());
-
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
-        plan.add_step(Step::create_program_with_salt(PROGRAM_PATH, 123));
-        plan.add_step(Step::create_program_with_salt(PROGRAM_PATH, 123));
-
-        // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
-
-        // ensure no errors
-        assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
-            "error: {:?}",
-            plan_responses
-                .iter()
-                .filter_map(|resp| resp.error.as_ref())
-                .next()
-        );
-
-        assert_eq!(
-            plan_responses[1].result.id.as_ref().unwrap(),
-            plan_responses[2].result.id.as_ref().unwrap()
-        )
-    }
-
-    #[test]
     fn mint_and_transfer() {
         let simulator = simulator::Client::new();
 
