@@ -74,6 +74,20 @@ impl Step {
             require: None,
         }
     }
+
+    /// Create a program with a deterministic ID
+    #[must_use]
+    pub fn create_program_with_salt<P: AsRef<Path>>(path: P, salt: u64) -> Self {
+        let path = path.as_ref().to_string_lossy();
+
+        Self {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::String(path.into()), Param::U64(salt)],
+            require: None,
+        }
+    }
 }
 
 /// The algorithm used to generate the key along with a [String] identifier for the key.
