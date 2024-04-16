@@ -888,9 +888,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		s := make(state.Keys, (numKeys + 1))
 
 		// random size of conflict keys to add
-		min := 1
-		max := 6
-		setSize := rand.Intn(max-min+1) + min             //nolint:gosec
+		setSize := max(1, rand.Intn(6))                   //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
 		for randomConflictingKeys.Len() < setSize {
 			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
