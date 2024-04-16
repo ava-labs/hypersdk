@@ -564,10 +564,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 		// random size of conflict keys to add
 		setSize := rand.Intn(numKeys + 1)                 //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
-		for {
-			if randomConflictingKeys.Len() == setSize {
-				break
-			}
+		for randomConflictingKeys.Len() < setSize {
 			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
 		}
 
@@ -586,14 +583,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 		// pass into executor
 		ti := i
 		e.Run(s, func() error {
-			shouldWait := false
-			for num := range blocking {
-				if num == ti {
-					shouldWait = true
-					break
-				}
-			}
-			if shouldWait {
+			if blocking.Contains(ti) {
 				<-slow
 			}
 
@@ -646,10 +636,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 		// random size of conflict keys to add
 		setSize := rand.Intn(numKeys + 1)                 //nolint:gosec
 		randomConflictingKeys := set.NewSet[int](setSize) // indices of [conflictKeys]
-		for {
-			if randomConflictingKeys.Len() == setSize {
-				break
-			}
+		for randomConflictingKeys.Len() < setSize {
 			randomConflictingKeys.Add(rand.Intn(numKeys)) //nolint:gosec
 		}
 
@@ -668,14 +655,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 		// pass into executor
 		ti := i
 		e.Run(s, func() error {
-			shouldWait := false
-			for num := range blocking {
-				if num == ti {
-					shouldWait = true
-					break
-				}
-			}
-			if shouldWait {
+			if blocking.Contains(ti) {
 				<-slow
 			}
 
@@ -746,14 +726,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 		// pass into executor
 		ti := i
 		e.Run(s, func() error {
-			shouldWait := false
-			for num := range blocking {
-				if num == ti {
-					shouldWait = true
-					break
-				}
-			}
-			if shouldWait {
+			if blocking.Contains(ti) {
 				<-slow
 			}
 
@@ -829,14 +802,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 		// pass into executor
 		ti := i
 		e.Run(s, func() error {
-			shouldWait := false
-			for num := range blocking {
-				if num == ti {
-					shouldWait = true
-					break
-				}
-			}
-			if shouldWait {
+			if blocking.Contains(ti) {
 				<-slow
 			}
 
@@ -933,14 +899,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		// pass into executor
 		ti := i
 		e.Run(s, func() error {
-			shouldWait := false
-			for num := range blocking {
-				if num == ti {
-					shouldWait = true
-					break
-				}
-			}
-			if shouldWait {
+			if blocking.Contains(ti) {
 				<-slow
 			}
 
