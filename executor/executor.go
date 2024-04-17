@@ -14,11 +14,6 @@ import (
 	uatomic "go.uber.org/atomic"
 )
 
-// maxDependencies must be greater than the maximum number of dependencies
-// any single task could have. This is used to ensure a dependent task
-// does not begin executing a task until all dependencies have been enqueued.
-const maxDependencies = 100_000_000
-
 // Executor sequences the concurrent execution of
 // tasks with arbitrary conflicts on-the-fly.
 //
@@ -26,9 +21,10 @@ const maxDependencies = 100_000_000
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
 //
-// It is assumed that no single task has more than [maxDependencies]. If
-// this invariant is violated, some tasks will never execute and this code
-// could deadlock.
+// It is assumed that no single task has more than [maxDependencies].
+// This is used to ensure a dependent task does not begin executing a
+// task until all dependencies have been enqueued. If this invariant is
+// violated, some tasks will never execute and this code could deadlock.
 type Executor struct {
 	metrics Metrics
 
@@ -37,18 +33,20 @@ type Executor struct {
 	outstanding sync.WaitGroup
 	executable  chan *task
 
-	tasks int
-	nodes map[string]*task
+	tasks           int
+	maxDependencies int64
+	nodes           map[string]*task
 
 	err uatomic.Error
 }
 
 // New creates a new [Executor].
-func New(items, concurrency int, metrics Metrics) *Executor {
+func New(items, concurrency int, maxDependencies int64, metrics Metrics) *Executor {
 	e := &Executor{
-		metrics:    metrics,
-		nodes:      make(map[string]*task, items*2), // TODO: tune this
-		executable: make(chan *task, items),         // ensure we don't block while holding lock
+		metrics:         metrics,
+		maxDependencies: maxDependencies,
+		nodes:           make(map[string]*task, items*2), // TODO: tune this
+		executable:      make(chan *task, items),         // ensure we don't block while holding lock
 	}
 	e.workers.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
@@ -159,7 +157,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	// We can have more than 1 dependency per key (in the case that there
 	// are many readers for a single key), so we set this higher than we ever
 	// expect to see.
-	t.dependencies.Add(maxDependencies)
+	t.dependencies.Add(e.maxDependencies)
 
 	// Record dependencies
 	dependencies := set.NewSet[int](len(keys))
@@ -209,7 +207,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	}
 
 	// Adjust dependency traker and execute if necessary
-	difference := maxDependencies - int64(dependencies.Len())
+	difference := e.maxDependencies - int64(dependencies.Len())
 	if t.dependencies.Add(-difference) > 0 {
 		if e.metrics != nil {
 			e.metrics.RecordBlocked()

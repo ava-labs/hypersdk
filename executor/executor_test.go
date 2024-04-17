@@ -16,8 +16,10 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-// Run several times to catch non-determinism
-const numIterations = 10
+const (
+	numIterations   = 10 // Run several times to catch non-determinism
+	maxDependencies = 100_000_000
+)
 
 func generateNumbers(start int) []int {
 	array := make([]int, 9999)
@@ -32,7 +34,7 @@ func TestExecutorNoConflicts(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 100)
-		e         = New(100, 4, nil)
+		e         = New(100, 4, maxDependencies, nil)
 		canWait   = make(chan struct{})
 	)
 
@@ -63,7 +65,7 @@ func TestExecutorNoConflictsSlow(t *testing.T) {
 			require   = require.New(t)
 			l         sync.Mutex
 			completed = make([]int, 0, 100)
-			e         = New(100, 4, nil)
+			e         = New(100, 4, maxDependencies, nil)
 			slow      = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -97,7 +99,7 @@ func TestExecutorSimpleConflict(t *testing.T) {
 		conflictKey = ids.GenerateTestID().String()
 		l           sync.Mutex
 		completed   = make([]int, 0, 100)
-		e           = New(100, 4, nil)
+		e           = New(100, 4, maxDependencies, nil)
 		slow        = make(chan struct{})
 	)
 	for i := 0; i < 100; i++ {
@@ -134,7 +136,7 @@ func TestExecutorMultiConflict(t *testing.T) {
 		conflictKey2 = ids.GenerateTestID().String()
 		l            sync.Mutex
 		completed    = make([]int, 0, 100)
-		e            = New(100, 4, nil)
+		e            = New(100, 4, maxDependencies, nil)
 		slow1        = make(chan struct{})
 		slow2        = make(chan struct{})
 	)
@@ -179,7 +181,7 @@ func TestEarlyExit(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 500)
-		e         = New(500, 4, nil)
+		e         = New(500, 4, maxDependencies, nil)
 		terr      = errors.New("uh oh")
 	)
 	for i := 0; i < 500; i++ {
@@ -207,7 +209,7 @@ func TestStop(t *testing.T) {
 		require   = require.New(t)
 		l         sync.Mutex
 		completed = make([]int, 0, 500)
-		e         = New(500, 4, nil)
+		e         = New(500, 4, maxDependencies, nil)
 	)
 	for i := 0; i < 500; i++ {
 		s := make(state.Keys, (i + 1))
@@ -238,7 +240,7 @@ func TestManyWrites(t *testing.T) {
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
 			answer      = make([]int, 0, 100)
-			e           = New(100, 4, nil)
+			e           = New(100, 4, maxDependencies, nil)
 			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -277,7 +279,7 @@ func TestManyReads(t *testing.T) {
 			conflictKey = ids.GenerateTestID().String()
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
-			e           = New(100, 4, nil)
+			e           = New(100, 4, maxDependencies, nil)
 			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -317,7 +319,7 @@ func TestWriteThenRead(t *testing.T) {
 			conflictKey = ids.GenerateTestID().String()
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
-			e           = New(100, 4, nil)
+			e           = New(100, 4, maxDependencies, nil)
 			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -361,7 +363,7 @@ func TestReadThenWrite(t *testing.T) {
 			conflictKey = ids.GenerateTestID().String()
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
-			e           = New(100, 4, nil)
+			e           = New(100, 4, maxDependencies, nil)
 			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -407,7 +409,7 @@ func TestWriteThenReadRepeated(t *testing.T) {
 			conflictKey = ids.GenerateTestID().String()
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
-			e           = New(100, 4, nil)
+			e           = New(100, 4, maxDependencies, nil)
 			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -450,7 +452,7 @@ func TestReadThenWriteRepeated(t *testing.T) {
 			conflictKey = ids.GenerateTestID().String()
 			l           sync.Mutex
 			completed   = make([]int, 0, 100)
-			e           = New(100, 4, nil)
+			e           = New(100, 4, maxDependencies, nil)
 			slow        = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -494,7 +496,7 @@ func TestTwoConflictKeys(t *testing.T) {
 			conflictKey2 = ids.GenerateTestID().String()
 			l            sync.Mutex
 			completed    = make([]int, 0, 100)
-			e            = New(100, 4, nil)
+			e            = New(100, 4, maxDependencies, nil)
 			slow         = make(chan struct{})
 		)
 		for i := 0; i < 100; i++ {
@@ -533,7 +535,7 @@ func TestLargeConcurrentRead(t *testing.T) {
 		numKeys   = 10
 		numTxs    = 100_000
 		completed = make([]int, 0, numTxs)
-		e         = New(numTxs, 4, nil)
+		e         = New(numTxs, 4, maxDependencies, nil)
 
 		numBlocking = 1000
 		blocking    = set.Set[int]{}
@@ -608,7 +610,7 @@ func TestLargeSequentialWrites(t *testing.T) {
 		numKeys   = 10
 		numTxs    = 100_000
 		completed = make([]int, 0, numTxs)
-		e         = New(numTxs, 4, nil)
+		e         = New(numTxs, 4, maxDependencies, nil)
 
 		numBlocking = 1000
 		blocking    = set.Set[int]{}
@@ -686,7 +688,7 @@ func TestLargeReadsThenWrites(t *testing.T) {
 		numTxs    = 100_000
 		completed = make([]int, 0, numTxs)
 		answers   = make([][]int, 5)
-		e         = New(numTxs, 4, nil)
+		e         = New(numTxs, 4, maxDependencies, nil)
 
 		numBlocking  = 10000
 		blocking     = set.Set[int]{}
@@ -764,7 +766,7 @@ func TestLargeWritesThenReads(t *testing.T) {
 		numTxs    = 100_000
 		completed = make([]int, 0, numTxs)
 		answers   = make([][]int, 5)
-		e         = New(numTxs, 4, nil)
+		e         = New(numTxs, 4, maxDependencies, nil)
 
 		numBlocking  = 10000
 		blocking     = set.Set[int]{}
@@ -840,7 +842,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		numKeys   = 10
 		numTxs    = 100000
 		completed = make([]int, 0, numTxs)
-		e         = New(numTxs, 4, nil)
+		e         = New(numTxs, 4, maxDependencies, nil)
 
 		conflictSize = 100
 		conflictKeys = make([]string, 0, conflictSize)
