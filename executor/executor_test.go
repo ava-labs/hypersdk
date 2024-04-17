@@ -877,8 +877,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		// add the random keys to tx
 		for k := range randomConflictingKeys {
 			// randomly pick if conflict key is Read/Write
-			conflictMode := rand.Intn(2) //nolint:gosec
-			switch conflictMode {
+			switch rand.Intn(2) { //nolint:gosec
 			case 0:
 				s.Add(conflictKeys[k], state.Read)
 			case 1:
@@ -890,8 +889,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
 			// randomly pick the permission for unique keys
-			uniqueMode := rand.Intn(2) //nolint:gosec
-			switch uniqueMode {
+			switch rand.Intn(2) { //nolint:gosec
 			case 0:
 				s.Add(ids.GenerateTestID().String(), state.Read)
 			case 1:
