@@ -170,8 +170,6 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			if v == state.Read {
 				// If we don't need exclusive access to a key, just mark
 				// that we are reading it and that we are a reader of it.
-				// TODO: currently a no-op when we add ourself multiple times
-				// but find a better way of handling [reading]
 				t.reading[lt.id] = lt
 				lt.readers[id] = t
 			} else {
@@ -182,7 +180,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 				// and can't mark itself as executed until all [reading] are
 				// cleared (which can't be done while we hold the lock for [lt]).
 				for _, rt := range lt.readers {
-					// Don't block on ourself if we just recorded us reading
+					// Don't block on ourself if we already marked ourself as a reader
 					if rt.id == id {
 						continue
 					}
