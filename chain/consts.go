@@ -35,6 +35,10 @@ const (
 	HeightKeyChunks       = 1
 	TimestampKeyChunks    = 1
 	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
+
+	// MaxKeyDependencies must be greater than the maximum number of key dependencies
+	// any single task could have when executing a task.
+	MaxKeyDependencies = 100_000_000
 )
 
 func HeightKey(prefix []byte) []byte {
