@@ -72,8 +72,8 @@ func (e *Executor) work() {
 type task struct {
 	id int
 	f  func() error
-	// shared are the tasks that this task is using non-exclusively.
-	shared []*task
+	// reading are the tasks that this task is using non-exclusively.
+	reading map[int]*task
 
 	l        sync.Mutex
 	executed bool
@@ -95,12 +95,12 @@ func (e *Executor) runTask(t *task) {
 	// to ensure we can exit.
 	defer func() {
 		// Notify other tasks that we are done reading them
-		for _, rt := range t.shared {
+		for _, rt := range t.reading {
 			rt.l.Lock()
 			delete(rt.readers, t.id)
 			rt.l.Unlock()
 		}
-		t.shared = nil
+		t.reading = nil
 
 		// Nodify blocked tasks that they can execute
 		t.l.Lock()
@@ -145,9 +145,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	id := e.tasks
 	e.tasks++
 	t := &task{
-		id:     id,
-		f:      f,
-		shared: []*task{},
+		id:      id,
+		f:       f,
+		reading: make(map[int]*task),
 
 		blocked: make(map[int]*task),
 		readers: make(map[int]*task),
@@ -170,16 +170,23 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			if v == state.Read {
 				// If we don't need exclusive access to a key, just mark
 				// that we are reading it and that we are a reader of it.
-				t.shared = append(t.shared, lt)
+				//
+				// We use a map for [reading] because a single task can have
+				// different keys that are all just readers of another task.
+				t.reading[lt.id] = lt
 				lt.readers[id] = t
 			} else {
 				// If we do need exclusive access to a key, we need to
 				// mark ourselves blocked on all readers ahead of us.
 				//
 				// If a task is a reader, that means it is not executed yet
-				// and can't mark itself as executed until all [shared] are
+				// and can't mark itself as executed until all [reading] are
 				// cleared (which can't be done while we hold the lock for [lt]).
 				for _, rt := range lt.readers {
+					// Don't block on ourself if we already marked ourself as a reader
+					if rt.id == id {
+						continue
+					}
 					rt.l.Lock()
 					rt.blocked[id] = t
 					rt.l.Unlock()

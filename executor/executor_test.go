@@ -502,13 +502,8 @@ func TestTwoConflictKeys(t *testing.T) {
 			for k := 0; k < i+1; k++ {
 				s.Add(ids.GenerateTestID().String(), state.Write)
 			}
-			if i == 0 || i == 1 {
-				s.Add(conflictKey1, state.Write)
-				s.Add(conflictKey2, state.Write)
-			} else {
-				s.Add(conflictKey1, state.Read)
-				s.Add(conflictKey2, state.Read)
-			}
+			s.Add(conflictKey1, state.Read)
+			s.Add(conflictKey2, state.Write)
 			ti := i
 			e.Run(s, func() error {
 				if ti == 10 {
@@ -879,13 +874,10 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 			randomConflictingKeys.Add(rand.Intn(conflictSize)) //nolint:gosec
 		}
 
-		// randomly pick if these conflict keys are
-		// going to be Read/Write
-		conflictMode := rand.Intn(2) //nolint:gosec
-
 		// add the random keys to tx
 		for k := range randomConflictingKeys {
-			switch conflictMode {
+			// randomly pick if conflict key is Read/Write
+			switch rand.Intn(2) { //nolint:gosec
 			case 0:
 				s.Add(conflictKeys[k], state.Read)
 			case 1:
@@ -897,8 +889,7 @@ func TestLargeRandomReadsAndWrites(t *testing.T) {
 		remaining := numKeys - setSize
 		for j := 0; j < remaining; j++ {
 			// randomly pick the permission for unique keys
-			uniqueMode := rand.Intn(2) //nolint:gosec
-			switch uniqueMode {
+			switch rand.Intn(2) { //nolint:gosec
 			case 0:
 				s.Add(ids.GenerateTestID().String(), state.Read)
 			case 1:
