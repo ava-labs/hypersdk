@@ -1,5 +1,7 @@
 use crate::{memory::from_host_ptr, program::Program};
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::ops::Deref;
 
 #[derive(Clone, thiserror::Error, Debug)]
@@ -35,14 +37,48 @@ pub enum Error {
     Delete,
 }
 
-pub struct State {
-    program: Program,
+struct Cache<'a, K, V> {
+    reads: HashMap<K, &'a V>,
+    writes: HashMap<K, &'a V>,
+    flushed: bool,
 }
 
-impl State {
+pub struct State<'a, K, V>
+where
+    K: Into<Key> + Hash + PartialEq + Eq,
+    V: BorshSerialize,
+{
+    program: Program,
+    cache: Cache<'a, K, V>,
+}
+
+impl<K, V> Drop for State<'_, K, V>
+where
+    K: Into<Key> + Hash + PartialEq + Eq,
+    V: BorshSerialize,
+{
+    fn drop(&mut self) {
+        if !self.cache.flushed {
+            self.flush().unwrap();
+        }
+    }
+}
+
+impl<K, V> State<'_, K, V>
+where
+    K: Into<Key> + Hash + PartialEq + Eq,
+    V: BorshSerialize,
+{
     #[must_use]
     pub fn new(program: Program) -> Self {
-        Self { program }
+        Self {
+            program,
+            cache: Cache {
+                reads: HashMap::new(),
+                writes: HashMap::new(),
+                flushed: false,
+            },
+        }
     }
 
     /// Store a key and value to the host storage. If the key already exists,
@@ -50,12 +86,8 @@ impl State {
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), Error>
-    where
-        V: BorshSerialize,
-        K: Into<Key>,
-    {
-        unsafe { host::put_bytes(&self.program, &key.into(), value) }
+    pub fn store(&mut self, key: K, value: &V) {
+        self.cache.writes.insert(key, value);
     }
 
     /// Get a value from the host's storage.
@@ -68,9 +100,8 @@ impl State {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<T, K>(&self, key: K) -> Result<T, Error>
+    pub fn get<T>(&self, key: K) -> Result<T, Error>
     where
-        K: Into<Key>,
         T: BorshDeserialize,
     {
         let val_ptr = unsafe { host::get_bytes(&self.program, &key.into())? };
@@ -86,11 +117,21 @@ impl State {
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete<K>(&self, key: K) -> Result<(), Error>
-    where
-        K: Into<Key>,
-    {
+    pub fn delete(&self, key: K) -> Result<(), Error> {
         unsafe { host::delete_bytes(&self.program, &key.into()) }
+    }
+
+    /// Apply all pending operations to storage and mark the cache as flushed
+    pub fn flush(&mut self) -> Result<(), Error> {
+        for (key, value) in &self.cache.writes {
+            unsafe {
+                host::put_bytes(&self.program, &key.into(), value)?;
+            }
+        }
+
+        self.cache.flushed = true;
+
+        Ok(())
     }
 }
 
