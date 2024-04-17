@@ -73,7 +73,7 @@ type task struct {
 	id int
 	f  func() error
 	// reading are the tasks that this task is using non-exclusively.
-	reading []*task
+	reading map[int]*task
 
 	l        sync.Mutex
 	executed bool
@@ -147,7 +147,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 	t := &task{
 		id:      id,
 		f:       f,
-		reading: []*task{},
+		reading: make(map[int]*task),
 
 		blocked: make(map[int]*task),
 		readers: make(map[int]*task),
@@ -170,7 +170,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			if v == state.Read {
 				// If we don't need exclusive access to a key, just mark
 				// that we are reading it and that we are a reader of it.
-				t.reading = append(t.reading, lt)
+				// TODO: currently a no-op when we add ourself multiple times
+				// but find a better way of handling [reading]
+				t.reading[lt.id] = lt
 				lt.readers[id] = t
 			} else {
 				// If we do need exclusive access to a key, we need to
