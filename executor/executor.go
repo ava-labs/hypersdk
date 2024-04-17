@@ -170,6 +170,9 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 			if v == state.Read {
 				// If we don't need exclusive access to a key, just mark
 				// that we are reading it and that we are a reader of it.
+				//
+				// We use a map for [reading] because a single task can have
+				// different keys that are all just readers of another task.
 				t.reading[lt.id] = lt
 				lt.readers[id] = t
 			} else {
