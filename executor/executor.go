@@ -20,11 +20,6 @@ import (
 // Executor ensures that conflicting tasks
 // are executed in the order they were queued.
 // Tasks with no conflicts are executed immediately.
-//
-// It is assumed that no single task has more than [maxDependencies].
-// This is used to ensure a dependent task does not begin executing a
-// task until all dependencies have been enqueued. If this invariant is
-// violated, some tasks will never execute and this code could deadlock.
 type Executor struct {
 	metrics Metrics
 
@@ -41,6 +36,11 @@ type Executor struct {
 }
 
 // New creates a new [Executor].
+//
+// It is assumed that no single task has more than [maxDependencies].
+// This is used to ensure a dependent task does not begin executing a
+// task until all dependencies have been enqueued. If this invariant is
+// violated, some tasks will never execute and this code could deadlock.
 func New(items, concurrency int, maxDependencies int64, metrics Metrics) *Executor {
 	e := &Executor{
 		metrics:         metrics,
