@@ -43,8 +43,7 @@ struct Cache<K>
 where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
-    reads: HashMap<K, Vec<u8>>,
-    writes: HashMap<K, Vec<u8>>,
+    map: HashMap<K, Vec<u8>>,
     flushed: bool,
 }
 
@@ -76,8 +75,7 @@ where
         Self {
             program,
             cache: Cache {
-                reads: HashMap::new(),
-                writes: HashMap::new(),
+                map: HashMap::new(),
                 flushed: false,
             },
         }
@@ -93,7 +91,7 @@ where
         V: BorshSerialize,
     {
         let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
-        self.cache.writes.insert(key, serialized);
+        self.cache.map.insert(key, serialized);
 
         Ok(())
     }
@@ -112,7 +110,7 @@ where
     where
         V: BorshDeserialize,
     {
-        let val_bytes = if let Some(val) = self.cache.reads.get(&key) {
+        let val_bytes = if let Some(val) = self.cache.map.get(&key) {
             val.clone()
         } else {
             let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
@@ -124,7 +122,7 @@ where
             into_bytes(val_ptr)
         };
 
-        self.cache.reads.insert(key, val_bytes.clone());
+        self.cache.map.insert(key, val_bytes.clone());
 
         from_slice::<V>(&val_bytes).map_err(|_| StateError::Deserialization)
     }
@@ -134,15 +132,14 @@ where
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
     pub fn delete(&mut self, key: K) -> Result<(), Error> {
-        self.cache.writes.remove(&key);
-        self.cache.reads.remove(&key);
+        self.cache.map.remove(&key);
 
         unsafe { host::delete_bytes(&self.program, &key.into()) }
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
     pub fn flush(&mut self) -> Result<(), Error> {
-        for (key, value) in self.cache.writes.drain() {
+        for (key, value) in self.cache.map.drain() {
             unsafe {
                 host::put_bytes(&self.program, &key.into(), &value)?;
             }
