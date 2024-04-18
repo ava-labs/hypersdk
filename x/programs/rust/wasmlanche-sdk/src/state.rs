@@ -39,20 +39,12 @@ pub enum Error {
     Delete,
 }
 
-struct Cache<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
-    map: HashMap<K, Vec<u8>>,
-    flushed: bool,
-}
-
 pub struct State<K>
 where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
     program: Program,
-    cache: Cache<K>,
+    cache: HashMap<K, Vec<u8>>,
 }
 
 impl<K> Drop for State<K>
@@ -60,7 +52,8 @@ where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
     fn drop(&mut self) {
-        if !self.cache.flushed {
+        if !self.cache.is_empty() {
+            // force flush
             self.flush().unwrap();
         }
     }
@@ -74,10 +67,7 @@ where
     pub fn new(program: Program) -> Self {
         Self {
             program,
-            cache: Cache {
-                map: HashMap::new(),
-                flushed: false,
-            },
+            cache: HashMap::new(),
         }
     }
 
@@ -91,7 +81,7 @@ where
         V: BorshSerialize,
     {
         let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
-        self.cache.map.insert(key, serialized);
+        self.cache.insert(key, serialized);
 
         Ok(())
     }
@@ -110,7 +100,7 @@ where
     where
         V: BorshDeserialize,
     {
-        let val_bytes = if let Some(val) = self.cache.map.get(&key) {
+        let val_bytes = if let Some(val) = self.cache.get(&key) {
             val.clone()
         } else {
             let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
@@ -122,7 +112,7 @@ where
             into_bytes(val_ptr)
         };
 
-        self.cache.map.insert(key, val_bytes.clone());
+        self.cache.insert(key, val_bytes.clone());
 
         from_slice::<V>(&val_bytes).map_err(|_| StateError::Deserialization)
     }
@@ -132,20 +122,18 @@ where
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
     pub fn delete(&mut self, key: K) -> Result<(), Error> {
-        self.cache.map.remove(&key);
+        self.cache.remove(&key);
 
         unsafe { host::delete_bytes(&self.program, &key.into()) }
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    pub fn flush(&mut self) -> Result<(), Error> {
-        for (key, value) in self.cache.map.drain() {
+    fn flush(&mut self) -> Result<(), Error> {
+        for (key, value) in self.cache.drain() {
             unsafe {
                 host::put_bytes(&self.program, &key.into(), &value)?;
             }
         }
-
-        self.cache.flushed = true;
 
         Ok(())
     }
