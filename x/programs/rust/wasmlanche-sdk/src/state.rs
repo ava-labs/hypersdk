@@ -113,16 +113,20 @@ where
     where
         V: BorshDeserialize,
     {
-        let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
-        if val_ptr < 0 {
-            return Err(Error::Read);
-        }
+        let val_bytes = if let Some(val) = self.cache.reads.get(&key) {
+            val.clone()
+        } else {
+            let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
+            if val_ptr < 0 {
+                return Err(Error::Read);
+            }
 
-        // Wrap in OK for now, change from_raw_ptr to return Result
-        // let val = unsafe { from_host_ptr(val_ptr) };
-        // let val = val?;
+            // Wrap in OK for now, change from_raw_ptr to return Result
+            // let val = unsafe { from_host_ptr(val_ptr) };
+            // let val = val?;
 
-        let val_bytes = into_bytes(val_ptr);
+            into_bytes(val_ptr)
+        };
 
         self.cache.reads.insert(key, val_bytes.clone());
 
