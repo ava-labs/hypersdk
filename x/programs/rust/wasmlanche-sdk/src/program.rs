@@ -28,10 +28,9 @@ impl Program {
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
-    pub fn state<K, V>(&self) -> State<K, V>
+    pub fn state<K>(&self) -> State<K>
     where
-        K: Into<Key> + Hash + PartialEq + Eq,
-        V: BorshSerialize,
+        K: Into<Key> + Hash + PartialEq + Eq + Clone,
     {
         State::new(Program::new(*self.id()))
     }

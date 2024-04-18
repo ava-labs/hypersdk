@@ -1,5 +1,6 @@
-use crate::{memory::from_host_ptr, program::Program};
-use borsh::{BorshDeserialize, BorshSerialize};
+use crate::memory::into_bytes;
+use crate::program::Program;
+use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -37,25 +38,26 @@ pub enum Error {
     Delete,
 }
 
-struct Cache<'a, K, V> {
-    reads: HashMap<K, &'a V>,
-    writes: HashMap<K, &'a V>,
+struct Cache<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
+    reads: HashMap<K, Vec<u8>>,
+    writes: HashMap<K, Vec<u8>>,
     flushed: bool,
 }
 
-pub struct State<'a, K, V>
+pub struct State<K>
 where
-    K: Into<Key> + Hash + PartialEq + Eq,
-    V: BorshSerialize,
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
     program: Program,
-    cache: Cache<'a, K, V>,
+    cache: Cache<K>,
 }
 
-impl<K, V> Drop for State<'_, K, V>
+impl<K> Drop for State<K>
 where
-    K: Into<Key> + Hash + PartialEq + Eq,
-    V: BorshSerialize,
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
     fn drop(&mut self) {
         if !self.cache.flushed {
@@ -64,10 +66,9 @@ where
     }
 }
 
-impl<K, V> State<'_, K, V>
+impl<K> State<K>
 where
-    K: Into<Key> + Hash + PartialEq + Eq,
-    V: BorshSerialize,
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
     #[must_use]
     pub fn new(program: Program) -> Self {
@@ -86,8 +87,16 @@ where
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store(&mut self, key: K, value: &V) {
-        self.cache.writes.insert(key, value);
+    pub fn store<V>(&mut self, key: K, value: V) -> Result<(), Error>
+    where
+        V: BorshSerialize,
+    {
+        // let deserialized = from_slice(&value).map_err(|_| StateError::Deserialization)?
+        // let _ = from_slice::<V>(&value).unwrap();
+        let serialized = to_vec(&value).unwrap();
+        self.cache.writes.insert(key, serialized);
+
+        Ok(())
     }
 
     /// Get a value from the host's storage.
@@ -100,17 +109,25 @@ where
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<T>(&self, key: K) -> Result<T, Error>
+    pub fn get<V>(&mut self, key: K) -> Result<V, Error>
     where
-        T: BorshDeserialize,
+        V: BorshDeserialize,
     {
-        let val_ptr = unsafe { host::get_bytes(&self.program, &key.into())? };
+        let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
         if val_ptr < 0 {
             return Err(Error::Read);
         }
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-        unsafe { from_host_ptr(val_ptr) }
+        // let val = unsafe { from_host_ptr(val_ptr) };
+        // let val = val?;
+
+        let val_bytes = into_bytes(val_ptr);
+
+        self.cache.reads.insert(key, val_bytes.clone());
+
+        // from_slice::<T>(&val_bytes).map_err(|_| StateError::Deserialization)
+        Ok(from_slice::<V>(&val_bytes).unwrap())
     }
 
     /// Delete a value from the hosts's storage.
@@ -123,9 +140,9 @@ where
 
     /// Apply all pending operations to storage and mark the cache as flushed
     pub fn flush(&mut self) -> Result<(), Error> {
-        for (key, value) in &self.cache.writes {
+        for (key, value) in self.cache.writes.drain() {
             unsafe {
-                host::put_bytes(&self.program, &key.into(), value)?;
+                host::put_bytes(&self.program, &key.into(), &value)?;
             }
         }
 
