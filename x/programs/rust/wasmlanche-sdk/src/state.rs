@@ -1,5 +1,6 @@
 use crate::memory::into_bytes;
 use crate::program::Program;
+use crate::state::Error as StateError;
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -91,9 +92,7 @@ where
     where
         V: BorshSerialize,
     {
-        // let deserialized = from_slice(&value).map_err(|_| StateError::Deserialization)?
-        // let _ = from_slice::<V>(&value).unwrap();
-        let serialized = to_vec(&value).unwrap();
+        let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
         self.cache.writes.insert(key, serialized);
 
         Ok(())
@@ -122,23 +121,22 @@ where
             }
 
             // Wrap in OK for now, change from_raw_ptr to return Result
-            // let val = unsafe { from_host_ptr(val_ptr) };
-            // let val = val?;
-
             into_bytes(val_ptr)
         };
 
         self.cache.reads.insert(key, val_bytes.clone());
 
-        // from_slice::<T>(&val_bytes).map_err(|_| StateError::Deserialization)
-        Ok(from_slice::<V>(&val_bytes).unwrap())
+        from_slice::<V>(&val_bytes).map_err(|_| StateError::Deserialization)
     }
 
     /// Delete a value from the hosts's storage.
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete(&self, key: K) -> Result<(), Error> {
+    pub fn delete(&mut self, key: K) -> Result<(), Error> {
+        self.cache.writes.remove(&key);
+        self.cache.reads.remove(&key);
+
         unsafe { host::delete_bytes(&self.program, &key.into()) }
     }
 
