@@ -634,7 +634,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Compare state root
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
-	// to verify all fee calcuations were correct.
+	// to verify all fee calculations were correct.
 	_, rspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitRoot")
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
