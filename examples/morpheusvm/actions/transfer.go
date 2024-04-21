@@ -31,6 +31,10 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
+func (*BurnAsset) GetActionID(idx uint8, txID ids.ID) codec.Address {
+	return codec.CreateAddress(idx, txID)
+}
+
 func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor)): state.Read | state.Write,
