@@ -82,8 +82,8 @@ func (t *Transaction) Digest() ([]byte, error) {
 	t.Base.Marshal(p)
 	p.PackBytes(warpBytes)
 	p.PackInt(len(t.Actions))
-	for _, action := range t.Actions {
-		actionID := action.GetTypeID()
+	for idx, action := range t.Actions {
+		actionID := action.GetActionID(idx, t.id)
 		p.PackByte(actionID)
 		action.Marshal(p)
 	}
@@ -580,21 +580,24 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 
-	actionID := t.Action.GetTypeID()
-	authID := t.Auth.GetTypeID()
-	t.Base.Marshal(p)
-	var warpBytes []byte
-	if t.WarpMessage != nil {
-		warpBytes = t.WarpMessage.Bytes()
-		if len(warpBytes) == 0 {
-			return ErrWarpMessageNotInitialized
+	// TODO: do I need all this within the loop?
+	for idx, action := range t.Action {
+		actionID := t.Action.GetActionID(idx, t.id)
+		authID := t.Auth.GetTypeID()
+		t.Base.Marshal(p)
+		var warpBytes []byte
+		if t.WarpMessage != nil {
+			warpBytes = t.WarpMessage.Bytes()
+			if len(warpBytes) == 0 {
+				return ErrWarpMessageNotInitialized
+			}
 		}
+		p.PackBytes(warpBytes)
+		p.PackByte(actionID)
+		t.Action.Marshal(p)
+		p.PackByte(authID)
+		t.Auth.Marshal(p)
 	}
-	p.PackBytes(warpBytes)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
 	return p.Err()
 }
 
