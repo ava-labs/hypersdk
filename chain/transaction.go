@@ -141,11 +141,13 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
 		for k, v := range m {
-	// Handle incoming warp message keys
-	if t.WarpMessage != nil {
-		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
-		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(string(k))
+			// Handle incoming warp message keys
+			if t.WarpMessage != nil {
+				p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
+				k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
+				stateKeys.Add(string(k))
+			}
+		}
 	}
 
 	// Handle action/auth keys
@@ -181,6 +183,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 		p := sm.OutgoingWarpKeyPrefix(t.id)
 		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
 		stateKeys.Add(string(k), state.Allocate|state.Write)
+	}
 	for _, k := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
 		if !keys.Valid(k) {
 			return nil, ErrInvalidKeyValue

@@ -158,6 +158,8 @@ type Rules interface {
 	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
 
 	FetchCustom(string) (any, bool)
+
+	GetMaxActionsPerTx() uint8
 }
 
 type MetadataManager interface {

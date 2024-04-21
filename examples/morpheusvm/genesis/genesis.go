@@ -57,6 +57,9 @@ type Genesis struct {
 	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
 	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
 
+	// Action Per Tx
+	MaxActionsPerTx uint8 `json:"maxActionsPerTx"`
+
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -94,6 +97,9 @@ func Default() *Genesis {
 		StorageValueAllocateUnits: 5,
 		StorageKeyWriteUnits:      10,
 		StorageValueWriteUnits:    3,
+
+		// Action Per Tx
+		MaxActionsPerTx: 1,
 	}
 }
 
