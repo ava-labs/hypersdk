@@ -133,42 +133,27 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
-	stateKeys := set.NewSet[string](defaultStateKeySize)
-
-	// Verify the formatting of state keys passed by the controller
-	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
-	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
 	stateKeys := make(state.Keys)
-	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
-		for k, v := range m {
-			// Handle incoming warp message keys
-			if t.WarpMessage != nil {
-				p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
-				k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-				stateKeys.Add(string(k))
+
+	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
+	for idx, action := range t.Action {
+		// Verify the formatting of state keys passed by the controller
+		actionKeys := action.StateKeys(t.Auth.Actor(), action.GetActionID(idx, t.id))
+		for _, m := range []state.Keys{actionKeys, sponsorKeys} {
+			for k, v := range m {
+				if !keys.Valid(k) {
+					return nil, ErrInvalidKeyValue
+				}
+				stateKeys.Add(k, v)
 			}
 		}
-	}
 
-	// Handle action/auth keys
-	var outputsWarp bool
-	for idx, action := range t.Actions {
+		// TODO: handle multiple outgoing warp messages (use actionID instead of txID)
 		if action.OutputsWarpMessage() {
-			if outputsWarp {
-				// TODO: handle multiple outgoing warp messages (use actionID instead of txID)
-				return nil, errors.New("can't ouput multiple messaages")
-			}
+			// TODO: handle multiple outgoing warp messages
 			p := sm.OutgoingWarpKeyPrefix(t.id)
 			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-			stateKeys.Add(string(k))
-			outputsWarp = true
-		}
-		// TODO: may need to use an ActionID instead of a TxID (if creating 2 assets in same tx, could lead to conflicts)
-		for _, k := range action.StateKeys(t.Auth.Actor(), action.GetActionID(idx, t.id)) {
-			if !keys.Valid(k) {
-				return nil, ErrInvalidKeyValue
-			}
-			stateKeys.Add(k, v)
+			stateKeys.Add(string(k), state.Allocate|state.Write)
 		}
 	}
 
@@ -177,18 +162,6 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
 		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
 		stateKeys.Add(string(k), state.All)
-	}
-	if t.Action.OutputsWarpMessage() {
-		// TODO: handle multiple outgoing warp messages
-		p := sm.OutgoingWarpKeyPrefix(t.id)
-		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(string(k), state.Allocate|state.Write)
-	}
-	for _, k := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
-		if !keys.Valid(k) {
-			return nil, ErrInvalidKeyValue
-		}
-		stateKeys.Add(k)
 	}
 
 	// Cache keys if called again
