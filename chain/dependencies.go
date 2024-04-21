@@ -248,6 +248,7 @@ type Action interface {
 	// not be known until execution).
 	StateKeysMaxChunks() []uint16
 
+	// TODO: update comment
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
@@ -256,7 +257,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) state.Keys
+	StateKeys(actor codec.Address, actionID codec.Address) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.

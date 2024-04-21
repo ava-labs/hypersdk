@@ -152,7 +152,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 
 	// Handle action/auth keys
 	var outputsWarp bool
-	for _, action := range t.Actions {
+	for idx, action := range t.Actions {
 		if action.OutputsWarpMessage() {
 			if outputsWarp {
 				// TODO: handle multiple outgoing warp messages (use actionID instead of txID)
@@ -164,7 +164,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 			outputsWarp = true
 		}
 		// TODO: may need to use an ActionID instead of a TxID (if creating 2 assets in same tx, could lead to conflicts)
-		for _, k := range action.StateKeys(t.Auth.Actor(), t.ID()) {
+		for _, k := range action.StateKeys(t.Auth.Actor(), action.GetActionID(idx, t.id)) {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
 			}
