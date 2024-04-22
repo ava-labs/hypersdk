@@ -250,7 +250,7 @@ func (e *ExportAsset) Marshal(p *codec.Packer) {
 
 func UnmarshalExportAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
 	var export ExportAsset
-	p.UnpackAddress(&export.To)
+	p.UnpackAddress(false, &export.To)
 	p.UnpackID(false, &export.Asset) // may export native
 	export.Value = p.UnpackUint64(true)
 	export.Return = p.UnpackBool()
