@@ -24,8 +24,6 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-const defaultStateKeySize = 4
-
 var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
@@ -136,7 +134,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 
 	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	for idx, action := range t.Action {
+	for idx, action := range t.Actions {
 		// Verify the formatting of state keys passed by the controller
 		actionKeys := action.StateKeys(t.Auth.Actor(), action.GetActionID(idx, t.id))
 		for _, m := range []state.Keys{actionKeys, sponsorKeys} {
@@ -555,7 +553,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	}
 
 	// TODO: do I need all this within the loop?
-	for idx, action := range t.Action {
+	for idx, action := range t.Actions {
 		actionID := action.GetActionID(idx, t.id)
 		authID := t.Auth.GetTypeID()
 		t.Base.Marshal(p)
