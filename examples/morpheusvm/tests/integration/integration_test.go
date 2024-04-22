@@ -370,10 +370,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					MaxFee:    1000,
 				},
 				nil,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 110,
-				},
+				}},
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
@@ -790,7 +790,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
-		tx := blk.Txs[0].Action.(*actions.Transfer)
+		tx := blk.Txs[0].Actions[0].(*actions.Transfer)
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
 		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))

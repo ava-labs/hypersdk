@@ -222,7 +222,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 
 	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
-	tx := chain.NewTx(base, wm, action)
+	tx := chain.NewTx(base, wm, []chain.Action{action})
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
