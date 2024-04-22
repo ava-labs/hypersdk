@@ -536,7 +536,7 @@ func (t *Transaction) Execute(
 			}
 		}
 
-		results = append(results, *Result{
+		results = append(results, &Result{
 			Success: success,
 			Output:  output,
 
@@ -556,8 +556,8 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 	}
 
 	// TODO: do I need all this within the loop?
-	for idx, action := range t.Actions {
-		actionID := action.GetActionID(idx, t.id)
+	for i, action := range t.Actions {
+		actionID := action.GetActionID(uint8(i), t.id)
 		authID := t.Auth.GetTypeID()
 		t.Base.Marshal(p)
 		var warpBytes []byte
@@ -568,7 +568,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 			}
 		}
 		p.PackBytes(warpBytes)
-		p.PackByte(actionID)
+		p.PackAddress(actionID)
 		action.Marshal(p)
 		p.PackByte(authID)
 		t.Auth.Marshal(p)
@@ -683,7 +683,7 @@ func UnmarshalTx(
 
 	var tx Transaction
 	tx.Base = base
-	tx.Action = action
+	tx.Actions = []Action{action}
 	tx.WarpMessage = warpMessage
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
