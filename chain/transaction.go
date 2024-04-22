@@ -80,9 +80,9 @@ func (t *Transaction) Digest() ([]byte, error) {
 	t.Base.Marshal(p)
 	p.PackBytes(warpBytes)
 	p.PackInt(len(t.Actions))
-	for idx, action := range t.Actions {
-		actionID := action.GetActionID(idx, t.id)
-		p.PackByte(actionID)
+	for i, action := range t.Actions {
+		actionID := action.GetActionID(uint8(i), t.id)
+		p.PackAddress(actionID)
 		action.Marshal(p)
 	}
 	return p.Bytes(), p.Err()
@@ -134,9 +134,9 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	stateKeys := make(state.Keys)
 
 	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	for idx, action := range t.Actions {
+	for i, action := range t.Actions {
 		// Verify the formatting of state keys passed by the controller
-		actionKeys := action.StateKeys(t.Auth.Actor(), action.GetActionID(idx, t.id))
+		actionKeys := action.StateKeys(t.Auth.Actor(), action.GetActionID(uint8(i), t.id))
 		for _, m := range []state.Keys{actionKeys, sponsorKeys} {
 			for k, v := range m {
 				if !keys.Valid(k) {
