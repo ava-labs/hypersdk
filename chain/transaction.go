@@ -398,7 +398,7 @@ func (t *Transaction) Execute(
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
 		ts.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
+		return []*Result{{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}}, nil
 	}
 	for _, action := range t.Actions {
 		success, actionCUs, output, warpMessage, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id, warpVerified)
@@ -439,6 +439,7 @@ func (t *Transaction) Execute(
 				if err := warpMessage.Initialize(); err != nil {
 					return handleRevert(err)
 				}
+				// TODO: use actionID?
 				// We use txID here because did not know the warpID before execution (and
 				// we pre-reserve this key for the processor).
 				p := s.OutgoingWarpKeyPrefix(t.id)
@@ -536,7 +537,7 @@ func (t *Transaction) Execute(
 			return handleRevert(err)
 		}
 	}
-	return &Result{
+	return []*Result{{
 		Success: success,
 		Output:  output,
 
@@ -544,7 +545,7 @@ func (t *Transaction) Execute(
 		Fee:      feeRequired,
 
 		WarpMessage: warpMessage,
-	}, nil
+	}}, nil
 }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {
