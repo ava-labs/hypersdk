@@ -4,6 +4,10 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
 
@@ -95,6 +99,39 @@ pub fn into_bytes(host_ptr: HostPtr) -> Vec<u8> {
     value.to_vec()
 }
 
+pub struct GlobalStore {
+    data: Vec<u8>,
+    ptr_map: HashMap<usize, *mut u8>,
+}
+
+impl GlobalStore {
+    fn put(&mut self, len: usize) -> *mut u8 {
+        // create a new mutable buffer with capacity `len`
+        let mut buf = Vec::with_capacity(len);
+        let new_idx = self.data.len();
+        self.data.append(&mut buf);
+        // take a mutable pointer to the buffer
+        let ptr = buf.as_mut_ptr();
+        self.ptr_map.insert(new_idx, ptr);
+        // ensure memory pointer is fits in an i64
+        // to avoid potential issues when passing
+        // across wasm boundary
+        assert!(i64::try_from(ptr as u64).is_ok());
+        // take ownership of the memory block and
+        // ensure that its destructor is not
+        // called when the object goes out of scope
+        // at the end of the function
+        std::mem::forget(buf);
+        // return the pointer so the runtime
+        // can write data at this offset
+        ptr
+    }
+}
+
+thread_local! {
+    pub static GLOBAL_STORE: RefCell<GlobalStore> = RefCell::new(GlobalStore { data: Vec::new(), ptr_map: HashMap::new() });
+}
+
 /* memory functions ------------------------------------------- */
 /// Allocate memory into the instance of Program and return the offset to the
 /// start of the block.
@@ -102,22 +139,7 @@ pub fn into_bytes(host_ptr: HostPtr) -> Vec<u8> {
 /// Panics if the pointer exceeds the maximum size of an i64.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
-    // create a new mutable buffer with capacity `len`
-    let mut buf = Vec::with_capacity(len);
-    // take a mutable pointer to the buffer
-    let ptr = buf.as_mut_ptr();
-    // ensure memory pointer is fits in an i64
-    // to avoid potential issues when passing
-    // across wasm boundary
-    assert!(i64::try_from(ptr as u64).is_ok());
-    // take ownership of the memory block and
-    // ensure that its destructor is not
-    // called when the object goes out of scope
-    // at the end of the function
-    std::mem::forget(buf);
-    // return the pointer so the runtime
-    // can write data at this offset
-    ptr
+    GLOBAL_STORE.with_borrow_mut(|s| s.put(len))
 }
 
 /// # Safety
