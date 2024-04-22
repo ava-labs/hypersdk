@@ -82,7 +82,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 	return PrivateKey(b), nil
 }
 
-// generateCoordintes recovers the public key coordinates
+// generateCoordinates recovers the public key coordinates
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L120-L121
 func (p PrivateKey) generateCoordinates() (*big.Int, *big.Int) {
