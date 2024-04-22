@@ -555,7 +555,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 
 	// TODO: do I need all this within the loop?
 	for idx, action := range t.Action {
-		actionID := t.Action.GetActionID(idx, t.id)
+		actionID := action.GetActionID(idx, t.id)
 		authID := t.Auth.GetTypeID()
 		t.Base.Marshal(p)
 		var warpBytes []byte
@@ -567,7 +567,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		}
 		p.PackBytes(warpBytes)
 		p.PackByte(actionID)
-		t.Action.Marshal(p)
+		action.Marshal(p)
 		p.PackByte(authID)
 		t.Auth.Marshal(p)
 	}
