@@ -257,6 +257,11 @@ func (b *StatelessBlock) initializeBuilt(
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
+func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
+	return false, nil
+}
+
+// implements "block.WithVerifyContext"
 func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
 	start := time.Now()
 	defer func() {
