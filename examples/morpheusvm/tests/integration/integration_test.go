@@ -334,7 +334,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, transferTx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 100_000, // must be more than StateLockup
@@ -367,7 +366,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Timestamp: 0,
 					MaxFee:    1000,
 				},
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 110,
@@ -434,19 +432,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created with 1 chunk
 			// write: 2 keys modified (new + old)
-			transferTxConsumed := fees.Dimensions{191, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{187, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(261)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(257)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899739)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899743)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -460,7 +458,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 101,
@@ -481,13 +478,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 chunk each
 			// allocate: 0 key created
 			// write: 2 key modified
-			transferTxConsumed := fees.Dimensions{191, 7, 14, 0, 26}
+			transferTxConsumed := fees.Dimensions{187, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(238)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(234)))
 
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
@@ -501,7 +498,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 102,
@@ -513,7 +509,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 103,
@@ -525,7 +520,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr3,
 					Value: 104,
@@ -537,7 +531,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr3,
 					Value: 105,
@@ -566,12 +559,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 key modified
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			transferTxConsumed := fees.Dimensions{191, 7, 14, 0, 26}
+			transferTxConsumed := fees.Dimensions{187, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(238)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(234)))
 
 			// Unit explanation
 			//
@@ -581,12 +574,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 keys modified
 			gomega.Ω(results[1].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{191, 7, 14, 0, 26}
+			transferTxConsumed = fees.Dimensions{187, 7, 14, 0, 26}
 			gomega.Ω(results[1].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(238)))
+			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(234)))
 
 			// Unit explanation
 			//
@@ -596,12 +589,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 1 key created (1 chunk)
 			// write: 2 key modified (1 chunk), both previously modified
 			gomega.Ω(results[2].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{191, 7, 12, 25, 26}
+			transferTxConsumed = fees.Dimensions{187, 7, 12, 25, 26}
 			gomega.Ω(results[2].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(261)))
+			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(257)))
 
 			// Unit explanation
 			//
@@ -611,12 +604,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 keys modified (1 chunk)
 			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{191, 7, 12, 0, 26}
+			transferTxConsumed = fees.Dimensions{187, 7, 12, 0, 26}
 			gomega.Ω(results[3].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(236)))
+			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(232)))
 
 			// Check end balance
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
@@ -637,7 +630,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 200,
@@ -651,7 +643,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 201,
@@ -680,7 +671,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr2,
 					Value: 203,
@@ -771,7 +761,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			transfer,
 			factory,
 		)
@@ -819,7 +808,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		_, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			transfer,
 			factory,
 		)
@@ -868,7 +856,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    r1addr,
 					Value: 2000,
@@ -893,7 +880,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr,
 					Value: 100,
@@ -922,7 +908,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    r1addr,
 					Value: 2000,
@@ -947,7 +932,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    addr,
 					Value: 100,
