@@ -81,7 +81,7 @@ func Default() *Genesis {
 		MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Fee Compute Parameters
-		BaseComputeUnits:          1,
+		BaseComputeUnits: 1,
 
 		// Tx Fee Storage Parameters
 		//

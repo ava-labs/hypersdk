@@ -6,20 +6,13 @@ package cmd
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
-	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 )
@@ -76,7 +69,7 @@ var fundFaucetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, _, err = sendAndWait(ctx, nil, &actions.Transfer{
+		if _, err = sendAndWait(ctx, &actions.Transfer{
 			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
@@ -126,7 +119,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
+		_, err = sendAndWait(ctx, &actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
@@ -169,7 +162,7 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, nil, &actions.CreateAsset{
+		_, err = sendAndWait(ctx, &actions.CreateAsset{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
@@ -233,7 +226,7 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, nil, &actions.MintAsset{
+		_, err = sendAndWait(ctx, &actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
@@ -270,7 +263,7 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, nil, &actions.CloseOrder{
+		_, err = sendAndWait(ctx, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
 		}, cli, scli, tcli, factory, true)
@@ -356,7 +349,7 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, nil, &actions.CreateOrder{
+		_, err = sendAndWait(ctx, &actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
@@ -473,7 +466,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, _, err = sendAndWait(ctx, nil, &actions.FillOrder{
+		_, err = sendAndWait(ctx, &actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,

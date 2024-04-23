@@ -78,7 +78,7 @@ func Default() *Genesis {
 		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Compute Parameters
-		BaseComputeUnits:          1,
+		BaseComputeUnits: 1,
 
 		// Tx Fee Storage Parameters
 		//

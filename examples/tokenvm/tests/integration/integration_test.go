@@ -22,7 +22,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -1664,42 +1663,6 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
 
 	gomega.Ω(blk.Verify(ctx)).To(gomega.BeNil())
-	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
-
-	err = i.vm.SetPreference(ctx, blk.ID())
-	gomega.Ω(err).To(gomega.BeNil())
-
-	return func(add bool) []*chain.Result {
-		gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
-		gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
-
-		if add {
-			blocks = append(blocks, blk)
-		}
-
-		lastAccepted, err := i.vm.LastAccepted(ctx)
-		gomega.Ω(err).To(gomega.BeNil())
-		gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
-		return blk.(*chain.StatelessBlock).Results()
-	}
-}
-
-// TODO: unify with expectBlk
-func expectBlkWithContext(i instance) func(bool) []*chain.Result {
-	ctx := context.TODO()
-
-	// manually signal ready
-	gomega.Ω(i.vm.Builder().Force(ctx)).To(gomega.BeNil())
-	// manually ack ready sig as in engine
-	<-i.toEngine
-
-	bctx := &block.Context{PChainHeight: 1}
-	blk, err := i.vm.BuildBlockWithContext(ctx, bctx)
-	gomega.Ω(err).To(gomega.BeNil())
-	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
-	cblk := blk.(block.WithVerifyContext)
-
-	gomega.Ω(cblk.VerifyWithContext(ctx, bctx)).To(gomega.BeNil())
 	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
 
 	err = i.vm.SetPreference(ctx, blk.ID())

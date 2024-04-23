@@ -44,13 +44,13 @@ const (
 	txPrefix = 0x0
 
 	// stateDB
-	balancePrefix      = 0x0
-	assetPrefix        = 0x1
-	orderPrefix        = 0x2
-	loanPrefix         = 0x3
-	heightPrefix       = 0x4
-	timestampPrefix    = 0x5
-	feePrefix          = 0x6
+	balancePrefix   = 0x0
+	assetPrefix     = 0x1
+	orderPrefix     = 0x2
+	loanPrefix      = 0x3
+	heightPrefix    = 0x4
+	timestampPrefix = 0x5
+	feePrefix       = 0x6
 )
 
 const (

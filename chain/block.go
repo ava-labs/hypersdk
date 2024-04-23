@@ -50,7 +50,7 @@ type StatefulBlock struct {
 	// or [Verify], which reduces the amount of time we are
 	// blocking the consensus engine from voting on the block,
 	// starting the verification of another block, etc.
-	StateRoot   ids.ID     `json:"stateRoot"`
+	StateRoot ids.ID `json:"stateRoot"`
 
 	size int
 
@@ -100,8 +100,8 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	bctx         *block.Context
-	vdrState     validators.State
+	bctx     *block.Context
+	vdrState validators.State
 
 	results    []*Result
 	feeManager *fees.Manager

@@ -24,10 +24,10 @@ const (
 	// stateDB
 	keyPrefix = 0x0
 
-	programPrefix      = 0x1
-	heightPrefix       = 0x2
-	timestampPrefix    = 0x3
-	feePrefix          = 0x4
+	programPrefix   = 0x1
+	heightPrefix    = 0x2
+	timestampPrefix = 0x3
+	feePrefix       = 0x4
 )
 
 var (

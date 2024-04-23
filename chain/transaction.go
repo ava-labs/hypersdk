@@ -27,23 +27,23 @@ var (
 )
 
 type Transaction struct {
-	Base        *Base         `json:"base"`
+	Base *Base `json:"base"`
 
 	// TODO: turn [Action] into an array (#335)
 	Action Action `json:"action"`
 	Auth   Auth   `json:"auth"`
 
-	digest         []byte
-	bytes          []byte
-	size           int
-	id             ids.ID
+	digest    []byte
+	bytes     []byte
+	size      int
+	id        ids.ID
 	stateKeys state.Keys
 }
 
 func NewTx(base *Base, act Action) *Transaction {
 	return &Transaction{
-		Base:        base,
-		Action:      act,
+		Base:   base,
+		Action: act,
 	}
 }
 

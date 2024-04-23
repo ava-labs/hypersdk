@@ -16,10 +16,10 @@ const (
 	// This value should be (much) less than the value of [ProposerWindow], otherwise honest
 	// nodes may not build during their allocated window to avoid increasing the skew of the
 	// chain time.
-	FutureBound = 1 * time.Second
-	HeightKeyChunks       = 1
-	TimestampKeyChunks    = 1
-	FeeKeyChunks          = 8 // 96 (per dimension) * 5 (num dimensions)
+	FutureBound        = 1 * time.Second
+	HeightKeyChunks    = 1
+	TimestampKeyChunks = 1
+	FeeKeyChunks       = 8 // 96 (per dimension) * 5 (num dimensions)
 
 	// MaxKeyDependencies must be greater than the maximum number of key dependencies
 	// any single task could have when executing a task.
