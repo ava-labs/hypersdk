@@ -32,6 +32,5 @@ type VM interface {
 	CurrentValidators(
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
-	GatherSignatures(context.Context, ids.ID, []byte)
 	GetVerifyAuth() bool
 }

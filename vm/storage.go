@@ -4,7 +4,6 @@
 package vm
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -12,16 +11,13 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/keys"
 )
 
 // compactionOffset is used to randomize the height that we compact
