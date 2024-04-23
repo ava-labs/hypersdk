@@ -52,26 +52,26 @@ func (b *BurnAsset) Execute(
 	_ bool,
 ) (bool, uint64, []byte, error) {
 	if b.Value == 0 {
-		return false, BurnComputeUnits, OutputValueZero, nil, nil
+		return false, BurnComputeUnits, OutputValueZero, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, b.Asset, b.Value); err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, BurnComputeUnits, utils.ErrBytes(err), nil
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, b.Asset)
 	if err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, BurnComputeUnits, utils.ErrBytes(err), nil
 	}
 	if !exists {
-		return false, BurnComputeUnits, OutputAssetMissing, nil, nil
+		return false, BurnComputeUnits, OutputAssetMissing, nil
 	}
 	newSupply, err := smath.Sub(supply, b.Value)
 	if err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, BurnComputeUnits, utils.ErrBytes(err), nil
 	}
 	if err := storage.SetAsset(ctx, mu, b.Asset, symbol, decimals, metadata, newSupply, owner); err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, BurnComputeUnits, utils.ErrBytes(err), nil
 	}
-	return true, BurnComputeUnits, nil, nil, nil
+	return true, BurnComputeUnits, nil, nil
 }
 
 func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {

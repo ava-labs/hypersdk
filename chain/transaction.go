@@ -308,7 +308,7 @@ func (t *Transaction) Execute(
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
 		ts.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
+		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee}, nil
 	}
 	success, actionCUs, output, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id)
 	if err != nil {
