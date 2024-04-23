@@ -5,10 +5,8 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"

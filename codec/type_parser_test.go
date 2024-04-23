@@ -38,10 +38,9 @@ func TestTypeParser(t *testing.T) {
 
 	t.Run("empty parser", func(t *testing.T) {
 		require := require.New(t)
-		f, b, ok := tp.LookupIndex(0)
+		f, ok := tp.LookupIndex(0)
 		require.Nil(f)
 		require.False(ok)
-		require.False(b)
 	})
 
 	t.Run("populated parser", func(t *testing.T) {
@@ -66,16 +65,14 @@ func TestTypeParser(t *testing.T) {
 			),
 		)
 
-		f, b, ok := tp.LookupIndex(blah1.GetTypeID())
+		f, ok := tp.LookupIndex(blah1.GetTypeID())
 		require.True(ok)
-		require.True(b)
 		res, err := f(nil)
 		require.Nil(res)
 		require.ErrorIs(err, errBlah1)
 
-		f, b, ok = tp.LookupIndex(blah2.GetTypeID())
+		f, ok = tp.LookupIndex(blah2.GetTypeID())
 		require.True(ok)
-		require.False(b)
 		res, err = f(nil)
 		require.Nil(res)
 		require.ErrorIs(err, errBlah2)

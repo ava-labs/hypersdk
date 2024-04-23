@@ -42,10 +42,10 @@ func (p *TypeParser[T, Y]) Register(id uint8, f func(*Packer) (T, error), y Y) e
 
 // LookupIndex returns the decoder function and success of lookup of [index]
 // from Typeparser [p].
-func (p *TypeParser[T, Y]) LookupIndex(index uint8) (func(*Packer) (T, error), Y, bool) {
+func (p *TypeParser[T, Y]) LookupIndex(index uint8) (func(*Packer) (T, error), bool) {
 	d, ok := p.indexToDecoder[index]
 	if ok {
-		return d.f, d.y, true
+		return d.f, true
 	}
-	return nil, *new(Y), false
+	return nil, false
 }

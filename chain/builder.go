@@ -129,7 +129,6 @@ func BuildBlock(
 		txsAttempted = 0
 		results      = []*Result{}
 
-		vdrState = vm.ValidatorState()
 		sm       = vm.StateManager()
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
