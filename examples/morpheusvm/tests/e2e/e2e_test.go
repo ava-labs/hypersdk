@@ -424,7 +424,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 			submit, tx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    aother,
 					Value: sendAmount,
@@ -717,7 +716,6 @@ func generateBlocks(
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.Transfer{
 				To:    aother,
 				Value: 1,
@@ -786,7 +784,6 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.Transfer{
 				To:    aother,
 				Value: 1,
