@@ -79,7 +79,7 @@ impl State {
         }
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-        unsafe { from_host_ptr(val_ptr) }
+        from_host_ptr(val_ptr)
     }
 
     /// Delete a value from the hosts's storage.
