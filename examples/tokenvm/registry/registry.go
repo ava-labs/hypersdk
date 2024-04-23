@@ -5,7 +5,6 @@ package registry
 
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 
@@ -16,8 +15,8 @@ import (
 
 // Setup types
 func init() {
-	consts.ActionRegistry = codec.NewTypeParser[chain.Action, *warp.Message]()
-	consts.AuthRegistry = codec.NewTypeParser[chain.Auth, *warp.Message]()
+	consts.ActionRegistry = codec.NewTypeParser[chain.Action]()
+	consts.AuthRegistry = codec.NewTypeParser[chain.Auth]()
 
 	errs := &wrappers.Errs{}
 	errs.Add(
@@ -31,9 +30,6 @@ func init() {
 		consts.ActionRegistry.Register((&actions.CreateOrder{}).GetTypeID(), actions.UnmarshalCreateOrder, false),
 		consts.ActionRegistry.Register((&actions.FillOrder{}).GetTypeID(), actions.UnmarshalFillOrder, false),
 		consts.ActionRegistry.Register((&actions.CloseOrder{}).GetTypeID(), actions.UnmarshalCloseOrder, false),
-
-		consts.ActionRegistry.Register((&actions.ImportAsset{}).GetTypeID(), actions.UnmarshalImportAsset, true),
-		consts.ActionRegistry.Register((&actions.ExportAsset{}).GetTypeID(), actions.UnmarshalExportAsset, false),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		consts.AuthRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519, false),

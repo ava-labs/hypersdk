@@ -125,7 +125,6 @@ func BuildBlock(
 		cache     = map[string]*fetchData{}
 
 		blockLock    sync.RWMutex
-		warpAdded    = uint(0)
 		start        = time.Now()
 		txsAttempted = 0
 		results      = []*Result{}
@@ -171,18 +170,6 @@ func BuildBlock(
 
 			// Skip any duplicates before going async
 			if dup.Contains(i) {
-				continue
-			}
-
-			// Ensure we can process if transaction includes a warp message
-			if tx.WarpMessage != nil && blockContext == nil {
-				log.Debug(
-					"dropping pending warp message because no context provided",
-					zap.Stringer("txID", tx.ID()),
-				)
-				restorableLock.Lock()
-				restorable = append(restorable, tx)
-				restorableLock.Unlock()
 				continue
 			}
 
@@ -287,35 +274,6 @@ func BuildBlock(
 					return nil
 				}
 
-				// Verify warp message, if it exists
-				//
-				// We don't drop invalid warp messages because we must collect fees for
-				// the work the sender made us do (otherwise this would be a DoS).
-				//
-				// We wait as long as possible to verify the signature to ensure we don't
-				// spend unnecessary time on an invalid tx.
-				var warpErr error
-				if tx.WarpMessage != nil {
-					// We do not check the validity of [SourceChainID] because a VM could send
-					// itself a message to trigger a chain upgrade.
-					allowed, num, denom := r.GetWarpConfig(tx.WarpMessage.SourceChainID)
-					if allowed {
-						warpErr = tx.WarpMessage.Signature.Verify(
-							ctx, &tx.WarpMessage.UnsignedMessage, r.NetworkID(),
-							vdrState, blockContext.PChainHeight, num, denom,
-						)
-					} else {
-						warpErr = ErrDisabledChainID
-					}
-					if warpErr != nil {
-						log.Warn(
-							"warp verification failed",
-							zap.Stringer("txID", tx.ID()),
-							zap.Error(warpErr),
-						)
-					}
-				}
-
 				// If execution works, keep moving forward with new state
 				//
 				// Note, these calculations must match block verification exactly
@@ -347,7 +305,6 @@ func BuildBlock(
 					r,
 					tsv,
 					nextTime,
-					tx.WarpMessage != nil && warpErr == nil,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
@@ -357,7 +314,6 @@ func BuildBlock(
 					return err
 				}
 
-				// Need to atomically check there aren't too many warp messages and add to block
 				blockLock.Lock()
 				defer blockLock.Unlock()
 
@@ -385,13 +341,6 @@ func BuildBlock(
 				tsv.Commit()
 				b.Txs = append(b.Txs, tx)
 				results = append(results, result)
-				if tx.WarpMessage != nil {
-					if warpErr == nil {
-						// Add a bit if the warp message was verified
-						b.WarpResults.Add(warpAdded)
-					}
-					warpAdded++
-				}
 				return nil
 			})
 		}

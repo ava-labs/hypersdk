@@ -91,7 +91,7 @@ func (cli *JSONRPCClient) Asset(
 	r, ok := cli.assets[asset]
 	cli.assetsL.Unlock()
 	if ok && useCache {
-		return true, r.Symbol, r.Decimals, r.Metadata, r.Supply, r.Owner, r.Warp, nil
+		return true, r.Symbol, r.Decimals, r.Metadata, r.Supply, r.Owner, nil
 	}
 	resp := new(AssetReply)
 	err := cli.requester.SendRequest(
@@ -113,7 +113,7 @@ func (cli *JSONRPCClient) Asset(
 	cli.assetsL.Lock()
 	cli.assets[asset] = resp
 	cli.assetsL.Unlock()
-	return true, resp.Symbol, resp.Decimals, resp.Metadata, resp.Supply, resp.Owner, resp.Warp, nil
+	return true, resp.Symbol, resp.Decimals, resp.Metadata, resp.Supply, resp.Owner, nil
 }
 
 func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {

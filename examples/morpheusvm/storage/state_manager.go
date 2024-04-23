@@ -28,14 +28,6 @@ func (*StateManager) FeeKey() []byte {
 	return FeeKey()
 }
 
-func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return IncomingWarpKeyPrefix(sourceChainID, msgID)
-}
-
-func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
-	return OutgoingWarpKeyPrefix(txID)
-}
-
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
 		string(BalanceKey(addr)): state.Read | state.Write,

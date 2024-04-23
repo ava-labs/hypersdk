@@ -112,10 +112,6 @@ type VM struct {
 	stateSyncNetworkClient avasync.NetworkClient
 	stateSyncNetworkServer *avasync.NetworkServer
 
-	// Warp manager fetches signatures from other validators for a given accepted
-	// txID
-	warpManager *WarpManager
-
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *network.Manager
 
@@ -167,10 +163,6 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
-	warpHandler, warpSender := vm.networkManager.Register()
-	vm.warpManager = NewWarpManager(vm)
-	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
-	go vm.warpManager.Run(warpSender)
 	vm.baseDB = baseDB
 
 	// Always initialize implementation first
@@ -561,7 +553,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	<-vm.acceptorDone
 
 	// Shutdown other async VM mechanisms
-	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.authVerifiers.Stop()

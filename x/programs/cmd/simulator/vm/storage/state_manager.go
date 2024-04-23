@@ -44,11 +44,3 @@ func (*StateManager) TimestampKey() []byte {
 func (*StateManager) FeeKey() []byte {
 	return FeeKey()
 }
-
-func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return IncomingWarpKeyPrefix(sourceChainID, msgID)
-}
-
-func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
-	return OutgoingWarpKeyPrefix(txID)
-}

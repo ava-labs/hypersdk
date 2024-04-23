@@ -26,7 +26,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -211,7 +210,6 @@ var _ = ginkgo.BeforeSuite(func() {
 			ChainDataDir:   dname,
 			Metrics:        metrics.NewOptionalGatherer(),
 			PublicKey:      bls.PublicFromSecretKey(sk),
-			WarpSigner:     warp.NewSigner(sk, networkID, chainID),
 			ValidatorState: &validators.TestState{},
 		}
 

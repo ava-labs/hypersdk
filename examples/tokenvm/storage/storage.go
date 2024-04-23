@@ -30,7 +30,7 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x0/ (balance)
 //   -> [owner|asset] => balance
 // 0x1/ (assets)
-//   -> [asset] => metadataLen|metadata|supply|owner|warp
+//   -> [asset] => metadataLen|metadata|supply|owner
 // 0x2/ (orders)
 //   -> [txID] => in|out|rate|remaining|owner
 // 0x3/ (loans)
@@ -38,8 +38,6 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x4/ (hypersdk-height)
 // 0x5/ (hypersdk-timestamp)
 // 0x6/ (hypersdk-fee)
-// 0x7/ (hypersdk-incoming warp)
-// 0x8/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
@@ -53,8 +51,6 @@ const (
 	heightPrefix       = 0x4
 	timestampPrefix    = 0x5
 	feePrefix          = 0x6
-	incomingWarpPrefix = 0x7
-	outgoingWarpPrefix = 0x8
 )
 
 const (
@@ -330,8 +326,7 @@ func innerGetAsset(
 	supply := binary.BigEndian.Uint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:])
 	var addr codec.Address
 	copy(addr[:], v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:])
-	warp := v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen] == 0x1
-	return true, symbol, decimals, metadata, supply, addr, warp, nil
+	return true, symbol, decimals, metadata, supply, addr, nil
 }
 
 func SetAsset(
@@ -343,7 +338,6 @@ func SetAsset(
 	metadata []byte,
 	supply uint64,
 	owner codec.Address,
-	warp bool,
 ) error {
 	k := AssetKey(asset)
 	symbolLen := len(symbol)
@@ -357,9 +351,6 @@ func SetAsset(
 	binary.BigEndian.PutUint64(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen:], supply)
 	copy(v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len:], owner[:])
 	b := byte(0x0)
-	if warp {
-		b = 0x1
-	}
 	v[consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen] = b
 	return mu.Insert(ctx, k, v)
 }
@@ -587,19 +578,4 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
-}
-
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
-	k[0] = incomingWarpPrefix
-	copy(k[1:], sourceChainID[:])
-	copy(k[1+consts.IDLen:], msgID[:])
-	return k
-}
-
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	k[0] = outgoingWarpPrefix
-	copy(k[1:], txID[:])
-	return k
 }
