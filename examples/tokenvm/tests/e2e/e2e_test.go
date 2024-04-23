@@ -526,7 +526,6 @@ var _ = ginkgo.Describe("[Test]", func() {
 			submit, tx, maxFee, err := instancesA[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    aother,
 					Value: sendAmount,
@@ -792,7 +791,6 @@ func generateBlocks(
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 1,
@@ -860,7 +858,6 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: sendAmount,
