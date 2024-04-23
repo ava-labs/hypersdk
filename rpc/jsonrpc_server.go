@@ -4,14 +4,11 @@
 package rpc
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
