@@ -44,7 +44,6 @@ func (c *CreateAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	txID ids.ID,
-	_ bool,
 ) (bool, uint64, []byte, error) {
 	if len(c.Symbol) == 0 {
 		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil
@@ -63,7 +62,7 @@ func (c *CreateAsset) Execute(
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor, false); err != nil {
+	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
 		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil
 	}
 	return true, CreateAssetComputeUnits, nil, nil
@@ -82,6 +81,14 @@ func (c *CreateAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Symbol)
 	p.PackByte(c.Decimals)
 	p.PackBytes(c.Metadata)
+}
+
+func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
+	var create CreateAsset
+	p.UnpackBytes(MaxSymbolSize, true, &create.Symbol)
+	create.Decimals = p.UnpackByte()
+	p.UnpackBytes(MaxMetadataSize, true, &create.Metadata)
+	return &create, p.Err()
 }
 
 func (*CreateAsset) ValidRange(chain.Rules) (int64, int64) {

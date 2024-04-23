@@ -206,10 +206,6 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			case *actions.CloseOrder:
 				c.metrics.closeOrder.Inc()
 				c.orderBook.Remove(action.Order)
-			case *actions.ImportAsset:
-				c.metrics.importAsset.Inc()
-			case *actions.ExportAsset:
-				c.metrics.exportAsset.Inc()
 			}
 		}
 	}

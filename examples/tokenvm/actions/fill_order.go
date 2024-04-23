@@ -63,7 +63,6 @@ func (f *FillOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
 ) (bool, uint64, []byte, error) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {

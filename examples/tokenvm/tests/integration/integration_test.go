@@ -334,7 +334,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, transferTx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 100_000, // must be more than StateLockup
@@ -367,7 +366,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Timestamp: 0,
 					MaxFee:    1000,
 				},
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 110,
@@ -434,19 +432,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created
 			// write: 1 key modified, 1 key new
-			transferTxConsumed := fees.Dimensions{227, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{223, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(297)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(293)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899703)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899707)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -460,7 +458,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 101,
@@ -490,7 +487,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 200,
@@ -505,7 +501,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 201,
@@ -535,7 +530,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 203,
@@ -637,7 +631,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			transfer,
 			factory,
 		)
@@ -686,7 +679,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		_, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			transfer,
 			factory,
 		)
@@ -730,7 +722,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -756,7 +747,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1001,
 			},
-			nil,
 			&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -789,7 +779,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: assetID,
@@ -807,7 +796,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("asset missing"))
 
-		exists, _, _, _, _, _, _, err := instances[0].tcli.Asset(context.TODO(), assetID, false)
+		exists, _, _, _, _, _, err := instances[0].tcli.Asset(context.TODO(), assetID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeFalse())
 	})
@@ -819,7 +808,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1001,
 			},
-			nil,
 			&actions.CreateAsset{
 				Symbol:   []byte("s0"),
 				Decimals: 0,
@@ -850,7 +838,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1001,
 			},
-			nil,
 			&actions.CreateAsset{
 				Symbol:   nil,
 				Decimals: 0,
@@ -881,7 +868,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1000,
 			},
-			nil,
 			&actions.CreateAsset{
 				Symbol:   []byte("s0"),
 				Decimals: 0,
@@ -911,7 +897,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateAsset{
 				Symbol:   asset1Symbol,
 				Decimals: asset1Decimals,
@@ -947,7 +932,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender2,
 				Asset: asset1ID,
@@ -987,7 +971,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
@@ -1021,7 +1004,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.BurnAsset{
 				Asset: asset1ID,
 				Value: 5,
@@ -1058,7 +1040,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.BurnAsset{
 				Asset: asset1ID,
 				Value: 10,
@@ -1094,7 +1075,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1000,
 			},
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
@@ -1123,7 +1103,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender2,
 				Asset: asset1ID,
@@ -1167,7 +1146,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1000,
 			},
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -1196,7 +1174,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateAsset{
 				Symbol:   asset2Symbol,
 				Decimals: asset2Decimals,
@@ -1215,7 +1192,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender,
 				Asset: asset2ID,
@@ -1241,7 +1217,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateAsset{
 				Symbol:   asset3Symbol,
 				Decimals: asset3Decimals,
@@ -1260,7 +1235,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender2,
 				Asset: asset3ID,
@@ -1286,7 +1260,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset3ID,
 				InTick:  1,
@@ -1324,7 +1297,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  4,
@@ -1351,7 +1323,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  4,
@@ -1389,7 +1360,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  5,
@@ -1422,7 +1392,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1455,7 +1424,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1488,7 +1456,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1535,7 +1502,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CloseOrder{
 				Order: order.ID,
 				Out:   asset3ID,
@@ -1563,7 +1529,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CloseOrder{
 				Order: order.ID,
 				Out:   asset3ID,
@@ -1602,7 +1567,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  2,
@@ -1646,7 +1610,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,

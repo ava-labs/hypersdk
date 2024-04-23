@@ -294,7 +294,7 @@ func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
 	asset ids.ID,
-) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	values, errs := f(ctx, [][]byte{AssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
 }
@@ -303,7 +303,7 @@ func GetAsset(
 	ctx context.Context,
 	im state.Immutable,
 	asset ids.ID,
-) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	k := AssetKey(asset)
 	return innerGetAsset(im.GetValue(ctx, k))
 }
@@ -311,12 +311,12 @@ func GetAsset(
 func innerGetAsset(
 	v []byte,
 	err error,
-) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, nil, 0, codec.EmptyAddress, false, nil
+		return false, nil, 0, nil, 0, codec.EmptyAddress, nil
 	}
 	if err != nil {
-		return false, nil, 0, nil, 0, codec.EmptyAddress, false, err
+		return false, nil, 0, nil, 0, codec.EmptyAddress, err
 	}
 	symbolLen := binary.BigEndian.Uint16(v)
 	symbol := v[consts.Uint16Len : consts.Uint16Len+symbolLen]

@@ -133,7 +133,6 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		[]byte(consts.Name),
 		supply,
 		codec.EmptyAddress,
-		false,
 	)
 }
 

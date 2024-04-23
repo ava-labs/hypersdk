@@ -68,7 +68,6 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	txID ids.ID,
-	_ bool,
 ) (bool, uint64, []byte, error) {
 	if c.In == c.Out {
 		return false, CreateOrderComputeUnits, OutputSameInOut, nil

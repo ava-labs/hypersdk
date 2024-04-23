@@ -48,7 +48,6 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
 ) (bool, uint64, []byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {

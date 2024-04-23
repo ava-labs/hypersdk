@@ -86,7 +86,7 @@ func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
 	asset ids.ID,
 	useCache bool,
-) (bool, []byte, uint8, []byte, uint64, string, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, string, error) {
 	cli.assetsL.Lock()
 	r, ok := cli.assets[asset]
 	cli.assetsL.Unlock()
@@ -106,9 +106,9 @@ func (cli *JSONRPCClient) Asset(
 	// We use string parsing here because the JSON-RPC library we use may not
 	// allows us to perform errors.Is.
 	case err != nil && strings.Contains(err.Error(), ErrAssetNotFound.Error()):
-		return false, nil, 0, nil, 0, "", false, nil
+		return false, nil, 0, nil, 0, "", nil
 	case err != nil:
-		return false, nil, 0, nil, 0, "", false, err
+		return false, nil, 0, nil, 0, "", err
 	}
 	cli.assetsL.Lock()
 	cli.assets[asset] = resp
@@ -180,7 +180,7 @@ func (cli *JSONRPCClient) WaitForBalance(
 	asset ids.ID,
 	min uint64,
 ) error {
-	exists, symbol, decimals, _, _, _, _, err := cli.Asset(ctx, asset, true)
+	exists, symbol, decimals, _, _, _, err := cli.Asset(ctx, asset, true)
 	if err != nil {
 		return err
 	}

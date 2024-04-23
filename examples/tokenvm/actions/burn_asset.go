@@ -49,7 +49,6 @@ func (b *BurnAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
 ) (bool, uint64, []byte, error) {
 	if b.Value == 0 {
 		return false, BurnComputeUnits, OutputValueZero, nil
