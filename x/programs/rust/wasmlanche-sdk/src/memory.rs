@@ -4,7 +4,6 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -37,6 +36,16 @@ impl From<Pointer> for *mut u8 {
 /// `HostPtr` is an i64 where the first 4 bytes represent the length of the bytes
 /// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
 pub type HostPtr = i64;
+
+thread_local! {
+    pub static GLOBAL_STORE: RefCell<GlobalStore> = RefCell::new(
+        GlobalStore {
+            data: Vec::new(),
+            ptr_idx_map: HashMap::new(),
+            idx_ptr_map: HashMap::new()
+        }
+    );
+}
 
 /// Converts a pointer to a i64 with the first 4 bytes of the pointer
 /// representing the length of the memory block.
@@ -85,23 +94,25 @@ pub unsafe fn from_host_ptr<V>(ptr: HostPtr) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
-    let bytes = into_bytes(ptr);
+    let bytes = into_bytes(ptr).ok_or(StateError::InvalidBytes)?;
     from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization)
 }
 
 /// Returns a tuple of the bytes and length of the argument.
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-pub fn into_bytes(host_ptr: HostPtr) -> Vec<u8> {
+pub fn into_bytes(host_ptr: HostPtr) -> Option<Vec<u8>> {
     // grab length from ptrArg
     let (ptr, len) = split_host_ptr(host_ptr);
-    let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
-    value.to_vec()
+    GLOBAL_STORE.with_borrow_mut(|s| s.get(ptr as *mut u8, len).map(|b| b.to_vec()))
+    // let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
+    // value.to_vec()
 }
 
 pub struct GlobalStore {
     data: Vec<u8>,
-    ptr_map: HashMap<usize, *mut u8>,
+    ptr_idx_map: HashMap<*mut u8, usize>,
+    idx_ptr_map: HashMap<usize, *mut u8>,
 }
 
 impl GlobalStore {
@@ -112,7 +123,8 @@ impl GlobalStore {
         self.data.append(&mut buf);
         // take a mutable pointer to the buffer
         let ptr = buf.as_mut_ptr();
-        self.ptr_map.insert(new_idx, ptr);
+        self.ptr_idx_map.insert(ptr, new_idx);
+        self.idx_ptr_map.insert(new_idx, ptr);
         // ensure memory pointer is fits in an i64
         // to avoid potential issues when passing
         // across wasm boundary
@@ -126,10 +138,11 @@ impl GlobalStore {
         // can write data at this offset
         ptr
     }
-}
 
-thread_local! {
-    pub static GLOBAL_STORE: RefCell<GlobalStore> = RefCell::new(GlobalStore { data: Vec::new(), ptr_map: HashMap::new() });
+    fn get(&self, ptr: *mut u8, len: usize) -> Option<&[u8]> {
+        let idx = *self.ptr_idx_map.get(&ptr)?;
+        self.data.get(idx..(idx + len))
+    }
 }
 
 /* memory functions ------------------------------------------- */
