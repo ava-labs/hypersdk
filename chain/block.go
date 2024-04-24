@@ -29,9 +29,8 @@ import (
 )
 
 var (
-	_ snowman.Block           = &StatelessBlock{}
-	_ block.WithVerifyContext = &StatelessBlock{}
-	_ block.StateSummary      = &SyncableBlock{}
+	_ snowman.Block      = &StatelessBlock{}
+	_ block.StateSummary = &SyncableBlock{}
 )
 
 type StatefulBlock struct {
@@ -251,34 +250,6 @@ func (b *StatelessBlock) initializeBuilt(
 
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) ID() ids.ID { return b.id }
-
-// implements "block.WithVerifyContext"
-func (*StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
-	return false, nil
-}
-
-// implements "block.WithVerifyContext"
-func (b *StatelessBlock) VerifyWithContext(ctx context.Context, _ *block.Context) error {
-	start := time.Now()
-	defer func() {
-		b.vm.RecordBlockVerify(time.Since(start))
-	}()
-
-	stateReady := b.vm.StateReady()
-	ctx, span := b.vm.Tracer().Start(
-		ctx, "StatelessBlock.VerifyWithContext",
-		trace.WithAttributes(
-			attribute.Int("txs", len(b.Txs)),
-			attribute.Int64("height", int64(b.Hght)),
-			attribute.Bool("stateReady", stateReady),
-			attribute.Bool("built", b.Processed()),
-		),
-	)
-	defer span.End()
-
-	// Proceed with normal verification
-	return b.verify(ctx, stateReady)
-}
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Verify(ctx context.Context) error {

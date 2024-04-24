@@ -753,19 +753,6 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	return vm.buildBlock(ctx, nil)
 }
 
-// implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
-	defer span.End()
-
-	return vm.buildBlock(ctx, blockContext)
-}
-
 func (vm *VM) Submit(
 	ctx context.Context,
 	verifyAuth bool,
