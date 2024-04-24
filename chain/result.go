@@ -58,6 +58,9 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	}
 	result.Consumed = consumed
 	result.Fee = p.UnpackUint64(false)
+	if !p.Empty() {
+		return nil, p.Err()
+	}
 	return result, p.Err()
 }
 
