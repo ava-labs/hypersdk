@@ -99,8 +99,6 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	bctx *block.Context
-
 	results    []*Result
 	feeManager *fees.Manager
 
@@ -260,7 +258,7 @@ func (*StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
 }
 
 // implements "block.WithVerifyContext"
-func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Context) error {
+func (b *StatelessBlock) VerifyWithContext(ctx context.Context, _ *block.Context) error {
 	start := time.Now()
 	defer func() {
 		b.vm.RecordBlockVerify(time.Since(start))
@@ -273,14 +271,10 @@ func (b *StatelessBlock) VerifyWithContext(ctx context.Context, bctx *block.Cont
 			attribute.Int("txs", len(b.Txs)),
 			attribute.Int64("height", int64(b.Hght)),
 			attribute.Bool("stateReady", stateReady),
-			attribute.Int64("pchainHeight", int64(bctx.PChainHeight)),
 			attribute.Bool("built", b.Processed()),
 		),
 	)
 	defer span.End()
-
-	// Persist the context in case we need it during Accept
-	b.bctx = bctx
 
 	// Proceed with normal verification
 	return b.verify(ctx, stateReady)
