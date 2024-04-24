@@ -100,7 +100,7 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
     // take a mutable pointer to the layout
     let ptr = unsafe { std::alloc::alloc(layout) };
-    if ptr as *const _ == std::ptr::null() {
+    if ptr.is_null() {
         std::alloc::handle_alloc_error(layout);
     }
     // keep track of the pointer and the length of the allocated data
