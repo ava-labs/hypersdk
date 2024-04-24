@@ -52,8 +52,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 		return t.digest, nil
 	}
 	actionID := t.Action.GetTypeID()
-	size := t.Base.Size() + consts.ByteLen + t.Action.Size()
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+	p := codec.NewWriter(t.Base.Size()+consts.ByteLen+t.Action.Size(), consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackByte(actionID)
 	t.Action.Marshal(p)
