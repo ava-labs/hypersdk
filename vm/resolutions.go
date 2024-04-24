@@ -174,7 +174,7 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 
-	for i, tx := range b.Txs {
+	for _, tx := range b.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
 	}
