@@ -8,7 +8,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -46,10 +45,6 @@ func (*MintAsset) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.AssetChunks, storage.BalanceChunks}
 }
 
-func (*MintAsset) OutputsWarpMessage() bool {
-	return false
-}
-
 func (m *MintAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -57,38 +52,34 @@ func (m *MintAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	if m.Asset == ids.Empty {
-		return false, MintAssetComputeUnits, OutputAssetIsNative, nil, nil
+		return false, MintAssetComputeUnits, OutputAssetIsNative, nil
 	}
 	if m.Value == 0 {
-		return false, MintAssetComputeUnits, OutputValueZero, nil, nil
+		return false, MintAssetComputeUnits, OutputValueZero, nil
 	}
-	exists, symbol, decimals, metadata, supply, owner, isWarp, err := storage.GetAsset(ctx, mu, m.Asset)
+	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
 	}
 	if !exists {
-		return false, MintAssetComputeUnits, OutputAssetMissing, nil, nil
-	}
-	if isWarp {
-		return false, MintAssetComputeUnits, OutputWarpAsset, nil, nil
+		return false, MintAssetComputeUnits, OutputAssetMissing, nil
 	}
 	if owner != actor {
-		return false, MintAssetComputeUnits, OutputWrongOwner, nil, nil
+		return false, MintAssetComputeUnits, OutputWrongOwner, nil
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
 	}
-	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor, isWarp); err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
+	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor); err != nil {
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
 	}
-	return true, MintAssetComputeUnits, nil, nil, nil
+	return true, MintAssetComputeUnits, nil, nil
 }
 
 func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
@@ -105,7 +96,7 @@ func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackUint64(m.Value)
 }
 
-func UnmarshalMintAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
 	var mint MintAsset
 	p.UnpackAddress(&mint.To)
 	p.UnpackID(true, &mint.Asset) // empty ID is the native asset

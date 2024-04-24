@@ -34,20 +34,16 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x1/ (hypersdk-height)
 // 0x2/ (hypersdk-timestamp)
 // 0x3/ (hypersdk-fee)
-// 0x4/ (hypersdk-incoming warp)
-// 0x5/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
 	txPrefix = 0x0
 
 	// stateDB
-	balancePrefix      = 0x0
-	heightPrefix       = 0x1
-	timestampPrefix    = 0x2
-	feePrefix          = 0x3
-	incomingWarpPrefix = 0x4
-	outgoingWarpPrefix = 0x5
+	balancePrefix   = 0x0
+	heightPrefix    = 0x1
+	timestampPrefix = 0x2
+	feePrefix       = 0x3
 )
 
 const BalanceChunks uint16 = 1
@@ -256,19 +252,4 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
-}
-
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
-	k[0] = incomingWarpPrefix
-	copy(k[1:], sourceChainID[:])
-	copy(k[1+consts.IDLen:], msgID[:])
-	return k
-}
-
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	k[0] = outgoingWarpPrefix
-	copy(k[1:], txID[:])
-	return k
 }

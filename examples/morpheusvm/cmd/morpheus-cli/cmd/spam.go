@@ -106,7 +106,7 @@ var runSpamCmd = &cobra.Command{
 					if err != nil {
 						return err
 					}
-					_, _, err = sendAndWait(ictx, nil, &actions.Transfer{
+					_, _, err = sendAndWait(ictx, &actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
 					}, cli, bclient, wclient, factory, false)

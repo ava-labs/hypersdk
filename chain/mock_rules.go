@@ -86,20 +86,6 @@ func (mr *MockRulesMockRecorder) GetBaseComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseComputeUnits))
 }
 
-// GetBaseWarpComputeUnits mocks base method.
-func (m *MockRules) GetBaseWarpComputeUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBaseWarpComputeUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetBaseWarpComputeUnits indicates an expected call of GetBaseWarpComputeUnits.
-func (mr *MockRulesMockRecorder) GetBaseWarpComputeUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseWarpComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseWarpComputeUnits))
-}
-
 // GetMaxBlockUnits mocks base method.
 func (m *MockRules) GetMaxBlockUnits() fees.Dimensions {
 	m.ctrl.T.Helper()
@@ -154,20 +140,6 @@ func (m *MockRules) GetMinUnitPrice() fees.Dimensions {
 func (mr *MockRulesMockRecorder) GetMinUnitPrice() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinUnitPrice", reflect.TypeOf((*MockRules)(nil).GetMinUnitPrice))
-}
-
-// GetOutgoingWarpComputeUnits mocks base method.
-func (m *MockRules) GetOutgoingWarpComputeUnits() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOutgoingWarpComputeUnits")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetOutgoingWarpComputeUnits indicates an expected call of GetOutgoingWarpComputeUnits.
-func (mr *MockRulesMockRecorder) GetOutgoingWarpComputeUnits() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOutgoingWarpComputeUnits", reflect.TypeOf((*MockRules)(nil).GetOutgoingWarpComputeUnits))
 }
 
 // GetSponsorStateKeysMaxChunks mocks base method.
@@ -294,36 +266,6 @@ func (m *MockRules) GetValidityWindow() int64 {
 func (mr *MockRulesMockRecorder) GetValidityWindow() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidityWindow", reflect.TypeOf((*MockRules)(nil).GetValidityWindow))
-}
-
-// GetWarpComputeUnitsPerSigner mocks base method.
-func (m *MockRules) GetWarpComputeUnitsPerSigner() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWarpComputeUnitsPerSigner")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetWarpComputeUnitsPerSigner indicates an expected call of GetWarpComputeUnitsPerSigner.
-func (mr *MockRulesMockRecorder) GetWarpComputeUnitsPerSigner() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarpComputeUnitsPerSigner", reflect.TypeOf((*MockRules)(nil).GetWarpComputeUnitsPerSigner))
-}
-
-// GetWarpConfig mocks base method.
-func (m *MockRules) GetWarpConfig(arg0 ids.ID) (bool, uint64, uint64) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWarpConfig", arg0)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(uint64)
-	ret2, _ := ret[2].(uint64)
-	return ret0, ret1, ret2
-}
-
-// GetWarpConfig indicates an expected call of GetWarpConfig.
-func (mr *MockRulesMockRecorder) GetWarpConfig(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWarpConfig", reflect.TypeOf((*MockRules)(nil).GetWarpConfig), arg0)
 }
 
 // GetWindowTargetUnits mocks base method.

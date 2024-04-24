@@ -78,17 +78,7 @@ func (b *StatelessBlock) Execute(
 				return err
 			}
 
-			// Wait to execute transaction until we have the warp result processed.
-			var warpVerified bool
-			warpMsg, ok := b.warpMessages[tx.ID()]
-			if ok {
-				select {
-				case warpVerified = <-warpMsg.verifiedChan:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-			txResults, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified)
+			txResults, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}

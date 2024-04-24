@@ -24,12 +24,10 @@ const (
 	// stateDB
 	keyPrefix = 0x0
 
-	programPrefix      = 0x1
-	heightPrefix       = 0x2
-	timestampPrefix    = 0x3
-	feePrefix          = 0x4
-	incomingWarpPrefix = 0x5
-	outgoingWarpPrefix = 0x6
+	programPrefix   = 0x1
+	heightPrefix    = 0x2
+	timestampPrefix = 0x3
+	feePrefix       = 0x4
 )
 
 var (
@@ -173,19 +171,4 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
-}
-
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
-	k[0] = incomingWarpPrefix
-	copy(k[1:], sourceChainID[:])
-	copy(k[1+consts.IDLen:], msgID[:])
-	return k
-}
-
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	k[0] = outgoingWarpPrefix
-	copy(k[1:], txID[:])
-	return k
 }

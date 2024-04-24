@@ -122,7 +122,7 @@ func (m *Manager) sendFunds(ctx context.Context, destination codec.Address, amou
 	if err != nil {
 		return ids.Empty, 0, err
 	}
-	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
+	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, &actions.Transfer{
 		To:    destination,
 		Asset: ids.Empty,
 		Value: amount,

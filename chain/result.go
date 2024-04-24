@@ -4,8 +4,6 @@
 package chain
 
 import (
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
@@ -17,18 +15,10 @@ type Result struct {
 
 	Consumed fees.Dimensions
 	Fee      uint64
-
-	WarpMessage *warp.UnsignedMessage
 }
 
 func (r *Result) Size() int {
-	size := consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
-	if r.WarpMessage != nil {
-		size += codec.BytesLen(r.WarpMessage.Bytes())
-	} else {
-		size += codec.BytesLen(nil)
-	}
-	return size
+	return consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
 }
 
 func (r *Result) Marshal(p *codec.Packer) error {
@@ -36,11 +26,6 @@ func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBytes(r.Output)
 	p.PackFixedBytes(r.Consumed.Bytes())
 	p.PackUint64(r.Fee)
-	var warpBytes []byte
-	if r.WarpMessage != nil {
-		warpBytes = r.WarpMessage.Bytes()
-	}
-	p.PackBytes(warpBytes)
 	return nil
 }
 
@@ -73,14 +58,8 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	}
 	result.Consumed = consumed
 	result.Fee = p.UnpackUint64(false)
-	var warpMessage []byte
-	p.UnpackBytes(MaxWarpMessageSize, false, &warpMessage)
-	if len(warpMessage) > 0 {
-		msg, err := warp.ParseUnsignedMessage(warpMessage)
-		if err != nil {
-			return nil, err
-		}
-		result.WarpMessage = msg
+	if !p.Empty() {
+		return nil, p.Err()
 	}
 	return result, p.Err()
 }

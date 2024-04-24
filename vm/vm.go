@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -112,10 +111,6 @@ type VM struct {
 	stateSyncNetworkClient avasync.NetworkClient
 	stateSyncNetworkServer *avasync.NetworkServer
 
-	// Warp manager fetches signatures from other validators for a given accepted
-	// txID
-	warpManager *WarpManager
-
 	// Network manager routes p2p messages to pre-registered handlers
 	networkManager *network.Manager
 
@@ -167,10 +162,6 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
-	warpHandler, warpSender := vm.networkManager.Register()
-	vm.warpManager = NewWarpManager(vm)
-	vm.networkManager.SetHandler(warpHandler, NewWarpHandler(vm))
-	go vm.warpManager.Run(warpSender)
 	vm.baseDB = baseDB
 
 	// Always initialize implementation first
@@ -561,7 +552,6 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	<-vm.acceptorDone
 
 	// Shutdown other async VM mechanisms
-	vm.warpManager.Done()
 	vm.builder.Done()
 	vm.gossiper.Done()
 	vm.authVerifiers.Stop()
@@ -708,7 +698,16 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
+// implements "block.ChainVM"
+func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
+	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
+	defer span.End()
+
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -738,7 +737,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *block.Context) (snow
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
+	blk, err := chain.BuildBlock(ctx, vm, preferredBlk)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
@@ -747,32 +746,6 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *block.Context) (snow
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
-}
-
-// implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
-	defer span.End()
-
-	return vm.buildBlock(ctx, nil)
-}
-
-// implements "block.BuildBlockWithContextChainVM"
-func (vm *VM) BuildBlockWithContext(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlockWithContext")
-	defer span.End()
-
-	return vm.buildBlock(ctx, blockContext)
 }
 
 func (vm *VM) Submit(

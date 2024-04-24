@@ -24,10 +24,6 @@ func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
 	return &Rules{g, networkID, chainID}
 }
 
-func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
-	return false, 0, 0
-}
-
 func (r *Rules) NetworkID() uint32 {
 	return r.networkID
 }
@@ -54,18 +50,6 @@ func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 
 func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.g.BaseComputeUnits
-}
-
-func (r *Rules) GetBaseWarpComputeUnits() uint64 {
-	return r.g.BaseWarpComputeUnits
-}
-
-func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
-	return r.g.WarpComputeUnitsPerSigner
-}
-
-func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
-	return r.g.OutgoingWarpComputeUnits
 }
 
 func (*Rules) GetSponsorStateKeysMaxChunks() []uint16 {
