@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -699,7 +698,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context, blockContext *block.Context) (snowman.Block, error) {
+func (vm *VM) buildBlock(ctx context.Context) (snowman.Block, error) {
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -729,7 +728,7 @@ func (vm *VM) buildBlock(ctx context.Context, blockContext *block.Context) (snow
 		vm.snowCtx.Log.Warn("unable to get preferred block", zap.Error(err))
 		return nil, err
 	}
-	blk, err := chain.BuildBlock(ctx, vm, preferredBlk, blockContext)
+	blk, err := chain.BuildBlock(ctx, vm, preferredBlk)
 	if err != nil {
 		// This is a DEBUG log because BuildBlock may fail before
 		// the min build gap (especially when there are no transactions).
@@ -750,7 +749,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
 	defer span.End()
 
-	return vm.buildBlock(ctx, nil)
+	return vm.buildBlock(ctx)
 }
 
 func (vm *VM) Submit(

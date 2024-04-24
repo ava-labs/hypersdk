@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
@@ -65,7 +64,6 @@ func BuildBlock(
 	ctx context.Context,
 	vm VM,
 	parent *StatelessBlock,
-	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
@@ -457,7 +455,6 @@ func BuildBlock(
 
 	log.Info(
 		"built block",
-		zap.Bool("context", blockContext != nil),
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),
