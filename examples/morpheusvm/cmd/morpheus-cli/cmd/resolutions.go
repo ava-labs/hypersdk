@@ -9,7 +9,6 @@ import (
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -22,14 +21,14 @@ import (
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
-	ctx context.Context, warpMsg *warp.Message, action chain.Action, cli *rpc.JSONRPCClient,
+	ctx context.Context, action chain.Action, cli *rpc.JSONRPCClient,
 	bcli *brpc.JSONRPCClient, ws *rpc.WebSocketClient, factory chain.AuthFactory, printStatus bool,
 ) (bool, ids.ID, error) { //nolint:unparam
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
 		return false, ids.Empty, err
 	}
-	_, tx, _, err := cli.GenerateTransaction(ctx, parser, warpMsg, action, factory)
+	_, tx, _, err := cli.GenerateTransaction(ctx, parser, action, factory)
 	if err != nil {
 		return false, ids.Empty, err
 	}

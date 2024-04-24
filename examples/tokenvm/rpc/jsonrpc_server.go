@@ -71,14 +71,13 @@ type AssetReply struct {
 	Metadata []byte `json:"metadata"`
 	Supply   uint64 `json:"supply"`
 	Owner    string `json:"owner"`
-	Warp     bool   `json:"warp"`
 }
 
 func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, symbol, decimals, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
+	exists, symbol, decimals, metadata, supply, owner, err := j.c.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -90,7 +89,6 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	reply.Metadata = metadata
 	reply.Supply = supply
 	reply.Owner = codec.MustAddressBech32(consts.HRP, owner)
-	reply.Warp = warp
 	return err
 }
 

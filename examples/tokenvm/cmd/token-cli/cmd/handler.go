@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -42,7 +41,7 @@ func (*Handler) GetAssetInfo(
 	checkBalance bool,
 ) ([]byte, uint8, uint64, ids.ID, error) {
 	var sourceChainID ids.ID
-	exists, symbol, decimals, metadata, supply, _, warp, err := cli.Asset(ctx, assetID, false)
+	exists, symbol, decimals, metadata, supply, _, err := cli.Asset(ctx, assetID, false)
 	if err != nil {
 		return nil, 0, 0, ids.Empty, err
 	}
@@ -52,25 +51,13 @@ func (*Handler) GetAssetInfo(
 			hutils.Outf("{{red}}exiting...{{/}}\n")
 			return nil, 0, 0, ids.Empty, nil
 		}
-		if warp {
-			sourceChainID = ids.ID(metadata[hconsts.IDLen:])
-			sourceAssetID := ids.ID(metadata[:hconsts.IDLen])
-			hutils.Outf(
-				"{{yellow}}sourceChainID:{{/}} %s {{yellow}}sourceAssetID:{{/}} %s {{yellow}}supply:{{/}} %d\n",
-				sourceChainID,
-				sourceAssetID,
-				supply,
-			)
-		} else {
-			hutils.Outf(
-				"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d {{yellow}}warp:{{/}} %t\n",
-				symbol,
-				decimals,
-				metadata,
-				supply,
-				warp,
-			)
-		}
+		hutils.Outf(
+			"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+			symbol,
+			decimals,
+			metadata,
+			supply,
+		)
 	}
 	if !checkBalance {
 		return symbol, decimals, 0, sourceChainID, nil

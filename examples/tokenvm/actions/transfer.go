@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -47,10 +46,6 @@ func (*Transfer) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
-func (*Transfer) OutputsWarpMessage() bool {
-	return false
-}
-
 func (t *Transfer) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -58,22 +53,21 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	if t.Value == 0 {
-		return false, TransferComputeUnits, OutputValueZero, nil, nil
+		return false, TransferComputeUnits, OutputValueZero, nil
 	}
 	if len(t.Memo) > MaxMemoSize {
-		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil, nil
+		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
-		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, TransferComputeUnits, utils.ErrBytes(err), nil
 	}
 	// TODO: allow sender to configure whether they will pay to create
 	if err := storage.AddBalance(ctx, mu, t.To, t.Asset, t.Value, true); err != nil {
-		return false, TransferComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, TransferComputeUnits, utils.ErrBytes(err), nil
 	}
-	return true, TransferComputeUnits, nil, nil, nil
+	return true, TransferComputeUnits, nil, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
@@ -91,7 +85,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackBytes(t.Memo)
 }
 
-func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To)
 	p.UnpackID(false, &transfer.Asset) // empty ID is the native asset

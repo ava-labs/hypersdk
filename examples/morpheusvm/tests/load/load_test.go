@@ -542,7 +542,6 @@ func issueSimpleTx(
 			ChainID:   i.chainID,
 			MaxFee:    maxFee,
 		},
-		nil,
 		&actions.Transfer{
 			To:    to,
 			Value: amount,
