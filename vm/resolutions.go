@@ -174,6 +174,11 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 
+	for i, tx := range b.Txs {
+		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
+		vm.cacheAuth(tx.Auth)
+	}
+
 	// Update server
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
@@ -414,6 +419,14 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 		return nil, false
 	}
 	return bv.GetBatchVerifier(cores, count), ok
+}
+
+func (vm *VM) cacheAuth(auth chain.Auth) {
+	bv, ok := vm.authEngine[auth.GetTypeID()]
+	if !ok {
+		return
+	}
+	bv.Cache(auth)
 }
 
 func (vm *VM) RecordBlockVerify(t time.Duration) {
