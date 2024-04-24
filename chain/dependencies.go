@@ -217,6 +217,10 @@ type Object interface {
 type Action interface {
 	Object
 
+	// GetActionID returns the ActionID for an [Action] in a [Transaction]. There may be
+	// multiple [Action]s, so we pass its index in the [Action] array along with the txID.
+	GetActionID(i uint8, txID ids.ID) codec.Address
+
 	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
 	// used to determine whether the [Action] can be included in a given block and to compute
 	// the required fee to execute.

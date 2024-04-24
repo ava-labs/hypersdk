@@ -29,9 +29,8 @@ var (
 type Transaction struct {
 	Base *Base `json:"base"`
 
-	// TODO: turn [Action] into an array (#335)
-	Action Action `json:"action"`
-	Auth   Auth   `json:"auth"`
+	Actions []Action `json:"action"`
+	Auth    Auth     `json:"auth"`
 
 	digest    []byte
 	bytes     []byte
@@ -40,10 +39,10 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
-func NewTx(base *Base, act Action) *Transaction {
+func NewTx(base *Base, actions []Action) *Transaction {
 	return &Transaction{
-		Base:   base,
-		Action: act,
+		Base:    base,
+		Actions: actions,
 	}
 }
 
@@ -51,11 +50,17 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	actionID := t.Action.GetTypeID()
-	p := codec.NewWriter(t.Base.Size()+consts.ByteLen+t.Action.Size(), consts.NetworkSizeLimit)
+	size := t.Base.Size()
+	for _, action := range t.Actions {
+		size += consts.ByteLen + action.Size()
+	}
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
+	p.PackInt(len(t.Actions))
+	for i, action := range t.Actions {
+		p.PackByte(action.GetActionID(uint8(i), t.id))
+		action.Marshal(p)
+	}
 	return p.Bytes(), p.Err()
 }
 
