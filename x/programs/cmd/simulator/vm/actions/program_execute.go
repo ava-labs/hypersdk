@@ -206,7 +206,7 @@ func WriteParams(m *program.Memory, p []CallParam) ([]uint32, error) {
 		case uint32:
 			params = append(params, v)
 		default:
-			ptr, err := argumentToSmartPtr(v, m)
+			ptr, err := writeToMem(v, m)
 			if err != nil {
 				return nil, err
 			}
@@ -224,7 +224,7 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 }
 
 // Serialize the parameter and create a smart ptr
-func argumentToSmartPtr(obj interface{}, memory *program.Memory) (uint32, error) {
+func writeToMem(obj interface{}, memory *program.Memory) (uint32, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
 		return 0, err

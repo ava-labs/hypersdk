@@ -54,12 +54,12 @@ func TestTokenProgram(t *testing.T) {
 		require.NoError(err)
 
 		// write alice's key to stack and get pointer
-		alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+		alicePtr, err := writeToMem(alicePublicKey, mem)
 		require.NoError(err)
 
 		// mint 100 tokens to alice
 		mintAlice := int64(1000)
-		mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+		mintAlicePtr, err := writeToMem(mintAlice, mem)
 		require.NoError(err)
 
 		_, err = rt.Call(ctx, "mint_to", callContext, alicePtr, mintAlicePtr)

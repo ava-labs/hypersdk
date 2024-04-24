@@ -46,10 +46,10 @@ fn public_functions() {
 
     let mut test_crate = TestCrate::new(wasm_path);
 
-    let context_ptr = test_crate.context_ptr();
+    let context_ptr = test_crate.write_context();
     assert!(test_crate.always_true(context_ptr));
 
-    let context_ptr = test_crate.context_ptr();
+    let context_ptr = test_crate.write_context();
     let combined_binary_digits = test_crate.combine_last_bit_of_each_id_byte(context_ptr);
     assert_eq!(combined_binary_digits, u32::MAX);
 }
@@ -91,7 +91,7 @@ impl TestCrate {
         }
     }
 
-    fn context_ptr(&mut self) -> i64 {
+    fn write_context(&mut self) -> i32 {
         let program_id: [u8; Program::LEN] = std::array::from_fn(|_| 1);
         // this is a hack to create a program since the constructor is private
         let program: Program =
@@ -102,7 +102,7 @@ impl TestCrate {
         self.allocate(serialized_context)
     }
 
-    fn allocate(&mut self, data: Vec<u8>) -> i64 {
+    fn allocate(&mut self, data: Vec<u8>) -> i32 {
         let offset = self
             .allocate_func
             .call(&mut self.store, data.len() as i32)
@@ -116,19 +116,19 @@ impl TestCrate {
             .write(&mut self.store, offset as usize, &data)
             .expect("failed to write data to memory");
 
-        offset as i64
+        offset
     }
 
-    fn always_true(&mut self, ptr: i64) -> bool {
+    fn always_true(&mut self, ptr: i32) -> bool {
         self.always_true_func
-            .call(&mut self.store, ptr)
+            .call(&mut self.store, ptr as i64)
             .expect("failed to call `always_true` function")
             == true as i64
     }
 
-    fn combine_last_bit_of_each_id_byte(&mut self, ptr: i64) -> u32 {
+    fn combine_last_bit_of_each_id_byte(&mut self, ptr: i32) -> u32 {
         self.combine_last_bit_of_each_id_byte_func
-            .call(&mut self.store, ptr)
+            .call(&mut self.store, ptr as i64)
             .expect("failed to call `combine_last_bit_of_each_id_byte` function")
     }
 }

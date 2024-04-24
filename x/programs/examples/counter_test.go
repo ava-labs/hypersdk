@@ -78,7 +78,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+	alicePtr, err := writeToMem(alicePublicKey, mem)
 	require.NoError(err)
 
 	// create counter for alice on program 1
@@ -115,7 +115,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// write alice's key to stack and get pointer
-	alicePtr2, err := argumentToSmartPtr(alicePublicKey, mem2)
+	alicePtr2, err := writeToMem(alicePublicKey, mem2)
 	require.NoError(err)
 
 	callContext1 := program.Context{ProgramID: programID}
@@ -128,7 +128,7 @@ func TestCounterProgram(t *testing.T) {
 
 	// increment alice's counter on program 2 by 10
 	incAmount := int64(10)
-	incAmountPtr, err := argumentToSmartPtr(incAmount, mem2)
+	incAmountPtr, err := writeToMem(incAmount, mem2)
 	require.NoError(err)
 	result, err = rt2.Call(ctx, "inc", callContext2, alicePtr2, incAmountPtr)
 	require.NoError(err)
@@ -146,7 +146,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// increment alice's counter on program 1
-	onePtr, err := argumentToSmartPtr(int64(1), mem)
+	onePtr, err := writeToMem(int64(1), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc", callContext1, alicePtr, onePtr)
 	require.NoError(err)
@@ -160,15 +160,15 @@ func TestCounterProgram(t *testing.T) {
 	)
 
 	// write program id 2 to stack of program 1
-	target, err := argumentToSmartPtr(programID2, mem)
+	target, err := writeToMem(programID2, mem)
 	require.NoError(err)
 
 	maxUnitsProgramToProgram := int64(10000)
-	maxUnitsProgramToProgramPtr, err := argumentToSmartPtr(maxUnitsProgramToProgram, mem)
+	maxUnitsProgramToProgramPtr, err := writeToMem(maxUnitsProgramToProgram, mem)
 	require.NoError(err)
 
 	// increment alice's counter on program 2
-	fivePtr, err := argumentToSmartPtr(int64(5), mem)
+	fivePtr, err := writeToMem(int64(5), mem)
 	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", callContext1, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)

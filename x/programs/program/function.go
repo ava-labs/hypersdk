@@ -40,7 +40,7 @@ func (f *Func) Call(context Context, params ...uint32) ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	contextPtr, err := argumentToSmartPtr(context, mem)
+	contextPtr, err := writeToMem(context, mem)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (f *Func) Call(context Context, params ...uint32) ([]int64, error) {
 	}
 }
 
-func argumentToSmartPtr(obj interface{}, memory *Memory) (uint32, error) {
+func writeToMem(obj interface{}, memory *Memory) (uint32, error) {
 	bytes, err := borsh.Serialize(obj)
 	if err != nil {
 		return 0, err

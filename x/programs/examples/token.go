@@ -134,7 +134,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+	alicePtr, err := writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobPublicKey, mem)
+	bobPtr, err := writeToMem(bobPublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+	mintAlicePtr, err := writeToMem(mintAlice, mem)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := argumentToSmartPtr(transferToBob, mem)
+	transferToBobPtr, err := writeToMem(transferToBob, mem)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := argumentToSmartPtr(int64(1), mem)
+	onePtr, err := writeToMem(int64(1), mem)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := argumentToSmartPtr(minters, mem)
+	mintersPtr, err := writeToMem(minters, mem)
 	if err != nil {
 		return err
 	}

@@ -33,6 +33,7 @@ impl From<Pointer> for *mut u8 {
 
 /// `HostPtr` is an i64 where the first 4 bytes represent the length of the bytes
 /// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
+#[deprecated]
 pub type HostPtr = i64;
 
 thread_local! {
@@ -74,7 +75,7 @@ where
 {
     match into_bytes(ptr) {
         Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
-        None => Err(StateError::InvalidBytes),
+        None => Err(StateError::InvalidPointer),
     }
 }
 
@@ -82,12 +83,9 @@ where
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
 fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
-    if let Some(len) = GLOBAL_STORE.with_borrow_mut(|s| s.remove(&(ptr as *const u8))) {
-        let ptr = ptr as *mut u8;
-        Some(unsafe { std::vec::Vec::from_raw_parts(ptr, len, len) })
-    } else {
-        None
-    }
+    GLOBAL_STORE
+        .with_borrow_mut(|s| s.remove(&(ptr as *const u8)))
+        .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
 }
 
 /* memory functions ------------------------------------------- */
@@ -98,26 +96,18 @@ fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
     assert!(len > 0, "cannot allocate 0 sized data");
-    // from https://doc.rust-lang.org/1.77.2/src/alloc/raw_vec.rs.html#547-562
+    // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
     // take a mutable pointer to the layout
-    let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
+    let ptr = unsafe { std::alloc::alloc(layout) };
+    if ptr as *const _ == std::ptr::null() {
+        std::alloc::handle_alloc_error(layout);
+    }
     // keep track of the pointer and the length of the allocated data
     GLOBAL_STORE.with_borrow_mut(|s| s.insert(ptr, len));
     // return the pointer so the runtime
     // can write data at this offset
     ptr
-}
-
-/// # Safety
-/// `ptr` must be a pointer to a block of memory.
-///
-/// deallocates the memory block at `ptr` with a given `capacity`.
-#[no_mangle]
-pub unsafe extern "C" fn dealloc(ptr: *mut u8, capacity: usize) {
-    // always deallocate the full capacity, initialize vs uninitialized memory is irrelevant here
-    let data = Vec::from_raw_parts(ptr, capacity, capacity);
-    std::mem::drop(data);
 }
 
 #[cfg(test)]
@@ -162,4 +152,20 @@ mod tests {
         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
         alloc(isize::MAX as usize + 1);
     }
+
+    // TODO these two tests make the code abort and not panic, it's hard to write an assertion here
+    // #[test]
+    // #[should_panic]
+    // fn two_big_allocation_fails() {
+    //     // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+    //     alloc((isize::MAX / 2) as usize + 1);
+    //     alloc((isize::MAX / 2) as usize + 1);
+    // }
+
+    //     #[test]
+    //     #[should_panic]
+    //     fn null_pointer_allocation() {
+    //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+    //         alloc(isize::MAX as usize);
+    //     }
 }

@@ -13,6 +13,9 @@ pub enum Error {
     #[error("invalid byte length: {0}")]
     InvalidByteLength(usize),
 
+    #[error("invalid pointer offset")]
+    InvalidPointer,
+
     #[error("invalid tag: {0}")]
     InvalidTag(u8),
 
