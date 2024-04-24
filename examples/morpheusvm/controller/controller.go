@@ -168,9 +168,11 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			}
 		}
 		if result.Success {
-			switch tx.Action.(type) { //nolint:gocritic
-			case *actions.Transfer:
-				c.metrics.transfer.Inc()
+			for _, action := range tx.Actions {
+				switch action.(type) { //nolint:gocritic
+				case *actions.Transfer:
+					c.metrics.transfer.Inc()
+				}
 			}
 		}
 	}

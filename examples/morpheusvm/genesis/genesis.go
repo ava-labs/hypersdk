@@ -55,7 +55,7 @@ type Genesis struct {
 	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
 
 	// Action Per Tx
-	MaxActionsPerTx uint8 `json:"maxActionsPerTx"`
+	MaxActionsPerTx int `json:"maxActionsPerTx"`
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`

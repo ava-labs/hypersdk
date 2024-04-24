@@ -96,6 +96,6 @@ func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
 
-func (*Rules) GetMaxActionsPerTx() uint8 {
+func (r *Rules) GetMaxActionsPerTx() int {
 	return r.g.MaxActionsPerTx
 }
