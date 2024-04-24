@@ -41,8 +41,8 @@ type Transaction struct {
 
 func NewTx(base *Base, actions []Action) *Transaction {
 	return &Transaction{
-		Base:        base,
-		Actions:     actions,
+		Base:    base,
+		Actions: actions,
 	}
 }
 
@@ -121,14 +121,6 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 				}
 				stateKeys.Add(k, v)
 			}
-		}
-
-		// TODO: handle multiple outgoing warp messages (use actionID instead of txID)
-		if action.OutputsWarpMessage() {
-			// TODO: handle multiple outgoing warp messages
-			p := sm.OutgoingWarpKeyPrefix(t.id)
-			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-			stateKeys.Add(string(k), state.Allocate|state.Write)
 		}
 	}
 
