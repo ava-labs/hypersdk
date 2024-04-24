@@ -698,7 +698,16 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	return newBlk, nil
 }
 
-func (vm *VM) buildBlock(ctx context.Context) (snowman.Block, error) {
+// implements "block.ChainVM"
+func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+	start := time.Now()
+	defer func() {
+		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
+	}()
+
+	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
+	defer span.End()
+
 	// If the node isn't ready, we should exit.
 	//
 	// We call [QueueNotify] when the VM becomes ready, so exiting
@@ -737,19 +746,6 @@ func (vm *VM) buildBlock(ctx context.Context) (snowman.Block, error) {
 	}
 	vm.parsedBlocks.Put(blk.ID(), blk)
 	return blk, nil
-}
-
-// implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
-	start := time.Now()
-	defer func() {
-		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
-	}()
-
-	ctx, span := vm.tracer.Start(ctx, "VM.BuildBlock")
-	defer span.End()
-
-	return vm.buildBlock(ctx)
 }
 
 func (vm *VM) Submit(
