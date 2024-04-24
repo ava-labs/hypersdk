@@ -205,10 +205,5 @@ func NewSmartPtr(ptr uint32, byteLen int) (SmartPtr, error) {
 		return 0, errors.New("length of bytes is greater than int32")
 	}
 
-	// lenUpperBits := int64(byteLen) << 32
-	// ptrLowerBits := int64(ptr)
-
-	// return SmartPtr(lenUpperBits | ptrLowerBits), nil
-	// return SmartPtr(int64(ptr)), nil
-	return SmartPtr(int64(123)), nil
+	return SmartPtr(int64(ptr)), nil
 }

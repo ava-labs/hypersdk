@@ -6,7 +6,6 @@
 
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
-use std::mem::ManuallyDrop;
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
@@ -60,21 +59,6 @@ pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
     Ok(host_ptr)
 }
 
-/// Converts a i64 to a pointer with the first 4 bytes of the pointer
-/// representing the length of the memory block.
-/// # Panics
-/// Panics if arg is negative.
-#[must_use]
-#[allow(clippy::cast_sign_loss)]
-pub fn split_host_ptr(arg: HostPtr) -> (i64, usize) {
-    assert!(arg >= 0);
-
-    let len = arg >> 32;
-    let mask: u32 = !0;
-    let ptr = arg & i64::from(mask);
-    (ptr, len as usize)
-}
-
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the `length` of the serialized value,
 /// with the subsequent `length` bytes comprising the serialized data.
@@ -100,7 +84,7 @@ where
 fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
     if let Some(len) = GLOBAL_STORE.with_borrow_mut(|s| s.remove(&(ptr as *const u8))) {
         let ptr = ptr as *mut u8;
-        Some(unsafe { std::vec::Vec::from_raw_parts(ptr, len as usize, len as usize) })
+        Some(unsafe { std::vec::Vec::from_raw_parts(ptr, len, len) })
     } else {
         None
     }
@@ -157,8 +141,10 @@ mod tests {
         let len = 1024;
         let ptr = alloc(len);
         let vec = vec![1; len];
-        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
-        unsafe { *ptr.offset(2) = 2 }
+        unsafe {
+            std::ptr::copy(vec.as_ptr(), ptr, vec.len());
+            *ptr.offset(2) = 2;
+        }
         let val = into_bytes(ptr as i64).unwrap();
         assert_ne!(val, vec);
         assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
