@@ -18,9 +18,7 @@ type Result struct {
 }
 
 func (r *Result) Size() int {
-	size := consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
-	size += codec.BytesLen(nil)
-	return size
+	return consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
 }
 
 func (r *Result) Marshal(p *codec.Packer) error {
