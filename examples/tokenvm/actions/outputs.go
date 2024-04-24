@@ -29,7 +29,6 @@ var (
 	OutputMetadataEmpty      = []byte("metadata is empty")
 	OutputMetadataTooLarge   = []byte("metadata is too large")
 	OutputSameInOut          = []byte("same asset used for in and out")
-	OutputAnycast            = []byte("anycast output")
 	OutputWrongDestination   = []byte("wrong destination")
 	OutputMustFill           = []byte("must fill request")
 	OutputInvalidDestination = []byte("invalid destination")
