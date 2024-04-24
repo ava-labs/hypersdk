@@ -152,6 +152,8 @@ type Rules interface {
 	GetStorageValueWriteUnits() uint64 // per chunk
 
 	FetchCustom(string) (any, bool)
+
+	GetMaxActionsPerTx() uint8
 }
 
 type MetadataManager interface {
