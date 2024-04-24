@@ -270,10 +270,6 @@ func (b *StatelessBlock) Verify(ctx context.Context) error {
 	)
 	defer span.End()
 
-	return b.verify(ctx, stateReady)
-}
-
-func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 	log := b.vm.Logger()
 	switch {
 	case !stateReady:
