@@ -342,7 +342,7 @@ func SetAsset(
 	k := AssetKey(asset)
 	symbolLen := len(symbol)
 	metadataLen := len(metadata)
-	v := make([]byte, consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen+1)
+	v := make([]byte, consts.Uint16Len+symbolLen+consts.Uint8Len+consts.Uint16Len+metadataLen+consts.Uint64Len+codec.AddressLen)
 	binary.BigEndian.PutUint16(v, uint16(symbolLen))
 	copy(v[consts.Uint16Len:], symbol)
 	v[consts.Uint16Len+symbolLen] = decimals
