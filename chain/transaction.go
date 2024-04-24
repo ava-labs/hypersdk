@@ -314,7 +314,7 @@ func (t *Transaction) Execute(
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
 	actionStart := ts.OpIndex()
-	handleRevert := func(rerr error) (*Result, error) {
+	handleRevert := func(rerr error) ([]*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
@@ -323,7 +323,7 @@ func (t *Transaction) Execute(
 	}
 	results := make([]*Result, 0)
 	for _, action := range t.Actions {
-		success, actionCUs, output, err := t.Actions.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id)
+		success, actionCUs, output, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id)
 		if err != nil {
 			return handleRevert(err)
 		}
@@ -433,12 +433,12 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 
-	for i, action := range t.Action {
+	for i, action := range t.Actions {
 		actionID := action.GetActionID(uint8(i), t.id)
 		authID := t.Auth.GetTypeID()
 		t.Base.Marshal(p)
 		p.PackAddress(actionID)
-		t.Action.Marshal(p)
+		action.Marshal(p)
 		p.PackByte(authID)
 		t.Auth.Marshal(p)
 	}
