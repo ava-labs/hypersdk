@@ -294,7 +294,7 @@ func BuildBlock(
 					log.Warn("invalid tx: invalid state keys")
 					return nil
 				}
-				result, err := tx.Execute(
+				txResults, err := tx.Execute(
 					ctx,
 					feeManager,
 					reads,
@@ -315,29 +315,31 @@ func BuildBlock(
 				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
-				if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
-					log.Debug(
-						"skipping tx: too many units",
-						zap.Int("dimension", int(dimension)),
-						zap.Uint64("tx", result.Consumed[dimension]),
-						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
-						zap.Uint64("max block units", maxUnits[dimension]),
-					)
-					restore = true
+				for _, result := range txResults {
+					if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
+						log.Debug(
+							"skipping tx: too many units",
+							zap.Int("dimension", int(dimension)),
+							zap.Uint64("tx", result.Consumed[dimension]),
+							zap.Uint64("block units", feeManager.LastConsumed(dimension)),
+							zap.Uint64("max block units", maxUnits[dimension]),
+						)
+						restore = true
 
-					// If we are above the target for the dimension we can't consume, we will
-					// stop building. This prevents a full mempool iteration looking for the
-					// "perfect fit".
-					if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
-						stop = true
-						return errBlockFull
+						// If we are above the target for the dimension we can't consume, we will
+						// stop building. This prevents a full mempool iteration looking for the
+						// "perfect fit".
+						if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+							stop = true
+							return errBlockFull
+						}
 					}
 				}
 
 				// Update block with new transaction
 				tsv.Commit()
 				b.Txs = append(b.Txs, tx)
-				results = append(results, result)
+				results = append(results, txResults...)
 				return nil
 			})
 		}
