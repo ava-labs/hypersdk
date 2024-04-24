@@ -58,7 +58,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 	t.Base.Marshal(p)
 	p.PackInt(len(t.Actions))
 	for i, action := range t.Actions {
-		p.PackByte(action.GetActionID(uint8(i), t.id))
+		p.PackAddress(action.GetActionID(uint8(i), t.id))
 		action.Marshal(p)
 	}
 	return p.Bytes(), p.Err()
@@ -107,17 +107,19 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
+	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
-	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	stateKeys := make(state.Keys)
-	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
-		for k, v := range m {
-			if !keys.Valid(k) {
-				return nil, ErrInvalidKeyValue
+	for i, action := range t.Actions {
+		actionKeys := action.StateKeys(t.Auth.Actor(), action.GetActionID(uint8(i), t.id))
+		sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
+		for _, m := range []state.Keys{actionKeys, sponsorKeys} {
+			for k, v := range m {
+				if !keys.Valid(k) {
+					return nil, ErrInvalidKeyValue
+				}
+				stateKeys.Add(k, v)
 			}
-			stateKeys.Add(k, v)
 		}
 	}
 
@@ -258,6 +260,9 @@ func (t *Transaction) PreExecute(
 	}
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
+	}
+	if len(t.Actions) > r.GetMaxActionsPerTx() {
+		return ErrTooManyActions
 	}
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
@@ -419,13 +424,15 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 
-	actionID := t.Action.GetTypeID()
-	authID := t.Auth.GetTypeID()
-	t.Base.Marshal(p)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
-	p.PackByte(authID)
-	t.Auth.Marshal(p)
+	for i, action := range t.Action {
+		actionID := action.GetActionID(uint8(i), t.id)
+		authID := t.Auth.GetTypeID()
+		t.Base.Marshal(p)
+		p.PackAddress(actionID)
+		t.Action.Marshal(p)
+		p.PackByte(authID)
+		t.Auth.Marshal(p)
+	}
 	return p.Err()
 }
 
@@ -507,7 +514,7 @@ func UnmarshalTx(
 
 	var tx Transaction
 	tx.Base = base
-	tx.Action = action
+	tx.Actions = []Action{action}
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()

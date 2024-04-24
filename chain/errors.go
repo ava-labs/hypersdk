@@ -50,6 +50,7 @@ var (
 	ErrMisalignedTime       = errors.New("misaligned time")
 	ErrInvalidActor         = errors.New("invalid actor")
 	ErrInvalidSponsor       = errors.New("invalid sponsor")
+	ErrTooManyActions       = errors.New("too many actions")
 
 	// Execution Correctness
 	ErrInvalidBalance  = errors.New("invalid balance")
