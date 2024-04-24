@@ -417,14 +417,6 @@ func (vm *VM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chai
 	return bv.GetBatchVerifier(cores, count), ok
 }
 
-func (vm *VM) cacheAuth(auth chain.Auth) {
-	bv, ok := vm.authEngine[auth.GetTypeID()]
-	if !ok {
-		return
-	}
-	bv.Cache(auth)
-}
-
 func (vm *VM) RecordBlockVerify(t time.Duration) {
 	vm.metrics.blockVerify.Observe(float64(t))
 }

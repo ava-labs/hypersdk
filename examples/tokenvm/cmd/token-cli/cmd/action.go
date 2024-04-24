@@ -69,7 +69,7 @@ var fundFaucetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, err = sendAndWait(ctx, &actions.Transfer{
+		if err = sendAndWait(ctx, &actions.Transfer{
 			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
@@ -119,7 +119,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, &actions.Transfer{
+		err = sendAndWait(ctx, &actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
@@ -162,7 +162,7 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, &actions.CreateAsset{
+		err = sendAndWait(ctx, &actions.CreateAsset{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
@@ -226,7 +226,7 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, &actions.MintAsset{
+		err = sendAndWait(ctx, &actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
@@ -263,7 +263,7 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, &actions.CloseOrder{
+		err = sendAndWait(ctx, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
 		}, cli, scli, tcli, factory, true)
@@ -349,7 +349,7 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, err = sendAndWait(ctx, &actions.CreateOrder{
+		err = sendAndWait(ctx, &actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
@@ -466,7 +466,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, err = sendAndWait(ctx, &actions.FillOrder{
+		err = sendAndWait(ctx, &actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,

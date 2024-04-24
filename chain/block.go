@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
@@ -100,8 +99,7 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	bctx     *block.Context
-	vdrState validators.State
+	bctx *block.Context
 
 	results    []*Result
 	feeManager *fees.Manager
@@ -257,7 +255,7 @@ func (b *StatelessBlock) initializeBuilt(
 func (b *StatelessBlock) ID() ids.ID { return b.id }
 
 // implements "block.WithVerifyContext"
-func (b *StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
+func (*StatelessBlock) ShouldVerifyWithContext(context.Context) (bool, error) {
 	return false, nil
 }
 
@@ -451,7 +449,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	feeKey := FeeKey(b.vm.StateManager().FeeKey())
 	feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
-		return err //nolint:spancheck
+		return err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
 	feeManager, err := parentFeeManager.ComputeNext(parentTimestamp, b.Tmstmp, r)

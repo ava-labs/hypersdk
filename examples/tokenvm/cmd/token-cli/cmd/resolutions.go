@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -23,27 +22,27 @@ import (
 func sendAndWait(
 	ctx context.Context, action chain.Action, cli *rpc.JSONRPCClient,
 	scli *rpc.WebSocketClient, tcli *trpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
-) (ids.ID, error) {
+) error {
 	parser, err := tcli.Parser(ctx)
 	if err != nil {
-		return ids.Empty, err
+		return err
 	}
 	_, tx, _, err := cli.GenerateTransaction(ctx, parser, action, factory)
 	if err != nil {
-		return ids.Empty, err
+		return err
 	}
 
 	if err := scli.RegisterTx(tx); err != nil {
-		return ids.Empty, err
+		return err
 	}
 	var res *chain.Result
 	for {
 		txID, dErr, result, err := scli.ListenTx(ctx)
 		if dErr != nil {
-			return ids.Empty, dErr
+			return dErr
 		}
 		if err != nil {
-			return ids.Empty, err
+			return err
 		}
 		if txID == tx.ID() {
 			res = result
@@ -54,7 +53,7 @@ func sendAndWait(
 	if printStatus {
 		handler.Root().PrintStatus(tx.ID(), res.Success)
 	}
-	return tx.ID(), nil
+	return nil
 }
 
 func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result) {
