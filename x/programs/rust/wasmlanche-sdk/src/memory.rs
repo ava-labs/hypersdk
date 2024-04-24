@@ -141,13 +141,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "zero alloc are not supported"]
+    #[should_panic = "cannot allocate 0 sized data"]
     fn zero_allocation_panics() {
         alloc(0);
     }
 
     #[test]
-    #[should_panic = "allocating too much memory should fail"]
+    #[should_panic = "capacity overflow"]
     fn big_allocation_fails() {
         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
         alloc(isize::MAX as usize + 1);
