@@ -123,7 +123,7 @@ mod tests {
         unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
         let val = into_bytes(ptr as i64).unwrap();
         assert_eq!(val, vec);
-        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr.cast_const())).is_none()));
     }
 
     #[test]
@@ -137,17 +137,17 @@ mod tests {
         }
         let val = into_bytes(ptr as i64).unwrap();
         assert_ne!(val, vec);
-        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr.cast_const())).is_none()));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic = "zero alloc are not supported"]
     fn zero_allocation_panics() {
         alloc(0);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic = "allocating too much memory should fail"]
     fn big_allocation_fails() {
         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
         alloc(isize::MAX as usize + 1);
