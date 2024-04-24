@@ -86,6 +86,9 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	require.NoError(err)
+
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", callContext, alicePtr)
 	require.NoError(err)
@@ -130,9 +133,16 @@ func TestCounterProgram(t *testing.T) {
 	incAmount := int64(10)
 	incAmountPtr, err := writeToMem(incAmount, mem2)
 	require.NoError(err)
+
+	alicePtr2, err = writeToMem(alicePublicKey, mem2)
+
+	require.NoError(err)
 	result, err = rt2.Call(ctx, "inc", callContext2, alicePtr2, incAmountPtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
+
+	alicePtr2, err = writeToMem(alicePublicKey, mem2)
+	require.NoError(err)
 
 	result, err = rt2.Call(ctx, "get_value", callContext2, alicePtr2)
 	require.NoError(err)
@@ -148,9 +158,16 @@ func TestCounterProgram(t *testing.T) {
 	// increment alice's counter on program 1
 	onePtr, err := writeToMem(int64(1), mem)
 	require.NoError(err)
+
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	require.NoError(err)
+
 	result, err = rt.Call(ctx, "inc", callContext1, alicePtr, onePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
+
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	require.NoError(err)
 
 	result, err = rt.Call(ctx, "get_value", callContext1, alicePtr)
 	require.NoError(err)
@@ -170,10 +187,18 @@ func TestCounterProgram(t *testing.T) {
 	// increment alice's counter on program 2
 	fivePtr, err := writeToMem(int64(5), mem)
 	require.NoError(err)
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	require.NoError(err)
 	result, err = rt.Call(ctx, "inc_external", callContext1, target, maxUnitsProgramToProgramPtr, alicePtr, fivePtr)
 	require.NoError(err)
 	require.Equal(int64(1), result[0])
 
+	target, err = writeToMem(programID2, mem)
+	require.NoError(err)
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	require.NoError(err)
+	maxUnitsProgramToProgramPtr, err = writeToMem(maxUnitsProgramToProgram, mem)
+	require.NoError(err)
 	// expect alice's counter on program 2 to be 15
 	result, err = rt.Call(ctx, "get_value_external", callContext1, target, maxUnitsProgramToProgramPtr, alicePtr)
 	require.NoError(err)
