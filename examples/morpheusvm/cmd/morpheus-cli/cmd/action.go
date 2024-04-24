@@ -52,7 +52,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, nil, &actions.Transfer{
+		_, _, err = sendAndWait(ctx, &actions.Transfer{
 			To:    recipient,
 			Value: amount,
 		}, cli, bcli, ws, factory, true)
