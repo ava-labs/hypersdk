@@ -59,7 +59,6 @@ func (t *ProgramExecute) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
 ) (success bool, computeUnits uint64, output []byte, err error) {
 	if len(t.Function) == 0 {
 		return false, 1, OutputValueZero, nil

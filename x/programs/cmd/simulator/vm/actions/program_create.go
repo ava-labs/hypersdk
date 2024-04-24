@@ -42,7 +42,6 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	id ids.ID,
-	_ bool,
 ) (bool, uint64, []byte, error) {
 	if len(t.Program) == 0 {
 		return false, 1, OutputValueZero, nil
