@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.opentelemetry.io/otel/attribute"
@@ -60,11 +59,11 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
+// Note: This code is terrible and will be removed during the Vryx integration.
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
 	parent *StatelessBlock,
-	blockContext *block.Context,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.BuildBlock")
 	defer span.End()
@@ -124,23 +123,24 @@ func BuildBlock(
 		cache     = map[string]*fetchData{}
 
 		blockLock    sync.RWMutex
-		warpAdded    = uint(0)
 		start        = time.Now()
 		txsAttempted = 0
 		results      = []*Result{}
 
-		vdrState = vm.ValidatorState()
-		sm       = vm.StateManager()
+		sm = vm.StateManager()
 
 		// prepareStreamLock ensures we don't overwrite stream prefetching spawned
 		// asynchronously.
 		prepareStreamLock sync.Mutex
+
+		// stop is used to trigger that we should stop building, assuming we are no longer executing
+		stop bool
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
-	for time.Since(start) < vm.GetTargetBuildDuration() {
+	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
@@ -157,7 +157,7 @@ func BuildBlock(
 			break
 		}
 
-		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), vm.GetExecutorBuildRecorder())
+		e := executor.New(streamBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
 		pending := make(map[ids.ID]*Transaction, streamBatch)
 		var pendingLock sync.Mutex
 		for li, ltx := range txs {
@@ -167,18 +167,6 @@ func BuildBlock(
 
 			// Skip any duplicates before going async
 			if dup.Contains(i) {
-				continue
-			}
-
-			// Ensure we can process if transaction includes a warp message
-			if tx.WarpMessage != nil && blockContext == nil {
-				log.Debug(
-					"dropping pending warp message because no context provided",
-					zap.Stringer("txID", tx.ID()),
-				)
-				restorableLock.Lock()
-				restorable = append(restorable, tx)
-				restorableLock.Unlock()
 				continue
 			}
 
@@ -283,35 +271,6 @@ func BuildBlock(
 					return nil
 				}
 
-				// Verify warp message, if it exists
-				//
-				// We don't drop invalid warp messages because we must collect fees for
-				// the work the sender made us do (otherwise this would be a DoS).
-				//
-				// We wait as long as possible to verify the signature to ensure we don't
-				// spend unnecessary time on an invalid tx.
-				var warpErr error
-				if tx.WarpMessage != nil {
-					// We do not check the validity of [SourceChainID] because a VM could send
-					// itself a message to trigger a chain upgrade.
-					allowed, num, denom := r.GetWarpConfig(tx.WarpMessage.SourceChainID)
-					if allowed {
-						warpErr = tx.WarpMessage.Signature.Verify(
-							ctx, &tx.WarpMessage.UnsignedMessage, r.NetworkID(),
-							vdrState, blockContext.PChainHeight, num, denom,
-						)
-					} else {
-						warpErr = ErrDisabledChainID
-					}
-					if warpErr != nil {
-						log.Warn(
-							"warp verification failed",
-							zap.Stringer("txID", tx.ID()),
-							zap.Error(warpErr),
-						)
-					}
-				}
-
 				// If execution works, keep moving forward with new state
 				//
 				// Note, these calculations must match block verification exactly
@@ -343,7 +302,6 @@ func BuildBlock(
 					r,
 					tsv,
 					nextTime,
-					tx.WarpMessage != nil && warpErr == nil,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
@@ -353,7 +311,6 @@ func BuildBlock(
 					return err
 				}
 
-				// Need to atomically check there aren't too many warp messages and add to block
 				blockLock.Lock()
 				defer blockLock.Unlock()
 
@@ -372,6 +329,7 @@ func BuildBlock(
 					// stop building. This prevents a full mempool iteration looking for the
 					// "perfect fit".
 					if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+						stop = true
 						return errBlockFull
 					}
 				}
@@ -380,13 +338,6 @@ func BuildBlock(
 				tsv.Commit()
 				b.Txs = append(b.Txs, tx)
 				results = append(results, result)
-				if tx.WarpMessage != nil {
-					if warpErr == nil {
-						// Add a bit if the warp message was verified
-						b.WarpResults.Add(warpAdded)
-					}
-					warpAdded++
-				}
 				return nil
 			})
 		}
@@ -504,7 +455,6 @@ func BuildBlock(
 
 	log.Info(
 		"built block",
-		zap.Bool("context", blockContext != nil),
 		zap.Uint64("hght", b.Hght),
 		zap.Int("attempted", txsAttempted),
 		zap.Int("added", len(b.Txs)),

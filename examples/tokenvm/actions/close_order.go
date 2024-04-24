@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -42,10 +41,6 @@ func (*CloseOrder) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.OrderChunks, storage.BalanceChunks}
 }
 
-func (*CloseOrder) OutputsWarpMessage() bool {
-	return false
-}
-
 func (c *CloseOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -53,28 +48,27 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
-		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil
 	}
 	if !exists {
-		return false, CloseOrderComputeUnits, OutputOrderMissing, nil, nil
+		return false, CloseOrderComputeUnits, OutputOrderMissing, nil
 	}
 	if owner != actor {
-		return false, CloseOrderComputeUnits, OutputUnauthorized, nil, nil
+		return false, CloseOrderComputeUnits, OutputUnauthorized, nil
 	}
 	if out != c.Out {
-		return false, CloseOrderComputeUnits, OutputWrongOut, nil, nil
+		return false, CloseOrderComputeUnits, OutputWrongOut, nil
 	}
 	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
-		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil
 	}
 	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
-		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil
 	}
-	return true, CloseOrderComputeUnits, nil, nil, nil
+	return true, CloseOrderComputeUnits, nil, nil
 }
 
 func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {
@@ -90,7 +84,7 @@ func (c *CloseOrder) Marshal(p *codec.Packer) {
 	p.PackID(c.Out)
 }
 
-func UnmarshalCloseOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalCloseOrder(p *codec.Packer) (chain.Action, error) {
 	var cl CloseOrder
 	p.UnpackID(true, &cl.Order)
 	p.UnpackID(false, &cl.Out) // empty ID is the native asset

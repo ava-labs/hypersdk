@@ -16,7 +16,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -53,10 +52,6 @@ func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.ProgramChunks}
 }
 
-func (*ProgramExecute) OutputsWarpMessage() bool {
-	return false
-}
-
 func (t *ProgramExecute) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -64,41 +59,40 @@ func (t *ProgramExecute) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error) {
+) (success bool, computeUnits uint64, output []byte, err error) {
 	if len(t.Function) == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, 1, OutputValueZero, nil
 	}
 	if len(t.Params) == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, 1, OutputValueZero, nil
 	}
 
 	programIDStr, ok := t.Params[0].Value.(string)
 	if !ok {
-		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil, nil
+		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
 	}
 
 	// TODO: take fee out of balance?
 	programID, err := ids.FromString(programIDStr)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	programBytes, err := storage.GetProgram(ctx, mu, programID)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	eng := engine.New(ecfg)
 
@@ -121,22 +115,22 @@ func (t *ProgramExecute) Execute(
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
 	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	defer t.rt.Stop()
 
 	mem, err := t.rt.Memory()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	params, err := WriteParams(mem, t.Params)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: remove this is to support readonly response for now.
@@ -145,7 +139,7 @@ func (t *ProgramExecute) Execute(
 		p.PackInt64(r)
 	}
 
-	return true, 1, p.Bytes(), nil, nil
+	return true, 1, p.Bytes(), nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
@@ -164,7 +158,7 @@ func (t *ProgramExecute) GetBalance() (uint64, error) {
 	return t.rt.Meter().GetBalance()
 }
 
-func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalProgramExecute(p *codec.Packer) (chain.Action, error) {
 	// TODO
 	return nil, nil
 }

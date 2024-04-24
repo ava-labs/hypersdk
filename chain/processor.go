@@ -39,7 +39,7 @@ func (b *StatelessBlock) Execute(
 		t      = b.GetTimestamp()
 
 		f       = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
-		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), b.vm.GetExecutorVerifyRecorder())
+		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
 		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
 		results = make([]*Result, numTxs)
 	)
@@ -79,17 +79,7 @@ func (b *StatelessBlock) Execute(
 				return err
 			}
 
-			// Wait to execute transaction until we have the warp result processed.
-			var warpVerified bool
-			warpMsg, ok := b.warpMessages[tx.ID()]
-			if ok {
-				select {
-				case warpVerified = <-warpMsg.verifiedChan:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t, ok && warpVerified)
+			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}

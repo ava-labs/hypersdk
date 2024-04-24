@@ -34,14 +34,13 @@ func (*Blah3) Bark() string { return "blah3" }
 func (*Blah3) GetTypeID() uint8 { return 2 }
 
 func TestTypeParser(t *testing.T) {
-	tp := NewTypeParser[Blah, any, bool]()
+	tp := NewTypeParser[Blah, bool]()
 
 	t.Run("empty parser", func(t *testing.T) {
 		require := require.New(t)
-		f, b, ok := tp.LookupIndex(0)
+		f, ok := tp.LookupIndex(0)
 		require.Nil(f)
 		require.False(ok)
-		require.False(b)
 	})
 
 	t.Run("populated parser", func(t *testing.T) {
@@ -54,29 +53,27 @@ func TestTypeParser(t *testing.T) {
 		require.NoError(
 			tp.Register(
 				blah1.GetTypeID(),
-				func(*Packer, any) (Blah, error) { return nil, errBlah1 },
+				func(*Packer) (Blah, error) { return nil, errBlah1 },
 				true,
 			),
 		)
 		require.NoError(
 			tp.Register(
 				blah2.GetTypeID(),
-				func(*Packer, any) (Blah, error) { return nil, errBlah2 },
+				func(*Packer) (Blah, error) { return nil, errBlah2 },
 				false,
 			),
 		)
 
-		f, b, ok := tp.LookupIndex(blah1.GetTypeID())
+		f, ok := tp.LookupIndex(blah1.GetTypeID())
 		require.True(ok)
-		require.True(b)
-		res, err := f(nil, nil)
+		res, err := f(nil)
 		require.Nil(res)
 		require.ErrorIs(err, errBlah1)
 
-		f, b, ok = tp.LookupIndex(blah2.GetTypeID())
+		f, ok = tp.LookupIndex(blah2.GetTypeID())
 		require.True(ok)
-		require.False(b)
-		res, err = f(nil, nil)
+		res, err = f(nil)
 		require.Nil(res)
 		require.ErrorIs(err, errBlah2)
 	})

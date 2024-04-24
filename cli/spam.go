@@ -111,7 +111,7 @@ func (h *Handler) Spam(
 		return err
 	}
 	action := getTransfer(keys[0].Address, 0)
-	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, factory)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (h *Handler) Spam(
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -316,7 +316,7 @@ func (h *Handler) Spam(
 						if maxFee != nil {
 							fee = *maxFee
 						}
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, fee, tm)
+						_, tx, err := issuer.c.GenerateTransactionManual(parser, action, factory, fee, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
@@ -424,7 +424,7 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt), f, feePerTx)
 		if err != nil {
 			return err
 		}

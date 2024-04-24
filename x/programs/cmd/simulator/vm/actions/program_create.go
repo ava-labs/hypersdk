@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -36,10 +35,6 @@ func (*ProgramCreate) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.ProgramChunks}
 }
 
-func (*ProgramCreate) OutputsWarpMessage() bool {
-	return false
-}
-
 func (t *ProgramCreate) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -47,17 +42,16 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	id ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	if len(t.Program) == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, 1, OutputValueZero, nil
 	}
 
 	if err := storage.SetProgram(ctx, mu, id, t.Program); err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
-	return true, 1, nil, nil, nil
+	return true, 1, nil, nil
 }
 
 func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {
@@ -72,7 +66,7 @@ func (t *ProgramCreate) Marshal(p *codec.Packer) {
 	p.PackBytes(t.Program)
 }
 
-func UnmarshalProgramCreate(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalProgramCreate(p *codec.Packer) (chain.Action, error) {
 	var pc ProgramCreate
 	p.UnpackBytes(-1, true, &pc.Program)
 	return &pc, p.Err()
