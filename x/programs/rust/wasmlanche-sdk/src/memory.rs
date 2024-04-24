@@ -33,7 +33,7 @@ impl From<Pointer> for *mut u8 {
 
 /// `HostPtr` is an i64 where the first 4 bytes represent the length of the bytes
 /// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-#[deprecated]
+// #[deprecated] TODO fix in a followup pr
 pub type HostPtr = i64;
 
 thread_local! {
