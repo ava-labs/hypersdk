@@ -6,9 +6,8 @@
 
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
-use std::collections::HashMap;
 use std::mem::ManuallyDrop;
-use std::{alloc::Layout, cell::RefCell, collections::HashSet};
+use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
@@ -38,6 +37,7 @@ impl From<Pointer> for *mut u8 {
 pub type HostPtr = i64;
 
 thread_local! {
+    /// Map of pointer to the length of its content on the heap
     static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
@@ -84,22 +84,20 @@ pub fn split_host_ptr(arg: HostPtr) -> (i64, usize) {
 /// This function is unsafe because it dereferences raw pointers.
 /// # Errors
 /// Returns an [`StateError`] if the bytes cannot be deserialized.
-pub fn from_host_ptr<V>(ptr: HostPtr) -> Result<V, StateError>
+pub fn from_host_ptr<V>(ptr: i64) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
-    let (ptr, len) = split_host_ptr(ptr);
     match into_bytes(ptr) {
         Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
         None => Err(StateError::InvalidBytes),
     }
 }
 
-/// Returns a tuple of the bytes and length of the argument.
+/// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-fn into_bytes(ptr: i64) -> Option<Vec<u8>> {
-    // grab length from ptrArg
+fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
     if let Some(len) = GLOBAL_STORE.with_borrow_mut(|s| s.remove(&(ptr as *const u8))) {
         let ptr = ptr as *mut u8;
         Some(unsafe { std::vec::Vec::from_raw_parts(ptr, len as usize, len as usize) })
@@ -112,16 +110,15 @@ fn into_bytes(ptr: i64) -> Option<Vec<u8>> {
 /// Allocate memory into the instance of Program and return the offset to the
 /// start of the block.
 /// # Panics
-/// Panics if the pointer exceeds the maximum size of an i64.
+/// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
     assert!(len > 0, "cannot allocate 0 sized data");
     // from https://doc.rust-lang.org/1.77.2/src/alloc/raw_vec.rs.html#547-562
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
     // take a mutable pointer to the layout
-    let ptr = unsafe { std::alloc::alloc(layout) };
-    // keep track of the pointer
-    // ManuallyDrop::drop(ptr);
+    let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
+    // keep track of the pointer and the length of the allocated data
     GLOBAL_STORE.with_borrow_mut(|s| s.insert(ptr, len));
     // return the pointer so the runtime
     // can write data at this offset
@@ -149,11 +146,34 @@ mod tests {
         let len = 1024;
         let ptr = alloc(len);
         let vec = vec![1; len];
-        vec.iter().enumerate().for_each(|(i, val)| unsafe {
-            *ptr.add(i) = *val;
-        });
+        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
         let val = into_bytes(ptr as i64).unwrap();
         assert_eq!(val, vec);
         assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+    }
+
+    #[test]
+    fn invalid_data() {
+        let len = 1024;
+        let ptr = alloc(len);
+        let vec = vec![1; len];
+        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
+        unsafe { *ptr.offset(2) = 2 }
+        let val = into_bytes(ptr as i64).unwrap();
+        assert_ne!(val, vec);
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+    }
+
+    #[test]
+    #[should_panic]
+    fn zero_allocation_panics() {
+        alloc(0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn big_allocation_fails() {
+        // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+        alloc(isize::MAX as usize + 1);
     }
 }

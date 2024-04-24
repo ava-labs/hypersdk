@@ -99,7 +99,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, callContext program.Contex
 	return nil
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, context program.Context, params ...program.SmartPtr) ([]int64, error) {
+func (r *WasmRuntime) Call(_ context.Context, name string, context program.Context, params ...uint32) ([]int64, error) {
 	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err
