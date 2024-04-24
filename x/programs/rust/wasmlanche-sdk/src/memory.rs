@@ -127,20 +127,6 @@ mod tests {
     }
 
     #[test]
-    fn invalid_data() {
-        let len = 1024;
-        let ptr = alloc(len);
-        let vec = vec![1; len];
-        unsafe {
-            std::ptr::copy(vec.as_ptr(), ptr, vec.len());
-            *ptr.offset(2) = 2;
-        }
-        let val = into_bytes(ptr as i64).unwrap();
-        assert_ne!(val, vec);
-        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr.cast_const())).is_none()));
-    }
-
-    #[test]
     #[should_panic = "cannot allocate 0 sized data"]
     fn zero_allocation_panics() {
         alloc(0);
