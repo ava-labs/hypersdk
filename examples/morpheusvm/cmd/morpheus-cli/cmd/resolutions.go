@@ -62,9 +62,11 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 	status := "❌"
 	if result.Success {
 		status = "✅"
-		switch action := tx.Action.(type) { //nolint:gocritic
-		case *actions.Transfer:
-			summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(action.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, action.To))
+		for _, action := range tx.Actions {
+			switch act := action.(type) { //nolint:gocritic
+			case *actions.Transfer:
+				summaryStr = fmt.Sprintf("%s %s -> %s", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, act.To))
+			}
 		}
 	}
 	utils.Outf(
@@ -72,7 +74,7 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 		status,
 		tx.ID(),
 		codec.MustAddressBech32(consts.HRP, actor),
-		reflect.TypeOf(tx.Action),
+		reflect.TypeOf(tx.Actions),
 		summaryStr,
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 		utils.FormatBalance(result.Fee, consts.Decimals),
