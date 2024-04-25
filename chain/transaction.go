@@ -57,8 +57,8 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
 	p.PackInt(len(t.Actions))
-	for i, action := range t.Actions {
-		p.PackAddress(action.GetActionID(uint8(i), t.id))
+	for _, action := range t.Actions {
+		p.PackByte(action.GetTypeID())
 		action.Marshal(p)
 	}
 	return p.Bytes(), p.Err()
