@@ -1,5 +1,5 @@
-use crate::{memory::from_host_ptr, program::Program};
-use borsh::{BorshDeserialize, BorshSerialize};
+use crate::program::Program;
+use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use std::ops::Deref;
 
 #[derive(Clone, thiserror::Error, Debug)]
@@ -76,13 +76,11 @@ impl State {
         K: Into<Key>,
         T: BorshDeserialize,
     {
-        let val_ptr = unsafe { host::get_bytes(&self.program, &key.into())? };
-        if val_ptr < 0 {
-            return Err(Error::Read);
-        }
+        let maybe_bytes = unsafe { host::get_bytes(&self.program, &key.into())? };
+        let bytes = maybe_bytes.ok_or(Error::Read)?;
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-        from_host_ptr(val_ptr)
+        from_slice::<T>(&bytes).map_err(|_| Error::Deserialization)
     }
 
     /// Delete a value from the hosts's storage.
@@ -119,6 +117,7 @@ impl Key {
 
 mod host {
     use super::{BorshSerialize, Key, Program};
+    use crate::memory::into_bytes;
     use crate::{memory::to_host_ptr, state::Error};
 
     #[link(wasm_import_module = "state")]
@@ -151,11 +150,12 @@ mod host {
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, Error> {
+    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<Option<Vec<u8>>, Error> {
         // prepend length to key
         let caller = to_host_ptr(caller.id())?;
         let key = to_host_ptr(key)?;
-        Ok(unsafe { _get(caller, key) })
+        let ptr = unsafe { _get(caller, key) };
+        Ok(into_bytes(ptr))
     }
 
     /// Deletes the bytes at key ptr from the host storage
