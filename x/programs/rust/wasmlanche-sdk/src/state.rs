@@ -13,6 +13,9 @@ pub enum Error {
     #[error("invalid byte length: {0}")]
     InvalidByteLength(usize),
 
+    #[error("invalid pointer offset")]
+    InvalidPointer,
+
     #[error("invalid tag: {0}")]
     InvalidTag(u8),
 
@@ -79,7 +82,7 @@ impl State {
         }
 
         // Wrap in OK for now, change from_raw_ptr to return Result
-        unsafe { from_host_ptr(val_ptr) }
+        from_host_ptr(val_ptr)
     }
 
     /// Delete a value from the hosts's storage.

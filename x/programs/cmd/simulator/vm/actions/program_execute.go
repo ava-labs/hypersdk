@@ -175,32 +175,32 @@ type CallParam struct {
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
 // Supported types include int, uint64 and string.
-func WriteParams(m *program.Memory, p []CallParam) ([]program.SmartPtr, error) {
-	var params []program.SmartPtr
+func WriteParams(m *program.Memory, p []CallParam) ([]uint32, error) {
+	var params []uint32
 	for _, param := range p {
 		switch v := param.Value.(type) {
 		case []byte:
-			smartPtr, err := program.BytesToSmartPtr(v, m)
+			smartPtr, err := program.AllocateBytes(v, m)
 			if err != nil {
 				return nil, err
 			}
 			params = append(params, smartPtr)
 		case ids.ID:
-			smartPtr, err := program.BytesToSmartPtr(v[:], m)
+			smartPtr, err := program.AllocateBytes(v[:], m)
 			if err != nil {
 				return nil, err
 			}
 			params = append(params, smartPtr)
 		case string:
-			smartPtr, err := program.BytesToSmartPtr([]byte(v), m)
+			smartPtr, err := program.AllocateBytes([]byte(v), m)
 			if err != nil {
 				return nil, err
 			}
 			params = append(params, smartPtr)
-		case program.SmartPtr:
+		case uint32:
 			params = append(params, v)
 		default:
-			ptr, err := argumentToSmartPtr(v, m)
+			ptr, err := writeToMem(v, m)
 			if err != nil {
 				return nil, err
 			}
@@ -218,11 +218,11 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 }
 
 // Serialize the parameter and create a smart ptr
-func argumentToSmartPtr(obj interface{}, memory *program.Memory) (program.SmartPtr, error) {
+func writeToMem(obj interface{}, memory *program.Memory) (uint32, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
 		return 0, err
 	}
 
-	return program.BytesToSmartPtr(bytes, memory)
+	return program.AllocateBytes(bytes, memory)
 }

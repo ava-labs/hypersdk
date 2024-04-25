@@ -188,14 +188,14 @@ func (s SmartPtr) Bytes(memory *Memory) ([]byte, error) {
 	return bytes, nil
 }
 
-// BytesToSmartPtr writes [bytes] to memory and returns the resulting SmartPtr.
-func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
+// AllocateBytes writes [bytes] to memory and returns the resulting SmartPtr.
+func AllocateBytes(bytes []byte, memory *Memory) (uint32, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
 		return 0, err
 	}
 
-	return NewSmartPtr(ptr, len(bytes))
+	return ptr, nil
 }
 
 // NewSmartPtr returns a SmartPtr from [ptr] and [byteLen].
@@ -205,8 +205,5 @@ func NewSmartPtr(ptr uint32, byteLen int) (SmartPtr, error) {
 		return 0, errors.New("length of bytes is greater than int32")
 	}
 
-	lenUpperBits := int64(byteLen) << 32
-	ptrLowerBits := int64(ptr)
-
-	return SmartPtr(lenUpperBits | ptrLowerBits), nil
+	return SmartPtr(int64(ptr)), nil
 }
