@@ -433,16 +433,44 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 
-	for i, action := range t.Actions {
-		actionID := action.GetActionID(uint8(i), t.id)
-		authID := t.Auth.GetTypeID()
-		t.Base.Marshal(p)
-		p.PackAddress(actionID)
+	return t.marshalActions(p)
+}
+
+func (t *Transaction) marshalActions(p *codec.Packer) error {
+	t.Base.Marshal(p)
+	p.PackInt(len(t.Actions))
+	for _, action := range t.Actions {
+		actionID := action.GetTypeID()
+		p.PackByte(actionID)
 		action.Marshal(p)
-		p.PackByte(authID)
-		t.Auth.Marshal(p)
 	}
+	authID := t.Auth.GetTypeID()
+	p.PackByte(authID)
+	t.Auth.Marshal(p)
 	return p.Err()
+}
+
+// todo: move below UnmarshalTx
+func unmarshalActions(
+	p *codec.Packer,
+	actionRegistry *codec.TypeParser[Action, bool],
+	authRegistry *codec.TypeParser[Auth, bool],
+) ([]Action, error) {
+	actionCount := p.UnpackInt(true)
+	actions := make([]Action, 0)
+	for i := 0; i < actionCount; i++ {
+		actionType := p.UnpackByte()
+		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
+		if !ok {
+			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+		}
+		action, err := unmarshalAction(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		}
+		actions = append(actions, action)
+	}
+	return actions, nil
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -495,14 +523,9 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actionType := p.UnpackByte()
-	unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
-	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
-	}
-	action, err := unmarshalAction(p)
+	actions, err := unmarshalActions(p, actionRegistry, authRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
@@ -523,7 +546,7 @@ func UnmarshalTx(
 
 	var tx Transaction
 	tx.Base = base
-	tx.Actions = []Action{action}
+	tx.Actions = actions
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
