@@ -260,7 +260,7 @@ type Action interface {
 		mu state.Mutable,
 		timestamp int64,
 		actor codec.Address,
-		txID ids.ID,
+		actionID codec.Address,
 	) (success bool, computeUnits uint64, output []byte, err error)
 }
 

@@ -322,8 +322,9 @@ func (t *Transaction) Execute(
 		return []*Result{{false, utils.ErrBytes(rerr), maxUnits, maxFee}}, nil
 	}
 	results := make([]*Result, 0)
-	for _, action := range t.Actions {
-		success, actionCUs, output, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id)
+	for i, action := range t.Actions {
+		actionID := action.GetActionID(uint8(i), t.id)
+		success, actionCUs, output, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if err != nil {
 			return handleRevert(err)
 		}

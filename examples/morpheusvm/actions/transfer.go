@@ -51,7 +51,7 @@ func (t *Transfer) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ ids.ID,
+	_ codec.Address,
 ) (bool, uint64, []byte, error) {
 	if t.Value == 0 {
 		return false, 1, OutputValueZero, nil
