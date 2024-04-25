@@ -50,9 +50,9 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	size := t.Base.Size()
+	size := t.Base.Size() + consts.ByteLen
 	for _, action := range t.Actions {
-		size += consts.ByteLen + action.Size()
+		size += action.Size()
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
@@ -138,8 +138,8 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
 		maxComputeUnitsOp.Add(action.MaxComputeUnits(r))
-		maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
 	}
+	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
