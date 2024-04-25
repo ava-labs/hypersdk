@@ -454,7 +454,6 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 func unmarshalActions(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action, bool],
-	authRegistry *codec.TypeParser[Auth, bool],
 ) ([]Action, error) {
 	actionCount := p.UnpackInt(true)
 	actions := make([]Action, 0)
@@ -523,7 +522,7 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actions, err := unmarshalActions(p, actionRegistry, authRegistry)
+	actions, err := unmarshalActions(p, actionRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
