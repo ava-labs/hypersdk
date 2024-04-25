@@ -432,19 +432,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created with 1 chunk
 			// write: 2 keys modified (new + old)
-			transferTxConsumed := fees.Dimensions{187, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{191, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(257)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(261)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899743)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899739)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -478,13 +478,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 chunk each
 			// allocate: 0 key created
 			// write: 2 key modified
-			transferTxConsumed := fees.Dimensions{187, 7, 14, 0, 26}
+			transferTxConsumed := fees.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(234)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(238)))
 
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
@@ -559,12 +559,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 key modified
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			transferTxConsumed := fees.Dimensions{187, 7, 14, 0, 26}
+			transferTxConsumed := fees.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(234)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(238)))
 
 			// Unit explanation
 			//
@@ -574,12 +574,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 keys modified
 			gomega.Ω(results[1].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{187, 7, 14, 0, 26}
+			transferTxConsumed = fees.Dimensions{191, 7, 14, 0, 26}
 			gomega.Ω(results[1].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(234)))
+			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(238)))
 
 			// Unit explanation
 			//
@@ -589,12 +589,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 1 key created (1 chunk)
 			// write: 2 key modified (1 chunk), both previously modified
 			gomega.Ω(results[2].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{187, 7, 12, 25, 26}
+			transferTxConsumed = fees.Dimensions{191, 7, 12, 25, 26}
 			gomega.Ω(results[2].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(257)))
+			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(261)))
 
 			// Unit explanation
 			//
@@ -604,12 +604,12 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// allocate: 0 key created
 			// write: 2 keys modified (1 chunk)
 			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{187, 7, 12, 0, 26}
+			transferTxConsumed = fees.Dimensions{191, 7, 12, 0, 26}
 			gomega.Ω(results[3].Consumed).Should(gomega.Equal(transferTxConsumed))
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(232)))
+			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(236)))
 
 			// Check end balance
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)

@@ -50,9 +50,9 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	size := t.Base.Size() + consts.ByteLen
+	size := t.Base.Size()
 	for _, action := range t.Actions {
-		size += action.Size()
+		size += consts.ByteLen + action.Size()
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
