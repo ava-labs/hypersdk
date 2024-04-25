@@ -29,7 +29,7 @@ type ExpiryHeap[T Item] struct {
 // containing [items].
 func New[T Item](items int) *ExpiryHeap[T] {
 	return &ExpiryHeap[T]{
-		minHeap: heap.New[T, int64](items, true),
+		minHeap: heap.New[ids.ID, T, int64](items, true),
 	}
 }
 
