@@ -35,7 +35,7 @@ type OrderBook struct {
 	// dust orders from filling the heap.
 	//
 	// TODO: Allow operator to specify min creation supply per pair to be tracked
-	orders           map[string]*heap.Heap[*Order, float64]
+	orders           map[string]*heap.Heap[ids.ID, *Order, float64]
 	orderToPair      map[ids.ID]string // needed to delete from [CloseOrder] actions
 	maxOrdersPerPair int
 	l                sync.RWMutex
@@ -44,7 +44,7 @@ type OrderBook struct {
 }
 
 func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
-	m := map[string]*heap.Heap[*Order, float64]{}
+	m := map[string]*heap.Heap[ids.ID, *Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
 		trackAll = true
@@ -52,7 +52,7 @@ func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
-			m[pair] = heap.New[*Order, float64](maxOrdersPerPair+1, true)
+			m[pair] = heap.New[ids.ID, *Order, float64](maxOrdersPerPair+1, true)
 			c.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
@@ -86,10 +86,10 @@ func (o *OrderBook) Add(txID ids.ID, actor codec.Address, action *actions.Create
 		return
 	case !ok && o.trackAll:
 		o.c.Logger().Info("tracking order book", zap.String("pair", pair))
-		h = heap.New[*Order, float64](o.maxOrdersPerPair+1, true)
+		h = heap.New[ids.ID, *Order, float64](o.maxOrdersPerPair+1, true)
 		o.orders[pair] = h
 	}
-	h.Push(&heap.Entry[*Order, float64]{
+	h.Push(&heap.Entry[ids.ID, *Order, float64]{
 		ID:    order.ID,
 		Val:   float64(order.InTick) / float64(order.OutTick),
 		Item:  order,
