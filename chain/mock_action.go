@@ -62,6 +62,20 @@ func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5 any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
+// GetActionID mocks base method.
+func (m *MockAction) GetActionID(arg0 byte, arg1 ids.ID) codec.Address {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActionID", arg0, arg1)
+	ret0, _ := ret[0].(codec.Address)
+	return ret0
+}
+
+// GetActionID indicates an expected call of GetActionID.
+func (mr *MockActionMockRecorder) GetActionID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActionID", reflect.TypeOf((*MockAction)(nil).GetActionID), arg0, arg1)
+}
+
 // GetTypeID mocks base method.
 func (m *MockAction) GetTypeID() byte {
 	m.ctrl.T.Helper()
@@ -117,7 +131,7 @@ func (mr *MockActionMockRecorder) Size() *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAction) StateKeys(arg0 codec.Address, arg1 ids.ID) state.Keys {
+func (m *MockAction) StateKeys(arg0, arg1 codec.Address) state.Keys {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateKeys", arg0, arg1)
 	ret0, _ := ret[0].(state.Keys)
