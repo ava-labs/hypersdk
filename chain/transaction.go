@@ -249,6 +249,9 @@ func (t *Transaction) PreExecute(
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
+	if len(t.Actions) > r.GetMaxActionsPerTx() {
+		return ErrTooManyActions
+	}
 	for _, action := range t.Actions {
 		start, end := action.ValidRange(r)
 		if start >= 0 && timestamp < start {
@@ -264,9 +267,6 @@ func (t *Transaction) PreExecute(
 	}
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
-	}
-	if len(t.Actions) > r.GetMaxActionsPerTx() {
-		return ErrTooManyActions
 	}
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
