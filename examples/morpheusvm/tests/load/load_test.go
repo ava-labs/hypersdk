@@ -542,10 +542,10 @@ func issueSimpleTx(
 			ChainID:   i.chainID,
 			MaxFee:    maxFee,
 		},
-		&actions.Transfer{
+		[]chain.Action{&actions.Transfer{
 			To:    to,
 			Value: amount,
-		},
+		}},
 	)
 	tx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
 	gomega.Ω(err).To(gomega.BeNil())

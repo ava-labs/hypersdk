@@ -52,10 +52,10 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, &actions.Transfer{
+		_, _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
-		}, cli, bcli, ws, factory, true)
+		}}, cli, bcli, ws, factory, true)
 		return err
 	},
 }

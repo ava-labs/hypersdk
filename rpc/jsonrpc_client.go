@@ -122,7 +122,7 @@ type Modifier interface {
 func (cli *JSONRPCClient) GenerateTransaction(
 	ctx context.Context,
 	parser chain.Parser,
-	action chain.Action,
+	actions []chain.Action,
 	authFactory chain.AuthFactory,
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
@@ -132,7 +132,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, authFactory)
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -140,7 +140,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	f, tx, err := cli.GenerateTransactionManual(parser, action, authFactory, maxFee, modifiers...)
+	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee, modifiers...)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -149,7 +149,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 
 func (cli *JSONRPCClient) GenerateTransactionManual(
 	parser chain.Parser,
-	action chain.Action,
+	actions []chain.Action,
 	authFactory chain.AuthFactory,
 	maxFee uint64,
 	modifiers ...Modifier,
@@ -170,7 +170,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 
 	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
-	tx := chain.NewTx(base, []chain.Action{action})
+	tx := chain.NewTx(base, actions)
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)

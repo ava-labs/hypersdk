@@ -94,11 +94,11 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return bclient.Parser(ctx)
 			},
-			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
-				return &actions.Transfer{
+			func(addr codec.Address, amount uint64) []chain.Action { // getTransfer
+				return []chain.Action{&actions.Transfer{
 					To:    addr,
 					Value: amount,
-				}
+				}}
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
 				return func(ictx context.Context, count uint64) error {
@@ -106,10 +106,10 @@ var runSpamCmd = &cobra.Command{
 					if err != nil {
 						return err
 					}
-					_, _, err = sendAndWait(ictx, &actions.Transfer{
+					_, _, err = sendAndWait(ictx, []chain.Action{&actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}, cli, bclient, wclient, factory, false)
+					}}, cli, bclient, wclient, factory, false)
 					return err
 				}
 			},

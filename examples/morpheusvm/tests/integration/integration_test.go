@@ -334,10 +334,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, transferTx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 100_000, // must be more than StateLockup
-				},
+				}},
 				factory,
 			)
 			transferTxRoot = transferTx
@@ -458,10 +458,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 101,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -498,10 +498,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 102,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -509,10 +509,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 103,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -520,10 +520,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr3,
 					Value: 104,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -531,10 +531,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr3,
 					Value: 105,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -630,10 +630,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 200,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -643,10 +643,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 201,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -671,10 +671,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 203,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -751,10 +751,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// Send tx
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		transfer := &actions.Transfer{
+		transfer := []chain.Action{&actions.Transfer{
 			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
-		}
+		}}
 
 		parser, err := instances[0].lcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -799,10 +799,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// Create tx
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		transfer := &actions.Transfer{
+		transfer := []chain.Action{&actions.Transfer{
 			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
-		}
+		}}
 		parser, err := instances[0].lcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 		_, tx, _, err := instances[0].cli.GenerateTransaction(
@@ -856,10 +856,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    r1addr,
 					Value: 2000,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -880,10 +880,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr,
 					Value: 100,
-				},
+				}},
 				r1factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -908,10 +908,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    r1addr,
 					Value: 2000,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -932,10 +932,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr,
 					Value: 100,
-				},
+				}},
 				r1factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
