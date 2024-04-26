@@ -1,10 +1,6 @@
-use crate::from_host_ptr;
-use crate::program::Program;
-use crate::state::Error as StateError;
+use crate::{from_host_ptr, program::Program, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::ops::Deref;
+use std::{collections::HashMap, hash::Hash, ops::Deref};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
