@@ -12,12 +12,6 @@ rustup target add wasm32-unknown-unknown
 cargo build --target wasm32-unknown-unknown --target-dir $CARGO_TARGET_DIR --release
 ```
 
-- Optionally use our build script.
-
-```sh
-./scripts/build.sh
-```
-
 ## Debugging
 
 While developing programs you can optionally compile the program with `Wasi`
@@ -29,7 +23,7 @@ set `WithEnableTestingOnlyMode` for the runtime `Config`.
 from your program and recompile without `DEBUG`.
 
 ```sh
-DEBUG=1 ./scripts/build.sh
+cargo build --target wasm32-wasi
 ```
 
 ## Storage
