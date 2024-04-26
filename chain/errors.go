@@ -56,16 +56,6 @@ var (
 	ErrBlockTooBig     = errors.New("block too big")
 	ErrKeyNotSpecified = errors.New("key not specified")
 
-	// Warp
-	ErrDisabledChainID           = errors.New("cannot import from chain ID")
-	ErrMissingBlockContext       = errors.New("cannot verify warp messages without block context")
-	ErrUnexpectedWarpMessage     = errors.New("unexpected warp message")
-	ErrExpectedWarpMessage       = errors.New("expected warp message")
-	ErrWarpMessageNotInitialized = errors.New("warp message not initialized")
-	ErrEmptyWarpPayload          = errors.New("empty warp payload")
-	ErrTooManyWarpMessages       = errors.New("too many warp messages")
-	ErrWarpResultMismatch        = errors.New("warp result mismatch")
-
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")
