@@ -1,3 +1,4 @@
+use crate::from_host_ptr;
 use crate::memory::into_bytes;
 use crate::program::Program;
 use crate::state::Error as StateError;
@@ -16,6 +17,9 @@ pub enum Error {
 
     #[error("invalid byte length: {0}")]
     InvalidByteLength(usize),
+
+    #[error("invalid pointer offset")]
+    InvalidPointer,
 
     #[error("invalid tag: {0}")]
     InvalidTag(u8),
@@ -101,7 +105,7 @@ where
         V: BorshDeserialize,
     {
         let val_bytes = if let Some(val) = self.cache.get(&key) {
-            val.clone()
+            val
         } else {
             let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
             if val_ptr < 0 {
@@ -109,10 +113,9 @@ where
             }
 
             // Wrap in OK for now, change from_raw_ptr to return Result
-            into_bytes(val_ptr)
+            let bytes = from_host_ptr(val_ptr)?;
+            self.cache.entry(key).or_insert(bytes)
         };
-
-        self.cache.insert(key, val_bytes.clone());
 
         from_slice::<V>(&val_bytes).map_err(|_| StateError::Deserialization)
     }

@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -38,10 +37,6 @@ func (*CreateAsset) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.AssetChunks}
 }
 
-func (*CreateAsset) OutputsWarpMessage() bool {
-	return false
-}
-
 func (c *CreateAsset) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -49,29 +44,28 @@ func (c *CreateAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	txID ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	if len(c.Symbol) == 0 {
-		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil, nil
+		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil
 	}
 	if len(c.Symbol) > MaxSymbolSize {
-		return false, CreateAssetComputeUnits, OutputSymbolTooLarge, nil, nil
+		return false, CreateAssetComputeUnits, OutputSymbolTooLarge, nil
 	}
 	if c.Decimals > MaxDecimals {
-		return false, CreateAssetComputeUnits, OutputDecimalsTooLarge, nil, nil
+		return false, CreateAssetComputeUnits, OutputDecimalsTooLarge, nil
 	}
 	if len(c.Metadata) == 0 {
-		return false, CreateAssetComputeUnits, OutputMetadataEmpty, nil, nil
+		return false, CreateAssetComputeUnits, OutputMetadataEmpty, nil
 	}
 	if len(c.Metadata) > MaxMetadataSize {
-		return false, CreateAssetComputeUnits, OutputMetadataTooLarge, nil, nil
+		return false, CreateAssetComputeUnits, OutputMetadataTooLarge, nil
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor, false); err != nil {
-		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil, nil
+	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
+		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil
 	}
-	return true, CreateAssetComputeUnits, nil, nil, nil
+	return true, CreateAssetComputeUnits, nil, nil
 }
 
 func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {
@@ -89,7 +83,7 @@ func (c *CreateAsset) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Metadata)
 }
 
-func UnmarshalCreateAsset(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalCreateAsset(p *codec.Packer) (chain.Action, error) {
 	var create CreateAsset
 	p.UnpackBytes(MaxSymbolSize, true, &create.Symbol)
 	create.Decimals = p.UnpackByte()

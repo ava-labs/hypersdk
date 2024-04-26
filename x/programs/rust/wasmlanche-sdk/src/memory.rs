@@ -6,6 +6,7 @@
 
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
+use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
@@ -32,7 +33,13 @@ impl From<Pointer> for *mut u8 {
 
 /// `HostPtr` is an i64 where the first 4 bytes represent the length of the bytes
 /// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
+// #[deprecated] TODO fix in a followup pr
 pub type HostPtr = i64;
+
+thread_local! {
+    /// Map of pointer to the length of its content on the heap
+    static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
+}
 
 /// Converts a pointer to a i64 with the first 4 bytes of the pointer
 /// representing the length of the memory block.
@@ -53,21 +60,6 @@ pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
     Ok(host_ptr)
 }
 
-/// Converts a i64 to a pointer with the first 4 bytes of the pointer
-/// representing the length of the memory block.
-/// # Panics
-/// Panics if arg is negative.
-#[must_use]
-#[allow(clippy::cast_sign_loss)]
-pub fn split_host_ptr(arg: HostPtr) -> (i64, usize) {
-    assert!(arg >= 0);
-
-    let len = arg >> 32;
-    let mask: u32 = !0;
-    let ptr = arg & i64::from(mask);
-    (ptr, len as usize)
-}
-
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the `length` of the serialized value,
 /// with the subsequent `length` bytes comprising the serialized data.
@@ -77,56 +69,89 @@ pub fn split_host_ptr(arg: HostPtr) -> (i64, usize) {
 /// This function is unsafe because it dereferences raw pointers.
 /// # Errors
 /// Returns an [`StateError`] if the bytes cannot be deserialized.
-pub unsafe fn from_host_ptr<V>(ptr: HostPtr) -> Result<V, StateError>
+pub fn from_host_ptr<V>(ptr: i64) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
-    let bytes = into_bytes(ptr);
-    from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization)
+    match into_bytes(ptr) {
+        Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
+        None => Err(StateError::InvalidPointer),
+    }
 }
 
-/// Returns a tuple of the bytes and length of the argument.
+/// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-pub fn into_bytes(host_ptr: HostPtr) -> Vec<u8> {
-    // grab length from ptrArg
-    let (ptr, len) = split_host_ptr(host_ptr);
-    let value = unsafe { std::slice::from_raw_parts(ptr as *const u8, len) };
-    value.to_vec()
+fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
+    GLOBAL_STORE
+        .with_borrow_mut(|s| s.remove(&(ptr as *const u8)))
+        .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
 }
 
 /* memory functions ------------------------------------------- */
 /// Allocate memory into the instance of Program and return the offset to the
 /// start of the block.
 /// # Panics
-/// Panics if the pointer exceeds the maximum size of an i64.
+/// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
-    // create a new mutable buffer with capacity `len`
-    let mut buf = Vec::with_capacity(len);
-    // take a mutable pointer to the buffer
-    let ptr = buf.as_mut_ptr();
-    // ensure memory pointer is fits in an i64
-    // to avoid potential issues when passing
-    // across wasm boundary
-    assert!(i64::try_from(ptr as u64).is_ok());
-    // take ownership of the memory block and
-    // ensure that its destructor is not
-    // called when the object goes out of scope
-    // at the end of the function
-    std::mem::forget(buf);
+    assert!(len > 0, "cannot allocate 0 sized data");
+    // can only fail if `len > isize::MAX` for u8
+    let layout = Layout::array::<u8>(len).expect("capacity overflow");
+    // take a mutable pointer to the layout
+    let ptr = unsafe { std::alloc::alloc(layout) };
+    if ptr.is_null() {
+        std::alloc::handle_alloc_error(layout);
+    }
+    // keep track of the pointer and the length of the allocated data
+    GLOBAL_STORE.with_borrow_mut(|s| s.insert(ptr, len));
     // return the pointer so the runtime
     // can write data at this offset
     ptr
 }
 
-/// # Safety
-/// `ptr` must be a pointer to a block of memory.
-///
-/// deallocates the memory block at `ptr` with a given `capacity`.
-#[no_mangle]
-pub unsafe extern "C" fn dealloc(ptr: *mut u8, capacity: usize) {
-    // always deallocate the full capacity, initialize vs uninitialized memory is irrelevant here
-    let data = Vec::from_raw_parts(ptr, capacity, capacity);
-    std::mem::drop(data);
+#[cfg(test)]
+mod tests {
+    use super::{alloc, into_bytes};
+    use crate::memory::GLOBAL_STORE;
+
+    #[test]
+    fn data_allocation() {
+        let len = 1024;
+        let ptr = alloc(len);
+        let vec = vec![1; len];
+        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
+        let val = into_bytes(ptr as i64).unwrap();
+        assert_eq!(val, vec);
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr.cast_const())).is_none()));
+    }
+
+    #[test]
+    #[should_panic = "cannot allocate 0 sized data"]
+    fn zero_allocation_panics() {
+        alloc(0);
+    }
+
+    #[test]
+    #[should_panic = "capacity overflow"]
+    fn big_allocation_fails() {
+        // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+        alloc(isize::MAX as usize + 1);
+    }
+
+    // TODO these two tests make the code abort and not panic, it's hard to write an assertion here
+    // #[test]
+    // #[should_panic]
+    // fn two_big_allocation_fails() {
+    //     // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+    //     alloc((isize::MAX / 2) as usize + 1);
+    //     alloc((isize::MAX / 2) as usize + 1);
+    // }
+
+    //     #[test]
+    //     #[should_panic]
+    //     fn null_pointer_allocation() {
+    //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+    //         alloc(isize::MAX as usize);
+    //     }
 }

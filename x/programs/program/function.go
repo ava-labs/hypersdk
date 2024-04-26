@@ -24,7 +24,7 @@ func NewFunc(inner *wasmtime.Func, inst Instance) *Func {
 	}
 }
 
-func (f *Func) Call(context Context, params ...SmartPtr) ([]int64, error) {
+func (f *Func) Call(context Context, params ...uint32) ([]int64, error) {
 	fnParams := f.Type().Params()[1:] // strip program_id
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
@@ -40,7 +40,7 @@ func (f *Func) Call(context Context, params ...SmartPtr) ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	contextPtr, err := argumentToSmartPtr(context, mem)
+	contextPtr, err := writeToMem(context, mem)
 	if err != nil {
 		return nil, err
 	}
@@ -64,13 +64,13 @@ func (f *Func) Call(context Context, params ...SmartPtr) ([]int64, error) {
 	}
 }
 
-func argumentToSmartPtr(obj interface{}, memory *Memory) (SmartPtr, error) {
+func writeToMem(obj interface{}, memory *Memory) (uint32, error) {
 	bytes, err := borsh.Serialize(obj)
 	if err != nil {
 		return 0, err
 	}
 
-	return BytesToSmartPtr(bytes, memory)
+	return AllocateBytes(bytes, memory)
 }
 
 func (f *Func) Type() *wasmtime.FuncType {
@@ -78,7 +78,7 @@ func (f *Func) Type() *wasmtime.FuncType {
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []uint32, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {
