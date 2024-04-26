@@ -69,7 +69,7 @@ var (
 
 	balanceKeyPool = sync.Pool{
 		New: func() any {
-			return make([]byte, 1+codec.AddressLen+consts.IDLen+consts.Uint16Len)
+			return make([]byte, 1+codec.AddressLen*2+consts.Uint16Len)
 		},
 	}
 )
@@ -462,11 +462,11 @@ func DeleteOrder(ctx context.Context, mu state.Mutable, order codec.ActionID) er
 
 // [loanPrefix] + [asset] + [destination]
 func LoanKey(asset codec.ActionID, destination ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2+consts.Uint16Len)
+	k = make([]byte, 1+codec.AddressLen+consts.IDLen+consts.Uint16Len)
 	k[0] = loanPrefix
 	copy(k[1:], asset[:])
-	copy(k[1+consts.IDLen:], destination[:])
-	binary.BigEndian.PutUint16(k[1+consts.IDLen*2:], LoanChunks)
+	copy(k[1+codec.AddressLen:], destination[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen+consts.IDLen:], LoanChunks)
 	return
 }
 

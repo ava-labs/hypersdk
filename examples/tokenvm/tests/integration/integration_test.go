@@ -431,19 +431,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created
 			// write: 1 key modified, 1 key new
-			transferTxConsumed := fees.Dimensions{223, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{228, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(293)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(298)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, codec.EmptyAddress)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899707)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899702)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.EmptyAddress)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))

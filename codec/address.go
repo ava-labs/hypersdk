@@ -21,7 +21,7 @@ const (
 	maxBech32Size = 90
 )
 
-type ActionID Address
+type ActionID [AddressLen]byte
 
 type Address [AddressLen]byte
 

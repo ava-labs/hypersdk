@@ -88,7 +88,7 @@ func (p *Packer) PackActionID(a ActionID) {
 func (p *Packer) UnpackActionID(required bool, dest *ActionID) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
 	if required && *dest == EmptyAddress {
-		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: ActionID field is not populated", ErrFieldNotPopulated))
 	}
 }
 

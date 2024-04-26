@@ -6,39 +6,41 @@ package heap
 import (
 	"testing"
 
+	"github.com/ava-labs/hypersdk/codec"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 )
 
-type testItem struct {
-	id    ids.ID
+type testItem[T comparable] struct {
+	id    T
 	value uint64
 }
 
 func TestUnit64HeapPushPopMin(t *testing.T) {
 	require := require.New(t)
-	minHeap := New[ids.ID, *testItem, uint64](0, true)
+	minHeap := New[ids.ID, *testItem[ids.ID], uint64](0, true)
 	require.Zero(minHeap.Len(), "heap not initialized properly.")
-	mempoolItem1 := &testItem{ids.GenerateTestID(), 10}
-	mempoolItem2 := &testItem{ids.GenerateTestID(), 7}
-	mempoolItem3 := &testItem{ids.GenerateTestID(), 15}
+	mempoolItem1 := &testItem[ids.ID]{ids.GenerateTestID(), 10}
+	mempoolItem2 := &testItem[ids.ID]{ids.GenerateTestID(), 7}
+	mempoolItem3 := &testItem[ids.ID]{ids.GenerateTestID(), 15}
 
 	// Middle UnitPrice
-	med := &Entry[ids.ID, *testItem, uint64]{
+	med := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem1.id,
 		Item:  mempoolItem1,
 		Val:   mempoolItem1.value,
 		Index: minHeap.Len(),
 	}
 	// Lesser UnitPrice
-	low := &Entry[ids.ID, *testItem, uint64]{
+	low := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem2.id,
 		Item:  mempoolItem2,
 		Val:   mempoolItem2.value,
 		Index: minHeap.Len(),
 	}
 	// Greatest UnitPrice
-	high := &Entry[ids.ID, *testItem, uint64]{
+	high := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem3.id,
 		Item:  mempoolItem3,
 		Val:   mempoolItem3.value,
@@ -67,29 +69,29 @@ func TestUnit64HeapPushPopMin(t *testing.T) {
 
 func TestUnit64HeapPushPopMax(t *testing.T) {
 	require := require.New(t)
-	maxHeap := New[ids.ID, *testItem, uint64](0, false)
+	maxHeap := New[ids.ID, *testItem[ids.ID], uint64](0, false)
 	require.Zero(maxHeap.Len(), "heap not initialized properly.")
 
-	mempoolItem1 := &testItem{ids.GenerateTestID(), 10}
-	mempoolItem2 := &testItem{ids.GenerateTestID(), 7}
-	mempoolItem3 := &testItem{ids.GenerateTestID(), 15}
+	mempoolItem1 := &testItem[ids.ID]{ids.GenerateTestID(), 10}
+	mempoolItem2 := &testItem[ids.ID]{ids.GenerateTestID(), 7}
+	mempoolItem3 := &testItem[ids.ID]{ids.GenerateTestID(), 15}
 
 	// Middle UnitPrice
-	med := &Entry[ids.ID, *testItem, uint64]{
+	med := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem1.id,
 		Item:  mempoolItem1,
 		Val:   mempoolItem1.value,
 		Index: maxHeap.Len(),
 	}
 	// Lesser UnitPrice
-	low := &Entry[ids.ID, *testItem, uint64]{
+	low := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem2.id,
 		Item:  mempoolItem2,
 		Val:   mempoolItem2.value,
 		Index: maxHeap.Len(),
 	}
 	// Greatest UnitPrice
-	high := &Entry[ids.ID, *testItem, uint64]{
+	high := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem3.id,
 		Item:  mempoolItem3,
 		Val:   mempoolItem3.value,
@@ -119,10 +121,10 @@ func TestUnit64HeapPushPopMax(t *testing.T) {
 func TestUnit64HeapPushExists(t *testing.T) {
 	// Push an item already in heap
 	require := require.New(t)
-	minHeap := New[ids.ID, *testItem, uint64](0, true)
+	minHeap := New[ids.ID, *testItem[ids.ID], uint64](0, true)
 	require.Zero(minHeap.Len(), "heap not initialized properly.")
-	mempoolItem := &testItem{ids.GenerateTestID(), 10}
-	entry := &Entry[ids.ID, *testItem, uint64]{
+	mempoolItem := &testItem[ids.ID]{ids.GenerateTestID(), 10}
+	entry := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem.id,
 		Item:  mempoolItem,
 		Val:   mempoolItem.value,
@@ -142,11 +144,11 @@ func TestUnit64HeapPushExists(t *testing.T) {
 func TestUnit64HeapGetID(t *testing.T) {
 	// Push an item and grab its ID
 	require := require.New(t)
-	minHeap := New[ids.ID, *testItem, uint64](0, true)
+	minHeap := New[ids.ID, *testItem[ids.ID], uint64](0, true)
 	require.Zero(minHeap.Len(), "heap not initialized properly.")
 
-	mempoolItem := &testItem{ids.GenerateTestID(), 10}
-	entry := &Entry[ids.ID, *testItem, uint64]{
+	mempoolItem := &testItem[ids.ID]{ids.GenerateTestID(), 10}
+	entry := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem.id,
 		Item:  mempoolItem,
 		Val:   mempoolItem.value,
@@ -164,10 +166,10 @@ func TestUnit64HeapGetID(t *testing.T) {
 
 func TestUnit64HeapHasID(t *testing.T) {
 	require := require.New(t)
-	minHeap := New[ids.ID, *testItem, uint64](0, true)
+	minHeap := New[ids.ID, *testItem[ids.ID], uint64](0, true)
 	require.Zero(minHeap.Len(), "heap not initialized properly.")
-	mempoolItem := &testItem{ids.GenerateTestID(), 10}
-	entry := &Entry[ids.ID, *testItem, uint64]{
+	mempoolItem := &testItem[ids.ID]{ids.GenerateTestID(), 10}
+	entry := &Entry[ids.ID, *testItem[ids.ID], uint64]{
 		ID:    mempoolItem.id,
 		Item:  mempoolItem,
 		Val:   mempoolItem.value,
@@ -180,4 +182,55 @@ func TestUnit64HeapHasID(t *testing.T) {
 	require.Equal(1, minHeap.Len(), "Not pushed correctly.")
 	ok = minHeap.Has(mempoolItem.id)
 	require.True(ok, "Entry was not found in heap.")
+}
+
+func TestUnit64HeapPushPopMinForActionID(t *testing.T) {
+	require := require.New(t)
+	minHeap := New[codec.ActionID, *testItem[codec.ActionID], uint64](0, true)
+	require.Zero(minHeap.Len(), "heap not initialized properly.")
+	txID := ids.GenerateTestID()
+	mempoolItem1 := &testItem[codec.ActionID]{codec.CreateActionID(0, txID), 10}
+	mempoolItem2 := &testItem[codec.ActionID]{codec.CreateActionID(1, txID), 7}
+	mempoolItem3 := &testItem[codec.ActionID]{codec.CreateActionID(2, txID), 15}
+
+	// Middle UnitPrice
+	med := &Entry[codec.ActionID, *testItem[codec.ActionID], uint64]{
+		ID:    mempoolItem1.id,
+		Item:  mempoolItem1,
+		Val:   mempoolItem1.value,
+		Index: minHeap.Len(),
+	}
+	// Lesser UnitPrice
+	low := &Entry[codec.ActionID, *testItem[codec.ActionID], uint64]{
+		ID:    mempoolItem2.id,
+		Item:  mempoolItem2,
+		Val:   mempoolItem2.value,
+		Index: minHeap.Len(),
+	}
+	// Greatest UnitPrice
+	high := &Entry[codec.ActionID, *testItem[codec.ActionID], uint64]{
+		ID:    mempoolItem3.id,
+		Item:  mempoolItem3,
+		Val:   mempoolItem3.value,
+		Index: minHeap.Len(),
+	}
+	minHeap.Push(med)
+	minHeap.Push(low)
+	minHeap.Push(high)
+	// Added all three
+	require.Equal(3, minHeap.Len(), "Not pushed correctly.")
+	// Check if added to lookup table
+	ok := minHeap.Has(med.ID)
+	require.True(ok, "Item not found in lookup.")
+	ok = minHeap.Has(low.ID)
+	require.True(ok, "Item not found in lookup.")
+	ok = minHeap.Has(high.ID)
+	require.True(ok, "Item not found in lookup.")
+	// Pop and check popped correctly. Order should be 2, 1, 3
+	popped := minHeap.Pop()
+	require.Equal(low, popped, "Incorrect item removed.")
+	popped = minHeap.Pop()
+	require.Equal(med, popped, "Incorrect item removed.")
+	popped = minHeap.Pop()
+	require.Equal(high, popped, "Incorrect item removed.")
 }
