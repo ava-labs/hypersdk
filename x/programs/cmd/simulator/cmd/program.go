@@ -144,7 +144,6 @@ func programExecuteFunc(
 ) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
-
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
