@@ -17,7 +17,9 @@ var resDb merkledb.MerkleDB
 var resErr error
 
 func BenchmarkMerkleTxRoot(b *testing.B) {
-	for _, size := range []int{10, 100, 1000, 10000} {
+  b.ReportAllocs()
+
+	for _, size := range []int{10, 100, 1000} {
     ctx := context.TODO()
     tracer := trace.Noop
     merkleItems := make([][]byte, 0, size)
@@ -47,6 +49,4 @@ func BenchmarkMerkleTxRoot(b *testing.B) {
     resDb = db
     resErr = err
 	}
-
-  b.ReportAllocs()
 }
