@@ -99,10 +99,10 @@ func TestCallParams(t *testing.T) {
 	err = runtime.Initialize(ctx, programContext, wasm, maxUnits)
 	require.NoError(err)
 
-	arg := 10
+	arg := uint32(10)
 
 	// all arguments are smart-pointers so this is a bit of a hack
-	resp, err := runtime.Call(ctx, "add", programContext, program.SmartPtr(arg), program.SmartPtr(arg))
+	resp, err := runtime.Call(ctx, "add", programContext, arg, arg)
 	require.NoError(err)
 	require.Equal(int64(arg+arg), resp[0])
 

@@ -59,18 +59,6 @@ func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.g.BaseComputeUnits
 }
 
-func (r *Rules) GetBaseWarpComputeUnits() uint64 {
-	return r.g.BaseWarpComputeUnits
-}
-
-func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
-	return r.g.WarpComputeUnitsPerSigner
-}
-
-func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
-	return r.g.OutgoingWarpComputeUnits
-}
-
 func (r *Rules) GetStorageKeyReadUnits() uint64 {
 	return r.g.StorageKeyReadUnits
 }
@@ -93,10 +81,6 @@ func (r *Rules) GetStorageKeyWriteUnits() uint64 {
 
 func (r *Rules) GetStorageValueWriteUnits() uint64 {
 	return r.g.StorageValueWriteUnits
-}
-
-func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
-	return false, 0, 0
 }
 
 func (r *Rules) NetworkID() uint32 {

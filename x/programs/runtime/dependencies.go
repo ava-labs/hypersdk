@@ -18,7 +18,7 @@ type Runtime interface {
 	// Call invokes an exported guest function with the given parameters.
 	// Returns the results of the call or an error if the call failed.
 	// If the function called does not return a result this value is set to nil.
-	Call(context.Context, string, program.Context, ...program.SmartPtr) ([]int64, error)
+	Call(context.Context, string, program.Context, ...uint32) ([]int64, error)
 	// Memory returns the program memory.
 	Memory() (*program.Memory, error)
 	// Meter returns the engine meter.

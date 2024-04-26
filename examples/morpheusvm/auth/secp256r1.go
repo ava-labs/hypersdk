@@ -6,7 +6,6 @@ package auth
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -72,7 +71,7 @@ func (d *SECP256R1) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(d.Signature[:])
 }
 
-func UnmarshalSECP256R1(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
+func UnmarshalSECP256R1(p *codec.Packer) (chain.Auth, error) {
 	var d SECP256R1
 	signer := d.Signer[:] // avoid allocating additional memory
 	p.UnpackFixedBytes(secp256r1.PublicKeyLen, &signer)

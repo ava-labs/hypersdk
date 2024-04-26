@@ -162,9 +162,6 @@ func init() {
 		createOrderCmd,
 		fillOrderCmd,
 		closeOrderCmd,
-
-		importAssetCmd,
-		exportAssetCmd,
 	)
 
 	// spam

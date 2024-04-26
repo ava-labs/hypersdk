@@ -17,7 +17,6 @@ import (
 	reflect "reflect"
 
 	ids "github.com/ava-labs/avalanchego/ids"
-	warp "github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	codec "github.com/ava-labs/hypersdk/codec"
 	state "github.com/ava-labs/hypersdk/state"
 	gomock "go.uber.org/mock/gomock"
@@ -47,21 +46,20 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID, arg6 bool) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID) (bool, uint64, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(uint64)
 	ret2, _ := ret[2].([]byte)
-	ret3, _ := ret[3].(*warp.UnsignedMessage)
-	ret4, _ := ret[4].(error)
-	return ret0, ret1, ret2, ret3, ret4
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5, arg6 any) *gomock.Call {
+func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // GetTypeID mocks base method.
@@ -102,20 +100,6 @@ func (m *MockAction) MaxComputeUnits(arg0 Rules) uint64 {
 func (mr *MockActionMockRecorder) MaxComputeUnits(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxComputeUnits", reflect.TypeOf((*MockAction)(nil).MaxComputeUnits), arg0)
-}
-
-// OutputsWarpMessage mocks base method.
-func (m *MockAction) OutputsWarpMessage() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OutputsWarpMessage")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// OutputsWarpMessage indicates an expected call of OutputsWarpMessage.
-func (mr *MockActionMockRecorder) OutputsWarpMessage() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OutputsWarpMessage", reflect.TypeOf((*MockAction)(nil).OutputsWarpMessage))
 }
 
 // Size mocks base method.

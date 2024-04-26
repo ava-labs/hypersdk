@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -24,8 +23,8 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
-	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
+	ActionRegistry *codec.TypeParser[Action, bool]
+	AuthRegistry   *codec.TypeParser[Auth, bool]
 )
 
 type Parser interface {
@@ -131,9 +130,6 @@ type Rules interface {
 	GetMaxBlockUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
-	GetBaseWarpComputeUnits() uint64
-	GetWarpComputeUnitsPerSigner() uint64
-	GetOutgoingWarpComputeUnits() uint64
 
 	// Invariants:
 	// * Controllers must manage the max key length and max value length (max network
@@ -155,8 +151,6 @@ type Rules interface {
 	GetStorageKeyWriteUnits() uint64
 	GetStorageValueWriteUnits() uint64 // per chunk
 
-	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-
 	FetchCustom(string) (any, bool)
 }
 
@@ -164,11 +158,6 @@ type MetadataManager interface {
 	HeightKey() []byte
 	TimestampKey() []byte
 	FeeKey() []byte
-}
-
-type WarpManager interface {
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
 }
 
 type FeeHandler interface {
@@ -205,7 +194,6 @@ type FeeHandler interface {
 type StateManager interface {
 	FeeHandler
 	MetadataManager
-	WarpManager
 }
 
 type Object interface {
@@ -267,12 +255,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		txID ids.ID,
-		warpVerified bool,
-	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
-
-	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
-	// of any warp message is [MaxOutgoingWarpChunks].
-	OutputsWarpMessage() bool
+	) (success bool, computeUnits uint64, output []byte, err error)
 }
 
 type Auth interface {
