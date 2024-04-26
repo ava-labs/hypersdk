@@ -6,7 +6,6 @@ package auth
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -72,7 +71,7 @@ func (b *BLS) Marshal(p *codec.Packer) {
 	p.PackFixedBytes(bls.SignatureToBytes(b.Signature))
 }
 
-func UnmarshalBLS(p *codec.Packer, _ *warp.Message) (chain.Auth, error) {
+func UnmarshalBLS(p *codec.Packer) (chain.Auth, error) {
 	var b BLS
 
 	signer := make([]byte, bls.PublicKeyLen)

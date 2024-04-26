@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
@@ -30,11 +29,8 @@ type VM interface {
 	) (errs []error)
 	LastAcceptedBlock() *chain.StatelessBlock
 	UnitPrices(context.Context) (fees.Dimensions, error)
-	GetOutgoingWarpMessage(ids.ID) (*warp.UnsignedMessage, error)
-	GetWarpSignatures(ids.ID) ([]*chain.WarpSignature, error)
 	CurrentValidators(
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
-	GatherSignatures(context.Context, ids.ID, []byte)
 	GetVerifyAuth() bool
 }

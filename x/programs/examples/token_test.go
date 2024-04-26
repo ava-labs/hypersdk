@@ -54,15 +54,18 @@ func TestTokenProgram(t *testing.T) {
 		require.NoError(err)
 
 		// write alice's key to stack and get pointer
-		alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+		alicePtr, err := writeToMem(alicePublicKey, mem)
 		require.NoError(err)
 
 		// mint 100 tokens to alice
 		mintAlice := int64(1000)
-		mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+		mintAlicePtr, err := writeToMem(mintAlice, mem)
 		require.NoError(err)
 
 		_, err = rt.Call(ctx, "mint_to", callContext, alicePtr, mintAlicePtr)
+		require.NoError(err)
+
+		alicePtr, err = writeToMem(alicePublicKey, mem)
 		require.NoError(err)
 
 		// check balance of alice
@@ -74,6 +77,9 @@ func TestTokenProgram(t *testing.T) {
 		aliceBalance, err := program.GetUserBalanceFromState(ctx, programID, alicePublicKey)
 		require.NoError(err)
 		require.Equal(int64(1000), aliceBalance)
+
+		alicePtr, err = writeToMem(alicePublicKey, mem)
+		require.NoError(err)
 
 		// burn alice tokens
 		_, err = rt.Call(ctx, "burn_from", callContext, alicePtr)

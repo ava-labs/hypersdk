@@ -134,7 +134,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+	alicePtr, err := writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobPublicKey, mem)
+	bobPtr, err := writeToMem(bobPublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+	mintAlicePtr, err := writeToMem(mintAlice, mem)
 	if err != nil {
 		return err
 	}
@@ -175,6 +175,11 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("alice", mintAlice),
 	)
 
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	if err != nil {
+		return err
+	}
+
 	// check balance of alice
 	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
@@ -183,6 +188,11 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("balance",
 		zap.Int64("alice", result[0]),
 	)
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
 
 	// check balance of bob
 	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
@@ -195,10 +205,20 @@ func (t *Token) Run(ctx context.Context) error {
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := argumentToSmartPtr(transferToBob, mem)
+	transferToBobPtr, err := writeToMem(transferToBob, mem)
 	if err != nil {
 		return err
 	}
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
+
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	if err != nil {
+		return err
+	}
+
 	_, err = rt.Call(ctx, "transfer", programContext, alicePtr, bobPtr, transferToBobPtr)
 	if err != nil {
 		return err
@@ -208,7 +228,17 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := argumentToSmartPtr(int64(1), mem)
+	onePtr, err := writeToMem(int64(1), mem)
+	if err != nil {
+		return err
+	}
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
+
+	alicePtr, err = writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -222,6 +252,11 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", 1),
 	)
 
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	if err != nil {
+		return err
+	}
+
 	// get balance alice
 	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
@@ -230,6 +265,11 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("balance",
 		zap.Int64("alice", result[0]),
 	)
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
 
 	// get balance bob
 	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
@@ -259,7 +299,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := argumentToSmartPtr(minters, mem)
+	mintersPtr, err := writeToMem(minters, mem)
 	if err != nil {
 		return err
 	}
@@ -274,6 +314,11 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int32("to bob", minters[1].Amount),
 	)
 
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	if err != nil {
+		return err
+	}
+
 	// get balance alice
 	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
@@ -282,6 +327,11 @@ func (t *Token) Run(ctx context.Context) error {
 	t.log.Debug("balance",
 		zap.Int64("alice", result[0]),
 	)
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
 
 	// get balance bob
 	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
