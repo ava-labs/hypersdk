@@ -25,7 +25,7 @@ pub fn init(context: Context) -> bool {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply, &INITIAL_SUPPLY)
+        .store(StateKey::TotalSupply, INITIAL_SUPPLY)
         .expect("failed to store total supply");
 
     // set token name
@@ -64,7 +64,7 @@ pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
 
     program
         .state()
-        .store(StateKey::Balance(recipient), &(balance + amount))
+        .store(StateKey::Balance(recipient), balance + amount)
         .expect("failed to store balance");
 
     true
@@ -103,12 +103,12 @@ pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i
     // update balances
     program
         .state()
-        .store(StateKey::Balance(sender), &(sender_balance - amount))
+        .store(StateKey::Balance(sender), sender_balance - amount)
         .expect("failed to store balance");
 
     program
         .state()
-        .store(StateKey::Balance(recipient), &(recipient_balance + amount))
+        .store(StateKey::Balance(recipient), recipient_balance + amount)
         .expect("failed to store balance");
 
     true

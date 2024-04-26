@@ -116,7 +116,7 @@ where
             self.cache.entry(key).or_insert(bytes)
         };
 
-        from_slice::<V>(&val_bytes).map_err(|_| StateError::Deserialization)
+        from_slice::<V>(val_bytes).map_err(|_| StateError::Deserialization)
     }
 
     /// Delete a value from the hosts's storage.

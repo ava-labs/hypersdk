@@ -21,7 +21,7 @@ pub fn initialize_address(context: Context, address: Address) -> bool {
 
     program
         .state()
-        .store(StateKeys::Counter(address), &0_i64)
+        .store(StateKeys::Counter(address), 0_i64)
         .expect("failed to store counter");
 
     true
@@ -35,7 +35,7 @@ pub fn inc(context: Context, to: Address, amount: i64) -> bool {
 
     program
         .state()
-        .store(StateKeys::Counter(to), &counter)
+        .store(StateKeys::Counter(to), counter)
         .expect("failed to store counter");
 
     true
