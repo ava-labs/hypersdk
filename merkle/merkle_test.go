@@ -3,13 +3,12 @@ package merkle
 import (
 	"testing"
 
-	"context"
 	"crypto/rand"
+	"context"
 	"strconv"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
@@ -35,18 +34,10 @@ func BenchmarkMerkleTxRoot(b *testing.B) {
     var db merkledb.MerkleDB
     var err error
 
-    defaultConfig := merkledb.Config{
-      BranchFactor:              merkledb.BranchFactor16,
-      HistoryLength:             100,
-      IntermediateNodeCacheSize: units.MiB,
-      ValueNodeCacheSize:        units.MiB,
-      Tracer:                    tracer,
-    }
-
 		b.Run(strconv.Itoa(size), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				for i := 0; i < size; i++ {
-          root, db, err = GenerateMerkleRoot(ctx, defaultConfig, tracer, merkleItems, false)
+          root, db, err = GenerateMerkleRoot(ctx, tracer, merkleItems, false)
 				}
 			}
 		})
