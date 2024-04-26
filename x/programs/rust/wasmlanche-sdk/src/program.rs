@@ -44,26 +44,14 @@ impl Program {
         // flatten the args into a single byte vector
         let target = to_host_ptr(self.id())?;
         let function = to_host_ptr(function_name.as_bytes())?;
-        let (args_ptr, args_len) = args.into_host_ptr()?;
+        let args = args.into_host_ptr()?;
 
-        Ok(unsafe { _call_program(target, function, args_ptr, args_len, max_units) })
+        Ok(unsafe { _call_program(target, function, args, max_units) })
     }
 }
-
-// TODO how to pass a tuple to a go func ?
-// #[repr(C)]
-// pub struct CTUple(*const u8, usize);
 
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
-    // TODO see above
-    // fn _call_program(target_id: i64, function: i64, args_ptr: CTUple, max_units: i64) -> i64;
-    fn _call_program(
-        target_id: i64,
-        function: i64,
-        args_ptr: *const u8,
-        args_len: usize,
-        max_units: i64,
-    ) -> i64;
+    fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> i64;
 }

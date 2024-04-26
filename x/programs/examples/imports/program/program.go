@@ -59,13 +59,12 @@ func (i *Import) Register(link *host.Link, callContext program.Context) error {
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
-func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int64, int64, int32, int32, int64) int64 {
+func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int64, int64, int64, int64) int64 {
 	return func(
 		wasmCaller *wasmtime.Caller,
 		programID int64,
 		function int64,
-		argsPtr int32,
-		argsLen int32,
+		args int64,
 		maxUnits int64,
 	) int64 {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -144,7 +143,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			}
 		}()
 
-		argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
+		argsBytes, err := program.SmartPtr(args).Bytes(memory)
 		if err != nil {
 			i.log.Error("failed to read program args from memory",
 				zap.Error(err),

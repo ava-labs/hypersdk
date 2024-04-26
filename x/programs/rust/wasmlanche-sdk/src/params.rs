@@ -23,12 +23,8 @@ pub struct Param(Vec<u8>);
 pub struct Params(Vec<u8>);
 
 impl Params {
-    pub(crate) fn into_host_ptr(self) -> Result<(*const u8, usize), StateError> {
-        let ptr = self.0.as_ptr();
-        if ptr.is_null() {
-            panic!();
-        }
-        Ok((ptr, self.0.len()))
+    pub(crate) fn into_host_ptr(self) -> Result<HostPtr, StateError> {
+        to_host_ptr(&self.0)
     }
 }
 

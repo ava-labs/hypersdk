@@ -203,7 +203,6 @@ mod tests {
         );
     }
 
-    // #[ignore = "external function calls are broken"]
     #[test]
     fn external_call() {
         let simulator = simulator::Client::new();
