@@ -9,15 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
@@ -297,43 +294,19 @@ func (b *StatelessBlock) initializeBuilt(
 	}
 
 	// transaction hash generation
-	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
-		BranchFactor:              merkledb.BranchFactor16,
-		HistoryLength:             100,
-		EvictionBatchSize:         units.MiB,
-		IntermediateNodeCacheSize: units.MiB,
-		ValueNodeCacheSize:        units.MiB,
-		Tracer:                    b.vm.Tracer(),
-	})
-	if err != nil {
-		return err
-	}
-	// collect keys, values from transactions/results
-	var ops []database.BatchOp
+	var merkleItems [][]byte
 	for _, tx := range b.Txs {
-		key := utils.ToID(tx.Bytes())
-		ops = append(ops, database.BatchOp{
-			Key:   key[:],
-			Value: tx.Bytes(),
-		})
+		merkleItems = append(merkleItems, tx.Bytes())
 	}
 	for _, result := range b.results {
-		key := utils.ToID(result.Output)
-		ops = append(ops, database.BatchOp{
-			Key:   key[:],
-			Value: result.Output,
-		})
+		merkleItems = append(merkleItems, result.Output)
 	}
-	view, err = db.NewView(ctx, merkledb.ViewChanges{BatchOps: ops})
+
+	root, _, err := utils.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems)
 	if err != nil {
 		return err
 	}
-	view.CommitToDB(ctx)
-	txsRoot, err := db.GetMerkleRoot(ctx)
-	if err != nil {
-		return err
-	}
-	b.TxsRoot = txsRoot[:]
+	b.TxsRoot = root
 
 	return nil
 }
