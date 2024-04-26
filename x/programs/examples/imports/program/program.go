@@ -6,6 +6,7 @@ package program
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -143,7 +144,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			}
 		}()
 
-		argsBytes, err := program.SmartPtr(args).Bytes(memory)
+		argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
 		if err != nil {
 			i.log.Error("failed to read program args from memory",
 				zap.Error(err),
@@ -218,6 +219,7 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte)
 	bytes, exists, err := storage.GetProgram(context.Background(), db, id)
 	if !exists {
 		log.Debug("key does not exist", zap.String("id", id.String()))
+		return nil, errors.New("unknown program")
 	}
 	if err != nil {
 		return nil, err

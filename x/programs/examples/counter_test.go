@@ -28,7 +28,7 @@ import (
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()
-	maxUnits := uint64(80000)
+	maxUnits := uint64(10000000)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -102,7 +102,7 @@ func TestCounterProgram(t *testing.T) {
 	require.NoError(err)
 
 	// define max units to transfer to second runtime
-	unitsTransfer := uint64(20000)
+	unitsTransfer := uint64(2000000)
 
 	// transfer the units from the original runtime to the new runtime before
 	// any calls are made.
@@ -180,7 +180,7 @@ func TestCounterProgram(t *testing.T) {
 	target, err := writeToMem(programID2, mem)
 	require.NoError(err)
 
-	maxUnitsProgramToProgram := int64(10000)
+	maxUnitsProgramToProgram := int64(1000000)
 	maxUnitsProgramToProgramPtr, err := writeToMem(maxUnitsProgramToProgram, mem)
 	require.NoError(err)
 
