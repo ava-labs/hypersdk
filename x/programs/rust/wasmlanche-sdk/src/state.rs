@@ -117,8 +117,10 @@ impl Key {
 
 mod host {
     use super::{BorshSerialize, Key, Program};
-    use crate::memory::into_bytes;
-    use crate::{memory::to_host_ptr, state::Error};
+    use crate::{
+        memory::{into_bytes, to_host_ptr},
+        state::Error,
+    };
 
     #[link(wasm_import_module = "state")]
     extern "C" {
