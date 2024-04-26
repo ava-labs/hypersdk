@@ -1,11 +1,10 @@
 package merkle
 
 import (
-	"testing"
-
 	"context"
 	"crypto/rand"
 	"strconv"
+	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -14,9 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var resRoot ids.ID
-var resDb merkledb.MerkleDB
-var resErr error
+var (
+	resRoot ids.ID
+	resDB   merkledb.MerkleDB
+	resErr  error
+)
 
 func BenchmarkMerkleTxRoot(b *testing.B) {
 	for _, size := range []int{10, 100, 1000, 10000} {
@@ -52,7 +53,7 @@ func BenchmarkMerkleTxRoot(b *testing.B) {
 
 		// avoid compiler optimizations to cancel out the bench
 		resRoot = root
-		resDb = db
+		resDB = db
 		resErr = err
 	}
 
