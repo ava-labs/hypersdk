@@ -1,5 +1,4 @@
 use crate::from_host_ptr;
-use crate::memory::into_bytes;
 use crate::program::Program;
 use crate::state::Error as StateError;
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
@@ -80,7 +79,7 @@ where
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<V>(&mut self, key: K, value: V) -> Result<(), Error>
+    pub fn store<V>(&mut self, key: K, value: &V) -> Result<(), Error>
     where
         V: BorshSerialize,
     {
