@@ -117,6 +117,23 @@ impl Key {
     }
 }
 
+macro_rules! call_host_fn {
+    (
+        wasm_import_module = $mod:literal
+        link_name = $link:literal
+        args = ($($arg:ident),+)
+    ) => {
+        todo!()
+    };
+
+    (
+        wasm_import_module = $mod:literal
+        args = ($($arg:ident),+)
+    ) => {
+        todo!()
+    };
+}
+
 mod host {
     use super::{BorshSerialize, Key, Program};
     use crate::{memory::to_host_ptr, state::Error};
@@ -138,15 +155,21 @@ mod host {
     where
         V: BorshSerialize,
     {
-        let value_bytes = borsh::to_vec(value).map_err(|_| Error::Serialization)?;
-        // prepend length to both key & value
-        let caller = to_host_ptr(caller.id())?;
-        let value = to_host_ptr(&value_bytes)?;
-        let key = to_host_ptr(key)?;
+        // let value_bytes = borsh::to_vec(value).map_err(|_| Error::Serialization)?;
+        // // prepend length to both key & value
+        // let caller = to_host_ptr(caller.id())?;
+        // let value = to_host_ptr(&value_bytes)?;
+        // let key = to_host_ptr(key)?;
 
-        match unsafe { _put(caller, key, value) } {
-            0 => Ok(()),
-            _ => Err(Error::Write),
+        // match unsafe { _put(caller, key, value) } {
+        //     0 => Ok(()),
+        //     _ => Err(Error::Write),
+        // }
+
+        call_host_fn! {
+            wasm_import_module = "state"
+            link_name = "put"
+            args = (caller, key, value)
         }
     }
 
