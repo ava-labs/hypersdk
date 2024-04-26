@@ -647,7 +647,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Actions[0].(*actions.Transfer)
-		gomega.Ω(tx.Asset).To(gomega.Equal(codec.EmptyAddress))
+		gomega.Ω(tx.Asset).To(gomega.Equal(codec.ActionID{}))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
 		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
@@ -1283,7 +1283,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
+		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateActionID(0, tx.ID())))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender))
@@ -1346,7 +1346,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
+		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateActionID(0, tx.ID())))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(4)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender2))
@@ -1590,7 +1590,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(tx.ID()))
+		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateActionID(0, tx.ID())))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender))
