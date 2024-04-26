@@ -20,14 +20,14 @@ import (
 
 // sendAndWait may not be used concurrently
 func sendAndWait(
-	ctx context.Context, action chain.Action, cli *rpc.JSONRPCClient,
+	ctx context.Context, actions []chain.Action, cli *rpc.JSONRPCClient,
 	scli *rpc.WebSocketClient, tcli *trpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
 ) error {
 	parser, err := tcli.Parser(ctx)
 	if err != nil {
 		return err
 	}
-	_, tx, _, err := cli.GenerateTransaction(ctx, parser, action, factory)
+	_, tx, _, err := cli.GenerateTransaction(ctx, parser, actions, factory)
 	if err != nil {
 		return err
 	}
@@ -62,68 +62,71 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 	status := "❌"
 	if result.Success {
 		status = "✅"
-		switch action := tx.Action.(type) {
-		case *actions.CreateAsset:
-			summaryStr = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", tx.ID(), action.Symbol, action.Decimals, action.Metadata)
-		case *actions.MintAsset:
-			_, symbol, decimals, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
-			if err != nil {
-				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
-				return
-			}
-			amountStr := utils.FormatBalance(action.Value, decimals)
-			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
-		case *actions.BurnAsset:
-			summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
+		for i, act := range tx.Actions {
+			switch action := act.(type) {
+			case *actions.CreateAsset:
+				assetID := action.GetActionID(uint8(i), tx.ID())
+				summaryStr = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", assetID, action.Symbol, action.Decimals, action.Metadata)
+			case *actions.MintAsset:
+				_, symbol, decimals, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
+				if err != nil {
+					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
+					return
+				}
+				amountStr := utils.FormatBalance(action.Value, decimals)
+				summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
+			case *actions.BurnAsset:
+				summaryStr = fmt.Sprintf("%d %s -> 🔥", action.Value, action.Asset)
 
-		case *actions.Transfer:
-			_, symbol, decimals, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
-			if err != nil {
-				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
-				return
-			}
-			amountStr := utils.FormatBalance(action.Value, decimals)
-			summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
-			if len(action.Memo) > 0 {
-				summaryStr += fmt.Sprintf(" (memo: %s)", action.Memo)
-			}
+			case *actions.Transfer:
+				_, symbol, decimals, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
+				if err != nil {
+					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
+					return
+				}
+				amountStr := utils.FormatBalance(action.Value, decimals)
+				summaryStr = fmt.Sprintf("%s %s -> %s", amountStr, symbol, codec.MustAddressBech32(tconsts.HRP, action.To))
+				if len(action.Memo) > 0 {
+					summaryStr += fmt.Sprintf(" (memo: %s)", action.Memo)
+				}
 
-		case *actions.CreateOrder:
-			_, inSymbol, inDecimals, _, _, _, err := c.Asset(context.TODO(), action.In, true)
-			if err != nil {
-				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
-				return
+			case *actions.CreateOrder:
+				_, inSymbol, inDecimals, _, _, _, err := c.Asset(context.TODO(), action.In, true)
+				if err != nil {
+					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
+					return
+				}
+				inTickStr := utils.FormatBalance(action.InTick, inDecimals)
+				_, outSymbol, outDecimals, _, _, _, err := c.Asset(context.TODO(), action.Out, true)
+				if err != nil {
+					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
+					return
+				}
+				outTickStr := utils.FormatBalance(action.OutTick, outDecimals)
+				supplyStr := utils.FormatBalance(action.Supply, outDecimals)
+				summaryStr = fmt.Sprintf("%s %s -> %s %s (supply: %s %s)", inTickStr, inSymbol, outTickStr, outSymbol, supplyStr, outSymbol)
+			case *actions.FillOrder:
+				or, _ := actions.UnmarshalOrderResult(result.Output)
+				_, inSymbol, inDecimals, _, _, _, err := c.Asset(context.TODO(), action.In, true)
+				if err != nil {
+					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
+					return
+				}
+				inAmtStr := utils.FormatBalance(or.In, inDecimals)
+				_, outSymbol, outDecimals, _, _, _, err := c.Asset(context.TODO(), action.Out, true)
+				if err != nil {
+					utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
+					return
+				}
+				outAmtStr := utils.FormatBalance(or.Out, outDecimals)
+				remainingStr := utils.FormatBalance(or.Remaining, outDecimals)
+				summaryStr = fmt.Sprintf(
+					"%s %s -> %s %s (remaining: %s %s)",
+					inAmtStr, inSymbol, outAmtStr, outSymbol, remainingStr, outSymbol,
+				)
+			case *actions.CloseOrder:
+				summaryStr = fmt.Sprintf("orderID: %s", action.Order)
 			}
-			inTickStr := utils.FormatBalance(action.InTick, inDecimals)
-			_, outSymbol, outDecimals, _, _, _, err := c.Asset(context.TODO(), action.Out, true)
-			if err != nil {
-				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
-				return
-			}
-			outTickStr := utils.FormatBalance(action.OutTick, outDecimals)
-			supplyStr := utils.FormatBalance(action.Supply, outDecimals)
-			summaryStr = fmt.Sprintf("%s %s -> %s %s (supply: %s %s)", inTickStr, inSymbol, outTickStr, outSymbol, supplyStr, outSymbol)
-		case *actions.FillOrder:
-			or, _ := actions.UnmarshalOrderResult(result.Output)
-			_, inSymbol, inDecimals, _, _, _, err := c.Asset(context.TODO(), action.In, true)
-			if err != nil {
-				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
-				return
-			}
-			inAmtStr := utils.FormatBalance(or.In, inDecimals)
-			_, outSymbol, outDecimals, _, _, _, err := c.Asset(context.TODO(), action.Out, true)
-			if err != nil {
-				utils.Outf("{{red}}could not fetch asset info:{{/}} %v", err)
-				return
-			}
-			outAmtStr := utils.FormatBalance(or.Out, outDecimals)
-			remainingStr := utils.FormatBalance(or.Remaining, outDecimals)
-			summaryStr = fmt.Sprintf(
-				"%s %s -> %s %s (remaining: %s %s)",
-				inAmtStr, inSymbol, outAmtStr, outSymbol, remainingStr, outSymbol,
-			)
-		case *actions.CloseOrder:
-			summaryStr = fmt.Sprintf("orderID: %s", action.Order)
 		}
 	}
 	utils.Outf(
@@ -131,7 +134,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 		status,
 		tx.ID(),
 		codec.MustAddressBech32(tconsts.HRP, actor),
-		reflect.TypeOf(tx.Action),
+		reflect.TypeOf(tx.Actions),
 		summaryStr,
 		float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 		utils.FormatBalance(result.Fee, tconsts.Decimals),

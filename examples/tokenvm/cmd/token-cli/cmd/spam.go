@@ -62,7 +62,7 @@ var runSpamCmd = &cobra.Command{
 				}, nil
 			},
 			func(choice int, address string) (uint64, error) { // lookupBalance
-				balance, err := tclient.Balance(context.TODO(), address, ids.Empty)
+				balance, err := tclient.Balance(context.TODO(), address, codec.EmptyAddress)
 				if err != nil {
 					return 0, err
 				}
@@ -78,19 +78,19 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return tclient.Parser(ctx)
 			},
-			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
-				return &actions.Transfer{
+			func(addr codec.Address, amount uint64) []chain.Action { // getTransfer
+				return []chain.Action{&actions.Transfer{
 					To:    addr,
-					Asset: ids.Empty,
+					Asset: codec.EmptyAddress,
 					Value: amount,
-				}
+				}}
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
 				return func(ictx context.Context, count uint64) error {
-					return sendAndWait(ictx, &actions.Transfer{
+					return sendAndWait(ictx, []chain.Action{&actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}, cli, sclient, tclient, auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), false)
+					}}, cli, sclient, tclient, auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), false)
 				}
 			},
 		)

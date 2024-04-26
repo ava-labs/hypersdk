@@ -37,7 +37,7 @@ func (*Handler) GetAssetInfo(
 	ctx context.Context,
 	cli *trpc.JSONRPCClient,
 	addr codec.Address,
-	assetID ids.ID,
+	assetID codec.LID,
 	checkBalance bool,
 ) ([]byte, uint8, uint64, ids.ID, error) {
 	var sourceChainID ids.ID
@@ -45,7 +45,7 @@ func (*Handler) GetAssetInfo(
 	if err != nil {
 		return nil, 0, 0, ids.Empty, err
 	}
-	if assetID != ids.Empty {
+	if assetID != codec.EmptyAddress {
 		if !exists {
 			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")

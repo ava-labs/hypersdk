@@ -56,7 +56,7 @@ func (*Handler) PromptString(label string, min int, max int) (string, error) {
 	return strings.TrimSpace(text), err
 }
 
-func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
+func (h *Handler) PromptAsset(label string, allowNative bool) (codec.LID, error) {
 	symbol := h.c.Symbol()
 	text := fmt.Sprintf("%s (use %s for native token)", label, symbol)
 	if !allowNative {
@@ -71,24 +71,21 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
 			if allowNative && input == symbol {
 				return nil
 			}
-			_, err := ids.FromString(input)
-			return err
+			_ = codec.LIDFromString(input)
+			return nil
 		},
 	}
 	asset, err := promptText.Run()
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 	asset = strings.TrimSpace(asset)
-	var assetID ids.ID
+	var assetID codec.LID
 	if asset != symbol {
-		assetID, err = ids.FromString(asset)
-		if err != nil {
-			return ids.Empty, err
-		}
+		assetID = codec.LIDFromString(asset)
 	}
-	if !allowNative && assetID == ids.Empty {
-		return ids.Empty, ErrInvalidChoice
+	if !allowNative && assetID == codec.EmptyAddress {
+		return codec.EmptyAddress, ErrInvalidChoice
 	}
 	return assetID, nil
 }
@@ -275,6 +272,25 @@ func (*Handler) PromptID(label string) (ids.ID, error) {
 		return ids.Empty, err
 	}
 	return id, nil
+}
+
+func (*Handler) PromptLID(label string) (codec.LID, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_ = codec.LIDFromString(input)
+			return nil
+		},
+	}
+	rawID, err := promptText.Run()
+	if err != nil {
+		return codec.EmptyAddress, err
+	}
+	rawID = strings.TrimSpace(rawID)
+	return codec.LIDFromString(rawID), nil
 }
 
 func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {

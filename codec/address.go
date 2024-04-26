@@ -89,10 +89,18 @@ func CreateLID(idx uint8, txID ids.ID) LID {
 	return LID(a)
 }
 
-func LIDToString(hrp string, a LID) string {
-	addr, err := AddressBech32(hrp, Address(a))
+func LIDToString(hrp string, lid LID) string {
+	addr, err := AddressBech32(hrp, Address(lid))
 	if err != nil {
 		panic(err)
 	}
 	return addr
+}
+
+func LIDFromString(lid string) LID {
+	addr, err := ParseAddressBech32("token", lid)
+	if err != nil {
+		panic(err)
+	}
+	return LID(addr)
 }
