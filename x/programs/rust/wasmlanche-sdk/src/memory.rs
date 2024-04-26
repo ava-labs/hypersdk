@@ -81,7 +81,7 @@ where
 /// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-pub fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
+fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
     GLOBAL_STORE
         .with_borrow_mut(|s| s.remove(&(ptr as *const u8)))
         .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
