@@ -82,10 +82,13 @@ where
 /// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-pub fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
-    GLOBAL_STORE
-        .with_borrow_mut(|s| s.remove(&(ptr as *const u8)))
-        .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
+fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
+    if let Some(len) = GLOBAL_STORE.with_borrow_mut(|s| s.remove(&(ptr as *const u8))) {
+        let ptr = ptr as *mut u8;
+        Some(unsafe { std::vec::Vec::from_raw_parts(ptr, len as usize, len as usize) })
+    } else {
+        None
+    }
 }
 
 /* memory functions ------------------------------------------- */
@@ -154,4 +157,46 @@ mod tests {
     //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
     //         alloc(isize::MAX as usize);
     //     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{alloc, into_bytes};
+    use crate::memory::GLOBAL_STORE;
+
+    #[test]
+    fn data_allocation() {
+        let len = 1024;
+        let ptr = alloc(len);
+        let vec = vec![1; len];
+        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
+        let val = into_bytes(ptr as i64).unwrap();
+        assert_eq!(val, vec);
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+    }
+
+    #[test]
+    fn invalid_data() {
+        let len = 1024;
+        let ptr = alloc(len);
+        let vec = vec![1; len];
+        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
+        unsafe { *ptr.offset(2) = 2 }
+        let val = into_bytes(ptr as i64).unwrap();
+        assert_ne!(val, vec);
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+    }
+
+    #[test]
+    #[should_panic]
+    fn zero_allocation_panics() {
+        alloc(0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn big_allocation_fails() {
+        // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
+        alloc(isize::MAX as usize + 1);
+    }
 }
