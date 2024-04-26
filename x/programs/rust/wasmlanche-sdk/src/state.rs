@@ -164,11 +164,11 @@ macro_rules! call_host_fn {
     }};
 
     ($mod:literal, ($caller:ident, $key:ident)) => {
-        todo!()
+        // TODO
     };
 
     ($mod:literal, ($caller:ident, $key:ident, $value:ident)) => {
-        todo!()
+        // TODO
     };
 }
 
