@@ -48,9 +48,6 @@ type Genesis struct {
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
 	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
 	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
 	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
@@ -81,10 +78,7 @@ func Default() *Genesis {
 		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Compute Parameters
-		BaseComputeUnits:          1,
-		BaseWarpComputeUnits:      1_024,
-		WarpComputeUnitsPerSigner: 128,
-		OutgoingWarpComputeUnits:  1_024,
+		BaseComputeUnits: 1,
 
 		// Tx Fee Storage Parameters
 		//
@@ -139,7 +133,6 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		[]byte(consts.Name),
 		supply,
 		codec.EmptyAddress,
-		false,
 	)
 }
 

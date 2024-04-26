@@ -185,8 +185,8 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]program.SmartPtr, error) {
-	var args []program.SmartPtr
+func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]uint32, error) {
+	var args []uint32
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
@@ -201,11 +201,7 @@ func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]pr
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := program.NewSmartPtr(ptr, int(length))
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, argPtr)
+		args = append(args, ptr)
 	}
 
 	return args, nil

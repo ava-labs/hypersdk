@@ -200,7 +200,6 @@ type StatefulBlock struct {
 	Txs []*Transaction `json:"txs"`
 
 	StateRoot   ids.ID     `json:"stateRoot"`
-	WarpResults set.Bits64 `json:"warpResults"`
 }
 ```
 
@@ -276,9 +275,6 @@ GetWindowTargetUnits() Dimensions
 GetMaxBlockUnits() Dimensions
 
 GetBaseComputeUnits() uint64
-GetBaseWarpComputeUnits() uint64
-GetWarpComputeUnitsPerSigner() uint64
-GetOutgoingWarpComputeUnits() uint64
 
 GetStorageKeyReadUnits() uint64
 GetStorageValueReadUnits() uint64 // per chunk
@@ -296,9 +292,6 @@ WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_
 MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 BaseComputeUnits:          1,
-BaseWarpComputeUnits:      1_024,
-WarpComputeUnitsPerSigner: 128,
-OutgoingWarpComputeUnits:  1_024,
 
 StorageKeyReadUnits:       5,
 StorageValueReadUnits:     2,
@@ -398,36 +391,6 @@ mempool more performant (as we no longer need to maintain multiple transactions
 for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
-
-### Avalanche Warp Messaging Support
-`hypersdk` provides support for Avalanche Warp Messaging (AWM) out-of-the-box. AWM enables any
-Avalanche Subnet to send arbitrary messages to any other Avalanche Subnet in just a few
-seconds (or less) without relying on a trusted relayer or bridge (just the validators of the Subnet sending the message).
-You can learn more about AWM and how it works
-[here](https://docs.google.com/presentation/d/1eV4IGMB7qNV7Fc4hp7NplWxK_1cFycwCMhjrcnsE9mU/edit).
-
-<p align="center">
-  <img width="90%" alt="warp" src="assets/warp.png">
-</p>
-
-AWM is a primitive provided by the Avalanche Network used to verify that
-a particular [BLS Multi-Signatures](https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
-is valid and signed by some % of the stake weight of a particular Avalanche
-Subnet (typically the Subnet where the message originated). Specifying when an
-Avalanche Custom VM produces a Warp Message for signing, defining the format
-of Warp Messages sent between Subnets, implementing some mechanism to gather
-individual signatures from validators (to aggregate into a BLS
-Multi-Signature) over this user-defined message, articulating how an imported
-Warp Message from another Subnet is handled on a destination (if the
-destination chooses to even accept the message), and enabling retries in the
-case that a message is dropped or the BLS Multi-Signature expires are just a few of the items
-left to the implementer.
-
-The `hypersdk` handles all of the above items for you except for defining when
-you should emit a Warp Message to send to another Subnet (i.e. what an export looks like on-chain),
-what this Warp Message should look like (i.e. what do you want to send to another Subnet), and
-what you should do if you receive a Warp Message (i.e. mint assets if you
-receive an import).
 
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
@@ -630,8 +593,8 @@ You can view what this looks like in the `tokenvm` by clicking this
 
 #### Registry
 ```golang
-ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
-AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
+ActionRegistry *codec.TypeParser[Action, bool]
+AuthRegistry   *codec.TypeParser[Auth, bool]
 ```
 
 The `ActionRegistry` and `AuthRegistry` inform the `hypersdk` how to
@@ -702,12 +665,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		txID ids.ID,
-		warpVerified bool,
-	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
-
-	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
-	// of any warp message is [MaxOutgoingWarpChunks].
-	OutputsWarpMessage() bool
+	) (success bool, computeUnits uint64, output []byte, err error)
 }
 ```
 
@@ -727,16 +685,13 @@ type Result struct {
 
 	Consumed Dimensions
 	Fee      uint64
-
-	WarpMessage *warp.UnsignedMessage
 }
 ```
 
 `Actions` emit a `Result` at the end of their execution. This `Result`
 indicates if the execution was a `Success` (if not, all effects are rolled
 back), how many `Units` were used (failed execution may not use all units an
-`Action` requested), an `Output` (arbitrary bytes specific to the `hypervm`),
-and optionally a `WarpMessage` (which Subnet Validators will sign).
+`Action` requested), an `Output` (arbitrary bytes specific to the `hypervm`).
 
 ### Auth
 ```golang
@@ -795,9 +750,6 @@ type Rules interface {
 	GetMaxBlockUnits() Dimensions
 
 	GetBaseComputeUnits() uint64
-	GetBaseWarpComputeUnits() uint64
-	GetWarpComputeUnitsPerSigner() uint64
-	GetOutgoingWarpComputeUnits() uint64
 
 	// Invariants:
 	// * Controllers must manage the max key length and max value length (max network
@@ -819,8 +771,6 @@ type Rules interface {
 	GetStorageKeyWriteUnits() uint64
 	GetStorageValueWriteUnits() uint64 // per chunk
 
-	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-
 	FetchCustom(string) (any, bool)
 }
 ```
@@ -835,79 +785,6 @@ You can view what this looks like in the `indexvm` by clicking
 [here](https://github.com/ava-labs/indexvm/blob/main/genesis/rules.go). In the
 case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
-
-### Avalanche Warp Messaging
-To add AWM support to a `hypervm`, an implementer first specifies whether a
-particular `Action`/`Auth` item expects a `*warp.Message` when registering
-them with their corresponding registry (`false` if no expected and `true` if
-so):
-```golang
-ActionRegistry.Register(&actions.Transfer{}, actions.UnmarshalTransfer, false)
-ActionRegistry.Register(&actions.ImportAsset{}, actions.UnmarshalImportAsset, true)
-```
-
-You can view what this looks like in the `tokenvm` by clicking
-[here](./examples/tokenvm/controller/registry.go). The `hypersdk` uses this
-boolean to enforce the existence/non-existence of a `*warp.Message` on the
-`chain.Transaction` that wraps the `Action` (marking a block as invalid if there is
-something unexpected).
-
-`Actions` can use the provided `*warp.Message` in their registered unmarshaler
-(in this case, the provided `*warp.Message` is parsed into a format specified
-by the `tokenvm`):
-```golang
-func UnmarshalImportAsset(p *codec.Packer, wm *warp.Message) (chain.Action, error) {
-	var (
-		imp ImportAsset
-		err error
-	)
-	imp.Fill = p.UnpackBool()
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	imp.warpMessage = wm
-	imp.warpTransfer, err = UnmarshalWarpTransfer(imp.warpMessage.Payload)
-	if err != nil {
-		return nil, err
-	}
-	// Ensure we can fill the swap if it exists
-	if imp.Fill && imp.warpTransfer.SwapIn == 0 {
-		return nil, ErrNoSwapToFill
-	}
-	return &imp, nil
-}
-```
-
-This `WarpTransfer` object looks like:
-```golang
-type WarpTransfer struct {
-	To    crypto.PublicKey `json:"to"`
-	Asset ids.ID           `json:"asset"`
-	Value uint64           `json:"value"`
-
-	// Return is set to true when a warp message is sending funds back to the
-	// chain where they were created.
-	Return bool `json:"return"`
-
-	// Reward is the amount of [Asset] to send the [Actor] that submits this
-	// transaction.
-	Reward uint64 `json:"reward"`
-
-	// SwapIn is the amount of [Asset] we are willing to swap for [AssetOut].
-	SwapIn uint64 `json:"swapIn"`
-	// AssetOut is the asset we are seeking to get for [SwapIn].
-	AssetOut ids.ID `json:"assetOut"`
-	// SwapOut is the amount of [AssetOut] we are seeking.
-	SwapOut uint64 `json:"swapOut"`
-	// SwapExpiry is the unix timestamp at which the swap becomes invalid (and
-	// the message can be processed without a swap.
-	SwapExpiry int64 `json:"swapExpiry"`
-
-	// TxID is the transaction that created this message. This is used to ensure
-	// there is WarpID uniqueness.
-	TxID ids.ID `json:"txID"`
-}
-```
 
 You can view what the import `Action` associated with the above examples looks like
 [here](./examples/tokenvm/actions/import_asset.go)

@@ -4,15 +4,11 @@
 package rpc
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -120,84 +116,5 @@ func (j *JSONRPCServer) UnitPrices(
 		return err
 	}
 	reply.UnitPrices = unitPrices
-	return nil
-}
-
-type GetWarpSignaturesArgs struct {
-	TxID ids.ID `json:"txID"`
-}
-
-type WarpValidator struct {
-	NodeID    ids.NodeID `json:"nodeID"`
-	PublicKey []byte     `json:"publicKey"`
-	Weight    uint64     `json:"weight"`
-}
-
-type GetWarpSignaturesReply struct {
-	Validators []*WarpValidator       `json:"validators"`
-	Message    *warp.UnsignedMessage  `json:"message"`
-	Signatures []*chain.WarpSignature `json:"signatures"`
-}
-
-func (j *JSONRPCServer) GetWarpSignatures(
-	req *http.Request,
-	args *GetWarpSignaturesArgs,
-	reply *GetWarpSignaturesReply,
-) error {
-	_, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetWarpSignatures")
-	defer span.End()
-
-	message, err := j.vm.GetOutgoingWarpMessage(args.TxID)
-	if err != nil {
-		return err
-	}
-	if message == nil {
-		return ErrMessageMissing
-	}
-
-	signatures, err := j.vm.GetWarpSignatures(args.TxID)
-	if err != nil {
-		return err
-	}
-
-	// Ensure we only return valid signatures
-	validSignatures := []*chain.WarpSignature{}
-	warpValidators := []*WarpValidator{}
-	validators, publicKeys := j.vm.CurrentValidators(req.Context())
-	for _, sig := range signatures {
-		if _, ok := publicKeys[string(sig.PublicKey)]; !ok {
-			continue
-		}
-		validSignatures = append(validSignatures, sig)
-	}
-	for _, vdr := range validators {
-		wv := &WarpValidator{
-			NodeID: vdr.NodeID,
-			Weight: vdr.Weight,
-		}
-		if vdr.PublicKey != nil {
-			wv.PublicKey = bls.PublicKeyToBytes(vdr.PublicKey)
-		}
-		warpValidators = append(warpValidators, wv)
-	}
-
-	// Optimistically request that we gather signatures if we don't have all of them
-	if len(validSignatures) < len(publicKeys) {
-		j.vm.Logger().Info(
-			"fetching missing signatures",
-			zap.Stringer("txID", args.TxID),
-			zap.Int(
-				"previously collected",
-				len(signatures),
-			),
-			zap.Int("valid", len(validSignatures)),
-			zap.Int("current public key count", len(publicKeys)),
-		)
-		j.vm.GatherSignatures(context.TODO(), args.TxID, message.Bytes())
-	}
-
-	reply.Message = message
-	reply.Validators = warpValidators
-	reply.Signatures = validSignatures
 	return nil
 }
