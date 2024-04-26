@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/near/borsh-go"
@@ -22,7 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
@@ -77,9 +78,13 @@ func (t *ProgramExecute) Execute(
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil
 	}
-	programBytes, err := storage.GetProgram(ctx, mu, programID)
+	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
+	if !exists {
+		err = errors.New("unknown program")
+		return false, 1, utils.ErrBytes(err), err
+	}
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, utils.ErrBytes(err), err
 	}
 
 	// TODO: get cfg from genesis

@@ -203,7 +203,7 @@ mod tests {
         );
     }
 
-    #[ignore = "external function calls are broken"]
+    // #[ignore = "external function calls are broken"]
     #[test]
     fn external_call() {
         let simulator = simulator::Client::new();
@@ -252,6 +252,15 @@ mod tests {
             params: vec![counter2_id.into(), bob_key.clone()],
             require: None,
         });
+        plan.add_step(Step {
+            endpoint: Endpoint::ReadOnly,
+            method: "get_value".into(),
+            max_units: 0,
+            params: vec![counter2_id.into(), bob_key.clone()],
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(0),
+            }),
+        });
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
@@ -269,9 +278,14 @@ mod tests {
 
         plan.add_step(Step {
             endpoint: Endpoint::ReadOnly,
-            method: "get_value".into(),
+            method: "get_value_external".into(),
             max_units: 0,
-            params: vec![counter2_id.into(), bob_key.clone()],
+            params: vec![
+                counter1_id.into(),
+                Param::Program(counter2_id),
+                1000000.into(),
+                bob_key.clone(),
+            ],
             require: Some(Require {
                 result: ResultAssertion::NumericEq(10),
             }),
