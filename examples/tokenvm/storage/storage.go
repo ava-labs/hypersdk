@@ -131,12 +131,12 @@ func GetTransaction(
 }
 
 // [accountPrefix] + [address] + [asset]
-func BalanceKey(addr codec.Address, asset ids.ID) (k []byte) {
+func BalanceKey(addr codec.Address, asset codec.ActionID) (k []byte) {
 	k = balanceKeyPool.Get().([]byte)
 	k[0] = balancePrefix
 	copy(k[1:], addr[:])
 	copy(k[1+codec.AddressLen:], asset[:])
-	binary.BigEndian.PutUint16(k[1+codec.AddressLen+consts.IDLen:], BalanceChunks)
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen*2:], BalanceChunks)
 	return
 }
 
@@ -145,7 +145,7 @@ func GetBalance(
 	ctx context.Context,
 	im state.Immutable,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 ) (uint64, error) {
 	key, bal, _, err := getBalance(ctx, im, addr, asset)
 	balanceKeyPool.Put(key)
@@ -156,7 +156,7 @@ func getBalance(
 	ctx context.Context,
 	im state.Immutable,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 ) ([]byte, uint64, bool, error) {
 	k := BalanceKey(addr, asset)
 	bal, exists, err := innerGetBalance(im.GetValue(ctx, k))
@@ -168,7 +168,7 @@ func GetBalanceFromState(
 	ctx context.Context,
 	f ReadState,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 ) (uint64, error) {
 	k := BalanceKey(addr, asset)
 	values, errs := f(ctx, [][]byte{k})
@@ -194,7 +194,7 @@ func SetBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 	balance uint64,
 ) error {
 	k := BalanceKey(addr, asset)
@@ -214,7 +214,7 @@ func DeleteBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 ) error {
 	return mu.Remove(ctx, BalanceKey(addr, asset))
 }
@@ -223,7 +223,7 @@ func AddBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 	amount uint64,
 	create bool,
 ) error {
@@ -254,7 +254,7 @@ func SubBalance(
 	ctx context.Context,
 	mu state.Mutable,
 	addr codec.Address,
-	asset ids.ID,
+	asset codec.ActionID,
 	amount uint64,
 ) error {
 	key, bal, _, err := getBalance(ctx, mu, addr, asset)
@@ -281,11 +281,11 @@ func SubBalance(
 }
 
 // [assetPrefix] + [address]
-func AssetKey(asset ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
+func AssetKey(asset codec.ActionID) (k []byte) {
+	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = assetPrefix
 	copy(k[1:], asset[:])
-	binary.BigEndian.PutUint16(k[1+consts.IDLen:], AssetChunks)
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], AssetChunks)
 	return
 }
 
@@ -293,7 +293,7 @@ func AssetKey(asset ids.ID) (k []byte) {
 func GetAssetFromState(
 	ctx context.Context,
 	f ReadState,
-	asset ids.ID,
+	asset codec.ActionID,
 ) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	values, errs := f(ctx, [][]byte{AssetKey(asset)})
 	return innerGetAsset(values[0], errs[0])
@@ -302,7 +302,7 @@ func GetAssetFromState(
 func GetAsset(
 	ctx context.Context,
 	im state.Immutable,
-	asset ids.ID,
+	asset codec.ActionID,
 ) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	k := AssetKey(asset)
 	return innerGetAsset(im.GetValue(ctx, k))
@@ -332,7 +332,7 @@ func innerGetAsset(
 func SetAsset(
 	ctx context.Context,
 	mu state.Mutable,
-	asset ids.ID,
+	asset codec.ActionID,
 	symbol []byte,
 	decimals uint8,
 	metadata []byte,
@@ -353,51 +353,51 @@ func SetAsset(
 	return mu.Insert(ctx, k, v)
 }
 
-func DeleteAsset(ctx context.Context, mu state.Mutable, asset ids.ID) error {
+func DeleteAsset(ctx context.Context, mu state.Mutable, asset codec.ActionID) error {
 	k := AssetKey(asset)
 	return mu.Remove(ctx, k)
 }
 
-// [orderPrefix] + [txID]
-func OrderKey(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen+consts.Uint16Len)
+// [orderPrefix] + [actionID]
+func OrderKey(actionID codec.ActionID) (k []byte) {
+	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = orderPrefix
-	copy(k[1:], txID[:])
-	binary.BigEndian.PutUint16(k[1+consts.IDLen:], OrderChunks)
+	copy(k[1:], actionID[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], OrderChunks)
 	return
 }
 
 func SetOrder(
 	ctx context.Context,
 	mu state.Mutable,
-	txID ids.ID,
-	in ids.ID,
+	actionID codec.ActionID,
+	in codec.ActionID,
 	inTick uint64,
-	out ids.ID,
+	out codec.ActionID,
 	outTick uint64,
 	supply uint64,
 	owner codec.Address,
 ) error {
-	k := OrderKey(txID)
-	v := make([]byte, consts.IDLen*2+consts.Uint64Len*3+codec.AddressLen)
+	k := OrderKey(actionID)
+	v := make([]byte, codec.AddressLen*2+consts.Uint64Len*3+codec.AddressLen)
 	copy(v, in[:])
-	binary.BigEndian.PutUint64(v[consts.IDLen:], inTick)
-	copy(v[consts.IDLen+consts.Uint64Len:], out[:])
-	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len:], outTick)
-	binary.BigEndian.PutUint64(v[consts.IDLen*2+consts.Uint64Len*2:], supply)
-	copy(v[consts.IDLen*2+consts.Uint64Len*3:], owner[:])
+	binary.BigEndian.PutUint64(v[codec.AddressLen:], inTick)
+	copy(v[codec.AddressLen+consts.Uint64Len:], out[:])
+	binary.BigEndian.PutUint64(v[codec.AddressLen*2+consts.Uint64Len:], outTick)
+	binary.BigEndian.PutUint64(v[codec.AddressLen*2+consts.Uint64Len*2:], supply)
+	copy(v[codec.AddressLen*2+consts.Uint64Len*3:], owner[:])
 	return mu.Insert(ctx, k, v)
 }
 
 func GetOrder(
 	ctx context.Context,
 	im state.Immutable,
-	order ids.ID,
+	order codec.ActionID,
 ) (
 	bool, // exists
-	ids.ID, // in
+	codec.ActionID, // in
 	uint64, // inTick
-	ids.ID, // out
+	codec.ActionID, // out
 	uint64, // outTick
 	uint64, // remaining
 	codec.Address, // owner
@@ -412,12 +412,12 @@ func GetOrder(
 func GetOrderFromState(
 	ctx context.Context,
 	f ReadState,
-	order ids.ID,
+	order codec.ActionID,
 ) (
 	bool, // exists
-	ids.ID, // in
+	codec.ActionID, // in
 	uint64, // inTick
-	ids.ID, // out
+	codec.ActionID, // out
 	uint64, // outTick
 	uint64, // remaining
 	codec.Address, // owner
@@ -429,39 +429,39 @@ func GetOrderFromState(
 
 func innerGetOrder(v []byte, err error) (
 	bool, // exists
-	ids.ID, // in
+	codec.ActionID, // in
 	uint64, // inTick
-	ids.ID, // out
+	codec.ActionID, // out
 	uint64, // outTick
 	uint64, // remaining
 	codec.Address, // owner
 	error,
 ) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, codec.EmptyAddress, nil
+		return false, codec.EmptyAddress, 0, codec.EmptyAddress, 0, 0, codec.EmptyAddress, nil
 	}
 	if err != nil {
-		return false, ids.Empty, 0, ids.Empty, 0, 0, codec.EmptyAddress, err
+		return false, codec.EmptyAddress, 0, codec.EmptyAddress, 0, 0, codec.EmptyAddress, err
 	}
-	var in ids.ID
-	copy(in[:], v[:consts.IDLen])
-	inTick := binary.BigEndian.Uint64(v[consts.IDLen:])
-	var out ids.ID
-	copy(out[:], v[consts.IDLen+consts.Uint64Len:consts.IDLen*2+consts.Uint64Len])
-	outTick := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len:])
-	supply := binary.BigEndian.Uint64(v[consts.IDLen*2+consts.Uint64Len*2:])
+	var in codec.ActionID
+	copy(in[:], v[:codec.AddressLen])
+	inTick := binary.BigEndian.Uint64(v[codec.AddressLen:])
+	var out codec.ActionID
+	copy(out[:], v[codec.AddressLen+consts.Uint64Len:codec.AddressLen*2+consts.Uint64Len])
+	outTick := binary.BigEndian.Uint64(v[codec.AddressLen*2+consts.Uint64Len:])
+	supply := binary.BigEndian.Uint64(v[codec.AddressLen*2+consts.Uint64Len*2:])
 	var owner codec.Address
-	copy(owner[:], v[consts.IDLen*2+consts.Uint64Len*3:])
+	copy(owner[:], v[codec.AddressLen*2+consts.Uint64Len*3:])
 	return true, in, inTick, out, outTick, supply, owner, nil
 }
 
-func DeleteOrder(ctx context.Context, mu state.Mutable, order ids.ID) error {
+func DeleteOrder(ctx context.Context, mu state.Mutable, order codec.ActionID) error {
 	k := OrderKey(order)
 	return mu.Remove(ctx, k)
 }
 
 // [loanPrefix] + [asset] + [destination]
-func LoanKey(asset ids.ID, destination ids.ID) (k []byte) {
+func LoanKey(asset codec.ActionID, destination ids.ID) (k []byte) {
 	k = make([]byte, 1+consts.IDLen*2+consts.Uint16Len)
 	k[0] = loanPrefix
 	copy(k[1:], asset[:])
@@ -474,7 +474,7 @@ func LoanKey(asset ids.ID, destination ids.ID) (k []byte) {
 func GetLoanFromState(
 	ctx context.Context,
 	f ReadState,
-	asset ids.ID,
+	asset codec.ActionID,
 	destination ids.ID,
 ) (uint64, error) {
 	values, errs := f(ctx, [][]byte{LoanKey(asset, destination)})
@@ -494,7 +494,7 @@ func innerGetLoan(v []byte, err error) (uint64, error) {
 func GetLoan(
 	ctx context.Context,
 	im state.Immutable,
-	asset ids.ID,
+	asset codec.ActionID,
 	destination ids.ID,
 ) (uint64, error) {
 	k := LoanKey(asset, destination)
@@ -505,7 +505,7 @@ func GetLoan(
 func SetLoan(
 	ctx context.Context,
 	mu state.Mutable,
-	asset ids.ID,
+	asset codec.ActionID,
 	destination ids.ID,
 	amount uint64,
 ) error {
@@ -516,7 +516,7 @@ func SetLoan(
 func AddLoan(
 	ctx context.Context,
 	mu state.Mutable,
-	asset ids.ID,
+	asset codec.ActionID,
 	destination ids.ID,
 	amount uint64,
 ) error {
@@ -540,7 +540,7 @@ func AddLoan(
 func SubLoan(
 	ctx context.Context,
 	mu state.Mutable,
-	asset ids.ID,
+	asset codec.ActionID,
 	destination ids.ID,
 	amount uint64,
 ) error {

@@ -95,3 +95,7 @@ func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
+
+func (r *Rules) GetMaxActionsPerTx() int {
+	return r.g.MaxActionsPerTx
+}

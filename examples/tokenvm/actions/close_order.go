@@ -19,18 +19,22 @@ var _ chain.Action = (*CloseOrder)(nil)
 
 type CloseOrder struct {
 	// [Order] is the OrderID you wish to close.
-	Order ids.ID `json:"order"`
+	Order codec.ActionID `json:"order"`
 
 	// [Out] is the asset locked up in the order. We need to provide this to
 	// populate [StateKeys].
-	Out ids.ID `json:"out"`
+	Out codec.ActionID `json:"out"`
 }
 
 func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 
-func (c *CloseOrder) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (*CloseOrder) GetActionID(i uint8, txID ids.ID) codec.ActionID {
+	return codec.CreateActionID(i, txID)
+}
+
+func (c *CloseOrder) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
 	return state.Keys{
 		string(storage.OrderKey(c.Order)):        state.Read | state.Write,
 		string(storage.BalanceKey(actor, c.Out)): state.Read | state.Write,
@@ -47,7 +51,7 @@ func (c *CloseOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ ids.ID,
+	_ codec.ActionID,
 ) (bool, uint64, []byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
@@ -80,14 +84,14 @@ func (*CloseOrder) Size() int {
 }
 
 func (c *CloseOrder) Marshal(p *codec.Packer) {
-	p.PackID(c.Order)
-	p.PackID(c.Out)
+	p.PackActionID(c.Order)
+	p.PackActionID(c.Out)
 }
 
 func UnmarshalCloseOrder(p *codec.Packer) (chain.Action, error) {
 	var cl CloseOrder
-	p.UnpackID(true, &cl.Order)
-	p.UnpackID(false, &cl.Out) // empty ID is the native asset
+	p.UnpackActionID(true, &cl.Order)
+	p.UnpackActionID(false, &cl.Out) // empty ID is the native asset
 	return &cl, p.Err()
 }
 

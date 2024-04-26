@@ -21,7 +21,7 @@ var _ chain.Action = (*BurnAsset)(nil)
 
 type BurnAsset struct {
 	// Asset is the [TxID] that created the asset.
-	Asset ids.ID `json:"asset"`
+	Asset codec.ActionID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
@@ -31,7 +31,11 @@ func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
 }
 
-func (b *BurnAsset) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (*BurnAsset) GetActionID(i uint8, txID ids.ID) codec.ActionID {
+	return codec.CreateActionID(i, txID)
+}
+
+func (b *BurnAsset) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(b.Asset)):          state.Read | state.Write,
 		string(storage.BalanceKey(actor, b.Asset)): state.Read | state.Write,
@@ -48,7 +52,7 @@ func (b *BurnAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ ids.ID,
+	_ codec.ActionID,
 ) (bool, uint64, []byte, error) {
 	if b.Value == 0 {
 		return false, BurnComputeUnits, OutputValueZero, nil
@@ -82,13 +86,13 @@ func (*BurnAsset) Size() int {
 }
 
 func (b *BurnAsset) Marshal(p *codec.Packer) {
-	p.PackID(b.Asset)
+	p.PackActionID(b.Asset)
 	p.PackUint64(b.Value)
 }
 
 func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
 	var burn BurnAsset
-	p.UnpackID(false, &burn.Asset) // can burn native asset
+	p.UnpackActionID(false, &burn.Asset) // can burn native asset
 	burn.Value = p.UnpackUint64(true)
 	return &burn, p.Err()
 }

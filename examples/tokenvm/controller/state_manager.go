@@ -6,7 +6,6 @@ package controller
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -31,7 +30,7 @@ func (*StateManager) FeeKey() []byte {
 
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
-		string(storage.BalanceKey(addr, ids.Empty)): state.Read | state.Write,
+		string(storage.BalanceKey(addr, codec.EmptyAddress)): state.Read | state.Write,
 	}
 }
 
@@ -41,7 +40,7 @@ func (*StateManager) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, addr, ids.Empty)
+	bal, err := storage.GetBalance(ctx, im, addr, codec.EmptyAddress)
 	if err != nil {
 		return err
 	}
@@ -57,7 +56,7 @@ func (*StateManager) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, addr, ids.Empty, amount)
+	return storage.SubBalance(ctx, mu, addr, codec.EmptyAddress, amount)
 }
 
 func (*StateManager) Refund(
@@ -67,5 +66,5 @@ func (*StateManager) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, addr, ids.Empty, amount, false)
+	return storage.AddBalance(ctx, mu, addr, codec.EmptyAddress, amount, false)
 }

@@ -24,7 +24,7 @@ type MintAsset struct {
 	To codec.Address `json:"to"`
 
 	// Asset is the [TxID] that created the asset.
-	Asset ids.ID `json:"asset"`
+	Asset codec.ActionID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
@@ -34,7 +34,11 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (m *MintAsset) StateKeys(codec.Address, ids.ID) state.Keys {
+func (*MintAsset) GetActionID(i uint8, txID ids.ID) codec.ActionID {
+	return codec.CreateActionID(i, txID)
+}
+
+func (m *MintAsset) StateKeys(codec.Address, codec.ActionID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(m.Asset)):         state.Read | state.Write,
 		string(storage.BalanceKey(m.To, m.Asset)): state.All,
@@ -51,9 +55,9 @@ func (m *MintAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ ids.ID,
+	_ codec.ActionID,
 ) (bool, uint64, []byte, error) {
-	if m.Asset == ids.Empty {
+	if m.Asset == codec.EmptyAddress {
 		return false, MintAssetComputeUnits, OutputAssetIsNative, nil
 	}
 	if m.Value == 0 {
@@ -92,14 +96,14 @@ func (*MintAsset) Size() int {
 
 func (m *MintAsset) Marshal(p *codec.Packer) {
 	p.PackAddress(m.To)
-	p.PackID(m.Asset)
+	p.PackActionID(m.Asset)
 	p.PackUint64(m.Value)
 }
 
 func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
 	var mint MintAsset
 	p.UnpackAddress(&mint.To)
-	p.UnpackID(true, &mint.Asset) // empty ID is the native asset
+	p.UnpackActionID(true, &mint.Asset) // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()
 }

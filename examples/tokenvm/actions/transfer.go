@@ -22,7 +22,7 @@ type Transfer struct {
 	To codec.Address `json:"to"`
 
 	// Asset to transfer to [To].
-	Asset ids.ID `json:"asset"`
+	Asset codec.ActionID `json:"asset"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
@@ -35,7 +35,11 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (*Transfer) GetActionID(i uint8, txID ids.ID) codec.ActionID {
+	return codec.CreateActionID(i, txID)
+}
+
+func (t *Transfer) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, t.Asset)): state.Read | state.Write,
 		string(storage.BalanceKey(t.To, t.Asset)):  state.All,
@@ -52,7 +56,7 @@ func (t *Transfer) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ ids.ID,
+	_ codec.ActionID,
 ) (bool, uint64, []byte, error) {
 	if t.Value == 0 {
 		return false, TransferComputeUnits, OutputValueZero, nil
@@ -80,7 +84,7 @@ func (t *Transfer) Size() int {
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackAddress(t.To)
-	p.PackID(t.Asset)
+	p.PackActionID(t.Asset)
 	p.PackUint64(t.Value)
 	p.PackBytes(t.Memo)
 }
@@ -88,7 +92,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To)
-	p.UnpackID(false, &transfer.Asset) // empty ID is the native asset
+	p.UnpackActionID(false, &transfer.Asset) // empty ID is the native asset
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()

@@ -18,18 +18,18 @@ type Controller interface {
 	Genesis() *genesis.Genesis
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
-	GetAssetFromState(context.Context, ids.ID) (bool, []byte, uint8, []byte, uint64, codec.Address, error)
-	GetBalanceFromState(context.Context, codec.Address, ids.ID) (uint64, error)
+	GetAssetFromState(context.Context, codec.ActionID) (bool, []byte, uint8, []byte, uint64, codec.Address, error)
+	GetBalanceFromState(context.Context, codec.Address, codec.ActionID) (uint64, error)
 	Orders(pair string, limit int) []*orderbook.Order
-	GetOrderFromState(context.Context, ids.ID) (
+	GetOrderFromState(context.Context, codec.ActionID) (
 		bool, // exists
-		ids.ID, // in
+		codec.ActionID, // in
 		uint64, // inTick
-		ids.ID, // out
+		codec.ActionID, // out
 		uint64, // outTick
 		uint64, // remaining
 		codec.Address, // owner
 		error,
 	)
-	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
+	GetLoanFromState(context.Context, codec.ActionID, ids.ID) (uint64, error)
 }

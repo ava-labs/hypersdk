@@ -87,3 +87,11 @@ func CreateActionID(idx uint8, txID ids.ID) ActionID {
 	copy(a[1:], txID[:])
 	return ActionID(a)
 }
+
+func ActionToString(hrp string, a ActionID) string {
+	addr, err := AddressBech32(hrp, Address(a))
+	if err != nil {
+		panic(err)
+	}
+	return addr
+}

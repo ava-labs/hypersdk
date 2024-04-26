@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -20,7 +21,7 @@ var _ chain.Action = (*CreateOrder)(nil)
 
 type CreateOrder struct {
 	// [In] is the asset you trade for [Out].
-	In ids.ID `json:"in"`
+	In codec.ActionID `json:"in"`
 
 	// [InTick] is the amount of [In] required to purchase
 	// [OutTick] of [Out].
@@ -29,7 +30,7 @@ type CreateOrder struct {
 	// [Out] is the asset you receive when trading for [In].
 	//
 	// This is the asset that is actually provided by the creator.
-	Out ids.ID `json:"out"`
+	Out codec.ActionID `json:"out"`
 
 	// [OutTick] is the amount of [Out] the counterparty gets per [InTick] of
 	// [In].
@@ -50,10 +51,14 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
+func (*CreateOrder) GetActionID(i uint8, txID ids.ID) codec.ActionID {
+	return codec.CreateActionID(i, txID)
+}
+
+func (c *CreateOrder) StateKeys(actor codec.Address, actionID codec.ActionID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, c.Out)): state.Read | state.Write,
-		string(storage.OrderKey(txID)):           state.Allocate | state.Write,
+		string(storage.OrderKey(actionID)):       state.Allocate | state.Write,
 	}
 }
 
@@ -67,7 +72,7 @@ func (c *CreateOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	txID ids.ID,
+	actionID codec.ActionID,
 ) (bool, uint64, []byte, error) {
 	if c.In == c.Out {
 		return false, CreateOrderComputeUnits, OutputSameInOut, nil
@@ -87,7 +92,7 @@ func (c *CreateOrder) Execute(
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil
 	}
-	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
+	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
 		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil
 	}
 	return true, CreateOrderComputeUnits, nil, nil
@@ -102,18 +107,18 @@ func (*CreateOrder) Size() int {
 }
 
 func (c *CreateOrder) Marshal(p *codec.Packer) {
-	p.PackID(c.In)
+	p.PackActionID(c.In)
 	p.PackUint64(c.InTick)
-	p.PackID(c.Out)
+	p.PackActionID(c.Out)
 	p.PackUint64(c.OutTick)
 	p.PackUint64(c.Supply)
 }
 
 func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	var create CreateOrder
-	p.UnpackID(false, &create.In) // empty ID is the native asset
+	p.UnpackActionID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)
-	p.UnpackID(false, &create.Out) // empty ID is the native asset
+	p.UnpackActionID(false, &create.Out) // empty ID is the native asset
 	create.OutTick = p.UnpackUint64(true)
 	create.Supply = p.UnpackUint64(true)
 	return &create, p.Err()
@@ -124,6 +129,6 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func PairID(in ids.ID, out ids.ID) string {
-	return fmt.Sprintf("%s-%s", in.String(), out.String())
+func PairID(in codec.ActionID, out codec.ActionID) string {
+	return fmt.Sprintf("%s-%s", codec.ActionToString(tconsts.HRP, in), codec.ActionToString(tconsts.HRP, out))
 }

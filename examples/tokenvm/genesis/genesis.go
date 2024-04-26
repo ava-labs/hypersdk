@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -55,6 +54,9 @@ type Genesis struct {
 	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
 	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
 
+	// Action Per Tx
+	MaxActionsPerTx int `json:"maxActionsPerTx"`
+
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -89,6 +91,9 @@ func Default() *Genesis {
 		StorageValueAllocateUnits: 5,
 		StorageKeyWriteUnits:      10,
 		StorageValueWriteUnits:    3,
+
+		// Action Per Tx
+		MaxActionsPerTx: 1,
 	}
 }
 
@@ -120,14 +125,14 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, mu, pk, ids.Empty, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, codec.EmptyAddress, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
 	return storage.SetAsset(
 		ctx,
 		mu,
-		ids.Empty,
+		codec.EmptyAddress,
 		[]byte(consts.Symbol),
 		consts.Decimals,
 		[]byte(consts.Name),
