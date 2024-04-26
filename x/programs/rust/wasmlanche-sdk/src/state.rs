@@ -111,7 +111,7 @@ where
                 return Err(Error::Read);
             }
 
-            // Wrap in OK for now, change from_raw_ptr to return Result
+            // TODO Wrap in OK for now, change from_raw_ptr to return Result
             let bytes = from_host_ptr(val_ptr)?;
             self.cache.entry(key).or_insert(bytes)
         };
