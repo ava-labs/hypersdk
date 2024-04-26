@@ -21,6 +21,8 @@ const (
 	maxBech32Size = 90
 )
 
+type ActionID Address
+
 type Address [AddressLen]byte
 
 var EmptyAddress = [AddressLen]byte{}
@@ -77,4 +79,11 @@ func ParseAddressBech32(hrp, saddr string) (Address, error) {
 		return EmptyAddress, ErrInsufficientLength
 	}
 	return Address(p[:AddressLen]), nil
+}
+
+func CreateActionID(idx uint8, txID ids.ID) ActionID {
+	a := make([]byte, AddressLen)
+	a[0] = idx
+	copy(a[1:], txID[:])
+	return ActionID(a)
 }

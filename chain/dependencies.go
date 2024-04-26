@@ -221,7 +221,7 @@ type Action interface {
 
 	// GetActionID returns the ActionID for an [Action] in a [Transaction]. There may be
 	// multiple [Action]s, so we pass its index in the [Action] array along with the txID.
-	GetActionID(i uint8, txID ids.ID) codec.Address
+	GetActionID(i uint8, txID ids.ID) codec.ActionID
 
 	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
 	// used to determine whether the [Action] can be included in a given block and to compute
@@ -244,7 +244,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, actionID codec.Address) state.Keys
+	StateKeys(actor codec.Address, actionID codec.ActionID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
@@ -260,7 +260,7 @@ type Action interface {
 		mu state.Mutable,
 		timestamp int64,
 		actor codec.Address,
-		actionID codec.Address,
+		actionID codec.ActionID,
 	) (success bool, computeUnits uint64, output []byte, err error)
 }
 
