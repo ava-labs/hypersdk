@@ -21,7 +21,7 @@ var _ chain.Action = (*CreateOrder)(nil)
 
 type CreateOrder struct {
 	// [In] is the asset you trade for [Out].
-	In codec.ActionID `json:"in"`
+	In codec.LID `json:"in"`
 
 	// [InTick] is the amount of [In] required to purchase
 	// [OutTick] of [Out].
@@ -30,7 +30,7 @@ type CreateOrder struct {
 	// [Out] is the asset you receive when trading for [In].
 	//
 	// This is the asset that is actually provided by the creator.
-	Out codec.ActionID `json:"out"`
+	Out codec.LID `json:"out"`
 
 	// [OutTick] is the amount of [Out] the counterparty gets per [InTick] of
 	// [In].
@@ -51,11 +51,11 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (*CreateOrder) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*CreateOrder) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (c *CreateOrder) StateKeys(actor codec.Address, actionID codec.ActionID) state.Keys {
+func (c *CreateOrder) StateKeys(actor codec.Address, actionID codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, c.Out)): state.Read | state.Write,
 		string(storage.OrderKey(actionID)):       state.Allocate | state.Write,
@@ -72,7 +72,7 @@ func (c *CreateOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID codec.ActionID,
+	actionID codec.LID,
 ) (bool, uint64, []byte, error) {
 	if c.In == c.Out {
 		return false, CreateOrderComputeUnits, OutputSameInOut, nil
@@ -129,6 +129,6 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func PairID(in codec.ActionID, out codec.ActionID) string {
-	return fmt.Sprintf("%s-%s", codec.ActionToString(tconsts.HRP, in), codec.ActionToString(tconsts.HRP, out))
+func PairID(in codec.LID, out codec.LID) string {
+	return fmt.Sprintf("%s-%s", codec.LIDToString(tconsts.HRP, in), codec.LIDToString(tconsts.HRP, out))
 }

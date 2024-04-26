@@ -22,7 +22,7 @@ type Transfer struct {
 	To codec.Address `json:"to"`
 
 	// Asset to transfer to [To].
-	Asset codec.ActionID `json:"asset"`
+	Asset codec.LID `json:"asset"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
@@ -35,11 +35,11 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (*Transfer) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*Transfer) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
+func (t *Transfer) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, t.Asset)): state.Read | state.Write,
 		string(storage.BalanceKey(t.To, t.Asset)):  state.All,
@@ -56,7 +56,7 @@ func (t *Transfer) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.ActionID,
+	_ codec.LID,
 ) (bool, uint64, []byte, error) {
 	if t.Value == 0 {
 		return false, TransferComputeUnits, OutputValueZero, nil

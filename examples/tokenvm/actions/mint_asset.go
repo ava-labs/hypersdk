@@ -24,7 +24,7 @@ type MintAsset struct {
 	To codec.Address `json:"to"`
 
 	// Asset is the [TxID] that created the asset.
-	Asset codec.ActionID `json:"asset"`
+	Asset codec.LID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
@@ -34,11 +34,11 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (*MintAsset) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*MintAsset) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (m *MintAsset) StateKeys(codec.Address, codec.ActionID) state.Keys {
+func (m *MintAsset) StateKeys(codec.Address, codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(m.Asset)):         state.Read | state.Write,
 		string(storage.BalanceKey(m.To, m.Asset)): state.All,
@@ -55,7 +55,7 @@ func (m *MintAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.ActionID,
+	_ codec.LID,
 ) (bool, uint64, []byte, error) {
 	if m.Asset == codec.EmptyAddress {
 		return false, MintAssetComputeUnits, OutputAssetIsNative, nil

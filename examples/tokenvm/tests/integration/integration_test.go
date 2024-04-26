@@ -104,15 +104,15 @@ var (
 	asset1         []byte
 	asset1Symbol   []byte
 	asset1Decimals uint8
-	asset1ID       codec.ActionID
+	asset1ID       codec.LID
 	asset2         []byte
 	asset2Symbol   []byte
 	asset2Decimals uint8
-	asset2ID       codec.ActionID
+	asset2ID       codec.LID
 	asset3         []byte
 	asset3Symbol   []byte
 	asset3Decimals uint8
-	asset3ID       codec.ActionID
+	asset3ID       codec.LID
 
 	// when used with embedded VMs
 	genesisBytes []byte
@@ -647,7 +647,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Actions[0].(*actions.Transfer)
-		gomega.Ω(tx.Asset).To(gomega.Equal(codec.ActionID{}))
+		gomega.Ω(tx.Asset).To(gomega.Equal(codec.LID{}))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
 		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
@@ -772,7 +772,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("mint an asset that doesn't exist", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		assetID := codec.CreateActionID(0, ids.GenerateTestID())
+		assetID := codec.CreateLID(0, ids.GenerateTestID())
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
@@ -910,7 +910,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		asset1ID = codec.CreateActionID(0, tx.ID())
+		asset1ID = codec.CreateLID(0, tx.ID())
 		balance, err := instances[0].tcli.Balance(context.TODO(), sender, asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
@@ -1186,7 +1186,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		results := accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-		asset2ID = codec.CreateActionID(0, tx.ID())
+		asset2ID = codec.CreateLID(0, tx.ID())
 
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
@@ -1229,7 +1229,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		results := accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-		asset3ID = codec.CreateActionID(0, tx.ID())
+		asset3ID = codec.CreateLID(0, tx.ID())
 
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
@@ -1283,7 +1283,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateActionID(0, tx.ID())))
+		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender))
@@ -1346,7 +1346,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateActionID(0, tx.ID())))
+		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(4)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender2))
@@ -1590,7 +1590,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateActionID(0, tx.ID())))
+		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender))

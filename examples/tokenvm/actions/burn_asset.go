@@ -21,7 +21,7 @@ var _ chain.Action = (*BurnAsset)(nil)
 
 type BurnAsset struct {
 	// Asset is the [TxID] that created the asset.
-	Asset codec.ActionID `json:"asset"`
+	Asset codec.LID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
@@ -31,11 +31,11 @@ func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
 }
 
-func (*BurnAsset) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*BurnAsset) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (b *BurnAsset) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
+func (b *BurnAsset) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(b.Asset)):          state.Read | state.Write,
 		string(storage.BalanceKey(actor, b.Asset)): state.Read | state.Write,
@@ -52,7 +52,7 @@ func (b *BurnAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.ActionID,
+	_ codec.LID,
 ) (bool, uint64, []byte, error) {
 	if b.Value == 0 {
 		return false, BurnComputeUnits, OutputValueZero, nil

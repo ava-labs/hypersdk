@@ -27,11 +27,11 @@ func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
-func (*CreateAsset) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*CreateAsset) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (*CreateAsset) StateKeys(_ codec.Address, actionID codec.ActionID) state.Keys {
+func (*CreateAsset) StateKeys(_ codec.Address, actionID codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(actionID)): state.Allocate | state.Write,
 	}
@@ -47,7 +47,7 @@ func (c *CreateAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID codec.ActionID,
+	actionID codec.LID,
 ) (bool, uint64, []byte, error) {
 	if len(c.Symbol) == 0 {
 		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil

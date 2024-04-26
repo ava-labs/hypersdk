@@ -21,7 +21,7 @@ var _ chain.Action = (*FillOrder)(nil)
 
 type FillOrder struct {
 	// [Order] is the OrderID you wish to close.
-	Order codec.ActionID `json:"order"`
+	Order codec.LID `json:"order"`
 
 	// [Owner] is the owner of the order and the recipient of the trade
 	// proceeds.
@@ -29,11 +29,11 @@ type FillOrder struct {
 
 	// [In] is the asset that will be sent to the owner from the fill. We need to provide this to
 	// populate [StateKeys].
-	In codec.ActionID `json:"in"`
+	In codec.LID `json:"in"`
 
 	// [Out] is the asset that will be received from the fill. We need to provide this to
 	// populate [StateKeys].
-	Out codec.ActionID `json:"out"`
+	Out codec.LID `json:"out"`
 
 	// [Value] is the max amount of [In] that will be swapped for [Out].
 	Value uint64 `json:"value"`
@@ -43,11 +43,11 @@ func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
-func (*FillOrder) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*FillOrder) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (f *FillOrder) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
+func (f *FillOrder) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.OrderKey(f.Order)):         state.Read | state.Write,
 		string(storage.BalanceKey(f.Owner, f.In)): state.All,
@@ -66,7 +66,7 @@ func (f *FillOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.ActionID,
+	_ codec.LID,
 ) (bool, uint64, []byte, error) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {

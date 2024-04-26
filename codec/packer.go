@@ -81,14 +81,14 @@ func (p *Packer) UnpackAddress(dest *Address) {
 	}
 }
 
-func (p *Packer) PackActionID(a ActionID) {
+func (p *Packer) PackActionID(a LID) {
 	p.p.PackFixedBytes(a[:])
 }
 
-func (p *Packer) UnpackActionID(required bool, dest *ActionID) {
+func (p *Packer) UnpackActionID(required bool, dest *LID) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
 	if required && *dest == EmptyAddress {
-		p.addErr(fmt.Errorf("%w: ActionID field is not populated", ErrFieldNotPopulated))
+		p.addErr(fmt.Errorf("%w: LID field is not populated", ErrFieldNotPopulated))
 	}
 }
 

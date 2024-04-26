@@ -186,29 +186,29 @@ func TestUnit64HeapHasID(t *testing.T) {
 
 func TestUnit64HeapPushPopMinForActionID(t *testing.T) {
 	require := require.New(t)
-	minHeap := New[codec.ActionID, *testItem[codec.ActionID], uint64](0, true)
+	minHeap := New[codec.LID, *testItem[codec.LID], uint64](0, true)
 	require.Zero(minHeap.Len(), "heap not initialized properly.")
 	txID := ids.GenerateTestID()
-	mempoolItem1 := &testItem[codec.ActionID]{codec.CreateActionID(0, txID), 10}
-	mempoolItem2 := &testItem[codec.ActionID]{codec.CreateActionID(1, txID), 7}
-	mempoolItem3 := &testItem[codec.ActionID]{codec.CreateActionID(2, txID), 15}
+	mempoolItem1 := &testItem[codec.LID]{codec.CreateLID(0, txID), 10}
+	mempoolItem2 := &testItem[codec.LID]{codec.CreateLID(1, txID), 7}
+	mempoolItem3 := &testItem[codec.LID]{codec.CreateLID(2, txID), 15}
 
 	// Middle UnitPrice
-	med := &Entry[codec.ActionID, *testItem[codec.ActionID], uint64]{
+	med := &Entry[codec.LID, *testItem[codec.LID], uint64]{
 		ID:    mempoolItem1.id,
 		Item:  mempoolItem1,
 		Val:   mempoolItem1.value,
 		Index: minHeap.Len(),
 	}
 	// Lesser UnitPrice
-	low := &Entry[codec.ActionID, *testItem[codec.ActionID], uint64]{
+	low := &Entry[codec.LID, *testItem[codec.LID], uint64]{
 		ID:    mempoolItem2.id,
 		Item:  mempoolItem2,
 		Val:   mempoolItem2.value,
 		Index: minHeap.Len(),
 	}
 	// Greatest UnitPrice
-	high := &Entry[codec.ActionID, *testItem[codec.ActionID], uint64]{
+	high := &Entry[codec.LID, *testItem[codec.LID], uint64]{
 		ID:    mempoolItem3.id,
 		Item:  mempoolItem3,
 		Val:   mempoolItem3.value,

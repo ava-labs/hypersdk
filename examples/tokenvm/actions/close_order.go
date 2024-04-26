@@ -19,22 +19,22 @@ var _ chain.Action = (*CloseOrder)(nil)
 
 type CloseOrder struct {
 	// [Order] is the OrderID you wish to close.
-	Order codec.ActionID `json:"order"`
+	Order codec.LID `json:"order"`
 
 	// [Out] is the asset locked up in the order. We need to provide this to
 	// populate [StateKeys].
-	Out codec.ActionID `json:"out"`
+	Out codec.LID `json:"out"`
 }
 
 func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
 }
 
-func (*CloseOrder) GetActionID(i uint8, txID ids.ID) codec.ActionID {
-	return codec.CreateActionID(i, txID)
+func (*CloseOrder) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
-func (c *CloseOrder) StateKeys(actor codec.Address, _ codec.ActionID) state.Keys {
+func (c *CloseOrder) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{
 		string(storage.OrderKey(c.Order)):        state.Read | state.Write,
 		string(storage.BalanceKey(actor, c.Out)): state.Read | state.Write,
@@ -51,7 +51,7 @@ func (c *CloseOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.ActionID,
+	_ codec.LID,
 ) (bool, uint64, []byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
