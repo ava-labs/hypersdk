@@ -48,28 +48,28 @@ func (c *CreateAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (bool, uint64, []byte, error) {
+) (bool, uint64, [][]byte, error) {
 	if len(c.Symbol) == 0 {
-		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil
+		return false, CreateAssetComputeUnits, [][]byte{OutputSymbolEmpty}, nil
 	}
 	if len(c.Symbol) > MaxSymbolSize {
-		return false, CreateAssetComputeUnits, OutputSymbolTooLarge, nil
+		return false, CreateAssetComputeUnits, [][]byte{OutputSymbolTooLarge}, nil
 	}
 	if c.Decimals > MaxDecimals {
-		return false, CreateAssetComputeUnits, OutputDecimalsTooLarge, nil
+		return false, CreateAssetComputeUnits, [][]byte{OutputDecimalsTooLarge}, nil
 	}
 	if len(c.Metadata) == 0 {
-		return false, CreateAssetComputeUnits, OutputMetadataEmpty, nil
+		return false, CreateAssetComputeUnits, [][]byte{OutputMetadataEmpty}, nil
 	}
 	if len(c.Metadata) > MaxMetadataSize {
-		return false, CreateAssetComputeUnits, OutputMetadataTooLarge, nil
+		return false, CreateAssetComputeUnits, [][]byte{OutputMetadataTooLarge}, nil
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
 	if err := storage.SetAsset(ctx, mu, actionID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
-		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil
+		return false, CreateAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
-	return true, CreateAssetComputeUnits, nil, nil
+	return true, CreateAssetComputeUnits, [][]byte{{}}, nil
 }
 
 func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {

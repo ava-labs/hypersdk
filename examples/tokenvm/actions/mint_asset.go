@@ -56,34 +56,34 @@ func (m *MintAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, []byte, error) {
+) (bool, uint64, [][]byte, error) {
 	if m.Asset == codec.EmptyAddress {
-		return false, MintAssetComputeUnits, OutputAssetIsNative, nil
+		return false, MintAssetComputeUnits, [][]byte{OutputAssetIsNative}, nil
 	}
 	if m.Value == 0 {
-		return false, MintAssetComputeUnits, OutputValueZero, nil
+		return false, MintAssetComputeUnits, [][]byte{OutputValueZero}, nil
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	if !exists {
-		return false, MintAssetComputeUnits, OutputAssetMissing, nil
+		return false, MintAssetComputeUnits, [][]byte{OutputAssetMissing}, nil
 	}
 	if owner != actor {
-		return false, MintAssetComputeUnits, OutputWrongOwner, nil
+		return false, MintAssetComputeUnits, [][]byte{OutputWrongOwner}, nil
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor); err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
-	return true, MintAssetComputeUnits, nil, nil
+	return true, MintAssetComputeUnits, [][]byte{{}}, nil
 }
 
 func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {

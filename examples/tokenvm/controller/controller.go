@@ -194,16 +194,19 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					c.orderBook.Add(action.GetActionID(uint8(i), tx.ID()), tx.Auth.Actor(), action)
 				case *actions.FillOrder:
 					c.metrics.fillOrder.Inc()
-					orderResult, err := actions.UnmarshalOrderResult(result.Output)
-					if err != nil {
-						// This should never happen
-						return err
+					outputs := result.Outputs[i]
+					for _, output := range outputs {
+						orderResult, err := actions.UnmarshalOrderResult(output)
+						if err != nil {
+							// This should never happen
+							return err
+						}
+						if orderResult.Remaining == 0 {
+							c.orderBook.Remove(action.Order)
+							continue
+						}
+						c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
 					}
-					if orderResult.Remaining == 0 {
-						c.orderBook.Remove(action.Order)
-						continue
-					}
-					c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
 				case *actions.CloseOrder:
 					c.metrics.closeOrder.Inc()
 					c.orderBook.Remove(action.Order)

@@ -73,29 +73,29 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (bool, uint64, []byte, error) {
+) (bool, uint64, [][]byte, error) {
 	if c.In == c.Out {
-		return false, CreateOrderComputeUnits, OutputSameInOut, nil
+		return false, CreateOrderComputeUnits, [][]byte{OutputSameInOut}, nil
 	}
 	if c.InTick == 0 {
-		return false, CreateOrderComputeUnits, OutputInTickZero, nil
+		return false, CreateOrderComputeUnits, [][]byte{OutputInTickZero}, nil
 	}
 	if c.OutTick == 0 {
-		return false, CreateOrderComputeUnits, OutputOutTickZero, nil
+		return false, CreateOrderComputeUnits, [][]byte{OutputOutTickZero}, nil
 	}
 	if c.Supply == 0 {
-		return false, CreateOrderComputeUnits, OutputSupplyZero, nil
+		return false, CreateOrderComputeUnits, [][]byte{OutputSupplyZero}, nil
 	}
 	if c.Supply%c.OutTick != 0 {
-		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil
+		return false, CreateOrderComputeUnits, [][]byte{OutputSupplyMisaligned}, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
-		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil
+		return false, CreateOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil
+		return false, CreateOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
-	return true, CreateOrderComputeUnits, nil, nil
+	return true, CreateOrderComputeUnits, [][]byte{{}}, nil
 }
 
 func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {

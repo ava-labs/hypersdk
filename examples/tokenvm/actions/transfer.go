@@ -57,21 +57,21 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, []byte, error) {
+) (bool, uint64, [][]byte, error) {
 	if t.Value == 0 {
-		return false, TransferComputeUnits, OutputValueZero, nil
+		return false, TransferComputeUnits, [][]byte{OutputValueZero}, nil
 	}
 	if len(t.Memo) > MaxMemoSize {
-		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil
+		return false, CreateAssetComputeUnits, [][]byte{OutputMemoTooLarge}, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
-		return false, TransferComputeUnits, utils.ErrBytes(err), nil
+		return false, TransferComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	// TODO: allow sender to configure whether they will pay to create
 	if err := storage.AddBalance(ctx, mu, t.To, t.Asset, t.Value, true); err != nil {
-		return false, TransferComputeUnits, utils.ErrBytes(err), nil
+		return false, TransferComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
-	return true, TransferComputeUnits, nil, nil
+	return true, TransferComputeUnits, [][]byte{{}}, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {

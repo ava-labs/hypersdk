@@ -422,7 +422,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Output).Should(gomega.BeNil())
+			gomega.Ω(len(results[0].Outputs[0])).To(gomega.Equal(1))
 
 			// Unit explanation
 			//
@@ -792,7 +792,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("asset missing"))
 
 		exists, _, _, _, _, _, err := instances[0].tcli.Asset(context.TODO(), assetID, false)
@@ -984,7 +984,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("wrong owner"))
 
 		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
@@ -1052,7 +1052,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("invalid balance"))
 
 		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
@@ -1116,7 +1116,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("overflow"))
 
 		balance, err := instances[0].tcli.Balance(context.TODO(), sender2, asset1ID)
@@ -1312,7 +1312,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("supply is misaligned"))
 	})
 
@@ -1375,7 +1375,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("invalid balance"))
 	})
 
@@ -1407,7 +1407,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("value is misaligned"))
 	})
 
@@ -1439,7 +1439,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("invalid balance"))
 	})
 
@@ -1471,7 +1471,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
-		or, err := actions.UnmarshalOrderResult(result.Output)
+		or, err := actions.UnmarshalOrderResult(result.Outputs[0][0])
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(or.In).Should(gomega.Equal(uint64(4)))
 		gomega.Ω(or.Out).Should(gomega.Equal(uint64(1)))
@@ -1514,7 +1514,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).
+		gomega.Ω(string(result.Outputs[0][0])).
 			Should(gomega.ContainSubstring("unauthorized"))
 	})
 
@@ -1625,7 +1625,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
 		gomega.Ω(result.Success).Should(gomega.BeTrue())
-		or, err := actions.UnmarshalOrderResult(result.Output)
+		or, err := actions.UnmarshalOrderResult(result.Outputs[0][0])
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(or.In).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(or.Out).Should(gomega.Equal(uint64(1)))

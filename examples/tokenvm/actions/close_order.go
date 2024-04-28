@@ -52,27 +52,27 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, []byte, error) {
+) (bool, uint64, [][]byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
-		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil
+		return false, CloseOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	if !exists {
-		return false, CloseOrderComputeUnits, OutputOrderMissing, nil
+		return false, CloseOrderComputeUnits, [][]byte{OutputOrderMissing}, nil
 	}
 	if owner != actor {
-		return false, CloseOrderComputeUnits, OutputUnauthorized, nil
+		return false, CloseOrderComputeUnits, [][]byte{OutputUnauthorized}, nil
 	}
 	if out != c.Out {
-		return false, CloseOrderComputeUnits, OutputWrongOut, nil
+		return false, CloseOrderComputeUnits, [][]byte{OutputWrongOut}, nil
 	}
 	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
-		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil
+		return false, CloseOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
-		return false, CloseOrderComputeUnits, utils.ErrBytes(err), nil
+		return false, CloseOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
 	}
-	return true, CloseOrderComputeUnits, nil, nil
+	return true, CloseOrderComputeUnits, [][]byte{{}}, nil
 }
 
 func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {

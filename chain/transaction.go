@@ -324,6 +324,7 @@ func (t *Transaction) Execute(
 	resultOutputs := [][][]byte{}
 	totalUsed := fees.Dimensions{}
 	var totalFeeRequired uint64
+	txSuccess := true
 	for i, action := range t.Actions {
 		actionID := action.GetActionID(uint8(i), t.id)
 		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
@@ -337,6 +338,7 @@ func (t *Transaction) Execute(
 		}
 		resultOutputs = append(resultOutputs, outputs)
 		if !success {
+			txSuccess = false
 			ts.Rollback(ctx, actionStart)
 		}
 
@@ -427,7 +429,7 @@ func (t *Transaction) Execute(
 		}
 	}
 	return &Result{
-		Success: true,
+		Success: txSuccess,
 		Outputs: resultOutputs,
 
 		Consumed: totalUsed,
