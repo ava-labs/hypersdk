@@ -294,7 +294,7 @@ func (t *Transaction) Execute(
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
-) ([]*Result, error) {
+) (*Result, error) {
 	// Always charge fee first (in case [Action] moves funds)
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
@@ -314,25 +314,28 @@ func (t *Transaction) Execute(
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
 	actionStart := ts.OpIndex()
-	handleRevert := func(rerr error) ([]*Result, error) {
+	handleRevert := func(rerr error) (*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
 		ts.Rollback(ctx, actionStart)
-		return []*Result{{false, utils.ErrBytes(rerr), maxUnits, maxFee}}, nil
+		return &Result{false, [][][]byte{{utils.ErrBytes(rerr)}}, maxUnits, maxFee}, nil
 	}
-	results := make([]*Result, 0)
+	resultOutputs := [][][]byte{}
+	totalUsed := fees.Dimensions{}
+	var totalFeeRequired uint64
 	for i, action := range t.Actions {
 		actionID := action.GetActionID(uint8(i), t.id)
-		success, actionCUs, output, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
+		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if err != nil {
 			return handleRevert(err)
 		}
-		if len(output) == 0 && output != nil {
+		if len(outputs) == 0 && outputs != nil {
 			// Enforce object standardization (this is a VM bug and we should fail
 			// fast)
 			return handleRevert(ErrInvalidObject)
 		}
+		resultOutputs = append(resultOutputs, outputs)
 		if !success {
 			ts.Rollback(ctx, actionStart)
 		}
@@ -392,6 +395,11 @@ func (t *Transaction) Execute(
 			return handleRevert(err)
 		}
 		used := fees.Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
+		nused, err := fees.Add(totalUsed, used)
+		if err != nil {
+			return handleRevert(err)
+		}
+		totalUsed = nused
 
 		// Check to see if the units consumed are greater than the max units
 		//
@@ -408,6 +416,7 @@ func (t *Transaction) Execute(
 		if err != nil {
 			return handleRevert(err)
 		}
+		totalFeeRequired += feeRequired
 		refund := maxFee - feeRequired
 		if refund > 0 {
 			ts.DisableAllocation()
@@ -416,16 +425,14 @@ func (t *Transaction) Execute(
 				return handleRevert(err)
 			}
 		}
-
-		results = append(results, &Result{
-			Success: success,
-			Output:  output,
-
-			Consumed: used,
-			Fee:      feeRequired,
-		})
 	}
-	return results, nil
+	return &Result{
+		Success: true,
+		Outputs: resultOutputs,
+
+		Consumed: totalUsed,
+		Fee:      totalFeeRequired,
+	}, nil
 }
 
 func (t *Transaction) Marshal(p *codec.Packer) error {

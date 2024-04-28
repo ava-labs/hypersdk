@@ -11,19 +11,37 @@ import (
 
 type Result struct {
 	Success bool
-	Output  []byte
+	Outputs [][][]byte
 
 	Consumed fees.Dimensions
 	Fee      uint64
 }
 
 func (r *Result) Size() int {
-	return consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
+	outputSize := consts.IntLen
+	for _, action := range r.Outputs {
+		for _, output := range action {
+			outputSize += codec.BytesLen(output)
+		}
+	}
+	return consts.BoolLen + outputSize + fees.DimensionsLen + consts.Uint64Len
 }
 
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
-	p.PackBytes(r.Output)
+
+	numOutputs := 0
+	for _, action := range r.Outputs {
+		numOutputs += len(action)
+	}
+	p.PackInt(len(r.Outputs))
+	p.PackInt(numOutputs)
+	for _, action := range r.Outputs {
+		for _, output := range action {
+			p.PackBytes(output)
+		}
+	}
+
 	p.PackFixedBytes(r.Consumed.Bytes())
 	p.PackUint64(r.Fee)
 	return nil
@@ -45,10 +63,23 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
-	p.UnpackBytes(consts.MaxInt, false, &result.Output)
-	if len(result.Output) == 0 {
+
+	totalOutputs := [][][]byte{}
+	numActions := p.UnpackInt(false)
+	numOutputs := p.UnpackInt(false)
+	for i := 0; i < numActions; i++ {
+		outputs := [][]byte{}
+		for j := 0; j < numOutputs; j++ {
+			var output []byte
+			p.UnpackBytes(consts.MaxInt, false, &output)
+			outputs = append(outputs, output)
+		}
+		totalOutputs = append(totalOutputs, outputs)
+	}
+	result.Outputs = totalOutputs
+	if len(result.Outputs) == 0 {
 		// Enforce object standardization
-		result.Output = nil
+		result.Outputs = nil
 	}
 	consumedRaw := make([]byte, fees.DimensionsLen)
 	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)

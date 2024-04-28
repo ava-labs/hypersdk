@@ -38,15 +38,15 @@ func (b *StatelessBlock) Execute(
 		numTxs = len(b.Txs)
 		t      = b.GetTimestamp()
 
-		f  = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
-		e  = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
-		ts = tstate.New(numTxs * 2) // TODO: tune this heuristic
-		// TODO: specify len?
-		results = []*Result{}
+		f       = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
+		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
+		ts      = tstate.New(numTxs * 2) // TODO: tune this heuristic
+		results = make([]*Result, numTxs)
 	)
 
 	// Fetch required keys and execute transactions
-	for _, ltx := range b.Txs {
+	for li, ltx := range b.Txs {
+		i := li
 		tx := ltx
 
 		stateKeys, err := tx.StateKeys(sm)
@@ -79,18 +79,16 @@ func (b *StatelessBlock) Execute(
 				return err
 			}
 
-			txResults, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}
-			results = append(results, txResults...)
+			results[i] = result
 
-			for _, result := range txResults {
-				// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
-				// exit with an error based on which tx over the limit is processed first)
-				if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
-					return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
-				}
+			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
+			// exit with an error based on which tx over the limit is processed first)
+			if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
+				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
 
 			// Commit results to parent [TState]

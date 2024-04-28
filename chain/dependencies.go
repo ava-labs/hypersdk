@@ -254,6 +254,8 @@ type Action interface {
 	//
 	// An error should only be returned if a fatal error was encountered, otherwise [success] should
 	// be marked as false and fees will still be charged.
+	//
+	// TODO: Consider limiting number of outputs an [Action] can have
 	Execute(
 		ctx context.Context,
 		r Rules,
@@ -261,7 +263,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID codec.LID,
-	) (success bool, computeUnits uint64, output []byte, err error)
+	) (success bool, computeUnits uint64, outputs [][]byte, err error)
 }
 
 type Auth interface {
