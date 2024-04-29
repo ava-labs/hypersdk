@@ -60,7 +60,6 @@ pub struct CPointer(pub *const u8, pub usize);
 
 #[link(wasm_import_module = "program")]
 extern "C" {
-    // TODO return a CPointer
     #[link_name = "call_program"]
     fn _call_program(target_id: CPointer, function: CPointer, args_ptr: CPointer, max_units: i64) -> i64;
 }
