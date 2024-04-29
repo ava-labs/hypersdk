@@ -71,3 +71,4 @@ Cargo.lock
 
 x/programs/cmd/simulator/simulator
 *.code-workspace
+x/programs/cmd/simulator/simulator
