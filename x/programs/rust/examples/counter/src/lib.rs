@@ -267,7 +267,7 @@ mod tests {
             max_units: 100000000,
             params: vec![
                 counter1_id.into(),
-                Param::Program(counter2_id),
+                counter2_id.into(),
                 1000000.into(),
                 bob_key.clone(),
                 10.into(),
@@ -281,7 +281,7 @@ mod tests {
             max_units: 0,
             params: vec![
                 counter1_id.into(),
-                Param::Program(counter2_id),
+                counter2_id.into(),
                 1000000.into(),
                 bob_key.clone(),
             ],

@@ -274,34 +274,30 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
-		case "program":
-			idStr, ok := param.Value.(string)
+		case "program", String, ID:
+			stepIdStr, ok := param.Value.(string)
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
-			if !strings.HasPrefix(idStr, "step_") {
-				return nil, fmt.Errorf("unsupported program format: %s", idStr)
+			if strings.HasPrefix(stepIdStr, "step_") {
+				programIdStr, ok := c.programIDStrMap[stepIdStr]
+				if !ok {
+					return nil, fmt.Errorf("failed to map to id: %s", stepIdStr)
+				}
+				programId, err := ids.FromString(programIdStr)
+				if err != nil {
+					return nil, err
+				}
+				cp = append(cp, actions.CallParam{Value: programId})
+			} else {
+				programId, err := ids.FromString(stepIdStr)
+				if err == nil {
+					cp = append(cp, actions.CallParam{Value: programId})
+				} else {
+					// this is a path to the wasm program
+					cp = append(cp, actions.CallParam{Value: stepIdStr})
+				}
 			}
-			stepID, ok := c.programIDStrMap[idStr]
-			if !ok {
-				return nil, fmt.Errorf("failed to map to id: %s", idStr)
-			}
-			idStr = stepID
-			val, err := ids.FromString(stepID)
-			if err != nil {
-				return nil, err
-			}
-			cp = append(cp, actions.CallParam{Value: val})
-		case String, ID:
-			val, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			val, err := c.verifyProgramIDStr(val)
-			if err != nil {
-				return nil, err
-			}
-			cp = append(cp, actions.CallParam{Value: val})
 		case Bool:
 			val, ok := param.Value.(bool)
 			if !ok {
@@ -358,8 +354,11 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 func (c *runCmd) verifyProgramIDStr(idStr string) (string, error) {
 	// if the id is valid
 	_, err := ids.FromString(idStr)
+	// myId, err := ids.FromString(idStr)
 	if err == nil {
 		return idStr, nil
+		//return myId, nil
+
 	}
 
 	// check if the id is a synthetic identifier
