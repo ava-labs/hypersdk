@@ -14,11 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
-<<<<<<< HEAD
-	"github.com/ava-labs/avalanchego/utils/units"
-=======
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
->>>>>>> 0804930f (make root generation a function)
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -43,8 +38,7 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	Txs     []*Transaction `json:"txs"`
-	TxsRoot []byte         `json:"txsRoot"`
+	Txs []*Transaction `json:"txs"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -251,22 +245,6 @@ func (b *StatelessBlock) initializeBuilt(
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
 	}
-
-	// transaction hash generation
-	var merkleItems [][]byte
-	for _, tx := range b.Txs {
-		merkleItems = append(merkleItems, tx.Bytes())
-	}
-	for _, result := range b.results {
-		merkleItems = append(merkleItems, result.Output)
-	}
-
-	root, _, err := utils.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems)
-	if err != nil {
-		return err
-	}
-	b.TxsRoot = root
-
 	return nil
 }
 

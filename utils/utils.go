@@ -4,7 +4,6 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"net"
@@ -14,16 +13,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/perms"
 	"github.com/onsi/ginkgo/v2/formatter"
 
-	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -123,6 +117,7 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 	}
 	return bytes, nil
 }
+<<<<<<< HEAD
 
 // Generate merkle root for a set of items
 // this function does not take ownership of given bytes array
@@ -164,3 +159,5 @@ func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems []
 
 	return root[:], db, nil
 }
+=======
+>>>>>>> b31136f4 (move root generation func to merkle package, tx root by items of [txID + result])
