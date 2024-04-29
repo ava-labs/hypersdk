@@ -1,5 +1,8 @@
+use std::hash::Hash;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use crate::state::Key;
 use crate::{memory::to_host_ptr, state::Error as StateError, state::State, Params};
 
 /// Represents the current Program in the context of the caller. Or an external
@@ -25,7 +28,10 @@ impl Program {
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
-    pub fn state(&self) -> State {
+    pub fn state<K>(&self) -> State<K>
+    where
+        K: Into<Key> + Hash + PartialEq + Eq + Clone,
+    {
         State::new(Program::new(*self.id()))
     }
 
