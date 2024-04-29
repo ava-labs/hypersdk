@@ -202,14 +202,6 @@ macro_rules! call_host_fn {
 
         unsafe { ffi($caller, $key, $value) }
     }};
-
-    ($mod:literal, ($caller:ident, $key:ident)) => {
-        // TODO
-    };
-
-    ($mod:literal, ($caller:ident, $key:ident, $value:ident)) => {
-        // TODO
-    };
 }
 
 mod host {
