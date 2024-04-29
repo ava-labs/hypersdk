@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -38,7 +41,8 @@ type StatefulBlock struct {
 	Tmstmp int64  `json:"timestamp"`
 	Hght   uint64 `json:"height"`
 
-	Txs []*Transaction `json:"txs"`
+	Txs     []*Transaction `json:"txs"`
+	TxsRoot []byte         `json:"txsRoot"`
 
 	// StateRoot is the root of the post-execution state
 	// of [Prnt].
@@ -245,6 +249,46 @@ func (b *StatelessBlock) initializeBuilt(
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
 	}
+
+	// transaction hash generation
+	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
+		BranchFactor:              merkledb.BranchFactor16,
+		HistoryLength:             100,
+		EvictionBatchSize:         units.MiB,
+		IntermediateNodeCacheSize: units.MiB,
+		ValueNodeCacheSize:        units.MiB,
+		Tracer:                    b.vm.Tracer(),
+	})
+	if err != nil {
+		return err
+	}
+	// collect keys, values from transactions/results
+	var ops []database.BatchOp
+	for _, tx := range b.Txs {
+		key := utils.ToID(tx.Bytes())
+		ops = append(ops, database.BatchOp{
+			Key:   key[:],
+			Value: tx.Bytes(),
+		})
+	}
+	for _, result := range b.results {
+		key := utils.ToID(result.Output)
+		ops = append(ops, database.BatchOp{
+			Key:   key[:],
+			Value: result.Output,
+		})
+	}
+	view, err = db.NewView(ctx, merkledb.ViewChanges{BatchOps: ops})
+	if err != nil {
+		return err
+	}
+	view.CommitToDB(ctx)
+	txsRoot, err := db.GetMerkleRoot(ctx)
+	if err != nil {
+		return err
+	}
+	b.TxsRoot = txsRoot[:]
+
 	return nil
 }
 
