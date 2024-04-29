@@ -79,7 +79,7 @@ func (t *ProgramExecute) Execute(
 		err = errors.New("unknown program")
 	}
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: get cfg from genesis
