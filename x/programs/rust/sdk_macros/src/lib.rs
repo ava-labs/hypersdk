@@ -7,7 +7,7 @@ use syn::{
     PatType, Path, Type, Visibility,
 };
 
-const CONEXT_TYPE: &str = "wasmlanche_sdk::Context";
+const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
@@ -43,19 +43,19 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 Some(FnArg::Typed(PatType { ty, .. })) => {
                     syn::Error::new(
                         ty.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONEXT_TYPE}`"),
+                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
                     )
                 }
                 Some(_) => {
                     syn::Error::new(
                         arg.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONEXT_TYPE}`"),
+                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
                     )
                 }
                 None => {
                     syn::Error::new(
                         input.sig.paren_token.span.join(),
-                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONEXT_TYPE}`"),
+                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
                     )
                 }
             };
@@ -127,7 +127,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
-    let context_type: Path = parse_str(CONEXT_TYPE).unwrap();
+    let context_type: Path = parse_str(CONTEXT_TYPE).unwrap();
     let output = quote! {
         // Need to include the original function in the output, so contract can call itself
         #input
@@ -220,7 +220,7 @@ fn generate_to_vec(
 /// Returns whether the type_path represents a Program type.
 fn is_context(type_path: &std::boxed::Box<Type>) -> bool {
     if let Type::Path(type_path) = type_path.as_ref() {
-        type_path.path.segments.last() == parse_str::<Path>(CONEXT_TYPE).unwrap().segments.last()
+        type_path.path.segments.last() == parse_str::<Path>(CONTEXT_TYPE).unwrap().segments.last()
     } else {
         false
     }
