@@ -157,34 +157,67 @@ impl Key {
     }
 }
 
+macro_rules! ffi_linker {
+    ($mod:literal, $link:literal, $caller:ident, $key:ident) => {
+        #[link(wasm_import_module = $mod)]
+        extern "C" {
+            #[link_name = $link]
+            fn ffi(caller: i64, key: i64) -> i64;
+        }
+
+        let $caller = to_host_ptr($caller.id())?;
+        let $key = to_host_ptr($key)?;
+    };
+    ($mod:literal, $link:literal, $caller:ident, $key:ident, $value:ident) => {
+        #[link(wasm_import_module = $mod)]
+        extern "C" {
+            #[link_name = $link]
+            fn ffi(caller: i64, key: i64, value: i64) -> i64;
+        }
+
+        let $caller = to_host_ptr($caller.id())?;
+        let $key = to_host_ptr($key)?;
+        let value_bytes = borsh::to_vec($value).map_err(|_| Error::Serialization)?;
+        let $value = to_host_ptr(&value_bytes)?;
+    };
+}
+
+macro_rules! call_host_fn {
+    (
+        wasm_import_module = $mod:literal
+        link_name = $link:literal
+        args = ($caller:ident, $key:ident)
+    ) => {{
+        ffi_linker!($mod, $link, $caller, $key);
+
+        unsafe { ffi($caller, $key) }
+    }};
+
+    (
+        wasm_import_module = $mod:literal
+        link_name = $link:literal
+        args = ($caller:ident, $key:ident, $value:ident)
+    ) => {{
+        ffi_linker!($mod, $link, $caller, $key, $value);
+
+        unsafe { ffi($caller, $key, $value) }
+    }};
+}
+
 mod host {
     use super::{BorshSerialize, Key, Program};
     use crate::{memory::to_host_ptr, state::Error};
-
-    #[link(wasm_import_module = "state")]
-    extern "C" {
-        #[link_name = "put"]
-        fn _put(caller: i64, key: i64, value: i64) -> i64;
-
-        #[link_name = "get"]
-        fn _get(caller: i64, key: i64) -> i64;
-
-        #[link_name = "delete"]
-        fn _delete(caller: i64, key: i64) -> i64;
-    }
 
     /// Persists the bytes at `value` at key on the host storage.
     pub(super) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), Error>
     where
         V: BorshSerialize,
     {
-        let value_bytes = borsh::to_vec(value).map_err(|_| Error::Serialization)?;
-        // prepend length to both key & value
-        let caller = to_host_ptr(caller.id())?;
-        let value = to_host_ptr(&value_bytes)?;
-        let key = to_host_ptr(key)?;
-
-        match unsafe { _put(caller, key, value) } {
+        match call_host_fn! {
+            wasm_import_module = "state"
+            link_name = "put"
+            args = (caller, key, value)
+        } {
             0 => Ok(()),
             _ => Err(Error::Write),
         }
@@ -192,17 +225,20 @@ mod host {
 
     /// Gets the bytes associated with the key from the host.
     pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, Error> {
-        // prepend length to key
-        let caller = to_host_ptr(caller.id())?;
-        let key = to_host_ptr(key)?;
-        Ok(unsafe { _get(caller, key) })
+        Ok(call_host_fn! {
+            wasm_import_module = "state"
+                link_name = "get"
+                args = (caller, key)
+        })
     }
 
     /// Deletes the bytes at key ptr from the host storage
     pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        let caller = to_host_ptr(caller.id())?;
-        let key = to_host_ptr(key)?;
-        match unsafe { _delete(caller, key) } {
+        match call_host_fn! {
+            wasm_import_module = "state"
+            link_name = "delete"
+            args = (caller, key)
+        } {
             0 => Ok(()),
             _ => Err(Error::Delete),
         }
