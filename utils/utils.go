@@ -117,3 +117,47 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 	}
 	return bytes, nil
 }
+<<<<<<< HEAD
+=======
+
+// Generate merkle root for a set of items
+// this function does not take ownership of given bytes array
+func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems [][]byte, consumeBytes bool) ([]byte, merkledb.MerkleDB, error) {
+	batchOps := make([]database.BatchOp, 0, len(merkleItems))
+
+	for _, item := range merkleItems {
+		key := ToID(item)
+		batchOps = append(batchOps, database.BatchOp{
+			Key:   key[:],
+			Value: item,
+		})
+	}
+
+	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
+		BranchFactor:              merkledb.BranchFactor16,
+		HistoryLength:             100,
+		EvictionBatchSize:         units.MiB,
+		IntermediateNodeCacheSize: units.MiB,
+		ValueNodeCacheSize:        units.MiB,
+		Tracer:                    tracer,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	view, err := db.NewView(ctx, merkledb.ViewChanges{BatchOps: batchOps, ConsumeBytes: consumeBytes})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := view.CommitToDB(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	root, err := db.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return root[:], db, nil
+}
+>>>>>>> eb41d9a7 (preallocate memory for merkle array and consumebytes flag)

@@ -245,6 +245,26 @@ func (b *StatelessBlock) initializeBuilt(
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
 	}
+<<<<<<< HEAD
+=======
+
+	// transaction hash generation
+	merkleItems := make([][]byte, 0, len(b.Txs)+len(b.results))
+	for _, tx := range b.Txs {
+		merkleItems = append(merkleItems, tx.Bytes())
+	}
+	for _, result := range b.results {
+		merkleItems = append(merkleItems, result.Output)
+	}
+
+	// consume bytes to avoid extra copying
+	root, _, err := utils.GenerateMerkleRoot(ctx, b.vm.Tracer(), merkleItems, true)
+	if err != nil {
+		return err
+	}
+	b.TxsRoot = root
+
+>>>>>>> eb41d9a7 (preallocate memory for merkle array and consumebytes flag)
 	return nil
 }
 
