@@ -18,7 +18,7 @@ type testItem struct {
 func TestUnit64HeapPushPopMin(t *testing.T) {
 	require := require.New(t)
 	minHeap := New[*testItem, uint64](0, true)
-	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
+	require.Zero(minHeap.Len(), "heap not initialized properly.")
 	mempoolItem1 := &testItem{ids.GenerateTestID(), 10}
 	mempoolItem2 := &testItem{ids.GenerateTestID(), 7}
 	mempoolItem3 := &testItem{ids.GenerateTestID(), 15}
@@ -48,7 +48,7 @@ func TestUnit64HeapPushPopMin(t *testing.T) {
 	minHeap.Push(low)
 	minHeap.Push(high)
 	// Added all three
-	require.Equal(minHeap.Len(), 3, "Not pushed correctly.")
+	require.Equal(3, minHeap.Len(), "Not pushed correctly.")
 	// Check if added to lookup table
 	ok := minHeap.Has(med.ID)
 	require.True(ok, "Item not found in lookup.")
@@ -68,7 +68,7 @@ func TestUnit64HeapPushPopMin(t *testing.T) {
 func TestUnit64HeapPushPopMax(t *testing.T) {
 	require := require.New(t)
 	maxHeap := New[*testItem, uint64](0, false)
-	require.Equal(maxHeap.Len(), 0, "heap not initialized properly.")
+	require.Zero(maxHeap.Len(), "heap not initialized properly.")
 
 	mempoolItem1 := &testItem{ids.GenerateTestID(), 10}
 	mempoolItem2 := &testItem{ids.GenerateTestID(), 7}
@@ -99,7 +99,7 @@ func TestUnit64HeapPushPopMax(t *testing.T) {
 	maxHeap.Push(low)
 	maxHeap.Push(high)
 	// Added all three
-	require.Equal(maxHeap.Len(), 3, "Not pushed correctly.")
+	require.Equal(3, maxHeap.Len(), "Not pushed correctly.")
 	// Check if added to lookup table
 	ok := maxHeap.Has(med.ID)
 	require.True(ok, "Item not found in lookup.")
@@ -120,7 +120,7 @@ func TestUnit64HeapPushExists(t *testing.T) {
 	// Push an item already in heap
 	require := require.New(t)
 	minHeap := New[*testItem, uint64](0, true)
-	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
+	require.Zero(minHeap.Len(), "heap not initialized properly.")
 	mempoolItem := &testItem{ids.GenerateTestID(), 10}
 	entry := &Entry[*testItem, uint64]{
 		ID:    mempoolItem.id,
@@ -130,20 +130,20 @@ func TestUnit64HeapPushExists(t *testing.T) {
 	}
 	minHeap.Push(entry)
 	// Pushed correctly
-	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
+	require.Equal(1, minHeap.Len(), "Not pushed correctly.")
 	// Check if added to lookup table
 	ok := minHeap.Has(entry.ID)
 	require.True(ok, "Item not found in lookup.")
 	minHeap.Push(entry)
 	// Only 1 item
-	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
+	require.Equal(1, minHeap.Len(), "Not pushed correctly.")
 }
 
 func TestUnit64HeapGetID(t *testing.T) {
 	// Push an item and grab its ID
 	require := require.New(t)
 	minHeap := New[*testItem, uint64](0, true)
-	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
+	require.Zero(minHeap.Len(), "heap not initialized properly.")
 
 	mempoolItem := &testItem{ids.GenerateTestID(), 10}
 	entry := &Entry[*testItem, uint64]{
@@ -156,7 +156,7 @@ func TestUnit64HeapGetID(t *testing.T) {
 	require.False(ok, "Entry returned before pushing.")
 	minHeap.Push(entry)
 	// Pushed correctly
-	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
+	require.Equal(1, minHeap.Len(), "Not pushed correctly.")
 	entryReturned, ok := minHeap.Get(mempoolItem.id)
 	require.True(ok, "Entry not returned.")
 	require.Equal(entry, entryReturned, "Returned incorrect entry")
@@ -165,7 +165,7 @@ func TestUnit64HeapGetID(t *testing.T) {
 func TestUnit64HeapHasID(t *testing.T) {
 	require := require.New(t)
 	minHeap := New[*testItem, uint64](0, true)
-	require.Equal(minHeap.Len(), 0, "heap not initialized properly.")
+	require.Zero(minHeap.Len(), "heap not initialized properly.")
 	mempoolItem := &testItem{ids.GenerateTestID(), 10}
 	entry := &Entry[*testItem, uint64]{
 		ID:    mempoolItem.id,
@@ -177,7 +177,7 @@ func TestUnit64HeapHasID(t *testing.T) {
 	require.False(ok, "Entry has ID before pushing.")
 	minHeap.Push(entry)
 	// Pushed correctly
-	require.Equal(minHeap.Len(), 1, "Not pushed correctly.")
+	require.Equal(1, minHeap.Len(), "Not pushed correctly.")
 	ok = minHeap.Has(mempoolItem.id)
 	require.True(ok, "Entry was not found in heap.")
 }

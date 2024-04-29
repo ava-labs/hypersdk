@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/hdevalence/ed25519consensus"
-	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 	"github.com/oasisprotocol/curve25519-voi/primitives/ed25519/extra/cache"
-
 	"github.com/stretchr/testify/require"
+
+	oed25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
 )
 
 var (
@@ -93,7 +93,7 @@ func TestSignSignatureValid(t *testing.T) {
 	copy(expectedSig[:], ed25519Sign)
 	// Sign using crypto
 	sig := Sign(msg, TestPrivateKey)
-	require.Equal(sig, expectedSig, "Signature was incorrect")
+	require.Equal(expectedSig, sig, "Signature was incorrect")
 }
 
 func TestVerifyValidParams(t *testing.T) {
@@ -117,6 +117,7 @@ func TestVerifyInvalidParams(t *testing.T) {
 }
 
 func TestBatchAddVerifyValid(t *testing.T) {
+	require := require.New(t)
 	var (
 		numItems = 1024
 		pubs     = make([]PublicKey, numItems)
@@ -125,15 +126,11 @@ func TestBatchAddVerifyValid(t *testing.T) {
 	)
 	for i := 0; i < numItems; i++ {
 		priv, err := GeneratePrivateKey()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(err)
 		pubs[i] = priv.PublicKey()
 		msg := make([]byte, 128)
 		_, err = rand.Read(msg)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(err)
 		msgs[i] = msg
 		sig := Sign(msg, priv)
 		sigs[i] = sig
@@ -142,12 +139,11 @@ func TestBatchAddVerifyValid(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		bv.Add(msgs[i], pubs[i], sigs[i])
 	}
-	if !bv.Verify() {
-		t.Fatal("invalid signature")
-	}
+	require.True(bv.Verify(), "invalid signature")
 }
 
 func TestBatchAddVerifyInvalid(t *testing.T) {
+	require := require.New(t)
 	var (
 		numItems = 1024
 		pubs     = make([]PublicKey, numItems)
@@ -156,15 +152,11 @@ func TestBatchAddVerifyInvalid(t *testing.T) {
 	)
 	for i := 0; i < numItems; i++ {
 		priv, err := GeneratePrivateKey()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(err)
 		pubs[i] = priv.PublicKey()
 		msg := make([]byte, 128)
 		_, err = rand.Read(msg)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(err)
 		msgs[i] = msg
 		sig := Sign(msg, priv)
 		if i == 10 {
@@ -176,115 +168,90 @@ func TestBatchAddVerifyInvalid(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		bv.Add(msgs[i], pubs[i], sigs[i])
 	}
-	if bv.Verify() {
-		t.Fatal("valid signature")
-	}
+	require.False(bv.Verify(), "valid signature")
 }
 
 func BenchmarkStdLibVerifySingle(b *testing.B) {
+	require := require.New(b)
 	b.StopTimer()
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	sig := ed25519.Sign(priv, msg)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if !ed25519.Verify(pub, msg, sig) {
-			b.Fatal("invalid signature")
-		}
+		require.True(ed25519.Verify(pub, msg, sig), "invalid signature")
 	}
 }
 
 func BenchmarkConsensusVerifySingle(b *testing.B) {
+	require := require.New(b)
 	b.StopTimer()
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	sig := ed25519.Sign(priv, msg)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if !ed25519consensus.Verify(pub, msg, sig) {
-			b.Fatal("invalid signature")
-		}
+		require.True(ed25519consensus.Verify(pub, msg, sig), "invalid signature")
 	}
 }
 
 func BenchmarkOasisVerifySingle(b *testing.B) {
+	require := require.New(b)
 	b.StopTimer()
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	pub, priv, err := oed25519.GenerateKey(nil)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	sig := oed25519.Sign(priv, msg)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if !oed25519.VerifyWithOptions(pub, msg, sig, oed25519options) {
-			b.Fatal("invalid signature")
-		}
+		require.True(oed25519.VerifyWithOptions(pub, msg, sig, oed25519options), "invalid signature")
 	}
 }
 
 func BenchmarkOasisVerifyCache(b *testing.B) {
+	require := require.New(b)
 	b.StopTimer()
 	cacheVerifier := cache.NewVerifier(cache.NewLRUCache(10000))
 	msg := make([]byte, 128)
 	_, err := rand.Read(msg)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	pub, priv, err := oed25519.GenerateKey(nil)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(err)
 	sig := oed25519.Sign(priv, msg)
 	cacheVerifier.AddPublicKey(pub)
 	b.StartTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if !cacheVerifier.VerifyWithOptions(pub, msg, sig, oed25519options) {
-			b.Fatal("invalid signature")
-		}
+		require.True(cacheVerifier.VerifyWithOptions(pub, msg, sig, oed25519options), "invalid signature")
 	}
 }
 
 func BenchmarkConsensusBatchAddVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			require := require.New(b)
 			b.StopTimer()
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
 			for i := 0; i < numItems; i++ {
 				pub, priv, err := ed25519.GenerateKey(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				pubs[i] = pub[:]
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				msgs[i] = msg
 				sig := ed25519.Sign(priv, msg)
 				sigs[i] = sig
@@ -296,9 +263,7 @@ func BenchmarkConsensusBatchAddVerify(b *testing.B) {
 				for j := 0; j < numItems; j++ {
 					bv.Add(pubs[j], msgs[j], sigs[j])
 				}
-				if !bv.Verify() {
-					b.Fatal("invalid signature")
-				}
+				require.True(bv.Verify(), "invalid signature")
 			}
 		})
 	}
@@ -307,21 +272,18 @@ func BenchmarkConsensusBatchAddVerify(b *testing.B) {
 func BenchmarkConsensusBatchVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			require := require.New(b)
 			b.StopTimer()
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
 			for i := 0; i < numItems; i++ {
 				pub, priv, err := ed25519.GenerateKey(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				pubs[i] = pub[:]
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				msgs[i] = msg
 				sig := ed25519.Sign(priv, msg)
 				sigs[i] = sig
@@ -333,9 +295,7 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 			b.StartTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				if !bv.Verify() {
-					b.Fatal("invalid signature")
-				}
+				require.True(bv.Verify(), "invalid signature")
 			}
 		})
 	}
@@ -344,21 +304,18 @@ func BenchmarkConsensusBatchVerify(b *testing.B) {
 func BenchmarkOasisBatchAddVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			require := require.New(b)
 			b.StopTimer()
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
 			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
 				sigs[i] = sig
@@ -370,9 +327,7 @@ func BenchmarkOasisBatchAddVerify(b *testing.B) {
 				for j := 0; j < numItems; j++ {
 					bv.AddWithOptions(pubs[j], msgs[j], sigs[j], oed25519options)
 				}
-				if !bv.VerifyBatchOnly(nil) {
-					b.Fatal("invalid signature")
-				}
+				require.True(bv.VerifyBatchOnly(nil), "invalid signature")
 			}
 		})
 	}
@@ -381,21 +336,18 @@ func BenchmarkOasisBatchAddVerify(b *testing.B) {
 func BenchmarkOasisBatchVerify(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			require := require.New(b)
 			b.StopTimer()
 			pubs := make([][]byte, numItems)
 			msgs := make([][]byte, numItems)
 			sigs := make([][]byte, numItems)
 			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
 				sigs[i] = sig
@@ -407,9 +359,7 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 			b.StartTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				if !bv.VerifyBatchOnly(nil) {
-					b.Fatal("invalid signature")
-				}
+				require.True(bv.VerifyBatchOnly(nil), "invalid signature")
 			}
 		})
 	}
@@ -418,6 +368,7 @@ func BenchmarkOasisBatchVerify(b *testing.B) {
 func BenchmarkOasisBatchAddVerifyCache(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			require := require.New(b)
 			b.StopTimer()
 			cacheVerifier := cache.NewVerifier(cache.NewLRUCache(30000))
 			pubs := make([][]byte, numItems)
@@ -425,16 +376,12 @@ func BenchmarkOasisBatchAddVerifyCache(b *testing.B) {
 			sigs := make([][]byte, numItems)
 			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				cacheVerifier.AddPublicKey(pub)
 				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
 				sigs[i] = sig
@@ -446,9 +393,7 @@ func BenchmarkOasisBatchAddVerifyCache(b *testing.B) {
 				for j := 0; j < numItems; j++ {
 					cacheVerifier.AddWithOptions(bv, pubs[j], msgs[j], sigs[j], oed25519options)
 				}
-				if !bv.VerifyBatchOnly(nil) {
-					b.Fatal("invalid signature")
-				}
+				require.True(bv.VerifyBatchOnly(nil), "invalid signature")
 			}
 		})
 	}
@@ -457,6 +402,7 @@ func BenchmarkOasisBatchAddVerifyCache(b *testing.B) {
 func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 	for _, numItems := range []int{1, 4, 16, 64, 128, 512, 1024, 4096, 16384} {
 		b.Run(strconv.Itoa(numItems), func(b *testing.B) {
+			require := require.New(b)
 			b.StopTimer()
 			cacheVerifier := cache.NewVerifier(cache.NewLRUCache(30000))
 			pubs := make([][]byte, numItems)
@@ -464,16 +410,12 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 			sigs := make([][]byte, numItems)
 			for i := 0; i < numItems; i++ {
 				pub, priv, err := oed25519.GenerateKey(nil)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				cacheVerifier.AddPublicKey(pub)
 				pubs[i] = pub
 				msg := make([]byte, 128)
 				_, err = rand.Read(msg)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(err)
 				msgs[i] = msg
 				sig := oed25519.Sign(priv, msg)
 				sigs[i] = sig
@@ -485,9 +427,7 @@ func BenchmarkOasisBatchVerifyCache(b *testing.B) {
 			b.StartTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				if !bv.VerifyBatchOnly(nil) {
-					b.Fatal("invalid signature")
-				}
+				require.True(bv.VerifyBatchOnly(nil), "invalid signature")
 			}
 		})
 	}

@@ -6,9 +6,8 @@ package bls
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/utils"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSignatureBytes(t *testing.T) {

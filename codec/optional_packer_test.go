@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 // toReader returns an OptionalPacker that is a reader of [o].
@@ -26,13 +27,15 @@ func (o *OptionalPacker) toReader() *OptionalPacker {
 }
 
 func TestOptionalPackerID(t *testing.T) {
-	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
 	id := ids.GenerateTestID()
 	t.Run("Pack", func(t *testing.T) {
+		require := require.New(t)
+
 		// Pack empty
 		opw.PackID(ids.Empty)
 		require.Empty(opw.ip.Bytes(), "PackID packed an empty ID.")
+
 		// Pack ID
 		opw.PackID(id)
 		bytes, err := ids.ToID(opw.ip.Bytes())
@@ -40,10 +43,11 @@ func TestOptionalPackerID(t *testing.T) {
 		require.Equal(id, bytes, "PackID did not set bytes correctly.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
-		// Setup optional reader
+		require := require.New(t)
+
 		opr := opw.toReader()
 		var unpackedID ids.ID
-		// // Unpack
+		// Unpack
 		opr.UnpackID(&unpackedID)
 		require.Equal(ids.Empty, unpackedID, "ID unpacked correctly")
 		opr.UnpackID(&unpackedID)
@@ -54,13 +58,15 @@ func TestOptionalPackerID(t *testing.T) {
 }
 
 func TestOptionalPackerUint64(t *testing.T) {
-	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
 	val := uint64(900)
 	t.Run("Pack", func(t *testing.T) {
+		require := require.New(t)
+
 		// Pack empty
 		opw.PackUint64(0)
 		require.Empty(opw.ip.Bytes(), "PackUint64 packed a zero uint.")
+
 		// Pack ID
 		opw.PackUint64(val)
 		require.Equal(
@@ -70,9 +76,9 @@ func TestOptionalPackerUint64(t *testing.T) {
 		)
 	})
 	t.Run("Unpack", func(t *testing.T) {
-		// Setup optional reader
+		require := require.New(t)
+
 		opr := opw.toReader()
-		// Unpack
 		require.Equal(uint64(0), opr.UnpackUint64(), "Uint64 unpacked correctly")
 		require.Equal(val, opr.UnpackUint64(), "Uint64 unpacked correctly")
 		opr.Done()
@@ -81,23 +87,25 @@ func TestOptionalPackerUint64(t *testing.T) {
 }
 
 func TestOptionalPackerAddress(t *testing.T) {
-	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
 	id := ids.GenerateTestID()
 	addr := CreateAddress(1, id)
 	t.Run("Pack", func(t *testing.T) {
+		require := require.New(t)
+
 		// Pack empty
 		opw.PackAddress(EmptyAddress)
 		require.Empty(opw.ip.Bytes(), "PackAddress packed an empty Address.")
+
 		// Pack address
 		opw.PackAddress(addr)
 		require.True(bytes.Equal(addr[:], opw.ip.Bytes()), "PackPublickey did not set bytes correctly.")
 	})
 	t.Run("Unpack", func(t *testing.T) {
-		// Setup optional reader
+		require := require.New(t)
+
 		opr := opw.toReader()
 		var unpackedAddr Address
-		// Unpack
 		opr.UnpackAddress(&unpackedAddr)
 		require.True(bytes.Equal(EmptyAddress[:], unpackedAddr[:]), "AddressBytes unpacked correctly")
 		opr.UnpackAddress(&unpackedAddr)
@@ -108,13 +116,15 @@ func TestOptionalPackerAddress(t *testing.T) {
 }
 
 func TestOptionalPackerInvalidSet(t *testing.T) {
-	require := require.New(t)
 	opw := NewOptionalWriter(10_000)
 	val := uint64(900)
 	t.Run("Pack", func(t *testing.T) {
+		require := require.New(t)
+
 		// Pack empty
 		opw.PackUint64(0)
 		require.Empty(opw.ip.Bytes(), "PackUint64 packed a zero uint.")
+
 		// Pack ID
 		opw.PackUint64(val)
 		require.Equal(
@@ -124,6 +134,8 @@ func TestOptionalPackerInvalidSet(t *testing.T) {
 		)
 	})
 	t.Run("Unpack", func(t *testing.T) {
+		require := require.New(t)
+
 		// Setup optional reader (expects no entries)
 		opr := opw.toReader()
 		opr.Done()

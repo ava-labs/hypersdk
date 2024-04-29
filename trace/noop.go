@@ -6,9 +6,9 @@ package trace
 import (
 	"context"
 
-	oteltrace "go.opentelemetry.io/otel/trace"
-
 	"github.com/ava-labs/avalanchego/trace"
+
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 var _ trace.Tracer = (*noOpTracer)(nil)
@@ -23,7 +23,7 @@ func (n noOpTracer) Start(
 	spanName string,
 	opts ...oteltrace.SpanStartOption,
 ) (context.Context, oteltrace.Span) {
-	return n.t.Start(ctx, spanName, opts...)
+	return n.t.Start(ctx, spanName, opts...) //nolint:spancheck
 }
 
 func (noOpTracer) Close() error {

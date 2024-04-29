@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -19,7 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/pebble"
+
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -38,6 +39,7 @@ type simulator struct {
 	vm      *vm.VM
 	db      *state.SimpleMutable
 	genesis *genesis.Genesis
+	cleanup func()
 }
 
 func NewRootCmd() *cobra.Command {
@@ -49,6 +51,8 @@ func NewRootCmd() *cobra.Command {
 			cmd.Help()
 		},
 	}
+
+	cmd.PersistentFlags().Bool("cleanup", false, "remove simulator directory on exit")
 
 	cobra.EnablePrefixMatching = true
 	cmd.CompletionOptions.HiddenDefaultCmd = true
@@ -81,6 +85,11 @@ func NewRootCmd() *cobra.Command {
 				)
 			}
 		}
+
+		cleanup, _ := cmd.Flags().GetBool("cleanup")
+		if cleanup {
+			s.cleanup()
+		}
 	})
 
 	return cmd
@@ -89,48 +98,59 @@ func NewRootCmd() *cobra.Command {
 func (s *simulator) Init() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil
+		return err
 	}
-	basePath := path.Join(homeDir, simulatorFolder)
-	dbPath := path.Join(basePath, "db")
+
+	b := make([]byte, 4)
+	_, err = rand.Read(b)
+	if err != nil {
+		return err
+	}
 
 	// TODO: allow for user defined ids.
-	nodeID := ids.GenerateTestNodeID()
+	nodeID := ids.BuildTestNodeID(b)
 	networkID := uint32(1)
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
+
+	basePath := path.Join(homeDir, simulatorFolder)
+	dbPath := path.Join(basePath, fmt.Sprintf("db-%s", nodeID.String()))
 
 	loggingConfig := logging.Config{}
 	loggingConfig.LogLevel, err = logging.ToLevel(s.logLevel)
 	if err != nil {
 		return err
 	}
-	loggingConfig.Directory = path.Join(basePath, "logs")
+	loggingConfig.Directory = path.Join(basePath, fmt.Sprintf("logs-%s", nodeID.String()))
 	loggingConfig.LogFormat = logging.JSON
 	loggingConfig.DisableWriterDisplaying = true
+
+	s.cleanup = func() {
+		if err := os.RemoveAll(dbPath); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to remove simulator directory: %s\n", err)
+		}
+
+		if err := os.RemoveAll(loggingConfig.Directory); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to remove simulator logs: %s\n", err)
+		}
+	}
 
 	// setup simulator logger
 	logFactory := newLogFactory(loggingConfig)
 	s.log, err = logFactory.Make("simulator")
 	if err != nil {
 		logFactory.Close()
-		return nil
+		return err
 	}
 
 	sk, err := bls.NewSecretKey()
 	if err != nil {
-		return nil
-	}
-
-	// setup pebble and db manager
-	pdb, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
-	if err != nil {
-		return nil
+		return err
 	}
 
 	genesisBytes, err := json.Marshal(genesis.Default())
 	if err != nil {
-		return nil
+		return err
 	}
 
 	snowCtx := &snow.Context{
@@ -148,10 +168,11 @@ func (s *simulator) Init() error {
 
 	// initialize the simulator VM
 	vm := controller.New()
+
 	err = vm.Initialize(
 		context.TODO(),
 		snowCtx,
-		pdb,
+		nil,
 		genesisBytes,
 		nil,
 		nil,

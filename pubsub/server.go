@@ -8,11 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/websocket"
-
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 type ServerConfig struct {

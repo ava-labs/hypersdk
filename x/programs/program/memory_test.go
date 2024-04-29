@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -19,16 +18,16 @@ func TestMemory(t *testing.T) {
 	mem := newTestMemory(t)
 
 	// verify memory size set by program is 17 pages
-	len, err := mem.Len()
+	memLen, err := mem.Len()
 	require.NoError(err)
-	require.Equal(uint32(17*MemoryPageSize), len)
+	require.Equal(uint32(17*MemoryPageSize), memLen)
 
 	// grow memory by 1 page which is the default max memory (18 pages)
 	// _, err = mem.Grow(1)
 	// require.NoError(err)
-	// len, err = mem.Len()
+	// memLen, err = mem.Len()
 	// require.NoError(err)
-	// require.Equal(uint32(engine.DefaultLimitMaxMemory), len)
+	// require.Equal(uint32(engine.DefaultLimitMaxMemory), memLen)
 
 	// allocate entire memory
 	ptr, err := mem.Alloc(1)

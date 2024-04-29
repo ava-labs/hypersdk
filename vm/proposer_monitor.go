@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"go.uber.org/zap"
@@ -125,7 +124,7 @@ func (p *ProposerMonitor) Proposers(
 			}
 			p.proposerCache.Put(key, proposers)
 		}
-		arrLen := math.Min(udepth, uint64(len(proposers)))
+		arrLen := min(udepth, uint64(len(proposers)))
 		proposersToGossip.Add(proposers[:arrLen]...)
 	}
 	return proposersToGossip, nil

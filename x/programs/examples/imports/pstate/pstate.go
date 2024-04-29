@@ -7,10 +7,9 @@ import (
 	"context"
 	"errors"
 
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -37,17 +36,21 @@ type Import struct {
 	meter *engine.Meter
 }
 
-func (i *Import) Name() string {
+func (*Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link *host.Link) error {
+func (i *Import) Register(link *host.Link, _ program.Context) error {
 	i.meter = link.Meter()
 	wrap := wrap.New(link)
 	if err := wrap.RegisterAnyParamFn(Name, "put", 3, i.putFnVariadic); err != nil {
 		return err
 	}
-	return wrap.RegisterAnyParamFn(Name, "get", 2, i.getFnVariadic)
+	if err := wrap.RegisterAnyParamFn(Name, "get", 2, i.getFnVariadic); err != nil {
+		return err
+	}
+
+	return wrap.RegisterAnyParamFn(Name, "delete", 2, i.deleteFnVariadic)
 }
 
 func (i *Import) putFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
@@ -62,6 +65,13 @@ func (i *Import) getFnVariadic(caller *program.Caller, args ...int64) (*types.Va
 		return nil, errors.New("expected 2 arguments")
 	}
 	return i.getFn(caller, args[0], args[1])
+}
+
+func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
+	if len(args) != 2 {
+		return nil, errors.New("expected 2 arguments")
+	}
+	return i.deleteFn(caller, args[0], args[1])
 }
 
 func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64) (*types.Val, error) {
@@ -90,7 +100,6 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 	}
 
 	valueBytes, err := program.SmartPtr(value).Bytes(memory)
-
 	if err != nil {
 		i.log.Error("failed to read value from memory",
 			zap.Error(err),
@@ -163,7 +172,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		}
 		return nil, err
 	}
-	argPtr, err := program.NewSmartPtr(uint32(ptr), len(val))
+	argPtr, err := program.NewSmartPtr(ptr, len(val))
 	if err != nil {
 		i.log.Error("failed to convert ptr to argument",
 			zap.Error(err),
@@ -172,4 +181,37 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 	}
 
 	return types.ValI64(int64(argPtr)), nil
+}
+
+func (i *Import) deleteFn(caller *program.Caller, id int64, key int64) (*types.Val, error) {
+	memory, err := caller.Memory()
+	if err != nil {
+		i.log.Error("failed to get memory from caller",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	programIDBytes, err := program.SmartPtr(id).Bytes(memory)
+	if err != nil {
+		i.log.Error("failed to read program id from memory",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	keyBytes, err := program.SmartPtr(key).Bytes(memory)
+	if err != nil {
+		i.log.Error("failed to read key from memory",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
+	if err := i.mu.Remove(context.Background(), k); err != nil {
+		i.log.Error("failed to remove from storage", zap.Error(err))
+		return types.ValI64(-1), nil
+	}
+	return types.ValI64(0), nil
 }

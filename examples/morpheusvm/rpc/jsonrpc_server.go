@@ -8,10 +8,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type JSONRPCServer struct {
@@ -36,10 +36,10 @@ type TxArgs struct {
 }
 
 type TxReply struct {
-	Timestamp int64            `json:"timestamp"`
-	Success   bool             `json:"success"`
-	Units     chain.Dimensions `json:"units"`
-	Fee       uint64           `json:"fee"`
+	Timestamp int64           `json:"timestamp"`
+	Success   bool            `json:"success"`
+	Units     fees.Dimensions `json:"units"`
+	Fee       uint64          `json:"fee"`
 }
 
 func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {

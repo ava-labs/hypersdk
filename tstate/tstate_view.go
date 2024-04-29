@@ -9,8 +9,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/maybe"
-	"github.com/ava-labs/avalanchego/utils/set"
+
 	"github.com/ava-labs/hypersdk/keys"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 const defaultOps = 4
@@ -39,8 +40,11 @@ type TStateView struct {
 	// operations allows for reverting state to a certain point-in-time.
 	ops []*op
 
-	// We don't differentiate between read and write scope.
-	scope        set.Set[string] // stores a list of managed keys in the TState struct
+	// stores a map of managed keys and its permissions in the TState struct
+	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
+	// key, see issue below)
+	// https://github.com/ava-labs/hypersdk/issues/709
+	scope        state.Keys
 	scopeStorage map[string][]byte
 
 	// Store which keys are modified and how large their values were.
@@ -49,7 +53,7 @@ type TStateView struct {
 	writes      map[string]uint16
 }
 
-func (ts *TState) NewView(scope set.Set[string], storage map[string][]byte) *TStateView {
+func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
 	return &TStateView{
 		ts:                 ts,
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
@@ -157,17 +161,18 @@ func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 	return ts.allocates, ts.writes
 }
 
-// checkScope returns whether [k] is in ts.readScope.
-func (ts *TStateView) checkScope(_ context.Context, k []byte) bool {
-	return ts.scope.Contains(string(k))
+// checkScope returns whether [k] is in scope and has appropriate permissions.
+func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permissions) bool {
+	return ts.scope[string(k)].Has(perm)
 }
 
 // GetValue returns the value associated from tempStorage with the
-// associated [key]. If [key] does not exist in readScope or if it is not found
+// associated [key]. If [key] does not exist in scope, or is not read/rw, or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	if !ts.checkScope(ctx, key) {
-		return nil, ErrKeyNotSpecified
+	// Getting a value requires a Read permission, so we pass state.Read
+	if !ts.checkScope(ctx, key, state.Read) {
+		return nil, ErrInvalidKeyOrPermission
 	}
 	k := string(key)
 	v, exists := ts.getValue(ctx, k)
@@ -208,14 +213,17 @@ func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, 
 // Insert allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
+	// Inserting requires a Write Permissions, so we pass state.Write
+	if !ts.checkScope(ctx, key, state.Write) {
+		return ErrInvalidKeyOrPermission
 	}
 	if !keys.VerifyValue(key, value) {
 		return ErrInvalidKeyValue
 	}
 	valueChunks, _ := keys.NumChunks(value) // not possible to fail
 	k := string(key)
+	// Invariant: [getValue] is safe to call here because with [state.Write], it
+	// will provide Read and Write access to the state
 	past, exists := ts.getValue(ctx, k)
 	op := &op{
 		k:             k,
@@ -231,6 +239,13 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
+		// New entry requires Allocate
+		// TODO: we assume any allocate is a write too, but we should
+		// make this invariant more clear. Do we require Write,
+		// Allocate|Write, and never Allocate alone?
+		if !ts.checkScope(ctx, key, state.Allocate) {
+			return ErrInvalidKeyOrPermission
+		}
 		if !ts.canAllocate {
 			return ErrAllocationDisabled
 		}
@@ -252,8 +267,9 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 // Remove deletes a key from [tstate]. If this action returns the
 // value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
-	if !ts.checkScope(ctx, key) {
-		return ErrKeyNotSpecified
+	// Removing requires writing & deleting that key, so we pass state.Write
+	if !ts.checkScope(ctx, key, state.Write) {
+		return ErrInvalidKeyOrPermission
 	}
 	k := string(key)
 	past, exists := ts.getValue(ctx, k)

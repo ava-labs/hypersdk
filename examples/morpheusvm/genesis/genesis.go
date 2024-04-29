@@ -12,11 +12,11 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -37,19 +37,16 @@ type Genesis struct {
 	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
 
 	// Chain Fee Parameters
-	MinUnitPrice               chain.Dimensions `json:"minUnitPrice"`
-	UnitPriceChangeDenominator chain.Dimensions `json:"unitPriceChangeDenominator"`
-	WindowTargetUnits          chain.Dimensions `json:"windowTargetUnits"` // 10s
-	MaxBlockUnits              chain.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
+	MinUnitPrice               fees.Dimensions `json:"minUnitPrice"`
+	UnitPriceChangeDenominator fees.Dimensions `json:"unitPriceChangeDenominator"`
+	WindowTargetUnits          fees.Dimensions `json:"windowTargetUnits"` // 10s
+	MaxBlockUnits              fees.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
 	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
 	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
 	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
 	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
@@ -71,19 +68,16 @@ func Default() *Genesis {
 		MinEmptyBlockGap: 2_500,
 
 		// Chain Fee Parameters
-		MinUnitPrice:               chain.Dimensions{100, 100, 100, 100, 100},
-		UnitPriceChangeDenominator: chain.Dimensions{48, 48, 48, 48, 48},
-		WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
-		MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
+		MinUnitPrice:               fees.Dimensions{100, 100, 100, 100, 100},
+		UnitPriceChangeDenominator: fees.Dimensions{48, 48, 48, 48, 48},
+		WindowTargetUnits:          fees.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
+		MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
 		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// Tx Fee Compute Parameters
-		BaseComputeUnits:          1,
-		BaseWarpComputeUnits:      1_024,
-		WarpComputeUnitsPerSigner: 128,
-		OutgoingWarpComputeUnits:  1_024,
+		BaseComputeUnits: 1,
 
 		// Tx Fee Storage Parameters
 		//

@@ -12,9 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -34,20 +34,16 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x1/ (hypersdk-height)
 // 0x2/ (hypersdk-timestamp)
 // 0x3/ (hypersdk-fee)
-// 0x4/ (hypersdk-incoming warp)
-// 0x5/ (hypersdk-outgoing warp)
 
 const (
 	// metaDB
 	txPrefix = 0x0
 
 	// stateDB
-	balancePrefix      = 0x0
-	heightPrefix       = 0x1
-	timestampPrefix    = 0x2
-	feePrefix          = 0x3
-	incomingWarpPrefix = 0x4
-	outgoingWarpPrefix = 0x5
+	balancePrefix   = 0x0
+	heightPrefix    = 0x1
+	timestampPrefix = 0x2
+	feePrefix       = 0x3
 )
 
 const BalanceChunks uint16 = 1
@@ -74,11 +70,11 @@ func StoreTransaction(
 	id ids.ID,
 	t int64,
 	success bool,
-	units chain.Dimensions,
+	units fees.Dimensions,
 	fee uint64,
 ) error {
 	k := TxKey(id)
-	v := make([]byte, consts.Uint64Len+1+chain.DimensionsLen+consts.Uint64Len)
+	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
 	binary.BigEndian.PutUint64(v, uint64(t))
 	if success {
 		v[consts.Uint64Len] = successByte
@@ -86,7 +82,7 @@ func StoreTransaction(
 		v[consts.Uint64Len] = failureByte
 	}
 	copy(v[consts.Uint64Len+1:], units.Bytes())
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+chain.DimensionsLen:], fee)
+	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
 	return db.Put(k, v)
 }
 
@@ -94,25 +90,25 @@ func GetTransaction(
 	_ context.Context,
 	db database.KeyValueReader,
 	id ids.ID,
-) (bool, int64, bool, chain.Dimensions, uint64, error) {
+) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	k := TxKey(id)
 	v, err := db.Get(k)
 	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, chain.Dimensions{}, 0, nil
+		return false, 0, false, fees.Dimensions{}, 0, nil
 	}
 	if err != nil {
-		return false, 0, false, chain.Dimensions{}, 0, err
+		return false, 0, false, fees.Dimensions{}, 0, err
 	}
 	t := int64(binary.BigEndian.Uint64(v))
 	success := true
 	if v[consts.Uint64Len] == failureByte {
 		success = false
 	}
-	d, err := chain.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+chain.DimensionsLen])
+	d, err := fees.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+fees.DimensionsLen])
 	if err != nil {
-		return false, 0, false, chain.Dimensions{}, 0, err
+		return false, 0, false, fees.Dimensions{}, 0, err
 	}
-	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+chain.DimensionsLen:])
+	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
 	return true, t, success, d, fee, nil
 }
 
@@ -256,19 +252,4 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
-}
-
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
-	k[0] = incomingWarpPrefix
-	copy(k[1:], sourceChainID[:])
-	copy(k[1+consts.IDLen:], msgID[:])
-	return k
-}
-
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	k[0] = outgoingWarpPrefix
-	copy(k[1:], txID[:])
-	return k
 }

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	hcache "github.com/ava-labs/hypersdk/cache"
+	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/emap"
@@ -38,11 +38,11 @@ func TestBlockCache(t *testing.T) {
 	blkID := blk.ID()
 
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	bByID, _ := hcache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
-	bByHeight, _ := hcache.NewFIFO[uint64, ids.ID](3)
+	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
+	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
 	controller := NewMockController(ctrl)
 	vm := VM{
-		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: ametrics.NewOptionalGatherer()},
+		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewOptionalGatherer()},
 		config:  &config.Config{},
 
 		vmDB: memdb.New(),
@@ -59,7 +59,7 @@ func TestBlockCache(t *testing.T) {
 	}
 
 	// Init metrics (called in [Accepted])
-	gatherer := ametrics.NewMultiGatherer()
+	gatherer := metrics.NewMultiGatherer()
 	reg, m, err := newMetrics()
 	require.NoError(err)
 	vm.metrics = m

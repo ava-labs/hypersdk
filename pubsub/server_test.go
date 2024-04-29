@@ -14,9 +14,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 const dummyAddr = "localhost:8080"
@@ -257,7 +258,7 @@ func TestServerPublishSpecific(t *testing.T) {
 		require.NoError(err, "Error setting connection deadline.")
 		// Make sure connection wasn't written too
 		_, _, err = webCon2.ReadMessage()
-		require.Error(err, "Error not thrown.")
+		require.Error(err, "Error not thrown.") //nolint:forbidigo
 		netErr, ok := err.(net.Error)
 		require.True(ok, "Error is not a net.Error")
 		require.True(netErr.Timeout(), "Error is not a timeout error")

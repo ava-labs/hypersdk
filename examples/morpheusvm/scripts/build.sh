@@ -19,7 +19,9 @@ MORPHEUSVM_PATH=$(
 )
 
 if [[ $# -eq 1 ]]; then
-    BINARY_PATH="$(realpath "$1")"
+    BINARY_DIR=$(cd "$(dirname "$1")" && pwd)
+    BINARY_FNAME=$(basename "$1")
+    BINARY_PATH=$BINARY_DIR/$BINARY_FNAME
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
     name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"

@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 	"fmt"
+
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -44,16 +44,12 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) []string {
-	return []string{}
+func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
+	return state.Keys{}
 }
 
 func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.ProgramChunks}
-}
-
-func (*ProgramExecute) OutputsWarpMessage() bool {
-	return false
 }
 
 func (t *ProgramExecute) Execute(
@@ -61,44 +57,42 @@ func (t *ProgramExecute) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	_ codec.Address,
+	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error) {
+) (success bool, computeUnits uint64, output []byte, err error) {
 	if len(t.Function) == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, 1, OutputValueZero, nil
 	}
 	if len(t.Params) == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, 1, OutputValueZero, nil
 	}
 
 	programIDStr, ok := t.Params[0].Value.(string)
 	if !ok {
-		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil, nil
+		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
 	}
 
 	// TODO: take fee out of balance?
 	programID, err := ids.FromString(programIDStr)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
-	t.Params[0].Value = programID
 	programBytes, err := storage.GetProgram(ctx, mu, programID)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	eng := engine.New(ecfg)
 
@@ -107,30 +101,36 @@ func (t *ProgramExecute) Execute(
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(logging.NoLog{}, mu)
 	})
+	callContext := program.Context{
+		ProgramID: programID,
+		// Actor:            [32]byte(actor[1:]),
+		// OriginatingActor: [32]byte(actor[1:])
+	}
+
 	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg)
+		return importProgram.New(logging.NoLog{}, eng, mu, cfg, &callContext)
 	})
 	imports := importsBuilder.Build()
 
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
-	err = t.rt.Initialize(ctx, programBytes, t.MaxUnits)
+	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	defer t.rt.Stop()
 
 	mem, err := t.rt.Memory()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	params, err := WriteParams(mem, t.Params)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
-	resp, err := t.rt.Call(ctx, t.Function, params...)
+	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: remove this is to support readonly response for now.
@@ -139,7 +139,7 @@ func (t *ProgramExecute) Execute(
 		p.PackInt64(r)
 	}
 
-	return true, 1, p.Bytes(), nil, nil
+	return true, 1, p.Bytes(), nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
@@ -158,7 +158,7 @@ func (t *ProgramExecute) GetBalance() (uint64, error) {
 	return t.rt.Meter().GetBalance()
 }
 
-func UnmarshalProgramExecute(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalProgramExecute(p *codec.Packer) (chain.Action, error) {
 	// TODO
 	return nil, nil
 }
@@ -175,32 +175,32 @@ type CallParam struct {
 
 // WriteParams is a helper function that writes the given params to memory if non integer.
 // Supported types include int, uint64 and string.
-func WriteParams(m *program.Memory, p []CallParam) ([]program.SmartPtr, error) {
-	var params []program.SmartPtr
+func WriteParams(m *program.Memory, p []CallParam) ([]uint32, error) {
+	var params []uint32
 	for _, param := range p {
 		switch v := param.Value.(type) {
 		case []byte:
-			smartPtr, err := program.BytesToSmartPtr(v, m)
+			smartPtr, err := program.AllocateBytes(v, m)
 			if err != nil {
 				return nil, err
 			}
 			params = append(params, smartPtr)
 		case ids.ID:
-			smartPtr, err := program.BytesToSmartPtr(v[:], m)
+			smartPtr, err := program.AllocateBytes(v[:], m)
 			if err != nil {
 				return nil, err
 			}
 			params = append(params, smartPtr)
 		case string:
-			smartPtr, err := program.BytesToSmartPtr([]byte(v), m)
+			smartPtr, err := program.AllocateBytes([]byte(v), m)
 			if err != nil {
 				return nil, err
 			}
 			params = append(params, smartPtr)
-		case program.SmartPtr:
+		case uint32:
 			params = append(params, v)
 		default:
-			ptr, err := argumentToSmartPtr(v, m)
+			ptr, err := writeToMem(v, m)
 			if err != nil {
 				return nil, err
 			}
@@ -218,11 +218,11 @@ func serializeParameter(obj interface{}) ([]byte, error) {
 }
 
 // Serialize the parameter and create a smart ptr
-func argumentToSmartPtr(obj interface{}, memory *program.Memory) (program.SmartPtr, error) {
+func writeToMem(obj interface{}, memory *program.Memory) (uint32, error) {
 	bytes, err := serializeParameter(obj)
 	if err != nil {
 		return 0, err
 	}
 
-	return program.BytesToSmartPtr(bytes, memory)
+	return program.AllocateBytes(bytes, memory)
 }

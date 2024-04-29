@@ -10,12 +10,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/eheap"
 	"github.com/ava-labs/hypersdk/list"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 const maxPrealloc = 4_096
@@ -70,7 +70,7 @@ func New[T Item](
 		maxSponsorSize: maxSponsorSize,
 
 		queue: &list.List[T]{},
-		eh:    eheap.New[*list.Element[T]](math.Min(maxSize, maxPrealloc)),
+		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
 
 		owned:          map[codec.Address]int{},
 		exemptSponsors: set.Set[codec.Address]{},

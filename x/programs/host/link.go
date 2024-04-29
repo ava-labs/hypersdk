@@ -7,11 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
-
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/bytecodealliance/wasmtime-go/v14"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/program"
@@ -44,7 +42,7 @@ type Link struct {
 
 // Instantiate registers a module with all imports defined in this linker.
 // This can only be called once after all imports have been registered.
-func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback) (*wasmtime.Instance, error) {
+func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback, callContext program.Context) (*wasmtime.Instance, error) {
 	l.cb = cb
 	if l.debugMode {
 		err := l.EnableWasi()
@@ -60,7 +58,7 @@ func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportF
 		if !ok {
 			return nil, fmt.Errorf("%w: %s", ErrMissingImportModule, imp)
 		}
-		err := importFn().Register(l)
+		err := importFn().Register(l, callContext)
 		if err != nil {
 			return nil, err
 		}

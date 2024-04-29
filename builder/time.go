@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/timer"
 	"go.uber.org/zap"
 )
@@ -58,7 +57,7 @@ func (b *Time) handleTimerNotify() {
 
 func (b *Time) nextTime(now int64, preferred int64) int64 {
 	gap := b.vm.Rules(now).GetMinBlockGap()
-	next := math.Max(b.lastQueue+minBuildGap, preferred+gap)
+	next := max(b.lastQueue+minBuildGap, preferred+gap)
 	if next < now {
 		return -1
 	}

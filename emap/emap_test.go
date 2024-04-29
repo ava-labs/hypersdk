@@ -8,8 +8,9 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/heap"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/heap"
 )
 
 type TestTx struct {
@@ -75,7 +76,7 @@ func TestEmapAddIDNewBucket(t *testing.T) {
 	// get bucket
 	b, okBucket := e.times[timestamp]
 	require.True(okBucket, "Could not find time bucket")
-	require.Equal(len(b.items), 1, "Bucket length is incorrect")
+	require.Len(b.items, 1, "Bucket length is incorrect")
 
 	// Check bucket heap was updated
 	require.True(e.bh.Has(id), "BH does not have ID")
@@ -111,7 +112,7 @@ func TestEmapAddIDExists(t *testing.T) {
 	// get bucket
 	b, okBucket := e.times[timestamp]
 	require.True(okBucket, "Could not find time bucket")
-	require.Equal(len(b.items), 1, "Bucket length is incorrect")
+	require.Len(b.items, 1, "Bucket length is incorrect")
 
 	entry, ok = e.bh.Get(id)
 	// Check bh
@@ -150,7 +151,7 @@ func TestEmapAddIDBucketExists(t *testing.T) {
 	b, okBucket := e.times[timestamp]
 	require.True(okBucket, "Could not find time bucket")
 	require.Equal(1, e.bh.Len(), "Number of buckets is incorrect.")
-	require.Equal(len(b.items), 2, "Bucket length is incorrect")
+	require.Len(b.items, 2, "Bucket length is incorrect")
 
 	entry, ok := e.bh.Get(id1)
 	// Check bh

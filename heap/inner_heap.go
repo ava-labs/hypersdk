@@ -4,16 +4,16 @@
 package heap
 
 import (
+	"cmp"
 	"container/heap"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"golang.org/x/exp/constraints"
 )
 
 var _ heap.Interface = (*innerHeap[any, uint64])(nil)
 
-type Entry[I any, V constraints.Ordered] struct {
+type Entry[I any, V cmp.Ordered] struct {
 	ID   ids.ID // id of entry
 	Item I      // associated item
 	Val  V      // Value to be prioritized
@@ -21,13 +21,13 @@ type Entry[I any, V constraints.Ordered] struct {
 	Index int // Index of the entry in heap
 }
 
-type innerHeap[I any, V constraints.Ordered] struct {
+type innerHeap[I any, V cmp.Ordered] struct {
 	isMinHeap bool                    // true for Min-Heap, false for Max-Heap
 	items     []*Entry[I, V]          // items in this heap
 	lookup    map[ids.ID]*Entry[I, V] // ids in the heap mapping to an entry
 }
 
-func newInnerHeap[I any, V constraints.Ordered](items int, isMinHeap bool) *innerHeap[I, V] {
+func newInnerHeap[I any, V cmp.Ordered](items int, isMinHeap bool) *innerHeap[I, V] {
 	return &innerHeap[I, V]{
 		isMinHeap: isMinHeap,
 

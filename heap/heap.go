@@ -4,22 +4,22 @@
 package heap
 
 import (
+	"cmp"
 	"container/heap"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"golang.org/x/exp/constraints"
 )
 
 // Heap[I,V] is used to track objects of [I] by [Val].
 //
 // This data structure does not perform any synchronization and is not
 // safe to use concurrently without external locking.
-type Heap[I any, V constraints.Ordered] struct {
+type Heap[I any, V cmp.Ordered] struct {
 	ih *innerHeap[I, V]
 }
 
 // New returns an instance of Heap[I,V]
-func New[I any, V constraints.Ordered](items int, isMinHeap bool) *Heap[I, V] {
+func New[I any, V cmp.Ordered](items int, isMinHeap bool) *Heap[I, V] {
 	return &Heap[I, V]{newInnerHeap[I, V](items, isMinHeap)}
 }
 

@@ -8,11 +8,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 type JSONRPCServer struct {
@@ -37,10 +37,10 @@ type TxArgs struct {
 }
 
 type TxReply struct {
-	Timestamp int64            `json:"timestamp"`
-	Success   bool             `json:"success"`
-	Units     chain.Dimensions `json:"units"`
-	Fee       uint64           `json:"fee"`
+	Timestamp int64           `json:"timestamp"`
+	Success   bool            `json:"success"`
+	Units     fees.Dimensions `json:"units"`
+	Fee       uint64          `json:"fee"`
 }
 
 func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
@@ -71,14 +71,13 @@ type AssetReply struct {
 	Metadata []byte `json:"metadata"`
 	Supply   uint64 `json:"supply"`
 	Owner    string `json:"owner"`
-	Warp     bool   `json:"warp"`
 }
 
 func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, symbol, decimals, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
+	exists, symbol, decimals, metadata, supply, owner, err := j.c.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -90,7 +89,6 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	reply.Metadata = metadata
 	reply.Supply = supply
 	reply.Owner = codec.MustAddressBech32(consts.HRP, owner)
-	reply.Warp = warp
 	return err
 }
 

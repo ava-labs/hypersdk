@@ -4,7 +4,7 @@
 package wrap
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
@@ -45,7 +45,7 @@ func (i ImportFn[F]) Invoke(c *program.Caller, args ...int64) (*types.Val, error
 	case AnyParamFn:
 		return fn.Call(c, args...)
 	default:
-		return nil, fmt.Errorf("unsupported function type")
+		return nil, errors.New("unsupported function type")
 	}
 }
 

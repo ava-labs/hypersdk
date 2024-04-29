@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -31,19 +30,15 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) []string {
-	return []string{
-		string(storage.BalanceKey(actor)),
-		string(storage.BalanceKey(t.To)),
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	return state.Keys{
+		string(storage.BalanceKey(actor)): state.Read | state.Write,
+		string(storage.BalanceKey(t.To)):  state.All,
 	}
 }
 
 func (*Transfer) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
-}
-
-func (*Transfer) OutputsWarpMessage() bool {
-	return false
 }
 
 func (t *Transfer) Execute(
@@ -53,18 +48,17 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	if t.Value == 0 {
-		return false, 1, OutputValueZero, nil, nil
+		return false, 1, OutputValueZero, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return false, 1, utils.ErrBytes(err), nil, nil
+		return false, 1, utils.ErrBytes(err), nil
 	}
-	return true, 1, nil, nil, nil
+	return true, 1, nil, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
@@ -80,7 +74,7 @@ func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 }
 
-func UnmarshalTransfer(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)

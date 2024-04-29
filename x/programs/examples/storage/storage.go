@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -20,8 +21,8 @@ const (
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 	k = make([]byte, consts.IDLen+1+len(key))
 	k[0] = programPrefix
-	copy(k, id[:])
-	copy(k[consts.IDLen:], (key[:]))
+	copy(k, id)
+	copy(k[consts.IDLen:], (key))
 	return
 }
 

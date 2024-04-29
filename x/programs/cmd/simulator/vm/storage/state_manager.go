@@ -5,30 +5,30 @@ package storage
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
 
 type StateManager struct{}
 
-func (m *StateManager) SponsorStateKeys(_ codec.Address) []string {
-	//TODO implement me
+func (m *StateManager) SponsorStateKeys(_ codec.Address) state.Keys {
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *StateManager) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *StateManager) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *StateManager) Refund(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -42,12 +42,4 @@ func (*StateManager) TimestampKey() []byte {
 
 func (*StateManager) FeeKey() []byte {
 	return FeeKey()
-}
-
-func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return IncomingWarpKeyPrefix(sourceChainID, msgID)
-}
-
-func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
-	return OutgoingWarpKeyPrefix(txID)
 }

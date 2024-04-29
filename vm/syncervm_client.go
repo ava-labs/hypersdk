@@ -8,20 +8,21 @@ import (
 	"errors"
 	"sync"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
-	syncEng "github.com/ava-labs/avalanchego/x/sync"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
 type stateSyncerClient struct {
 	vm          *VM
-	gatherer    ametrics.MultiGatherer
-	syncManager *syncEng.Manager
+	gatherer    avametrics.MultiGatherer
+	syncManager *avasync.Manager
 
 	// tracks the sync target so we can update last accepted
 	// block when sync completes.
@@ -38,7 +39,7 @@ type stateSyncerClient struct {
 
 // TODO: break out into own package
 func (vm *VM) NewStateSyncClient(
-	gatherer ametrics.MultiGatherer,
+	gatherer avametrics.MultiGatherer,
 ) *stateSyncerClient {
 	return &stateSyncerClient{
 		vm:       vm,
@@ -120,14 +121,14 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 
 	// Initialize metrics for sync client
 	r := prometheus.NewRegistry()
-	metrics, err := syncEng.NewMetrics("sync_client", r)
+	metrics, err := avasync.NewMetrics("sync_client", r)
 	if err != nil {
 		return block.StateSyncSkipped, err
 	}
 	if err := s.gatherer.Register("syncer", r); err != nil {
 		return block.StateSyncSkipped, err
 	}
-	syncClient, err := syncEng.NewClient(&syncEng.ClientConfig{
+	syncClient, err := avasync.NewClient(&avasync.ClientConfig{
 		BranchFactor:     s.vm.genesis.GetStateBranchFactor(),
 		NetworkClient:    s.vm.stateSyncNetworkClient,
 		Log:              s.vm.snowCtx.Log,
@@ -137,7 +138,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 	if err != nil {
 		return block.StateSyncSkipped, err
 	}
-	s.syncManager, err = syncEng.NewManager(syncEng.ManagerConfig{
+	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
 		BranchFactor:          s.vm.genesis.GetStateBranchFactor(),
 		DB:                    s.vm.stateDB,
 		Client:                syncClient,
@@ -258,7 +259,7 @@ func (s *stateSyncerClient) StateReady() bool {
 // updated and an error if one occurred while updating the root.
 func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
 	err := s.syncManager.UpdateSyncTarget(b.StateRoot)
-	if errors.Is(err, syncEng.ErrAlreadyClosed) {
+	if errors.Is(err, avasync.ErrAlreadyClosed) {
 		<-s.done          // Wait for goroutine to exit for consistent return values with IsSyncing
 		return false, nil // Sync finished before update
 	}

@@ -13,15 +13,15 @@ type Config struct {
 	// This should not be set for a live system as it has both performance and security considerations.
 	// Note: This requires associated Engine to enable support for BulkMemory.
 	// This is false by default.
-	EnableDebugMode bool `yaml:"enable_testing_only_mode,omitempty" json:"enableTestingOnlyMode,omitempty"`
+	EnableDebugMode bool `json:"enableTestingOnlyMode,omitempty" yaml:"enable_testing_only_mode,omitempty"`
 	// LimitMaxMemory defines the maximum number of pages of memory that can be used.
 	// Each page represents 64KiB of memory.
 	// This is 18 pages by default.
-	LimitMaxMemory uint32 `yaml:"limit_max_memory,omitempty" json:"limitMaxMemory,omitempty"`
+	LimitMaxMemory uint32 `json:"limitMaxMemory,omitempty" yaml:"limit_max_memory,omitempty"`
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
-	CompileStrategy engine.CompileStrategy `yaml:"compile_strategy,omitempty" json:"compileStrategy,omitempty"`
+	CompileStrategy engine.CompileStrategy `json:"compileStrategy,omitempty" yaml:"compile_strategy,omitempty"`
 	// ImportFnCallback is a global callback for all import function requests and responses.
-	ImportFnCallback host.ImportFnCallback `yaml:"-" json:"-"`
+	ImportFnCallback host.ImportFnCallback `json:"-" yaml:"-"`
 }
 
 // NewConfig returns a new runtime configuration with default settings.

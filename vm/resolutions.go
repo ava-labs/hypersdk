@@ -15,23 +15,22 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 var (
-	_ chain.VM                           = (*VM)(nil)
-	_ gossiper.VM                        = (*VM)(nil)
-	_ builder.VM                         = (*VM)(nil)
-	_ block.ChainVM                      = (*VM)(nil)
-	_ block.StateSyncableVM              = (*VM)(nil)
-	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
+	_ chain.VM              = (*VM)(nil)
+	_ gossiper.VM           = (*VM)(nil)
+	_ builder.VM            = (*VM)(nil)
+	_ block.ChainVM         = (*VM)(nil)
+	_ block.StateSyncableVM = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {
@@ -175,36 +174,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 
-	// Sign and store any warp messages (regardless if validator now, may become one)
-	results := b.Results()
-	for i, tx := range b.Txs {
+	// TODO: consider removing this (unused and requires an extra iteration)
+	for _, tx := range b.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
 		vm.cacheAuth(tx.Auth)
-
-		result := results[i]
-		if result.WarpMessage == nil {
-			continue
-		}
-		start := time.Now()
-		signature, err := vm.snowCtx.WarpSigner.Sign(result.WarpMessage)
-		if err != nil {
-			vm.Fatal("unable to sign warp message", zap.Error(err))
-		}
-		if err := vm.StoreWarpSignature(tx.ID(), vm.snowCtx.PublicKey, signature); err != nil {
-			vm.Fatal("unable to store warp signature", zap.Error(err))
-		}
-		vm.snowCtx.Log.Info(
-			"signed and stored warp message signature",
-			zap.Stringer("txID", tx.ID()),
-			zap.Duration("t", time.Since(start)),
-		)
-
-		// Kickoff job to fetch signatures from other validators in the
-		// background
-		//
-		// We pass bytes here so that signatures returned from validators can be
-		// verified before they are persisted.
-		vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 	}
 
 	// Update server
@@ -219,11 +192,11 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 
 	// Update price metrics
 	feeManager := b.FeeManager()
-	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(chain.Bandwidth)))
-	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(chain.Compute)))
-	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(chain.StorageRead)))
-	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(chain.StorageAllocate)))
-	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(chain.StorageWrite)))
+	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
+	vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
+	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
+	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
+	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 }
 
 func (vm *VM) processAcceptedBlocks() {
@@ -331,10 +304,6 @@ func (vm *VM) CurrentValidators(
 	ctx context.Context,
 ) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	return vm.proposerMonitor.Validators(ctx)
-}
-
-func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
-	vm.warpManager.GatherSignatures(ctx, txID, msg)
 }
 
 func (vm *VM) NodeID() ids.NodeID {
@@ -473,16 +442,20 @@ func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
 
-func (vm *VM) UnitPrices(context.Context) (chain.Dimensions, error) {
+func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
-		return chain.Dimensions{}, err
+		return fees.Dimensions{}, err
 	}
-	return chain.NewFeeManager(v).UnitPrices(), nil
+	return fees.NewManager(v).UnitPrices(), nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
+}
+
+func (vm *VM) GetStateFetchConcurrency() int {
+	return vm.config.GetStateFetchConcurrency()
 }
 
 func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {

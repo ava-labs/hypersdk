@@ -6,8 +6,9 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/metric"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/executor"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/ava-labs/hypersdk/executor"
 )
 
 type executorMetrics struct {

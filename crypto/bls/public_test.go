@@ -6,10 +6,9 @@ package bls
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPublicKeyFromBytesWrongSize(t *testing.T) {

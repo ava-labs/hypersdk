@@ -26,20 +26,12 @@ func (*StateManager) TimestampKey() []byte {
 }
 
 func (*StateManager) FeeKey() []byte {
-	return storage.HeightKey()
+	return storage.FeeKey()
 }
 
-func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return storage.IncomingWarpKeyPrefix(sourceChainID, msgID)
-}
-
-func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
-	return storage.OutgoingWarpKeyPrefix(txID)
-}
-
-func (*StateManager) SponsorStateKeys(addr codec.Address) []string {
-	return []string{
-		string(storage.BalanceKey(addr, ids.Empty)),
+func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
+	return state.Keys{
+		string(storage.BalanceKey(addr, ids.Empty)): state.Read | state.Write,
 	}
 }
 

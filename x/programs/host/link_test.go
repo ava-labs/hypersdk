@@ -6,13 +6,12 @@ package host
 import (
 	"testing"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 
-	"github.com/bytecodealliance/wasmtime-go/v14"
-
-	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 func TestLinkMissingImport(t *testing.T) {
@@ -30,19 +29,17 @@ func TestLinkMissingImport(t *testing.T) {
 	store := engine.NewStore(eng, engine.NewStoreConfig())
 	link, err := newTestLink(store, NoSupportedImports)
 	require.NoError(err)
-	_, err = link.Instantiate(store, mod, ImportFnCallback{})
+	_, err = link.Instantiate(store, mod, ImportFnCallback{}, program.Context{})
 	require.ErrorIs(err, ErrMissingImportModule)
 }
 
 func TestLinkImport(t *testing.T) {
-	require := require.New(t)
-
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
       (import "env" "one" (func $one (param i64) (result i64)))
     )	
 	`)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name,
@@ -70,6 +67,8 @@ func TestLinkImport(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
 			imports := NewImportsBuilder()
 			imports.Register(tt.module, func() Import {
 				return newTestImport(tt.module, tt.fn)
@@ -81,9 +80,9 @@ func TestLinkImport(t *testing.T) {
 			require.NoError(err)
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
-			_, err = link.Instantiate(store, mod, ImportFnCallback{})
+			_, err = link.Instantiate(store, mod, ImportFnCallback{}, program.Context{})
 			if tt.errMsg != "" {
-				require.ErrorContains(err, tt.errMsg) // can't use ErrorIs because the error message is not owned by us.
+				require.ErrorContains(err, tt.errMsg) //nolint:forbidigo
 				return
 			}
 			require.NoError(err)
@@ -114,7 +113,7 @@ func BenchmarkInstantiate(b *testing.B) {
 			store := engine.NewStore(eng, engine.NewStoreConfig())
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
-			_, err = link.Instantiate(store, mod, ImportFnCallback{})
+			_, err = link.Instantiate(store, mod, ImportFnCallback{}, program.Context{})
 			require.NoError(err)
 		}
 	})
@@ -144,7 +143,7 @@ func (i *testImport) Name() string {
 	return i.module
 }
 
-func (i *testImport) Register(link *Link) error {
+func (i *testImport) Register(link *Link, _ program.Context) error {
 	if i.fn != nil {
 		return link.RegisterImportFn(i.module, "one", i.fn)
 	}

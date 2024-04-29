@@ -4,6 +4,7 @@
 package program
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -99,7 +100,7 @@ func (m *Memory) Alloc(length uint32) (uint32, error) {
 
 	result, err := allocFn.Call(m.store, int32(length))
 	if err != nil {
-		return 0, err
+		return 0, HandleTrapError(err)
 	}
 
 	addr, ok := result.(int32)
@@ -187,25 +188,22 @@ func (s SmartPtr) Bytes(memory *Memory) ([]byte, error) {
 	return bytes, nil
 }
 
-// BytesToSmartPtr writes [bytes] to memory and returns the resulting SmartPtr.
-func BytesToSmartPtr(bytes []byte, memory *Memory) (SmartPtr, error) {
+// AllocateBytes writes [bytes] to memory and returns the resulting SmartPtr.
+func AllocateBytes(bytes []byte, memory *Memory) (uint32, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
 		return 0, err
 	}
 
-	return NewSmartPtr(ptr, len(bytes))
+	return ptr, nil
 }
 
-// NewSmartPtr returns a SmartPtr from [ptr] and [len].
-func NewSmartPtr(ptr uint32, len int) (SmartPtr, error) {
+// NewSmartPtr returns a SmartPtr from [ptr] and [byteLen].
+func NewSmartPtr(ptr uint32, byteLen int) (SmartPtr, error) {
 	// ensure length of bytes is not greater than int32 to prevent overflow
-	if !EnsureIntToInt32(len) {
-		return 0, fmt.Errorf("length of bytes is greater than int32")
+	if !EnsureIntToInt32(byteLen) {
+		return 0, errors.New("length of bytes is greater than int32")
 	}
 
-	lenUpperBits := int64(len) << 32
-	ptrLowerBits := int64(ptr)
-
-	return SmartPtr(lenUpperBits | ptrLowerBits), nil
+	return SmartPtr(int64(ptr)), nil
 }

@@ -13,18 +13,18 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/workers"
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
-	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
+	ActionRegistry *codec.TypeParser[Action, bool]
+	AuthRegistry   *codec.TypeParser[Auth, bool]
 )
 
 type Parser interface {
@@ -78,6 +78,7 @@ type VM interface {
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
+	GetStateFetchConcurrency() int
 
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
@@ -123,15 +124,12 @@ type Rules interface {
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
 
-	GetMinUnitPrice() Dimensions
-	GetUnitPriceChangeDenominator() Dimensions
-	GetWindowTargetUnits() Dimensions
-	GetMaxBlockUnits() Dimensions
+	GetMinUnitPrice() fees.Dimensions
+	GetUnitPriceChangeDenominator() fees.Dimensions
+	GetWindowTargetUnits() fees.Dimensions
+	GetMaxBlockUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
-	GetBaseWarpComputeUnits() uint64
-	GetWarpComputeUnitsPerSigner() uint64
-	GetOutgoingWarpComputeUnits() uint64
 
 	// Invariants:
 	// * Controllers must manage the max key length and max value length (max network
@@ -153,8 +151,6 @@ type Rules interface {
 	GetStorageKeyWriteUnits() uint64
 	GetStorageValueWriteUnits() uint64 // per chunk
 
-	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-
 	FetchCustom(string) (any, bool)
 }
 
@@ -164,11 +160,6 @@ type MetadataManager interface {
 	FeeKey() []byte
 }
 
-type WarpManager interface {
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
-}
-
 type FeeHandler interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
@@ -176,7 +167,7 @@ type FeeHandler interface {
 	//
 	// All keys specified must be suffixed with the number of chunks that could ever be read from that
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
-	SponsorStateKeys(addr codec.Address) []string
+	SponsorStateKeys(addr codec.Address) state.Keys
 
 	// CanDeduct returns an error if [amount] cannot be paid by [addr].
 	CanDeduct(ctx context.Context, addr codec.Address, im state.Immutable, amount uint64) error
@@ -203,7 +194,6 @@ type FeeHandler interface {
 type StateManager interface {
 	FeeHandler
 	MetadataManager
-	WarpManager
 }
 
 type Object interface {
@@ -248,7 +238,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) []string
+	StateKeys(actor codec.Address, txID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
@@ -265,12 +255,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		txID ids.ID,
-		warpVerified bool,
-	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
-
-	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
-	// of any warp message is [MaxOutgoingWarpChunks].
-	OutputsWarpMessage() bool
+	) (success bool, computeUnits uint64, output []byte, err error)
 }
 
 type Auth interface {

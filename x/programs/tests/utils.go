@@ -7,18 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // ReadFixture reads a file from this fixture directory and returns its content.
 func ReadFixture(tb testing.TB, filename string) []byte {
+	require := require.New(tb)
 	tb.Helper()
 	dir, err := os.Getwd()
-	if err != nil {
-		tb.Error(err)
-	}
+	require.NoError(err)
 	bytes, err := os.ReadFile(filepath.Join(dir, filename))
-	if err != nil {
-		tb.Error(err)
-	}
+	require.NoError(err)
 	return bytes
 }

@@ -61,7 +61,7 @@ func TestLoadKeyInvalidFile(t *testing.T) {
 
 	filename := "FileNameDoesntExist"
 	_, err := LoadBytes(filename, ids.IDLen)
-	require.Error(err)
+	require.ErrorIs(err, os.ErrNotExist)
 }
 
 func TestLoadBytes(t *testing.T) {

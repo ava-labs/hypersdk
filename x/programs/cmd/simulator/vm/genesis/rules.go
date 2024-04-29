@@ -6,6 +6,7 @@ package genesis
 import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 var _ chain.Rules = (*Rules)(nil)
@@ -38,36 +39,24 @@ func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
 
-func (r *Rules) GetMinUnitPrice() chain.Dimensions {
+func (r *Rules) GetMinUnitPrice() fees.Dimensions {
 	return r.g.MinUnitPrice
 }
 
-func (r *Rules) GetUnitPriceChangeDenominator() chain.Dimensions {
+func (r *Rules) GetUnitPriceChangeDenominator() fees.Dimensions {
 	return r.g.UnitPriceChangeDenominator
 }
 
-func (r *Rules) GetWindowTargetUnits() chain.Dimensions {
+func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 	return r.g.WindowTargetUnits
 }
 
-func (r *Rules) GetMaxBlockUnits() chain.Dimensions {
+func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 	return r.g.MaxBlockUnits
 }
 
 func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.g.BaseComputeUnits
-}
-
-func (r *Rules) GetBaseWarpComputeUnits() uint64 {
-	return r.g.BaseWarpComputeUnits
-}
-
-func (r *Rules) GetWarpComputeUnitsPerSigner() uint64 {
-	return r.g.WarpComputeUnitsPerSigner
-}
-
-func (r *Rules) GetOutgoingWarpComputeUnits() uint64 {
-	return r.g.OutgoingWarpComputeUnits
 }
 
 func (r *Rules) GetStorageKeyReadUnits() uint64 {
@@ -92,10 +81,6 @@ func (r *Rules) GetStorageKeyWriteUnits() uint64 {
 
 func (r *Rules) GetStorageValueWriteUnits() uint64 {
 	return r.g.StorageValueWriteUnits
-}
-
-func (*Rules) GetWarpConfig(ids.ID) (bool, uint64, uint64) {
-	return false, 0, 0
 }
 
 func (r *Rules) NetworkID() uint32 {

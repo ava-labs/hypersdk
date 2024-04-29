@@ -22,12 +22,10 @@ import (
 	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -37,6 +35,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
@@ -176,7 +175,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	gen = genesis.Default()
-	gen.MinUnitPrice = chain.Dimensions{1, 1, 1, 1, 1}
+	gen.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
 	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
@@ -209,7 +208,6 @@ var _ = ginkgo.BeforeSuite(func() {
 			ChainDataDir:   dname,
 			Metrics:        metrics.NewOptionalGatherer(),
 			PublicKey:      bls.PublicFromSecretKey(sk),
-			WarpSigner:     warp.NewSigner(sk, networkID, chainID),
 			ValidatorState: &validators.TestState{},
 		}
 
@@ -269,7 +267,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
 			csupply += alloc.Balance
 		}
-		exists, symbol, decimals, metadata, supply, owner, warp, err := cli.Asset(context.Background(), ids.Empty, false)
+		exists, symbol, decimals, metadata, supply, owner, err := cli.Asset(context.Background(), ids.Empty, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(string(symbol)).Should(gomega.Equal(tconsts.Symbol))
@@ -277,7 +275,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Name))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
 		gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(tconsts.HRP, codec.EmptyAddress)))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	}
 	blocks = []snowman.Block{}
 
@@ -336,7 +333,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, transferTx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 100_000, // must be more than StateLockup
@@ -369,7 +365,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Timestamp: 0,
 					MaxFee:    1000,
 				},
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 110,
@@ -436,19 +431,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created
 			// write: 1 key modified, 1 key new
-			transferTxConsumed := chain.Dimensions{227, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{223, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(297)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(293)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899703)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899707)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -462,7 +457,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 101,
@@ -492,7 +486,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 200,
@@ -507,7 +500,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 201,
@@ -537,7 +529,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
 				&actions.Transfer{
 					To:    rsender2,
 					Value: 203,
@@ -639,7 +630,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			transfer,
 			factory,
 		)
@@ -660,7 +650,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(tx.Asset).To(gomega.Equal(ids.Empty))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
-		gomega.Ω(prices).Should(gomega.Equal(chain.Dimensions{1, 1, 1, 1, 1}))
+		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
 		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
@@ -688,7 +678,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		_, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			transfer,
 			factory,
 		)
@@ -732,7 +721,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -758,7 +746,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1001,
 			},
-			nil,
 			&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -791,7 +778,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: assetID,
@@ -809,7 +795,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("asset missing"))
 
-		exists, _, _, _, _, _, _, err := instances[0].tcli.Asset(context.TODO(), assetID, false)
+		exists, _, _, _, _, _, err := instances[0].tcli.Asset(context.TODO(), assetID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeFalse())
 	})
@@ -821,7 +807,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1001,
 			},
-			nil,
 			&actions.CreateAsset{
 				Symbol:   []byte("s0"),
 				Decimals: 0,
@@ -852,7 +837,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1001,
 			},
-			nil,
 			&actions.CreateAsset{
 				Symbol:   nil,
 				Decimals: 0,
@@ -883,7 +867,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1000,
 			},
-			nil,
 			&actions.CreateAsset{
 				Symbol:   []byte("s0"),
 				Decimals: 0,
@@ -913,7 +896,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateAsset{
 				Symbol:   asset1Symbol,
 				Decimals: asset1Decimals,
@@ -933,7 +915,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, symbol, decimals, metadata, supply, owner, warp, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
+		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(symbol).Should(gomega.Equal(asset1Symbol))
@@ -941,7 +923,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(0)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("mint a new asset", func() {
@@ -950,7 +931,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender2,
 				Asset: asset1ID,
@@ -972,7 +952,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, symbol, decimals, metadata, supply, owner, warp, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
+		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(symbol).Should(gomega.Equal(asset1Symbol))
@@ -980,7 +960,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(15)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("mint asset from wrong owner", func() {
@@ -991,7 +970,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
@@ -1009,7 +987,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("wrong owner"))
 
-		exists, symbol, decimals, metadata, supply, owner, warp, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
+		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(symbol).Should(gomega.Equal(asset1Symbol))
@@ -1017,7 +995,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(15)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("burn new asset", func() {
@@ -1026,7 +1003,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.BurnAsset{
 				Asset: asset1ID,
 				Value: 5,
@@ -1047,7 +1023,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, symbol, decimals, metadata, supply, owner, warp, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
+		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(symbol).Should(gomega.Equal(asset1Symbol))
@@ -1055,7 +1031,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("burn missing asset", func() {
@@ -1064,7 +1039,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.BurnAsset{
 				Asset: asset1ID,
 				Value: 10,
@@ -1081,7 +1055,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(string(result.Output)).
 			Should(gomega.ContainSubstring("invalid balance"))
 
-		exists, symbol, decimals, metadata, supply, owner, warp, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
+		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(symbol).Should(gomega.Equal(asset1Symbol))
@@ -1089,7 +1063,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("rejects empty mint", func() {
@@ -1101,7 +1074,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1000,
 			},
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
@@ -1130,7 +1102,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender2,
 				Asset: asset1ID,
@@ -1155,7 +1126,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
 
-		exists, symbol, decimals, metadata, supply, owner, warp, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
+		exists, symbol, decimals, metadata, supply, owner, err := instances[0].tcli.Asset(context.TODO(), asset1ID, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(symbol).Should(gomega.Equal(asset1Symbol))
@@ -1163,7 +1134,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(metadata).Should(gomega.Equal(asset1))
 		gomega.Ω(supply).Should(gomega.Equal(uint64(10)))
 		gomega.Ω(owner).Should(gomega.Equal(sender))
-		gomega.Ω(warp).Should(gomega.BeFalse())
 	})
 
 	ginkgo.It("rejects mint of native token", func() {
@@ -1175,7 +1145,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
 				MaxFee:    1000,
 			},
-			nil,
 			&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -1204,7 +1173,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateAsset{
 				Symbol:   asset2Symbol,
 				Decimals: asset2Decimals,
@@ -1223,7 +1191,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender,
 				Asset: asset2ID,
@@ -1249,7 +1216,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateAsset{
 				Symbol:   asset3Symbol,
 				Decimals: asset3Decimals,
@@ -1268,7 +1234,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.MintAsset{
 				To:    rsender2,
 				Asset: asset3ID,
@@ -1294,7 +1259,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset3ID,
 				InTick:  1,
@@ -1332,7 +1296,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  4,
@@ -1359,7 +1322,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  4,
@@ -1397,7 +1359,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  5,
@@ -1430,7 +1391,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1463,7 +1423,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1496,7 +1455,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1543,7 +1501,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CloseOrder{
 				Order: order.ID,
 				Out:   asset3ID,
@@ -1571,7 +1528,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CloseOrder{
 				Order: order.ID,
 				Out:   asset3ID,
@@ -1610,7 +1566,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, tx, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.CreateOrder{
 				In:      asset2ID,
 				InTick:  2,
@@ -1654,7 +1609,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
 			&actions.FillOrder{
 				Order: order.ID,
 				Owner: owner,
@@ -1694,260 +1648,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(0))
 	})
-
-	ginkgo.It("import warp message with nil when expected", func() {
-		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
-			nil,
-			&actions.ImportAsset{},
-		)
-		// Must do manual construction to avoid `tx.Sign` error (would fail with
-		// empty warp)
-		msg, err := tx.Digest()
-		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg)
-		gomega.Ω(err).To(gomega.BeNil())
-		tx.Auth = auth
-		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
-		gomega.Ω(p.Err()).To(gomega.BeNil())
-		_, err = instances[0].cli.SubmitTx(
-			context.Background(),
-			p.Bytes(),
-		)
-		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("expected warp message"))
-	})
-
-	ginkgo.It("import warp message empty", func() {
-		wm, err := warp.NewMessage(&warp.UnsignedMessage{}, &warp.BitSetSignature{})
-		gomega.Ω(err).Should(gomega.BeNil())
-		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
-			wm,
-			&actions.ImportAsset{},
-		)
-		// Must do manual construction to avoid `tx.Sign` error (would fail with
-		// empty warp)
-		msg, err := tx.Digest()
-		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg)
-		gomega.Ω(err).To(gomega.BeNil())
-		tx.Auth = auth
-		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
-		gomega.Ω(p.Err()).To(gomega.BeNil())
-		_, err = instances[0].cli.SubmitTx(
-			context.Background(),
-			p.Bytes(),
-		)
-		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("empty warp payload"))
-	})
-
-	ginkgo.It("import with wrong payload", func() {
-		uwm, err := warp.NewUnsignedMessage(networkID, ids.Empty, []byte("hello"))
-		gomega.Ω(err).Should(gomega.BeNil())
-		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
-		gomega.Ω(err).Should(gomega.BeNil())
-		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
-			wm,
-			&actions.ImportAsset{},
-		)
-		// Must do manual construction to avoid `tx.Sign` error (would fail with
-		// invalid object)
-		msg, err := tx.Digest()
-		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg)
-		gomega.Ω(err).To(gomega.BeNil())
-		tx.Auth = auth
-		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
-		gomega.Ω(p.Err()).To(gomega.BeNil())
-		_, err = instances[0].cli.SubmitTx(
-			context.Background(),
-			p.Bytes(),
-		)
-		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("insufficient length for input"))
-	})
-
-	ginkgo.It("import with invalid payload", func() {
-		wt := &actions.WarpTransfer{}
-		wtb, err := wt.Marshal()
-		gomega.Ω(err).Should(gomega.BeNil())
-		uwm, err := warp.NewUnsignedMessage(networkID, ids.Empty, wtb)
-		gomega.Ω(err).Should(gomega.BeNil())
-		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
-		gomega.Ω(err).Should(gomega.BeNil())
-		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
-			wm,
-			&actions.ImportAsset{},
-		)
-		// Must do manual construction to avoid `tx.Sign` error (would fail with
-		// invalid object)
-		msg, err := tx.Digest()
-		gomega.Ω(err).To(gomega.BeNil())
-		auth, err := factory.Sign(msg)
-		gomega.Ω(err).To(gomega.BeNil())
-		tx.Auth = auth
-		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
-		gomega.Ω(tx.Marshal(p)).To(gomega.BeNil())
-		gomega.Ω(p.Err()).To(gomega.BeNil())
-		_, err = instances[0].cli.SubmitTx(
-			context.Background(),
-			p.Bytes(),
-		)
-		gomega.Ω(err.Error()).Should(gomega.ContainSubstring("field is not populated"))
-	})
-
-	ginkgo.It("import with wrong destination", func() {
-		wt := &actions.WarpTransfer{
-			To:                 rsender,
-			Symbol:             []byte("s"),
-			Decimals:           2,
-			Asset:              ids.GenerateTestID(),
-			Value:              100,
-			Return:             false,
-			Reward:             100,
-			TxID:               ids.GenerateTestID(),
-			DestinationChainID: ids.GenerateTestID(),
-		}
-		wtb, err := wt.Marshal()
-		gomega.Ω(err).Should(gomega.BeNil())
-		uwm, err := warp.NewUnsignedMessage(networkID, ids.Empty, wtb)
-		gomega.Ω(err).Should(gomega.BeNil())
-		wm, err := warp.NewMessage(uwm, &warp.BitSetSignature{})
-		gomega.Ω(err).Should(gomega.BeNil())
-		parser, err := instances[0].tcli.Parser(context.Background())
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			wm,
-			&actions.ImportAsset{},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-
-		// Build block with no context (should fail)
-		gomega.Ω(instances[0].vm.Builder().Force(context.TODO())).To(gomega.BeNil())
-		<-instances[0].toEngine
-		blk, err := instances[0].vm.BuildBlock(context.TODO())
-		gomega.Ω(err).To(gomega.Not(gomega.BeNil()))
-		gomega.Ω(blk).To(gomega.BeNil())
-
-		// Wait for mempool to be size 1 (txs are restored async)
-		for {
-			if instances[0].vm.Mempool().Len(context.Background()) > 0 {
-				break
-			}
-			log.Info("waiting for txs to be restored")
-			time.Sleep(100 * time.Millisecond)
-		}
-
-		// Build block with context
-		accept := expectBlkWithContext(instances[0])
-		results := accept(false)
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("warp verification failed"))
-	})
-
-	ginkgo.It("export native asset", func() {
-		dest := ids.GenerateTestID()
-		loan, err := instances[0].tcli.Loan(context.TODO(), ids.Empty, dest)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(loan).Should(gomega.Equal(uint64(0)))
-
-		parser, err := instances[0].tcli.Parser(context.Background())
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, tx, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			nil,
-			&actions.ExportAsset{
-				To:          rsender,
-				Asset:       ids.Empty,
-				Value:       100,
-				Return:      false,
-				Reward:      10,
-				Destination: dest,
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept(false)
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-		wt := &actions.WarpTransfer{
-			To:                 rsender,
-			Symbol:             []byte(tconsts.Symbol),
-			Decimals:           tconsts.Decimals,
-			Asset:              ids.Empty,
-			Value:              100,
-			Return:             false,
-			Reward:             10,
-			TxID:               tx.ID(),
-			DestinationChainID: dest,
-		}
-		wtb, err := wt.Marshal()
-		gomega.Ω(err).Should(gomega.BeNil())
-		wm, err := warp.NewUnsignedMessage(networkID, instances[0].chainID, wtb)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(result.WarpMessage).Should(gomega.Equal(wm))
-
-		loan, err = instances[0].tcli.Loan(context.TODO(), ids.Empty, dest)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(loan).Should(gomega.Equal(uint64(110)))
-	})
-
-	ginkgo.It("export native asset (invalid return)", func() {
-		parser, err := instances[0].tcli.Parser(context.Background())
-		gomega.Ω(err).Should(gomega.BeNil())
-		submit, _, _, err := instances[0].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			nil,
-			&actions.ExportAsset{
-				To:          rsender,
-				Asset:       ids.Empty,
-				Value:       100,
-				Return:      true,
-				Reward:      10,
-				Destination: ids.GenerateTestID(),
-			},
-			factory,
-		)
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
-		accept := expectBlk(instances[0])
-		results := accept(false)
-		gomega.Ω(results).Should(gomega.HaveLen(1))
-		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeFalse())
-		gomega.Ω(string(result.Output)).Should(gomega.ContainSubstring("not warp asset"))
-	})
 })
 
 func expectBlk(i instance) func(bool) []*chain.Result {
@@ -1963,42 +1663,6 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
 
 	gomega.Ω(blk.Verify(ctx)).To(gomega.BeNil())
-	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
-
-	err = i.vm.SetPreference(ctx, blk.ID())
-	gomega.Ω(err).To(gomega.BeNil())
-
-	return func(add bool) []*chain.Result {
-		gomega.Ω(blk.Accept(ctx)).To(gomega.BeNil())
-		gomega.Ω(blk.Status()).To(gomega.Equal(choices.Accepted))
-
-		if add {
-			blocks = append(blocks, blk)
-		}
-
-		lastAccepted, err := i.vm.LastAccepted(ctx)
-		gomega.Ω(err).To(gomega.BeNil())
-		gomega.Ω(lastAccepted).To(gomega.Equal(blk.ID()))
-		return blk.(*chain.StatelessBlock).Results()
-	}
-}
-
-// TODO: unify with expectBlk
-func expectBlkWithContext(i instance) func(bool) []*chain.Result {
-	ctx := context.TODO()
-
-	// manually signal ready
-	gomega.Ω(i.vm.Builder().Force(ctx)).To(gomega.BeNil())
-	// manually ack ready sig as in engine
-	<-i.toEngine
-
-	bctx := &block.Context{PChainHeight: 1}
-	blk, err := i.vm.BuildBlockWithContext(ctx, bctx)
-	gomega.Ω(err).To(gomega.BeNil())
-	gomega.Ω(blk).To(gomega.Not(gomega.BeNil()))
-	cblk := blk.(block.WithVerifyContext)
-
-	gomega.Ω(cblk.VerifyWithContext(ctx, bctx)).To(gomega.BeNil())
 	gomega.Ω(blk.Status()).To(gomega.Equal(choices.Processing))
 
 	err = i.vm.SetPreference(ctx, blk.ID())

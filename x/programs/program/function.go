@@ -7,24 +7,25 @@ import (
 	"fmt"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/near/borsh-go"
 )
 
 // Func is a wrapper around a wasmtime.Func
 type Func struct {
 	inner *wasmtime.Func
-	store wasmtime.Storelike
+	inst  Instance
 }
 
 // NewFunc creates a new func wrapper.
-func NewFunc(inner *wasmtime.Func, store wasmtime.Storelike) *Func {
+func NewFunc(inner *wasmtime.Func, inst Instance) *Func {
 	return &Func{
 		inner: inner,
-		store: store,
+		inst:  inst,
 	}
 }
 
-func (f *Func) Call(params ...SmartPtr) ([]int64, error) {
-	fnParams := f.Type().Params()
+func (f *Func) Call(context Context, params ...uint32) ([]int64, error) {
+	fnParams := f.Type().Params()[1:] // strip program_id
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
 	}
@@ -35,7 +36,16 @@ func (f *Func) Call(params ...SmartPtr) ([]int64, error) {
 		return nil, err
 	}
 
-	result, err := f.inner.Call(f.store, callParams...)
+	mem, err := f.inst.Memory()
+	if err != nil {
+		return nil, err
+	}
+	contextPtr, err := writeToMem(context, mem)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := f.inner.Call(f.inst.GetStore(), append([]interface{}{int64(contextPtr)}, callParams...)...)
 	if err != nil {
 		return nil, HandleTrapError(err)
 	}
@@ -54,12 +64,21 @@ func (f *Func) Call(params ...SmartPtr) ([]int64, error) {
 	}
 }
 
+func writeToMem(obj interface{}, memory *Memory) (uint32, error) {
+	bytes, err := borsh.Serialize(obj)
+	if err != nil {
+		return 0, err
+	}
+
+	return AllocateBytes(bytes, memory)
+}
+
 func (f *Func) Type() *wasmtime.FuncType {
-	return f.inner.Type(f.store)
+	return f.inner.Type(f.inst.GetStore())
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []uint32, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {
