@@ -77,10 +77,9 @@ func (t *ProgramExecute) Execute(
 	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
 	if !exists {
 		err = errors.New("unknown program")
-		return false, 1, utils.ErrBytes(err), err
 	}
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: get cfg from genesis
