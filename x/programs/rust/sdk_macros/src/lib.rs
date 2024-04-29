@@ -155,7 +155,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut item_enum = parse_macro_input!(item as ItemEnum);
     // add default attributes
     item_enum.attrs.push(syn::parse_quote! {
-         #[derive(Clone, Copy, Debug)]
+         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     });
     item_enum.attrs.push(syn::parse_quote! {
          #[repr(u8)]

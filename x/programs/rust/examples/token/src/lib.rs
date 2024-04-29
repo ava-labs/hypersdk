@@ -59,7 +59,7 @@ pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
     let Context { program } = context;
     let balance = program
         .state()
-        .get::<i64, _>(StateKey::Balance(recipient))
+        .get::<i64>(StateKey::Balance(recipient))
         .unwrap_or_default();
 
     program
@@ -90,14 +90,14 @@ pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<i64, _>(StateKey::Balance(sender))
+        .get::<i64>(StateKey::Balance(sender))
         .expect("failed to update balance");
 
     assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
-        .get::<i64, _>(StateKey::Balance(recipient))
+        .get::<i64>(StateKey::Balance(recipient))
         .unwrap_or_default();
 
     // update balances
