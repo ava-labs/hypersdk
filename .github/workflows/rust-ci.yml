@@ -31,12 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-          check-latest: true
-          cache: true
+      - name: Install Go
+        uses: ./.github/actions/install-go
       - name: Install Rust
         uses: ./.github/actions/install-rust
         with:
@@ -50,12 +46,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-          check-latest: true
-          cache: true
+      - name: Install Go
+        uses: ./.github/actions/install-go
       - name: Install Rust
         uses: ./.github/actions/install-rust
         with:
@@ -69,12 +61,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-          check-latest: true
-          cache: true
+      - name: Install Go
+        uses: ./.github/actions/install-go
       - name: Install Rust
         uses: ./.github/actions/install-rust
         with:
