@@ -8,9 +8,9 @@ on:
     branches:
       - main
     tags:
-      - "*"
+      - '*'
   pull_request:
-    types: [labeled,synchronize,reopened]
+    types: [labeled, synchronize, reopened]
 
 jobs:
   token-wallet-release:
@@ -20,11 +20,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: ./.github/actions/install-go
         with:
-          go-version: "1.21"
-          check-latest: true
-          cache: true
           cache-dependency-path: |
             go.sum
             examples/tokenvm/go.sum
@@ -48,11 +45,8 @@ jobs:
       - name: Git checkout
         uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: ./.github/actions/install-go
         with:
-          go-version: "1.21"
-          check-latest: true
-          cache: true
           cache-dependency-path: |
             go.sum
             examples/tokenvm/go.sum
