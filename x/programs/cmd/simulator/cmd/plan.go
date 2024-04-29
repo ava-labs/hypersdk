@@ -274,7 +274,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
-		case "program", String, ID:
+		case String, ID:
 			stepIdStr, ok := param.Value.(string)
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
@@ -358,7 +358,6 @@ func (c *runCmd) verifyProgramIDStr(idStr string) (string, error) {
 	if err == nil {
 		return idStr, nil
 		// return myId, nil
-
 	}
 
 	// check if the id is a synthetic identifier
