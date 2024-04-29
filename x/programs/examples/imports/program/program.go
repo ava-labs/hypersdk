@@ -224,6 +224,5 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte)
 		return nil, err
 	}
 
-
 	return bytes, nil
 }
