@@ -17,16 +17,20 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install Rust
+        uses: ./.github/actions/install-rust
+        with:
+          cache: false
       - name: Run static analysis tests
         run: cargo fmt --all --check
 
   docs:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -34,18 +38,18 @@ jobs:
           check-latest: true
           cache: true
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: ./.github/actions/install-rust
         with:
           targets: wasm32-unknown-unknown
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+          cache: false
       - name: Run doc tests
         run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items --all
 
   clippy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -53,12 +57,9 @@ jobs:
           check-latest: true
           cache: true
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: ./.github/actions/install-rust
         with:
           targets: wasm32-unknown-unknown
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
       - name: Run static analysis tests
         shell: bash
         run: cargo clippy --all --all-features --tests --benches --examples -- -D warnings
@@ -66,6 +67,8 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -73,11 +76,8 @@ jobs:
           check-latest: true
           cache: true
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: ./.github/actions/install-rust
         with:
           targets: wasm32-unknown-unknown
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
       - name: Run unit tests
         run: cargo test --all-features --all
