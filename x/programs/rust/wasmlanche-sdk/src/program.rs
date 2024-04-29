@@ -72,7 +72,6 @@ impl CPointer {
 
 #[link(wasm_import_module = "program")]
 extern "C" {
-    // TODO return a CPointer
     #[link_name = "call_program"]
     fn _call_program(
         target_id: CPointer,
