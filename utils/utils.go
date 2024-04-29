@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -13,11 +14,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/perms"
 	"github.com/onsi/ginkgo/v2/formatter"
 
+	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -116,4 +122,45 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 		return nil, ErrInvalidSize
 	}
 	return bytes, nil
+}
+
+// Generate merkle root for a set of items
+// this function does not take ownership of given bytes array
+func GenerateMerkleRoot(ctx context.Context, tracer trace.Tracer, merkleItems [][]byte) ([]byte, merkledb.MerkleDB, error) {
+	var batchOps []database.BatchOp
+
+	for _, item := range merkleItems {
+		key := ToID(item)
+		batchOps = append(batchOps, database.BatchOp{
+			Key:   key[:],
+			Value: item,
+		})
+	}
+
+	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
+		BranchFactor:              merkledb.BranchFactor16,
+		HistoryLength:             100,
+		EvictionBatchSize:         units.MiB,
+		IntermediateNodeCacheSize: units.MiB,
+		ValueNodeCacheSize:        units.MiB,
+		Tracer:                    tracer,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	view, err := db.NewView(ctx, merkledb.ViewChanges{BatchOps: batchOps})
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := view.CommitToDB(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	root, err := db.GetMerkleRoot(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return root[:], db, nil
 }
