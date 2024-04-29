@@ -221,7 +221,7 @@ mod tests {
             require: None,
         });
 
-        /*plan.add_step(Step {
+        plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "mint_to".into(),
             params: vec![
@@ -292,7 +292,7 @@ mod tests {
             require: Some(Require {
                 result: ResultAssertion::NumericEq(0),
             }),
-        });*/
+        });
 
         let plan_responses = simulator.run_plan(&plan).unwrap();
 

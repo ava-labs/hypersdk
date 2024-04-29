@@ -83,7 +83,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		}
 
 		// get the entry function for invoke to call.
-		functionBytes, err := program.SmartPtr(functionPtr).Bytes(memory)
+		functionBytes, err := memory.Range(uint32(functionPtr), uint32(functionLen))
 		if err != nil {
 			i.log.Error("failed to read function name from memory",
 				zap.Error(err),
@@ -91,7 +91,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		programIDBytes, err := program.SmartPtr(programPtr).Bytes(memory)
+		programIDBytes, err := memory.Range(uint32(programPtr), uint32(programLen))
 		if err != nil {
 			i.log.Error("failed to read id from memory",
 				zap.Error(err),
@@ -146,7 +146,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			}
 		}()
 
-		argsBytes, err := program.SmartPtr(argsPtr).Bytes(memory)
+		argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
 		if err != nil {
 			i.log.Error("failed to read program args from memory",
 				zap.Error(err),
