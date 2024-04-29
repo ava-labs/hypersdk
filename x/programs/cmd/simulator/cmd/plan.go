@@ -357,7 +357,7 @@ func (c *runCmd) verifyProgramIDStr(idStr string) (string, error) {
 	// myId, err := ids.FromString(idStr)
 	if err == nil {
 		return idStr, nil
-		//return myId, nil
+		// return myId, nil
 
 	}
 
