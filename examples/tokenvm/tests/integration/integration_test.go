@@ -85,7 +85,7 @@ func init() {
 	flag.IntVar(
 		&vms,
 		"vms",
-		3,
+		4,
 		"number of VMs to create",
 	)
 }
@@ -100,6 +100,11 @@ var (
 	factory2 *auth.ED25519Factory
 	rsender2 codec.Address
 	sender2  string
+
+	priv3    ed25519.PrivateKey
+	factory3 *auth.ED25519Factory
+	rsender3 codec.Address
+	sender3  string
 
 	asset1         []byte
 	asset1Symbol   []byte
@@ -159,6 +164,17 @@ var _ = ginkgo.BeforeSuite(func() {
 		"generated key",
 		zap.String("addr", sender2),
 		zap.String("pk", hex.EncodeToString(priv2[:])),
+	)
+
+	priv3, err = ed25519.GeneratePrivateKey()
+	gomega.Ω(err).Should(gomega.BeNil())
+	factory3 = auth.NewED25519Factory(priv3)
+	rsender3 = auth.NewED25519Address(priv3.PublicKey())
+	sender3 = codec.MustAddressBech32(tconsts.HRP, rsender3)
+	log.Debug(
+		"generated key",
+		zap.String("addr", sender3),
+		zap.String("pk", hex.EncodeToString(priv3[:])),
 	)
 
 	asset1 = []byte("1")
@@ -1647,6 +1663,41 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		orders, err = instances[0].tcli.Orders(context.TODO(), actions.PairID(asset2ID, asset3ID))
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(0))
+	})
+
+	ginkgo.It("transfer to multiple accounts in a single tx", func() {
+		parser, err := instances[3].tcli.Parser(context.Background())
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, _, _, err := instances[3].cli.GenerateTransaction(
+			context.Background(),
+			parser,
+			[]chain.Action{
+				&actions.Transfer{
+					To:    rsender2,
+					Value: 101,
+				},
+				&actions.Transfer{
+					To:    rsender3,
+					Value: 50,
+				},
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		time.Sleep(2 * time.Second) // for replay test
+		accept := expectBlk(instances[3])
+		results := accept(false)
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		balance2, err := instances[3].tcli.Balance(context.Background(), sender2, codec.EmptyAddress)
+		gomega.Ω(err).To(gomega.BeNil())
+		gomega.Ω(balance2).To(gomega.Equal(uint64(101)))
+
+		balance3, err := instances[3].tcli.Balance(context.Background(), sender3, codec.EmptyAddress)
+		gomega.Ω(err).To(gomega.BeNil())
+		gomega.Ω(balance3).To(gomega.Equal(uint64(50)))
 	})
 })
 

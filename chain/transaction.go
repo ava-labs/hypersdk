@@ -422,8 +422,9 @@ func (t *Transaction) Execute(
 		refund := maxFee - feeRequired
 		if refund > 0 {
 			ts.DisableAllocation()
-			defer ts.EnableAllocation()
-			if err := s.Refund(ctx, t.Auth.Sponsor(), ts, refund); err != nil {
+			err = s.Refund(ctx, t.Auth.Sponsor(), ts, refund)
+			ts.EnableAllocation()
+			if err != nil {
 				return handleRevert(err)
 			}
 		}
