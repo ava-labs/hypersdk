@@ -136,12 +136,12 @@ func (l *Link) RegisterImportWrapFn(module, name string, paramCount int, f func(
 	// TODO: support other types?
 	valType := make([]*wasmtime.ValType, paramCount)
 	for i := 0; i < paramCount; i++ {
-		valType[i] = wasmtime.NewValType(wasmtime.KindI64)
+		valType[i] = wasmtime.NewValType(wasmtime.KindI32)
 	}
 
 	funcType := wasmtime.NewFuncType(
 		valType,
-		[]*wasmtime.ValType{wasmtime.NewValType(wasmtime.KindI64)},
+		[]*wasmtime.ValType{wasmtime.NewValType(wasmtime.KindI32)},
 	)
 
 	return l.wasmLink.FuncNew(module, name, funcType, fn)

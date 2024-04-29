@@ -43,38 +43,38 @@ func (*Import) Name() string {
 func (i *Import) Register(link *host.Link, _ program.Context) error {
 	i.meter = link.Meter()
 	wrap := wrap.New(link)
-	if err := wrap.RegisterAnyParamFn(Name, "put", 3, i.putFnVariadic); err != nil {
+	if err := wrap.RegisterAnyParamFn(Name, "put", 6, i.putFnVariadic); err != nil {
 		return err
 	}
-	if err := wrap.RegisterAnyParamFn(Name, "get", 2, i.getFnVariadic); err != nil {
+	if err := wrap.RegisterAnyParamFn(Name, "get", 4, i.getFnVariadic); err != nil {
 		return err
 	}
 
-	return wrap.RegisterAnyParamFn(Name, "delete", 2, i.deleteFnVariadic)
+	return wrap.RegisterAnyParamFn(Name, "delete", 4, i.deleteFnVariadic)
 }
 
-func (i *Import) putFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
-	if len(args) != 3 {
-		return nil, errors.New("expected 3 arguments")
+func (i *Import) putFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
+	if len(args) != 6 {
+		return nil, errors.New("expected 6 arguments")
 	}
-	return i.putFn(caller, args[0], args[1], args[2])
+	return i.putFn(caller, args[0], args[1], args[2], args[3], args[4], args[5])
 }
 
-func (i *Import) getFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
-	if len(args) != 2 {
-		return nil, errors.New("expected 2 arguments")
+func (i *Import) getFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
+	if len(args) != 4 {
+		return nil, errors.New("expected 4 arguments")
 	}
-	return i.getFn(caller, args[0], args[1])
+	return i.getFn(caller, args[0], args[1], args[2], args[3])
 }
 
-func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int64) (*types.Val, error) {
-	if len(args) != 2 {
-		return nil, errors.New("expected 2 arguments")
+func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
+	if len(args) != 4 {
+		return nil, errors.New("expected 4 arguments")
 	}
-	return i.deleteFn(caller, args[0], args[1])
+	return i.deleteFn(caller, args[0], args[1], args[2], args[3])
 }
 
-func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64) (*types.Val, error) {
+func (i *Import) putFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr int32, keyLen int32, valuePtr int32, valueLen int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -83,7 +83,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	programIDBytes, err := program.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := memory.Range(uint32(idPtr), uint32(idLen))
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -91,7 +91,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	keyBytes, err := program.SmartPtr(key).Bytes(memory)
+	keyBytes, err := memory.Range(uint32(keyPtr), uint32(keyLen))
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -99,7 +99,7 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	valueBytes, err := program.SmartPtr(value).Bytes(memory)
+	valueBytes, err := memory.Range(uint32(valuePtr), uint32(valueLen))
 	if err != nil {
 		i.log.Error("failed to read value from memory",
 			zap.Error(err),
@@ -116,10 +116,10 @@ func (i *Import) putFn(caller *program.Caller, id int64, key int64, value int64)
 		return nil, err
 	}
 
-	return types.ValI64(0), nil
+	return types.ValI32(0), nil
 }
 
-func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val, error) {
+func (i *Import) getFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr int32, keyLen int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -128,7 +128,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	programIDBytes, err := program.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := memory.Range(uint32(idPtr), uint32(idLen))
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -136,7 +136,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	keyBytes, err := program.SmartPtr(key).Bytes(memory)
+	keyBytes, err := memory.Range(uint32(keyPtr), uint32(keyLen))
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -148,7 +148,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			// TODO: return a more descriptive error
-			return types.ValI64(-1), nil
+			return types.ValI32(-1), nil
 		}
 		i.log.Error("failed to get value from storage",
 			zap.Error(err),
@@ -163,7 +163,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	ptr, err := program.WriteBytes(memory, val)
+	valPtr, err := program.WriteBytes(memory, val)
 	if err != nil {
 		{
 			i.log.Error("failed to write to memory",
@@ -172,7 +172,7 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		}
 		return nil, err
 	}
-	argPtr, err := program.NewSmartPtr(ptr, len(val))
+	_, err = memory.Range(valPtr, uint32(len(val)))
 	if err != nil {
 		i.log.Error("failed to convert ptr to argument",
 			zap.Error(err),
@@ -180,10 +180,10 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	return types.ValI64(int64(argPtr)), nil
+	return types.ValI32(int32(valPtr)), nil
 }
 
-func (i *Import) deleteFn(caller *program.Caller, id int64, key int64) (*types.Val, error) {
+func (i *Import) deleteFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr int32, keyLen int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -192,7 +192,7 @@ func (i *Import) deleteFn(caller *program.Caller, id int64, key int64) (*types.V
 		return nil, err
 	}
 
-	programIDBytes, err := program.SmartPtr(id).Bytes(memory)
+	programIDBytes, err := memory.Range(uint32(idPtr), uint32(idLen))
 	if err != nil {
 		i.log.Error("failed to read program id from memory",
 			zap.Error(err),
@@ -200,7 +200,7 @@ func (i *Import) deleteFn(caller *program.Caller, id int64, key int64) (*types.V
 		return nil, err
 	}
 
-	keyBytes, err := program.SmartPtr(key).Bytes(memory)
+	keyBytes, err := memory.Range(uint32(keyPtr), uint32(keyLen))
 	if err != nil {
 		i.log.Error("failed to read key from memory",
 			zap.Error(err),
@@ -211,7 +211,7 @@ func (i *Import) deleteFn(caller *program.Caller, id int64, key int64) (*types.V
 	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
 	if err := i.mu.Remove(context.Background(), k); err != nil {
 		i.log.Error("failed to remove from storage", zap.Error(err))
-		return types.ValI64(-1), nil
+		return types.ValI32(-1), nil
 	}
-	return types.ValI64(0), nil
+	return types.ValI32(0), nil
 }

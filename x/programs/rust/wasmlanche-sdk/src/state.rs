@@ -77,7 +77,8 @@ impl State {
         T: BorshDeserialize,
     {
         let val_ptr = unsafe { host::get_bytes(&self.program, &key.into())? };
-        if val_ptr < 0 {
+        // TODO shouldn't we check if its null here instead ?
+        if val_ptr < std::ptr::null() {
             return Err(Error::Read);
         }
 
@@ -119,18 +120,18 @@ impl Key {
 
 mod host {
     use super::{BorshSerialize, Key, Program};
-    use crate::{memory::to_host_ptr, state::Error};
+    use crate::{memory::to_ffi_ptr, program::CPointer, state::Error};
 
     #[link(wasm_import_module = "state")]
     extern "C" {
         #[link_name = "put"]
-        fn _put(caller: i64, key: i64, value: i64) -> i64;
+        fn _put(caller: CPointer, key: CPointer, value: CPointer) -> *const u8;
 
         #[link_name = "get"]
-        fn _get(caller: i64, key: i64) -> i64;
+        fn _get(caller: CPointer, key: CPointer) -> *const u8;
 
         #[link_name = "delete"]
-        fn _delete(caller: i64, key: i64) -> i64;
+        fn _delete(caller: CPointer, key: CPointer) -> *const u8;
     }
 
     /// Persists the bytes at `value` at key on the host storage.
@@ -140,31 +141,33 @@ mod host {
     {
         let value_bytes = borsh::to_vec(value).map_err(|_| Error::Serialization)?;
         // prepend length to both key & value
-        let caller = to_host_ptr(caller.id())?;
-        let value = to_host_ptr(&value_bytes)?;
-        let key = to_host_ptr(key)?;
+        let caller = to_ffi_ptr(caller.id())?;
+        let value = to_ffi_ptr(&value_bytes)?;
+        let key = to_ffi_ptr(key)?;
 
-        match unsafe { _put(caller, key, value) } {
-            0 => Ok(()),
-            _ => Err(Error::Write),
+        if unsafe { _put(caller, key, value) }.is_null() {
+            Ok(())
+        } else {
+            Err(Error::Write)
         }
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, Error> {
+    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<*const u8, Error> {
         // prepend length to key
-        let caller = to_host_ptr(caller.id())?;
-        let key = to_host_ptr(key)?;
+        let caller = to_ffi_ptr(caller.id())?;
+        let key = to_ffi_ptr(key)?;
         Ok(unsafe { _get(caller, key) })
     }
 
     /// Deletes the bytes at key ptr from the host storage
     pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        let caller = to_host_ptr(caller.id())?;
-        let key = to_host_ptr(key)?;
-        match unsafe { _delete(caller, key) } {
-            0 => Ok(()),
-            _ => Err(Error::Delete),
+        let caller = to_ffi_ptr(caller.id())?;
+        let key = to_ffi_ptr(key)?;
+        if unsafe { _delete(caller, key) }.is_null() {
+            Ok(())
+        } else {
+            Err(Error::Delete)
         }
     }
 }

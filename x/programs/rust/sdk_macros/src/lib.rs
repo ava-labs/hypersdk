@@ -123,7 +123,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-    let param_types = std::iter::repeat(quote! { i64 }).take(param_names.len());
+    let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
 
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
@@ -132,7 +132,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
-        pub extern "C" fn #new_name(param_0: i64, #(#param_names: #param_types), *) #return_type {
+        pub extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
             let param_0: #context_type = unsafe {
                 wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
             };
