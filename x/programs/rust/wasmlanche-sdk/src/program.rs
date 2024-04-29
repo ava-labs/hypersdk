@@ -58,8 +58,19 @@ impl Program {
 #[repr(C)]
 pub struct CPointer(pub *const u8, pub usize);
 
+impl CPointer {
+    fn offset(&self) -> *const u8 {
+        self.0
+    }
+
+    fn len(&self) -> usize {
+        self.1
+    }
+}
+
 #[link(wasm_import_module = "program")]
 extern "C" {
+    // TODO return a CPointer
     #[link_name = "call_program"]
     fn _call_program(target_id: CPointer, function: CPointer, args_ptr: CPointer, max_units: i64) -> i64;
 }
