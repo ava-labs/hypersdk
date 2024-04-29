@@ -13,7 +13,7 @@ pub fn initialize_address(context: Context, address: Address) -> bool {
 
     if program
         .state()
-        .get::<i64, _>(StateKeys::Counter(address))
+        .get::<i64>(StateKeys::Counter(address))
         .is_ok()
     {
         panic!("counter already initialized for address")
