@@ -93,7 +93,7 @@ func Default() *Genesis {
 		StorageValueWriteUnits:    3,
 
 		// Action Per Tx
-		MaxActionsPerTx: 1,
+		MaxActionsPerTx: 2,
 	}
 }
 
