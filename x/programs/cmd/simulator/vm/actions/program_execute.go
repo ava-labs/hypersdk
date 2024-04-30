@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/near/borsh-go"
@@ -22,9 +23,9 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -67,17 +68,16 @@ func (t *ProgramExecute) Execute(
 		return false, 1, OutputValueZero, nil
 	}
 
-	programIDStr, ok := t.Params[0].Value.(string)
+	programID, ok := t.Params[0].Value.(ids.ID)
 	if !ok {
 		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
 	}
 
 	// TODO: take fee out of balance?
-	programID, err := ids.FromString(programIDStr)
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
+	if !exists {
+		err = errors.New("unknown program")
 	}
-	programBytes, err := storage.GetProgram(ctx, mu, programID)
 	if err != nil {
 		return false, 1, utils.ErrBytes(err), nil
 	}
