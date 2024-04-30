@@ -75,7 +75,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.SilenceErrors = true
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
-	// pre-execute the command to parse the log-level flag
+	// pre-execute the command to pre-parse flags
 	err := cmd.Execute()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
