@@ -118,6 +118,10 @@ var (
 	asset3Symbol   []byte
 	asset3Decimals uint8
 	asset3ID       codec.LID
+	asset4         []byte
+	asset4Symbol   []byte
+	asset4Decimals uint8
+	asset4ID       codec.LID
 
 	// when used with embedded VMs
 	genesisBytes []byte
@@ -186,6 +190,9 @@ var _ = ginkgo.BeforeSuite(func() {
 	asset3 = []byte("3")
 	asset3Symbol = []byte("s3")
 	asset3Decimals = uint8(3)
+	asset4 = []byte("4")
+	asset4Symbol = []byte("s4")
+	asset4Decimals = uint8(4)
 
 	// create embedded VMs
 	instances = make([]instance, vms)
@@ -1698,6 +1705,122 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		balance3, err := instances[3].tcli.Balance(context.Background(), sender3, codec.EmptyAddress)
 		gomega.Ω(err).To(gomega.BeNil())
 		gomega.Ω(balance3).To(gomega.Equal(uint64(50)))
+	})
+
+	ginkgo.It("create and mint multiple of assets in a single tx", func() {
+		// Create asset
+		parser, err := instances[3].tcli.Parser(context.Background())
+		gomega.Ω(err).Should(gomega.BeNil())
+		submit, tx, _, err := instances[3].cli.GenerateTransaction(
+			context.Background(),
+			parser,
+			[]chain.Action{
+				&actions.CreateAsset{
+					Symbol:   asset1Symbol,
+					Decimals: asset1Decimals,
+					Metadata: asset1,
+				},
+				&actions.CreateAsset{
+					Symbol:   asset2Symbol,
+					Decimals: asset2Decimals,
+					Metadata: asset2,
+				},
+				&actions.CreateAsset{
+					Symbol:   asset3Symbol,
+					Decimals: asset3Decimals,
+					Metadata: asset3,
+				},
+				&actions.CreateAsset{
+					Symbol:   asset4Symbol,
+					Decimals: asset4Decimals,
+					Metadata: asset4,
+				},
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept := expectBlk(instances[3])
+		results := accept(true)
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		asset1ID = codec.CreateLID(0, tx.ID())
+		asset2ID = codec.CreateLID(1, tx.ID())
+		asset3ID = codec.CreateLID(2, tx.ID())
+		asset4ID = codec.CreateLID(3, tx.ID())
+
+		// Mint multiple
+		submit, _, _, err = instances[3].cli.GenerateTransaction(
+			context.Background(),
+			parser,
+			[]chain.Action{
+				&actions.MintAsset{
+					To:    rsender2,
+					Asset: asset1ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender2,
+					Asset: asset2ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender2,
+					Asset: asset3ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender2,
+					Asset: asset4ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender3,
+					Asset: asset1ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender3,
+					Asset: asset2ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender3,
+					Asset: asset3ID,
+					Value: 10,
+				},
+				&actions.MintAsset{
+					To:    rsender3,
+					Asset: asset4ID,
+					Value: 10,
+				},
+			},
+			factory,
+		)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
+		accept = expectBlk(instances[3])
+		results = accept(true)
+		gomega.Ω(results).Should(gomega.HaveLen(1))
+		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+		// check sender2 assets
+		balance1, err := instances[3].tcli.Balance(context.TODO(), sender2, asset1ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance1).Should(gomega.Equal(uint64(10)))
+
+		balance2, err := instances[3].tcli.Balance(context.TODO(), sender2, asset2ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance2).Should(gomega.Equal(uint64(10)))
+
+		balance3, err := instances[3].tcli.Balance(context.TODO(), sender2, asset3ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance3).Should(gomega.Equal(uint64(10)))
+
+		balance4, err := instances[3].tcli.Balance(context.TODO(), sender2, asset4ID)
+		gomega.Ω(err).Should(gomega.BeNil())
+		gomega.Ω(balance4).Should(gomega.Equal(uint64(10)))
 	})
 })
 

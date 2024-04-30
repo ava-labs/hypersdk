@@ -23,7 +23,7 @@ type MintAsset struct {
 	// To is the recipient of the [Value].
 	To codec.Address `json:"to"`
 
-	// Asset is the [TxID] that created the asset.
+	// Asset is the [ActionID] that created the asset.
 	Asset codec.LID `json:"asset"`
 
 	// Number of assets to mint to [To].
