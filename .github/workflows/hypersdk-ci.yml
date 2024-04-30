@@ -178,6 +178,25 @@ jobs:
         env:
           MODE: 'full-test'
 
+  token-wallet-release:
+    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    runs-on: macos-latest-xl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/token-wallet-release
+
+  tokenvm-release:
+    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/vm-release
+        with:
+          vm-name: tokenvm
+
   # MorpheusVM
   morpheusvm-lint:
     needs: [finished-all-hypersdk-tests]
@@ -281,3 +300,14 @@ jobs:
         run: scripts/run.sh
         env:
           MODE: 'full-test'
+
+  morpheusvm-release:
+    needs: [morpheusvm-load-tests, morpheusvm-sync-tests]
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/vm-release
+        with:
+          vm-name: morpheusvm
