@@ -252,6 +252,8 @@ where
     let mut child = Command::new(path)
         .arg("run")
         .arg("--cleanup")
+        .arg("--log-level")
+        .arg("error")
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
