@@ -5,6 +5,9 @@ inputs:
   vm-name:
     description: 'VM name'
     required: true
+  github-token:
+    description: 'GitHub Token'
+    required: true
 
 runs:
   using: composite
@@ -46,4 +49,4 @@ runs:
         workdir: ./examples/${{ inputs.vm-name }}/
       env:
         # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#about-the-github_token-secret
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}

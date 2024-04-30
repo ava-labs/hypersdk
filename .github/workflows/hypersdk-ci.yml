@@ -196,6 +196,7 @@ jobs:
       - uses: ./.github/actions/vm-release
         with:
           vm-name: tokenvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # MorpheusVM
   morpheusvm-lint:
@@ -311,3 +312,4 @@ jobs:
       - uses: ./.github/actions/vm-release
         with:
           vm-name: morpheusvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}

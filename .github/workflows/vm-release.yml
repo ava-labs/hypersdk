@@ -29,6 +29,7 @@ jobs:
       - uses: ./.github/actions/vm-release
         with:
           vm-name: tokenvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   morpheusvm-release:
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
@@ -39,3 +40,4 @@ jobs:
       - uses: ./.github/actions/vm-release
         with:
           vm-name: morpheusvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
