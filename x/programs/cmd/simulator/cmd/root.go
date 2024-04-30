@@ -32,14 +32,23 @@ const (
 	simulatorFolder = ".simulator"
 )
 
-type simulator struct {
-	log      logging.Logger
-	logLevel string
+const (
+	LogDisableDisplayLogsKey = "log-disable-display-plugin-logs"
+	LogLevelKey              = "log-level"
+	CleanupKey               = "cleanup"
+)
 
-	vm      *vm.VM
-	db      *state.SimpleMutable
-	genesis *genesis.Genesis
-	cleanup func()
+type simulator struct {
+	log logging.Logger
+
+	logLevel                string
+	cleanup                 bool
+	disableWriterDisplaying bool
+
+	vm        *vm.VM
+	db        *state.SimpleMutable
+	genesis   *genesis.Genesis
+	cleanupFn func()
 }
 
 func NewRootCmd() *cobra.Command {
@@ -48,21 +57,33 @@ func NewRootCmd() *cobra.Command {
 		Use:   "simulator",
 		Short: "HyperSDK program VM simulator",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			// only display general help when no subcommand is passed
+			if len(args) == 0 {
+				cmd.Help()
+				os.Exit(0)
+			}
 		},
 	}
 
-	cmd.PersistentFlags().Bool("cleanup", false, "remove simulator directory on exit")
+	cmd.PersistentFlags().BoolVar(&s.cleanup, CleanupKey, false, "remove simulator directory on exit")
+	cmd.PersistentFlags().StringVar(&s.logLevel, LogLevelKey, "info", "log level")
+	cmd.PersistentFlags().BoolVar(&s.disableWriterDisplaying, LogDisableDisplayLogsKey, false, "disable displaying logs in stdout")
 
 	cobra.EnablePrefixMatching = true
 	cmd.CompletionOptions.HiddenDefaultCmd = true
 	cmd.DisableAutoGenTag = true
 	cmd.SilenceErrors = true
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
-	cmd.PersistentFlags().StringVar(&s.logLevel, "log-level", "info", "log level")
+
+	// pre-execute the command to parse the log-level flag
+	err := cmd.Execute()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// initialize simulator vm
-	err := s.Init()
+	err = s.Init()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -86,9 +107,8 @@ func NewRootCmd() *cobra.Command {
 			}
 		}
 
-		cleanup, _ := cmd.Flags().GetBool("cleanup")
-		if cleanup {
-			s.cleanup()
+		if s.cleanup {
+			s.cleanupFn()
 		}
 	})
 
@@ -123,9 +143,9 @@ func (s *simulator) Init() error {
 	}
 	loggingConfig.Directory = path.Join(basePath, fmt.Sprintf("logs-%s", nodeID.String()))
 	loggingConfig.LogFormat = logging.JSON
-	loggingConfig.DisableWriterDisplaying = true
+	loggingConfig.DisableWriterDisplaying = s.disableWriterDisplaying
 
-	s.cleanup = func() {
+	s.cleanupFn = func() {
 		if err := os.RemoveAll(dbPath); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to remove simulator directory: %s\n", err)
 		}
