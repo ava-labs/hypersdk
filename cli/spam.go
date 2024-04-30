@@ -186,7 +186,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Outputs)
 		}
 	}
 	var recipientFunc func() (*PrivateKey, error)
@@ -446,7 +446,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Outputs)
 		}
 	}
 	utils.Outf(
@@ -492,7 +492,11 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				if result.Success {
 					confirmedTxs++
 				} else {
-					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
+					for i := 0; i < len(result.Outputs); i++ {
+						for j := 0; j < len(result.Outputs[i]); j++ {
+							utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Outputs[i][j]), result.Success)
+						}
+					}
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.

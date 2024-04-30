@@ -303,7 +303,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		for _, alloc := range g.CustomAllocation {
-			bal, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
+			bal, err := cli.Balance(context.Background(), alloc.Address, codec.EmptyAddress)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(bal).Should(gomega.Equal(alloc.Balance))
 		}
@@ -403,7 +403,13 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				for _, result := range blk.Results() {
 					if !result.Success {
 						unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Output))
+						var resultOutputs string
+						for i := 0; i < len(result.Outputs); i++ {
+							for j := 0; j < len(result.Outputs[i]); j++ {
+								resultOutputs += fmt.Sprintf(" %s", result.Outputs[i][j])
+							}
+						}
+						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", resultOutputs)
 					}
 					gomega.Ω(result.Success).Should(gomega.BeTrue())
 				}
@@ -533,10 +539,10 @@ func issueSimpleTx(
 			ChainID:   i.chainID,
 			MaxFee:    maxFee,
 		},
-		&actions.Transfer{
+		[]chain.Action{&actions.Transfer{
 			To:    to,
 			Value: amount,
-		},
+		}},
 	)
 	tx, err := tx.Sign(factory, consts.ActionRegistry, consts.AuthRegistry)
 	gomega.Ω(err).To(gomega.BeNil())

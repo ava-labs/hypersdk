@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -511,7 +512,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	}
 
 	ginkgo.It("transfer in a single node (raw)", func() {
-		nativeBalance, err := instancesA[0].tcli.Balance(context.TODO(), sender, ids.Empty)
+		nativeBalance, err := instancesA[0].tcli.Balance(context.TODO(), sender, codec.EmptyAddress)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(nativeBalance).Should(gomega.Equal(startAmount))
 
@@ -526,10 +527,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 			submit, tx, maxFee, err := instancesA[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    aother,
 					Value: sendAmount,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -546,7 +547,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 
 			// Check sender balance
-			balance, err := instancesA[0].tcli.Balance(context.Background(), sender, ids.Empty)
+			balance, err := instancesA[0].tcli.Balance(context.Background(), sender, codec.EmptyAddress)
 			gomega.Ω(err).Should(gomega.BeNil())
 			hutils.Outf(
 				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
@@ -574,7 +575,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				}
 
 				// Check balance of recipient
-				balance, err := inst.tcli.Balance(context.Background(), codec.MustAddressBech32(consts.HRP, aother), ids.Empty)
+				balance, err := inst.tcli.Balance(context.Background(), codec.MustAddressBech32(consts.HRP, aother), codec.EmptyAddress)
 				gomega.Ω(err).Should(gomega.BeNil())
 				gomega.Ω(balance).Should(gomega.Equal(sendAmount))
 			}
@@ -791,10 +792,10 @@ func generateBlocks(
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 1,
-			},
+			}},
 			factory,
 		)
 		if failOnError {
@@ -858,10 +859,10 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: sendAmount,
-			},
+			}},
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())

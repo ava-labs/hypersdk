@@ -63,8 +63,8 @@ func (s *Storage) GetKey() (ed25519.PrivateKey, error) {
 	return ed25519.PrivateKey(v), nil
 }
 
-func (s *Storage) StoreAsset(assetID ids.ID, owned bool) error {
-	k := make([]byte, 1+ids.IDLen)
+func (s *Storage) StoreAsset(assetID codec.LID, owned bool) error {
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = assetsPrefix
 	copy(k[1:], assetID[:])
 	v := []byte{0x0}
@@ -74,21 +74,21 @@ func (s *Storage) StoreAsset(assetID ids.ID, owned bool) error {
 	return s.db.Put(k, v)
 }
 
-func (s *Storage) HasAsset(assetID ids.ID) (bool, error) {
-	k := make([]byte, 1+ids.IDLen)
+func (s *Storage) HasAsset(assetID codec.LID) (bool, error) {
+	k := make([]byte, 1+codec.AddressLen)
 	k[0] = assetsPrefix
 	copy(k[1:], assetID[:])
 	return s.db.Has(k)
 }
 
-func (s *Storage) GetAssets() ([]ids.ID, []bool, error) {
+func (s *Storage) GetAssets() ([]codec.LID, []bool, error) {
 	iter := s.db.NewIteratorWithPrefix([]byte{assetsPrefix})
 	defer iter.Release()
 
-	assets := []ids.ID{}
+	assets := []codec.LID{}
 	owned := []bool{}
 	for iter.Next() {
-		assets = append(assets, ids.ID(iter.Key()[1:]))
+		assets = append(assets, codec.LID(iter.Key()[1:]))
 		owned = append(owned, iter.Value()[0] == 0x1)
 	}
 	return assets, owned, iter.Error()
@@ -179,24 +179,24 @@ func (s *Storage) GetSolutions() ([]*FaucetSearchInfo, error) {
 	return fs, iter.Error()
 }
 
-func (s *Storage) StoreOrder(orderID ids.ID) error {
+func (s *Storage) StoreOrder(orderID codec.LID) error {
 	inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
-	k := make([]byte, 1+consts.Uint64Len+ids.IDLen)
+	k := make([]byte, 1+consts.Uint64Len+codec.AddressLen)
 	k[0] = orderPrefix
 	binary.BigEndian.PutUint64(k[1:], inverseTime)
 	copy(k[1+consts.Uint64Len:], orderID[:])
 	return s.db.Put(k, nil)
 }
 
-func (s *Storage) GetOrders() ([]ids.ID, [][]byte, error) {
+func (s *Storage) GetOrders() ([]codec.LID, [][]byte, error) {
 	iter := s.db.NewIteratorWithPrefix([]byte{orderPrefix})
 	defer iter.Release()
 
-	orders := []ids.ID{}
+	orders := []codec.LID{}
 	keys := [][]byte{}
 	for iter.Next() {
 		k := iter.Key()
-		orders = append(orders, ids.ID(k[1+consts.Uint64Len:]))
+		orders = append(orders, codec.LID(k[1+consts.Uint64Len:]))
 		keys = append(keys, k)
 	}
 	return orders, keys, iter.Error()

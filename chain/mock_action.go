@@ -46,12 +46,12 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID) (bool, uint64, []byte, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 codec.LID) (bool, uint64, [][]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(uint64)
-	ret2, _ := ret[2].([]byte)
+	ret2, _ := ret[2].([][]byte)
 	ret3, _ := ret[3].(error)
 	return ret0, ret1, ret2, ret3
 }
@@ -63,10 +63,10 @@ func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5 any
 }
 
 // GetActionID mocks base method.
-func (m *MockAction) GetActionID(arg0 byte, arg1 ids.ID) codec.Address {
+func (m *MockAction) GetActionID(arg0 byte, arg1 ids.ID) codec.LID {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetActionID", arg0, arg1)
-	ret0, _ := ret[0].(codec.Address)
+	ret0, _ := ret[0].(codec.LID)
 	return ret0
 }
 
@@ -131,7 +131,7 @@ func (mr *MockActionMockRecorder) Size() *gomock.Call {
 }
 
 // StateKeys mocks base method.
-func (m *MockAction) StateKeys(arg0, arg1 codec.Address) state.Keys {
+func (m *MockAction) StateKeys(arg0 codec.Address, arg1 codec.LID) state.Keys {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateKeys", arg0, arg1)
 	ret0, _ := ret[0].(state.Keys)

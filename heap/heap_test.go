@@ -6,10 +6,10 @@ package heap
 import (
 	"testing"
 
-	"github.com/ava-labs/hypersdk/codec"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type testItem[T comparable] struct {
