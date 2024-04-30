@@ -36,9 +36,9 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
-	_ "github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
-	// hutils "github.com/ava-labs/hypersdk/utils"
+	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
@@ -473,7 +473,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 	})
 
-	/*ginkgo.It("ensure multiple txs work ", func() {
+	ginkgo.It("ensure multiple txs work ", func() {
 		ginkgo.By("transfer funds again", func() {
 			parser, err := instances[1].tcli.Parser(context.Background())
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -1670,7 +1670,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		orders, err = instances[0].tcli.Orders(context.TODO(), actions.PairID(asset2ID, asset3ID))
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(0))
-	})*/
+	})
 
 	ginkgo.It("transfer to multiple accounts in a single tx", func() {
 		parser, err := instances[3].tcli.Parser(context.Background())
@@ -1940,18 +1940,18 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			[]chain.Action{
 				&actions.CreateOrder{
-					In:      asset3ID,
-					InTick:  1,
-					Out:     asset2ID,
-					OutTick: 2,
-					Supply:  2,
+					In:      asset1ID,
+					InTick:  2,
+					Out:     asset3ID,
+					OutTick: 4,
+					Supply:  4,
 				},
 				&actions.CreateOrder{
-					In:      asset1ID,
-					InTick:  1,
+					In:      asset2ID,
+					InTick:  2,
 					Out:     asset4ID,
-					OutTick: 2,
-					Supply:  2,
+					OutTick: 4,
+					Supply:  4,
 				},
 			},
 			factory,
@@ -1963,36 +1963,36 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		balance, err := instances[3].tcli.Balance(context.TODO(), sender, asset2ID)
+		balance, err := instances[3].tcli.Balance(context.TODO(), sender, asset3ID)
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(balance).Should(gomega.Equal(uint64(8)))
+		gomega.Ω(balance).Should(gomega.Equal(uint64(7)))
 
 		balance, err = instances[3].tcli.Balance(context.TODO(), sender, asset4ID)
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(balance).Should(gomega.Equal(uint64(8)))
+		gomega.Ω(balance).Should(gomega.Equal(uint64(4)))
 
 		// Get Orders
-		orders32, err := instances[3].tcli.Orders(context.TODO(), actions.PairID(asset3ID, asset2ID))
+		orders13, err := instances[3].tcli.Orders(context.TODO(), actions.PairID(asset1ID, asset3ID))
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(orders32).Should(gomega.HaveLen(1))
+		gomega.Ω(orders13).Should(gomega.HaveLen(1))
 
-		order32 := orders32[0]
-		gomega.Ω(order32.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
-		gomega.Ω(order32.InTick).Should(gomega.Equal(uint64(1)))
-		gomega.Ω(order32.OutTick).Should(gomega.Equal(uint64(2)))
-		gomega.Ω(order32.Owner).Should(gomega.Equal(sender))
-		gomega.Ω(order32.Remaining).Should(gomega.Equal(uint64(2)))
+		order13 := orders13[0]
+		gomega.Ω(order13.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
+		gomega.Ω(order13.InTick).Should(gomega.Equal(uint64(2)))
+		gomega.Ω(order13.OutTick).Should(gomega.Equal(uint64(4)))
+		gomega.Ω(order13.Owner).Should(gomega.Equal(sender))
+		gomega.Ω(order13.Remaining).Should(gomega.Equal(uint64(4)))
 
-		orders14, err := instances[3].tcli.Orders(context.TODO(), actions.PairID(asset1ID, asset4ID))
+		orders24, err := instances[3].tcli.Orders(context.TODO(), actions.PairID(asset2ID, asset4ID))
 		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(orders14).Should(gomega.HaveLen(1))
+		gomega.Ω(orders24).Should(gomega.HaveLen(1))
 
-		order14 := orders14[0]
-		gomega.Ω(order14.ID).Should(gomega.Equal(codec.CreateLID(1, tx.ID())))
-		gomega.Ω(order14.InTick).Should(gomega.Equal(uint64(1)))
-		gomega.Ω(order14.OutTick).Should(gomega.Equal(uint64(2)))
-		gomega.Ω(order14.Owner).Should(gomega.Equal(sender))
-		gomega.Ω(order14.Remaining).Should(gomega.Equal(uint64(2)))
+		order24 := orders24[0]
+		gomega.Ω(order24.ID).Should(gomega.Equal(codec.CreateLID(1, tx.ID())))
+		gomega.Ω(order24.InTick).Should(gomega.Equal(uint64(2)))
+		gomega.Ω(order24.OutTick).Should(gomega.Equal(uint64(4)))
+		gomega.Ω(order24.Owner).Should(gomega.Equal(sender))
+		gomega.Ω(order24.Remaining).Should(gomega.Equal(uint64(4)))
 
 		// Fill Orders
 		submit, _, _, err = instances[3].cli.GenerateTransaction(
@@ -2000,18 +2000,18 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			[]chain.Action{
 				&actions.FillOrder{
-					Order: order32.ID,
+					Order: order13.ID,
 					Owner: rsender,
-					In:    asset3ID,
-					Out:   asset2ID,
+					In:    asset1ID,
+					Out:   asset3ID,
 					Value: 1,
 				},
 				&actions.FillOrder{
-					Order: order14.ID,
+					Order: order24.ID,
 					Owner: rsender,
-					In:    asset1ID,
+					In:    asset2ID,
 					Out:   asset4ID,
-					Value: 1,
+					Value: 3, // misaligned value
 				},
 			},
 			factory2,
@@ -2022,21 +2022,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		results = accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		result := results[0]
-		gomega.Ω(result.Success).Should(gomega.BeTrue())
-
-		// Order for asset3 <> asset2
-		or, err := actions.UnmarshalOrderResult(result.Outputs[0][0])
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(or.In).Should(gomega.Equal(uint64(1)))
-		gomega.Ω(or.Out).Should(gomega.Equal(uint64(2)))
-		gomega.Ω(or.Remaining).Should(gomega.Equal(uint64(0)))
-
-		// Order for asset1 <> asset4
-		or, err = actions.UnmarshalOrderResult(result.Outputs[1][0])
-		gomega.Ω(err).Should(gomega.BeNil())
-		gomega.Ω(or.In).Should(gomega.Equal(uint64(1)))
-		gomega.Ω(or.Out).Should(gomega.Equal(uint64(2)))
-		gomega.Ω(or.Remaining).Should(gomega.Equal(uint64(0)))
+		gomega.Ω(result.Success).Should(gomega.BeFalse())
+		gomega.Ω(string(result.Outputs[0][0])).
+			Should(gomega.ContainSubstring("value is misaligned"))
 	})
 })
 
