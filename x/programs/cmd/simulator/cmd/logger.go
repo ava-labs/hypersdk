@@ -55,7 +55,7 @@ func (f *logFactory) makeLogger(config logging.Config) (logging.Logger, error) {
 	if config.DisableWriterDisplaying {
 		consoleWriter = newDiscardWriteCloser()
 	} else {
-		consoleWriter = os.Stdout
+		consoleWriter = os.Stderr
 	}
 
 	consoleCore := logging.NewWrappedCore(config.LogLevel, consoleWriter, consoleEnc)
