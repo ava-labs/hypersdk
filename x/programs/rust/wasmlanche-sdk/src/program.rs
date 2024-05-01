@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{memory::to_host_ptr, state::{Error as StateError, State, Key}, Params};
+use crate::{memory::to_ffi_ptr, state::{Error as StateError, State, Key}, Params};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -57,16 +57,6 @@ impl Program {
 
 #[repr(C)]
 pub struct CPointer(pub *const u8, pub usize);
-
-impl CPointer {
-    fn offset(&self) -> *const u8 {
-        self.0
-    }
-
-    fn len(&self) -> usize {
-        self.1
-    }
-}
 
 #[link(wasm_import_module = "program")]
 extern "C" {
