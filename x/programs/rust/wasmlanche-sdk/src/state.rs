@@ -1,4 +1,4 @@
-use crate::{from_host_ptr, program::Program, state::Error as StateError};
+use crate::{from_host_ptr, memory::into_bytes, program::Program, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{collections::HashMap, hash::Hash, ops::Deref};
 
@@ -102,13 +102,12 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
-            if val_ptr < 0 {
-                return Err(Error::Read);
-            }
-
+            let maybe_bytes = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
             // TODO Wrap in OK for now, change from_raw_ptr to return Result
-            let bytes = from_host_ptr(val_ptr)?;
+            let bytes: Vec<u8> = match maybe_bytes {
+                Some(bytes) => from_slice(&bytes).map_err(|_| StateError::Deserialization),
+                None => Err(StateError::InvalidPointer),
+            }?;
             self.cache.entry(key).or_insert(bytes)
         };
 
@@ -206,7 +205,7 @@ macro_rules! call_host_fn {
 
 mod host {
     use super::{BorshSerialize, Key, Program};
-    use crate::{memory::to_host_ptr, state::Error};
+    use crate::{memory::{into_bytes, to_host_ptr}, state::Error};
 
     /// Persists the bytes at `value` at key on the host storage.
     pub(super) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), Error>
@@ -224,12 +223,14 @@ mod host {
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, Error> {
-        Ok(call_host_fn! {
+    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<Option<Vec<u8>>, Error> {
+        let ptr = call_host_fn! {
             wasm_import_module = "state"
                 link_name = "get"
                 args = (caller, key)
-        })
+        };
+
+        Ok(into_bytes(ptr))
     }
 
     /// Deletes the bytes at key ptr from the host storage
