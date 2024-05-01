@@ -207,7 +207,7 @@ macro_rules! call_host_fn {
 
 mod host {
     use super::{Key, Program};
-    use crate::{memory::to_ffi_ptr, program::CPointer, state::Error};
+    use crate::{memory::{to_ffi_ptr, CPointer}, state::Error};
 
     /// Persists the bytes at key on the host storage.
     pub(super) unsafe fn put_bytes(caller: &Program, key: &Key, bytes: &[u8]) -> Result<(), Error>
@@ -226,15 +226,15 @@ mod host {
     pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i32, Error> {
         Ok(call_host_fn! {
             wasm_import_module = "state"
-                link_name = "get"
-                args = (caller, key)
+            link_name = "get"
+            args = (caller, key)
         })
     }
 
     /// Deletes the bytes at key ptr from the host storage
     pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
         match call_host_fn! {
-             wasm_import_module = "state"
+            wasm_import_module = "state"
             link_name = "delete"
             args = (caller, key)
         } {

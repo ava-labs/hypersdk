@@ -1,4 +1,4 @@
-use crate::{memory::to_ffi_ptr, program::CPointer, state::Error as StateError, Error};
+use crate::{memory::{to_ffi_ptr, CPointer}, state::Error as StateError, Error};
 use borsh::BorshSerialize;
 
 #[macro_export]

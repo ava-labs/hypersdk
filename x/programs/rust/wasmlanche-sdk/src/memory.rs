@@ -4,9 +4,12 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use crate::{program::CPointer, state::Error as StateError};
+use crate::{state::Error as StateError};
 use borsh::{from_slice, BorshDeserialize};
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
+
+#[repr(C)]
+pub struct CPointer(pub *const u8, pub usize);
 
 thread_local! {
     /// Map of pointer to the length of its content on the heap

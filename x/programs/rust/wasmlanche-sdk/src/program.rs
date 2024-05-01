@@ -1,9 +1,7 @@
 use std::hash::Hash;
-
 use borsh::{BorshDeserialize, BorshSerialize};
-
 use crate::{
-    memory::to_ffi_ptr,
+    memory::{to_ffi_ptr, CPointer},
     state::{Error as StateError, Key, State},
     Params,
 };
@@ -58,9 +56,6 @@ impl Program {
         Ok(unsafe { _call_program(target, function, args, max_units) })
     }
 }
-
-#[repr(C)]
-pub struct CPointer(pub *const u8, pub usize);
 
 #[link(wasm_import_module = "program")]
 extern "C" {
