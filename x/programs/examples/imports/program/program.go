@@ -66,7 +66,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		function int64,
 		args int64,
 		maxUnits int64,
-	) int64 {
+	) u32 {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -76,7 +76,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to get memory from caller",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		// get the entry function for invoke to call.
@@ -85,7 +85,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to read function name from memory",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
@@ -93,7 +93,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to read id from memory",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		// get the program bytes from storage
@@ -102,7 +102,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to get program bytes from storage",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		// create a new runtime for the program to be invoked with a zero balance.
@@ -112,7 +112,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to initialize runtime",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		// transfer the units from the caller to the new runtime before any calls are made.
@@ -123,7 +123,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 				zap.Int64("required", maxUnits),
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		// transfer remaining balance back to parent runtime
@@ -133,7 +133,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 				i.log.Error("failed to get balance from runtime",
 					zap.Error(err),
 				)
-				return
+				return 0
 			}
 			_, err = rt.Meter().TransferUnitsTo(i.meter, balance)
 			if err != nil {
@@ -148,7 +148,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to read program args from memory",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		rtMemory, err := rt.Memory()
@@ -156,7 +156,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to get memory from runtime",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		// sync args to new runtime and return arguments to the invoke call
@@ -165,7 +165,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to unmarshal call arguments",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		functionName := string(functionBytes)
@@ -178,7 +178,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			i.log.Error("failed to call entry function",
 				zap.Error(err),
 			)
-			return -1
+			return 0
 		}
 
 		return res[0]

@@ -2,6 +2,7 @@ use std::hash::Hash;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use crate::from_host_ptr;
 use crate::state::Key;
 use crate::{memory::to_host_ptr, state::Error as StateError, state::State, Params};
 
@@ -35,13 +36,7 @@ impl Program {
         State::new(Program::new(*self.id()))
     }
 
-    /// Attempts to call a function `name` with `args` on the given program. This method
-    /// is used to call functions on external programs.
-    /// # Errors
-    /// Returns a [`StateError`] if the call fails.
-    /// # Safety
-    /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function(
+    fn _call_function(
         &self,
         function_name: &str,
         args: Params,
@@ -53,6 +48,36 @@ impl Program {
         let args = args.into_host_ptr()?;
 
         Ok(unsafe { _call_program(target, function, args, max_units) })
+    }
+
+    /// Attempts to call a function `name` with `args` on the given program. This method
+    /// is used to call functions on external programs.
+    /// # Errors
+    /// Returns a [`StateError`] if the call fails.
+    /// # Safety
+    /// The caller must ensure that `function_name` + `args` point to valid memory locations.
+    pub fn call_function(
+        &self,
+        function_name: &str,
+        args: Params,
+        max_units: i64,
+    ) -> Result<(), StateError> {
+        self._call_function(function_name, args, max_units)?;
+
+        Ok(())
+    }
+
+    // #[must_use = "use the `call_function` variant if you don't need to deserialize the return type"]
+    #[must_use]
+    pub fn call_function_ret<T>(
+        &self,
+        function_name: &str,
+        args: Params,
+        max_units: i64,
+    ) -> Result<T, StateError> where T: BorshDeserialize {
+        let ret_args = self._call_function(function_name, args, max_units)?;
+
+        Ok(from_host_ptr(ret_args)?)
     }
 }
 

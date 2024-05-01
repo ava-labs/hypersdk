@@ -55,7 +55,7 @@ pub fn get_total_supply(context: Context) -> i64 {
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
+pub fn mint_to(context: Context, recipient: Address, amount: i64) {
     let Context { program } = context;
     let balance = program
         .state()
@@ -66,24 +66,21 @@ pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
         .state()
         .store(StateKey::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
-
-    true
 }
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(context: Context, recipient: Address) -> bool {
+pub fn burn_from(context: Context, recipient: Address) {
     let Context { program } = context;
     program
         .state()
         .delete(StateKey::Balance(recipient))
         .expect("failed to burn recipient tokens");
-    true
 }
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i64) -> bool {
+pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i64) {
     let Context { program } = context;
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
@@ -110,8 +107,6 @@ pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i
         .state()
         .store(StateKey::Balance(recipient), &(recipient_balance + amount))
         .expect("failed to store balance");
-
-    true
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -122,12 +117,10 @@ pub struct Minter {
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(context: Context, minters: Vec<Minter>) -> bool {
+pub fn mint_to_many(context: Context, minters: Vec<Minter>) {
     for minter in minters.iter() {
         mint_to(context, minter.to, minter.amount as i64);
     }
-
-    true
 }
 
 /// Gets the balance of the recipient.
