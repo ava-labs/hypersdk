@@ -699,7 +699,7 @@ func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) e
 
 func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	// Input validation
-	assetID := codec.LIDFromString(asset)
+	assetID := codec.LIDFromString(tconsts.HRP, asset)
 	_, _, decimals, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
@@ -751,7 +751,7 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 
 func (b *Backend) Transfer(asset string, address string, amount string, memo string) error {
 	// Input validation
-	assetID := codec.LIDFromString(asset)
+	assetID := codec.LIDFromString(tconsts.HRP, asset)
 	_, symbol, decimals, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
@@ -980,7 +980,7 @@ func (b *Backend) GetAllAssets() []*AssetInfo {
 }
 
 func (b *Backend) AddAsset(asset string) error {
-	assetID := codec.LIDFromString(asset)
+	assetID := codec.LIDFromString(tconsts.HRP, asset)
 	hasAsset, err := b.s.HasAsset(assetID)
 	if err != nil {
 		return err
@@ -1051,19 +1051,13 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	}
 	assetIDs := strings.Split(pair, "-")
 	in := assetIDs[0]
-	inID, err := codec.LIDFromString(in)
-	if err != nil {
-		return nil, err
-	}
+	inID := codec.LIDFromString(tconsts.HRP, in)
 	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return nil, err
 	}
 	out := assetIDs[1]
-	outID, err := codec.LIDFromString(out)
-	if err != nil {
-		return nil, err
-	}
+	outID := codec.LIDFromString(tconsts.HRP, out)
 	_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
 		return nil, err
@@ -1092,8 +1086,8 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 }
 
 func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, outTick string, supply string) error {
-	inID := codec.LIDFromString(assetIn)
-	outID := codec.LIDFromString(assetOut)
+	inID := codec.LIDFromString(tconsts.HRP, assetIn)
+	outID := codec.LIDFromString(tconsts.HRP, assetOut)
 	_, _, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
@@ -1169,13 +1163,13 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 }
 
 func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
-	oID := codec.LIDFromString(orderID)
+	oID := codec.LIDFromString(tconsts.HRP, orderID)
 	owner, err := codec.ParseAddressBech32(tconsts.HRP, orderOwner)
 	if err != nil {
 		return err
 	}
-	inID := codec.LIDFromString(assetIn)
-	outID := codec.LIDFromString(assetOut)
+	inID := codec.LIDFromString(tconsts.HRP, assetIn)
+	outID := codec.LIDFromString(tconsts.HRP, assetOut)
 	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
@@ -1244,8 +1238,8 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 }
 
 func (b *Backend) CloseOrder(orderID string, assetOut string) error {
-	oID := codec.LIDFromString(orderID)
-	outID := codec.LIDFromString(assetOut)
+	oID := codec.LIDFromString(tconsts.HRP, orderID)
+	outID := codec.LIDFromString(tconsts.HRP, assetOut)
 
 	// Ensure have sufficient balance
 	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)

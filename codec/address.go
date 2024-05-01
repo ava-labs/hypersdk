@@ -97,8 +97,8 @@ func LIDToString(hrp string, lid LID) string {
 	return addr
 }
 
-func LIDFromString(lid string) LID {
-	addr, err := ParseAddressBech32("token", lid)
+func LIDFromString(hrp string, lid string) LID {
+	addr, err := ParseAddressBech32(hrp, lid)
 	if err != nil {
 		panic(err)
 	}
