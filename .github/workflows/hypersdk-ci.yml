@@ -10,8 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mock_gen:
-    name: Auto-Generated Code Checker
+  mock-gen:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,24 +21,8 @@ jobs:
       - shell: bash
         run: scripts/tests.clean.sh
 
-  hypersdk-lint:
+  go-mod-tidy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-      - name: Run static analysis tests
-        shell: bash
-        run: scripts/tests.lint.sh
-      - name: Run shellcheck
-        shell: bash
-        run: scripts/tests.shellcheck.sh
-
-  go_mod_tidy:
-    name: Tidy
-    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -55,8 +38,22 @@ jobs:
       - shell: bash
         run: scripts/tests.clean.sh
 
-  hypersdk-unit-tests:
+  hypersdk-lint:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - name: Run static analysis tests
+        shell: bash
+        run: scripts/tests.lint.sh
+      - name: Run shellcheck
+        shell: bash
+        run: scripts/tests.shellcheck.sh
+
+  hypersdk-unit-tests:
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -67,17 +64,17 @@ jobs:
         shell: bash
         run: scripts/tests.unit.sh
 
-  finished-all-hypersdk-tests:
+  hypersdk-tests:
     runs-on: ubuntu-latest
-    needs: [mock_gen, hypersdk-lint, go_mod_tidy, hypersdk-unit-tests]
+    needs: [mock-gen, go-mod-tidy, hypersdk-lint, hypersdk-unit-tests]
     steps:
-      - name: Finished all HyperSDK tests
-        run: echo "Finished all HyperSDK tests"
+      - name: Finished HyperSDK tests
+        run: echo "Finished HyperSDK tests"
 
   # TokenVM
   tokenvm-lint:
+    needs: [hypersdk-tests]
     runs-on: ubuntu-latest
-    needs: [finished-all-hypersdk-tests]
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -98,8 +95,8 @@ jobs:
         run: scripts/build.sh
 
   tokenvm-unit-tests:
-    runs-on: ubuntu-latest
-    needs: [finished-all-hypersdk-tests]
+    needs: [hypersdk-tests]
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -140,8 +137,7 @@ jobs:
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
-    runs-on:
-      labels: ubuntu-20.04-32
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -159,8 +155,7 @@ jobs:
 
   tokenvm-sync-tests:
     needs: [tokenvm-unit-tests]
-    runs-on:
-      labels: ubuntu-20.04-32
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -200,7 +195,7 @@ jobs:
 
   # MorpheusVM
   morpheusvm-lint:
-    needs: [finished-all-hypersdk-tests]
+    needs: [hypersdk-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -222,8 +217,8 @@ jobs:
         run: scripts/build.sh
 
   morpheusvm-unit-tests:
-    needs: [finished-all-hypersdk-tests]
-    runs-on: ubuntu-latest
+    needs: [hypersdk-tests]
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -264,8 +259,7 @@ jobs:
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
-    runs-on:
-      labels: ubuntu-20.04-32
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -283,8 +277,7 @@ jobs:
 
   morpheusvm-sync-tests:
     needs: [morpheusvm-unit-tests]
-    runs-on:
-      labels: ubuntu-20.04-32
+    runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
       - name: Checkout
