@@ -1,10 +1,10 @@
-use std::hash::Hash;
-use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     memory::{to_ffi_ptr, CPointer},
     state::{Error as StateError, Key, State},
     Params,
 };
+use borsh::{BorshDeserialize, BorshSerialize};
+use std::hash::Hash;
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
