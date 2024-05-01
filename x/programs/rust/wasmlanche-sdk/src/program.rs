@@ -53,7 +53,7 @@ impl Program {
         let function = to_ffi_ptr(function_name.as_bytes())?;
         let args = args.into_ffi_ptr()?;
 
-        Ok(unsafe { _call_program(target, function, args, max_units) })
+        Ok(unsafe { _call_program(target, function, args_ptr, args_len, max_units) })
     }
 }
 

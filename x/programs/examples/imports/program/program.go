@@ -59,6 +59,7 @@ func (i *Import) Register(link *host.Link, callContext program.Context) error {
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
+<<<<<<< HEAD
 func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int32, int32, int32, int32, int32, int32, int64) int64 {
 	return func(
 		wasmCaller *wasmtime.Caller,
@@ -66,6 +67,13 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		programLen int32,
 		functionPtr int32,
 		functionLen int32,
+=======
+func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int64, int64, int32, int32, int64) int64 {
+	return func(
+		wasmCaller *wasmtime.Caller,
+		programID int64,
+		function int64,
+>>>>>>> 7976bafb (fix inter-program interaction)
 		argsPtr int32,
 		argsLen int32,
 		maxUnits int64,
@@ -226,6 +234,7 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte)
 	if err != nil {
 		return nil, err
 	}
+
 
 	return bytes, nil
 }
