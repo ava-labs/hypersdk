@@ -102,7 +102,8 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
+            let val = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
+            let val_ptr = val as *const u8;
             // TODO write a test for that
             if val_ptr.is_null() {
                 return Err(Error::Read);
@@ -163,7 +164,7 @@ macro_rules! ffi_linker {
         #[link(wasm_import_module = $mod)]
         extern "C" {
             #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer) -> *const u8;
+            fn ffi(caller: CPointer, key: CPointer) -> i32;
         }
 
         let $caller = to_ffi_ptr($caller.id())?;
@@ -173,7 +174,7 @@ macro_rules! ffi_linker {
         #[link(wasm_import_module = $mod)]
         extern "C" {
             #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer, value: CPointer) -> *const u8;
+            fn ffi(caller: CPointer, key: CPointer, value: CPointer) -> i32;
         }
 
         let $caller = to_ffi_ptr($caller.id())?;
@@ -214,21 +215,18 @@ mod host {
     where
         V: BorshSerialize,
     {
-        let ptr = call_host_fn! {
+        match call_host_fn! {
             wasm_import_module = "state"
             link_name = "put"
             args = (caller, key, value)
-        };
-        
-        if ptr.is_null() {
-            Err(Error::Write)
-        } else {
-            Ok(())
+        } {
+            0 => Ok(()),
+            _ => Err(Error::Write)
         }
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<*const u8, Error> {
+    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i32, Error> {
         Ok(call_host_fn! {
             wasm_import_module = "state"
                 link_name = "get"
@@ -238,16 +236,13 @@ mod host {
 
     /// Deletes the bytes at key ptr from the host storage
     pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        let ptr = call_host_fn! {
-            wasm_import_module = "state"
+        match call_host_fn! {
+             wasm_import_module = "state"
             link_name = "delete"
             args = (caller, key)
-        };
-        
-        if ptr.is_null() {
-            Err(Error::Delete)
-        } else {
-            Ok(())
+        } {
+            0 => Ok(()),
+            _ => Err(Error::Delete)
         }
     }
 }

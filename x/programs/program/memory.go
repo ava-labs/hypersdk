@@ -4,7 +4,6 @@
 package program
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -158,37 +157,7 @@ func WriteBytes(m *Memory, buf []byte) (uint32, error) {
 	return offset, nil
 }
 
-// SmartPtr is an int64 where the first 4 bytes represent the length of the bytes
-// and the following 4 bytes represent a pointer to WASM memory where the bytes are stored.
-type SmartPtr int64
-
-// Get returns the int64 value of [s].
-func (s SmartPtr) Get() int64 {
-	return int64(s)
-}
-
-// Len returns the length of the bytes stored in memory by [s].
-func (s SmartPtr) Len() uint32 {
-	return uint32(s >> 32)
-}
-
-// PtrOffset returns the offset of the bytes stored in memory by [s].
-func (s SmartPtr) PtrOffset() uint32 {
-	return uint32(s)
-}
-
-// Bytes returns the bytes stored in memory by [s].
-func (s SmartPtr) Bytes(memory *Memory) ([]byte, error) {
-	// read the range of PtrOffset + length from memory
-	bytes, err := memory.Range(s.PtrOffset(), s.Len())
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
-}
-
-// AllocateBytes writes [bytes] to memory and returns the resulting SmartPtr.
+// AllocateBytes writes [bytes] to memory and returns the resulting pointer.
 func AllocateBytes(bytes []byte, memory *Memory) (uint32, error) {
 	ptr, err := WriteBytes(memory, bytes)
 	if err != nil {
@@ -196,14 +165,4 @@ func AllocateBytes(bytes []byte, memory *Memory) (uint32, error) {
 	}
 
 	return ptr, nil
-}
-
-// NewSmartPtr returns a SmartPtr from [ptr] and [byteLen].
-func NewSmartPtr(ptr uint32, byteLen int) (SmartPtr, error) {
-	// ensure length of bytes is not greater than int32 to prevent overflow
-	if !EnsureIntToInt32(byteLen) {
-		return 0, errors.New("length of bytes is greater than int32")
-	}
-
-	return SmartPtr(int64(ptr)), nil
 }
