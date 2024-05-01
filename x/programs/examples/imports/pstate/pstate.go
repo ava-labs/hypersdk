@@ -6,8 +6,6 @@ package pstate
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -165,7 +163,6 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		return nil, err
 	}
 
-	fmt.Fprintln(os.Stderr, val)
 	ptr, err := program.WriteBytes(memory, val)
 	if err != nil {
 		{
@@ -182,14 +179,6 @@ func (i *Import) getFn(caller *program.Caller, id int64, key int64) (*types.Val,
 		)
 		return nil, err
 	}
-
-	fmt.Fprintln(os.Stderr, argPtr)
-	res, err := argPtr.Bytes(memory)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Fprintln(os.Stderr, res)
-	fmt.Fprintln(os.Stderr, argPtr.Len())
 
 	return types.ValI64(int64(argPtr)), nil
 }
