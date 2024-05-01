@@ -94,6 +94,7 @@ pub enum Param {
     U64(#[serde_as(as = "DisplayFromStr")] u64),
     String(String),
     Id(Id),
+    Program(Id),
     #[serde(untagged)]
     Key(Key),
 }

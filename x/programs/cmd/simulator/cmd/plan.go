@@ -274,6 +274,24 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
+		case "program":
+			idStr, ok := param.Value.(string)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			}
+			if !strings.HasPrefix(idStr, "step_") {
+				return nil, fmt.Errorf("unsupported program format: %s", idStr)
+			}
+			stepID, ok := c.programIDStrMap[idStr]
+			if !ok {
+				return nil, fmt.Errorf("failed to map to id: %s", idStr)
+			}
+			idStr = stepID
+			val, err := ids.FromString(stepID)
+			if err != nil {
+				return nil, err
+			}
+			cp = append(cp, actions.CallParam{Value: val})
 		case String, ID:
 			stepIdStr, ok := param.Value.(string)
 			if !ok {
