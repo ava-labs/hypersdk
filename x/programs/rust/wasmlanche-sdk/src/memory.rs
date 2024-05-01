@@ -80,7 +80,6 @@ where
         Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
         None => Err(StateError::InvalidPointer),
     }
-}
 
 /// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
