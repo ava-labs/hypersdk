@@ -3,8 +3,8 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    parse_macro_input, parse_str, spanned::Spanned, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat,
-    PatType, Path, Type, Visibility,
+    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Fields, FnArg, Ident, ItemEnum,
+    ItemFn, Pat, PatType, Path, ReturnType, Type, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -126,17 +126,22 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let param_types = std::iter::repeat(quote! { i64 }).take(param_names.len());
 
     // Extract the original function's return type. This must be a WASM supported type.
-    let return_type = &input.sig.output;
+    let return_type: syn::Type = match input.sig.output {
+        syn::ReturnType::Type(_, ref ty) => *ty.clone(),
+        syn::ReturnType::Default => parse_quote! { () },
+    };
+
     let context_type: Path = parse_str(CONTEXT_TYPE).unwrap();
     let output = quote! {
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
-        pub extern "C" fn #new_name(param_0: i64, #(#param_names: #param_types), *) #return_type {
+        pub extern "C" fn #new_name(param_0: i64, #(#param_names: #param_types), *) -> wasmlanche_sdk::HostPtr {
             let param_0: #context_type = unsafe {
                 wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
             };
-            #name(param_0, #(#converted_params),*)
+            let ret: #return_type = #name(param_0, #(#converted_params),*);
+            wasmlanche_sdk::val_to_ptr(&ret).unwrap()
         }
     };
 

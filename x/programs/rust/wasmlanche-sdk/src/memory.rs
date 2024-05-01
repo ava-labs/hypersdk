@@ -5,7 +5,7 @@
 //! with caution.
 
 use crate::state::Error as StateError;
-use borsh::{from_slice, BorshDeserialize};
+use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
@@ -58,6 +58,15 @@ pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
 
     let host_ptr = i64::from(ptr as u32) | (i64::from(len as u32) << 32);
     Ok(host_ptr)
+}
+
+pub fn val_to_ptr<V>(arg: &V) -> Result<HostPtr, StateError>
+where
+    V: BorshSerialize,
+{
+    let arg: Vec<u8> = to_vec(arg).map_err(|_| StateError::Deserialization)?;
+    // to_host_ptr(&arg)
+    Ok(arg.as_ptr() as i64)
 }
 
 /// Converts a raw pointer to a deserialized value.

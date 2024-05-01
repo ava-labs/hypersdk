@@ -84,7 +84,7 @@ func TestCounterProgram(t *testing.T) {
 	// create counter for alice on program 1
 	result, err := rt.Call(ctx, "initialize_address", callContext, alicePtr)
 	require.NoError(err)
-	require.Equal(int64(1), result[0])
+	require.NotEqual(int64(0), result)
 
 	alicePtr, err = writeToMem(alicePublicKey, mem)
 	require.NoError(err)
@@ -92,7 +92,10 @@ func TestCounterProgram(t *testing.T) {
 	// validate counter at 0
 	result, err = rt.Call(ctx, "get_value", callContext, alicePtr)
 	require.NoError(err)
-	require.Equal(int64(0), result[0])
+	res, err := program.SmartPtr(result).Bytes(mem)
+	require.NoError(err)
+	borsh.unmarshal
+	require.Equal(int64(0), value)
 
 	// initialize second runtime to create second counter program with an empty
 	// meter.

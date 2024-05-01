@@ -6,7 +6,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"gopkg.in/yaml.v2"
 )
@@ -94,7 +93,7 @@ func (r *Response) setBalance(balance uint64) {
 	r.Result.Balance = balance
 }
 
-func (r *Response) setResponse(response []int64) {
+func (r *Response) setResponse(response []byte) {
 	r.Result.Response = response
 }
 
@@ -112,7 +111,7 @@ type Result struct {
 	// The balance after the step has completed.
 	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
 	// The response from the call.
-	Response []int64 `json:"response,omitempty" yaml:"response,omitempty"`
+	Response []byte `json:"response,omitempty" yaml:"response,omitempty"`
 	// An optional message.
 	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
 	// Timestamp of the response.
@@ -121,7 +120,8 @@ type Result struct {
 
 type Require struct {
 	// Assertions against the result of the step.
-	Result ResultAssertion `json,yaml:"result,omitempty"`
+	// Result ResultAssertion `json,yaml:"result,omitempty"`
+	Value string `json,yaml:"value,omitempty"`
 }
 
 type ResultAssertion struct {
@@ -162,20 +162,20 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual int64, require *Require) (bool, error) {
+func validateAssertion(actual []byte, require *Require) (bool, error) {
 	if require == nil {
 		return true, nil
 	}
 
 	assertion := require.Result
 	// convert the assertion value(string) to uint64
-	value, err := strconv.ParseInt(assertion.Value, 10, 64)
+	/*value, err := strconv.ParseInt(assertion.Value, 10, 64)
 	if err != nil {
 		return false, err
-	}
+	}*/
 
 	switch Operator(assertion.Operator) {
-	case NumericGt:
+	/*case NumericGt:
 		if actual > value {
 			return true, nil
 		}
@@ -190,15 +190,15 @@ func validateAssertion(actual int64, require *Require) (bool, error) {
 	case NumericLe:
 		if actual <= value {
 			return true, nil
-		}
+		}*/
 	case NumericEq:
 		if actual == value {
 			return true, nil
 		}
-	case NumericNe:
-		if actual != value {
-			return true, nil
-		}
+	/*case NumericNe:
+	if actual != value {
+		return true, nil
+	}*/
 	default:
 		return false, fmt.Errorf("invalid assertion operator: %s", assertion.Operator)
 	}

@@ -2,8 +2,8 @@ use std::hash::Hash;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::from_host_ptr;
 use crate::state::Key;
+use crate::{from_host_ptr, HostPtr};
 use crate::{memory::to_host_ptr, state::Error as StateError, state::State, Params};
 
 /// Represents the current Program in the context of the caller. Or an external
@@ -41,7 +41,7 @@ impl Program {
         function_name: &str,
         args: Params,
         max_units: i64,
-    ) -> Result<i64, StateError> {
+    ) -> Result<HostPtr, StateError> {
         // flatten the args into a single byte vector
         let target = to_host_ptr(self.id())?;
         let function = to_host_ptr(function_name.as_bytes())?;
@@ -73,7 +73,10 @@ impl Program {
         function_name: &str,
         args: Params,
         max_units: i64,
-    ) -> Result<T, StateError> where T: BorshDeserialize {
+    ) -> Result<T, StateError>
+    where
+        T: BorshDeserialize,
+    {
         let ret_args = self._call_function(function_name, args, max_units)?;
 
         Ok(from_host_ptr(ret_args)?)
@@ -83,5 +86,5 @@ impl Program {
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
-    fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> i64;
+    fn _call_program(target_id: i64, function: i64, args_ptr: i64, max_units: i64) -> HostPtr;
 }

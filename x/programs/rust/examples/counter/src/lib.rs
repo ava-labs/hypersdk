@@ -71,7 +71,7 @@ pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Addre
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Plan, Require, ResultAssertion, Step};
+    use simulator::{Endpoint, Key, Param, Plan, Require, Require2, ResultAssertion, Step};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -287,9 +287,7 @@ mod tests {
                 1000000.into(),
                 bob_key.clone(),
             ],
-            require: Some(Require {
-                result: ResultAssertion::NumericEq(10),
-            }),
+            require: Some(Require2 { value: 10 }),
         });
 
         // run plan

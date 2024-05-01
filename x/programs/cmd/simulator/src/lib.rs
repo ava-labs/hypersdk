@@ -3,6 +3,7 @@
 //! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
@@ -34,7 +35,7 @@ pub enum Endpoint {
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct Step {
+pub struct Step<V> {
     /// The API endpoint to call.
     pub endpoint: Endpoint,
     /// The method to call on the endpoint.
@@ -45,10 +46,14 @@ pub struct Step {
     pub params: Vec<Param>,
     /// If defined the result of the step must match this assertion.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub require: Option<Require>,
+    #[serde(bound(serialize = "V: BorshSerialize", deserialize = "V: BorshDeserialize"))]
+    pub require: Option<Require2<V>>,
 }
 
-impl Step {
+impl<V> Step<V>
+where
+    V: BorshSerialize,
+{
     /// Create a [Step] that creates a key.
     #[must_use]
     pub fn create_key(key: Key) -> Self {
@@ -128,6 +133,82 @@ pub struct Require {
     pub result: ResultAssertion,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Require2<V> {
+    /// If defined the result of the step must match this assertion.
+    #[serde(with = "base64")]
+    #[serde(bound(serialize = "V: BorshSerialize", deserialize = "V: BorshDeserialize"))]
+    pub value: V,
+}
+
+mod base64 {
+    use base64::engine::general_purpose;
+    use base64::Engine;
+    use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<V: BorshSerialize, S: Serializer>(v: &V, s: S) -> Result<S::Ok, S::Error> {
+        let bytes = to_vec(v).unwrap();
+        let b64 = general_purpose::STANDARD.encode(bytes);
+        Serialize::serialize(&b64, s)
+    }
+
+    pub fn deserialize<'de, V: BorshDeserialize, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<V, D::Error> {
+        let b64 = <std::string::String as Deserialize>::deserialize(d)?;
+        let bytes = general_purpose::STANDARD
+            .decode(b64.as_bytes())
+            .map_err(|e| serde::de::Error::custom(e))?;
+        Ok(from_slice(&bytes).unwrap())
+    }
+}
+
+/*#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Require<V>
+where
+    V: BorshSerialize,
+{
+    /// If defined the result of the step must match this assertion.
+    // pub result: ResultAssertion,
+    pub operator: Operator,
+    pub value: V,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum Operator {
+    Eq,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct RequireVal<V>
+where
+    V: BorshSerialize,
+{
+    pub val: V,
+}
+
+impl<V> Require<V>
+where
+    V: BorshSerialize,
+{
+    pub fn val(val: V) -> RequireVal<V> {
+        RequireVal { val }
+    }
+}
+
+impl<V> RequireVal<V>
+where
+    V: BorshSerialize,
+    {
+        pub fn to_eq(&self)
+    }*/
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "operator", content = "value")]
@@ -147,14 +228,21 @@ pub enum ResultAssertion {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Plan {
+pub struct Plan<V>
+where
+    V: BorshSerialize,
+{
     /// The key of the caller used in each step of the plan.
     pub caller_key: String,
     /// The steps to perform in the plan.
-    pub steps: Vec<Step>,
+    #[serde(bound(serialize = "V: BorshSerialize", deserialize = "V: BorshDeserialize"))]
+    pub steps: Vec<Step<V>>,
 }
 
-impl Plan {
+impl<V> Plan<V>
+where
+    V: BorshSerialize,
+{
     /// Pass in the `caller_key` to be used in each step of the plan.
     #[must_use]
     pub fn new(caller_key: String) -> Self {
@@ -165,7 +253,7 @@ impl Plan {
     }
 
     /// returns the [Id] of the added [Step]
-    pub fn add_step(&mut self, step: Step) -> Id {
+    pub fn add_step(&mut self, step: Step<V>) -> Id {
         self.steps.push(step);
         Id::from(self.steps.len() - 1)
     }
@@ -227,7 +315,10 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
+    pub fn run_plan<V>(&self, plan: &Plan<V>) -> Result<Vec<PlanResponse>, Box<dyn Error>>
+    where
+        V: BorshSerialize,
+    {
         run_steps(self.path, plan)
     }
 
@@ -235,7 +326,10 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error if the serialization or single-[Step]-[Plan] fails.
-    pub fn execute_step(&self, key: &str, step: Step) -> Result<PlanResponse, Box<dyn Error>> {
+    pub fn execute_step<V>(&self, key: &str, step: Step<V>) -> Result<PlanResponse, Box<dyn Error>>
+    where
+        V: BorshSerialize,
+    {
         let plan = &Plan {
             caller_key: key.into(),
             steps: vec![step],
@@ -245,9 +339,10 @@ impl Client {
     }
 }
 
-fn cmd_output<P>(path: P, plan: &Plan) -> Result<Output, Box<dyn Error>>
+fn cmd_output<P, V>(path: P, plan: &Plan<V>) -> Result<Output, Box<dyn Error>>
 where
     P: AsRef<OsStr>,
+    V: BorshSerialize,
 {
     let mut child = Command::new(path)
         .arg("run")
@@ -271,10 +366,11 @@ where
         .map_err(|e| format!("failed to wait for child: {e}").into())
 }
 
-fn run_steps<P, T>(path: P, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
+fn run_steps<P, T, V>(path: P, plan: &Plan<V>) -> Result<Vec<T>, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
     P: AsRef<OsStr>,
+    V: BorshSerialize,
 {
     let output = cmd_output(path, plan)?;
     let mut items: Vec<T> = Vec::new();
@@ -303,10 +399,11 @@ where
     Ok(items)
 }
 
-fn run_step<P, T>(path: P, plan: &Plan) -> Result<T, Box<dyn Error>>
+fn run_step<P, T, V>(path: P, plan: &Plan<V>) -> Result<T, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
     P: AsRef<OsStr>,
+    V: BorshSerialize,
 {
     let output = cmd_output(path, plan)?;
 

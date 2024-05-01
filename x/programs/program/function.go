@@ -24,43 +24,43 @@ func NewFunc(inner *wasmtime.Func, inst Instance) *Func {
 	}
 }
 
-func (f *Func) Call(context Context, params ...uint32) ([]int64, error) {
+func (f *Func) Call(context Context, params ...uint32) (int64, error) {
 	fnParams := f.Type().Params()[1:] // strip program_id
 	if len(params) != len(fnParams) {
-		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
+		return 0, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
 	}
 
 	// convert the args to the expected wasm types
 	callParams, err := mapFunctionParams(params, fnParams)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	mem, err := f.inst.Memory()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	contextPtr, err := writeToMem(context, mem)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	result, err := f.inner.Call(f.inst.GetStore(), append([]interface{}{int64(contextPtr)}, callParams...)...)
 	if err != nil {
-		return nil, HandleTrapError(err)
+		return 0, HandleTrapError(err)
 	}
 	switch v := result.(type) {
 	case int32:
 		value := int64(result.(int32))
-		return []int64{value}, nil
+		return value, nil
 	case int64:
 		value := result.(int64)
-		return []int64{value}, nil
+		return value, nil
 	case nil:
 		// the function had no return values
-		return nil, nil
+		return 0, nil
 	default:
-		return nil, fmt.Errorf("invalid result type: %T", v)
+		return 0, fmt.Errorf("invalid result type: %T", v)
 	}
 }
 

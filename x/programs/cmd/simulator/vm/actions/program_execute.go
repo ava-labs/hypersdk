@@ -134,12 +134,21 @@ func (t *ProgramExecute) Execute(
 	}
 
 	// TODO: remove this is to support readonly response for now.
-	p := codec.NewWriter(len(resp), consts.MaxInt)
+	/*p := codec.NewWriter(len(resp), consts.MaxInt)
 	for _, r := range resp {
 		p.PackInt64(r)
+	}*/
+
+	/*p := codec.NewWriter(1, consts.MaxInt)
+	p.PackInt64(resp)*/
+
+	ptr := program.SmartPtr(resp)
+	res, err := ptr.Bytes(mem)
+	if err != nil {
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
-	return true, 1, p.Bytes(), nil
+	return true, 1, res, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
