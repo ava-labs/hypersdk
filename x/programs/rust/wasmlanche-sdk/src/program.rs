@@ -67,8 +67,7 @@ impl Program {
         Ok(())
     }
 
-    // #[must_use = "use the `call_function` variant if you don't need to deserialize the return type"]
-    #[must_use]
+    #[must_use = "use the `call_function` variant if you don't need to deserialize the return type"]
     pub fn call_function_ret<T>(
         &self,
         function_name: &str,
