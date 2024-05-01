@@ -33,11 +33,6 @@ impl From<Pointer> for *mut u8 {
 
 /// `HostPtr` is an i64 where the first 4 bytes represent the length of the bytes
 /// and the following 4 bytes represent a pointer to WASM memeory where the bytes are stored.
-<<<<<<< HEAD
-// #[deprecated] TODO fix in a followup pr
-=======
-#[deprecated]
->>>>>>> df3b46d2 (apply review suggestions)
 pub type HostPtr = i64;
 
 thread_local! {
@@ -86,15 +81,9 @@ where
 /// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-<<<<<<< HEAD
-pub fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
-    GLOBAL_STORE
-        .with_borrow_mut(|s| s.remove(&((ptr & (!0u32 as i64)) as *const u8)))
-=======
 fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
     GLOBAL_STORE
         .with_borrow_mut(|s| s.remove(&(ptr as *const u8)))
->>>>>>> df3b46d2 (apply review suggestions)
         .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
 }
 
@@ -110,11 +99,7 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
     // take a mutable pointer to the layout
     let ptr = unsafe { std::alloc::alloc(layout) };
-<<<<<<< HEAD
     if ptr.is_null() {
-=======
-    if ptr as *const _ == std::ptr::null() {
->>>>>>> df3b46d2 (apply review suggestions)
         std::alloc::handle_alloc_error(layout);
     }
     // keep track of the pointer and the length of the allocated data
@@ -168,8 +153,4 @@ mod tests {
     //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
     //         alloc(isize::MAX as usize);
     //     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> df3b46d2 (apply review suggestions)
