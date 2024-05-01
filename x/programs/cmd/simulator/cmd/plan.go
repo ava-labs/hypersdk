@@ -274,7 +274,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
-		case "program", String, ID:
+		case String, ID:
 			stepIdStr, ok := param.Value.(string)
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
@@ -346,31 +346,6 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	}
 
 	return cp, nil
-}
-
-// verifyProgramIDStr verifies a string is a valid ID and checks the programIDStrMap for
-// the synthetic identifier `step_N` where N is the step the id was created from
-// execution.
-func (c *runCmd) verifyProgramIDStr(idStr string) (string, error) {
-	// if the id is valid
-	_, err := ids.FromString(idStr)
-	// myId, err := ids.FromString(idStr)
-	if err == nil {
-		return idStr, nil
-		// return myId, nil
-
-	}
-
-	// check if the id is a synthetic identifier
-	if strings.HasPrefix(idStr, "step_") {
-		stepID, ok := c.programIDStrMap[idStr]
-		if !ok {
-			return "", fmt.Errorf("failed to map to id: %s", idStr)
-		}
-		return stepID, nil
-	}
-
-	return idStr, nil
 }
 
 // generateRandomID creates a unique ID.
