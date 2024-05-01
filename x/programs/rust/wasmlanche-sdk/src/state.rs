@@ -102,7 +102,7 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let val_ptr = unsafe { host::get_bytes(&self.program, &key.into())? };
+            let val_ptr = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
             // TODO write a test for that
             if val_ptr.is_null() {
                 return Err(Error::Read);
