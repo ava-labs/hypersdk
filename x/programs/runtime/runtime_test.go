@@ -68,7 +68,6 @@ func TestCallParams(t *testing.T) {
 	defer cancel()
 
 	// add param[0] + param[1]
-	//nolint: dupword
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
