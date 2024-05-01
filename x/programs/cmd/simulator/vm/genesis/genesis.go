@@ -59,6 +59,9 @@ type Genesis struct {
 	EnableDebugMode  bool `json:"enableDebugMode"`
 	EnableBulkMemory bool `json:"enableBulkMemory"`
 
+	// Action Per Tx
+	MaxActionsPerTx int `json:"maxActionsPerTx"`
+
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
@@ -100,6 +103,9 @@ func Default() *Genesis {
 		EnableDebugMode: true,
 		// Enabled to only enable Wasi for testing mode
 		EnableBulkMemory: true,
+
+		// Action Per Tx
+		MaxActionsPerTx: 1,
 	}
 }
 

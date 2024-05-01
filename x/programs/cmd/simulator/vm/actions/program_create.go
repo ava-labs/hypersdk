@@ -23,12 +23,16 @@ type ProgramCreate struct {
 	Program []byte `json:"program"`
 }
 
-func (t *ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+func (t *ProgramCreate) StateKeys(_ codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{}
 }
 
 func (*ProgramCreate) GetTypeID() uint8 {
 	return programCreateID
+}
+
+func (*ProgramCreate) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
 }
 
 func (*ProgramCreate) StateKeysMaxChunks() []uint16 {
@@ -41,17 +45,17 @@ func (t *ProgramCreate) Execute(
 	mu state.Mutable,
 	_ int64,
 	_ codec.Address,
-	id ids.ID,
-) (bool, uint64, []byte, error) {
+	actionID codec.LID,
+) (bool, uint64, [][]byte, error) {
 	if len(t.Program) == 0 {
-		return false, 1, OutputValueZero, nil
+		return false, 1, [][]byte{OutputValueZero}, nil
 	}
 
-	if err := storage.SetProgram(ctx, mu, id, t.Program); err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+	if err := storage.SetProgram(ctx, mu, actionID, t.Program); err != nil {
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 
-	return true, 1, nil, nil
+	return true, 1, [][]byte{{}}, nil
 }
 
 func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {

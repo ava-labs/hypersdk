@@ -8,9 +8,8 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -20,10 +19,10 @@ const (
 )
 
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
-	k = make([]byte, consts.IDLen+1+len(key))
+	k = make([]byte, codec.AddressLen+1+len(key))
 	k[0] = programPrefix
 	copy(k, id)
-	copy(k[consts.IDLen:], (key))
+	copy(k[codec.AddressLen:], (key))
 	return
 }
 
@@ -31,8 +30,8 @@ func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 // Program
 //
 
-func ProgramKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+func ProgramKey(id codec.LID) (k []byte) {
+	k = make([]byte, 1+codec.AddressLen)
 	copy(k[1:], id[:])
 	return
 }
@@ -41,7 +40,7 @@ func ProgramKey(id ids.ID) (k []byte) {
 func GetProgram(
 	ctx context.Context,
 	db state.Immutable,
-	programID ids.ID,
+	programID codec.LID,
 ) (
 	[]byte, // program bytes
 	bool, // exists
@@ -62,7 +61,7 @@ func GetProgram(
 func SetProgram(
 	ctx context.Context,
 	mu state.Mutable,
-	programID ids.ID,
+	programID codec.LID,
 	program []byte,
 ) error {
 	k := ProgramKey(programID)

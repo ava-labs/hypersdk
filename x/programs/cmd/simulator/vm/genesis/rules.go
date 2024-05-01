@@ -94,3 +94,7 @@ func (r *Rules) ChainID() ids.ID {
 func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
+
+func (r *Rules) GetMaxActionsPerTx() int {
+	return r.g.MaxActionsPerTx
+}

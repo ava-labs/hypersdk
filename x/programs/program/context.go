@@ -4,11 +4,11 @@
 package program
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type Context struct {
-	ProgramID ids.ID `json:"program"`
+	ProgramID codec.LID `json:"program"`
 	// Actor            [32]byte `json:"actor"`
 	// OriginatingActor [32]byte `json:"originating_actor"`
 }

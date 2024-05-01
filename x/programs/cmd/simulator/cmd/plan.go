@@ -25,7 +25,9 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
@@ -235,7 +237,7 @@ func runStepFunc(
 			if err != nil {
 				return err
 			}
-			resp.setTxID(id.String())
+			resp.setTxID(codec.LIDToString(consts.HRP, id))
 			resp.setTimestamp(time.Now().Unix())
 
 			return nil
@@ -252,7 +254,7 @@ func runStepFunc(
 		if err != nil {
 			return err
 		}
-		resp.setTxID(id.String())
+		resp.setTxID(codec.LIDToString(consts.HRP, id))
 		resp.setBalance(balance)
 
 		return nil

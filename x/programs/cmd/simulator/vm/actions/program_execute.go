@@ -5,8 +5,6 @@ package actions
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/near/borsh-go"
 
@@ -45,7 +43,11 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
+func (*ProgramExecute) GetActionID(i uint8, txID ids.ID) codec.LID {
+	return codec.CreateLID(i, txID)
+}
+
+func (t *ProgramExecute) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{}
 }
 
@@ -59,40 +61,31 @@ func (t *ProgramExecute) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ ids.ID,
-) (success bool, computeUnits uint64, output []byte, err error) {
+	actionID codec.LID,
+) (success bool, computeUnits uint64, output [][]byte, err error) {
 	if len(t.Function) == 0 {
-		return false, 1, OutputValueZero, nil
+		return false, 1, [][]byte{OutputValueZero}, nil
 	}
 	if len(t.Params) == 0 {
-		return false, 1, OutputValueZero, nil
+		return false, 1, [][]byte{OutputValueZero}, nil
 	}
 
-	programID, ok := t.Params[0].Value.(ids.ID)
-	if !ok {
-		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
-	}
-
-	// TODO: take fee out of balance?
-	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
-	if !exists {
-		err = errors.New("unknown program")
-	}
+	programBytes, err := storage.GetProgram(ctx, mu, actionID)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 
 	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	eng := engine.New(ecfg)
 
@@ -102,7 +95,7 @@ func (t *ProgramExecute) Execute(
 		return pstate.New(logging.NoLog{}, mu)
 	})
 	callContext := program.Context{
-		ProgramID: programID,
+		ProgramID: actionID,
 		// Actor:            [32]byte(actor[1:]),
 		// OriginatingActor: [32]byte(actor[1:])
 	}
@@ -115,22 +108,22 @@ func (t *ProgramExecute) Execute(
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
 	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	defer t.rt.Stop()
 
 	mem, err := t.rt.Memory()
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 	params, err := WriteParams(mem, t.Params)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
 
 	// TODO: remove this is to support readonly response for now.
@@ -139,7 +132,7 @@ func (t *ProgramExecute) Execute(
 		p.PackInt64(r)
 	}
 
-	return true, 1, p.Bytes(), nil
+	return true, 1, [][]byte{p.Bytes()}, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
