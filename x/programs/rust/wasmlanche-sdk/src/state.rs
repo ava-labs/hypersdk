@@ -221,7 +221,7 @@ mod host {
             args = (caller, key, value)
         } {
             0 => Ok(()),
-            _ => Err(Error::Write)
+            _ => Err(Error::Write),
         }
     }
 
@@ -242,7 +242,7 @@ mod host {
             args = (caller, key)
         } {
             0 => Ok(()),
-            _ => Err(Error::Delete)
+            _ => Err(Error::Delete),
         }
     }
 }

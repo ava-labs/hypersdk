@@ -2,7 +2,11 @@ use std::hash::Hash;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{memory::to_ffi_ptr, state::{Error as StateError, State, Key}, Params};
+use crate::{
+    memory::to_ffi_ptr,
+    state::{Error as StateError, Key, State},
+    Params,
+};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -61,5 +65,10 @@ pub struct CPointer(pub *const u8, pub usize);
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
-    fn _call_program(target_id: CPointer, function: CPointer, args_ptr: CPointer, max_units: i64) -> i64;
+    fn _call_program(
+        target_id: CPointer,
+        function: CPointer,
+        args_ptr: CPointer,
+        max_units: i64,
+    ) -> i64;
 }
