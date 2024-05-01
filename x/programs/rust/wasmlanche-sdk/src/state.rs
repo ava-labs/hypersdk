@@ -1,4 +1,4 @@
-use crate::{from_host_ptr, program::Program, state::Error as StateError};
+use crate::{memory::into_bytes, program::Program, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{collections::HashMap, hash::Hash, ops::Deref};
 
@@ -110,7 +110,7 @@ where
             }
 
             // TODO Wrap in OK for now, change from_raw_ptr to return Result
-            let bytes = from_host_ptr(val_ptr)?;
+            let bytes = into_bytes(val_ptr).ok_or(Error::InvalidPointer)?;
             self.cache.entry(key).or_insert(bytes)
         };
 
@@ -179,8 +179,7 @@ macro_rules! ffi_linker {
 
         let $caller = to_ffi_ptr($caller.id())?;
         let $key = to_ffi_ptr($key)?;
-        let value_bytes = borsh::to_vec($value).map_err(|_| Error::Serialization)?;
-        let $value = to_ffi_ptr(&value_bytes)?;
+        let $value = to_ffi_ptr($value)?;
     };
 }
 
@@ -207,18 +206,16 @@ macro_rules! call_host_fn {
 }
 
 mod host {
-    use super::{BorshSerialize, Key, Program};
+    use super::{Key, Program};
     use crate::{memory::to_ffi_ptr, program::CPointer, state::Error};
 
-    /// Persists the bytes at `value` at key on the host storage.
-    pub(super) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), Error>
-    where
-        V: BorshSerialize,
+    /// Persists the bytes at key on the host storage.
+    pub(super) unsafe fn put_bytes(caller: &Program, key: &Key, bytes: &[u8]) -> Result<(), Error>
     {
         match call_host_fn! {
             wasm_import_module = "state"
             link_name = "put"
-            args = (caller, key, value)
+            args = (caller, key, bytes)
         } {
             0 => Ok(()),
             _ => Err(Error::Write),

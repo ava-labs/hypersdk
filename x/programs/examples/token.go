@@ -392,7 +392,7 @@ func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, u
 	if err != nil {
 		return 0, err
 	}
-	err = borsh.Deserialize(&res, b[4:])
+	err = borsh.Deserialize(&res, b)
 	if err != nil {
 		return 0, err
 	}
