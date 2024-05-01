@@ -56,7 +56,7 @@ where
 fn into_bytes(ptr: *const u8) -> Option<Vec<u8>> {
     GLOBAL_STORE
         .with_borrow_mut(|s| s.remove(&ptr))
-        .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
+        .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr.cast_mut(), len, len) })
 }
 
 /* memory functions ------------------------------------------- */

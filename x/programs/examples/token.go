@@ -386,13 +386,13 @@ func (t *Token) RunShort(ctx context.Context) error {
 	return nil
 }
 
-func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, userPublicKey ed25519.PublicKey) (res int64, err error) {
+func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, userPublicKey ed25519.PublicKey) (res uint32, err error) {
 	key := storage.ProgramPrefixKey(programID[:], append([]byte{uint8(Balance)}, userPublicKey[:]...))
 	b, err := t.db.GetValue(ctx, key)
 	if err != nil {
 		return 0, err
 	}
-	err = borsh.Deserialize(&res, b)
+	err = borsh.Deserialize(&res, b[4:])
 	if err != nil {
 		return 0, err
 	}
