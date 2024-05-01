@@ -4,9 +4,12 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
-use std::{alloc::Layout, cell::RefCell, collections::HashMap};
+use std::alloc::Layout;
 
 /// Represents a pointer to a block of memory allocated by the global allocator.
 #[derive(Clone, Copy)]
@@ -82,9 +85,9 @@ where
 /// Reconstructs the vec from the pointer with the length given by the store
 /// `host_ptr` is encoded using Big Endian as an i64.
 #[must_use]
-fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
+pub fn into_bytes(ptr: HostPtr) -> Option<Vec<u8>> {
     GLOBAL_STORE
-        .with_borrow_mut(|s| s.remove(&(ptr as *const u8)))
+        .with_borrow_mut(|s| s.remove(&((ptr & (!0u32 as i64)) as *const u8)))
         .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr as *mut u8, len, len) })
 }
 
