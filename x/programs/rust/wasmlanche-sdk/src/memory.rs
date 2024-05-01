@@ -4,9 +4,6 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
 use std::alloc::Layout;
@@ -156,4 +153,23 @@ mod tests {
     //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
     //         alloc(isize::MAX as usize);
     //     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{alloc, into_bytes};
+    use crate::memory::GLOBAL_STORE;
+
+    #[test]
+    fn data_allocation() {
+        let len = 1024;
+        let ptr = alloc(len);
+        let vec = vec![1; len];
+        vec.iter().enumerate().for_each(|(i, val)| unsafe {
+            *ptr.add(i) = *val;
+        });
+        let val = into_bytes(ptr as i64).unwrap();
+        assert_eq!(val, vec);
+        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr as *const u8)).is_none()));
+    }
 }
