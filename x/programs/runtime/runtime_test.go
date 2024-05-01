@@ -73,8 +73,8 @@ func TestCallParams(t *testing.T) {
 	(module
 		(memory 1) ;; 1 pages
 		;; first argument is always the pointer to the context
-		(func $add (param i32 i32 i32) (result i32)
-			(i32.add local.get 1 local.get 2)
+		(func $add (param i32 i64 i64) (result i64)
+			(i64.add local.get 1 local.get 2)
 		)
 		(func $alloc (param i32) (result i32)
 	      i32.const 0
