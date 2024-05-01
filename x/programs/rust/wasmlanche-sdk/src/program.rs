@@ -57,9 +57,6 @@ impl Program {
     }
 }
 
-#[repr(C)]
-pub struct CPointer(pub *const u8, pub usize);
-
 #[link(wasm_import_module = "program")]
 extern "C" {
     #[link_name = "call_program"]
