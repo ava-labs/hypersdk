@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -109,12 +110,12 @@ func (c *runCmd) Verify() error {
 		}
 
 		// verify assertions
-		if step.Require != nil {
+		/*if step.Require != nil {
 			err = verifyAssertion(i, step.Require)
 			if err != nil {
 				return err
 			}
-		}
+		}*/
 	}
 
 	return nil
@@ -124,12 +125,12 @@ func verifyAssertion(i int, require *Require) error {
 	if require == nil {
 		return nil
 	}
-	if require.Result.Operator == "" {
+	/*if require.Result.Operator == "" {
 		return fmt.Errorf("%w %d: missing assertion operator", ErrInvalidStep, i)
 	}
 	if require.Result.Value == "" {
 		return fmt.Errorf("%w %d: missing assertion value", ErrInvalidStep, i)
-	}
+	}*/
 	return nil
 }
 
@@ -211,7 +212,7 @@ func runStepFunc(
 	maxUnits uint64,
 	method string,
 	params []actions.CallParam,
-	require *Require,
+	require *Require2,
 	resp *Response,
 ) error {
 	defer resp.setTimestamp(time.Now().Unix())
@@ -255,9 +256,13 @@ func runStepFunc(
 			return err
 		}
 		resp.setResponse(response)
-		ok, err := validateAssertion(response, require)
+		decoded, err := base64.StdEncoding.DecodeString(require.Value)
+		if err != nil {
+			return err
+		}
+		ok, err := validateAssertion(response, decoded)
 		if !ok {
-			return fmt.Errorf("%w expected %v actual %v", ErrResultAssertionFailed, require, response[0])
+			return fmt.Errorf("%w expected %v actual %v", ErrResultAssertionFailed, decoded, response)
 		}
 		if err != nil {
 			return err

@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -32,7 +33,8 @@ type Step struct {
 	// The parameters to pass to the method.
 	Params []Parameter `json:"params" yaml:"params"`
 	// Define required assertions against this step.
-	Require *Require `json:"require,omitempty" yaml:"require,omitempty"`
+	// Require *Require `json:"require,omitempty" yaml:"require,omitempty"`
+	Require *Require2 `json:"require,omitempty" yaml:"require,omitempty"`
 }
 
 type Endpoint string
@@ -124,6 +126,12 @@ type Require struct {
 	Value string `json,yaml:"value,omitempty"`
 }
 
+type Require2 struct {
+	// Assertions against the result of the step.
+	// Result ResultAssertion `json,yaml:"result,omitempty"`
+	Value string `json,yaml:"value,omitempty"`
+}
+
 type ResultAssertion struct {
 	// The operator to use for the assertion.
 	Operator string `json,yaml:"operator"`
@@ -162,20 +170,21 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual []byte, require *Require) (bool, error) {
-	if require == nil {
+func validateAssertion(actual []byte, require []byte) (bool, error) {
+	/*if require == nil {
 		return true, nil
-	}
+	}*/
 
-	assertion := require.Result
+	assertion := require
+	// assertion := require.Result
 	// convert the assertion value(string) to uint64
 	/*value, err := strconv.ParseInt(assertion.Value, 10, 64)
 	if err != nil {
 		return false, err
 	}*/
 
-	switch Operator(assertion.Operator) {
-	/*case NumericGt:
+	/*switch Operator(assertion.Operator) {
+	case NumericGt:
 		if actual > value {
 			return true, nil
 		}
@@ -190,17 +199,21 @@ func validateAssertion(actual []byte, require *Require) (bool, error) {
 	case NumericLe:
 		if actual <= value {
 			return true, nil
-		}*/
+		}
 	case NumericEq:
 		if actual == value {
 			return true, nil
 		}
-	/*case NumericNe:
+	case NumericNe:
 	if actual != value {
 		return true, nil
-	}*/
+	}
 	default:
 		return false, fmt.Errorf("invalid assertion operator: %s", assertion.Operator)
+	}*/
+
+	if bytes.Compare(actual, assertion) == 0 {
+		return true, nil
 	}
 
 	return false, nil

@@ -60,13 +60,13 @@ pub fn to_host_ptr(arg: &[u8]) -> Result<HostPtr, StateError> {
     Ok(host_ptr)
 }
 
-pub fn val_to_ptr<V>(arg: &V) -> Result<HostPtr, StateError>
+pub fn val_to_host_ptr<V>(arg: &V) -> Result<HostPtr, StateError>
 where
     V: BorshSerialize,
 {
     let arg: Vec<u8> = to_vec(arg).map_err(|_| StateError::Deserialization)?;
-    // to_host_ptr(&arg)
-    Ok(arg.as_ptr() as i64)
+    to_host_ptr(&arg)
+    // Ok(arg.as_ptr() as i64)
 }
 
 /// Converts a raw pointer to a deserialized value.

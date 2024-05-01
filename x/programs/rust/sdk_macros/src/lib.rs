@@ -141,7 +141,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
             };
             let ret: #return_type = #name(param_0, #(#converted_params),*);
-            wasmlanche_sdk::val_to_ptr(&ret).unwrap()
+            wasmlanche_sdk::val_to_host_ptr(&ret).unwrap()
         }
     };
 

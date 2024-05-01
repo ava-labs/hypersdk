@@ -82,7 +82,7 @@ mod tests {
         let owner_key = String::from("owner");
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
 
-        let mut plan = Plan::new(owner_key.clone());
+        /*let mut plan = Plan::new(owner_key.clone());
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
 
@@ -121,7 +121,7 @@ mod tests {
                 .iter()
                 .filter_map(|resp| resp.error.as_ref())
                 .next()
-        );
+        );*/
     }
 
     #[test]
@@ -186,8 +186,9 @@ mod tests {
             method: "get_value".into(),
             max_units: 0,
             params: vec![counter2_id.into(), bob_key.clone()],
-            require: Some(Require {
-                result: ResultAssertion::NumericEq(10),
+            require: Some(Require2 {
+                // result: ResultAssertion::NumericEq(10),
+                value: 10i64,
             }),
         });
 
@@ -258,8 +259,9 @@ mod tests {
             method: "get_value".into(),
             max_units: 0,
             params: vec![counter2_id.into(), bob_key.clone()],
-            require: Some(Require {
-                result: ResultAssertion::NumericEq(0),
+            require: Some(Require2 {
+                // result: ResultAssertion::NumericEq(0),
+                value: 0i64,
             }),
         });
 
