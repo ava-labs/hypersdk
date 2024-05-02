@@ -27,7 +27,7 @@ func TestStop(t *testing.T) {
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
-		(func $run (param i64)
+		(func $run (param i32)
 			(loop br 0)
 		)
 		(func $alloc (param i32) (result i32)
@@ -68,12 +68,11 @@ func TestCallParams(t *testing.T) {
 	defer cancel()
 
 	// add param[0] + param[1]
-	//nolint: dupword
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
 		;; first argument is always the pointer to the context
-		(func $add (param i64 i64 i64) (result i64)
+		(func $add (param i32 i64 i64) (result i64)
 			(i64.add local.get 1 local.get 2)
 		)
 		(func $alloc (param i32) (result i32)
@@ -120,7 +119,7 @@ func TestInfiniteLoop(t *testing.T) {
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
-		(func $run (param i64)
+		(func $run (param i32)
 			(loop br 0)
 		)
 		(func $alloc (param i32) (result i32)
@@ -159,7 +158,7 @@ func TestMetering(t *testing.T) {
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
-		(func $get (param i64) (result i32)
+		(func $get (param i32) (result i32)
 			i32.const 0
 		)
 		(func $alloc (param i32) (result i32)
@@ -207,7 +206,7 @@ func TestMeterAfterStop(t *testing.T) {
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
-		(func $get (param i64) (result i32)
+		(func $get (param i32) (result i32)
 			i32.const 0
 		)
 		(func $alloc (param i32) (result i32)
@@ -358,7 +357,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
 		(memory 1) ;; 1 pages
-		(func $get (param i64) (result i32)
+		(func $get (param i32) (result i32)
 			i32.const 0
 		)
 		(func $alloc (param i32) (result i32)

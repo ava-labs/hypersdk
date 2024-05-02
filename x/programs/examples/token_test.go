@@ -26,7 +26,7 @@ func TestTokenProgram(t *testing.T) {
 	t.Run("BurnUserTokens", func(t *testing.T) {
 		wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
 		require := require.New(t)
-		maxUnits := uint64(80000)
+		maxUnits := uint64(200000)
 		eng := engine.New(engine.NewConfig())
 		program := newTokenProgram(maxUnits, eng, runtime.NewConfig(), wasmBytes)
 		require.NoError(program.Run(context.Background()))
@@ -76,7 +76,7 @@ func TestTokenProgram(t *testing.T) {
 		// read alice balance from state db
 		aliceBalance, err := program.GetUserBalanceFromState(ctx, programID, alicePublicKey)
 		require.NoError(err)
-		require.Equal(int64(1000), aliceBalance)
+		require.Equal(uint32(1000), aliceBalance)
 
 		alicePtr, err = writeToMem(alicePublicKey, mem)
 		require.NoError(err)
@@ -92,7 +92,7 @@ func TestTokenProgram(t *testing.T) {
 
 	wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
 	require := require.New(t)
-	maxUnits := uint64(80000)
+	maxUnits := uint64(200000)
 	eng := engine.New(engine.NewConfig())
 	program := newTokenProgram(maxUnits, eng, runtime.NewConfig(), wasmBytes)
 	require.NoError(program.Run(context.Background()))

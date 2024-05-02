@@ -59,12 +59,15 @@ func (i *Import) Register(link *host.Link, callContext program.Context) error {
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
-func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int64, int64, int64, int64) int64 {
+func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int32, int32, int32, int32, int32, int32, int64) int64 {
 	return func(
 		wasmCaller *wasmtime.Caller,
-		programID int64,
-		function int64,
-		args int64,
+		programPtr int32,
+		programLen int32,
+		functionPtr int32,
+		functionLen int32,
+		argsPtr int32,
+		argsLen int32,
 		maxUnits int64,
 	) int64 {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -80,7 +83,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		}
 
 		// get the entry function for invoke to call.
-		functionBytes, err := program.SmartPtr(function).Bytes(memory)
+		functionBytes, err := memory.Range(uint32(functionPtr), uint32(functionLen))
 		if err != nil {
 			i.log.Error("failed to read function name from memory",
 				zap.Error(err),
@@ -88,7 +91,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
+		programIDBytes, err := memory.Range(uint32(programPtr), uint32(programLen))
 		if err != nil {
 			i.log.Error("failed to read id from memory",
 				zap.Error(err),
@@ -143,7 +146,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			}
 		}()
 
-		argsBytes, err := program.SmartPtr(args).Bytes(memory)
+		argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
 		if err != nil {
 			i.log.Error("failed to read program args from memory",
 				zap.Error(err),

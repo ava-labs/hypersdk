@@ -45,7 +45,7 @@ func (f *Func) Call(context Context, params ...uint32) ([]int64, error) {
 		return nil, err
 	}
 
-	result, err := f.inner.Call(f.inst.GetStore(), append([]interface{}{int64(contextPtr)}, callParams...)...)
+	result, err := f.inner.Call(f.inst.GetStore(), append([]interface{}{int32(contextPtr)}, callParams...)...)
 	if err != nil {
 		return nil, HandleTrapError(err)
 	}

@@ -3,8 +3,8 @@
 use wasmlanche_sdk::{public, Context};
 
 #[public]
-pub fn always_true(_: Context) -> i64 {
-    true as i64
+pub fn always_true(_: Context) -> i32 {
+    true as i32
 }
 
 #[public]
