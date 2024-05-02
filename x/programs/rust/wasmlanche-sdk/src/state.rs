@@ -2,6 +2,8 @@ use crate::{memory::into_bytes, program::Program, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{collections::HashMap, hash::Hash, ops::Deref};
 
+use self::host::PutArgs;
+
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
     #[error("an unclassified error has occurred: {0}")]
@@ -129,10 +131,19 @@ where
 
     /// Apply all pending operations to storage and mark the cache as flushed
     fn flush(&mut self) -> Result<(), Error> {
-        for (key, value) in self.cache.drain() {
-            unsafe {
-                host::put_bytes(&self.program, &key.into(), &value)?;
-            }
+        let args_iter = self
+            .cache
+            .drain()
+            .map(|(key, val)| (key.into(), val))
+            .map(|(key, val)| PutArgs {
+                caller: self.program,
+                key: key.0,
+                bytes: val,
+            })
+            .map(|args| borsh::to_vec(&args).map_err(|_| StateError::Serialization));
+
+        for args in args_iter {
+            host::put_bytes(&args?)?;
         }
 
         Ok(())
@@ -211,14 +222,26 @@ mod host {
         memory::{to_ffi_ptr, CPointer},
         state::Error,
     };
+    use borsh::BorshSerialize;
+
+    #[derive(BorshSerialize)]
+    pub(super) struct PutArgs {
+        pub(super) caller: Program,
+        pub(super) key: Vec<u8>,
+        pub(super) bytes: Vec<u8>,
+    }
 
     /// Persists the bytes at key on the host storage.
-    pub(super) unsafe fn put_bytes(caller: &Program, key: &Key, bytes: &[u8]) -> Result<(), Error> {
-        match call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "put"
-            args = (caller, key, bytes)
-        } {
+    pub(super) fn put_bytes(bytes: &[u8]) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "put"]
+            fn ffi(ptr: *const u8, len: usize) -> usize;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        match result {
             0 => Ok(()),
             _ => Err(Error::Write),
         }

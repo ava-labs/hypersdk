@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -43,7 +44,7 @@ func (*Import) Name() string {
 func (i *Import) Register(link *host.Link, _ program.Context) error {
 	i.meter = link.Meter()
 	wrap := wrap.New(link)
-	if err := wrap.RegisterAnyParamFn(Name, "put", 6, i.putFnVariadic); err != nil {
+	if err := wrap.RegisterAnyParamFn(Name, "put", 2, i.putFnVariadic); err != nil {
 		return err
 	}
 	if err := wrap.RegisterAnyParamFn(Name, "get", 4, i.getFnVariadic); err != nil {
@@ -54,10 +55,10 @@ func (i *Import) Register(link *host.Link, _ program.Context) error {
 }
 
 func (i *Import) putFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
-	if len(args) != 6 {
-		return nil, errors.New("expected 6 arguments")
+	if len(args) != 2 {
+		return nil, errors.New("expected 2 arguments")
 	}
-	return i.putFn(caller, args[0], args[1], args[2], args[3], args[4], args[5])
+	return i.putFn(caller, args[0], args[1])
 }
 
 func (i *Import) getFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
@@ -74,7 +75,13 @@ func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int32) (*types
 	return i.deleteFn(caller, args[0], args[1], args[2], args[3])
 }
 
-func (i *Import) putFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr int32, keyLen int32, valuePtr int32, valueLen int32) (*types.Val, error) {
+type putArgs struct {
+	ProgramID [32]byte
+	Key       []byte
+	Value     []byte
+}
+
+func (i *Import) putFn(caller *program.Caller, memOffset int32, len int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -83,32 +90,27 @@ func (i *Import) putFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr 
 		return nil, err
 	}
 
-	programIDBytes, err := memory.Range(uint32(idPtr), uint32(idLen))
+	bytes, err := memory.Range(uint32(memOffset), uint32(len))
+
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
+		i.log.Error("failed to read args from program memory",
 			zap.Error(err),
 		)
 		return nil, err
 	}
 
-	keyBytes, err := memory.Range(uint32(keyPtr), uint32(keyLen))
+	args := putArgs{}
+	err = borsh.Deserialize(&args, bytes)
+
 	if err != nil {
-		i.log.Error("failed to read key from memory",
+		i.log.Error("failed to deserialize args",
 			zap.Error(err),
 		)
 		return nil, err
 	}
 
-	valueBytes, err := memory.Range(uint32(valuePtr), uint32(valueLen))
-	if err != nil {
-		i.log.Error("failed to read value from memory",
-			zap.Error(err),
-		)
-		return nil, err
-	}
-
-	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
-	err = i.mu.Insert(context.Background(), k, valueBytes)
+	k := storage.ProgramPrefixKey(args.ProgramID[:], args.Key)
+	err = i.mu.Insert(context.Background(), k, args.Value)
 	if err != nil {
 		i.log.Error("failed to insert into storage",
 			zap.Error(err),
