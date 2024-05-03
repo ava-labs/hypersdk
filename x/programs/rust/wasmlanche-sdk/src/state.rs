@@ -131,13 +131,12 @@ where
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete(&mut self, key: &K) -> Result<(), Error> {
-        self.cache.remove(key);
+    pub fn delete(&mut self, key: K) -> Result<(), Error> {
+        self.cache.remove(&key);
 
         let args = GetAndDeleteArgs {
             caller: self.program,
-            // TODO: shouldn't have to clone here
-            key: key.clone().into().0,
+            key: key.into().0,
         };
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
