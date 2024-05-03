@@ -186,16 +186,16 @@ impl Key {
 }
 
 #[derive(BorshSerialize)]
-pub(super) struct PutArgs {
-    pub(super) caller: Program,
-    pub(super) key: Vec<u8>,
-    pub(super) bytes: Vec<u8>,
+struct PutArgs {
+    caller: Program,
+    key: Vec<u8>,
+    bytes: Vec<u8>,
 }
 
 #[derive(BorshSerialize)]
-pub(super) struct GetAndDeleteArgs {
-    pub(super) caller: Program,
-    pub(super) key: Vec<u8>,
+struct GetAndDeleteArgs {
+    caller: Program,
+    key: Vec<u8>,
 }
 
 mod host {
