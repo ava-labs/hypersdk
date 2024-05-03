@@ -104,7 +104,7 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let args = host::GetArgs {
+            let args = host::GetAndDeleteArgs {
                 caller: self.program,
                 // TODO: shouldn't have to clone here
                 key: key.clone().into().0,
@@ -136,7 +136,15 @@ where
     pub fn delete(&mut self, key: K) -> Result<(), Error> {
         self.cache.remove(&key);
 
-        unsafe { host::delete_bytes(&self.program, &key.into()) }
+        let args = host::GetAndDeleteArgs {
+            caller: self.program,
+            // TODO: shouldn't have to clone here
+            key: key.clone().into().0,
+        };
+
+        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+        host::delete_bytes(&args_bytes)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
@@ -227,11 +235,8 @@ macro_rules! call_host_fn {
 }
 
 mod host {
-    use super::{Key, Program};
-    use crate::{
-        memory::{to_ffi_ptr, CPointer},
-        state::Error,
-    };
+    use super::Program;
+    use crate::state::Error;
     use borsh::BorshSerialize;
 
     #[derive(BorshSerialize)]
@@ -258,7 +263,7 @@ mod host {
     }
 
     #[derive(BorshSerialize)]
-    pub(super) struct GetArgs {
+    pub(super) struct GetAndDeleteArgs {
         pub(super) caller: Program,
         pub(super) key: Vec<u8>,
     }
@@ -281,12 +286,15 @@ mod host {
     }
 
     /// Deletes the bytes at key ptr from the host storage
-    pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        match call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "delete"
-            args = (caller, key)
-        } {
+    pub(super) fn delete_bytes(bytes: &[u8]) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "delete"]
+            fn ffi(ptr: *const u8, len: usize) -> i32;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+        match result {
             0 => Ok(()),
             _ => Err(Error::Delete),
         }

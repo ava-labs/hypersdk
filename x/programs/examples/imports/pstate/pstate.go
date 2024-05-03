@@ -51,7 +51,7 @@ func (i *Import) Register(link *host.Link, _ program.Context) error {
 		return err
 	}
 
-	return wrap.RegisterAnyParamFn(Name, "delete", 4, i.deleteFnVariadic)
+	return wrap.RegisterAnyParamFn(Name, "delete", 2, i.deleteFnVariadic)
 }
 
 func (i *Import) putFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
@@ -69,10 +69,10 @@ func (i *Import) getFnVariadic(caller *program.Caller, args ...int32) (*types.Va
 }
 
 func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
-	if len(args) != 4 {
-		return nil, errors.New("expected 4 arguments")
+	if len(args) != 2 {
+		return nil, errors.New("expected 2 arguments")
 	}
-	return i.deleteFn(caller, args[0], args[1], args[2], args[3])
+	return i.deleteFn(caller, args[0], args[1])
 }
 
 type putArgs struct {
@@ -121,7 +121,7 @@ func (i *Import) putFn(caller *program.Caller, memOffset int32, size int32) (*ty
 	return types.ValI32(0), nil
 }
 
-type getArgs struct {
+type getAndDeleteArgs struct {
 	ProgramID [32]byte
 	Key       []byte
 }
@@ -144,7 +144,7 @@ func (i *Import) getFn(caller *program.Caller, memOffset int32, size int32) (*ty
 		return nil, err
 	}
 
-	args := getArgs{}
+	args := getAndDeleteArgs{}
 	err = borsh.Deserialize(&args, bytes)
 
 	if err != nil {
@@ -194,7 +194,7 @@ func (i *Import) getFn(caller *program.Caller, memOffset int32, size int32) (*ty
 	return types.ValI32(int32(valPtr)), nil
 }
 
-func (i *Import) deleteFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr int32, keyLen int32) (*types.Val, error) {
+func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -203,23 +203,26 @@ func (i *Import) deleteFn(caller *program.Caller, idPtr int32, idLen int32, keyP
 		return nil, err
 	}
 
-	programIDBytes, err := memory.Range(uint32(idPtr), uint32(idLen))
+	bytes, err := memory.Range(uint32(memOffset), uint32(size))
+
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
+		i.log.Error("failed to read args from program memory",
 			zap.Error(err),
 		)
 		return nil, err
 	}
 
-	keyBytes, err := memory.Range(uint32(keyPtr), uint32(keyLen))
+	args := getAndDeleteArgs{}
+	err = borsh.Deserialize(&args, bytes)
+
 	if err != nil {
-		i.log.Error("failed to read key from memory",
+		i.log.Error("failed to deserialize args",
 			zap.Error(err),
 		)
 		return nil, err
 	}
 
-	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
+	k := storage.ProgramPrefixKey(args.ProgramID[:], args.Key)
 	if err := i.mu.Remove(context.Background(), k); err != nil {
 		i.log.Error("failed to remove from storage", zap.Error(err))
 		return types.ValI32(-1), nil
