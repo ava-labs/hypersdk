@@ -75,7 +75,7 @@ mod tests {
         assert_eq!(params.0, ser_params);
     }
 
-    fn check_components<T: BorshDeserialize>(bytes: &Vec<u8>) -> T {
+    fn check_components<T: BorshDeserialize>(bytes: &[u8]) -> T {
         let len_bytes = bytes.get(0..4).unwrap();
         let len_comp = u32::from_be_bytes(len_bytes.try_into().unwrap());
         assert_eq!(bytes.len(), 4 + len_comp as usize, "invalid len pointer");
