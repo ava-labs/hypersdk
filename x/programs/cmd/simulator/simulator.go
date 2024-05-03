@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -11,11 +12,11 @@ import (
 )
 
 func main() {
-	/*ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()*/
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	s := &cmd.Simulator{}
 	// initialize simulator vm
-	err := s.Execute()
+	err := s.Execute(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

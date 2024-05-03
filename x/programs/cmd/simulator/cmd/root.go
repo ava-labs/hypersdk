@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/akamensky/argparse"
 	"go.uber.org/zap"
@@ -37,22 +39,20 @@ const (
 	LogDisableDisplayLogsKey = "log-disable-display-plugin-logs"
 	LogLevelKey              = "log-level"
 	CleanupKey               = "cleanup"
-	StdinKey                 = "stdin"
+	InterpreterKey           = "interpreter"
 )
 
 type Cmd interface {
-	New(*argparse.Parser) Cmd
-	Run(logging.Logger) error
+	Run(context.Context, logging.Logger, []string) error
 	Happened() bool
-	Name() string
 }
 
 type Simulator struct {
 	log logging.Logger
 
-	logLevel                string
-	cleanup                 bool
-	disableWriterDisplaying bool
+	logLevel                *string
+	cleanup                 *bool
+	disableWriterDisplaying *bool
 
 	vm      *vm.VM
 	db      *state.SimpleMutable
@@ -60,33 +60,50 @@ type Simulator struct {
 
 	cleanupFn func()
 
-	parser      *argparse.Parser
-	subCommands []Cmd
+	scanner *bufio.Scanner
 }
 
-func (s *Simulator) ParseCommandArgs(args []string, stdinMode bool) error {
+func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpreterMode bool) error {
 	parser, subcommands := s.BaseParser()
 
-	// if it's our first time parsing args, the user may have invoked a stdin subcommand
-	if !stdinMode {
-		stdinCmd := StdinCmd{}.New(parser)
+	// if it's our first time parsing args, there is the possibility to enter interpreter mode
+	if !interpreterMode {
+		stdinCmd := InterpreterCmd{}.New(parser)
 		subcommands = append(subcommands, stdinCmd)
 	}
 
 	err := parser.Parse(args)
 	if err != nil {
-		fmt.Println(s.parser.Usage(err))
+		fmt.Println(parser.Usage(err))
 		os.Exit(1)
 	}
 
-	for _, cmd := range subCommands {
+	if !interpreterMode {
+		s.Init()
+	}
+
+	for _, cmd := range subcommands {
 		if cmd.Happened() {
-			fmt.Fprintln(os.Stderr, "happened!")
+			_ = cmd.Run(ctx, s.log, args)
 
-			_ := cmd.Run(s.log)
+			if _, ok := cmd.(InterpreterCmd); ok || interpreterMode {
+				if !interpreterMode {
+					scanner := bufio.NewScanner(os.Stdin)
+					s.scanner = scanner
+				}
 
-			if cmd.Name() == "stdin" {
-				// call recursively
+				if !s.scanner.Scan() {
+					return s.scanner.Err()
+				}
+
+				stdinArgs := s.scanner.Text()
+				rawArgs := []string{"simulator"}
+				// TODO this is a bit brittle and will require a stronger parser once we have arguments having spaces
+				rawArgs = append(rawArgs, strings.Split(stdinArgs, " ")...)
+
+				s.ParseCommandArgs(ctx, rawArgs, true)
+			} else {
+				return nil
 			}
 		}
 	}
@@ -94,14 +111,12 @@ func (s *Simulator) ParseCommandArgs(args []string, stdinMode bool) error {
 	return errors.New("unreachable")
 }
 
-func (s *Simulator) Execute() error {
-	// s.Init()
-	err := s.ParseCommandArgs(os.Args, false)
+func (s *Simulator) Execute(ctx context.Context) error {
+	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
-		fmt.Println(s.parser.Usage(err))
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	// s.Init()
 
 	// ensure vm and databases are properly closed on simulator exit
 	if s.vm != nil {
@@ -114,7 +129,7 @@ func (s *Simulator) Execute() error {
 		}
 	}
 
-	if s.cleanup {
+	if *s.cleanup {
 		s.cleanupFn()
 	}
 
@@ -123,41 +138,18 @@ func (s *Simulator) Execute() error {
 
 func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	parser := argparse.NewParser("simulator", "HyperSDK program VM simulator")
-	cleanup := parser.Flag("", CleanupKey, &argparse.Options{Help: "remove simulator directory on exit", Default: true})
-	logLevel := parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
-	disableWriterDisplaying := parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
+	s.cleanup = parser.Flag("", CleanupKey, &argparse.Options{Help: "remove simulator directory on exit", Default: true})
+	s.logLevel = parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
+	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
 	runCmd := runCmd{}.New(parser)
-	programCmd := programCreate{}.New(parser)
-	keyCmd := keyCreateCmd{}.New(parser)
+	programCmd := programCreateCmd{}.New(parser, s.db)
+	keyCmd := keyCreateCmd{}.New(parser, s.db)
 
-	return parser, []Cmd{stdinCmd, runCmd, programCmd, keyCmd}
+	return parser, []Cmd{runCmd, programCmd, keyCmd}
 }
 
 func (s *Simulator) Init() error {
-	parser := argparse.NewParser("simulator", "HyperSDK program VM simulator")
-	cleanup := parser.Flag("", CleanupKey, &argparse.Options{Help: "remove simulator directory on exit", Default: true})
-	logLevel := parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
-	disableWriterDisplaying := parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
-
-	stdinCmd := StdinCmd{}.New(parser)
-	runCmd := runCmd{}.New(parser)
-	programCmd := programCreate{}.New(parser)
-	keyCmd := keyCreateCmd{}.New(parser)
-
-	err := parser.Parse(os.Args)
-	if err != nil {
-		fmt.Println(s.parser.Usage(err))
-		os.Exit(1)
-	}
-
-	s.cleanup = *cleanup
-	s.logLevel = *logLevel
-	s.disableWriterDisplaying = *disableWriterDisplaying
-
-	s.parser = parser
-	s.subCommands = []Cmd{stdinCmd, runCmd, programCmd, keyCmd}
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -179,14 +171,14 @@ func (s *Simulator) Init() error {
 	dbPath := path.Join(basePath, fmt.Sprintf("db-%s", nodeID.String()))
 
 	loggingConfig := logging.Config{}
-	typedLogLevel, err := logging.ToLevel(s.logLevel)
+	typedLogLevel, err := logging.ToLevel(*s.logLevel)
 	if err != nil {
 		return err
 	}
 	loggingConfig.LogLevel = typedLogLevel
 	loggingConfig.Directory = path.Join(basePath, fmt.Sprintf("logs-%s", nodeID.String()))
 	loggingConfig.LogFormat = logging.JSON
-	loggingConfig.DisableWriterDisplaying = s.disableWriterDisplaying
+	loggingConfig.DisableWriterDisplaying = *s.disableWriterDisplaying
 
 	sk, err := bls.NewSecretKey()
 	if err != nil {
@@ -258,10 +250,30 @@ func (s *Simulator) Init() error {
 	}
 
 	s.log.Info("simulator initialized",
-		zap.String("log-level", s.logLevel),
+		zap.String("log-level", *s.logLevel),
 	)
 
-	/*cmd := &cobra.Command{
+	return nil
+}
+
+/*func (s *Simulator) Init() error {
+	parser := argparse.NewParser("simulator", "HyperSDK program VM simulator")
+	cleanup := parser.Flag("", CleanupKey, &argparse.Options{Help: "remove simulator directory on exit", Default: true})
+	logLevel := parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
+	disableWriterDisplaying := parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
+
+	stdinCmd := InterpreterCmd{}.New(parser)
+	runCmd := runCmd{}.New(parser)
+	programCmd := programCreateCmd{}.New(parser)
+	keyCmd := keyCreateCmd{}.New(parser)
+
+	err := parser.Parse(os.Args)
+	if err != nil {
+		fmt.Println(s.parser.Usage(err))
+		os.Exit(1)
+	}
+
+	cmd := &cobra.Command{
 		Use:   "simulator",
 		Short: "HyperSDK program VM simulator",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -298,7 +310,7 @@ func (s *Simulator) Init() error {
 		newProgramCmd(s.log, s.db),
 		newKeyCmd(s.log, s.db),
 		newStdinCmd(s.log, cmd.ParseFlags),
-	)*/
+	)
 
 	return nil
 }
@@ -310,7 +322,7 @@ func (s *Simulator) Init2() ([]Cmd, error) {
 	disableWriterDisplaying := parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
 	runCmd := runCmd{}.New(parser)
-	programCmd := programCreate{}.New(parser)
+	programCmd := programCreateCmd{}.New(parser)
 	keyCmd := keyCreateCmd{}.New(parser)
 
 	err := parser.Parse(os.Args)
@@ -419,12 +431,12 @@ func (s *Simulator) Init2() ([]Cmd, error) {
 	s.log, err = logFactory.Make("simulator")
 	if err != nil {
 		logFactory.Close()
-		return err
+		return nil, err
 	}
 
 	s.log.Info("simulator initialized",
 		zap.String("log-level", s.logLevel),
 	)
 
-	return ([]Cmd{stdinCmd, runCmd, programCmd, keyCmd}, nil)
-}
+	return []Cmd{runCmd, programCmd, keyCmd}, nil
+}*/

@@ -4,13 +4,26 @@
 package cmd
 
 import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
 	"io"
+	"math"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/akamensky/argparse"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 var _ Cmd = &runCmd{}
@@ -27,98 +40,22 @@ type runCmd struct {
 	stdinReader     io.Reader
 }
 
-func (s runCmd) New(parser *argparse.Parser) Cmd {
+func (c runCmd) New(parser *argparse.Parser) Cmd {
 	return runCmd{
-		cmd: parser.NewCommand("run", "Run a HyperSDK program simulation plan"),
+		cmd: parser.NewCommand(c.Name(), "Run a HyperSDK program simulation plan"),
 	}
 }
 
-func (s runCmd) Run(log logging.Logger) error {
+func (c runCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
 	return nil
 }
 
-func (s runCmd) Happened() bool {
-	return s.cmd.Happened()
+func (c runCmd) Happened() bool {
+	return c.cmd.Happened()
 }
 
-/*func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	r := &runCmd{
-		log:             log,
-		db:              db,
-		programIDStrMap: make(map[string]string),
-	}
-	cmd := &cobra.Command{
-		Use:   "run [path]",
-		Short: "Run a HyperSDK program simulation plan",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// if the first argument is "-" read from stdin
-			r.stdinReader = cmd.InOrStdin()
-			err := r.Init(args)
-			if err != nil {
-				return err
-			}
-			err = r.Verify()
-			if err != nil {
-				return err
-			}
-			return r.Run(cmd.Context())
-		},
-	}
-
-	return cmd
-}
-
-func (c *runCmd) Init(args []string) (err error) {
-	var planBytes []byte
-	if args[0] == "-" {
-		// read simulation plan from stdin
-		planBytes, err = io.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-	} else {
-		// read simulation plan from arg[0]
-		planBytes, err = os.ReadFile(args[0])
-		if err != nil {
-			return err
-		}
-	}
-	c.plan, err = unmarshalPlan(planBytes)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *runCmd) Verify() error {
-	steps := c.plan.Steps
-	if steps == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
-	}
-
-	if steps[0].Params == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
-	}
-
-	// verify endpoint requirements
-	for i, step := range steps {
-		err := verifyEndpoint(i, &step)
-		if err != nil {
-			return err
-		}
-
-		// verify assertions
-		if step.Require != nil {
-			err = verifyAssertion(i, step.Require)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+func (c runCmd) Name() string {
+	return "run"
 }
 
 func verifyAssertion(i int, require *Require) error {
@@ -166,7 +103,7 @@ func verifyEndpoint(i int, step *Step) error {
 	return nil
 }
 
-func (c *runCmd) Run(ctx context.Context) error {
+/*func (c *runCmd) Run(ctx context.Context) error {
 	for i, step := range c.plan.Steps {
 		c.log.Info("simulation",
 			zap.Int("step", i),
@@ -202,7 +139,7 @@ func (c *runCmd) Run(ctx context.Context) error {
 	}
 
 	return nil
-}
+}*/
 
 func runStepFunc(
 	ctx context.Context,
@@ -364,4 +301,84 @@ func generateRandomID() (ids.ID, error) {
 	}
 
 	return id, nil
+}
+
+/*func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
+	r := &runCmd{
+		log:             log,
+		db:              db,
+		programIDStrMap: make(map[string]string),
+	}
+	cmd := &cobra.Command{
+		Use:   "run [path]",
+		Short: "Run a HyperSDK program simulation plan",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// if the first argument is "-" read from stdin
+			r.stdinReader = cmd.InOrStdin()
+			err := r.Init(args)
+			if err != nil {
+				return err
+			}
+			err = r.Verify()
+			if err != nil {
+				return err
+			}
+			return r.Run(cmd.Context())
+		},
+	}
+
+	return cmd
+}
+
+func (c *runCmd) Init(args []string) (err error) {
+	var planBytes []byte
+	if args[0] == "-" {
+		// read simulation plan from stdin
+		planBytes, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+	} else {
+		// read simulation plan from arg[0]
+		planBytes, err = os.ReadFile(args[0])
+		if err != nil {
+			return err
+		}
+	}
+	c.plan, err = unmarshalPlan(planBytes)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *runCmd) Verify() error {
+	steps := c.plan.Steps
+	if steps == nil {
+		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
+	}
+
+	if steps[0].Params == nil {
+		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
+	}
+
+	// verify endpoint requirements
+	for i, step := range steps {
+		err := verifyEndpoint(i, &step)
+		if err != nil {
+			return err
+		}
+
+		// verify assertions
+		if step.Require != nil {
+			err = verifyAssertion(i, step.Require)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }*/
