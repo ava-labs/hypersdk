@@ -104,15 +104,25 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let val = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
-            let val_ptr = val as *const u8;
-            // TODO write a test for that
-            if val_ptr.is_null() {
-                return Err(Error::Read);
-            }
+            let args = host::GetArgs {
+                caller: self.program,
+                // TODO: shouldn't have to clone here
+                key: key.clone().into().0,
+            };
 
-            // TODO Wrap in OK for now, change from_raw_ptr to return Result
-            let bytes = into_bytes(val_ptr).ok_or(Error::InvalidPointer)?;
+            let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+            let ptr = host::get_bytes(&args_bytes)?;
+
+            let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
+
+            // TODO:
+            // should be able to do something like the following
+            // `let key = Key(args.key);`
+            // to avoid cloning. The problem is we convert into a Key without knowing
+            // that we can convert back into a K.
+            // Either we need the key to actually be `Key` instead of `Into<Key>`
+            // or we put the bound `K: From<Key>` as well.
             self.cache.entry(key).or_insert(bytes)
         };
 
@@ -247,13 +257,27 @@ mod host {
         }
     }
 
+    #[derive(BorshSerialize)]
+    pub(super) struct GetArgs {
+        pub(super) caller: Program,
+        pub(super) key: Vec<u8>,
+    }
+
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i32, Error> {
-        Ok(call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "get"
-            args = (caller, key)
-        })
+    pub(super) fn get_bytes(bytes: &[u8]) -> Result<*const u8, Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "get"]
+            fn ffi(ptr: *const u8, len: usize) -> *const u8;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        if result.is_null() {
+            Err(Error::Read)
+        } else {
+            Ok(result)
+        }
     }
 
     /// Deletes the bytes at key ptr from the host storage

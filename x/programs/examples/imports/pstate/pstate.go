@@ -47,7 +47,7 @@ func (i *Import) Register(link *host.Link, _ program.Context) error {
 	if err := wrap.RegisterAnyParamFn(Name, "put", 2, i.putFnVariadic); err != nil {
 		return err
 	}
-	if err := wrap.RegisterAnyParamFn(Name, "get", 4, i.getFnVariadic); err != nil {
+	if err := wrap.RegisterAnyParamFn(Name, "get", 2, i.getFnVariadic); err != nil {
 		return err
 	}
 
@@ -62,10 +62,10 @@ func (i *Import) putFnVariadic(caller *program.Caller, args ...int32) (*types.Va
 }
 
 func (i *Import) getFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
-	if len(args) != 4 {
-		return nil, errors.New("expected 4 arguments")
+	if len(args) != 2 {
+		return nil, errors.New("expected 2 arguments")
 	}
-	return i.getFn(caller, args[0], args[1], args[2], args[3])
+	return i.getFn(caller, args[0], args[1])
 }
 
 func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
@@ -81,7 +81,7 @@ type putArgs struct {
 	Value     []byte
 }
 
-func (i *Import) putFn(caller *program.Caller, memOffset int32, len int32) (*types.Val, error) {
+func (i *Import) putFn(caller *program.Caller, memOffset int32, size int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -90,7 +90,7 @@ func (i *Import) putFn(caller *program.Caller, memOffset int32, len int32) (*typ
 		return nil, err
 	}
 
-	bytes, err := memory.Range(uint32(memOffset), uint32(len))
+	bytes, err := memory.Range(uint32(memOffset), uint32(size))
 
 	if err != nil {
 		i.log.Error("failed to read args from program memory",
@@ -121,7 +121,12 @@ func (i *Import) putFn(caller *program.Caller, memOffset int32, len int32) (*typ
 	return types.ValI32(0), nil
 }
 
-func (i *Import) getFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr int32, keyLen int32) (*types.Val, error) {
+type getArgs struct {
+	ProgramID [32]byte
+	Key       []byte
+}
+
+func (i *Import) getFn(caller *program.Caller, memOffset int32, size int32) (*types.Val, error) {
 	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
@@ -130,22 +135,26 @@ func (i *Import) getFn(caller *program.Caller, idPtr int32, idLen int32, keyPtr 
 		return nil, err
 	}
 
-	programIDBytes, err := memory.Range(uint32(idPtr), uint32(idLen))
+	bytes, err := memory.Range(uint32(memOffset), uint32(size))
+
 	if err != nil {
-		i.log.Error("failed to read program id from memory",
+		i.log.Error("failed to read args from program memory",
 			zap.Error(err),
 		)
 		return nil, err
 	}
 
-	keyBytes, err := memory.Range(uint32(keyPtr), uint32(keyLen))
+	args := getArgs{}
+	err = borsh.Deserialize(&args, bytes)
+
 	if err != nil {
-		i.log.Error("failed to read key from memory",
+		i.log.Error("failed to deserialize args",
 			zap.Error(err),
 		)
 		return nil, err
 	}
-	k := storage.ProgramPrefixKey(programIDBytes, keyBytes)
+
+	k := storage.ProgramPrefixKey(args.ProgramID[:], args.Key)
 	val, err := i.mu.GetValue(context.Background(), k)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
