@@ -275,15 +275,29 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	for _, param := range params {
 		switch param.Type {
 		case String, ID:
-			val, ok := param.Value.(string)
+			stepIdStr, ok := param.Value.(string)
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
-			val, err := c.verifyProgramIDStr(val)
-			if err != nil {
-				return nil, err
+			if strings.HasPrefix(stepIdStr, "step_") {
+				programIdStr, ok := c.programIDStrMap[stepIdStr]
+				if !ok {
+					return nil, fmt.Errorf("failed to map to id: %s", stepIdStr)
+				}
+				programId, err := ids.FromString(programIdStr)
+				if err != nil {
+					return nil, err
+				}
+				cp = append(cp, actions.CallParam{Value: programId})
+			} else {
+				programId, err := ids.FromString(stepIdStr)
+				if err == nil {
+					cp = append(cp, actions.CallParam{Value: programId})
+				} else {
+					// this is a path to the wasm program
+					cp = append(cp, actions.CallParam{Value: stepIdStr})
+				}
 			}
-			cp = append(cp, actions.CallParam{Value: val})
 		case Bool:
 			val, ok := param.Value.(bool)
 			if !ok {
@@ -332,28 +346,6 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	}
 
 	return cp, nil
-}
-
-// verifyProgramIDStr verifies a string is a valid ID and checks the programIDStrMap for
-// the synthetic identifier `step_N` where N is the step the id was created from
-// execution.
-func (c *runCmd) verifyProgramIDStr(idStr string) (string, error) {
-	// if the id is valid
-	_, err := ids.FromString(idStr)
-	if err == nil {
-		return idStr, nil
-	}
-
-	// check if the id is a synthetic identifier
-	if strings.HasPrefix(idStr, "step_") {
-		stepID, ok := c.programIDStrMap[idStr]
-		if !ok {
-			return "", fmt.Errorf("failed to map to id: %s", idStr)
-		}
-		return stepID, nil
-	}
-
-	return idStr, nil
 }
 
 // generateRandomID creates a unique ID.

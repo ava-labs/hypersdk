@@ -6,6 +6,7 @@ package program
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -217,6 +218,7 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte)
 	bytes, exists, err := storage.GetProgram(context.Background(), db, id)
 	if !exists {
 		log.Debug("key does not exist", zap.String("id", id.String()))
+		return nil, errors.New("unknown program")
 	}
 	if err != nil {
 		return nil, err

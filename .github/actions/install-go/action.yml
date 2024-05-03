@@ -1,0 +1,23 @@
+name: 'Install Go toolchain with defaults'
+description: 'Install a go toolchain with defaults'
+
+inputs:
+  cache:
+    description: "to cache or not to cache, that is the question"
+    required: false
+    default: "true"
+  cache-dependency-path:
+    description: "forwards go actions/setup-go"
+    required: false
+
+
+runs:
+  using: composite
+  steps: 
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        check-latest: true
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}

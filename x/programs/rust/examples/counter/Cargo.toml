@@ -8,6 +8,9 @@ edition = "2021"
 [dependencies]
 wasmlanche-sdk = { version = "0.1.0", path = "../../wasmlanche-sdk" }
 
+[dev-dependencies]
+simulator = { path = "../../../cmd/simulator/" }
+
 [build-dependencies]
 wasmlanche-sdk = { path = "../../wasmlanche-sdk", features = ["build"] }
 
