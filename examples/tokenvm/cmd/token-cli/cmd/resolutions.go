@@ -57,14 +57,16 @@ func sendAndWait(
 }
 
 func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result) {
+	status := "❌"
+	if result.Success {
+		status = "✅"
+	}
 	for i := 0; i < len(result.Outputs); i++ {
 		for j := 0; j < len(result.Outputs[i]); j++ {
-			summaryStr := string(result.Outputs[i][j])
 			actor := tx.Auth.Actor()
-			status := "❌"
-			if result.Success {
-				status = "✅"
-				for i, act := range tx.Actions {
+			for i, act := range tx.Actions {
+				summaryStr := string(result.Outputs[i][j])
+				if result.Success {
 					switch action := act.(type) {
 					case *actions.CreateAsset:
 						assetID := action.GetActionID(uint8(i), tx.ID())
@@ -130,19 +132,19 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 						summaryStr = fmt.Sprintf("orderID: %s", action.Order)
 					}
 				}
+				utils.Outf(
+					"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
+					status,
+					tx.ID(),
+					codec.MustAddressBech32(tconsts.HRP, actor),
+					reflect.TypeOf(act),
+					summaryStr,
+					float64(result.Fee)/float64(tx.Base.MaxFee)*100,
+					utils.FormatBalance(result.Fee, tconsts.Decimals),
+					tconsts.Symbol,
+					cli.ParseDimensions(result.Consumed),
+				)
 			}
-			utils.Outf(
-				"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
-				status,
-				tx.ID(),
-				codec.MustAddressBech32(tconsts.HRP, actor),
-				reflect.TypeOf(tx.Actions),
-				summaryStr,
-				float64(result.Fee)/float64(tx.Base.MaxFee)*100,
-				utils.FormatBalance(result.Fee, tconsts.Decimals),
-				tconsts.Symbol,
-				cli.ParseDimensions(result.Consumed),
-			)
 		}
 	}
 }

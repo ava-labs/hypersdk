@@ -411,11 +411,13 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				for _, result := range blk.Results() {
 					if !result.Success {
 						unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
+						var resultOutputs string
 						for i := 0; i < len(result.Outputs); i++ {
 							for j := 0; j < len(result.Outputs[i]); j++ {
-								fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", string(result.Outputs[i][j]))
+								resultOutputs += fmt.Sprintf(" %s", result.Outputs[i][j])
 							}
 						}
+						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "output:", resultOutputs)
 					}
 					gomega.Ω(result.Success).Should(gomega.BeTrue())
 				}

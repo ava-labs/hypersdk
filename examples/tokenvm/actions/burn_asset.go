@@ -20,7 +20,7 @@ import (
 var _ chain.Action = (*BurnAsset)(nil)
 
 type BurnAsset struct {
-	// Asset is the [TxID] that created the asset.
+	// Asset is the [ActionID] that created the asset.
 	Asset codec.LID `json:"asset"`
 
 	// Number of assets to mint to [To].

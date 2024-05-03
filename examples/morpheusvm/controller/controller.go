@@ -153,7 +153,6 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 	results := blk.Results()
 	for i, tx := range blk.Txs {
 		result := results[i]
-		fmt.Printf("result %v | results %v\n", result, results)
 		if c.config.GetStoreTransactions() {
 			err := storage.StoreTransaction(
 				ctx,

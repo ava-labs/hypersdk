@@ -321,10 +321,14 @@ func (t *Transaction) Execute(
 		ts.Rollback(ctx, actionStart)
 		return &Result{false, [][][]byte{{utils.ErrBytes(rerr)}}, maxUnits, maxFee}, nil
 	}
-	resultOutputs := [][][]byte{}
-	totalUsed := fees.Dimensions{}
-	var totalFeeRequired uint64
-	txSuccess := true
+
+	var (
+		totalFeeRequired uint64
+
+		resultOutputs = [][][]byte{}
+		totalUsed     = fees.Dimensions{}
+		txSuccess     = true
+	)
 	for i, action := range t.Actions {
 		actionID := action.GetActionID(uint8(i), t.id)
 		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
@@ -337,6 +341,7 @@ func (t *Transaction) Execute(
 			return handleRevert(ErrInvalidObject)
 		}
 		resultOutputs = append(resultOutputs, outputs)
+
 		if !success {
 			txSuccess = false
 			ts.Rollback(ctx, actionStart)
@@ -419,6 +424,7 @@ func (t *Transaction) Execute(
 			return handleRevert(err)
 		}
 		totalFeeRequired += feeRequired
+
 		refund := maxFee - feeRequired
 		if refund > 0 {
 			ts.DisableAllocation()
@@ -459,28 +465,6 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	p.PackByte(authID)
 	t.Auth.Marshal(p)
 	return p.Err()
-}
-
-// todo: move below UnmarshalTx
-func unmarshalActions(
-	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, bool],
-) ([]Action, error) {
-	actionCount := p.UnpackInt(true)
-	actions := make([]Action, 0)
-	for i := 0; i < actionCount; i++ {
-		actionType := p.UnpackByte()
-		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
-		if !ok {
-			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
-		}
-		action, err := unmarshalAction(p)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal action", err)
-		}
-		actions = append(actions, action)
-	}
-	return actions, nil
 }
 
 func MarshalTxs(txs []*Transaction) ([]byte, error) {
@@ -567,4 +551,27 @@ func UnmarshalTx(
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	return &tx, nil
+}
+
+func unmarshalActions(
+	p *codec.Packer,
+	actionRegistry *codec.TypeParser[Action, bool],
+) ([]Action, error) {
+	actionCount := p.UnpackInt(true)
+	actions := make([]Action, 0)
+
+	for i := 0; i < actionCount; i++ {
+		actionType := p.UnpackByte()
+		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
+		if !ok {
+			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+		}
+
+		action, err := unmarshalAction(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		}
+		actions = append(actions, action)
+	}
+	return actions, nil
 }

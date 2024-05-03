@@ -184,7 +184,7 @@ func TestUnit64HeapHasID(t *testing.T) {
 	require.True(ok, "Entry was not found in heap.")
 }
 
-func TestUnit64HeapPushPopMinForActionID(t *testing.T) {
+func TestUnit64HeapPushPopMinForLID(t *testing.T) {
 	require := require.New(t)
 	minHeap := New[codec.LID, *testItem[codec.LID], uint64](0, true)
 	require.Zero(minHeap.Len(), "heap not initialized properly.")

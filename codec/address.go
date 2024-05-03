@@ -21,12 +21,21 @@ const (
 	maxBech32Size = 90
 )
 
-type Address LID
-
-// Long ID
-type LID [AddressLen]byte
+type (
+	LID     [AddressLen]byte // Long ID
+	Address LID
+)
 
 var EmptyAddress = [AddressLen]byte{}
+
+// CreateLID returns [LID] made from concatenating
+// some [i] with an [id]
+func CreateLID(i uint8, id ids.ID) LID {
+	a := make([]byte, AddressLen)
+	a[0] = i
+	copy(a[1:], id[:])
+	return LID(a)
+}
 
 // CreateAddress returns [Address] made from concatenating
 // [typeID] with [id].
@@ -80,13 +89,6 @@ func ParseAddressBech32(hrp, saddr string) (Address, error) {
 		return EmptyAddress, ErrInsufficientLength
 	}
 	return Address(p[:AddressLen]), nil
-}
-
-func CreateLID(idx uint8, txID ids.ID) LID {
-	a := make([]byte, AddressLen)
-	a[0] = idx
-	copy(a[1:], txID[:])
-	return LID(a)
 }
 
 func LIDToString(hrp string, lid LID) string {
