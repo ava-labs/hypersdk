@@ -45,7 +45,7 @@ pub fn inc(context: Context, to: Address, amount: i64) -> bool {
 #[public]
 pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> i64 {
     let params = params!(&of, &amount).unwrap();
-    target.call_function("inc", params, max_units).unwrap()
+    target.call_function("inc", &params, max_units).unwrap()
 }
 
 /// Gets the count at the address.
@@ -63,7 +63,7 @@ pub fn get_value(context: Context, of: Address) -> i64 {
 pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
     let params = params!(&of).unwrap();
     target
-        .call_function("get_value", params, max_units)
+        .call_function("get_value", &params, max_units)
         .unwrap()
 }
 

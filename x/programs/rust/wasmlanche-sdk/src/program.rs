@@ -1,5 +1,4 @@
 use crate::{
-    memory::{to_ffi_ptr, CPointer},
     state::{Error as StateError, Key, State},
     Params,
 };
@@ -45,25 +44,32 @@ impl Program {
     pub fn call_function(
         &self,
         function_name: &str,
-        args: Params,
+        args: &Params,
         max_units: i64,
     ) -> Result<i64, StateError> {
-        // flatten the args into a single byte vector
-        let target = to_ffi_ptr(self.id())?;
-        let function = to_ffi_ptr(function_name.as_bytes())?;
-        let args = args.into_ffi_ptr()?;
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "call_program"]
+            fn ffi(ptr: *const u8, len: usize) -> i64;
+        }
 
-        Ok(unsafe { _call_program(target, function, args, max_units) })
+        let args = CallProgramArgs {
+            target_id: self.id(),
+            function: function_name.as_bytes(),
+            args_ptr: args,
+            max_units,
+        };
+
+        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+        Ok(unsafe { ffi(args_bytes.as_ptr(), args_bytes.len()) })
     }
 }
 
-#[link(wasm_import_module = "program")]
-extern "C" {
-    #[link_name = "call_program"]
-    fn _call_program(
-        target_id: CPointer,
-        function: CPointer,
-        args_ptr: CPointer,
-        max_units: i64,
-    ) -> i64;
+#[derive(BorshSerialize)]
+struct CallProgramArgs<'a> {
+    target_id: &'a [u8],
+    function: &'a [u8],
+    args_ptr: &'a [u8],
+    max_units: i64,
 }

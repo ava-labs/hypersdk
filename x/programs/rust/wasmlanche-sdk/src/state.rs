@@ -102,15 +102,25 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let val = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
-            let val_ptr = val as *const u8;
-            // TODO write a test for that
-            if val_ptr.is_null() {
-                return Err(Error::Read);
-            }
+            let args = GetAndDeleteArgs {
+                caller: self.program,
+                // TODO: shouldn't have to clone here
+                key: key.clone().into().0,
+            };
 
-            // TODO Wrap in OK for now, change from_raw_ptr to return Result
-            let bytes = into_bytes(val_ptr).ok_or(Error::InvalidPointer)?;
+            let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+            let ptr = host::get_bytes(&args_bytes)?;
+
+            let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
+
+            // TODO:
+            // should be able to do something like the following
+            // `let key = Key(args.key);`
+            // to avoid cloning. The problem is we convert into a Key without knowing
+            // that we can convert back into a K.
+            // Either we need the key to actually be `Key` instead of `Into<Key>`
+            // or we put the bound `K: From<Key>` as well.
             self.cache.entry(key).or_insert(bytes)
         };
 
@@ -124,15 +134,31 @@ where
     pub fn delete(&mut self, key: K) -> Result<(), Error> {
         self.cache.remove(&key);
 
-        unsafe { host::delete_bytes(&self.program, &key.into()) }
+        let args = GetAndDeleteArgs {
+            caller: self.program,
+            key: key.into().0,
+        };
+
+        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+        host::delete_bytes(&args_bytes)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
     fn flush(&mut self) -> Result<(), Error> {
-        for (key, value) in self.cache.drain() {
-            unsafe {
-                host::put_bytes(&self.program, &key.into(), &value)?;
-            }
+        let args_iter = self
+            .cache
+            .drain()
+            .map(|(key, val)| (key.into(), val))
+            .map(|(key, val)| PutArgs {
+                caller: self.program,
+                key: key.0,
+                bytes: val,
+            })
+            .map(|args| borsh::to_vec(&args).map_err(|_| StateError::Serialization));
+
+        for args in args_iter {
+            host::put_bytes(&args?)?;
         }
 
         Ok(())
@@ -159,87 +185,65 @@ impl Key {
     }
 }
 
-macro_rules! ffi_linker {
-    ($mod:literal, $link:literal, $caller:ident, $key:ident) => {
-        #[link(wasm_import_module = $mod)]
-        extern "C" {
-            #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer) -> i32;
-        }
-
-        let $caller = to_ffi_ptr($caller.id())?;
-        let $key = to_ffi_ptr($key)?;
-    };
-    ($mod:literal, $link:literal, $caller:ident, $key:ident, $value:ident) => {
-        #[link(wasm_import_module = $mod)]
-        extern "C" {
-            #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer, value: CPointer) -> i32;
-        }
-
-        let $caller = to_ffi_ptr($caller.id())?;
-        let $key = to_ffi_ptr($key)?;
-        let $value = to_ffi_ptr($value)?;
-    };
+#[derive(BorshSerialize)]
+struct PutArgs {
+    caller: Program,
+    key: Vec<u8>,
+    bytes: Vec<u8>,
 }
 
-macro_rules! call_host_fn {
-    (
-        wasm_import_module = $mod:literal
-        link_name = $link:literal
-        args = ($caller:ident, $key:ident)
-    ) => {{
-        ffi_linker!($mod, $link, $caller, $key);
-
-        unsafe { ffi($caller, $key) }
-    }};
-
-    (
-        wasm_import_module = $mod:literal
-        link_name = $link:literal
-        args = ($caller:ident, $key:ident, $value:ident)
-    ) => {{
-        ffi_linker!($mod, $link, $caller, $key, $value);
-
-        unsafe { ffi($caller, $key, $value) }
-    }};
+#[derive(BorshSerialize)]
+struct GetAndDeleteArgs {
+    caller: Program,
+    key: Vec<u8>,
 }
 
 mod host {
-    use super::{Key, Program};
-    use crate::{
-        memory::{to_ffi_ptr, CPointer},
-        state::Error,
-    };
+    use crate::state::Error;
 
     /// Persists the bytes at key on the host storage.
-    pub(super) unsafe fn put_bytes(caller: &Program, key: &Key, bytes: &[u8]) -> Result<(), Error> {
-        match call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "put"
-            args = (caller, key, bytes)
-        } {
+    pub(super) fn put_bytes(bytes: &[u8]) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "put"]
+            fn ffi(ptr: *const u8, len: usize) -> usize;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        match result {
             0 => Ok(()),
             _ => Err(Error::Write),
         }
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i32, Error> {
-        Ok(call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "get"
-            args = (caller, key)
-        })
+    pub(super) fn get_bytes(bytes: &[u8]) -> Result<*const u8, Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "get"]
+            fn ffi(ptr: *const u8, len: usize) -> *const u8;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        if result.is_null() {
+            Err(Error::Read)
+        } else {
+            Ok(result)
+        }
     }
 
     /// Deletes the bytes at key ptr from the host storage
-    pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        match call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "delete"
-            args = (caller, key)
-        } {
+    pub(super) fn delete_bytes(bytes: &[u8]) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "delete"]
+            fn ffi(ptr: *const u8, len: usize) -> i32;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+        match result {
             0 => Ok(()),
             _ => Err(Error::Delete),
         }
