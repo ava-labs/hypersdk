@@ -16,24 +16,6 @@ thread_local! {
     static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
-/// Converts a pointer to a i64 with the first 4 bytes of the pointer
-/// representing the length of the memory block.
-/// # Errors
-/// Returns an [`StateError`] if the pointer or length of `args` exceeds
-/// the maximum size of a u32.
-#[allow(clippy::cast_possible_truncation)]
-pub fn to_ffi_ptr(arg: &[u8]) -> Result<CPointer, StateError> {
-    let ptr = arg.as_ptr();
-    let len = arg.len();
-
-    // Make sure the pointer and length fit into u32
-    if ptr as usize > u32::MAX as usize || len > u32::MAX as usize {
-        return Err(StateError::IntegerConversion);
-    }
-
-    Ok(CPointer(ptr, len))
-}
-
 /// Converts a raw pointer to a deserialized value.
 /// Expects the first 4 bytes of the pointer to represent the `length` of the serialized value,
 /// with the subsequent `length` bytes comprising the serialized data.

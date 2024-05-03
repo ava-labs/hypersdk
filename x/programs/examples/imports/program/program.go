@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/consts"
@@ -58,17 +59,19 @@ func (i *Import) Register(link *host.Link, callContext program.Context) error {
 	return link.RegisterImportFn(Name, "call_program", i.callProgramFn(callContext))
 }
 
+type callProgramFnArgs struct {
+	ProgramID []byte
+	Function  []byte
+	Args      []byte
+	MaxUnits  int64
+}
+
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
-func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int32, int32, int32, int32, int32, int32, int64) int64 {
+func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int32, int32) int64 {
 	return func(
 		wasmCaller *wasmtime.Caller,
-		programPtr int32,
-		programLen int32,
-		functionPtr int32,
-		functionLen int32,
-		argsPtr int32,
-		argsLen int32,
-		maxUnits int64,
+		memOffset int32,
+		size int32,
 	) int64 {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -82,25 +85,25 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		// get the entry function for invoke to call.
-		functionBytes, err := memory.Range(uint32(functionPtr), uint32(functionLen))
+		bytes, err := memory.Range(uint32(memOffset), uint32(size))
 		if err != nil {
-			i.log.Error("failed to read function name from memory",
+			i.log.Error("failed to read call arguments from memory",
 				zap.Error(err),
 			)
 			return -1
 		}
 
-		programIDBytes, err := memory.Range(uint32(programPtr), uint32(programLen))
-		if err != nil {
-			i.log.Error("failed to read id from memory",
+		args := callProgramFnArgs{}
+		if err := borsh.Deserialize(&args, bytes); err != nil {
+			i.log.Error("failed to unmarshal call arguments",
+
 				zap.Error(err),
 			)
 			return -1
 		}
 
 		// get the program bytes from storage
-		programWasmBytes, err := getProgramWasmBytes(i.log, i.mu, programIDBytes)
+		programWasmBytes, err := getProgramWasmBytes(i.log, i.mu, args.ProgramID)
 		if err != nil {
 			i.log.Error("failed to get program bytes from storage",
 				zap.Error(err),
@@ -119,11 +122,11 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		}
 
 		// transfer the units from the caller to the new runtime before any calls are made.
-		balance, err := i.meter.TransferUnitsTo(rt.Meter(), uint64(maxUnits))
+		balance, err := i.meter.TransferUnitsTo(rt.Meter(), uint64(args.MaxUnits))
 		if err != nil {
 			i.log.Error("failed to transfer units",
 				zap.Uint64("balance", balance),
-				zap.Int64("required", maxUnits),
+				zap.Int64("required", args.MaxUnits),
 				zap.Error(err),
 			)
 			return -1
@@ -146,14 +149,6 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			}
 		}()
 
-		argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
-		if err != nil {
-			i.log.Error("failed to read program args from memory",
-				zap.Error(err),
-			)
-			return -1
-		}
-
 		rtMemory, err := rt.Memory()
 		if err != nil {
 			i.log.Error("failed to get memory from runtime",
@@ -163,7 +158,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		}
 
 		// sync args to new runtime and return arguments to the invoke call
-		params, err := getCallArgs(ctx, rtMemory, argsBytes)
+		params, err := getCallArgs(ctx, rtMemory, args.Args)
 		if err != nil {
 			i.log.Error("failed to unmarshal call arguments",
 				zap.Error(err),
@@ -171,9 +166,9 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		functionName := string(functionBytes)
+		functionName := string(args.Function)
 		res, err := rt.Call(ctx, functionName, program.Context{
-			ProgramID: ids.ID(programIDBytes),
+			ProgramID: ids.ID(args.ProgramID),
 			// Actor:            callContext.ProgramID,
 			// OriginatingActor: callContext.OriginatingActor,
 		}, params...)

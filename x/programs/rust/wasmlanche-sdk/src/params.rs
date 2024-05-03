@@ -1,9 +1,6 @@
-use crate::{
-    memory::{to_ffi_ptr, CPointer},
-    state::Error as StateError,
-    Error,
-};
+use crate::Error;
 use borsh::BorshSerialize;
+use std::ops::Deref;
 
 #[macro_export]
 macro_rules! params {
@@ -22,9 +19,11 @@ pub struct Param(Vec<u8>);
 /// A collection of [borsh] serialized parameters.
 pub struct Params(Vec<u8>);
 
-impl Params {
-    pub(crate) fn into_ffi_ptr(self) -> Result<CPointer, StateError> {
-        to_ffi_ptr(&self.0)
+impl Deref for Params {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

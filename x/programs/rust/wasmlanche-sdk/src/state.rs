@@ -2,8 +2,6 @@ use crate::{memory::into_bytes, program::Program, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{collections::HashMap, hash::Hash, ops::Deref};
 
-use self::host::PutArgs;
-
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
     #[error("an unclassified error has occurred: {0}")]
@@ -104,7 +102,7 @@ where
         let val_bytes = if let Some(val) = self.cache.get(&key) {
             val
         } else {
-            let args = host::GetAndDeleteArgs {
+            let args = GetAndDeleteArgs {
                 caller: self.program,
                 // TODO: shouldn't have to clone here
                 key: key.clone().into().0,
@@ -134,9 +132,9 @@ where
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
     pub fn delete(&mut self, key: &K) -> Result<(), Error> {
-        self.cache.remove(&key);
+        self.cache.remove(key);
 
-        let args = host::GetAndDeleteArgs {
+        let args = GetAndDeleteArgs {
             caller: self.program,
             // TODO: shouldn't have to clone here
             key: key.clone().into().0,
@@ -188,17 +186,21 @@ impl Key {
     }
 }
 
-mod host {
-    use super::Program;
-    use crate::state::Error;
-    use borsh::BorshSerialize;
+#[derive(BorshSerialize)]
+pub(super) struct PutArgs {
+    pub(super) caller: Program,
+    pub(super) key: Vec<u8>,
+    pub(super) bytes: Vec<u8>,
+}
 
-    #[derive(BorshSerialize)]
-    pub(super) struct PutArgs {
-        pub(super) caller: Program,
-        pub(super) key: Vec<u8>,
-        pub(super) bytes: Vec<u8>,
-    }
+#[derive(BorshSerialize)]
+pub(super) struct GetAndDeleteArgs {
+    pub(super) caller: Program,
+    pub(super) key: Vec<u8>,
+}
+
+mod host {
+    use crate::state::Error;
 
     /// Persists the bytes at key on the host storage.
     pub(super) fn put_bytes(bytes: &[u8]) -> Result<(), Error> {
@@ -214,12 +216,6 @@ mod host {
             0 => Ok(()),
             _ => Err(Error::Write),
         }
-    }
-
-    #[derive(BorshSerialize)]
-    pub(super) struct GetAndDeleteArgs {
-        pub(super) caller: Program,
-        pub(super) key: Vec<u8>,
     }
 
     /// Gets the bytes associated with the key from the host.
