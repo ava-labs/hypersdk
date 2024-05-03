@@ -91,7 +91,6 @@ func (i *Import) putFn(caller *program.Caller, memOffset int32, size int32) (*ty
 	}
 
 	bytes, err := memory.Range(uint32(memOffset), uint32(size))
-
 	if err != nil {
 		i.log.Error("failed to read args from program memory",
 			zap.Error(err),
@@ -101,7 +100,6 @@ func (i *Import) putFn(caller *program.Caller, memOffset int32, size int32) (*ty
 
 	args := putArgs{}
 	err = borsh.Deserialize(&args, bytes)
-
 	if err != nil {
 		i.log.Error("failed to deserialize args",
 			zap.Error(err),
@@ -136,7 +134,6 @@ func (i *Import) getFn(caller *program.Caller, memOffset int32, size int32) (*ty
 	}
 
 	bytes, err := memory.Range(uint32(memOffset), uint32(size))
-
 	if err != nil {
 		i.log.Error("failed to read args from program memory",
 			zap.Error(err),
@@ -146,7 +143,6 @@ func (i *Import) getFn(caller *program.Caller, memOffset int32, size int32) (*ty
 
 	args := getAndDeleteArgs{}
 	err = borsh.Deserialize(&args, bytes)
-
 	if err != nil {
 		i.log.Error("failed to deserialize args",
 			zap.Error(err),
@@ -204,7 +200,6 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 	}
 
 	bytes, err := memory.Range(uint32(memOffset), uint32(size))
-
 	if err != nil {
 		i.log.Error("failed to read args from program memory",
 			zap.Error(err),
@@ -214,7 +209,6 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 
 	args := getAndDeleteArgs{}
 	err = borsh.Deserialize(&args, bytes)
-
 	if err != nil {
 		i.log.Error("failed to deserialize args",
 			zap.Error(err),
