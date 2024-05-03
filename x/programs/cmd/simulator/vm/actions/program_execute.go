@@ -70,7 +70,7 @@ func (t *ProgramExecute) Execute(
 		return false, 1, [][]byte{OutputValueZero}, nil
 	}
 
-	programBytes, err := storage.GetProgram(ctx, mu, actionID)
+	programBytes, _, err := storage.GetProgram(ctx, mu, actionID)
 	if err != nil {
 		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
 	}
