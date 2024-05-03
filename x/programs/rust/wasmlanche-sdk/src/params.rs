@@ -1,5 +1,5 @@
 use crate::{
-    memory::{to_host_ptr, HostPtr},
+    memory::{to_ffi_ptr, CPointer},
     state::Error as StateError,
     Error,
 };
@@ -23,8 +23,8 @@ pub struct Param(Vec<u8>);
 pub struct Params(Vec<u8>);
 
 impl Params {
-    pub(crate) fn into_host_ptr(self) -> Result<HostPtr, StateError> {
-        to_host_ptr(&self.0)
+    pub(crate) fn into_ffi_ptr(self) -> Result<CPointer, StateError> {
+        to_ffi_ptr(&self.0)
     }
 }
 

@@ -25,13 +25,13 @@ type Wrap struct {
 	link *host.Link
 }
 
-// RegisterOneParamInt64Fn is a helper method for registering a function with one int64 parameter.
+// RegisterAnyParamFn is a helper method for registering a function with one int64 parameter.
 func (w *Wrap) RegisterAnyParamFn(name, module string, paramCount int, fn AnyParamFn) error {
 	return w.link.RegisterImportWrapFn(name, module, paramCount, NewImportFn[AnyParamFn](fn))
 }
 
 // AnyParamFn is a generic type that satisfies AnyParamFnType
-type AnyParamFn func(*program.Caller, ...int64) (*types.Val, error)
+type AnyParamFn func(*program.Caller, ...int32) (*types.Val, error)
 
 // ImportFn is a generic type that satisfies ImportFnType
 type ImportFn[F AnyParamFn] struct {
@@ -39,8 +39,8 @@ type ImportFn[F AnyParamFn] struct {
 }
 
 // Invoke calls the underlying function with the given arguments. Currently only
-// supports int64 arguments and return values.
-func (i ImportFn[F]) Invoke(c *program.Caller, args ...int64) (*types.Val, error) {
+// supports int32 arguments and return values.
+func (i ImportFn[F]) Invoke(c *program.Caller, args ...int32) (*types.Val, error) {
 	switch fn := any(i.fn).(type) {
 	case AnyParamFn:
 		return fn.Call(c, args...)
@@ -49,16 +49,16 @@ func (i ImportFn[F]) Invoke(c *program.Caller, args ...int64) (*types.Val, error
 	}
 }
 
-func (fn AnyParamFn) Call(c *program.Caller, args ...int64) (*types.Val, error) {
+func (fn AnyParamFn) Call(c *program.Caller, args ...int32) (*types.Val, error) {
 	return fn(c, args...)
 }
 
 func NewImportFn[F AnyParamFn](src F) func(caller *program.Caller, wargs ...wasmtime.Val) (*types.Val, error) {
 	importFn := ImportFn[F]{fn: src}
 	fn := func(c *program.Caller, wargs ...wasmtime.Val) (*types.Val, error) {
-		args := make([]int64, 0, len(wargs))
+		args := make([]int32, 0, len(wargs))
 		for _, arg := range wargs {
-			args = append(args, arg.I64())
+			args = append(args, arg.I32())
 		}
 		return importFn.Invoke(c, args...)
 	}

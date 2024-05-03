@@ -61,8 +61,8 @@ struct TestCrate {
     store: Store<()>,
     instance: Instance,
     allocate_func: TypedFunc<AllocParam, AllocReturn>,
-    always_true_func: TypedFunc<i64, i64>,
-    combine_last_bit_of_each_id_byte_func: TypedFunc<i64, u32>,
+    always_true_func: TypedFunc<i32, i32>,
+    combine_last_bit_of_each_id_byte_func: TypedFunc<i32, u32>,
 }
 
 impl TestCrate {
@@ -75,11 +75,11 @@ impl TestCrate {
             .get_typed_func::<AllocParam, AllocReturn>(&mut store, "alloc")
             .expect("failed to find `alloc` function");
 
-        let always_true_func = instance
-            .get_typed_func::<i64, i64>(&mut store, "always_true_guest")
+        let always_true_func: TypedFunc<i32, i32> = instance
+            .get_typed_func::<i32, i32>(&mut store, "always_true_guest")
             .expect("failed to find `always_true` function");
         let combine_last_bit_of_each_id_byte_func = instance
-            .get_typed_func::<i64, u32>(&mut store, "combine_last_bit_of_each_id_byte_guest")
+            .get_typed_func::<i32, u32>(&mut store, "combine_last_bit_of_each_id_byte_guest")
             .expect("combine_last_bit_of_each_id_byte should be a function");
 
         Self {
@@ -121,14 +121,14 @@ impl TestCrate {
 
     fn always_true(&mut self, ptr: i32) -> bool {
         self.always_true_func
-            .call(&mut self.store, ptr as i64)
+            .call(&mut self.store, ptr)
             .expect("failed to call `always_true` function")
-            == true as i64
+            == true as i32
     }
 
     fn combine_last_bit_of_each_id_byte(&mut self, ptr: i32) -> u32 {
         self.combine_last_bit_of_each_id_byte_func
-            .call(&mut self.store, ptr as i64)
+            .call(&mut self.store, ptr)
             .expect("failed to call `combine_last_bit_of_each_id_byte` function")
     }
 }
