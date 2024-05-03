@@ -76,7 +76,7 @@ pub fn burn_from(context: Context, recipient: Address) -> bool {
     let Context { program } = context;
     program
         .state()
-        .delete(StateKey::Balance(recipient))
+        .delete(&StateKey::Balance(recipient))
         .expect("failed to burn recipient tokens");
     true
 }

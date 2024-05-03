@@ -133,7 +133,7 @@ where
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete(&mut self, key: K) -> Result<(), Error> {
+    pub fn delete(&mut self, key: &K) -> Result<(), Error> {
         self.cache.remove(&key);
 
         let args = host::GetAndDeleteArgs {
@@ -186,52 +186,6 @@ impl Key {
     pub fn new(bytes: Vec<u8>) -> Self {
         Self(bytes)
     }
-}
-
-macro_rules! ffi_linker {
-    ($mod:literal, $link:literal, $caller:ident, $key:ident) => {
-        #[link(wasm_import_module = $mod)]
-        extern "C" {
-            #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer) -> i32;
-        }
-
-        let $caller = to_ffi_ptr($caller.id())?;
-        let $key = to_ffi_ptr($key)?;
-    };
-    ($mod:literal, $link:literal, $caller:ident, $key:ident, $value:ident) => {
-        #[link(wasm_import_module = $mod)]
-        extern "C" {
-            #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer, value: CPointer) -> i32;
-        }
-
-        let $caller = to_ffi_ptr($caller.id())?;
-        let $key = to_ffi_ptr($key)?;
-        let $value = to_ffi_ptr($value)?;
-    };
-}
-
-macro_rules! call_host_fn {
-    (
-        wasm_import_module = $mod:literal
-        link_name = $link:literal
-        args = ($caller:ident, $key:ident)
-    ) => {{
-        ffi_linker!($mod, $link, $caller, $key);
-
-        unsafe { ffi($caller, $key) }
-    }};
-
-    (
-        wasm_import_module = $mod:literal
-        link_name = $link:literal
-        args = ($caller:ident, $key:ident, $value:ident)
-    ) => {{
-        ffi_linker!($mod, $link, $caller, $key, $value);
-
-        unsafe { ffi($caller, $key, $value) }
-    }};
 }
 
 mod host {
