@@ -60,7 +60,7 @@ type Genesis struct {
 	EnableBulkMemory bool `json:"enableBulkMemory"`
 
 	// Action Per Tx
-	MaxActionsPerTx int `json:"maxActionsPerTx"`
+	MaxActionsPerTx uint8 `json:"maxActionsPerTx"`
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`

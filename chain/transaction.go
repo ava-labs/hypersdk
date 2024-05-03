@@ -249,7 +249,7 @@ func (t *Transaction) PreExecute(
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
-	if len(t.Actions) > r.GetMaxActionsPerTx() {
+	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
 		return ErrTooManyActions
 	}
 	for _, action := range t.Actions {

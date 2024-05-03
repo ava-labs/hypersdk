@@ -87,10 +87,10 @@ func (mr *MockRulesMockRecorder) GetBaseComputeUnits() *gomock.Call {
 }
 
 // GetMaxActionsPerTx mocks base method.
-func (m *MockRules) GetMaxActionsPerTx() int {
+func (m *MockRules) GetMaxActionsPerTx() byte {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMaxActionsPerTx")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(byte)
 	return ret0
 }
 

@@ -153,7 +153,7 @@ type Rules interface {
 
 	FetchCustom(string) (any, bool)
 
-	GetMaxActionsPerTx() int
+	GetMaxActionsPerTx() uint8
 }
 
 type MetadataManager interface {
