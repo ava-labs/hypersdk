@@ -105,41 +105,6 @@ be valid only until a particular time. This enables you to go for orders as you
 see fit at the time and not have to worry about your fill sitting around until you
 explicitly cancel it/replace it.
 
-### Avalanche Warp Support
-We take advantage of the Avalanche Warp Messaging (AWM) support provided by the
-`hypersdk` to enable any `tokenvm` to send assets to any other `tokenvm` without
-relying on a trusted relayer or bridge (just the validators of the `tokenvm`
-sending the message).
-
-By default, a `tokenvm` will accept a message from another `tokenvm` if 80% of
-the stake weight of the source has signed it. Because each imported asset is
-given a unique `AssetID` (hash of `sourceChainID + sourceAssetID`), it is not
-possible for a malicious/rogue Subnet to corrupt token balances imported from
-other Subnets with this default import setting. `tokenvms` also track the
-amount of assets exported to all other `tokenvms` and ensure that more assets
-can't be brought back from a `tokenvm` than were exported to it (prevents
-infinite minting).
-
-To limit "contagion" in the case of a `tokenvm` failure, we ONLY allow the
-export of natively minted assets to another `tokenvm`. This means you can
-transfer an asset between two `tokenvms` A and B but you can't export from
-`tokenvm` A to `tokenvm` B to `tokenvm` C. This ensures that the import policy
-for an external `tokenvm` is always transparent and is never inherited
-implicitly by the transfers between other `tokenvms`. The ability to impose
-this restriction (without massively driving up the cost of each transfer) is
-possible because AWM does not impose an additional overhead per Subnet
-connection (no "per connection" state to maintain). This means it is just as
-cheap/scalable to communicate with every other `tokenvm` as it is to only
-communicate with one.
-
-Lastly, the `tokenvm` allows users to both tip relayers (whoever sends
-a transaction that imports their message) and to swap for another asset when
-their message is imported (so they can acquire fee-paying tokens right when
-they arrive).
-
-You can see how this works by checking out the [E2E test suite](./tests/e2e/e2e_test.go) that
-runs through these flows.
-
 ## Demos
 Someone: "Seems cool but I need to see it to really get it."
 Me: "Look no further."
@@ -237,7 +202,7 @@ database: .token-cli
 address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000 warp: false
+metadata: MarioCoin supply: 10000
 balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 ```
 
@@ -257,7 +222,7 @@ chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 in assetID (use TKN for native token): TKN
 ✔ in tick: 1█
 out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000 warp: false
+metadata: MarioCoin supply: 10000
 balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 out tick: 10
 supply (must be multiple of out tick): 100
@@ -287,7 +252,7 @@ chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 in assetID (use TKN for native token): TKN
 balance: 997.999993843 TKN
 out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000 warp: false
+metadata: MarioCoin supply: 10000
 available orders: 1
 0) Rate(in/out): 100000000.0000 InTick: 1.000000000 TKN OutTick: 10 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug Remaining: 100 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 select order: 0
@@ -484,10 +449,6 @@ out on the Avalanche Discord._
 * Add expiring order support (can't fill an order after some point in time but
   still need to explicitly close it to get your funds back -> async cleanup is
   not a good idea)
-* Add lockup fee for creating a Warp Message and ability to reclaim the lockup
-  with a refund action (this will allow for "user-driven" acks on
-  messages, which will remain signable and in state until a refund action is
-  issued)
 
 <br>
 <br>

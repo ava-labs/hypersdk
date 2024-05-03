@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -62,10 +61,6 @@ func (*CreateOrder) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.OrderChunks}
 }
 
-func (*CreateOrder) OutputsWarpMessage() bool {
-	return false
-}
-
 func (c *CreateOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -73,30 +68,29 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	txID ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (bool, uint64, []byte, error) {
 	if c.In == c.Out {
-		return false, CreateOrderComputeUnits, OutputSameInOut, nil, nil
+		return false, CreateOrderComputeUnits, OutputSameInOut, nil
 	}
 	if c.InTick == 0 {
-		return false, CreateOrderComputeUnits, OutputInTickZero, nil, nil
+		return false, CreateOrderComputeUnits, OutputInTickZero, nil
 	}
 	if c.OutTick == 0 {
-		return false, CreateOrderComputeUnits, OutputOutTickZero, nil, nil
+		return false, CreateOrderComputeUnits, OutputOutTickZero, nil
 	}
 	if c.Supply == 0 {
-		return false, CreateOrderComputeUnits, OutputSupplyZero, nil, nil
+		return false, CreateOrderComputeUnits, OutputSupplyZero, nil
 	}
 	if c.Supply%c.OutTick != 0 {
-		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil, nil
+		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil
 	}
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
-		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil
 	}
 	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil
 	}
-	return true, CreateOrderComputeUnits, nil, nil, nil
+	return true, CreateOrderComputeUnits, nil, nil
 }
 
 func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
@@ -115,7 +109,7 @@ func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(c.Supply)
 }
 
-func UnmarshalCreateOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	var create CreateOrder
 	p.UnpackID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)

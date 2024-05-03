@@ -1,0 +1,23 @@
+name: 'Release Token Wallet'
+description: 'Release the Token Wallet'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: ./.github/actions/install-go
+      with:
+        cache-dependency-path: |
+          go.sum
+          examples/tokenvm/go.sum
+    - name: Build wallet
+      working-directory: ./examples/tokenvm/cmd/token-wallet
+      shell: bash
+      run: scripts/build.sh
+      env:
+        PUBLISH: "false"
+    - name: Archive Builds
+      uses: actions/upload-artifact@v4
+      with:
+        name: token-wallet
+        path: ./examples/tokenvm/cmd/token-wallet/token-wallet.zip

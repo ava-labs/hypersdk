@@ -114,7 +114,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, output, _, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID, false)
+	success, _, output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
 	if output != nil {
 		fmt.Println(string(output))
 	}
@@ -144,7 +144,6 @@ func programExecuteFunc(
 ) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
-
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
@@ -157,7 +156,7 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	success, _, resp, _, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID, false)
+	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 
 	if !success {
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))

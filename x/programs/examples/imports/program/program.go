@@ -6,6 +6,7 @@ package program
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -58,12 +59,15 @@ func (i *Import) Register(link *host.Link, callContext program.Context) error {
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
-func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int64, int64, int64, int64) int64 {
+func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int32, int32, int32, int32, int32, int32, int64) int64 {
 	return func(
 		wasmCaller *wasmtime.Caller,
-		programID int64,
-		function int64,
-		args int64,
+		programPtr int32,
+		programLen int32,
+		functionPtr int32,
+		functionLen int32,
+		argsPtr int32,
+		argsLen int32,
 		maxUnits int64,
 	) int64 {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -79,7 +83,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		}
 
 		// get the entry function for invoke to call.
-		functionBytes, err := program.SmartPtr(function).Bytes(memory)
+		functionBytes, err := memory.Range(uint32(functionPtr), uint32(functionLen))
 		if err != nil {
 			i.log.Error("failed to read function name from memory",
 				zap.Error(err),
@@ -87,7 +91,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		programIDBytes, err := program.SmartPtr(programID).Bytes(memory)
+		programIDBytes, err := memory.Range(uint32(programPtr), uint32(programLen))
 		if err != nil {
 			i.log.Error("failed to read id from memory",
 				zap.Error(err),
@@ -142,7 +146,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			}
 		}()
 
-		argsBytes, err := program.SmartPtr(args).Bytes(memory)
+		argsBytes, err := memory.Range(uint32(argsPtr), uint32(argsLen))
 		if err != nil {
 			i.log.Error("failed to read program args from memory",
 				zap.Error(err),
@@ -185,8 +189,8 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 }
 
 // getCallArgs returns the arguments to be passed to the program being invoked from [buffer].
-func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]program.SmartPtr, error) {
-	var args []program.SmartPtr
+func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]uint32, error) {
+	var args []uint32
 
 	for i := 0; i < len(buffer); {
 		// unpacks uint32
@@ -201,11 +205,7 @@ func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]pr
 		if err != nil {
 			return nil, err
 		}
-		argPtr, err := program.NewSmartPtr(ptr, int(length))
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, argPtr)
+		args = append(args, ptr)
 	}
 
 	return args, nil
@@ -221,6 +221,7 @@ func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte)
 	bytes, exists, err := storage.GetProgram(context.Background(), db, id)
 	if !exists {
 		log.Debug("key does not exist", zap.String("id", id.String()))
+		return nil, errors.New("unknown program")
 	}
 	if err != nil {
 		return nil, err

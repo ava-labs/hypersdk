@@ -1,0 +1,21 @@
+name: 'Install Rust toolchain and Cache'
+description: 'Install a rust toolchain and cache'
+
+inputs:
+  targets:
+    description: 'pass targets to the rust-toolchain installer'
+    required: false
+  cache:
+    description: "to cache or not to cache, that is the question"
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps: 
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.targets }}
+    - if: ${{ inputs.cache == 'true' }}
+      uses: Swatinem/rust-cache@v2

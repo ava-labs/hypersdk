@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	programPrefix = 0x0
+	programPrefix        = 0x0
+	ProgramChunks uint16 = 1
 )
 
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {

@@ -15,6 +15,8 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
+
+	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 )
 
 const (
@@ -24,12 +26,10 @@ const (
 	// stateDB
 	keyPrefix = 0x0
 
-	programPrefix      = 0x1
-	heightPrefix       = 0x2
-	timestampPrefix    = 0x3
-	feePrefix          = 0x4
-	incomingWarpPrefix = 0x5
-	outgoingWarpPrefix = 0x6
+	programPrefix   = 0x1
+	heightPrefix    = 0x2
+	timestampPrefix = 0x3
+	feePrefix       = 0x4
 )
 
 var (
@@ -60,10 +60,18 @@ func GetProgram(
 	programID ids.ID,
 ) (
 	[]byte, // program bytes
+	bool, // exists
 	error,
 ) {
 	k := ProgramKey(programID)
-	return db.GetValue(ctx, k)
+	v, err := db.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return v, true, nil
 }
 
 // setProgram stores [program] at [programID]
@@ -73,8 +81,7 @@ func SetProgram(
 	programID ids.ID,
 	program []byte,
 ) error {
-	k := ProgramKey(programID)
-	return mu.Insert(ctx, k, program)
+	return storage.SetProgram(ctx, mu, programID, program)
 }
 
 //
@@ -173,19 +180,4 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
-}
-
-func IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen*2)
-	k[0] = incomingWarpPrefix
-	copy(k[1:], sourceChainID[:])
-	copy(k[1+consts.IDLen:], msgID[:])
-	return k
-}
-
-func OutgoingWarpKeyPrefix(txID ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
-	k[0] = outgoingWarpPrefix
-	copy(k[1:], txID[:])
-	return k
 }
