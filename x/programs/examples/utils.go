@@ -43,12 +43,6 @@ type testDB struct {
 	db *memdb.Database
 }
 
-func newTestDB() *testDB {
-	return &testDB{
-		db: memdb.New(),
-	}
-}
-
 func (c *testDB) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	return c.db.Get(key)
 }
