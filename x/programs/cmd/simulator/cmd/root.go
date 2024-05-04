@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/akamensky/argparse"
+	"github.com/mattn/go-shellwords"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/api/metrics"
@@ -66,7 +66,7 @@ type Simulator struct {
 func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpreterMode bool) error {
 	parser, subcommands := s.BaseParser()
 
-	// if it's our first time parsing args, there is the possibility to enter interpreter mode
+	// if it's our first time parsing args, there is the possibility to enter in interpreter mode
 	if !interpreterMode {
 		stdinCmd := InterpreterCmd{}.New(parser)
 		subcommands = append(subcommands, stdinCmd)
@@ -99,7 +99,11 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				stdinArgs := s.scanner.Text()
 				rawArgs := []string{"simulator"}
 				// TODO this is a bit brittle and will require a stronger parser once we have arguments having spaces
-				rawArgs = append(rawArgs, strings.Split(stdinArgs, " ")...)
+				parsed, err := shellwords.Parse(stdinArgs)
+				if err != nil {
+					return err
+				}
+				rawArgs = append(rawArgs, parsed...)
 
 				s.ParseCommandArgs(ctx, rawArgs, true)
 			} else {
