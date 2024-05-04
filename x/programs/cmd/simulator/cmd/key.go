@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/akamensky/argparse"
 
@@ -15,33 +16,39 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
-var _ Cmd = &keyCreateCmd{}
+var _ Cmd = (*keyCreateCmd)(nil)
 
 type keyCreateCmd struct {
 	cmd *argparse.Command
 
 	log  logging.Logger
-	db   *state.SimpleMutable
-	name string
+	db   **state.SimpleMutable
+	name *string
 }
 
-func (c keyCreateCmd) New(parser *argparse.Parser, db *state.SimpleMutable) Cmd {
-	return keyCreateCmd{
-		cmd: parser.NewCommand("key-create", "Creates a new named private key and stores it in the database"),
+func (c *keyCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
+	pcmd := parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
+
+	// c.name = pcmd.StringPositional(&argparse.Options{})
+	c.name = pcmd.String("", "name", &argparse.Options{Required: true})
+
+	return &keyCreateCmd{
+		cmd: pcmd,
 		db:  db,
 	}
 }
 
-func (c keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
-	name := args[0]
-	_, err := keyCreateFunc(ctx, c.db, name)
+func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
+	fmt.Fprintln(os.Stderr, args)
+	fmt.Fprintln(os.Stderr, c.name)
+	_, err := keyCreateFunc(ctx, *c.db, *c.name)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c keyCreateCmd) Happened() bool {
+func (c *keyCreateCmd) Happened() bool {
 	return c.cmd.Happened()
 }
 

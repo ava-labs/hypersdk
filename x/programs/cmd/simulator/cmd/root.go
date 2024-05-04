@@ -98,8 +98,8 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 				stdinArgs := s.scanner.Text()
 				rawArgs := []string{"simulator"}
-				// TODO this is a bit brittle and will require a stronger parser once we have arguments having spaces
 				parsed, err := shellwords.Parse(stdinArgs)
+				fmt.Fprintln(os.Stderr, parsed)
 				if err != nil {
 					return err
 				}
@@ -146,9 +146,12 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.logLevel = parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
 	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
-	runCmd := runCmd{}.New(parser)
-	programCmd := programCreateCmd{}.New(parser, s.db)
-	keyCmd := keyCreateCmd{}.New(parser, s.db)
+	rc := &runCmd{}
+	runCmd := rc.New(parser)
+	cc := &programCreateCmd{}
+	programCmd := cc.New(parser, &s.db)
+	kc := &keyCreateCmd{}
+	keyCmd := kc.New(parser, &s.db)
 
 	return parser, []Cmd{runCmd, programCmd, keyCmd}
 }

@@ -19,17 +19,17 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 )
 
-var _ Cmd = &programCreateCmd{}
+var _ Cmd = (*programCreateCmd)(nil)
 
 type programCreateCmd struct {
 	cmd *argparse.Command
 
-	db      *state.SimpleMutable
+	db      **state.SimpleMutable
 	keyName *string
 	path    *string
 }
 
-func (c programCreateCmd) New(parser *argparse.Parser, db *state.SimpleMutable) Cmd {
+func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
 	pcmd := parser.NewCommand("program-create", "Create a HyperSDK program transaction")
 
 	c.keyName = pcmd.String("k", "key", &argparse.Options{
@@ -43,19 +43,19 @@ func (c programCreateCmd) New(parser *argparse.Parser, db *state.SimpleMutable) 
 		Required: true,
 	})
 
-	return programCreateCmd{
+	return &programCreateCmd{
 		cmd: pcmd,
 		db:  db,
 	}
 }
 
-func (c programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (err error) {
-	exists, err := hasKey(ctx, c.db, *c.keyName)
+func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (err error) {
+	exists, err := hasKey(ctx, *c.db, *c.keyName)
 	if !exists {
 		return fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
 	}
 
-	id, err := programCreateFunc(ctx, c.db, *c.path)
+	id, err := programCreateFunc(ctx, *c.db, *c.path)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (c programCreateCmd) Run(ctx context.Context, log logging.Logger, args []st
 	return nil
 }
 
-func (c programCreateCmd) Happened() bool {
+func (c *programCreateCmd) Happened() bool {
 	return c.cmd.Happened()
 }
 

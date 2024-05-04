@@ -26,7 +26,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
-var _ Cmd = &runCmd{}
+var _ Cmd = (*runCmd)(nil)
 
 type runCmd struct {
 	cmd *argparse.Command
@@ -40,17 +40,17 @@ type runCmd struct {
 	stdinReader     io.Reader
 }
 
-func (c runCmd) New(parser *argparse.Parser) Cmd {
-	return runCmd{
+func (c *runCmd) New(parser *argparse.Parser) Cmd {
+	return &runCmd{
 		cmd: parser.NewCommand(c.Name(), "Run a HyperSDK program simulation plan"),
 	}
 }
 
-func (c runCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
+func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
 	return nil
 }
 
-func (c runCmd) Happened() bool {
+func (c *runCmd) Happened() bool {
 	return c.cmd.Happened()
 }
 
