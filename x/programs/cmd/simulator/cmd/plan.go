@@ -175,7 +175,7 @@ func (c *runCmd) Run(ctx context.Context) error {
 			zap.Any("params", step.Params),
 		)
 
-		params, err := c.createCallParams(ctx, c.db, step.Params)
+		params, err := c.createCallParams(ctx, c.db, step.Params, step.Endpoint)
 		if err != nil {
 			return err
 		}
@@ -270,7 +270,7 @@ func runStepFunc(
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]actions.CallParam, error) {
+func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter, endpoint Endpoint) ([]actions.CallParam, error) {
 	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
@@ -313,12 +313,15 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			key := val
 			// get named public key from db
 			pk, ok, err := storage.GetPublicKey(ctx, db, val)
-			if ok {
-				// otherwise use the public key address
-				key = string(pk[:])
-			}
 			if err != nil {
 				return nil, err
+			}
+			if !ok && endpoint != EndpointKey {
+				// using not stored named public key in other context than key creation
+				return nil, fmt.Errorf("%s: %s", ErrNamedKeyNotFound, val)
+			}
+			if ok {
+				key = string(pk[:])
 			}
 			cp = append(cp, actions.CallParam{Value: key})
 		case Uint64:
