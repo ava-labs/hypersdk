@@ -30,27 +30,29 @@ type programCreateCmd struct {
 }
 
 func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
-	pcmd := parser.NewCommand("program-create", "Create a HyperSDK program transaction")
-
-	c.keyName = pcmd.String("k", "key", &argparse.Options{
+	cmd := &programCreateCmd{}
+	cmd.db = db
+	cmd.cmd = parser.NewCommand("program-create", "Create a HyperSDK program transaction")
+	cmd.keyName = cmd.cmd.String("k", "key", &argparse.Options{
 		Help:     "name of the key to use to deploy the program",
 		Required: true,
 	})
 	// TODO use a file arg
 	// c.path = pcmd.File()
-	c.path = pcmd.String("p", "path", &argparse.Options{
+	cmd.path = cmd.cmd.String("p", "path", &argparse.Options{
 		Help:     "path",
 		Required: true,
 	})
+	c = cmd
 
-	return &programCreateCmd{
-		cmd: pcmd,
-		db:  db,
-	}
+	return cmd
 }
 
 func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (err error) {
 	exists, err := hasKey(ctx, *c.db, *c.keyName)
+	if err != nil {
+		return err
+	}
 	if !exists {
 		return fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
 	}

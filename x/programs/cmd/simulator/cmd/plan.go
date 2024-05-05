@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/akamensky/argparse"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -31,22 +33,45 @@ var _ Cmd = (*runCmd)(nil)
 type runCmd struct {
 	cmd *argparse.Command
 
+	stdin *bool
+
 	plan *Plan
 	log  logging.Logger
-	db   *state.SimpleMutable
+	db   **state.SimpleMutable
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
 	stdinReader     io.Reader
 }
 
-func (c *runCmd) New(parser *argparse.Parser) Cmd {
-	return &runCmd{
-		cmd: parser.NewCommand(c.Name(), "Run a HyperSDK program simulation plan"),
-	}
+func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
+	cmd := &runCmd{}
+	cmd.db = db
+	cmd.programIDStrMap = make(map[string]string)
+	cmd.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
+	cmd.stdin = cmd.cmd.Flag("", "stdin", &argparse.Options{
+		Help:     "name of the key to use to deploy the program",
+		Required: true,
+		Default:  false,
+	})
+
+	return cmd
 }
 
 func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
+	c.log = log
+	err := c.Init()
+	if err != nil {
+		return err
+	}
+	err = c.Verify()
+	if err != nil {
+		return err
+	}
+	err = c.RunSteps(ctx)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -54,8 +79,28 @@ func (c *runCmd) Happened() bool {
 	return c.cmd.Happened()
 }
 
-func (c runCmd) Name() string {
-	return "run"
+func (c *runCmd) Init() (err error) {
+	var planBytes []byte
+	if *c.stdin {
+		// read simulation plan from stdin
+		planBytes, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+	} else {
+		// TODO write me
+		// read simulation plan from arg[0]
+		/*planBytes, err = os.ReadFile(*c.file)
+		if err != nil {
+			return err
+		}*/
+	}
+	c.plan, err = unmarshalPlan(planBytes)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func verifyAssertion(i int, require *Require) error {
@@ -100,6 +145,73 @@ func verifyEndpoint(i int, step *Step) error {
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, step.Endpoint)
 	}
+	return nil
+}
+
+func (c *runCmd) Verify() error {
+	steps := c.plan.Steps
+	if steps == nil {
+		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
+	}
+
+	if steps[0].Params == nil {
+		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
+	}
+
+	// verify endpoint requirements
+	for i, step := range steps {
+		err := verifyEndpoint(i, &step)
+		if err != nil {
+			return err
+		}
+
+		// verify assertions
+		if step.Require != nil {
+			err = verifyAssertion(i, step.Require)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *runCmd) RunSteps(ctx context.Context) error {
+	for i, step := range c.plan.Steps {
+		c.log.Info("simulation",
+			zap.Int("step", i),
+			zap.String("endpoint", string(step.Endpoint)),
+			zap.String("method", step.Method),
+			zap.Uint64("maxUnits", step.MaxUnits),
+			zap.Any("params", step.Params),
+		)
+
+		params, err := c.createCallParams(ctx, *c.db, step.Params)
+		if err != nil {
+			return err
+		}
+
+		resp := newResponse(i)
+		err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+		if err != nil {
+			resp.setError(err)
+			c.log.Error("simulation", zap.Error(err))
+		}
+
+		// map all transactions to their step_N identifier
+		txID, found := resp.getTxID()
+		if found {
+			c.programIDStrMap[fmt.Sprintf("step_%d", i)] = txID
+		}
+
+		// print response to stdout
+		err = resp.Print()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

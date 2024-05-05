@@ -254,7 +254,7 @@ where
         .arg("--cleanup")
         .arg("--log-level")
         .arg("error")
-        .arg("-")
+        .arg("--stdin")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;

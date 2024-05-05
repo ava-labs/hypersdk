@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/akamensky/argparse"
 
@@ -27,20 +26,16 @@ type keyCreateCmd struct {
 }
 
 func (c *keyCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
-	pcmd := parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
+	cmd := &keyCreateCmd{}
+	cmd.db = db
+	cmd.cmd = parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
+	cmd.name = cmd.cmd.String("", "name", &argparse.Options{Required: true})
+	c = cmd
 
-	// c.name = pcmd.StringPositional(&argparse.Options{})
-	c.name = pcmd.String("", "name", &argparse.Options{Required: true})
-
-	return &keyCreateCmd{
-		cmd: pcmd,
-		db:  db,
-	}
+	return cmd
 }
 
 func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
-	fmt.Fprintln(os.Stderr, args)
-	fmt.Fprintln(os.Stderr, c.name)
 	_, err := keyCreateFunc(ctx, *c.db, *c.name)
 	if err != nil {
 		return err

@@ -147,10 +147,11 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
 	rc := &runCmd{}
-	runCmd := rc.New(parser)
+	runCmd := rc.New(parser, &s.db)
 	cc := &programCreateCmd{}
 	programCmd := cc.New(parser, &s.db)
 	kc := &keyCreateCmd{}
+	// TODO should we cast to Cmd to make sure that the data of pointers is still valid ??????
 	keyCmd := kc.New(parser, &s.db)
 
 	return parser, []Cmd{runCmd, programCmd, keyCmd}
