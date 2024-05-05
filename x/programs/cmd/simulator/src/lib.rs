@@ -8,9 +8,10 @@ use serde_with::{serde_as, DisplayFromStr};
 use std::{
     error::Error,
     ffi::OsStr,
-    io::Write,
+    io::{Read, Write},
     path::Path,
-    process::{Command, Output, Stdio},
+    process::{ChildStdin, ChildStdout, Command, Output, Stdio},
+    str::FromStr,
 };
 
 mod id;
@@ -18,7 +19,7 @@ mod id;
 pub use id::Id;
 
 /// The endpoint to call for a [Step].
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
     /// Perform an operation against the key api.
@@ -32,7 +33,7 @@ pub enum Endpoint {
 }
 
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
     /// The API endpoint to call.
@@ -122,14 +123,14 @@ impl From<Key> for Param {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Require {
     /// If defined the result of the step must match this assertion.
     pub result: ResultAssertion,
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(tag = "operator", content = "value")]
 pub enum ResultAssertion {
     #[serde(rename = "==")]
@@ -199,15 +200,9 @@ pub struct Client {
     path: &'static str,
 }
 
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Client {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, Box<dyn Error>> {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -220,7 +215,7 @@ impl Client {
             panic!("Simulator binary not found, must rebuild simulator");
         }
 
-        Self { path }
+        Ok(Self { path })
     }
 
     /// Runs a [Plan] against the simulator and returns vec of result.
@@ -228,21 +223,34 @@ impl Client {
     ///
     /// Returns an error if the serialization or plan fails.
     pub fn run_plan(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
-        run_steps(self.path, plan)
+        let child = Command::new(self.path)
+            .arg("interpreter")
+            .arg("--cleanup")
+            .arg("--log-level")
+            .arg("error")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let stdin = &mut child.stdin.unwrap();
+        let stdout = &mut child.stdout.unwrap();
+
+        Ok(run_steps(stdin, stdout, plan).unwrap())
     }
 
+    /*
     /// Performs a single `Execute` step against the simulator and returns the result.
     /// # Errors
     ///
     /// Returns an error if the serialization or single-[Step]-[Plan] fails.
-    pub fn execute_step(&self, key: &str, step: Step) -> Result<PlanResponse, Box<dyn Error>> {
+    /*pub fn execute_step(&self, key: &str, step: Step) -> Result<PlanResponse, Box<dyn Error>> {
         let plan = &Plan {
             caller_key: key.into(),
             steps: vec![step],
         };
 
         run_step(self.path, plan)
-    }
+    }*/*/
 }
 
 fn cmd_output<P>(path: P, plan: &Plan) -> Result<Output, Box<dyn Error>>
@@ -273,12 +281,15 @@ where
         .map_err(|e| format!("failed to wait for child: {e}").into())
 }
 
-fn run_steps<P, T>(path: P, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
+fn run_steps<T>(
+    stdin: &mut ChildStdin,
+    stdout: &mut ChildStdout,
+    plan: &Plan,
+) -> Result<Vec<T>, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
-    P: AsRef<OsStr>,
 {
-    let output = cmd_output(path, plan)?;
+    /*let output = cmd_output(path, plan)?;
     let mut items: Vec<T> = Vec::new();
 
     if !output.status.success() {
@@ -302,15 +313,32 @@ where
         items.push(item);
     }
 
-    Ok(items)
+    Ok(items)*/
+
+    for step in &plan.steps {
+        run_step::<T>(
+            stdin,
+            stdout,
+            &Plan {
+                caller_key: plan.caller_key.clone(),
+                steps: vec![step.clone()],
+            },
+        )
+        .unwrap();
+    }
+
+    todo!()
 }
 
-fn run_step<P, T>(path: P, plan: &Plan) -> Result<T, Box<dyn Error>>
+fn run_step<T>(
+    stdin: &mut ChildStdin,
+    stdout: &mut ChildStdout,
+    plan: &Plan,
+) -> Result<T, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
-    P: AsRef<OsStr>,
 {
-    let output = cmd_output(path, plan)?;
+    /*let output = cmd_output(path, plan)?;
 
     if !output.status.success() {
         println!("stderr");
@@ -327,7 +355,24 @@ where
     let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
         .map_err(|e| format!("failed to parse output to json: {e}"))?;
 
-    Ok(resp)
+    Ok(resp)*/
+
+    dbg!("q");
+    let mut prefix = "simulator run ".to_string();
+    let input =
+        serde_json::to_string(plan).map_err(|e| format!("failed to serialize json: {e}"))?;
+    prefix.push_str(input.as_str());
+    stdin
+        .write_all(prefix.as_bytes())
+        .map_err(|e| format!("failed to write to stdin: {e}"))?;
+    dbg!("a");
+    let buf = &mut Vec::new();
+    stdout.read_to_end(buf).unwrap();
+    dbg!(&buf);
+    let as_string = String::from_utf8_lossy(&buf);
+    dbg!(as_string);
+
+    todo!()
 }
 
 #[cfg(test)]
