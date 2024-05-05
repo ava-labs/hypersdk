@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -29,10 +28,6 @@ type BurnAsset struct {
 
 func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
-}
-
-func (*BurnAsset) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (b *BurnAsset) StateKeys(actor codec.Address, _ codec.LID) state.Keys {

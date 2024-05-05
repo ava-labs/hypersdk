@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -32,10 +31,6 @@ type MintAsset struct {
 
 func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
-}
-
-func (*MintAsset) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (m *MintAsset) StateKeys(codec.Address, codec.LID) state.Keys {

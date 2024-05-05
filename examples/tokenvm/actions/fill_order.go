@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -41,10 +40,6 @@ type FillOrder struct {
 
 func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
-}
-
-func (*FillOrder) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (f *FillOrder) StateKeys(actor codec.Address, _ codec.LID) state.Keys {

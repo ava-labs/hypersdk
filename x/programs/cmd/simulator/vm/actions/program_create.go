@@ -31,10 +31,6 @@ func (*ProgramCreate) GetTypeID() uint8 {
 	return programCreateID
 }
 
-func (*ProgramCreate) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
-}
-
 func (*ProgramCreate) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.ProgramChunks}
 }

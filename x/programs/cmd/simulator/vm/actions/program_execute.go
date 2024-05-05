@@ -43,10 +43,6 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (*ProgramExecute) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
-}
-
 func (t *ProgramExecute) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
 	return state.Keys{}
 }

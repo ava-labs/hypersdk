@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -33,10 +32,6 @@ type Transfer struct {
 
 func (*Transfer) GetTypeID() uint8 {
 	return transferID
-}
-
-func (*Transfer) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (t *Transfer) StateKeys(actor codec.Address, _ codec.LID) state.Keys {

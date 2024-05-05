@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -25,10 +24,6 @@ type CreateAsset struct {
 
 func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
-}
-
-func (*CreateAsset) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (*CreateAsset) StateKeys(_ codec.Address, actionID codec.LID) state.Keys {

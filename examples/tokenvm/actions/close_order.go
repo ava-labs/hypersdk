@@ -6,7 +6,6 @@ package actions
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -28,10 +27,6 @@ type CloseOrder struct {
 
 func (*CloseOrder) GetTypeID() uint8 {
 	return closeOrderID
-}
-
-func (*CloseOrder) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (c *CloseOrder) StateKeys(actor codec.Address, _ codec.LID) state.Keys {

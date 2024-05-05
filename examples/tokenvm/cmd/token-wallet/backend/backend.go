@@ -221,7 +221,7 @@ func (b *Backend) collectBlocks() {
 
 			// We should exit action parsing as soon as possible
 			for i, act := range tx.Actions {
-				actionID := act.GetActionID(uint8(i), tx.ID())
+				actionID := codec.CreateLID(uint8(i), tx.ID())
 				switch action := act.(type) {
 				case *actions.Transfer:
 					if actor != b.addr && action.To != b.addr {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -49,10 +48,6 @@ type CreateOrder struct {
 
 func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
-}
-
-func (*CreateOrder) GetActionID(i uint8, txID ids.ID) codec.LID {
-	return codec.CreateLID(i, txID)
 }
 
 func (c *CreateOrder) StateKeys(actor codec.Address, actionID codec.LID) state.Keys {

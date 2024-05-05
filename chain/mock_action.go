@@ -16,7 +16,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	ids "github.com/ava-labs/avalanchego/ids"
 	codec "github.com/ava-labs/hypersdk/codec"
 	state "github.com/ava-labs/hypersdk/state"
 	gomock "go.uber.org/mock/gomock"
@@ -60,20 +59,6 @@ func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutabl
 func (mr *MockActionMockRecorder) Execute(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockAction)(nil).Execute), arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-// GetActionID mocks base method.
-func (m *MockAction) GetActionID(arg0 byte, arg1 ids.ID) codec.LID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActionID", arg0, arg1)
-	ret0, _ := ret[0].(codec.LID)
-	return ret0
-}
-
-// GetActionID indicates an expected call of GetActionID.
-func (mr *MockActionMockRecorder) GetActionID(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActionID", reflect.TypeOf((*MockAction)(nil).GetActionID), arg0, arg1)
 }
 
 // GetTypeID mocks base method.

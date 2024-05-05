@@ -29,7 +29,13 @@ type (
 var EmptyAddress = [AddressLen]byte{}
 
 // CreateLID returns [LID] made from concatenating
-// some [i] with an [id]
+// some [i] with an [id].
+//
+// This is commonly used for creating an ActionID. We
+// keep the index|txID format to keep consistency with
+// how address construction works. Index is the index
+// in the [Action] array of a transaction. txID is the
+// ID of that transaction.
 func CreateLID(i uint8, id ids.ID) LID {
 	a := make([]byte, AddressLen)
 	a[0] = i

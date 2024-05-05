@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/gossiper"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
@@ -191,7 +192,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 					c.metrics.transfer.Inc()
 				case *actions.CreateOrder:
 					c.metrics.createOrder.Inc()
-					c.orderBook.Add(action.GetActionID(uint8(i), tx.ID()), tx.Auth.Actor(), action)
+					c.orderBook.Add(codec.CreateLID(uint8(i), tx.ID()), tx.Auth.Actor(), action)
 				case *actions.FillOrder:
 					c.metrics.fillOrder.Inc()
 					outputs := result.Outputs[i]

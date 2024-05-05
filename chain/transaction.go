@@ -111,7 +111,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 
 	// Verify the formatting of state keys passed by the controller
 	for i, action := range t.Actions {
-		actionKeys := action.StateKeys(t.Auth.Actor(), action.GetActionID(uint8(i), t.id))
+		actionKeys := action.StateKeys(t.Auth.Actor(), codec.CreateLID(uint8(i), t.id))
 		sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
 		for _, m := range []state.Keys{actionKeys, sponsorKeys} {
 			for k, v := range m {
@@ -330,7 +330,7 @@ func (t *Transaction) Execute(
 		txSuccess     = true
 	)
 	for i, action := range t.Actions {
-		actionID := action.GetActionID(uint8(i), t.id)
+		actionID := codec.CreateLID(uint8(i), t.id)
 		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if err != nil {
 			return handleRevert(err)
