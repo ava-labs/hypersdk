@@ -123,6 +123,7 @@ type Rules interface {
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
+	GetMaxActionsPerTx() uint8
 
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
@@ -152,8 +153,6 @@ type Rules interface {
 	GetStorageValueWriteUnits() uint64 // per chunk
 
 	FetchCustom(string) (any, bool)
-
-	GetMaxActionsPerTx() uint8
 }
 
 type MetadataManager interface {

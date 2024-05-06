@@ -743,6 +743,7 @@ type Rules interface {
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
+	GetMaxActionsPerTx() uint8
 
 	GetMinUnitPrice() Dimensions
 	GetUnitPriceChangeDenominator() Dimensions
@@ -771,9 +772,7 @@ type Rules interface {
 	GetStorageKeyWriteUnits() uint64
 	GetStorageValueWriteUnits() uint64 // per chunk
 
-	FetchCustom(string) (any, bool)
-
-	GetMaxActionsPerTx() uint8	
+	FetchCustom(string) (any, bool)	
 }
 ```
 
