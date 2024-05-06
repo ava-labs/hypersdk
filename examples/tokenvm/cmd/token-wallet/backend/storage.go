@@ -64,7 +64,7 @@ func (s *Storage) GetKey() (ed25519.PrivateKey, error) {
 }
 
 func (s *Storage) StoreAsset(assetID codec.LID, owned bool) error {
-	k := make([]byte, 1+codec.AddressLen)
+	k := make([]byte, 1+codec.LIDLen)
 	k[0] = assetsPrefix
 	copy(k[1:], assetID[:])
 	v := []byte{0x0}
@@ -75,7 +75,7 @@ func (s *Storage) StoreAsset(assetID codec.LID, owned bool) error {
 }
 
 func (s *Storage) HasAsset(assetID codec.LID) (bool, error) {
-	k := make([]byte, 1+codec.AddressLen)
+	k := make([]byte, 1+codec.LIDLen)
 	k[0] = assetsPrefix
 	copy(k[1:], assetID[:])
 	return s.db.Has(k)
@@ -181,7 +181,7 @@ func (s *Storage) GetSolutions() ([]*FaucetSearchInfo, error) {
 
 func (s *Storage) StoreOrder(orderID codec.LID) error {
 	inverseTime := consts.MaxUint64 - uint64(time.Now().UnixMilli())
-	k := make([]byte, 1+consts.Uint64Len+codec.AddressLen)
+	k := make([]byte, 1+consts.Uint64Len+codec.LIDLen)
 	k[0] = orderPrefix
 	binary.BigEndian.PutUint64(k[1:], inverseTime)
 	copy(k[1+consts.Uint64Len:], orderID[:])

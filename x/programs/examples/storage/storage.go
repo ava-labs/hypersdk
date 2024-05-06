@@ -19,10 +19,10 @@ const (
 )
 
 func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
-	k = make([]byte, codec.AddressLen+1+len(key))
+	k = make([]byte, codec.LIDLen+1+len(key))
 	k[0] = programPrefix
 	copy(k, id)
-	copy(k[codec.AddressLen:], (key))
+	copy(k[codec.LIDLen:], (key))
 	return
 }
 
@@ -31,7 +31,7 @@ func ProgramPrefixKey(id []byte, key []byte) (k []byte) {
 //
 
 func ProgramKey(id codec.LID) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen)
+	k = make([]byte, 1+codec.LIDLen)
 	copy(k[1:], id[:])
 	return
 }

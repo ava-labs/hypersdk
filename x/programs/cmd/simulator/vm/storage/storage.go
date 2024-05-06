@@ -48,7 +48,7 @@ const ProgramChunks uint16 = 1
 //
 
 func ProgramKey(id codec.LID) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen)
+	k = make([]byte, 1+codec.LIDLen)
 	k[0] = programPrefix
 	copy(k[1:], id[:])
 	return
