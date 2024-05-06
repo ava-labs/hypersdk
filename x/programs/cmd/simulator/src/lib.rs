@@ -246,13 +246,23 @@ impl Client {
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
-            .arg("error") // TODO control this through an env variable
+            .arg("error")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
 
         let stdin = &mut child.stdin.unwrap();
         let stdout = &mut child.stdout.unwrap();
+
+        // TODO write function
+        let buf: Vec<u8> = stdout
+            .bytes()
+            .take_while(|char| char.as_ref().is_ok_and(|char| *char != b'\n'))
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("failed to read from stdout: {e}"))?;
+
+        let _resp: PlanResponse = serde_json::from_str(String::from_utf8(buf)?.as_ref())
+            .map_err(|e| format!("failed to parse output to json: {e}"))?;
 
         run_steps(stdin, stdout, plan)
     }
@@ -358,7 +368,7 @@ where
         require: step.require,
     };
     let mut input =
-        dbg!(serde_json::to_string(&step).map_err(|e| format!("failed to serialize json: {e}"))?);
+        serde_json::to_string(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
     input.push('\n');
     stdin
         .write_all(input.as_bytes())
