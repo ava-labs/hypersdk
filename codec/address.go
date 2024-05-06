@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/cb58"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
 
@@ -98,18 +99,16 @@ func ParseAddressBech32(hrp, saddr string) (Address, error) {
 	return Address(p[:AddressLen]), nil
 }
 
-func LIDToString(hrp string, lid LID) string {
-	addr, err := AddressBech32(hrp, Address(lid))
-	if err != nil {
-		panic(err)
-	}
-	return addr
+func (l LID) String() string {
+	s, _ := cb58.Encode(l[:])
+	return s
 }
 
-func LIDFromString(hrp string, lid string) LID {
-	addr, err := ParseAddressBech32(hrp, lid)
+// FromString is the inverse of LID.String()
+func FromString(lidStr string) (LID, error) {
+	bytes, err := cb58.Decode(lidStr)
 	if err != nil {
-		panic(err)
+		return LID{}, err
 	}
-	return LID(addr)
+	return LID(bytes), nil
 }

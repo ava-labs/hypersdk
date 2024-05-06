@@ -71,8 +71,8 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (codec.LID, error)
 			if allowNative && input == symbol {
 				return nil
 			}
-			_ = codec.LIDFromString(label, input)
-			return nil
+			_, err := codec.FromString(input)
+			return err
 		},
 	}
 	asset, err := promptText.Run()
@@ -82,7 +82,10 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (codec.LID, error)
 	asset = strings.TrimSpace(asset)
 	var assetID codec.LID
 	if asset != symbol {
-		assetID = codec.LIDFromString(label, asset)
+		assetID, err = codec.FromString(asset)
+		if err != nil {
+			return codec.EmptyAddress, err
+		}
 	}
 	if !allowNative && assetID == codec.EmptyAddress {
 		return codec.EmptyAddress, ErrInvalidChoice
@@ -281,8 +284,8 @@ func (*Handler) PromptLID(label string) (codec.LID, error) {
 			if len(input) == 0 {
 				return ErrInputEmpty
 			}
-			_ = codec.LIDFromString(label, input)
-			return nil
+			_, err := codec.FromString(input)
+			return err
 		},
 	}
 	rawID, err := promptText.Run()
@@ -290,7 +293,7 @@ func (*Handler) PromptLID(label string) (codec.LID, error) {
 		return codec.EmptyAddress, err
 	}
 	rawID = strings.TrimSpace(rawID)
-	return codec.LIDFromString(label, rawID), nil
+	return codec.FromString(rawID)
 }
 
 func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {

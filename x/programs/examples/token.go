@@ -106,7 +106,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("id", codec.LIDToString("matrix", programID)),
+		zap.String("id", programID.String()),
 	)
 
 	// initialize program
@@ -371,7 +371,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 	}
 
 	t.log.Debug("new token program created",
-		zap.String("id", codec.LIDToString("matrix", programID)),
+		zap.String("id", programID.String()),
 	)
 
 	// initialize program

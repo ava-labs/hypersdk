@@ -237,7 +237,7 @@ func runStepFunc(
 			if err != nil {
 				return err
 			}
-			resp.setTxID(codec.LIDToString(consts.HRP, id))
+			resp.setTxID(id.String())
 			resp.setTimestamp(time.Now().Unix())
 
 			return nil
@@ -254,7 +254,7 @@ func runStepFunc(
 		if err != nil {
 			return err
 		}
-		resp.setTxID(codec.LIDToString(consts.HRP, id))
+		resp.setTxID(id.String())
 		resp.setBalance(balance)
 
 		return nil

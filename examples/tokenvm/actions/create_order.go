@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -125,5 +124,5 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 }
 
 func PairID(in codec.LID, out codec.LID) string {
-	return fmt.Sprintf("%s-%s", codec.LIDToString(tconsts.HRP, in), codec.LIDToString(tconsts.HRP, out))
+	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }

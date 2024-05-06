@@ -64,7 +64,7 @@ func newProgramCreateCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Com
 				return err
 			}
 
-			hutils.Outf("{{green}}create program transaction successful: {{/}}%s\n", codec.LIDToString(xconsts.HRP, p.id))
+			hutils.Outf("{{green}}create program transaction successful: {{/}}%s\n", p.id.String())
 			return nil
 		},
 	}

@@ -642,9 +642,9 @@ func (b *Backend) GetMyAssets() []*AssetInfo {
 			b.fatal(err)
 			return nil
 		}
-		strAsset := codec.LIDToString(tconsts.HRP, asset)
+		strAsset := asset.String()
 		assets = append(assets, &AssetInfo{
-			ID:        codec.LIDToString(tconsts.HRP, asset),
+			ID:        asset.String(),
 			Symbol:    string(symbol),
 			Decimals:  int(decimals),
 			Metadata:  string(metadata),
@@ -699,7 +699,10 @@ func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) e
 
 func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	// Input validation
-	assetID := codec.LIDFromString(tconsts.HRP, asset)
+	assetID, err := codec.FromString(asset)
+	if err != nil {
+		return err
+	}
 	_, _, decimals, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
@@ -751,7 +754,10 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 
 func (b *Backend) Transfer(asset string, address string, amount string, memo string) error {
 	// Input validation
-	assetID := codec.LIDFromString(tconsts.HRP, asset)
+	assetID, err := codec.FromString(asset)
+	if err != nil {
+		return err
+	}
 	_, symbol, decimals, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
@@ -836,7 +842,7 @@ func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		strAsset := codec.LIDToString(tconsts.HRP, asset)
+		strAsset := asset.String()
 		if asset == codec.EmptyAddress {
 			balances = append(balances, &BalanceInfo{ID: strAsset, Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals)), Has: bal > 0})
 		} else {
@@ -965,9 +971,9 @@ func (b *Backend) GetAllAssets() []*AssetInfo {
 			b.fatal(err)
 			return nil
 		}
-		strAsset := codec.LIDToString(tconsts.HRP, asset)
+		strAsset := asset.String()
 		assets = append(assets, &AssetInfo{
-			ID:        codec.LIDToString(tconsts.HRP, asset),
+			ID:        asset.String(),
 			Symbol:    string(symbol),
 			Decimals:  int(decimals),
 			Metadata:  string(metadata),
@@ -980,7 +986,10 @@ func (b *Backend) GetAllAssets() []*AssetInfo {
 }
 
 func (b *Backend) AddAsset(asset string) error {
-	assetID := codec.LIDFromString(tconsts.HRP, asset)
+	assetID, err := codec.FromString(asset)
+	if err != nil {
+		return err
+	}
 	hasAsset, err := b.s.HasAsset(assetID)
 	if err != nil {
 		return err
@@ -1023,10 +1032,10 @@ func (b *Backend) GetMyOrders() ([]*Order, error) {
 			return nil, err
 		}
 		orders = append(orders, &Order{
-			ID:        codec.LIDToString(tconsts.HRP, orderID),
-			InID:      codec.LIDToString(tconsts.HRP, inID),
+			ID:        orderID.String(),
+			InID:      inID.String(),
 			InSymbol:  string(inSymbol),
-			OutID:     codec.LIDToString(tconsts.HRP, outID),
+			OutID:     outID.String(),
 			OutSymbol: string(outSymbol),
 			Price:     fmt.Sprintf("%s %s / %s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol, hutils.FormatBalance(order.OutTick, outDecimals), outSymbol),
 			InTick:    fmt.Sprintf("%s %s", hutils.FormatBalance(order.InTick, inDecimals), inSymbol),
@@ -1051,13 +1060,19 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	}
 	assetIDs := strings.Split(pair, "-")
 	in := assetIDs[0]
-	inID := codec.LIDFromString(tconsts.HRP, in)
+	inID, err := codec.FromString(in)
+	if err != nil {
+		return err
+	}
 	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return nil, err
 	}
 	out := assetIDs[1]
-	outID := codec.LIDFromString(tconsts.HRP, out)
+	outID, err := codec.FromString(out)
+	if err != nil {
+		return err
+	}
 	_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
 		return nil, err
@@ -1067,7 +1082,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	for i := 0; i < len(rawOrders); i++ {
 		order := rawOrders[i]
 		orders[i] = &Order{
-			ID:        codec.LIDToString(tconsts.HRP, order.ID),
+			ID:        order.ID.String(),
 			InID:      in,
 			InSymbol:  string(inSymbol),
 			OutID:     out,
@@ -1086,8 +1101,14 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 }
 
 func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, outTick string, supply string) error {
-	inID := codec.LIDFromString(tconsts.HRP, assetIn)
-	outID := codec.LIDFromString(tconsts.HRP, assetOut)
+	inID, err := codec.FromString(assetIn)
+	if err != nil {
+		return err
+	}
+	outID, err := codec.FromString(assetOut)
+	if err != nil {
+		return err
+	}
 	_, _, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
@@ -1163,13 +1184,22 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 }
 
 func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, inTick string, assetOut string, amount string) error {
-	oID := codec.LIDFromString(tconsts.HRP, orderID)
+	oID, err := codec.FromString(orderID)
+	if err != nil {
+		return err
+	}
 	owner, err := codec.ParseAddressBech32(tconsts.HRP, orderOwner)
 	if err != nil {
 		return err
 	}
-	inID := codec.LIDFromString(tconsts.HRP, assetIn)
-	outID := codec.LIDFromString(tconsts.HRP, assetOut)
+	inID, err := codec.FromString(assetIn)
+	if err != nil {
+		return err
+	}
+	outID, err := codec.FromString(tconsts.HRP, assetOut)
+	if err != nil {
+		return err
+	}
 	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
@@ -1238,8 +1268,14 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 }
 
 func (b *Backend) CloseOrder(orderID string, assetOut string) error {
-	oID := codec.LIDFromString(tconsts.HRP, orderID)
-	outID := codec.LIDFromString(tconsts.HRP, assetOut)
+	oID, err := codec.FromString(orderID)
+	if err != nil {
+		return err
+	}
+	outID, err := codec.FromString(assetOut)
+	if err != nil {
+		return err
+	}
 
 	// Ensure have sufficient balance
 	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
