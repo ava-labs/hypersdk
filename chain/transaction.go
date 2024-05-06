@@ -256,13 +256,13 @@ func (t *Transaction) PreExecute(
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
 		return ErrTooManyActions
 	}
-	for _, action := range t.Actions {
+	for i, action := range t.Actions {
 		start, end := action.ValidRange(r)
 		if start >= 0 && timestamp < start {
-			return ErrActionNotActivated
+			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
 		}
 		if end >= 0 && timestamp > end {
-			return ErrActionNotActivated
+			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
 		}
 	}
 	start, end := t.Auth.ValidRange(r)
