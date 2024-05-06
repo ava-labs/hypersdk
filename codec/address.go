@@ -24,10 +24,10 @@ const (
 
 type (
 	LID     [LIDLen]byte // Long ID
-	Address LID
+	Address = LID
 )
 
-var EmptyAddress = [AddressLen]byte{}
+var EmptyAddress = LID{}
 
 // CreateLID returns [LID] made from concatenating
 // some [i] with an [id].
