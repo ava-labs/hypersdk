@@ -70,23 +70,12 @@ func (p *Packer) PackFixedBytes(b []byte) {
 	p.p.PackFixedBytes(b)
 }
 
-func (p *Packer) PackAddress(a Address) {
+func (p *Packer) PackLID(a LID) {
 	p.p.PackFixedBytes(a[:])
 }
 
-func (p *Packer) UnpackAddress(dest *Address) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
-	if *dest == EmptyAddress {
-		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
-	}
-}
-
-func (p *Packer) PackActionID(a LID) {
-	p.p.PackFixedBytes(a[:])
-}
-
-func (p *Packer) UnpackActionID(required bool, dest *LID) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
+func (p *Packer) UnpackLID(required bool, dest *LID) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(LIDLen))
 	if required && *dest == EmptyAddress {
 		p.addErr(fmt.Errorf("%w: LID field is not populated", ErrFieldNotPopulated))
 	}

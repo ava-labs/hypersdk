@@ -102,18 +102,18 @@ func (*CreateOrder) Size() int {
 }
 
 func (c *CreateOrder) Marshal(p *codec.Packer) {
-	p.PackActionID(c.In)
+	p.PackLID(c.In)
 	p.PackUint64(c.InTick)
-	p.PackActionID(c.Out)
+	p.PackLID(c.Out)
 	p.PackUint64(c.OutTick)
 	p.PackUint64(c.Supply)
 }
 
 func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	var create CreateOrder
-	p.UnpackActionID(false, &create.In) // empty ID is the native asset
+	p.UnpackLID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)
-	p.UnpackActionID(false, &create.Out) // empty ID is the native asset
+	p.UnpackLID(false, &create.Out) // empty ID is the native asset
 	create.OutTick = p.UnpackUint64(true)
 	create.Supply = p.UnpackUint64(true)
 	return &create, p.Err()

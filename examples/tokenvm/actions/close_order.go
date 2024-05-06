@@ -79,14 +79,14 @@ func (*CloseOrder) Size() int {
 }
 
 func (c *CloseOrder) Marshal(p *codec.Packer) {
-	p.PackActionID(c.Order)
-	p.PackActionID(c.Out)
+	p.PackLID(c.Order)
+	p.PackLID(c.Out)
 }
 
 func UnmarshalCloseOrder(p *codec.Packer) (chain.Action, error) {
 	var cl CloseOrder
-	p.UnpackActionID(true, &cl.Order)
-	p.UnpackActionID(false, &cl.Out) // empty ID is the native asset
+	p.UnpackLID(true, &cl.Order)
+	p.UnpackLID(false, &cl.Out) // empty ID is the native asset
 	return &cl, p.Err()
 }
 

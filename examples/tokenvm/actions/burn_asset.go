@@ -81,13 +81,13 @@ func (*BurnAsset) Size() int {
 }
 
 func (b *BurnAsset) Marshal(p *codec.Packer) {
-	p.PackActionID(b.Asset)
+	p.PackLID(b.Asset)
 	p.PackUint64(b.Value)
 }
 
 func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
 	var burn BurnAsset
-	p.UnpackActionID(false, &burn.Asset) // can burn native asset
+	p.UnpackLID(false, &burn.Asset) // can burn native asset
 	burn.Value = p.UnpackUint64(true)
 	return &burn, p.Err()
 }

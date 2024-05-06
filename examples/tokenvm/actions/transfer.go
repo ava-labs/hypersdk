@@ -78,16 +78,16 @@ func (t *Transfer) Size() int {
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackAddress(t.To)
-	p.PackActionID(t.Asset)
+	p.PackLID(t.To)
+	p.PackLID(t.Asset)
 	p.PackUint64(t.Value)
 	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackAddress(&transfer.To)
-	p.UnpackActionID(false, &transfer.Asset) // empty ID is the native asset
+	p.UnpackLID(true, &transfer.To)
+	p.UnpackLID(false, &transfer.Asset) // empty ID is the native asset
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()

@@ -69,13 +69,13 @@ func (*Transfer) Size() int {
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackAddress(t.To)
+	p.PackLID(t.To)
 	p.PackUint64(t.Value)
 }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
+	p.UnpackLID(true, &transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
 	if err := p.Err(); err != nil {
 		return nil, err
