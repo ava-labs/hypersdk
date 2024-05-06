@@ -72,13 +72,13 @@ pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(context: Context, recipient: Address) -> bool {
+pub fn burn_from(context: Context, recipient: Address) -> i64 {
     let Context { program } = context;
     program
         .state()
-        .delete(StateKey::Balance(recipient))
-        .expect("failed to burn recipient tokens");
-    true
+        .delete::<i64>(StateKey::Balance(recipient))
+        .expect("failed to burn recipient tokens")
+        .expect("recipient balance not found")
 }
 
 /// Transfers balance from the sender to the the recipient.
@@ -184,6 +184,7 @@ mod tests {
             .map(Param::Key);
         let alice_initial_balance = 1000;
         let transfer_amount = 100;
+        let post_transfer_balance = alice_initial_balance - transfer_amount;
 
         let mut plan = Plan::new(owner_key_id.clone());
 
@@ -262,7 +263,7 @@ mod tests {
             max_units: 0,
             params: vec![program_id.into(), alice_key.clone()],
             require: Some(Require {
-                result: ResultAssertion::NumericEq(alice_initial_balance - transfer_amount),
+                result: ResultAssertion::NumericEq(post_transfer_balance),
             }),
         });
 
@@ -281,7 +282,9 @@ mod tests {
             method: "burn_from".into(),
             params: vec![program_id.into(), alice_key.clone()],
             max_units: 1000000,
-            require: None,
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(post_transfer_balance),
+            }),
         });
 
         plan.add_step(Step {
