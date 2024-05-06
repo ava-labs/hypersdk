@@ -20,6 +20,7 @@ import (
 
 func TestSimpleCall(t *testing.T) {
 	require := require.New(t)
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
