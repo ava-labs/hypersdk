@@ -53,6 +53,8 @@ type Simulator struct {
 	logLevel                *string
 	cleanup                 *bool
 	disableWriterDisplaying *bool
+	lastStep                int
+	programIDStrMap         map[string]string
 
 	vm      *vm.VM
 	db      *state.SimpleMutable
@@ -84,12 +86,14 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 	for _, cmd := range subcommands {
 		if cmd.Happened() {
-			_ = cmd.Run(ctx, s.log, args)
+			err = cmd.Run(ctx, s.log, args)
+			if err != nil {
+				return err
+			}
 
 			if _, ok := cmd.(InterpreterCmd); ok || interpreterMode {
 				if !interpreterMode {
-					scanner := bufio.NewScanner(os.Stdin)
-					s.scanner = scanner
+					s.scanner = bufio.NewScanner(os.Stdin)
 				}
 
 				if !s.scanner.Scan() {
@@ -99,13 +103,16 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				stdinArgs := s.scanner.Text()
 				rawArgs := []string{"simulator"}
 				parsed, err := shellwords.Parse(stdinArgs)
-				fmt.Fprintln(os.Stderr, parsed)
 				if err != nil {
 					return err
 				}
 				rawArgs = append(rawArgs, parsed...)
 
-				s.ParseCommandArgs(ctx, rawArgs, true)
+				err = s.ParseCommandArgs(ctx, rawArgs, true)
+				if err != nil {
+					return err
+				}
+				interpreterMode = true
 			} else {
 				return nil
 			}
@@ -116,6 +123,8 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 }
 
 func (s *Simulator) Execute(ctx context.Context) error {
+	s.lastStep = 0
+	s.programIDStrMap = make(map[string]string)
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -147,7 +156,7 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
 	rc := &runCmd{}
-	runCmd := rc.New(parser, &s.db)
+	runCmd := rc.New(parser, &s.db, s.programIDStrMap, &s.lastStep)
 	cc := &programCreateCmd{}
 	programCmd := cc.New(parser, &s.db)
 	kc := &keyCreateCmd{}

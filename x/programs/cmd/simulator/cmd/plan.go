@@ -4,11 +4,11 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"strconv"
@@ -33,7 +33,8 @@ var _ Cmd = (*runCmd)(nil)
 type runCmd struct {
 	cmd *argparse.Command
 
-	stdin *bool
+	stdin    *bool
+	lastStep *int
 
 	plan *Plan
 	log  logging.Logger
@@ -41,19 +42,20 @@ type runCmd struct {
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
-	stdinReader     io.Reader
 }
 
-func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
+func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programIDStrMap map[string]string, lastStep *int) Cmd {
 	cmd := &runCmd{}
 	cmd.db = db
-	cmd.programIDStrMap = make(map[string]string)
+	cmd.programIDStrMap = programIDStrMap // make(map[string]string)
 	cmd.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
 	cmd.stdin = cmd.cmd.Flag("", "stdin", &argparse.Options{
 		Help:     "name of the key to use to deploy the program",
-		Required: true,
+		Required: false,
 		Default:  false,
 	})
+	cmd.lastStep = lastStep
+	c = cmd
 
 	return cmd
 }
@@ -82,8 +84,10 @@ func (c *runCmd) Happened() bool {
 func (c *runCmd) Init() (err error) {
 	var planBytes []byte
 	if *c.stdin {
+		c.log.Debug("reading plan from stdin")
 		// read simulation plan from stdin
-		planBytes, err = io.ReadAll(os.Stdin)
+		reader := bufio.NewReader(os.Stdin)
+		planBytes, _, err = reader.ReadLine()
 		if err != nil {
 			return err
 		}
@@ -160,14 +164,15 @@ func (c *runCmd) Verify() error {
 
 	// verify endpoint requirements
 	for i, step := range steps {
-		err := verifyEndpoint(i, &step)
+		index := *c.lastStep + i
+		err := verifyEndpoint(index, &step)
 		if err != nil {
 			return err
 		}
 
 		// verify assertions
 		if step.Require != nil {
-			err = verifyAssertion(i, step.Require)
+			err = verifyAssertion(index, step.Require)
 			if err != nil {
 				return err
 			}
@@ -178,9 +183,10 @@ func (c *runCmd) Verify() error {
 }
 
 func (c *runCmd) RunSteps(ctx context.Context) error {
-	for i, step := range c.plan.Steps {
+	for _, step := range c.plan.Steps {
+		index := *c.lastStep
 		c.log.Info("simulation",
-			zap.Int("step", i),
+			zap.Int("step", index),
 			zap.String("endpoint", string(step.Endpoint)),
 			zap.String("method", step.Method),
 			zap.Uint64("maxUnits", step.MaxUnits),
@@ -189,20 +195,21 @@ func (c *runCmd) RunSteps(ctx context.Context) error {
 
 		params, err := c.createCallParams(ctx, *c.db, step.Params)
 		if err != nil {
+			c.log.Error("simulation call", zap.Error(err))
 			return err
 		}
 
-		resp := newResponse(i)
+		resp := newResponse(index)
 		err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 		if err != nil {
+			c.log.Error("simulation step", zap.Error(err))
 			resp.setError(err)
-			c.log.Error("simulation", zap.Error(err))
 		}
 
 		// map all transactions to their step_N identifier
 		txID, found := resp.getTxID()
 		if found {
-			c.programIDStrMap[fmt.Sprintf("step_%d", i)] = txID
+			c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
 		}
 
 		// print response to stdout
@@ -210,6 +217,9 @@ func (c *runCmd) RunSteps(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
+		lastStep := index + 1
+		*c.lastStep = lastStep
 	}
 
 	return nil

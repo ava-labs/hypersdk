@@ -12,6 +12,7 @@ use std::{
     path::Path,
     process::{ChildStdin, ChildStdout, Command, Output, Stdio},
     str::FromStr,
+    time::Duration,
 };
 
 mod id;
@@ -235,7 +236,9 @@ impl Client {
         let stdin = &mut child.stdin.unwrap();
         let stdout = &mut child.stdout.unwrap();
 
-        Ok(run_steps(stdin, stdout, plan).unwrap())
+        // std::thread::sleep(Duration::from_secs(5));
+
+        run_steps(stdin, stdout, plan)
     }
 
     /*
@@ -289,45 +292,19 @@ fn run_steps<T>(
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
 {
-    /*let output = cmd_output(path, plan)?;
     let mut items: Vec<T> = Vec::new();
-
-    if !output.status.success() {
-        println!("stderr");
-        for line in String::from_utf8_lossy(&output.stderr).lines() {
-            println!("{line}");
-        }
-        println!("stdout");
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            println!("{line}");
-        }
-        return Err(String::from_utf8(output.stdout)?.into());
-    }
-
-    for line in String::from_utf8(output.stdout)?
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-    {
-        let item = serde_json::from_str(line)
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
-        items.push(item);
-    }
-
-    Ok(items)*/
-
     for step in &plan.steps {
-        run_step::<T>(
+        let resp = run_step::<T>(
             stdin,
             stdout,
             &Plan {
                 caller_key: plan.caller_key.clone(),
                 steps: vec![step.clone()],
             },
-        )
-        .unwrap();
+        )?;
+        items.push(resp);
     }
-
-    todo!()
+    Ok(items)
 }
 
 fn run_step<T>(
@@ -338,41 +315,29 @@ fn run_step<T>(
 where
     T: serde::de::DeserializeOwned + serde::Serialize,
 {
-    /*let output = cmd_output(path, plan)?;
+    let run_command = "run --stdin\n".to_string();
+    stdin
+        .write_all(run_command.as_bytes())
+        .map_err(|e| format!("failed to write to stdin: {e}"))?;
 
-    if !output.status.success() {
-        println!("stderr");
-        for line in String::from_utf8_lossy(&output.stderr).lines() {
-            println!("{line}");
-        }
-        println!("stdout");
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            println!("{line}");
-        }
-        return Err(String::from_utf8(output.stdout)?.into());
-    }
+    let mut input =
+        serde_json::to_string(plan).map_err(|e| format!("failed to serialize json: {e}"))?;
+    input.push('\n');
+    stdin
+        .write_all(input.as_bytes())
+        .map_err(|e| format!("failed to write to stdin: {e}"))?;
 
-    let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
+    // TODO write function
+    let buf: Vec<u8> = stdout
+        .bytes()
+        .take_while(|char| char.as_ref().is_ok_and(|char| *char != b'\n'))
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("failed to read from stdout: {e}"))?;
+
+    let resp: T = serde_json::from_str(String::from_utf8(buf)?.as_ref())
         .map_err(|e| format!("failed to parse output to json: {e}"))?;
 
-    Ok(resp)*/
-
-    dbg!("q");
-    let mut prefix = "simulator run ".to_string();
-    let input =
-        serde_json::to_string(plan).map_err(|e| format!("failed to serialize json: {e}"))?;
-    prefix.push_str(input.as_str());
-    stdin
-        .write_all(prefix.as_bytes())
-        .map_err(|e| format!("failed to write to stdin: {e}"))?;
-    dbg!("a");
-    let buf = &mut Vec::new();
-    stdout.read_to_end(buf).unwrap();
-    dbg!(&buf);
-    let as_string = String::from_utf8_lossy(&buf);
-    dbg!(as_string);
-
-    todo!()
+    Ok(resp)
 }
 
 #[cfg(test)]
