@@ -4,19 +4,41 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/spf13/cobra"
+	"github.com/akamensky/argparse"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
-func newKeyCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
+var _ Cmd = &keyCreateCmd{}
+
+type keyCreateCmd struct {
+	cmd *argparse.Command
+
+	log  logging.Logger
+	db   *state.SimpleMutable
+	name string
+}
+
+func (s keyCreateCmd) New(parser *argparse.Parser) Cmd {
+	return keyCreateCmd{
+		cmd: parser.NewCommand(s.Name(), "Creates a new named private key and stores it in the database"),
+	}
+}
+
+func (s keyCreateCmd) Run(log logging.Logger) error {
+	return nil
+}
+
+func (s keyCreateCmd) Happened() bool {
+	return s.cmd.Happened()
+}
+
+func (s keyCreateCmd) Name() string {
+	return "key-create"
+}
+
+/*func newKeyCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "key",
 		Short: "Manage private keys",
@@ -25,12 +47,6 @@ func newKeyCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 		newKeyCreateCmd(log, db),
 	)
 	return cmd
-}
-
-type keyCreateCmd struct {
-	log  logging.Logger
-	db   *state.SimpleMutable
-	name string
 }
 
 func newKeyCreateCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
@@ -102,4 +118,4 @@ func keyCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) (e
 func hasKey(ctx context.Context, db state.Immutable, name string) (bool, error) {
 	_, ok, err := storage.GetPublicKey(ctx, db, name)
 	return ok, err
-}
+}*/

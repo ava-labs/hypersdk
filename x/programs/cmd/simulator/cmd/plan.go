@@ -4,33 +4,20 @@
 package cmd
 
 import (
-	"context"
-	"crypto/rand"
-	"errors"
-	"fmt"
 	"io"
-	"math"
-	"os"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+	"github.com/akamensky/argparse"
 
-	"github.com/ava-labs/hypersdk/x/programs/program"
-
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
+var _ Cmd = &runCmd{}
+
 type runCmd struct {
+	cmd *argparse.Command
+
 	plan *Plan
 	log  logging.Logger
 	db   *state.SimpleMutable
@@ -40,7 +27,21 @@ type runCmd struct {
 	stdinReader     io.Reader
 }
 
-func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
+func (s runCmd) New(parser *argparse.Parser) Cmd {
+	return runCmd{
+		cmd: parser.NewCommand("run", "Run a HyperSDK program simulation plan"),
+	}
+}
+
+func (s runCmd) Run(log logging.Logger) error {
+	return nil
+}
+
+func (s runCmd) Happened() bool {
+	return s.cmd.Happened()
+}
+
+/*func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 	r := &runCmd{
 		log:             log,
 		db:              db,
@@ -363,4 +364,4 @@ func generateRandomID() (ids.ID, error) {
 	}
 
 	return id, nil
-}
+}*/

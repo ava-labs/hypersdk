@@ -4,23 +4,44 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-	"os"
-
-	"github.com/spf13/cobra"
+	"github.com/akamensky/argparse"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	hutils "github.com/ava-labs/hypersdk/utils"
-
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 )
 
-func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
+var _ Cmd = &runCmd{}
+
+type programCreate struct {
+	cmd *argparse.Command
+
+	db      *state.SimpleMutable
+	keyName string
+	path    string
+	id      ids.ID
+}
+
+func (s programCreate) New(parser *argparse.Parser) Cmd {
+	return programCreate{
+		cmd: parser.NewCommand(s.Name(), "Create a HyperSDK program transaction"),
+	}
+}
+
+func (s programCreate) Run(log logging.Logger) error {
+	return nil
+}
+
+func (s programCreate) Happened() bool {
+	return s.cmd.Happened()
+}
+
+func (s programCreate) Name() string {
+	return "program-create"
+}
+
+/*func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "program",
 		Short: "Manage HyperSDK programs",
@@ -32,13 +53,6 @@ func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
 	)
 
 	return cmd
-}
-
-type programCreate struct {
-	db      *state.SimpleMutable
-	keyName string
-	path    string
-	id      ids.ID
 }
 
 func newProgramCreateCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
@@ -183,4 +197,4 @@ func programExecuteFunc(
 	balance, err := programExecuteAction.GetBalance()
 
 	return programTxID, result, balance, err
-}
+}*/
