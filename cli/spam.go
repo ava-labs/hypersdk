@@ -492,11 +492,9 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				if result.Success {
 					confirmedTxs++
 				} else {
-					for i := 0; i < len(result.Outputs); i++ {
-						for j := 0; j < len(result.Outputs[i]); j++ {
-							utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Outputs[i][j]), result.Success)
-						}
-					}
+					// revert error is populated in the last output of the last action
+					output := result.Outputs[len(result.Outputs)-1][len(result.Outputs[len(result.Outputs)-1])-1]
+					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(output), result.Success)
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.
