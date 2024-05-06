@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/akamensky/argparse"
 
@@ -29,42 +30,38 @@ type programCreateCmd struct {
 	path    *string
 }
 
-func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
-	cmd := &programCreateCmd{}
-	cmd.db = db
-	cmd.cmd = parser.NewCommand("program-create", "Create a HyperSDK program transaction")
-	cmd.keyName = cmd.cmd.String("k", "key", &argparse.Options{
+func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) {
+	c.db = db
+	c.cmd = parser.NewCommand("program-create", "Create a HyperSDK program transaction")
+	c.keyName = c.cmd.String("k", "key", &argparse.Options{
 		Help:     "name of the key to use to deploy the program",
 		Required: true,
 	})
-	// TODO use a file arg
-	// c.path = pcmd.File()
-	cmd.path = cmd.cmd.String("p", "path", &argparse.Options{
+	c.path = c.cmd.String("p", "path", &argparse.Options{
 		Help:     "path",
 		Required: true,
 	})
-	c = cmd
-
-	return cmd
 }
 
-func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (err error) {
+func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+	resp := newResponse(0)
+	resp.setTimestamp(time.Now().Unix())
 	exists, err := hasKey(ctx, *c.db, *c.keyName)
 	if err != nil {
-		return err
+		return resp, err
 	}
 	if !exists {
-		return fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
+		return resp, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
 	}
 
 	id, err := programCreateFunc(ctx, *c.db, *c.path)
 	if err != nil {
-		return err
+		return resp, err
 	}
 
 	utils.Outf("{{green}}create program transaction successful: {{/}}%s\n", id.String())
 
-	return nil
+	return resp, nil
 }
 
 func (c *programCreateCmd) Happened() bool {

@@ -6,12 +6,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/akamensky/argparse"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
@@ -25,22 +27,24 @@ type keyCreateCmd struct {
 	name *string
 }
 
-func (c *keyCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) Cmd {
-	cmd := &keyCreateCmd{}
-	cmd.db = db
-	cmd.cmd = parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
-	cmd.name = cmd.cmd.String("", "name", &argparse.Options{Required: true})
-	c = cmd
-
-	return cmd
+func (c *keyCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) {
+	c.db = db
+	c.cmd = parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
+	c.name = c.cmd.String("", "name", &argparse.Options{Required: true})
 }
 
-func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
-	_, err := keyCreateFunc(ctx, *c.db, *c.name)
+func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+	resp := newResponse(0)
+	resp.setTimestamp(time.Now().Unix())
+	c.log = log
+	pkey, err := keyCreateFunc(ctx, *c.db, *c.name)
 	if err != nil {
-		return err
+		return resp, err
 	}
-	return nil
+
+	utils.Outf("{{green}}key create successful: {{/}}%x\n", pkey)
+
+	return resp, nil
 }
 
 func (c *keyCreateCmd) Happened() bool {

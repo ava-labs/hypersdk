@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/ava-labs/avalanchego v1.10.18
 	github.com/ava-labs/hypersdk v0.0.1
+	github.com/ethereum/go-ethereum v1.12.0
 	github.com/near/borsh-go v0.3.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.7.0
@@ -15,7 +16,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
-require github.com/mattn/go-shellwords v1.0.12 // indirect
+require github.com/mattn/go-shellwords v1.0.12
 
 require (
 	filippo.io/edwards25519 v1.0.0 // indirect

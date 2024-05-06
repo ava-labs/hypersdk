@@ -37,48 +37,52 @@ type runCmd struct {
 	lastStep *int
 	file     *string
 
-	plan *Plan
-	log  logging.Logger
-	db   **state.SimpleMutable
+	step   *Step
+	log    logging.Logger
+	db     **state.SimpleMutable
+	reader **bufio.Reader
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
 }
 
-func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programIDStrMap map[string]string, lastStep *int) Cmd {
-	cmd := &runCmd{}
-	cmd.db = db
-	cmd.programIDStrMap = programIDStrMap // make(map[string]string)
-	cmd.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
-	cmd.stdin = cmd.cmd.Flag("", "stdin", &argparse.Options{
+func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programIDStrMap map[string]string, lastStep *int, reader **bufio.Reader) {
+	c.db = db
+	c.programIDStrMap = programIDStrMap
+	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
+	c.stdin = c.cmd.Flag("", "stdin", &argparse.Options{
 		Help:     "name of the key to use to deploy the program",
 		Required: false,
 		Default:  false,
 	})
-	cmd.file = cmd.cmd.String("", "file", &argparse.Options{
+	c.file = c.cmd.String("", "file", &argparse.Options{
 		Required: false,
 	})
-	cmd.lastStep = lastStep
-	c = cmd
-
-	return cmd
+	c.lastStep = lastStep
+	c.reader = reader
 }
 
-func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) error {
-	c.log = log
-	err := c.Init()
+func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+	resp1 := newResponse(0)
+	resp1.setTimestamp(time.Now().Unix())
+	err := resp1.Print()
 	if err != nil {
-		return err
+		return newResponse(0), err
+	}
+	c.log = log
+	err = c.Init()
+	if err != nil {
+		return newResponse(0), err
 	}
 	err = c.Verify()
 	if err != nil {
-		return err
+		return newResponse(0), err
 	}
-	err = c.RunSteps(ctx)
+	resp, err := c.RunStep(ctx)
 	if err != nil {
-		return err
+		return newResponse(0), err
 	}
-	return nil
+	return resp, nil
 }
 
 func (c *runCmd) Happened() bool {
@@ -90,8 +94,7 @@ func (c *runCmd) Init() (err error) {
 	if *c.stdin {
 		c.log.Debug("reading plan from stdin")
 		// read simulation plan from stdin
-		reader := bufio.NewReader(os.Stdin)
-		planBytes, _, err = reader.ReadLine()
+		planBytes, err = (*c.reader).ReadBytes('\n')
 		if err != nil {
 			return err
 		}
@@ -102,7 +105,7 @@ func (c *runCmd) Init() (err error) {
 			return err
 		}
 	}
-	c.plan, err = unmarshalPlan(planBytes)
+	c.step, err = unmarshalStep(planBytes)
 	if err != nil {
 		return err
 	}
@@ -111,29 +114,26 @@ func (c *runCmd) Init() (err error) {
 }
 
 func (c *runCmd) Verify() error {
-	steps := c.plan.Steps
-	if steps == nil {
+	step := c.step
+	if step == nil {
 		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
 	}
 
-	if steps[0].Params == nil {
+	if step.Params == nil {
 		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
 	}
 
 	// verify endpoint requirements
-	for i, step := range steps {
-		index := *c.lastStep + i
-		err := verifyEndpoint(index, &step)
+	err := verifyEndpoint(*c.lastStep, step)
+	if err != nil {
+		return err
+	}
+
+	// verify assertions
+	if step.Require != nil {
+		err = verifyAssertion(*c.lastStep, step.Require)
 		if err != nil {
 			return err
-		}
-
-		// verify assertions
-		if step.Require != nil {
-			err = verifyAssertion(index, step.Require)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -185,7 +185,43 @@ func verifyEndpoint(i int, step *Step) error {
 	return nil
 }
 
-func (c *runCmd) RunSteps(ctx context.Context) error {
+func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
+	index := *c.lastStep
+	step := c.step
+	c.log.Info("simulation",
+		zap.Int("step", index),
+		zap.String("endpoint", string(step.Endpoint)),
+		zap.String("method", step.Method),
+		zap.Uint64("maxUnits", step.MaxUnits),
+		zap.Any("params", step.Params),
+	)
+
+	params, err := c.createCallParams(ctx, *c.db, step.Params)
+	if err != nil {
+		c.log.Error("simulation call", zap.Error(err))
+		return newResponse(0), err
+	}
+
+	resp := newResponse(index)
+	err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	if err != nil {
+		c.log.Error("simulation step", zap.Error(err))
+		resp.setError(err)
+	}
+
+	// map all transactions to their step_N identifier
+	txID, found := resp.getTxID()
+	if found {
+		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
+	}
+
+	lastStep := index + 1
+	*c.lastStep = lastStep
+
+	return resp, nil
+}
+
+/*func (c *runCmd) RunSteps(ctx context.Context) (*Response, error) {
 	for _, step := range c.plan.Steps {
 		index := *c.lastStep
 		c.log.Info("simulation",
@@ -226,7 +262,7 @@ func (c *runCmd) RunSteps(ctx context.Context) error {
 	}
 
 	return nil
-}
+}*/
 
 func runStepFunc(
 	ctx context.Context,

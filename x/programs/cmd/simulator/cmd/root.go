@@ -43,7 +43,7 @@ const (
 )
 
 type Cmd interface {
-	Run(context.Context, logging.Logger, []string) error
+	Run(context.Context, logging.Logger, []string) (*Response, error)
 	Happened() bool
 }
 
@@ -62,7 +62,7 @@ type Simulator struct {
 
 	cleanupFn func()
 
-	scanner *bufio.Scanner
+	reader *bufio.Reader
 }
 
 func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpreterMode bool) error {
@@ -70,8 +70,9 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 	// if it's our first time parsing args, there is the possibility to enter in interpreter mode
 	if !interpreterMode {
-		stdinCmd := InterpreterCmd{}.New(parser)
-		subcommands = append(subcommands, stdinCmd)
+		stdinCmd := InterpreterCmd{}
+		stdinCmd.New(parser)
+		subcommands = append(subcommands, &stdinCmd)
 	}
 
 	err := parser.Parse(args)
@@ -83,26 +84,28 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 	if !interpreterMode {
 		s.Init()
 	}
+	s.log.Debug("simulator args", zap.Any("args", args))
 
 	for _, cmd := range subcommands {
 		if cmd.Happened() {
-			err = cmd.Run(ctx, s.log, args)
+			resp, err := cmd.Run(ctx, s.log, args)
 			if err != nil {
 				return err
 			}
 
-			if _, ok := cmd.(InterpreterCmd); ok || interpreterMode {
-				if !interpreterMode {
-					s.scanner = bufio.NewScanner(os.Stdin)
+			s.log.Debug("a step has ben ran", zap.Any("resp", resp))
+
+			// print response to stdout
+			resp.Print()
+
+			if _, ok := cmd.(*InterpreterCmd); ok || interpreterMode {
+				readBytes, err := s.reader.ReadBytes('\n')
+				if err != nil {
+					return err
 				}
 
-				if !s.scanner.Scan() {
-					return s.scanner.Err()
-				}
-
-				stdinArgs := s.scanner.Text()
 				rawArgs := []string{"simulator"}
-				parsed, err := shellwords.Parse(stdinArgs)
+				parsed, err := shellwords.Parse(string(readBytes))
 				if err != nil {
 					return err
 				}
@@ -116,6 +119,8 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 			} else {
 				return nil
 			}
+
+			continue
 		}
 	}
 
@@ -155,14 +160,16 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.logLevel = parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
 	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
-	rc := &runCmd{}
-	runCmd := rc.New(parser, &s.db, s.programIDStrMap, &s.lastStep)
-	cc := &programCreateCmd{}
-	programCmd := cc.New(parser, &s.db)
-	kc := &keyCreateCmd{}
-	keyCmd := kc.New(parser, &s.db)
+	s.reader = bufio.NewReader(os.Stdin)
 
-	return parser, []Cmd{runCmd, programCmd, keyCmd}
+	runCmd := runCmd{}
+	runCmd.New(parser, &s.db, s.programIDStrMap, &s.lastStep, &s.reader)
+	programCmd := programCreateCmd{}
+	programCmd.New(parser, &s.db)
+	keyCmd := keyCreateCmd{}
+	keyCmd.New(parser, &s.db)
+
+	return parser, []Cmd{&runCmd, &programCmd, &keyCmd}
 }
 
 func (s *Simulator) Init() error {
