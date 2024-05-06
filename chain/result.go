@@ -20,10 +20,10 @@ type Result struct {
 }
 
 func (r *Result) Size() int {
-	outputSize := consts.IntLen
+	outputSize := len(r.Outputs)
 	for _, action := range r.Outputs {
 		for _, output := range action {
-			outputSize += codec.BytesLen(output)
+			outputSize += codec.BytesLen(output) + 1 // for each output
 		}
 	}
 	return consts.BoolLen + outputSize + fees.DimensionsLen + consts.Uint64Len
