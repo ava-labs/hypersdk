@@ -12,6 +12,7 @@ import (
 
 const (
 	AddressLen = 33
+	LIDLen     = 33
 
 	// These consts are pulled from BIP-173: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
 	fromBits      = 8
@@ -22,7 +23,7 @@ const (
 )
 
 type (
-	LID     [AddressLen]byte // Long ID
+	LID     [LIDLen]byte // Long ID
 	Address LID
 )
 
@@ -37,7 +38,7 @@ var EmptyAddress = [AddressLen]byte{}
 // in the [Action] array of a transaction. txID is the
 // ID of that transaction.
 func CreateLID(i uint8, id ids.ID) LID {
-	a := make([]byte, AddressLen)
+	a := make([]byte, LIDLen)
 	a[0] = i
 	copy(a[1:], id[:])
 	return LID(a)
