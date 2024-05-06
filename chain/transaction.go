@@ -29,7 +29,7 @@ var (
 type Transaction struct {
 	Base *Base `json:"base"`
 
-	Actions []Action `json:"action"`
+	Actions []Action `json:"actions"`
 	Auth    Auth     `json:"auth"`
 
 	digest    []byte
