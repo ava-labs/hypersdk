@@ -8,7 +8,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -75,7 +74,7 @@ func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*CloseOrder) Size() int {
-	return consts.IDLen * 2
+	return codec.LIDLen * 2
 }
 
 func (c *CloseOrder) Marshal(p *codec.Packer) {

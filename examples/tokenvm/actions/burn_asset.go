@@ -77,7 +77,7 @@ func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*BurnAsset) Size() int {
-	return consts.IDLen + consts.Uint64Len
+	return codec.LIDLen + consts.Uint64Len
 }
 
 func (b *BurnAsset) Marshal(p *codec.Packer) {

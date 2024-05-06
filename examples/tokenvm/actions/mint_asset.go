@@ -86,7 +86,7 @@ func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*MintAsset) Size() int {
-	return codec.AddressLen + consts.IDLen + consts.Uint64Len
+	return codec.AddressLen + codec.LIDLen + consts.Uint64Len
 }
 
 func (m *MintAsset) Marshal(p *codec.Packer) {

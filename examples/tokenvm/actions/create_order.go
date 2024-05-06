@@ -98,7 +98,7 @@ func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*CreateOrder) Size() int {
-	return consts.IDLen*2 + consts.Uint64Len*3
+	return codec.LIDLen*2 + consts.Uint64Len*3
 }
 
 func (c *CreateOrder) Marshal(p *codec.Packer) {

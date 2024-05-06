@@ -153,7 +153,7 @@ func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*FillOrder) Size() int {
-	return consts.IDLen*3 + codec.AddressLen + consts.Uint64Len
+	return codec.LIDLen*3 + codec.AddressLen + consts.Uint64Len
 }
 
 func (f *FillOrder) Marshal(p *codec.Packer) {

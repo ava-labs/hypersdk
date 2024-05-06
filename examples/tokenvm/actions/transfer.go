@@ -74,7 +74,7 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *Transfer) Size() int {
-	return codec.AddressLen + consts.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+	return codec.AddressLen + codec.LIDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
