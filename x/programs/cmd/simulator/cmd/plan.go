@@ -35,6 +35,7 @@ type runCmd struct {
 
 	stdin    *bool
 	lastStep *int
+	file     *string
 
 	plan *Plan
 	log  logging.Logger
@@ -53,6 +54,9 @@ func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programI
 		Help:     "name of the key to use to deploy the program",
 		Required: false,
 		Default:  false,
+	})
+	cmd.file = cmd.cmd.String("", "file", &argparse.Options{
+		Required: false,
 	})
 	cmd.lastStep = lastStep
 	c = cmd
@@ -92,12 +96,11 @@ func (c *runCmd) Init() (err error) {
 			return err
 		}
 	} else {
-		// TODO write me
-		// read simulation plan from arg[0]
-		/*planBytes, err = os.ReadFile(*c.file)
+		// read simulation plan from file
+		planBytes, err = os.ReadFile(*c.file)
 		if err != nil {
 			return err
-		}*/
+		}
 	}
 	c.plan, err = unmarshalPlan(planBytes)
 	if err != nil {
