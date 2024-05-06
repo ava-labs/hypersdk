@@ -318,12 +318,19 @@ func (t *Transaction) Execute(
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
 	actionStart := ts.OpIndex()
-	handleRevert := func(rerr error) (*Result, error) {
+	handleRevert := func(outputs [][]byte, rerr error) (*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
+		//
+		// Note: Revert will not return an error per action.
 		ts.Rollback(ctx, actionStart)
-		return &Result{false, [][][]byte{{utils.ErrBytes(rerr)}}, maxUnits, maxFee}, nil
+		resultOutputs := [][][]byte{}
+		if outputs != nil {
+			resultOutputs = append(resultOutputs, outputs)
+		}
+		resultOutputs = append(resultOutputs, [][]byte{utils.ErrBytes(rerr)})
+		return &Result{false, resultOutputs, maxUnits, maxFee}, nil
 	}
 
 	var (
@@ -337,15 +344,15 @@ func (t *Transaction) Execute(
 		actionID := codec.CreateLID(uint8(i), t.id)
 		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(nil, err)
 		}
 		if len(outputs) == 0 && outputs != nil {
 			// Enforce object standardization (this is a VM bug and we should fail
 			// fast)
-			return handleRevert(ErrInvalidObject)
+			return handleRevert(nil, ErrInvalidObject)
 		}
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
-			return handleRevert(ErrTooManyOutputs)
+			return handleRevert(outputs, ErrTooManyOutputs)
 		}
 		resultOutputs = append(resultOutputs, outputs)
 
@@ -360,7 +367,7 @@ func (t *Transaction) Execute(
 		computeUnitsOp.Add(actionCUs)
 		computeUnits, err := computeUnitsOp.Value()
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(outputs, err)
 		}
 
 		// Because the key database is abstracted from [Auth]/[Actions], we can compute
@@ -374,7 +381,7 @@ func (t *Transaction) Execute(
 			// so we don't need to check for pre-existing values.
 			maxChunks, ok := keys.MaxChunks([]byte(key))
 			if !ok {
-				return handleRevert(ErrInvalidKeyValue)
+				return handleRevert(outputs, ErrInvalidKeyValue)
 			}
 			writes[key] = maxChunks
 		}
@@ -388,7 +395,7 @@ func (t *Transaction) Execute(
 		}
 		readUnits, err := readsOp.Value()
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(outputs, err)
 		}
 		allocatesOp := math.NewUint64Operator(0)
 		for _, chunksStored := range allocates {
@@ -397,7 +404,7 @@ func (t *Transaction) Execute(
 		}
 		allocateUnits, err := allocatesOp.Value()
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(outputs, err)
 		}
 		writesOp := math.NewUint64Operator(0)
 		for _, chunksModified := range writes {
@@ -406,12 +413,12 @@ func (t *Transaction) Execute(
 		}
 		writeUnits, err := writesOp.Value()
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(outputs, err)
 		}
 		used := fees.Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
 		nused, err := fees.Add(totalUsed, used)
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(outputs, err)
 		}
 		totalUsed = nused
 
@@ -428,7 +435,7 @@ func (t *Transaction) Execute(
 		// To avoid storage abuse of [Auth.Refund], we precharge for possible usage.
 		feeRequired, err := feeManager.MaxFee(used)
 		if err != nil {
-			return handleRevert(err)
+			return handleRevert(outputs, err)
 		}
 		totalFeeRequired += feeRequired
 
@@ -438,7 +445,7 @@ func (t *Transaction) Execute(
 			err = s.Refund(ctx, t.Auth.Sponsor(), ts, refund)
 			ts.EnableAllocation()
 			if err != nil {
-				return handleRevert(err)
+				return handleRevert(outputs, err)
 			}
 		}
 	}
