@@ -132,19 +132,11 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	totalUnits := fees.Dimensions{}
-	for _, action := range actions {
-		maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, authFactory)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-		nTotalUnits, err := fees.Add(totalUnits, maxUnits)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-		totalUnits = nTotalUnits
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	if err != nil {
+		return nil, nil, 0, err
 	}
-	maxFee, err := fees.MulSum(unitPrices, totalUnits)
+	maxFee, err := fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return nil, nil, 0, err
 	}

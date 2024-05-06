@@ -192,19 +192,24 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	authBandwidth, authCompute := authFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
-	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
-	stateKeysMaxChunks := make([]uint16, 0, len(sponsorStateKeyMaxChunks)+len(actionStateKeysMaxChunks))
-	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
-	stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
-
-	// Estimate compute costs
+	bandwidth := BaseSize + consts.ByteLen + consts.ByteLen + authBandwidth
 	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	computeUnitsOp.Add(authCompute)
-	computeUnitsOp.Add(action.MaxComputeUnits(r))
+
+	stateKeysMaxChunks := []uint16{}
+	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
+	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
+	for _, action := range actions {
+		bandwidth += uint64(action.Size())
+		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
+		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
+
+		computeUnitsOp.Add(action.MaxComputeUnits(r))
+	}
+
+	// Estimate compute costs
 	computeUnits, err := computeUnitsOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
