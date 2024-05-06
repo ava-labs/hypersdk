@@ -76,38 +76,3 @@ func hasKey(ctx context.Context, db state.Immutable, name string) (bool, error) 
 	_, ok, err := storage.GetPublicKey(ctx, db, name)
 	return ok, err
 }
-
-/*func newKeyCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "key",
-		Short: "Manage private keys",
-	}
-	cmd.AddCommand(
-		newKeyCreateCmd(log, db),
-	)
-	return cmd
-}
-
-func newKeyCreateCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	c := &keyCreateCmd{
-		log: log,
-		db:  db,
-	}
-
-	return &cobra.Command{
-		Use:   "create [name]",
-		Short: "Creates a new named private key and stores it in the database",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			err := c.Init(args)
-			if err != nil {
-				return err
-			}
-			err = c.Verify()
-			if err != nil {
-				return err
-			}
-			return c.Run(cmd.Context())
-		},
-	}
-}*/

@@ -21,9 +21,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	/*if err := s.NewRootCmd().ExecuteContext(ctx); err != nil {
-		utils.Outf("{{red}}error: {{/}}%+v\n", err)
-		os.Exit(1)
-	}*/
 	os.Exit(0)
 }

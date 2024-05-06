@@ -107,6 +107,36 @@ func (c *runCmd) Init() (err error) {
 	return nil
 }
 
+func (c *runCmd) Verify() error {
+	steps := c.plan.Steps
+	if steps == nil {
+		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
+	}
+
+	if steps[0].Params == nil {
+		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
+	}
+
+	// verify endpoint requirements
+	for i, step := range steps {
+		index := *c.lastStep + i
+		err := verifyEndpoint(index, &step)
+		if err != nil {
+			return err
+		}
+
+		// verify assertions
+		if step.Require != nil {
+			err = verifyAssertion(index, step.Require)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func verifyAssertion(i int, require *Require) error {
 	if require == nil {
 		return nil
@@ -152,36 +182,6 @@ func verifyEndpoint(i int, step *Step) error {
 	return nil
 }
 
-func (c *runCmd) Verify() error {
-	steps := c.plan.Steps
-	if steps == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
-	}
-
-	if steps[0].Params == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
-	}
-
-	// verify endpoint requirements
-	for i, step := range steps {
-		index := *c.lastStep + i
-		err := verifyEndpoint(index, &step)
-		if err != nil {
-			return err
-		}
-
-		// verify assertions
-		if step.Require != nil {
-			err = verifyAssertion(index, step.Require)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 func (c *runCmd) RunSteps(ctx context.Context) error {
 	for _, step := range c.plan.Steps {
 		index := *c.lastStep
@@ -224,44 +224,6 @@ func (c *runCmd) RunSteps(ctx context.Context) error {
 
 	return nil
 }
-
-/*func (c *runCmd) Run(ctx context.Context) error {
-	for i, step := range c.plan.Steps {
-		c.log.Info("simulation",
-			zap.Int("step", i),
-			zap.String("endpoint", string(step.Endpoint)),
-			zap.String("method", step.Method),
-			zap.Uint64("maxUnits", step.MaxUnits),
-			zap.Any("params", step.Params),
-		)
-
-		params, err := c.createCallParams(ctx, c.db, step.Params)
-		if err != nil {
-			return err
-		}
-
-		resp := newResponse(i)
-		err = runStepFunc(ctx, c.log, c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
-		if err != nil {
-			resp.setError(err)
-			c.log.Error("simulation", zap.Error(err))
-		}
-
-		// map all transactions to their step_N identifier
-		txID, found := resp.getTxID()
-		if found {
-			c.programIDStrMap[fmt.Sprintf("step_%d", i)] = txID
-		}
-
-		// print response to stdout
-		err = resp.Print()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}*/
 
 func runStepFunc(
 	ctx context.Context,
@@ -424,83 +386,3 @@ func generateRandomID() (ids.ID, error) {
 
 	return id, nil
 }
-
-/*func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	r := &runCmd{
-		log:             log,
-		db:              db,
-		programIDStrMap: make(map[string]string),
-	}
-	cmd := &cobra.Command{
-		Use:   "run [path]",
-		Short: "Run a HyperSDK program simulation plan",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// if the first argument is "-" read from stdin
-			r.stdinReader = cmd.InOrStdin()
-			err := r.Init(args)
-			if err != nil {
-				return err
-			}
-			err = r.Verify()
-			if err != nil {
-				return err
-			}
-			return r.Run(cmd.Context())
-		},
-	}
-
-	return cmd
-}
-
-func (c *runCmd) Init(args []string) (err error) {
-	var planBytes []byte
-	if args[0] == "-" {
-		// read simulation plan from stdin
-		planBytes, err = io.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-	} else {
-		// read simulation plan from arg[0]
-		planBytes, err = os.ReadFile(args[0])
-		if err != nil {
-			return err
-		}
-	}
-	c.plan, err = unmarshalPlan(planBytes)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *runCmd) Verify() error {
-	steps := c.plan.Steps
-	if steps == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
-	}
-
-	if steps[0].Params == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
-	}
-
-	// verify endpoint requirements
-	for i, step := range steps {
-		err := verifyEndpoint(i, &step)
-		if err != nil {
-			return err
-		}
-
-		// verify assertions
-		if step.Require != nil {
-			err = verifyAssertion(i, step.Require)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}*/
