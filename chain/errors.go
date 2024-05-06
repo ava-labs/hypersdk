@@ -51,6 +51,7 @@ var (
 	ErrInvalidActor         = errors.New("invalid actor")
 	ErrInvalidSponsor       = errors.New("invalid sponsor")
 	ErrTooManyActions       = errors.New("too many actions")
+	ErrTooManyOutputs       = errors.New("too many outputs")
 
 	// Execution Correctness
 	ErrInvalidBalance  = errors.New("invalid balance")

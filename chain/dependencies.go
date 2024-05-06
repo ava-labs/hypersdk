@@ -123,7 +123,9 @@ type Rules interface {
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
+
 	GetMaxActionsPerTx() uint8
+	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
@@ -249,8 +251,6 @@ type Action interface {
 	//
 	// An error should only be returned if a fatal error was encountered, otherwise [success] should
 	// be marked as false and fees will still be charged.
-	//
-	// TODO: Consider limiting number of outputs an [Action] can have
 	Execute(
 		ctx context.Context,
 		r Rules,

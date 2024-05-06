@@ -43,7 +43,9 @@ type Genesis struct {
 	MaxBlockUnits              fees.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
-	ValidityWindow int64 `json:"validityWindow"` // ms
+	ValidityWindow      int64 `json:"validityWindow"` // ms
+	MaxActionsPerTx     uint8 `json:"maxActionsPerTx"`
+	MaxOutputsPerAction uint8 `json:"maxOutputsPerAction"`
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
@@ -53,9 +55,6 @@ type Genesis struct {
 	StorageValueAllocateUnits uint64 `json:"storageValueAllocateUnits"` // per chunk
 	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
 	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
-
-	// Action Per Tx
-	MaxActionsPerTx uint8 `json:"maxActionsPerTx"`
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -77,7 +76,9 @@ func Default() *Genesis {
 		MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
-		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
+		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
+		MaxActionsPerTx:     10,
+		MaxOutputsPerAction: 1,
 
 		// Tx Fee Compute Parameters
 		BaseComputeUnits: 1,
@@ -91,9 +92,6 @@ func Default() *Genesis {
 		StorageValueAllocateUnits: 5,
 		StorageKeyWriteUnits:      10,
 		StorageValueWriteUnits:    3,
-
-		// Action Per Tx
-		MaxActionsPerTx: 10,
 	}
 }
 

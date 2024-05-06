@@ -743,7 +743,9 @@ type Rules interface {
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
+	
 	GetMaxActionsPerTx() uint8
+	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() Dimensions
 	GetUnitPriceChangeDenominator() Dimensions

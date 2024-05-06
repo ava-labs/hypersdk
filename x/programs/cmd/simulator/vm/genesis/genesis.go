@@ -44,7 +44,9 @@ type Genesis struct {
 	MaxBlockUnits              fees.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
-	ValidityWindow int64 `json:"validityWindow"` // ms
+	ValidityWindow      int64 `json:"validityWindow"` // ms
+	MaxActionsPerTx     uint8 `json:"maxActionsPerTx"`
+	MaxOutputsPerAction uint8 `json:"maxOutputsPerAction"`
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
@@ -58,9 +60,6 @@ type Genesis struct {
 	// program Runtime Parameters
 	EnableDebugMode  bool `json:"enableDebugMode"`
 	EnableBulkMemory bool `json:"enableBulkMemory"`
-
-	// Action Per Tx
-	MaxActionsPerTx uint8 `json:"maxActionsPerTx"`
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
@@ -97,15 +96,14 @@ func Default() *Genesis {
 		StorageValueWriteUnits:    3,
 
 		// Tx Parameters
-		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
+		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
+		MaxActionsPerTx:     1,
+		MaxOutputsPerAction: 1,
 
 		// program Runtime Parameters
 		EnableDebugMode: true,
 		// Enabled to only enable Wasi for testing mode
 		EnableBulkMemory: true,
-
-		// Action Per Tx
-		MaxActionsPerTx: 1,
 	}
 }
 

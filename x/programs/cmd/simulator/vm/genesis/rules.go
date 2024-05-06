@@ -39,6 +39,14 @@ func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
 }
 
+func (r *Rules) GetMaxActionsPerTx() uint8 {
+	return r.g.MaxActionsPerTx
+}
+
+func (r *Rules) GetMaxOutputsPerAction() uint8 {
+	return r.g.MaxOutputsPerAction
+}
+
 func (r *Rules) GetMinUnitPrice() fees.Dimensions {
 	return r.g.MinUnitPrice
 }
@@ -93,8 +101,4 @@ func (r *Rules) ChainID() ids.ID {
 
 func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
-}
-
-func (r *Rules) GetMaxActionsPerTx() uint8 {
-	return r.g.MaxActionsPerTx
 }

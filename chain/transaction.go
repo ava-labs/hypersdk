@@ -340,6 +340,9 @@ func (t *Transaction) Execute(
 			// fast)
 			return handleRevert(ErrInvalidObject)
 		}
+		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
+			return handleRevert(ErrTooManyOutputs)
+		}
 		resultOutputs = append(resultOutputs, outputs)
 
 		if !success {
