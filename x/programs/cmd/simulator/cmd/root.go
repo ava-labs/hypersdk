@@ -51,6 +51,12 @@ type simulator struct {
 	cleanupFn func()
 }
 
+func ParseCommandArgs(args []string, isStdin bool) {
+	if len(args) == 0 {
+
+	}
+}
+
 func NewRootCmd() *cobra.Command {
 	s := &simulator{}
 	cmd := &cobra.Command{
