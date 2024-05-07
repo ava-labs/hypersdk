@@ -240,7 +240,15 @@ func runStepFunc(
 
 			return nil
 		}
-		id, _, balance, err := programExecuteFunc(ctx, log, db, params, method, maxUnits)
+		id, response, balance, err := programExecuteFunc(ctx, log, db, params, method, maxUnits)
+		if err != nil {
+			return err
+		}
+		resp.setResponse(response)
+		ok, err := validateAssertion(response[0], require)
+		if !ok {
+			return fmt.Errorf("%w", ErrResultAssertionFailed)
+		}
 		if err != nil {
 			return err
 		}
