@@ -11,6 +11,8 @@ import (
 
 type Result struct {
 	Success bool
+	// An error will always be in the last output
+	// of the last action
 	Outputs [][][]byte
 
 	Consumed fees.Dimensions

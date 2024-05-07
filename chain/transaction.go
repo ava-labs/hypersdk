@@ -116,6 +116,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
 			}
+			// [Add] will take the union of key permissions
 			stateKeys.Add(k, v)
 		}
 	}
@@ -342,6 +343,10 @@ func (t *Transaction) Execute(
 		txSuccess      = true
 	)
 	for i, action := range t.Actions {
+		// skip all following actions if one is unsuccessful
+		if !txSuccess {
+			break
+		}
 		actionID := codec.CreateLID(uint8(i), t.id)
 		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if err != nil {
@@ -357,9 +362,6 @@ func (t *Transaction) Execute(
 			return handleRevert(ErrTooManyOutputs)
 		}
 
-		if !txSuccess {
-			break
-		}
 		if !success {
 			txSuccess = false
 			ts.Rollback(ctx, actionStart)
