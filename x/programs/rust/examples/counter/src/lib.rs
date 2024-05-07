@@ -109,7 +109,7 @@ mod tests {
         });
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
         assert!(
@@ -190,7 +190,7 @@ mod tests {
         });
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
         assert!(
@@ -291,7 +291,7 @@ mod tests {
         });
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
         assert!(
@@ -305,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn wrong_assertion() {
+    fn assertion_can_fail() {
         let simulator = simulator::Client::new();
 
         let owner_key = String::from("owner");
@@ -356,7 +356,7 @@ mod tests {
             }),
         });
 
-        let mut plan_responses = simulator.run_plan(&plan).unwrap().into_iter();
+        let mut plan_responses = simulator.run_plan(plan).unwrap().into_iter();
         let len = plan_responses.len();
         let responses = plan_responses.by_ref();
         let mut success_responses = responses.take(len - 1);

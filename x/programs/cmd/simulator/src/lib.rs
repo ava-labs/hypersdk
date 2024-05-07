@@ -47,13 +47,13 @@ pub struct Step {
     pub require: Option<Require>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SimulatorStep {
+pub struct SimulatorStep<'a> {
     /// The key of the caller used in each step of the plan.
-    pub caller_key: String,
+    pub caller_key: &'a String,
     #[serde(flatten)]
-    pub step: Step,
+    pub step: &'a Step,
 }
 
 impl Step {
@@ -225,36 +225,11 @@ impl Client {
         Self { path }
     }
 
-    fn read_response(
-        lines: &mut Lines<BufReader<&mut ChildStdout>>,
-    ) -> Result<PlanResponse, Box<dyn Error>> {
-        let text: String = lines
-            .next()
-            .ok_or("EOF")?
-            .map_err(|e| format!("failed to read from stdout: {e}"))?;
-
-        let resp = serde_json::from_str(&text)
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
-
-        Ok(resp)
-    }
-
-    fn write_stdin(stdin: &mut ChildStdin, bytes: &[u8]) -> Result<(), String> {
-        stdin
-            .write_all(bytes)
-            .map_err(|e| format!("failed to write to stdin: {e}"))?;
-        stdin
-            .flush()
-            .map_err(|e| format!("failed to flush from stdin: {e}"))?;
-
-        Ok(())
-    }
-
     /// Runs a [Plan] against the simulator and returns vec of result.
     /// # Errors
     ///
     /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
+    pub fn run_plan(&self, plan: Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
         let mut child = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
@@ -270,12 +245,12 @@ impl Client {
         let reader = BufReader::new(stdout);
         let lines = &mut reader.lines();
 
-        let _ = Self::read_response(lines)?; // intepreter ready
+        let _ = read_response(lines)?; // intepreter ready
 
         let res = Self::run_steps(stdin, lines, plan)?;
 
         // kill the process to avoid it to read an EOF from stdin
-        child.kill().unwrap();
+        child.kill().expect("failed to kill the simulator process");
 
         Ok(res)
     }
@@ -283,32 +258,30 @@ impl Client {
     fn run_steps(
         stdin: &mut ChildStdin,
         lines: &mut Lines<BufReader<&mut ChildStdout>>,
-        plan: &Plan,
+        plan: Plan,
     ) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
-        let mut items: Vec<PlanResponse> = Vec::new();
-        for step in &plan.steps {
-            let resp = Self::run_step(stdin, lines, plan.caller_key.clone(), step.clone())?;
-            items.push(resp);
-        }
-        Ok(items)
+        plan.steps
+            .iter()
+            .map(|step| Self::run_step(stdin, lines, &plan.caller_key, step))
+            .collect::<Result<_, _>>()
     }
 
     fn run_step(
         stdin: &mut ChildStdin,
         lines: &mut Lines<BufReader<&mut ChildStdout>>,
-        caller_key: String,
-        step: Step,
+        caller_key: &String,
+        step: &Step,
     ) -> Result<PlanResponse, Box<dyn Error>> {
         let run_command = "run --stdin\n";
-        Self::write_stdin(stdin, run_command.as_bytes())?;
-        let _ = Self::read_response(lines)?;
+        write_stdin(stdin, run_command.as_bytes())?;
+        let _ = read_response(lines)?;
 
         let step = SimulatorStep { caller_key, step };
         let mut input =
             serde_json::to_string(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
         input.push('\n');
-        Self::write_stdin(stdin, input.as_bytes())?;
-        let resp = Self::read_response(lines)?;
+        write_stdin(stdin, input.as_bytes())?;
+        let resp = read_response(lines)?;
 
         Ok(resp)
     }
@@ -318,6 +291,31 @@ impl Default for Client {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn read_response(
+    lines: &mut Lines<BufReader<&mut ChildStdout>>,
+) -> Result<PlanResponse, Box<dyn Error>> {
+    let text: String = lines
+        .next()
+        .ok_or("EOF")?
+        .map_err(|e| format!("failed to read from stdout: {e}"))?;
+
+    let resp =
+        serde_json::from_str(&text).map_err(|e| format!("failed to parse output to json: {e}"))?;
+
+    Ok(resp)
+}
+
+fn write_stdin(stdin: &mut ChildStdin, bytes: &[u8]) -> Result<(), String> {
+    stdin
+        .write_all(bytes)
+        .map_err(|e| format!("failed to write to stdin: {e}"))?;
+    stdin
+        .flush()
+        .map_err(|e| format!("failed to flush from stdin: {e}"))?;
+
+    Ok(())
 }
 
 #[cfg(test)]

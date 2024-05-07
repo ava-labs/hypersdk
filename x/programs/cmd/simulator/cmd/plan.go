@@ -66,16 +66,14 @@ func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) (*R
 	c.log = log
 	resp1 := newResponse(0)
 	resp1.setTimestamp(time.Now().Unix())
-	err := resp1.Print()
-	if err != nil {
+	var err error
+	if err := resp1.Print(); err != nil {
 		return newResponse(0), err
 	}
-	err = c.Init()
-	if err != nil {
+	if err = c.Init(); err != nil {
 		return newResponse(0), err
 	}
-	err = c.Verify()
-	if err != nil {
+	if err = c.Verify(); err != nil {
 		return newResponse(0), err
 	}
 	resp, err := c.RunStep(ctx)

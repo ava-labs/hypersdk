@@ -160,7 +160,7 @@ mod tests {
         plan.add_step(Step::create_program(PROGRAM_PATH));
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
         assert!(
@@ -294,7 +294,7 @@ mod tests {
             }),
         });
 
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
