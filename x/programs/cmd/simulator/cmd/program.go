@@ -18,7 +18,6 @@ import (
 	hutils "github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
-	xconsts "github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 )
 
 func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {

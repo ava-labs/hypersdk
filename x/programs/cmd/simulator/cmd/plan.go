@@ -25,9 +25,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
