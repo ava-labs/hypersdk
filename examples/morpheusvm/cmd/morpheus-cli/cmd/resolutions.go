@@ -57,24 +57,33 @@ func sendAndWait(
 }
 
 func handleTx(tx *chain.Transaction, result *chain.Result) {
-	status := "❌"
-	if result.Success {
-		status = "✅"
+	actor := tx.Auth.Actor()
+	if !result.Success {
+		utils.Outf(
+			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
+			"❌",
+			tx.ID(),
+			codec.MustAddressBech32(consts.HRP, actor),
+			string(result.Outputs[len(result.Outputs)-1][len(result.Outputs[len(result.Outputs)-1])-1]), // revert error
+			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
+			utils.FormatBalance(result.Fee, consts.Decimals),
+			consts.Symbol,
+			cli.ParseDimensions(result.Consumed),
+		)
+		return
 	}
+
 	for i := 0; i < len(result.Outputs); i++ {
 		for j := 0; j < len(result.Outputs[i]); j++ {
-			actor := tx.Auth.Actor()
 			for _, action := range tx.Actions {
-				summaryStr := string(result.Outputs[i][j])
-				if result.Success {
-					switch act := action.(type) { //nolint:gocritic
-					case *actions.Transfer:
-						summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, act.To))
-					}
+				var summaryStr string
+				switch act := action.(type) { //nolint:gocritic
+				case *actions.Transfer:
+					summaryStr = fmt.Sprintf("%s %s -> %s\n", utils.FormatBalance(act.Value, consts.Decimals), consts.Symbol, codec.MustAddressBech32(consts.HRP, act.To))
 				}
 				utils.Outf(
 					"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary (%s):{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
-					status,
+					"✅",
 					tx.ID(),
 					codec.MustAddressBech32(consts.HRP, actor),
 					reflect.TypeOf(action),
