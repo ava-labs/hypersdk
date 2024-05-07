@@ -8,9 +8,6 @@ use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
-#[repr(C)]
-pub struct CPointer(pub *const u8, pub usize);
-
 thread_local! {
     /// Map of pointer to the length of its content on the heap
     static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());

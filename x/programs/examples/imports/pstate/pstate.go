@@ -217,9 +217,46 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 	}
 
 	k := storage.ProgramPrefixKey(args.ProgramID[:], args.Key)
-	if err := i.mu.Remove(context.Background(), k); err != nil {
-		i.log.Error("failed to remove from storage", zap.Error(err))
-		return types.ValI32(-1), nil
+	bytes, err = i.mu.GetValue(context.Background(), k)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			// [0] represents `None`
+			val, err := program.WriteBytes(memory, []byte{0})
+			if err != nil {
+				i.log.Error("failed to write to memory",
+					zap.Error(err),
+				)
+				return nil, err
+			}
+
+			return types.ValI32(int32(val)), nil
+		}
+
+		i.log.Error("failed to get value from storage",
+			zap.Error(err),
+		)
+		return nil, err
 	}
-	return types.ValI32(0), nil
+
+	// 1 is the discriminant for `Some`
+	bytes = append([]byte{1}, bytes...)
+
+	ptr, err := program.WriteBytes(memory, bytes)
+	if err != nil {
+		{
+			i.log.Error("failed to write to memory",
+				zap.Error(err),
+			)
+		}
+		return nil, err
+	}
+
+	if err := i.mu.Remove(context.Background(), k); err != nil {
+		i.log.Error("failed to delete value from storage",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	return types.ValI32(int32(ptr)), nil
 }

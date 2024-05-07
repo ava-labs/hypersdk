@@ -131,7 +131,7 @@ where
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete(&mut self, key: K) -> Result<(), Error> {
+    pub fn delete<T: BorshDeserialize>(&mut self, key: K) -> Result<Option<T>, Error> {
         self.cache.remove(&key);
 
         let args = GetAndDeleteArgs {
@@ -199,7 +199,10 @@ struct GetAndDeleteArgs {
 }
 
 mod host {
-    use crate::state::Error;
+    use super::Error;
+    use crate::memory::from_host_ptr;
+    use borsh::BorshDeserialize;
+    use std::ptr::NonNull;
 
     /// Persists the bytes at key on the host storage.
     pub(super) fn put_bytes(bytes: &[u8]) -> Result<(), Error> {
@@ -235,17 +238,15 @@ mod host {
     }
 
     /// Deletes the bytes at key ptr from the host storage
-    pub(super) fn delete_bytes(bytes: &[u8]) -> Result<(), Error> {
+    pub(super) fn delete_bytes<T: BorshDeserialize>(bytes: &[u8]) -> Result<Option<T>, Error> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "delete"]
-            fn ffi(ptr: *const u8, len: usize) -> i32;
+            fn ffi(ptr: *const u8, len: usize) -> NonNull<u8>;
         }
 
-        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
-        match result {
-            0 => Ok(()),
-            _ => Err(Error::Delete),
-        }
+        let ptr = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        from_host_ptr(ptr.as_ptr())
     }
 }
