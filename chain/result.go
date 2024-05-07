@@ -31,19 +31,13 @@ func (r *Result) Size() int {
 
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
-
-	numOutputs := 0
-	for _, action := range r.Outputs {
-		numOutputs += len(action)
-	}
 	p.PackInt(len(r.Outputs))
-	p.PackInt(numOutputs)
 	for _, action := range r.Outputs {
+		p.PackInt(len(action))
 		for _, output := range action {
 			p.PackBytes(output)
 		}
 	}
-
 	p.PackFixedBytes(r.Consumed.Bytes())
 	p.PackUint64(r.Fee)
 	return nil
@@ -65,11 +59,10 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
-
 	totalOutputs := [][][]byte{}
 	numActions := p.UnpackInt(false)
-	numOutputs := p.UnpackInt(false)
 	for i := 0; i < numActions; i++ {
+		numOutputs := p.UnpackInt(false)
 		outputs := [][]byte{}
 		for j := 0; j < numOutputs; j++ {
 			var output []byte
