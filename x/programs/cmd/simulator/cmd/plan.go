@@ -63,13 +63,13 @@ func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programI
 }
 
 func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+	c.log = log
 	resp1 := newResponse(0)
 	resp1.setTimestamp(time.Now().Unix())
 	err := resp1.Print()
 	if err != nil {
 		return newResponse(0), err
 	}
-	c.log = log
 	err = c.Init()
 	if err != nil {
 		return newResponse(0), err
@@ -220,49 +220,6 @@ func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
 
 	return resp, nil
 }
-
-/*func (c *runCmd) RunSteps(ctx context.Context) (*Response, error) {
-	for _, step := range c.plan.Steps {
-		index := *c.lastStep
-		c.log.Info("simulation",
-			zap.Int("step", index),
-			zap.String("endpoint", string(step.Endpoint)),
-			zap.String("method", step.Method),
-			zap.Uint64("maxUnits", step.MaxUnits),
-			zap.Any("params", step.Params),
-		)
-
-		params, err := c.createCallParams(ctx, *c.db, step.Params)
-		if err != nil {
-			c.log.Error("simulation call", zap.Error(err))
-			return err
-		}
-
-		resp := newResponse(index)
-		err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
-		if err != nil {
-			c.log.Error("simulation step", zap.Error(err))
-			resp.setError(err)
-		}
-
-		// map all transactions to their step_N identifier
-		txID, found := resp.getTxID()
-		if found {
-			c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
-		}
-
-		// print response to stdout
-		err = resp.Print()
-		if err != nil {
-			return err
-		}
-
-		lastStep := index + 1
-		*c.lastStep = lastStep
-	}
-
-	return nil
-}*/
 
 func runStepFunc(
 	ctx context.Context,

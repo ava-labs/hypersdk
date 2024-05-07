@@ -143,8 +143,7 @@ func (s *Simulator) Execute(ctx context.Context) error {
 
 	// ensure vm and databases are properly closed on simulator exit
 	if s.vm != nil {
-		// err := s.vm.Shutdown(cmd.Context())
-		err := s.vm.Shutdown(context.TODO())
+		err := s.vm.Shutdown(ctx)
 		if err != nil {
 			s.log.Error("simulator vm closed with error",
 				zap.Error(err),

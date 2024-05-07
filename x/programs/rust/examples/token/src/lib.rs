@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let simulator = simulator::Client::new().unwrap();
+        let simulator = simulator::Client::new();
 
         let owner_key = String::from("owner");
 
@@ -175,7 +175,7 @@ mod tests {
 
     #[test]
     fn mint_and_transfer() {
-        let simulator = simulator::Client::new().unwrap();
+        let simulator = simulator::Client::new();
 
         let owner_key_id = String::from("owner");
         let [alice_key, bob_key] = ["alice", "bob"]
