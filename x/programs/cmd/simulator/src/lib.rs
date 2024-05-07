@@ -8,7 +8,7 @@ use serde_with::{serde_as, DisplayFromStr};
 use std::{
     error::Error,
     ffi::OsStr,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::Path,
     process::{ChildStdin, ChildStdout, Command, Output, Stdio},
     str::FromStr,
@@ -242,7 +242,7 @@ impl Client {
     ///
     /// Returns an error if the serialization or plan fails.
     pub fn run_plan(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
-        let child = Command::new(self.path)
+        let mut child = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
@@ -251,8 +251,8 @@ impl Client {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let stdin = &mut child.stdin.unwrap();
-        let stdout = &mut child.stdout.unwrap();
+        let stdin = child.stdin.as_mut().unwrap();
+        let stdout = child.stdout.as_mut().unwrap();
 
         // TODO write function
         let buf: Vec<u8> = stdout
@@ -264,7 +264,11 @@ impl Client {
         let _resp: PlanResponse = serde_json::from_str(String::from_utf8(buf)?.as_ref())
             .map_err(|e| format!("failed to parse output to json: {e}"))?;
 
-        run_steps(stdin, stdout, plan)
+        let res = run_steps(stdin, stdout, plan)?;
+
+        child.kill().unwrap();
+
+        Ok(res)
     }
 
     // TODO use this function instead !

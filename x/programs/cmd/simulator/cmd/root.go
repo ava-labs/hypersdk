@@ -85,7 +85,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 		s.Init()
 	}
 	s.log.Debug("simulator args", zap.Any("args", args))
-
+[]
 	for _, cmd := range subcommands {
 		if cmd.Happened() {
 			resp, err := cmd.Run(ctx, s.log, args)
@@ -101,6 +101,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 			if _, ok := cmd.(*InterpreterCmd); ok || interpreterMode {
 				readBytes, err := s.reader.ReadBytes('\n')
 				if err != nil {
+					s.log.Error("err while reading from stdin", zap.Error(err))
 					return err
 				}
 
