@@ -205,7 +205,7 @@ func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
 	resp := newResponse(index)
 	err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
-		c.log.Error("simulation step", zap.Error(err))
+		c.log.Debug("simulation step", zap.Error(err))
 		resp.setError(err)
 	}
 

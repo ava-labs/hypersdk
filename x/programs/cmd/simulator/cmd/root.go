@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 
@@ -85,7 +86,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 		s.Init()
 	}
 	s.log.Debug("simulator args", zap.Any("args", args))
-[]
+
 	for _, cmd := range subcommands {
 		if cmd.Happened() {
 			resp, err := cmd.Run(ctx, s.log, args)
@@ -100,8 +101,11 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 			if _, ok := cmd.(*InterpreterCmd); ok || interpreterMode {
 				readBytes, err := s.reader.ReadBytes('\n')
-				if err != nil {
-					s.log.Error("err while reading from stdin", zap.Error(err))
+				if err == io.EOF {
+					// happens when the caller dropped, we should stop here
+					return nil
+				} else if err != nil {
+					s.log.Error("error while reading from stdin", zap.Error(err))
 					return err
 				}
 
@@ -115,13 +119,13 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				err = s.ParseCommandArgs(ctx, rawArgs, true)
 				if err != nil {
 					return err
+				} else {
+					interpreterMode = true
+					return nil
 				}
-				interpreterMode = true
 			} else {
 				return nil
 			}
-
-			continue
 		}
 	}
 
@@ -133,7 +137,7 @@ func (s *Simulator) Execute(ctx context.Context) error {
 	s.programIDStrMap = make(map[string]string)
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		s.log.Error("error when parsing command args", zap.Error(err))
 		os.Exit(1)
 	}
 

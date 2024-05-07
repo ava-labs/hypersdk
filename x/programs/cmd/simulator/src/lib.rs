@@ -52,20 +52,11 @@ pub struct Step {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Step2 {
+pub struct SimulatorStep {
     /// The key of the caller used in each step of the plan.
     pub caller_key: String,
-    /// The API endpoint to call.
-    pub endpoint: Endpoint,
-    /// The method to call on the endpoint.
-    pub method: String,
-    /// The maximum number of units the step can consume.
-    pub max_units: u64,
-    /// The parameters to pass to the method.
-    pub params: Vec<Param>,
-    /// If defined the result of the step must match this assertion.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub require: Option<Require>,
+    #[serde(flatten)]
+    pub step: Step,
 }
 
 impl Step {
@@ -237,6 +228,31 @@ impl Client {
         Ok(Self { path })
     }
 
+    // TODO use the Lines iterator
+    fn read_response(stdout: &mut ChildStdout) -> Result<PlanResponse, Box<dyn Error>> {
+        let buf: Vec<u8> = stdout
+            .bytes()
+            .take_while(|char| char.as_ref().is_ok_and(|char| *char != b'\n'))
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("failed to read from stdout: {e}"))?;
+
+        let resp = serde_json::from_str(String::from_utf8(buf)?.as_ref())
+            .map_err(|e| format!("failed to parse output to json: {e}"))?;
+
+        Ok(resp)
+    }
+
+    fn write_stdin(stdin: &mut ChildStdin, bytes: &[u8]) -> Result<(), String> {
+        stdin
+            .write_all(bytes)
+            .map_err(|e| format!("failed to write to stdin: {e}"))?;
+        stdin
+            .flush()
+            .map_err(|e| format!("failed to flush from stdin: {e}"))?;
+
+        Ok(())
+    }
+
     /// Runs a [Plan] against the simulator and returns vec of result.
     /// # Errors
     ///
@@ -254,144 +270,48 @@ impl Client {
         let stdin = child.stdin.as_mut().unwrap();
         let stdout = child.stdout.as_mut().unwrap();
 
-        // TODO write function
-        let buf: Vec<u8> = stdout
-            .bytes()
-            .take_while(|char| char.as_ref().is_ok_and(|char| *char != b'\n'))
-            .collect::<Result<_, _>>()
-            .map_err(|e| format!("failed to read from stdout: {e}"))?;
+        let _ = Self::read_response(stdout)?; // intepreter ready
 
-        let _resp: PlanResponse = serde_json::from_str(String::from_utf8(buf)?.as_ref())
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
+        let res = Self::run_steps(stdin, stdout, plan)?;
 
-        let res = run_steps(stdin, stdout, plan)?;
-
+        // kill the process to avoid it to read an EOF from stdin
         child.kill().unwrap();
 
         Ok(res)
     }
 
-    // TODO use this function instead !
-    /*
-    /// Performs a single `Execute` step against the simulator and returns the result.
-    /// # Errors
-    ///
-    /// Returns an error if the serialization or single-[Step]-[Plan] fails.
-    /*pub fn execute_step(&self, key: &str, step: Step) -> Result<PlanResponse, Box<dyn Error>> {
-        let plan = &Plan {
-            caller_key: key.into(),
-            steps: vec![step],
-        };
-
-        run_step(self.path, plan)
-    }*/*/
-}
-
-fn cmd_output<P>(path: P, plan: &Plan) -> Result<Output, Box<dyn Error>>
-where
-    P: AsRef<OsStr>,
-{
-    let mut child = Command::new(path)
-        .arg("run")
-        .arg("--cleanup")
-        .arg("--stdin")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    // write json to stdin
-    let input =
-        serde_json::to_string(plan).map_err(|e| format!("failed to serialize json: {e}"))?;
-    if let Some(ref mut stdin) = child.stdin {
-        stdin
-            .write_all(input.as_bytes())
-            .map_err(|e| format!("failed to write to stdin: {e}"))?;
+    fn run_steps(
+        stdin: &mut ChildStdin,
+        stdout: &mut ChildStdout,
+        plan: &Plan,
+    ) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
+        let mut items: Vec<PlanResponse> = Vec::new();
+        for step in &plan.steps {
+            let resp = Self::run_step(stdin, stdout, plan.caller_key.clone(), step.clone())?;
+            items.push(resp);
+        }
+        Ok(items)
     }
 
-    child
-        .wait_with_output()
-        .map_err(|e| format!("failed to wait for child: {e}").into())
-}
+    fn run_step(
+        stdin: &mut ChildStdin,
+        stdout: &mut ChildStdout,
+        caller_key: String,
+        step: Step,
+    ) -> Result<PlanResponse, Box<dyn Error>> {
+        let run_command = "run --stdin\n".to_string();
+        Self::write_stdin(stdin, run_command.as_bytes())?;
+        let _ = Self::read_response(stdout)?;
 
-fn run_steps<T>(
-    stdin: &mut ChildStdin,
-    stdout: &mut ChildStdout,
-    plan: &Plan,
-) -> Result<Vec<T>, Box<dyn Error>>
-where
-    T: serde::de::DeserializeOwned + serde::Serialize,
-{
-    let mut items: Vec<T> = Vec::new();
-    for step in &plan.steps {
-        let resp = run_step::<T>(
-            stdin,
-            stdout,
-            &Plan {
-                caller_key: plan.caller_key.clone(),
-                steps: vec![step.clone()],
-            },
-        )?;
-        items.push(resp);
+        let step = SimulatorStep { caller_key, step };
+        let mut input =
+            serde_json::to_string(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
+        input.push('\n');
+        Self::write_stdin(stdin, input.as_bytes())?;
+        let resp = Self::read_response(stdout)?;
+
+        Ok(resp)
     }
-    Ok(items)
-}
-
-fn run_step<T>(
-    stdin: &mut ChildStdin,
-    stdout: &mut ChildStdout,
-    plan: &Plan,
-) -> Result<T, Box<dyn Error>>
-where
-    T: serde::de::DeserializeOwned + serde::Serialize,
-{
-    let run_command = "run --stdin\n".to_string();
-    stdin
-        .write_all(run_command.as_bytes())
-        .map_err(|e| format!("failed to write to stdin: {e}"))?;
-    stdin
-        .flush()
-        .map_err(|e| format!("failed to flush from stdin: {e}"))?;
-
-    // TODO write function
-    let buf: Vec<u8> = stdout
-        .bytes()
-        .take_while(|char| char.as_ref().is_ok_and(|char| *char != b'\n'))
-        .collect::<Result<_, _>>()
-        .map_err(|e| format!("failed to read from stdout: {e}"))?;
-
-    let _resp: T = serde_json::from_str(String::from_utf8(buf)?.as_ref())
-        .map_err(|e| format!("failed to parse output to json: {e}"))?;
-
-    let step = plan.steps.first().unwrap().clone();
-    let step = Step2 {
-        caller_key: plan.caller_key.clone(),
-        endpoint: step.endpoint,
-        method: step.method,
-        max_units: step.max_units,
-        params: step.params,
-        require: step.require,
-    };
-    let mut input =
-        serde_json::to_string(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
-    input.push('\n');
-    stdin
-        .write_all(input.as_bytes())
-        .map_err(|e| format!("failed to write to stdin: {e}"))?;
-    stdin
-        .flush()
-        .map_err(|e| format!("failed to flush from stdin: {e}"))?;
-
-    // TODO write function
-    let buf: Vec<u8> = stdout
-        .bytes()
-        .take_while(|char| char.as_ref().is_ok_and(|char| *char != b'\n'))
-        .collect::<Result<_, _>>()
-        .map_err(|e| format!("failed to read from stdout: {e}"))?;
-
-    let resp: T = serde_json::from_str(String::from_utf8(buf)?.as_ref())
-        .map_err(|e| format!("failed to parse output to json: {e}"))?;
-
-    Ok(resp)
 }
 
 #[cfg(test)]
