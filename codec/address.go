@@ -28,7 +28,8 @@ type (
 	Address = LID
 )
 
-var EmptyAddress = LID{}
+// Empty is a useful all zero value
+var Empty = LID{}
 
 // CreateLID returns [LID] made from concatenating
 // some [i] with an [id].
@@ -84,17 +85,17 @@ func MustAddressBech32(hrp string, p Address) string {
 func ParseAddressBech32(hrp, saddr string) (Address, error) {
 	phrp, p, err := address.ParseBech32(saddr)
 	if err != nil {
-		return EmptyAddress, err
+		return Empty, err
 	}
 	if phrp != hrp {
-		return EmptyAddress, ErrIncorrectHRP
+		return Empty, ErrIncorrectHRP
 	}
 	// The parsed value may be greater than [minLength] because the
 	// underlying Bech32 implementation requires bytes to each encode 5 bits
 	// instead of 8 (and we must pad the input to ensure we fill all bytes):
 	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
 	if len(p) < AddressLen {
-		return EmptyAddress, ErrInsufficientLength
+		return Empty, ErrInsufficientLength
 	}
 	return Address(p[:AddressLen]), nil
 }

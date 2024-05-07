@@ -94,7 +94,7 @@ func TestOptionalPackerAddress(t *testing.T) {
 		require := require.New(t)
 
 		// Pack empty
-		opw.PackAddress(EmptyAddress)
+		opw.PackAddress(Empty)
 		require.Empty(opw.ip.Bytes(), "PackAddress packed an empty Address.")
 
 		// Pack address
@@ -107,7 +107,7 @@ func TestOptionalPackerAddress(t *testing.T) {
 		opr := opw.toReader()
 		var unpackedAddr Address
 		opr.UnpackAddress(&unpackedAddr)
-		require.True(bytes.Equal(EmptyAddress[:], unpackedAddr[:]), "AddressBytes unpacked correctly")
+		require.True(bytes.Equal(Empty[:], unpackedAddr[:]), "AddressBytes unpacked correctly")
 		opr.UnpackAddress(&unpackedAddr)
 		require.Equal(addr, unpackedAddr, "PublicKey unpacked correctly")
 		opr.Done()

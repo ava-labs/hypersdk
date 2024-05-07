@@ -101,13 +101,13 @@ func (p *programCreate) Run(ctx context.Context) (err error) {
 func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (codec.LID, error) {
 	programBytes, err := os.ReadFile(path)
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 
 	// simulate create program transaction
 	id, err := generateRandomID()
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 	programID := codec.CreateLID(0, id)
 
@@ -116,7 +116,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, outputs, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
+	success, _, outputs, err := programCreateAction.Execute(ctx, nil, db, 0, codec.Empty, programID)
 	var resultOutputs string
 	for i := 0; i < len(outputs); i++ {
 		for j := 0; j < len(outputs[i]); j++ {
@@ -127,16 +127,16 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		fmt.Println(resultOutputs)
 	}
 	if !success {
-		return codec.EmptyAddress, fmt.Errorf("program creation failed: %s", err)
+		return codec.Empty, fmt.Errorf("program creation failed: %s", err)
 	}
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 
 	return programID, nil
@@ -153,7 +153,7 @@ func programExecuteFunc(
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
-		return codec.EmptyAddress, nil, 0, err
+		return codec.Empty, nil, 0, err
 	}
 	programActionID := codec.CreateLID(0, programTxID)
 
@@ -165,17 +165,17 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programActionID)
+	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.Empty, programActionID)
 
 	if !success {
 		var respOutput string
 		for i := 0; i < len(resp); i++ {
 			respOutput += fmt.Sprintf(" %s", string(resp[i]))
 		}
-		return codec.EmptyAddress, nil, 0, fmt.Errorf("program execution failed: %s", respOutput)
+		return codec.Empty, nil, 0, fmt.Errorf("program execution failed: %s", respOutput)
 	}
 	if err != nil {
-		return codec.EmptyAddress, nil, 0, err
+		return codec.Empty, nil, 0, err
 	}
 
 	// TODO: I don't think this is right
@@ -193,7 +193,7 @@ func programExecuteFunc(
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return codec.EmptyAddress, nil, 0, err
+		return codec.Empty, nil, 0, err
 	}
 
 	// get remaining balance from runtime meter

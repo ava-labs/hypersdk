@@ -76,7 +76,7 @@ func (p *Packer) PackLID(a LID) {
 
 func (p *Packer) UnpackLID(required bool, dest *LID) {
 	copy((*dest)[:], p.p.UnpackFixedBytes(LIDLen))
-	if required && *dest == EmptyAddress {
+	if required && *dest == Empty {
 		p.addErr(fmt.Errorf("%w: LID field is not populated", ErrFieldNotPopulated))
 	}
 }

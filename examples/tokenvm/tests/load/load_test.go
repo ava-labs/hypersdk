@@ -303,7 +303,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		for _, alloc := range g.CustomAllocation {
-			bal, err := cli.Balance(context.Background(), alloc.Address, codec.EmptyAddress)
+			bal, err := cli.Balance(context.Background(), alloc.Address, codec.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(bal).Should(gomega.Equal(alloc.Balance))
 		}

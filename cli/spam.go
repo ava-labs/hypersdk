@@ -535,7 +535,7 @@ func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys 
 	if createAccount != nil {
 		priv, err := createAccount()
 		if err != nil {
-			return codec.EmptyAddress, err
+			return codec.Empty, err
 		}
 		return priv.Address, nil
 	}

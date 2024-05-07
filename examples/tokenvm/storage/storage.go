@@ -313,10 +313,10 @@ func innerGetAsset(
 	err error,
 ) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, nil, 0, nil, 0, codec.EmptyAddress, nil
+		return false, nil, 0, nil, 0, codec.Empty, nil
 	}
 	if err != nil {
-		return false, nil, 0, nil, 0, codec.EmptyAddress, err
+		return false, nil, 0, nil, 0, codec.Empty, err
 	}
 	symbolLen := binary.BigEndian.Uint16(v)
 	symbol := v[consts.Uint16Len : consts.Uint16Len+symbolLen]
@@ -438,10 +438,10 @@ func innerGetOrder(v []byte, err error) (
 	error,
 ) {
 	if errors.Is(err, database.ErrNotFound) {
-		return false, codec.EmptyAddress, 0, codec.EmptyAddress, 0, 0, codec.EmptyAddress, nil
+		return false, codec.Empty, 0, codec.Empty, 0, 0, codec.Empty, nil
 	}
 	if err != nil {
-		return false, codec.EmptyAddress, 0, codec.EmptyAddress, 0, 0, codec.EmptyAddress, err
+		return false, codec.Empty, 0, codec.Empty, 0, 0, codec.Empty, err
 	}
 	var in codec.LID
 	copy(in[:], v[:codec.LIDLen])

@@ -45,7 +45,7 @@ func (*Handler) GetAssetInfo(
 	if err != nil {
 		return nil, 0, 0, ids.Empty, err
 	}
-	if assetID != codec.EmptyAddress {
+	if assetID != codec.Empty {
 		if !exists {
 			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
 			hutils.Outf("{{red}}exiting...{{/}}\n")

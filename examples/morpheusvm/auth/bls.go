@@ -29,7 +29,7 @@ type BLS struct {
 }
 
 func (b *BLS) address() codec.Address {
-	if b.addr == codec.EmptyAddress {
+	if b.addr == codec.Empty {
 		b.addr = NewBLSAddress(b.Signer)
 	}
 	return b.addr

@@ -52,7 +52,7 @@ func (m *MintAsset) Execute(
 	actor codec.Address,
 	_ codec.LID,
 ) (bool, uint64, [][]byte, error) {
-	if m.Asset == codec.EmptyAddress {
+	if m.Asset == codec.Empty {
 		return false, MintAssetComputeUnits, [][]byte{OutputAssetIsNative}, nil
 	}
 	if m.Value == 0 {

@@ -136,7 +136,7 @@ func (b *Backend) Start(ctx context.Context) error {
 	if err := b.AddAddressBook("Me", b.addrStr); err != nil {
 		return err
 	}
-	if err := b.s.StoreAsset(codec.EmptyAddress, false); err != nil {
+	if err := b.s.StoreAsset(codec.Empty, false); err != nil {
 		return err
 	}
 
@@ -658,7 +658,7 @@ func (b *Backend) GetMyAssets() []*AssetInfo {
 
 func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) error {
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -717,7 +717,7 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -781,7 +781,7 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 	}
 
 	// Ensure have sufficient balance for fees
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -796,7 +796,7 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
-	if assetID != codec.EmptyAddress {
+	if assetID != codec.Empty {
 		if maxFee > bal {
 			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee, tconsts.Decimals), tconsts.Symbol)
 		}
@@ -843,7 +843,7 @@ func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
 			return nil, err
 		}
 		strAsset := asset.String()
-		if asset == codec.EmptyAddress {
+		if asset == codec.Empty {
 			balances = append(balances, &BalanceInfo{ID: strAsset, Str: fmt.Sprintf("%s %s", hutils.FormatBalance(bal, decimals), symbol), Bal: fmt.Sprintf("%s (Balance: %s)", symbol, hutils.FormatBalance(bal, decimals)), Has: bal > 0})
 		} else {
 			balances = append(balances, &BalanceInfo{ID: strAsset, Str: fmt.Sprintf("%s %s [%s]", hutils.FormatBalance(bal, decimals), symbol, asset), Bal: fmt.Sprintf("%s [%s..%s] (Balance: %s)", symbol, strAsset[:3], strAsset[len(strAsset)-3:], hutils.FormatBalance(bal, decimals)), Has: bal > 0})
@@ -1119,7 +1119,7 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -1151,7 +1151,7 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
-	if inID == codec.EmptyAddress {
+	if inID == codec.Empty {
 		if maxFee+oSupply > bal {
 			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+oSupply, tconsts.Decimals), tconsts.Symbol)
 		}
@@ -1206,7 +1206,7 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -1237,7 +1237,7 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	if err != nil {
 		return fmt.Errorf("%w: unable to generate transaction", err)
 	}
-	if inID == codec.EmptyAddress {
+	if inID == codec.Empty {
 		if maxFee+inAmount > bal {
 			return fmt.Errorf("insufficient balance (have: %s %s, want: %s %s)", hutils.FormatBalance(bal, tconsts.Decimals), tconsts.Symbol, hutils.FormatBalance(maxFee+inAmount, tconsts.Decimals), tconsts.Symbol)
 		}
@@ -1278,7 +1278,7 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -1418,7 +1418,7 @@ func (b *Backend) Message(message string, url string) error {
 	}
 
 	// Ensure have sufficient balance
-	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.EmptyAddress)
+	bal, err := b.tcli.Balance(b.ctx, b.addrStr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -1426,7 +1426,7 @@ func (b *Backend) Message(message string, url string) error {
 	// Generate transaction
 	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, []chain.Action{&actions.Transfer{
 		To:    recipientAddr,
-		Asset: codec.EmptyAddress,
+		Asset: codec.Empty,
 		Value: fee,
 		Memo:  data,
 	}}, b.factory)

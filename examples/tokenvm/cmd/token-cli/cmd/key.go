@@ -89,7 +89,7 @@ var importKeyCmd = &cobra.Command{
 func lookupSetKeyBalance(choice int, address string, uri string, networkID uint32, chainID ids.ID) error {
 	// TODO: just load once
 	cli := trpc.NewJSONRPCClient(uri, networkID, chainID)
-	balance, err := cli.Balance(context.TODO(), address, codec.EmptyAddress)
+	balance, err := cli.Balance(context.TODO(), address, codec.Empty)
 	if err != nil {
 		return err
 	}

@@ -137,7 +137,7 @@ func (o *OptionalPacker) UnpackInt64() int64 {
 // PackAddress packs [addr] into OptionalPacker if [addr] is not empty.
 // Updates the bitset and offset accordingly.
 func (o *OptionalPacker) PackAddress(addr Address) {
-	if addr == EmptyAddress {
+	if addr == Empty {
 		o.skipBit()
 		return
 	}
@@ -151,7 +151,7 @@ func (o *OptionalPacker) UnpackAddress(dest *Address) {
 	if o.checkBit() {
 		o.ip.UnpackLID(true, dest)
 	} else {
-		*dest = EmptyAddress
+		*dest = Empty
 	}
 }
 

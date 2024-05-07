@@ -30,7 +30,7 @@ func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	}
 	recipient, err := promptText.Run()
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 	recipient = strings.TrimSpace(recipient)
 	return h.c.ParseAddress(recipient)
@@ -77,18 +77,18 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (codec.LID, error)
 	}
 	asset, err := promptText.Run()
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 	asset = strings.TrimSpace(asset)
 	var assetID codec.LID
 	if asset != symbol {
 		assetID, err = codec.FromString(asset)
 		if err != nil {
-			return codec.EmptyAddress, err
+			return codec.Empty, err
 		}
 	}
-	if !allowNative && assetID == codec.EmptyAddress {
-		return codec.EmptyAddress, ErrInvalidChoice
+	if !allowNative && assetID == codec.Empty {
+		return codec.Empty, ErrInvalidChoice
 	}
 	return assetID, nil
 }
@@ -290,7 +290,7 @@ func (*Handler) PromptLID(label string) (codec.LID, error) {
 	}
 	rawID, err := promptText.Run()
 	if err != nil {
-		return codec.EmptyAddress, err
+		return codec.Empty, err
 	}
 	rawID = strings.TrimSpace(rawID)
 	return codec.FromString(rawID)

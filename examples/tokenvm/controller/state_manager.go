@@ -30,7 +30,7 @@ func (*StateManager) FeeKey() []byte {
 
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
-		string(storage.BalanceKey(addr, codec.EmptyAddress)): state.Read | state.Write,
+		string(storage.BalanceKey(addr, codec.Empty)): state.Read | state.Write,
 	}
 }
 
@@ -40,7 +40,7 @@ func (*StateManager) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
-	bal, err := storage.GetBalance(ctx, im, addr, codec.EmptyAddress)
+	bal, err := storage.GetBalance(ctx, im, addr, codec.Empty)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (*StateManager) Deduct(
 	mu state.Mutable,
 	amount uint64,
 ) error {
-	return storage.SubBalance(ctx, mu, addr, codec.EmptyAddress, amount)
+	return storage.SubBalance(ctx, mu, addr, codec.Empty, amount)
 }
 
 func (*StateManager) Refund(
@@ -66,5 +66,5 @@ func (*StateManager) Refund(
 	amount uint64,
 ) error {
 	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, addr, codec.EmptyAddress, amount, false)
+	return storage.AddBalance(ctx, mu, addr, codec.Empty, amount, false)
 }

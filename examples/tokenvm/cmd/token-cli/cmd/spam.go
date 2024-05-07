@@ -62,7 +62,7 @@ var runSpamCmd = &cobra.Command{
 				}, nil
 			},
 			func(choice int, address string) (uint64, error) { // lookupBalance
-				balance, err := tclient.Balance(context.TODO(), address, codec.EmptyAddress)
+				balance, err := tclient.Balance(context.TODO(), address, codec.Empty)
 				if err != nil {
 					return 0, err
 				}
@@ -81,7 +81,7 @@ var runSpamCmd = &cobra.Command{
 			func(addr codec.Address, amount uint64) []chain.Action { // getTransfer
 				return []chain.Action{&actions.Transfer{
 					To:    addr,
-					Asset: codec.EmptyAddress,
+					Asset: codec.Empty,
 					Value: amount,
 				}}
 			},

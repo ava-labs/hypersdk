@@ -123,19 +123,19 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, mu, pk, codec.EmptyAddress, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, codec.Empty, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
 	return storage.SetAsset(
 		ctx,
 		mu,
-		codec.EmptyAddress,
+		codec.Empty,
 		[]byte(consts.Symbol),
 		consts.Decimals,
 		[]byte(consts.Name),
 		supply,
-		codec.EmptyAddress,
+		codec.Empty,
 	)
 }
 

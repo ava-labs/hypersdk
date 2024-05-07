@@ -285,19 +285,19 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		csupply := uint64(0)
 		for _, alloc := range g.CustomAllocation {
-			balance, err := cli.Balance(context.Background(), alloc.Address, codec.EmptyAddress)
+			balance, err := cli.Balance(context.Background(), alloc.Address, codec.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
 			csupply += alloc.Balance
 		}
-		exists, symbol, decimals, metadata, supply, owner, err := cli.Asset(context.Background(), codec.EmptyAddress, false)
+		exists, symbol, decimals, metadata, supply, owner, err := cli.Asset(context.Background(), codec.Empty, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(string(symbol)).Should(gomega.Equal(tconsts.Symbol))
 		gomega.Ω(decimals).Should(gomega.Equal(uint8(tconsts.Decimals)))
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Name))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
-		gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(tconsts.HRP, codec.EmptyAddress)))
+		gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(tconsts.HRP, codec.Empty)))
 	}
 	blocks = []snowman.Block{}
 
@@ -464,10 +464,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
-			balance, err := instances[1].tcli.Balance(context.Background(), sender, codec.EmptyAddress)
+			balance, err := instances[1].tcli.Balance(context.Background(), sender, codec.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance).To(gomega.Equal(uint64(9899702)))
-			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.EmptyAddress)
+			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
 		})
@@ -494,7 +494,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.EmptyAddress)
+			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100101)))
 		})
@@ -637,7 +637,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		time.Sleep(2 * pubsub.MaxMessageWait)
 
 		// Fetch balances
-		balance, err := instances[0].tcli.Balance(context.TODO(), sender, codec.EmptyAddress)
+		balance, err := instances[0].tcli.Balance(context.TODO(), sender, codec.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
@@ -676,7 +676,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
-		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, codec.EmptyAddress)
+		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, codec.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + lresults[0].Fee + 1))
 
@@ -1698,11 +1698,11 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		balance2, err := instances[3].tcli.Balance(context.Background(), sender2, codec.EmptyAddress)
+		balance2, err := instances[3].tcli.Balance(context.Background(), sender2, codec.Empty)
 		gomega.Ω(err).To(gomega.BeNil())
 		gomega.Ω(balance2).To(gomega.Equal(uint64(10000)))
 
-		balance3, err := instances[3].tcli.Balance(context.Background(), sender3, codec.EmptyAddress)
+		balance3, err := instances[3].tcli.Balance(context.Background(), sender3, codec.Empty)
 		gomega.Ω(err).To(gomega.BeNil())
 		gomega.Ω(balance3).To(gomega.Equal(uint64(5000)))
 	})

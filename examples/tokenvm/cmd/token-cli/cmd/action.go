@@ -47,7 +47,7 @@ var fundFaucetCmd = &cobra.Command{
 		}
 
 		// Get balance
-		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, codec.EmptyAddress, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, codec.Empty, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ var fundFaucetCmd = &cobra.Command{
 		}
 		if err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    addr,
-			Asset: codec.EmptyAddress,
+			Asset: codec.Empty,
 			Value: amount,
 		}}, cli, scli, tcli, factory, true); err != nil {
 			return err
@@ -289,7 +289,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if inAssetID != codec.EmptyAddress {
+		if inAssetID != codec.Empty {
 			if !exists {
 				hutils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
 				hutils.Outf("{{red}}exiting...{{/}}\n")
