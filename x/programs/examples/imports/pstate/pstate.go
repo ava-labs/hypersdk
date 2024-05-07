@@ -220,6 +220,7 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 	bytes, err = i.mu.GetValue(context.Background(), k)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
+			// [0] represents `None`
 			val, err := program.WriteBytes(memory, []byte{0})
 			if err != nil {
 				i.log.Error("failed to write to memory",
@@ -237,7 +238,7 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 		return nil, err
 	}
 
-	// prepend 1 to val
+	// 1 is the discriminant for `Some`
 	bytes = append([]byte{1}, bytes...)
 
 	ptr, err := program.WriteBytes(memory, bytes)
