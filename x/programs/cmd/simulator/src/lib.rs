@@ -47,7 +47,7 @@ pub struct Step {
     pub require: Option<Require>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SimulatorStep {
     /// The key of the caller used in each step of the plan.

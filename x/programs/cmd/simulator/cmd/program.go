@@ -44,23 +44,23 @@ func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable
 }
 
 func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
-	resp := newResponse(0)
-	resp.setTimestamp(time.Now().Unix())
 	exists, err := hasKey(ctx, *c.db, *c.keyName)
 	if err != nil {
-		return resp, err
+		return newResponse(0), err
 	}
 	if !exists {
-		return resp, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
+		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
 	}
 
 	id, err := programCreateFunc(ctx, *c.db, *c.path)
 	if err != nil {
-		return resp, err
+		return newResponse(0), err
 	}
 
 	utils.Outf("{{green}}create program transaction successful: {{/}}%s\n", id.String())
 
+	resp := newResponse(0)
+	resp.setTimestamp(time.Now().Unix())
 	return resp, nil
 }
 
