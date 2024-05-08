@@ -14,7 +14,7 @@ const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 /// `#[public]` functions must have `pub` visibility and the first parameter must be of type `Context`.
 #[proc_macro_attribute]
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemFn);
+    let mut input = parse_macro_input!(item as ItemFn);
 
     let vis_err = if !matches!(input.vis, Visibility::Public(_)) {
         let err = syn::Error::new(
@@ -27,14 +27,21 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let name = &input.sig.ident;
-    let input_args = &input.sig.inputs;
     // TODO:
     // prefix with an underscore
-    let new_name = Ident::new(&format!("{name}_guest"), name.span());
+    let new_name = {
+        let name = &input.sig.ident;
+        Ident::new(&format!("{name}_guest"), name.span())
+    };
 
-    let first_arg_err = match input_args.first() {
-        Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => None,
+    let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
+
+    let first_arg_err = match input.sig.inputs.first_mut() {
+        Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
+            std::mem::swap(&mut context_type, ty);
+            None
+        }
+
         arg => {
             let err = match arg {
                 Some(FnArg::Typed(PatType { ty, .. })) => {
@@ -61,11 +68,11 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let param_idents = input_args
-        .iter()
-        .enumerate()
-        .skip(1)
-        .map(|(i, fn_arg)| match fn_arg {
+    let (input, context_type) = (input, context_type);
+    let input_args = input.sig.inputs.iter();
+
+    let param_idents = input_args.enumerate().skip(1).map(|(i, fn_arg)| {
+        match fn_arg {
             FnArg::Receiver(_) => Err(syn::Error::new(
                 fn_arg.span(),
                 "Functions with the `#[public]` attribute cannot have a `self` parameter.",
@@ -81,7 +88,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 )),
                 _ => Ok(Ident::new(&format!("param_{i}"), fn_arg.span())),
             },
-        });
+        }
+    });
 
     let result = match (vis_err, first_arg_err) {
         (None, None) => Ok(vec![]),
@@ -123,9 +131,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
 
     let return_type = &input.sig.output;
-    let context_type: Path = parse_str(CONTEXT_TYPE).unwrap();
+    let name = &input.sig.ident;
+
     let external_call = quote! {
         mod private {
+            use super::*;
+
             #[no_mangle]
             unsafe extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
                 let param_0: #context_type = unsafe {
