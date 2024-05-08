@@ -113,7 +113,7 @@ where
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-            let ptr = crate::host::get_bytes(&args_bytes)?;
+            let ptr = host::get_bytes(&args_bytes)?;
 
             let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
 
@@ -169,7 +169,7 @@ where
 }
 
 pub fn log(text: String) -> Result<(), Error> {
-    crate::host::log_bytes(text.as_bytes())
+    host::log_bytes(text.as_bytes())
 }
 
 /// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.

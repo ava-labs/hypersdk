@@ -4,7 +4,6 @@ pub mod params;
 pub mod state;
 pub mod types;
 
-mod host;
 mod memory;
 mod program;
 
@@ -12,6 +11,7 @@ pub use self::{
     memory::from_host_ptr,
     params::{serialize_param, Params},
     program::Program,
+    state::log,
 };
 
 #[cfg(feature = "build")]
