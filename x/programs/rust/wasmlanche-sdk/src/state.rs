@@ -168,12 +168,6 @@ where
     }
 }
 
-/// # Panics
-/// Panics if there was an issue regarding memory allocation on the host
-pub fn log(text: &str) {
-    host::log_bytes(text.as_bytes()).expect("failed to log value");
-}
-
 /// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
 #[derive(Debug, Default, Clone)]
 pub struct Key(Vec<u8>);
@@ -257,20 +251,5 @@ mod host {
         let ptr = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
 
         from_host_ptr(ptr.as_ptr())
-    }
-
-    /// Logging facility for debugging purposes
-    pub(super) fn log_bytes(bytes: &[u8]) -> Result<(), Error> {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "log"]
-            fn ffi(ptr: *const u8, len: usize) -> i32;
-        }
-
-        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
-        match result {
-            0 => Ok(()),
-            _ => Err(Error::Log),
-        }
     }
 }
