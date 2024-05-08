@@ -52,7 +52,6 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 #[public]
 pub fn get_value(context: Context, of: Address) -> i64 {
     let Context { program } = context;
-    dbg!("hello");
     program
         .state()
         .get::<i64>(StateKeys::Counter(of))
