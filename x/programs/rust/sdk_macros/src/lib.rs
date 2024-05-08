@@ -10,10 +10,8 @@ use syn::{
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
-/// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
-/// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
-/// The wrapper functions parameters will be converted to WASM supported types. When called, the wrapper function
-/// calls the original function by converting the parameters back to their intended types using .into().
+/// It does so by creating an `extern "C" fn` that handles all pointer resolution and deserialization.
+/// `#[public]` functions must have `pub` visibility and the first parameter must be of type `Context`.
 #[proc_macro_attribute]
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
@@ -35,7 +33,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     // prefix with an underscore
     let new_name = Ident::new(&format!("{name}_guest"), name.span());
 
-    // to be used as the result below
     let first_arg_err = match input_args.first() {
         Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => None,
         arg => {
@@ -125,22 +122,28 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
 
-    // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
     let context_type: Path = parse_str(CONTEXT_TYPE).unwrap();
-    let output = quote! {
-        // Need to include the original function in the output, so contract can call itself
-        #input
-        #[no_mangle]
-        pub extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
-            let param_0: #context_type = unsafe {
-                wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
-            };
-            #name(param_0, #(#converted_params),*)
+    let external_call = quote! {
+        mod private {
+            #[no_mangle]
+            unsafe extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
+                let param_0: #context_type = unsafe {
+                    wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
+                };
+                super::#name(param_0, #(#converted_params),*)
+            }
         }
     };
 
-    TokenStream::from(output)
+    let mut input = input;
+
+    input
+        .block
+        .stmts
+        .insert(0, syn::parse2(external_call).unwrap());
+
+    TokenStream::from(quote! { #input })
 }
 
 /// This macro assists in defining the schema for a program's state.  A user can
