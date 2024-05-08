@@ -5,6 +5,31 @@ use crate::{
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::hash::Hash;
 
+#[macro_export]
+macro_rules! dbg {
+    () => {
+        if cfg!(debug_assertions) {
+            $crate::log_bytes(&[]);
+        }
+    };
+    ($val:expr $(,)?) => {{
+        match $val {
+            tmp => {
+                #[cfg(debug_assertions)]
+                $crate::log(tmp).unwrap();
+                tmp
+            }
+        }
+    }};
+    ($($val:expr),+ $(,)?) => {
+        if cfg!(debug_assertions) {
+            $crate::dbg!($val);
+        }
+
+        $val
+    };
+}
+
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
 #[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]

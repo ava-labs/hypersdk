@@ -36,6 +36,9 @@ pub enum Error {
 
     #[error("failed to delete from host storage")]
     Delete,
+
+    #[error("failed to log bytes")]
+    Log,
 }
 
 pub struct State<K>
@@ -110,7 +113,7 @@ where
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-            let ptr = host::get_bytes(&args_bytes)?;
+            let ptr = crate::host::get_bytes(&args_bytes)?;
 
             let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
 
@@ -163,6 +166,10 @@ where
 
         Ok(())
     }
+}
+
+pub fn log(text: String) -> Result<(), Error> {
+    crate::host::log_bytes(text.as_bytes())
 }
 
 /// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
@@ -248,5 +255,20 @@ mod host {
         let ptr = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
 
         from_host_ptr(ptr.as_ptr())
+    }
+
+    /// Logging facility for debugging purposes
+    pub fn log_bytes(bytes: &[u8]) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "log"]
+            fn ffi(ptr: *const u8, len: usize) -> i32;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+        match result {
+            0 => Ok(()),
+            _ => Err(Error::Log),
+        }
     }
 }

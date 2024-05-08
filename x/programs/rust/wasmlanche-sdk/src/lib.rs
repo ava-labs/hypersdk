@@ -4,6 +4,7 @@ pub mod params;
 pub mod state;
 pub mod types;
 
+mod host;
 mod memory;
 mod program;
 

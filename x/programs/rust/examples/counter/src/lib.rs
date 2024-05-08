@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
+use wasmlanche_sdk::{dbg, params, public, state_keys, types::Address, Context, Program};
 
 #[state_keys]
 enum StateKeys {
@@ -52,10 +52,10 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 #[public]
 pub fn get_value(context: Context, of: Address) -> i64 {
     let Context { program } = context;
-    program
+    dbg!(program
         .state()
-        .get(StateKeys::Counter(of))
-        .expect("failed to get counter")
+        .get::<i64>(StateKeys::Counter(of))
+        .expect("failed to get counter"))
 }
 
 /// Gets the count at the address for an external program.
