@@ -9,7 +9,7 @@ use std::{
     error::Error,
     io::{BufRead, BufReader, Lines, Write},
     path::Path,
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    process::{ChildStdin, ChildStdout, Command, Stdio},
 };
 
 mod id;
@@ -208,7 +208,7 @@ pub struct Client {
 }
 
 impl Client {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -237,9 +237,6 @@ impl Client {
             .map(|step| child.run_step(&plan.caller_key, step))
             .collect::<Result<_, _>>()?;
 
-        // kill the process to avoid it to read an EOF from stdin
-        // child.kill().expect("failed to kill the simulator process");
-
         Ok(res)
     }
 }
@@ -250,14 +247,14 @@ impl Default for Client {
     }
 }
 
-struct SimulatorChild<'a> {
-    stdin: Box<&'a mut ChildStdin>,
-    lines: Box<Lines<BufReader<&'a mut ChildStdout>>>,
+struct SimulatorChild {
+    stdin: ChildStdin,
+    lines: Lines<BufReader<ChildStdout>>,
 }
 
-impl<'a> SimulatorChild<'a> {
+impl SimulatorChild {
     fn new(path: &str) -> Result<Self, Box<dyn Error>> {
-        let mut child = Command::new(path)
+        let child = Command::new(path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
@@ -266,20 +263,12 @@ impl<'a> SimulatorChild<'a> {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        /*let (Some(stdin), Some(stdout)) = (child.stdin.as_mut(), child.stdout.as_mut()) else {
+        let (Some(stdin), Some(stdout)) = (child.stdin, child.stdout) else {
             panic!("could not attach to the child process stdio");
-        };*/
-
-        let stdin = Box::new(child.stdin.as_mut().unwrap());
-        let stdout = child.stdout.as_mut().unwrap();
-        let reader = BufReader::new(stdout);
-        let lines = Box::new(reader.lines());
-
-        let mut sim = Self {
-            // child: &mut child,
-            stdin,
-            lines,
         };
+        let lines = BufReader::new(stdout).lines();
+
+        let mut sim = Self { stdin, lines };
 
         let _ = sim.read_response()?; // intepreter ready
 
