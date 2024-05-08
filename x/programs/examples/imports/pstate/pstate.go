@@ -6,6 +6,8 @@ package pstate
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -271,7 +273,7 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 }
 
 func (i *Import) logFn(caller *program.Caller, memOffset int32, size int32) (*types.Val, error) {
-	/*memory, err := caller.Memory()
+	memory, err := caller.Memory()
 	if err != nil {
 		i.log.Error("failed to get memory from caller",
 			zap.Error(err),
@@ -287,22 +289,7 @@ func (i *Import) logFn(caller *program.Caller, memOffset int32, size int32) (*ty
 		return nil, err
 	}
 
-	args := getAndDeleteArgs{}
-	err = borsh.Deserialize(&args, bytes)
-	if err != nil {
-		i.log.Error("failed to deserialize args",
-			zap.Error(err),
-		)
-		return nil, err
-	}
-
-	k := storage.ProgramPrefixKey(args.ProgramID[:], args.Key)
-	if err := i.mu.Remove(context.Background(), k); err != nil {
-		i.log.Error("failed to remove from storage", zap.Error(err))
-		return types.ValI32(-1), nil
-	}*/
-
-	i.log.Debug("hello")
+	fmt.Fprintf(os.Stderr, "%s\n", bytes)
 
 	return types.ValI32(0), nil
 }

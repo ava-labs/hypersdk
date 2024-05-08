@@ -52,10 +52,11 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 #[public]
 pub fn get_value(context: Context, of: Address) -> i64 {
     let Context { program } = context;
-    dbg!(program
+    dbg!("hello");
+    program
         .state()
         .get::<i64>(StateKeys::Counter(of))
-        .expect("failed to get counter"))
+        .expect("failed to get counter")
 }
 
 /// Gets the count at the address for an external program.

@@ -9,30 +9,38 @@ use std::hash::Hash;
 macro_rules! dbg {
     () => {
         if cfg!(debug_assertions) {
-            $crate::log_bytes(&[]);
+            let as_string = format!("[{}:{}:{}]", file!(), line!(), column!());
+            $crate::log(as_string).unwrap();
         }
     };
     ($val:expr $(,)?) => {{
         match $val {
             tmp => {
                 #[cfg(debug_assertions)]
-                $crate::log(tmp).unwrap();
+                {
+                    let as_string = format!(
+                        "[{}:{}:{}] {} = {:#?}",
+                        file!(),
+                        line!(),
+                        column!(),
+                        stringify!($val),
+                        &tmp
+                    );
+                    $crate::log(as_string).unwrap();
+                }
                 tmp
             }
         }
     }};
     ($($val:expr),+ $(,)?) => {
-        if cfg!(debug_assertions) {
-            $crate::dbg!($val);
-        }
-
-        $val
+        #[cfg(debug_assertions)]
+        ($($crate::dbg!($val)),+,)
     };
 }
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
-#[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug)]
 pub struct Program([u8; Self::LEN]);
 
 impl Program {
