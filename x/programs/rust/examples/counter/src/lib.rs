@@ -54,7 +54,7 @@ pub fn get_value(context: Context, of: Address) -> i64 {
     let Context { program } = context;
     program
         .state()
-        .get::<i64>(StateKeys::Counter(of))
+        .get(StateKeys::Counter(of))
         .expect("failed to get counter")
 }
 
