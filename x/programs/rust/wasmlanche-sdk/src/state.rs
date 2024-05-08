@@ -37,7 +37,7 @@ pub enum Error {
     #[error("failed to delete from host storage")]
     Delete,
 
-    #[error("failed to log bytes")]
+    #[error("failed to log value")]
     Log,
 }
 
@@ -168,8 +168,10 @@ where
     }
 }
 
-pub fn log(text: String) -> Result<(), Error> {
-    host::log_bytes(text.as_bytes())
+/// # Panics
+/// Panics if there was an issue regarding memory allocation on the host
+pub fn log(text: &str) {
+    host::log_bytes(text.as_bytes()).expect("failed to log value");
 }
 
 /// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
@@ -258,7 +260,7 @@ mod host {
     }
 
     /// Logging facility for debugging purposes
-    pub fn log_bytes(bytes: &[u8]) -> Result<(), Error> {
+    pub(super) fn log_bytes(bytes: &[u8]) -> Result<(), Error> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "log"]
