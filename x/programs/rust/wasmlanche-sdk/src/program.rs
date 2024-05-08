@@ -10,6 +10,15 @@ use std::hash::Hash;
 #[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]
 pub struct Program([u8; Self::LEN]);
 
+#[derive(Clone, thiserror::Error, Debug)]
+pub enum ProgramError {
+    #[error("an irrecoverable error happened")]
+    Fatal(StateError),
+
+    #[error("a recoverable error happened")]
+    Custom(String),
+}
+
 impl Program {
     /// The length of ids.ID
     pub const LEN: usize = 32;
@@ -46,7 +55,7 @@ impl Program {
         function_name: &str,
         args: &Params,
         max_units: i64,
-    ) -> Result<i64, StateError> {
+    ) -> Result<i64, ProgramError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
@@ -60,7 +69,9 @@ impl Program {
             max_units,
         };
 
-        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        let args_bytes = borsh::to_vec(&args)
+            .map_err(|_| StateError::Serialization)
+            .map_err(ProgramError::Fatal)?;
 
         Ok(unsafe { ffi(args_bytes.as_ptr(), args_bytes.len()) })
     }
