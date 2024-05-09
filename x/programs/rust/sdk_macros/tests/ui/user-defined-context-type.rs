@@ -1,5 +1,7 @@
+use borsh::BorshDeserialize;
 use sdk_macros::public;
 
+#[derive(BorshDeserialize)]
 struct Context;
 
 #[public]
