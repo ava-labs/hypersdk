@@ -1,11 +1,15 @@
 package v2
 
-import "github.com/near/borsh-go"
+import (
+	"context"
+	"errors"
+	"github.com/near/borsh-go"
+)
 
-func NewMemoryModule() *ImportModule {
+func NewMemoryModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{name: "memory",
 		funcs: map[string]Function{
-			"write": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"setResult": func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
