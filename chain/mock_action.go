@@ -45,14 +45,13 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4, arg5 codec.LID) (bool, uint64, [][]byte, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4, arg5 codec.LID) (bool, uint64, [][]byte) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(uint64)
 	ret2, _ := ret[2].([][]byte)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	return ret0, ret1, ret2
 }
 
 // Execute indicates an expected call of Execute.
