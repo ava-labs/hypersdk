@@ -34,7 +34,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     // TODO:
     // prefix with an underscore
     let new_name = Ident::new(&format!("{name}_guest"), name.span());
-    let new_name_struct = Ident::new(&format!("{name}_input"), name.span());
 
     // to be used as the result below
     let first_arg_err = match input_args.first() {
@@ -64,28 +63,28 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             Some(err)
         }
     };
-    params_without_context:= input_args.iter().skip(1)
 
-    let param_idents = params_without_context
-    .iter()
-    .skip(1)
-    .map(|fn_arg| match fn_arg {
-        FnArg::Receiver(_) => Err(syn::Error::new(
-            fn_arg.span(),
-            "Functions with the `#[public]` attribute cannot have a `self` parameter.",
-        )),
-        FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
-            // TODO:
-            // we should likely remove this constraint. If we provide upgradability
-            // in the future, we may not want to change the function signature
-            // which means we might want wildcards in order to help produce stable APIs
-            Pat::Wild(_) => Err(syn::Error::new(
+    let param_idents = input_args
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(i, fn_arg)| match fn_arg {
+            FnArg::Receiver(_) => Err(syn::Error::new(
                 fn_arg.span(),
-                "Functions with the `#[public]` attribute can only ignore the first parameter.",
+                "Functions with the `#[public]` attribute cannot have a `self` parameter.",
             )),
-            _ => Ok(pat),
-        },
-    });
+            FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
+                // TODO:
+                // we should likely remove this constraint. If we provide upgradability
+                // in the future, we may not want to change the function signature
+                // which means we might want wildcards in order to help produce stable APIs
+                Pat::Wild(_) => Err(syn::Error::new(
+                    fn_arg.span(),
+                    "Functions with the `#[public]` attribute can only ignore the first parameter.",
+                )),
+                _ => Ok(Ident::new(&format!("param_{i}"), fn_arg.span())),
+            },
+        });
 
     let result = match (vis_err, first_arg_err) {
         (None, None) => Ok(vec![]),
@@ -118,28 +117,26 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let converted_params = param_names.iter().map(|param_name| {
         quote! {
-            param_struct.#param_name
+            unsafe {
+                wasmlanche_sdk::from_host_ptr(#param_name).expect("error serializing ptr")
+            }
         }
     });
 
+    let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
+
     // Extract the original function's return type. This must be a WASM supported type.
     let return_type = &input.sig.output;
+    let context_type: Path = parse_str(CONTEXT_TYPE).unwrap();
     let output = quote! {
-        #[derive(borsh::BorshDeserialize)]
-        pub struct #new_name_struct {
-            #params_without_context
-        }
         // Need to include the original function in the output, so contract can call itself
         #input
         #[no_mangle]
-        pub extern "C" fn #new_name(context_ptr: *const u8, params_ptr: *const u8) #return_type {
-            let context: #CONTEXT_TYPE = unsafe {
-                wasmlanche_sdk::from_host_ptr(context_ptr).expect("error serializing ptr")
+        pub extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
+            let param_0: #context_type = unsafe {
+                wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
             };
-            let param_struct: #new_name_struct = unsafe {
-                wasmlanche_sdk::from_host_ptr(params_ptr).expect("error serializing ptr")
-            };
-            #name(context, #(#converted_params),*)
+            #name(param_0, #(#converted_params),*)
         }
     };
 
