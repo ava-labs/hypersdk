@@ -245,7 +245,7 @@ func runStepFunc(
 			return err
 		}
 		resp.setResponse(response)
-		ok, err := validateAssertion(response[0], require)
+		ok, err := validateAssertion(response, require)
 		if !ok {
 			return fmt.Errorf("%w", ErrResultAssertionFailed)
 		}
@@ -262,8 +262,10 @@ func runStepFunc(
 		if err != nil {
 			return err
 		}
+
 		resp.setResponse(response)
-		ok, err := validateAssertion(response[0], require)
+		ok, err := validateAssertion(response, require)
+
 		if !ok {
 			return fmt.Errorf("%w", ErrResultAssertionFailed)
 		}

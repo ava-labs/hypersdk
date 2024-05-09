@@ -53,10 +53,19 @@ func (*Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link *host.Link, callContext program.Context) error {
+func (i *Import) Register(link *host.Link, callContext *program.Context) error {
 	i.meter = link.Meter()
 	i.imports = link.Imports()
-	return link.RegisterImportFn(Name, "call_program", i.callProgramFn(callContext))
+
+	if err := link.RegisterImportFn(Name, "call_program", i.callProgramFn(callContext)); err != nil {
+		return err
+	}
+
+	if err := link.RegisterImportFn(Name, "set_call_result", i.setCallResultFn(callContext)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type callProgramFnArgs struct {
@@ -67,12 +76,12 @@ type callProgramFnArgs struct {
 }
 
 // callProgramFn makes a call to an entry function of a program in the context of another program's ID.
-func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Caller, int32, int32) int64 {
+func (i *Import) callProgramFn(_ *program.Context) func(*wasmtime.Caller, int32, int32) int32 {
 	return func(
 		wasmCaller *wasmtime.Caller,
 		memOffset int32,
 		size int32,
-	) int64 {
+	) int32 {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -110,10 +119,13 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			)
 			return -1
 		}
+		otherContext := &program.Context{
+			ProgramID: ids.ID(args.ProgramID),
+		}
 
 		// create a new runtime for the program to be invoked with a zero balance.
 		rt := runtime.New(i.log, i.engine, i.imports, i.cfg)
-		err = rt.Initialize(context.Background(), callContext, programWasmBytes, engine.NoUnits)
+		err = rt.Initialize(context.Background(), otherContext, programWasmBytes, engine.NoUnits)
 		if err != nil {
 			i.log.Error("failed to initialize runtime",
 				zap.Error(err),
@@ -167,11 +179,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 		}
 
 		functionName := string(args.Function)
-		res, err := rt.Call(ctx, functionName, program.Context{
-			ProgramID: ids.ID(args.ProgramID),
-			// Actor:            callContext.ProgramID,
-			// OriginatingActor: callContext.OriginatingActor,
-		}, params...)
+		res, err := rt.Call(ctx, functionName, otherContext, params...)
 		if err != nil {
 			i.log.Error("failed to call entry function",
 				zap.Error(err),
@@ -179,7 +187,44 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 			return -1
 		}
 
-		return res[0]
+		ptr, err := program.WriteBytes(memory, res)
+		if err != nil {
+			i.log.Error("failed to write result to memory",
+				zap.Error(err),
+			)
+			return -1
+		}
+
+		return int32(ptr)
+	}
+}
+
+func (i *Import) setCallResultFn(context *program.Context) func(*wasmtime.Caller, int32, int32) {
+	return func(
+		wasmCaller *wasmtime.Caller,
+		memOffset int32,
+		size int32,
+	) {
+		caller := program.NewCaller(wasmCaller)
+		memory, err := caller.Memory()
+		if err != nil {
+			i.log.Error("failed to get memory from caller",
+				zap.Error(err),
+			)
+			// TODO: panic
+			return
+		}
+
+		bytes, err := memory.Range(uint32(memOffset), uint32(size))
+		if err != nil {
+			i.log.Error("failed to read call arguments from memory",
+				zap.Error(err),
+			)
+			// TODO: panic
+			return
+		}
+
+		context.SetResult(bytes)
 	}
 }
 

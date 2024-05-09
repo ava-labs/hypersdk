@@ -141,7 +141,7 @@ func programExecuteFunc(
 	callParams []actions.CallParam,
 	function string,
 	maxUnits uint64,
-) (ids.ID, []int64, uint64, error) {
+) (ids.ID, []byte, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
@@ -165,12 +165,6 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
-	p := codec.NewReader(resp, len(resp))
-	var result []int64
-	for !p.Empty() {
-		v := p.UnpackInt64(true)
-		result = append(result, v)
-	}
 
 	// store program to disk only on success
 	err = db.Commit(ctx)
@@ -181,5 +175,5 @@ func programExecuteFunc(
 	// get remaining balance from runtime meter
 	balance, err := programExecuteAction.GetBalance()
 
-	return programTxID, result, balance, err
+	return programTxID, resp, balance, err
 }

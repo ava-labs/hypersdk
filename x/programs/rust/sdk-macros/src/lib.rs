@@ -133,20 +133,26 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
-
-    let return_type = &input.sig.output;
     let name = &input.sig.ident;
 
     let external_call = quote! {
         mod private {
             use super::*;
 
+            #[link(wasm_import_module = "program")]
+            extern "C" {
+                #[link_name = "set_call_result"]
+                fn set_call_result(ptr: *const u8, len: usize);
+            }
+
             #[no_mangle]
-            unsafe extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
+            unsafe extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) {
                 let param_0: #context_type = unsafe {
                     wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
                 };
-                super::#name(param_0, #(#converted_params),*)
+                let result = super::#name(param_0, #(#converted_params),*);
+                let result = borsh::to_vec(&result).expect("error serializing result");
+                unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
         }
     };
