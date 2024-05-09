@@ -113,8 +113,7 @@ impl TestCrate {
     fn new(wasm_path: impl AsRef<Path>) -> Self {
         let mut store: Store<()> = Store::default();
         let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
-        let engine = Engine::default();
-        let mut linker = Linker::new(&engine);
+        let mut linker = Linker::new(&store.engine());
         linker
             .func_wrap(
                 "program",
