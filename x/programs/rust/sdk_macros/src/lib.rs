@@ -131,6 +131,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let output = quote! {
         // Need to include the original function in the output, so contract can call itself
         #input
+        #[allow(improper_ctypes_definitions)]
         #[no_mangle]
         pub extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
             let param_0: #context_type = unsafe {

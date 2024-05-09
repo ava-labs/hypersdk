@@ -9,6 +9,7 @@ edition = "2021"
 borsh = { version = "1.2.0", features = ["derive"] }
 sdk_macros = { version = "0.1.0", path = "../sdk_macros" }
 thiserror = "1.0.46"
+simulator = { path = "../../cmd/simulator" }
 
 # optional dependencies
 serde_json = { version = "1.0.64", optional = true }

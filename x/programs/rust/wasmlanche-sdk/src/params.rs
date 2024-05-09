@@ -5,7 +5,7 @@ use std::ops::Deref;
 #[macro_export]
 macro_rules! params {
     ($first:expr $(,$rest:expr)* $(,)*) => {
-        std::iter::once($crate::params::serialize_param($first))
+        core::iter::once($crate::params::serialize_param($first))
             $(
                 .chain(Some($crate::params::serialize_param($rest)))
             )*
@@ -17,6 +17,7 @@ macro_rules! params {
 pub struct Param(Vec<u8>);
 
 /// A collection of [borsh] serialized parameters.
+#[derive(Default)]
 pub struct Params(Vec<u8>);
 
 impl Deref for Params {

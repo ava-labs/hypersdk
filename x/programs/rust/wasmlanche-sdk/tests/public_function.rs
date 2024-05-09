@@ -3,7 +3,9 @@ use std::{
     process::Command,
 };
 use wasmlanche_sdk::{Context, Program};
-use wasmtime::{Instance, Module, Store, TypedFunc};
+use wasmtime::{
+    Caller, Config, Engine, Extern, Func, FuncType, Instance, Linker, Module, Store, TypedFunc,
+};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const TEST_PKG: &str = "test-crate";
@@ -54,6 +56,47 @@ fn public_functions() {
     assert_eq!(combined_binary_digits, u32::MAX);
 }
 
+#[test]
+fn faillible_function() {
+    let wasm_path = {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let manifest_dir = std::path::Path::new(&manifest_dir);
+        let test_crate_dir = manifest_dir.join("tests").join(TEST_PKG);
+        let target_dir = std::env::var("CARGO_TARGET_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| manifest_dir.join("target"));
+
+        let status = Command::new("cargo")
+            .arg("build")
+            .arg("--package")
+            .arg(TEST_PKG)
+            .arg("--target")
+            .arg(WASM_TARGET)
+            .arg("--profile")
+            .arg(PROFILE)
+            .arg("--target-dir")
+            .arg(&target_dir)
+            .current_dir(&test_crate_dir)
+            .status()
+            .expect("cargo build failed");
+
+        if !status.success() {
+            panic!("cargo build failed");
+        }
+
+        target_dir
+            .join(WASM_TARGET)
+            .join(PROFILE)
+            .join(TEST_PKG.replace('-', "_"))
+            .with_extension("wasm")
+    };
+
+    let mut test_crate = TestCrate::new(wasm_path);
+
+    let context_ptr = test_crate.write_context();
+    assert_eq!(test_crate.faillible_fn(context_ptr, 10000), 1);
+}
+
 type AllocParam = i32;
 type AllocReturn = i32;
 
@@ -63,13 +106,28 @@ struct TestCrate {
     allocate_func: TypedFunc<AllocParam, AllocReturn>,
     always_true_func: TypedFunc<i32, i32>,
     combine_last_bit_of_each_id_byte_func: TypedFunc<i32, u32>,
+    faillible_fn: TypedFunc<i32, i32>,
 }
 
 impl TestCrate {
     fn new(wasm_path: impl AsRef<Path>) -> Self {
         let mut store: Store<()> = Store::default();
         let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
-        let instance = Instance::new(&mut store, &module, &[]).expect("failed to instantiate wasm");
+        let engine = Engine::default();
+        let mut linker = Linker::new(&engine);
+        linker
+            .func_wrap(
+                "program",
+                "call_program",
+                move |caller: Caller<'_, ()>, ptr: i32, len: i32| {
+                    dbg!("asdf");
+                    0 as i64
+                },
+            )
+            .expect("failed to wrap call_program function");
+        let instance = linker
+            .instantiate(&mut store, &module)
+            .expect("failed to instantiate wasm");
 
         let allocate_func = instance
             .get_typed_func::<AllocParam, AllocReturn>(&mut store, "alloc")
@@ -81,6 +139,9 @@ impl TestCrate {
         let combine_last_bit_of_each_id_byte_func = instance
             .get_typed_func::<i32, u32>(&mut store, "combine_last_bit_of_each_id_byte_guest")
             .expect("combine_last_bit_of_each_id_byte should be a function");
+        let faillible_fn = instance
+            .get_typed_func::<i32, i32>(&mut store, "faillible_fn_guest")
+            .expect("faillible_fn should be a function");
 
         Self {
             store,
@@ -88,6 +149,7 @@ impl TestCrate {
             allocate_func,
             always_true_func,
             combine_last_bit_of_each_id_byte_func,
+            faillible_fn,
         }
     }
 
@@ -130,5 +192,11 @@ impl TestCrate {
         self.combine_last_bit_of_each_id_byte_func
             .call(&mut self.store, ptr)
             .expect("failed to call `combine_last_bit_of_each_id_byte` function")
+    }
+
+    fn faillible_fn(&mut self, ptr: i32, max_units: i64) -> i32 {
+        self.faillible_fn
+            .call(&mut self.store, ptr)
+            .expect("failed to call `faillible_fn` function")
     }
 }
