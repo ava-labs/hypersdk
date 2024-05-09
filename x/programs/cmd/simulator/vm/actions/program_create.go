@@ -41,16 +41,16 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	actionID codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (bool, uint64, [][]byte) {
 	if len(t.Program) == 0 {
-		return false, 1, [][]byte{OutputValueZero}, nil
+		return false, 1, [][]byte{OutputValueZero}
 	}
 
 	if err := storage.SetProgram(ctx, mu, actionID, t.Program); err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 
-	return true, 1, [][]byte{{}}, nil
+	return true, 1, [][]byte{{}}
 }
 
 func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {

@@ -62,39 +62,39 @@ func (f *FillOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (bool, uint64, [][]byte) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 	}
 	if !exists {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputOrderMissing}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputOrderMissing}
 	}
 	if owner != f.Owner {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongOwner}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongOwner}
 	}
 	if in != f.In {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongIn}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongIn}
 	}
 	if out != f.Out {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongOut}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongOut}
 	}
 	if f.Value == 0 {
 		// This should be guarded via [Unmarshal] but we check anyways.
-		return false, NoFillOrderComputeUnits, [][]byte{OutputValueZero}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputValueZero}
 	}
 	if f.Value%inTick != 0 {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputValueMisaligned}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputValueMisaligned}
 	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
 	outputAmount, err := smath.Mul64(outTick, f.Value/inTick)
 	if err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 	}
 	if outputAmount == 0 {
 		// This should never happen because [f.Value] > 0
-		return false, NoFillOrderComputeUnits, [][]byte{OutputInsufficientOutput}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputInsufficientOutput}
 	}
 	var (
 		inputAmount    = f.Value
@@ -120,32 +120,32 @@ func (f *FillOrder) Execute(
 	}
 	if inputAmount == 0 {
 		// Don't allow free trades (can happen due to refund rounding)
-		return false, NoFillOrderComputeUnits, [][]byte{OutputInsufficientInput}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{OutputInsufficientInput}
 	}
 	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 	}
 	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 	}
 	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 	}
 	if shouldDelete {
 		if err := storage.DeleteOrder(ctx, mu, f.Order); err != nil {
-			return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+			return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 		}
 	} else {
 		if err := storage.SetOrder(ctx, mu, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
-			return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+			return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 		}
 	}
 	or := &OrderResult{In: inputAmount, Out: outputAmount, Remaining: orderRemaining}
 	output, err := or.Marshal()
 	if err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
 	}
-	return true, FillOrderComputeUnits, [][]byte{output}, nil
+	return true, FillOrderComputeUnits, [][]byte{output}
 }
 
 func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {

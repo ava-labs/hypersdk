@@ -47,17 +47,17 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (bool, uint64, [][]byte) {
 	if t.Value == 0 {
-		return false, 1, [][]byte{OutputValueZero}, nil
+		return false, 1, [][]byte{OutputValueZero}
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
-	return true, 1, [][]byte{{}}, nil
+	return true, 1, [][]byte{{}}
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {

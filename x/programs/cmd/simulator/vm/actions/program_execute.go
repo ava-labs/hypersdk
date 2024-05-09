@@ -58,30 +58,30 @@ func (t *ProgramExecute) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (success bool, computeUnits uint64, output [][]byte, err error) {
+) (success bool, computeUnits uint64, output [][]byte) {
 	if len(t.Function) == 0 {
-		return false, 1, [][]byte{OutputValueZero}, nil
+		return false, 1, [][]byte{OutputValueZero}
 	}
 	if len(t.Params) == 0 {
-		return false, 1, [][]byte{OutputValueZero}, nil
+		return false, 1, [][]byte{OutputValueZero}
 	}
 
 	programBytes, _, err := storage.GetProgram(ctx, mu, actionID)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 
 	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 	eng := engine.New(ecfg)
 
@@ -104,22 +104,22 @@ func (t *ProgramExecute) Execute(
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
 	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 	defer t.rt.Stop()
 
 	mem, err := t.rt.Memory()
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 	params, err := WriteParams(mem, t.Params)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return false, 1, [][]byte{utils.ErrBytes(err)}
 	}
 
 	// TODO: remove this is to support readonly response for now.
@@ -128,7 +128,7 @@ func (t *ProgramExecute) Execute(
 		p.PackInt64(r)
 	}
 
-	return true, 1, [][]byte{p.Bytes()}, nil
+	return true, 1, [][]byte{p.Bytes()}
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {

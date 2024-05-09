@@ -348,10 +348,7 @@ func (t *Transaction) Execute(
 			break
 		}
 		actionID := codec.CreateLID(uint8(i), t.id)
-		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
-		if err != nil {
-			return handleRevert(err)
-		}
+		success, actionCUs, outputs := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if len(outputs) == 0 && outputs != nil {
 			// Enforce object standardization (this is a VM bug and we should fail
 			// fast)

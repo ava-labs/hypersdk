@@ -655,9 +655,6 @@ type Action interface {
 	//
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
-	//
-	// An error should only be returned if a fatal error was encountered, otherwise [success] should
-	// be marked as false and fees will still be charged.
 	Execute(
 		ctx context.Context,
 		r Rules,
@@ -665,7 +662,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID codec.LID,
-	) (success bool, computeUnits uint64, outputs [][]byte, err error)
+	) (success bool, computeUnits uint64, outputs [][]byte)
 }
 ```
 
