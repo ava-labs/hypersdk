@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
     error::Error,
-    io::{BufRead, BufReader, Lines, Write},
+    io::{BufRead, BufReader, Write},
     path::Path,
-    process::{ChildStdin, ChildStdout, Command, Stdio},
+    process::{Command, Stdio},
 };
 
 mod id;
@@ -229,7 +229,25 @@ impl Client {
     ///
     /// Returns an error if the serialization or plan fails.
     pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
-        let mut child = SimulatorChild::new(self.path)?;
+        let child = Command::new(self.path)
+            .arg("interpreter")
+            .arg("--cleanup")
+            .arg("--log-level")
+            .arg("error")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let writer = child.stdin.ok_or("failed to open stdin")?;
+        let responses = BufReader::new(child.stdout.ok_or("failed to open stdout")?)
+            .lines()
+            .map(|line| -> Result<_, Box<dyn Error>> {
+                let line = line?;
+                let res = serde_json::from_str::<PlanResponse>(&line)?;
+                Ok(res)
+            });
+
+        let mut child = SimulatorChild { writer, responses };
 
         let res = plan
             .steps
@@ -247,75 +265,37 @@ impl Default for Client {
     }
 }
 
-struct SimulatorChild {
-    stdin: ChildStdin,
-    lines: Lines<BufReader<ChildStdout>>,
+struct SimulatorChild<W, R> {
+    writer: W,
+    responses: R,
 }
 
-impl SimulatorChild {
-    fn new(path: &str) -> Result<Self, Box<dyn Error>> {
-        let child = Command::new(path)
-            .arg("interpreter")
-            .arg("--cleanup")
-            .arg("--log-level")
-            .arg("error")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?;
-
-        let (Some(stdin), Some(stdout)) = (child.stdin, child.stdout) else {
-            panic!("could not attach to the child process stdio");
-        };
-        let lines = BufReader::new(stdout).lines();
-
-        let mut sim = Self { stdin, lines };
-
-        let _ = sim.read_response()?; // intepreter ready
-
-        Ok(sim)
-    }
-
+impl<W, R> SimulatorChild<W, R>
+where
+    W: Write,
+    R: Iterator<Item = Result<PlanResponse, Box<dyn Error>>>,
+{
     fn run_step(
         &mut self,
         caller_key: &String,
         step: &Step,
     ) -> Result<PlanResponse, Box<dyn Error>> {
-        let run_command = "run --stdin\n";
-        self.write_stdin(run_command.as_bytes())?;
-        let _ = self.read_response()?;
+        let run_command = b"run --stdin\n";
+
+        self.writer.write_all(run_command)?;
+        self.writer.flush()?;
 
         let step = SimulatorStep { caller_key, step };
-        let mut input =
-            serde_json::to_string(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
-        input.push('\n');
-        self.write_stdin(input.as_bytes())?;
-        let resp = self.read_response()?;
+        let input =
+            serde_json::to_vec(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
+
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"\n")?;
+        self.writer.flush()?;
+
+        let resp = self.responses.next().ok_or("EOF")??;
 
         Ok(resp)
-    }
-
-    fn read_response(&mut self) -> Result<PlanResponse, Box<dyn Error>> {
-        let text: String = self
-            .lines
-            .next()
-            .ok_or("EOF")?
-            .map_err(|e| format!("failed to read from stdout: {e}"))?;
-
-        let resp = serde_json::from_str(&text)
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
-
-        Ok(resp)
-    }
-
-    fn write_stdin(&mut self, bytes: &[u8]) -> Result<(), String> {
-        self.stdin
-            .write_all(bytes)
-            .map_err(|e| format!("failed to write to stdin: {e}"))?;
-        self.stdin
-            .flush()
-            .map_err(|e| format!("failed to flush from stdin: {e}"))?;
-
-        Ok(())
     }
 }
 
