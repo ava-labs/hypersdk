@@ -8,7 +8,7 @@ mod memory;
 mod program;
 
 pub use self::{
-    memory::{from_host_ptr, CPointer},
+    memory::from_host_ptr,
     params::{serialize_param, Params},
     program::Program,
 };
