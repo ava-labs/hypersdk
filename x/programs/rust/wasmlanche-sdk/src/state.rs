@@ -36,9 +36,6 @@ pub enum Error {
 
     #[error("failed to delete from host storage")]
     Delete,
-
-    #[error("failed to log value")]
-    Log,
 }
 
 pub struct State<K>
