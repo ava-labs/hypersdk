@@ -6,6 +6,8 @@ package pstate
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -50,8 +52,10 @@ func (i *Import) Register(link *host.Link, _ program.Context) error {
 	if err := wrap.RegisterAnyParamFn(Name, "get", 2, i.getFnVariadic); err != nil {
 		return err
 	}
-
-	return wrap.RegisterAnyParamFn(Name, "delete", 2, i.deleteFnVariadic)
+	if err := wrap.RegisterAnyParamFn(Name, "delete", 2, i.deleteFnVariadic); err != nil {
+		return err
+	}
+	return wrap.RegisterAnyParamFn(Name, "log", 2, i.logFnVariadic)
 }
 
 func (i *Import) putFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
@@ -73,6 +77,13 @@ func (i *Import) deleteFnVariadic(caller *program.Caller, args ...int32) (*types
 		return nil, errors.New("expected 2 arguments")
 	}
 	return i.deleteFn(caller, args[0], args[1])
+}
+
+func (i *Import) logFnVariadic(caller *program.Caller, args ...int32) (*types.Val, error) {
+	if len(args) != 2 {
+		return nil, errors.New("expected 2 arguments")
+	}
+	return i.logFn(caller, args[0], args[1])
 }
 
 type putArgs struct {
@@ -259,4 +270,26 @@ func (i *Import) deleteFn(caller *program.Caller, memOffset int32, size int32) (
 	}
 
 	return types.ValI32(int32(ptr)), nil
+}
+
+func (i *Import) logFn(caller *program.Caller, memOffset int32, size int32) (*types.Val, error) {
+	memory, err := caller.Memory()
+	if err != nil {
+		i.log.Error("failed to get memory from caller",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	bytes, err := memory.Range(uint32(memOffset), uint32(size))
+	if err != nil {
+		i.log.Error("failed to read args from program memory",
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	fmt.Fprintf(os.Stderr, "%s\n", bytes)
+
+	return types.ValI32(0), nil
 }
