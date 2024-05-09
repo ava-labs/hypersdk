@@ -1,5 +1,3 @@
-use crate::state::Error;
-
 #[macro_export]
 macro_rules! dbg {
     () => {
@@ -36,20 +34,16 @@ macro_rules! dbg {
 /// # Panics
 /// Panics if there was an issue regarding memory allocation on the host
 pub fn log(text: &str) {
-    log_bytes(text.as_bytes()).expect("failed to log value");
+    log_bytes(text.as_bytes());
 }
 
 /// Logging facility for debugging purposes
-pub(super) fn log_bytes(bytes: &[u8]) -> Result<(), Error> {
+pub(super) fn log_bytes(bytes: &[u8]) {
     #[link(wasm_import_module = "state")]
     extern "C" {
         #[link_name = "log"]
         fn ffi(ptr: *const u8, len: usize) -> i32;
     }
 
-    let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
-    match result {
-        0 => Ok(()),
-        _ => Err(Error::Log),
-    }
+    unsafe { ffi(bytes.as_ptr(), bytes.len()) };
 }
