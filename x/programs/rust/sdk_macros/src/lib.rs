@@ -14,7 +14,7 @@ const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 /// `#[public]` functions must have `pub` visibility and the first parameter must be of type `Context`.
 #[proc_macro_attribute]
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
-    let mut input = parse_macro_input!(item as ItemFn);
+    let input = parse_macro_input!(item as ItemFn);
 
     let vis_err = if !matches!(input.vis, Visibility::Public(_)) {
         let err = syn::Error::new(
@@ -34,16 +34,18 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Ident::new(&format!("{name}_guest"), name.span())
     };
 
-    let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
+    let (input, context_type, first_arg_err) = {
+        let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
+        let mut input = input;
 
-    let first_arg_err = match input.sig.inputs.first_mut() {
-        Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
-            std::mem::swap(&mut context_type, ty);
-            None
-        }
+        let first_arg_err = match input.sig.inputs.first_mut() {
+            Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
+                std::mem::swap(&mut context_type, ty);
+                None
+            }
 
-        arg => {
-            let err = match arg {
+            arg => {
+                let err = match arg {
                 Some(FnArg::Typed(PatType { ty, .. })) => {
                     syn::Error::new(
                         ty.span(),
@@ -64,11 +66,13 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 }
             };
 
-            Some(err)
-        }
+                Some(err)
+            }
+        };
+
+        (input, context_type, first_arg_err)
     };
 
-    let (input, context_type) = (input, context_type);
     let input_args = input.sig.inputs.iter();
 
     let param_idents = input_args.enumerate().skip(1).map(|(i, fn_arg)| {
