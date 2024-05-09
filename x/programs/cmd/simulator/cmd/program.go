@@ -25,12 +25,12 @@ var _ Cmd = (*programCreateCmd)(nil)
 type programCreateCmd struct {
 	cmd *argparse.Command
 
-	db      **state.SimpleMutable
+	db      *state.SimpleMutable
 	keyName *string
 	path    *string
 }
 
-func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) {
+func (c *programCreateCmd) New(parser *argparse.Parser, db *state.SimpleMutable) {
 	c.db = db
 	c.cmd = parser.NewCommand("program-create", "Create a HyperSDK program transaction")
 	c.keyName = c.cmd.String("k", "key", &argparse.Options{
@@ -44,7 +44,7 @@ func (c *programCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable
 }
 
 func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
-	exists, err := hasKey(ctx, *c.db, *c.keyName)
+	exists, err := hasKey(ctx, c.db, *c.keyName)
 	if err != nil {
 		return newResponse(0), err
 	}
@@ -52,7 +52,7 @@ func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []s
 		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
 	}
 
-	id, err := programCreateFunc(ctx, *c.db, *c.path)
+	id, err := programCreateFunc(ctx, c.db, *c.path)
 	if err != nil {
 		return newResponse(0), err
 	}

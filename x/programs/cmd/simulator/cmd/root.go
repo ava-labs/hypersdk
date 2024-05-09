@@ -167,11 +167,11 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.reader = bufio.NewReader(os.Stdin)
 
 	runCmd := runCmd{}
-	runCmd.New(parser, &s.db, s.programIDStrMap, &s.lastStep, &s.reader)
+	runCmd.New(parser, s.db, s.programIDStrMap, &s.lastStep, s.reader)
 	programCmd := programCreateCmd{}
-	programCmd.New(parser, &s.db)
+	programCmd.New(parser, s.db)
 	keyCmd := keyCreateCmd{}
-	keyCmd.New(parser, &s.db)
+	keyCmd.New(parser, s.db)
 
 	return parser, []Cmd{&runCmd, &programCmd, &keyCmd}
 }

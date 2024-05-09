@@ -39,14 +39,14 @@ type runCmd struct {
 
 	step   *Step
 	log    logging.Logger
-	db     **state.SimpleMutable
-	reader **bufio.Reader
+	db     *state.SimpleMutable
+	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
 }
 
-func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programIDStrMap map[string]string, lastStep *int, reader **bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, db *state.SimpleMutable, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
 	c.db = db
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
@@ -194,14 +194,14 @@ func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
 		zap.Any("params", step.Params),
 	)
 
-	params, err := c.createCallParams(ctx, *c.db, step.Params)
+	params, err := c.createCallParams(ctx, c.db, step.Params)
 	if err != nil {
 		c.log.Error("simulation call", zap.Error(err))
 		return newResponse(0), err
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err = runStepFunc(ctx, c.log, c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
 		c.log.Debug("simulation step", zap.Error(err))
 		resp.setError(err)
