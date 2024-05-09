@@ -20,7 +20,7 @@ import (
 
 func TestSimpleCall(t *testing.T) {
 	require := require.New(t)
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -38,10 +38,21 @@ func TestSimpleCall(t *testing.T) {
 	err = runtime.AddProgram(programID, bytes)
 	require.NoError(err)
 
-	bytes, err = borsh.Serialize(ctx)
+	bytes, err = borsh.Serialize(programCtx)
 	require.NoError(err)
 
+	saList := v2.NewSimpleStateAccessList([][]byte{{0}, {47, 0}, {47, 1}, {47, 2}}, [][]byte{{47, 0}, {47, 1}, {47, 2}})
+
+	state := newTestDB()
 	// all arguments are smart-pointers so this is a bit of a hack
-	_, err = runtime.CallProgram(ctx, &v2.CallInfo{Program: programID, FunctionName: "init", Params: bytes, MaxUnits: 10000})
+	finished, err := runtime.CallProgram(ctx, &v2.CallInfo{Program: programID, State: state, StateAccessList: saList, FunctionName: "init", Params: bytes, MaxUnits: 1000000})
+	require.Equal([]byte{1, 0, 0, 0}, finished)
 	require.NoError(err)
+
+	supplyBytes, err := runtime.CallProgram(ctx, &v2.CallInfo{Program: programID, State: state, StateAccessList: saList, FunctionName: "get_total_supply", Params: bytes, MaxUnits: 1000000})
+	require.NoError(err)
+	expected, err := borsh.Serialize(123456789)
+	require.NoError(err)
+	require.Equal(expected, supplyBytes)
+
 }

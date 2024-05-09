@@ -53,10 +53,10 @@ func convertFunction(callInfo *CallInfo, function Function) func(*wasmtime.Calle
 		inputBytes := memExport.Memory().UnsafeData(caller)[vals[0].I32() : vals[0].I32()+vals[1].I32()]
 		results, err := function(callInfo, inputBytes)
 		if err != nil {
-			return nil, wasmtime.NewTrap(err.Error())
+			return []wasmtime.Val{wasmtime.ValI32(0)}, wasmtime.NewTrap(err.Error())
 		}
 		if results == nil {
-			return nil, nil
+			return []wasmtime.Val{wasmtime.ValI32(0)}, nil
 		}
 		resultLength := int32(len(results))
 		allocExport := caller.GetExport(AllocName)

@@ -7,8 +7,10 @@ import "C"
 import (
 	"context"
 	"errors"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/near/borsh-go"
 )
 
 const (
@@ -18,20 +20,18 @@ const (
 
 type CallInfo struct {
 	State           state.Mutable
-	Actor           AccountID
-	StateAccessList *StateAccessList
-	Account         AccountID
-	Program         ProgramID
+	Actor           ids.ID
+	StateAccessList StateAccessList
+	Account         ids.ID
+	Program         ids.ID
 	MaxUnits        uint64
 	FunctionName    string
 	Params          []byte
 }
 
-type ProgramID string
-
 type Program struct {
 	module    *wasmtime.Module
-	programID ProgramID
+	programID ids.ID
 }
 
 type ProgramInstance struct {
@@ -40,7 +40,7 @@ type ProgramInstance struct {
 	store *wasmtime.Store
 }
 
-func newProgram(engine *wasmtime.Engine, programID ProgramID, programBytes []byte) (*Program, error) {
+func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) (*Program, error) {
 	module, err := wasmtime.NewModule(engine, programBytes)
 	if err != nil {
 		return nil, err
@@ -70,17 +70,33 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		return nil, err
 	}
 
-	// functions that do have results should return the offset and length of the result bytes
-	resultVals, ok := resultIntf.([]wasmtime.Val)
-	if !ok || len(resultVals) != 2 {
-		return nil, errors.New("functions can only return 2 values.  The first is the offset of the result struct into memory and the second is the length of the result struct.")
+	switch result := resultIntf.(type) {
+	case int32, int64, float32, float64:
+		{
+			return borsh.Serialize(result)
+		}
+	case wasmtime.Val:
+		{
+			return borsh.Serialize(result.Get())
+		}
+	case []wasmtime.Val:
+		{
+			if len(result) != 2 {
+				return nil, errors.New("functions can only return 2 values.  The first is the offset of the result struct into memory and the second is the length of the result struct.")
+			}
+			resultOffset := result[0].I32()
+			resultLength := result[1].I32()
+
+			// copy results out of memory
+			resultBytes := make([]byte, 0, resultLength)
+			copy(resultBytes, linearMem[resultOffset:resultOffset+resultLength])
+
+			return resultBytes, nil
+		}
+	default:
+		{
+			return nil, errors.New("unknown return type")
+		}
 	}
-	resultOffset := resultVals[0].I32()
-	resultLength := resultVals[1].I32()
 
-	// copy results out of memory
-	resultBytes := make([]byte, 0, resultLength)
-	copy(resultBytes, linearMem[resultOffset:resultOffset+resultLength])
-
-	return resultBytes, nil
 }

@@ -39,6 +39,10 @@ var (
 	_ state.Immutable = &testDB{}
 )
 
+func newTestDB() *testDB {
+	return &testDB{db: memdb.New()}
+}
+
 type testDB struct {
 	db *memdb.Database
 }
