@@ -7,7 +7,7 @@ use std::hash::Hash;
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
-#[derive(Clone, Copy, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug)]
 pub struct Program([u8; Self::LEN]);
 
 impl Program {
