@@ -5,7 +5,6 @@ package v2
 
 import (
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
@@ -51,19 +50,8 @@ func NewConfig() *Config {
 type Config struct {
 	wasmConfig *wasmtime.Config
 
-	// EnableDebugMode is a test mode which provides access to non production debugging features.
-	// This should not be set for a live system as it has both performance and security considerations.
-	// Note: This requires associated Engine to enable support for BulkMemory.
-	// This is false by default.
-	EnableDebugMode bool `json:"enableTestingOnlyMode,omitempty" yaml:"enable_testing_only_mode,omitempty"`
-	// LimitMaxMemory defines the maximum number of pages of memory that can be used.
-	// Each page represents 64KiB of memory.
-	// This is 18 pages by default.
-	LimitMaxMemory uint32 `json:"limitMaxMemory,omitempty" yaml:"limit_max_memory,omitempty"`
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
 	CompileStrategy CompileStrategy `json:"compileStrategy,omitempty" yaml:"compile_strategy,omitempty"`
-	// ImportFnCallback is a global callback for all import function requests and responses.
-	ImportFnCallback host.ImportFnCallback `json:"-" yaml:"-"`
 }
 
 // Get returns the underlying wasmtime config.

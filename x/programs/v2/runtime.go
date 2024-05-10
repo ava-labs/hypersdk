@@ -12,26 +12,33 @@ import (
 )
 
 type WasmRuntime struct {
-	log         logging.Logger
-	engine      *wasmtime.Engine
-	hostImports *Imports
-	cfg         *Config
-	programs    map[ids.ID]*Program
-	chainState  state.Mutable
+	log           logging.Logger
+	engine        *wasmtime.Engine
+	hostImports   *Imports
+	cfg           *Config
+	programs      map[ids.ID]*Program
+	chainState    state.Mutable
+	programLoader ProgramLoader
+}
+
+type ProgramLoader interface {
+	GetProgramBytes(programID ids.ID) ([]byte, error)
 }
 
 func NewRuntime(
+	cfg *Config,
 	log logging.Logger,
 	chainState state.Mutable,
-	cfg *Config,
+	loader ProgramLoader,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
-		log:         log,
-		engine:      wasmtime.NewEngineWithConfig(cfg.wasmConfig),
-		chainState:  chainState,
-		cfg:         cfg,
-		hostImports: NewImports(),
-		programs:    map[ids.ID]*Program{},
+		log:           log,
+		cfg:           cfg,
+		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
+		chainState:    chainState,
+		hostImports:   NewImports(),
+		programs:      map[ids.ID]*Program{},
+		programLoader: loader,
 	}
 
 	runtime.hostImports.AddModule(NewMemoryModule())
@@ -56,7 +63,15 @@ func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
 	program, ok := r.programs[callInfo.ProgramID]
 	if !ok {
-		// load program into memory
+		bytes, err := r.programLoader.GetProgramBytes(callInfo.ProgramID)
+		if err != nil {
+			return nil, err
+		}
+		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
+		if err != nil {
+			return nil, err
+		}
+		r.programs[callInfo.ProgramID] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
