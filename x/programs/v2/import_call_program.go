@@ -24,7 +24,6 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				newInfo.Account = parsedInput.ProgramAccount
-				newInfo.Program = parsedInput.ProgramID
 				newInfo.FunctionName = parsedInput.FunctionName
 				newInfo.Params = parsedInput.Params
 

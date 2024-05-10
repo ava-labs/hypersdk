@@ -34,7 +34,7 @@ func NewRuntime(
 		programs:    map[ids.ID]*Program{},
 	}
 
-	runtime.hostImports.AddModule(NewContextModule())
+	runtime.hostImports.AddModule(NewMemoryModule())
 	runtime.hostImports.AddModule(NewStateAccessModule())
 	runtime.hostImports.AddModule(NewCallProgramModule(runtime))
 
@@ -54,7 +54,7 @@ func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
 	return nil
 }
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	program, ok := r.programs[callInfo.Program]
+	program, ok := r.programs[callInfo.ProgramID]
 	if !ok {
 		// load program into memory
 	}
@@ -62,6 +62,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 	if err != nil {
 		return nil, err
 	}
+	callInfo.programInstance = inst
 	callInfo.FunctionName = callInfo.FunctionName + "_guest"
 	return inst.call(ctx, callInfo)
 }

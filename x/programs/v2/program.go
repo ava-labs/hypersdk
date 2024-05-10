@@ -23,10 +23,11 @@ type CallInfo struct {
 	Actor           ids.ID
 	StateAccessList StateAccessList
 	Account         ids.ID
-	Program         ids.ID
+	ProgramID       ids.ID
 	MaxUnits        uint64
 	FunctionName    string
 	Params          []byte
+	programInstance *ProgramInstance
 }
 
 type Program struct {
@@ -36,8 +37,9 @@ type Program struct {
 
 type ProgramInstance struct {
 	*Program
-	inst  *wasmtime.Instance
-	store *wasmtime.Store
+	inst   *wasmtime.Instance
+	store  *wasmtime.Store
+	result []byte
 }
 
 func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) (*Program, error) {
@@ -98,5 +100,15 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 			return nil, errors.New("unknown return type")
 		}
 	}
+}
 
+func (p *ProgramInstance) setResult(offset int32, length int32) error {
+	memory := p.inst.GetExport(p.store, MemoryName).Memory()
+	linearMem := memory.UnsafeData(p.store)
+	if int32(len(linearMem))-(offset+length) < 0 {
+		return errors.New("cannot copy more data than exists in linear memory")
+	}
+	p.result = make([]byte, length)
+	copy(p.result, linearMem[offset:])
+	return nil
 }
