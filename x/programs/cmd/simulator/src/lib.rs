@@ -6,12 +6,9 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
-    error::Error,
-    io::{BufRead, BufReader, Stdin, Write},
+    io::{BufRead, BufReader, Write},
     path::Path,
     process::{Command, Stdio},
-    thread,
-    time::Duration,
 };
 
 mod id;
@@ -252,21 +249,17 @@ impl Client {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let mut writer = child.stdin.take().ok_or("failed to open stdin").unwrap();
+        let writer = child.stdin.take().ok_or("failed to open stdin").unwrap();
         let reader = child.stdout.take().ok_or("failed to open stdout").unwrap();
 
-        let mut responses = BufReader::new(reader)
+        let responses = BufReader::new(reader)
             .lines()
             .map(|line| -> Result<_, ClientError> {
                 let line = line.map_err(ClientError::Read)?;
-                dbg!(&line);
                 let res = serde_json::from_str::<PlanResponse>(&line)
                     .map_err(ClientError::Deserialization)?;
-                // dbg!(&res);
                 Ok(res)
             });
-
-        responses.next(); // make sure that the simulator is reading from stdin
 
         let mut child = SimulatorChild { writer, responses };
 

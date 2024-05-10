@@ -33,7 +33,6 @@ var _ Cmd = (*runCmd)(nil)
 type runCmd struct {
 	cmd *argparse.Command
 
-	stdin    *bool
 	lastStep *int
 	file     *string
 	planStep *string
@@ -51,11 +50,6 @@ func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programI
 	c.db = db
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
-	/*c.stdin = c.cmd.Flag("", "stdin", &argparse.Options{
-		Help:     "name of the key to use to deploy the program",
-		Required: false,
-		Default:  false,
-	})*/
 	c.file = c.cmd.String("", "file", &argparse.Options{
 		Required: false,
 	})

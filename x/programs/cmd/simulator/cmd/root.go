@@ -96,8 +96,10 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 			s.log.Debug("a step has ben ran", zap.Any("resp", resp))
 
-			// print response to stdout
-			resp.Print()
+			if interpreterMode {
+				// we need feedback, so print response to stdout
+				resp.Print()
+			}
 
 			if _, ok := cmd.(*InterpreterCmd); ok || interpreterMode {
 				s.log.Debug("reading next cmd from stdin")
