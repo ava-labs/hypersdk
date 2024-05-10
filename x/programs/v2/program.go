@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/bytecodealliance/wasmtime-go/v14"
-	"github.com/near/borsh-go"
 )
 
 const (
@@ -66,40 +65,8 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	linearMem := programMemory.UnsafeData(p.store)
 	copy(linearMem[offset:], callInfo.Params)
 
-	resultIntf, err := p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, offset)
-	// functions with no results or an error return nil
-	if resultIntf == nil || err != nil {
-		return nil, err
-	}
-
-	switch result := resultIntf.(type) {
-	case int32, int64, float32, float64:
-		{
-			return borsh.Serialize(result)
-		}
-	case wasmtime.Val:
-		{
-			return borsh.Serialize(result.Get())
-		}
-	case []wasmtime.Val:
-		{
-			if len(result) != 2 {
-				return nil, errors.New("functions can only return 2 values.  The first is the offset of the result struct into memory and the second is the length of the result struct.")
-			}
-			resultOffset := result[0].I32()
-			resultLength := result[1].I32()
-
-			// copy results out of memory
-			resultBytes := make([]byte, 0, resultLength)
-			copy(resultBytes, linearMem[resultOffset:resultOffset+resultLength])
-
-			return resultBytes, nil
-		}
-	default:
-		{
-			return nil, errors.New("unknown return type")
-		}
-	}
+	_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, offset)
+	return p.result, err
 }
 
 func (p *ProgramInstance) setResult(offset int32, length int32) error {
