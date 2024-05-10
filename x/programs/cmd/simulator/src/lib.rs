@@ -7,9 +7,11 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
     error::Error,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Stdin, Write},
     path::Path,
     process::{Command, Stdio},
+    thread,
+    time::Duration,
 };
 
 mod id;
@@ -201,6 +203,18 @@ pub struct PlanResult {
     pub response: Option<Vec<i64>>,
 }
 
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ClientError {
+    #[error("read")]
+    Read(#[from] std::io::Error),
+    #[error("serde_json error")]
+    Deserialization(#[from] serde_json::Error),
+    #[error("custom")]
+    Custom(String),
+}
+
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
 pub struct Client {
     /// Path to the simulator binary
@@ -228,8 +242,8 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
-        let child = Command::new(self.path)
+    pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
+        let mut child = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
@@ -238,24 +252,28 @@ impl Client {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let writer = child.stdin.ok_or("failed to open stdin")?;
-        let responses = BufReader::new(child.stdout.ok_or("failed to open stdout")?)
+        let mut writer = child.stdin.take().ok_or("failed to open stdin").unwrap();
+        let reader = child.stdout.take().ok_or("failed to open stdout").unwrap();
+
+        let mut responses = BufReader::new(reader)
             .lines()
-            .map(|line| -> Result<_, Box<dyn Error>> {
-                let line = line?;
-                let res = serde_json::from_str::<PlanResponse>(&line)?;
+            .map(|line| -> Result<_, ClientError> {
+                let line = line.map_err(ClientError::Read)?;
+                dbg!(&line);
+                let res = serde_json::from_str::<PlanResponse>(&line)
+                    .map_err(ClientError::Deserialization)?;
+                // dbg!(&res);
                 Ok(res)
             });
 
+        responses.next(); // make sure that the simulator is reading from stdin
+
         let mut child = SimulatorChild { writer, responses };
 
-        let res = plan
-            .steps
+        plan.steps
             .iter()
             .map(|step| child.run_step(&plan.caller_key, step))
-            .collect::<Result<_, _>>()?;
-
-        Ok(res)
+            .collect::<Result<_, ClientError>>()
     }
 }
 
@@ -273,27 +291,22 @@ struct SimulatorChild<W, R> {
 impl<W, R> SimulatorChild<W, R>
 where
     W: Write,
-    R: Iterator<Item = Result<PlanResponse, Box<dyn Error>>>,
+    R: Iterator<Item = Result<PlanResponse, ClientError>>,
 {
-    fn run_step(
-        &mut self,
-        caller_key: &String,
-        step: &Step,
-    ) -> Result<PlanResponse, Box<dyn Error>> {
-        let run_command = b"run --stdin\n";
-
+    fn run_step(&mut self, caller_key: &String, step: &Step) -> Result<PlanResponse, ClientError> {
+        let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
-        self.writer.flush()?;
 
         let step = SimulatorStep { caller_key, step };
-        let input =
-            serde_json::to_vec(&step).map_err(|e| format!("failed to serialize json: {e}"))?;
-
+        let input = serde_json::to_vec(&step)?;
         self.writer.write_all(&input)?;
-        self.writer.write_all(b"\n")?;
+        self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
 
-        let resp = self.responses.next().ok_or("EOF")??;
+        let resp = self
+            .responses
+            .next()
+            .ok_or(ClientError::Custom("EOF".into()))??;
 
         Ok(resp)
     }

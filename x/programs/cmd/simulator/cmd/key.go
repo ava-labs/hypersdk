@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
@@ -23,11 +23,11 @@ type keyCreateCmd struct {
 	cmd *argparse.Command
 
 	log  logging.Logger
-	db   *state.SimpleMutable
+	db   **state.SimpleMutable
 	name *string
 }
 
-func (c *keyCreateCmd) New(parser *argparse.Parser, db *state.SimpleMutable) {
+func (c *keyCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) {
 	c.db = db
 	c.cmd = parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
 	c.name = c.cmd.String("", "name", &argparse.Options{Required: true})
@@ -37,12 +37,12 @@ func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []strin
 	resp := newResponse(0)
 	resp.setTimestamp(time.Now().Unix())
 	c.log = log
-	pkey, err := keyCreateFunc(ctx, c.db, *c.name)
+	pkey, err := keyCreateFunc(ctx, *c.db, *c.name)
 	if err != nil {
 		return resp, err
 	}
 
-	utils.Outf("{{green}}key create successful: {{/}}%x\n", pkey)
+	c.log.Debug("key create successful", zap.String("key", fmt.Sprintf("%x", pkey)))
 
 	return resp, nil
 }

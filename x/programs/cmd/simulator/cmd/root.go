@@ -100,7 +100,8 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 			resp.Print()
 
 			if _, ok := cmd.(*InterpreterCmd); ok || interpreterMode {
-				readBytes, err := s.reader.ReadBytes('\n')
+				s.log.Debug("reading next cmd from stdin")
+				readString, err := s.reader.ReadString('\n')
 				if err == io.EOF {
 					// happens when the caller dropped, we should stop here
 					return nil
@@ -110,7 +111,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				}
 
 				rawArgs := []string{"simulator"}
-				parsed, err := shellwords.Parse(string(readBytes))
+				parsed, err := shellwords.Parse(readString)
 				if err != nil {
 					return err
 				}
@@ -120,7 +121,6 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				if err != nil {
 					return err
 				} else {
-					interpreterMode = true
 					return nil
 				}
 			} else {
@@ -135,24 +135,27 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
 	s.programIDStrMap = make(map[string]string)
+
+	defer func() {
+		// ensure vm and databases are properly closed on simulator exit
+		if s.vm != nil {
+			err := s.vm.Shutdown(ctx)
+			if err != nil {
+				s.log.Error("simulator vm closed with error",
+					zap.Error(err),
+				)
+			}
+		}
+
+		if *s.cleanup {
+			s.cleanupFn()
+		}
+	}()
+
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
 		s.log.Error("error when parsing command args", zap.Error(err))
 		os.Exit(1)
-	}
-
-	// ensure vm and databases are properly closed on simulator exit
-	if s.vm != nil {
-		err := s.vm.Shutdown(ctx)
-		if err != nil {
-			s.log.Error("simulator vm closed with error",
-				zap.Error(err),
-			)
-		}
-	}
-
-	if *s.cleanup {
-		s.cleanupFn()
 	}
 
 	return nil
@@ -164,14 +167,15 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.logLevel = parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
 	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
 
-	s.reader = bufio.NewReader(os.Stdin)
+	stdin := os.Stdin
+	s.reader = bufio.NewReader(stdin)
 
 	runCmd := runCmd{}
-	runCmd.New(parser, s.db, s.programIDStrMap, &s.lastStep, s.reader)
+	runCmd.New(parser, &s.db, s.programIDStrMap, &s.lastStep, s.reader)
 	programCmd := programCreateCmd{}
-	programCmd.New(parser, s.db)
+	programCmd.New(parser, &s.db)
 	keyCmd := keyCreateCmd{}
-	keyCmd.New(parser, s.db)
+	keyCmd.New(parser, &s.db)
 
 	return parser, []Cmd{&runCmd, &programCmd, &keyCmd}
 }

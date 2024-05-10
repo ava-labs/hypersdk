@@ -36,26 +36,30 @@ type runCmd struct {
 	stdin    *bool
 	lastStep *int
 	file     *string
+	planStep *string
 
 	step   *Step
 	log    logging.Logger
-	db     *state.SimpleMutable
+	db     **state.SimpleMutable
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
 }
 
-func (c *runCmd) New(parser *argparse.Parser, db *state.SimpleMutable, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
 	c.db = db
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
-	c.stdin = c.cmd.Flag("", "stdin", &argparse.Options{
+	/*c.stdin = c.cmd.Flag("", "stdin", &argparse.Options{
 		Help:     "name of the key to use to deploy the program",
 		Required: false,
 		Default:  false,
-	})
+	})*/
 	c.file = c.cmd.String("", "file", &argparse.Options{
+		Required: false,
+	})
+	c.planStep = c.cmd.String("", "step", &argparse.Options{
 		Required: false,
 	})
 	c.lastStep = lastStep
@@ -64,12 +68,7 @@ func (c *runCmd) New(parser *argparse.Parser, db *state.SimpleMutable, programID
 
 func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
 	c.log = log
-	resp1 := newResponse(0)
-	resp1.setTimestamp(time.Now().Unix())
 	var err error
-	if err := resp1.Print(); err != nil {
-		return newResponse(0), err
-	}
 	if err = c.Init(); err != nil {
 		return newResponse(0), err
 	}
@@ -88,22 +87,20 @@ func (c *runCmd) Happened() bool {
 }
 
 func (c *runCmd) Init() (err error) {
-	var planBytes []byte
-	if *c.stdin {
-		c.log.Debug("reading plan from stdin")
-		// read simulation plan from stdin
-		planBytes, err = (*c.reader).ReadBytes('\n')
+	var planStep []byte
+	if c.planStep != nil && len(*c.planStep) > 0 {
+		planStep = []byte(*c.planStep)
+	} else if len(*c.file) > 0 {
+		// read simulation step from file
+		planStep, err = os.ReadFile(*c.file)
 		if err != nil {
 			return err
 		}
 	} else {
-		// read simulation plan from file
-		planBytes, err = os.ReadFile(*c.file)
-		if err != nil {
-			return err
-		}
+		return errors.New("please specify either a --plan or a --file flag")
 	}
-	c.step, err = unmarshalStep(planBytes)
+
+	c.step, err = unmarshalStep(planStep)
 	if err != nil {
 		return err
 	}
@@ -194,14 +191,14 @@ func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
 		zap.Any("params", step.Params),
 	)
 
-	params, err := c.createCallParams(ctx, c.db, step.Params)
+	params, err := c.createCallParams(ctx, *c.db, step.Params)
 	if err != nil {
 		c.log.Error("simulation call", zap.Error(err))
 		return newResponse(0), err
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
 		c.log.Debug("simulation step", zap.Error(err))
 		resp.setError(err)
