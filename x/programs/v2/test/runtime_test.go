@@ -47,8 +47,8 @@ func TestSimpleCall(t *testing.T) {
 	programID := ids.GenerateTestID()
 	// all arguments are smart-pointers so this is a bit of a hack
 	finished, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, StateAccessList: saList, FunctionName: "init", Params: nil, Fuel: 1000000})
-	require.Equal(nil, finished)
 	require.NoError(err)
+	require.Equal([]byte{1}, finished)
 
 	supplyBytes, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, StateAccessList: saList, FunctionName: "get_total_supply", Params: nil, Fuel: 1000000})
 	require.NoError(err)

@@ -6,7 +6,6 @@ package v2
 import "C"
 import (
 	"context"
-	"errors"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/program"
@@ -28,7 +27,7 @@ type CallInfo struct {
 	Fuel            uint64
 	FunctionName    string
 	Params          []byte
-	programInstance *ProgramInstance
+	result          []byte
 }
 
 type Program struct {
@@ -38,9 +37,8 @@ type Program struct {
 
 type ProgramInstance struct {
 	*Program
-	inst   *wasmtime.Instance
-	store  *wasmtime.Store
-	result []byte
+	inst  *wasmtime.Instance
+	store *wasmtime.Store
 }
 
 func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) (*Program, error) {
@@ -63,45 +61,34 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		return nil, err
 	}
 
-	//copy params into store linear memory
-	ctxOffset, paramOffset, err := p.setParams(programCtxBytes, callInfo.Params)
+	//copy context into store linear memory
+	ctxOffset, err := p.setParam(programCtxBytes)
 	if err != nil {
 		return nil, err
 	}
+	if callInfo.Params == nil {
+		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset)
+	} else {
+		// if params exist, copy them into linear memory too
+		paramsOffset, err := p.setParam(programCtxBytes)
+		if err != nil {
+			return nil, err
+		}
+		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, paramsOffset)
+	}
 
-	_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, paramOffset)
-	return p.result, err
+	return callInfo.result, err
 }
 
-func (p *ProgramInstance) setParams(programCtxBytes, param []byte) (int32, int32, error) {
+func (p *ProgramInstance) setParam(data []byte) (int32, error) {
 	allocFn := p.inst.GetExport(p.store, AllocName).Func()
 	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
+	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))
+	if err != nil {
+		return 0, wasmtime.NewTrap(err.Error())
+	}
+	dataOffset := dataOffsetIntf.(int32)
 	linearMem := programMemory.UnsafeData(p.store)
-
-	ctxOffsetIntf, err := allocFn.Call(p.store, int32(len(programCtxBytes)))
-	if err != nil {
-		return 0, 0, wasmtime.NewTrap(err.Error())
-	}
-	ctxOffset := ctxOffsetIntf.(int32)
-	copy(linearMem[ctxOffset:], programCtxBytes)
-
-	paramOffsetIntf, err := allocFn.Call(p.store, int32(len(param)))
-	if err != nil {
-		return 0, 0, wasmtime.NewTrap(err.Error())
-	}
-	paramOffset := paramOffsetIntf.(int32)
-	copy(linearMem[paramOffset:], param)
-
-	return ctxOffset, paramOffset, nil
-}
-
-func (p *ProgramInstance) setResult(offset int32, length int32) error {
-	memory := p.inst.GetExport(p.store, MemoryName).Memory()
-	linearMem := memory.UnsafeData(p.store)
-	if int32(len(linearMem))-(offset+length) < 0 {
-		return errors.New("cannot copy more data than exists in linear memory")
-	}
-	p.result = make([]byte, length)
-	copy(p.result, linearMem[offset:])
-	return nil
+	copy(linearMem[dataOffset:], data)
+	return dataOffset, nil
 }

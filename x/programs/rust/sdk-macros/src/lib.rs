@@ -130,9 +130,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-
-
-    let return_type = &input.sig.output;
     let name = &input.sig.ident;
     let struct_name = Ident::new(&format!("{name}_input"), name.span());
 
@@ -167,13 +164,22 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         mod private {
             use super::*;
             #struct_declaration
+
+            #[link(wasm_import_module = "program")]
+            extern "C" {
+                #[link_name = "set_result"]
+                fn set_call_result(ptr: *const u8, len: usize) -> usize;
+            }
+
             #[no_mangle]
-            unsafe extern "C" fn #new_name(context_ptr: *const u8 #struct_param_declaraion) #return_type {
+            unsafe extern "C" fn #new_name(context_ptr: *const u8 #struct_param_declaraion) {
                 let ctx: #context_type = unsafe {
                     wasmlanche_sdk::from_host_ptr(context_ptr).expect("error serializing ptr")
                 }; 
                 #struct_deserialization
-                super::#name(ctx, #(#converted_params),*)
+                let result = super::#name(ctx, #(#converted_params),*);
+                let result = borsh::to_vec(&result).expect("error serializing result");
+                unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
         }
     };

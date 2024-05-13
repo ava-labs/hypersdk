@@ -13,6 +13,11 @@ type callInput struct {
 	Params         []byte
 }
 
+type setResultInput struct {
+	Offset int32
+	Length int32
+}
+
 func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{name: "program",
 		funcs: map[string]Function{
@@ -31,6 +36,10 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 				return r.CallProgram(
 					context.Background(),
 					&newInfo)
+			},
+			"set_result": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+				callInfo.result = input
+				return nil, nil
 			},
 		},
 	}

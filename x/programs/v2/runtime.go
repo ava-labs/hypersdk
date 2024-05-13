@@ -42,7 +42,6 @@ func NewRuntime(
 	}
 
 	runtime.AddImportModule(NewLogModule())
-	runtime.AddImportModule(NewMemoryModule())
 	runtime.AddImportModule(NewStateAccessModule())
 	runtime.AddImportModule(NewCallProgramModule(runtime))
 
@@ -78,13 +77,15 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 	if err != nil {
 		return nil, err
 	}
-	callInfo.programInstance = inst
 	callInfo.FunctionName = callInfo.FunctionName + "_guest"
 	return inst.call(ctx, callInfo)
 }
 
 func (r *WasmRuntime) getInstance(callInfo *CallInfo, program *Program, imports *Imports) (*ProgramInstance, error) {
 	linker, err := imports.createLinker(r.engine, callInfo)
+	if err != nil {
+		return nil, err
+	}
 	store := wasmtime.NewStore(r.engine)
 	store.SetEpochDeadline(1)
 	inst, err := linker.Instantiate(store, program.module)

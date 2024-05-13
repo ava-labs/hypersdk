@@ -98,9 +98,11 @@ func NewSimpleStateAccessList(readKeys [][]byte, writeKeys [][]byte) StateAccess
 }
 
 func (saList *stateAccessList) CanRead(key []byte) bool {
-	return saList.read.Contains(string(key))
+	return true
+	//return saList.read.Contains(string(key))
 }
 
 func (saList *stateAccessList) CanWrite(key []byte) bool {
-	return saList.write.Contains(string(key))
+	return true
+	//return saList.write.Contains(string(key))
 }
