@@ -7,7 +7,6 @@ import (
 	"context"
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
 	"github.com/near/borsh-go"
 	"os"
@@ -18,38 +17,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testLoader struct {
+}
+
+func (testLoader) GetProgramBytes(programID ids.ID) ([]byte, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join(dir, "token.wasm"))
+}
+
 func TestSimpleCall(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := v2.NewRuntime(logging.NoLog{}, &testDB{
-		db: memdb.New(),
-	}, v2.NewConfig())
-
-	dir, err := os.Getwd()
-	require.NoError(err)
-	bytes, err := os.ReadFile(filepath.Join(dir, "token.wasm"))
-	require.NoError(err)
-
-	programCtx := program.Context{ProgramID: ids.GenerateTestID()}
-	programID := v2.ProgramID(programCtx.ProgramID.String())
-	err = runtime.AddProgram(programID, bytes)
-	require.NoError(err)
-
-	bytes, err = borsh.Serialize(programCtx)
-	require.NoError(err)
+	runtime := v2.NewRuntime(
+		v2.NewConfig(),
+		logging.NoLog{}, &testDB{
+			db: memdb.New(),
+		},
+		testLoader{})
 
 	saList := v2.NewSimpleStateAccessList([][]byte{{0}, {47, 0}, {47, 1}, {47, 2}}, [][]byte{{47, 0}, {47, 1}, {47, 2}})
 
 	state := newTestDB()
+	programID := ids.GenerateTestID()
 	// all arguments are smart-pointers so this is a bit of a hack
-	finished, err := runtime.CallProgram(ctx, &v2.CallInfo{Program: programID, State: state, StateAccessList: saList, FunctionName: "init", Params: bytes, MaxUnits: 1000000})
-	require.Equal([]byte{1, 0, 0, 0}, finished)
+	finished, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, StateAccessList: saList, FunctionName: "init", Params: nil, Fuel: 1000000})
+	require.Equal(nil, finished)
 	require.NoError(err)
 
-	supplyBytes, err := runtime.CallProgram(ctx, &v2.CallInfo{Program: programID, State: state, StateAccessList: saList, FunctionName: "get_total_supply", Params: bytes, MaxUnits: 1000000})
+	supplyBytes, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, StateAccessList: saList, FunctionName: "get_total_supply", Params: nil, Fuel: 1000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(123456789)
 	require.NoError(err)

@@ -41,14 +41,15 @@ func NewRuntime(
 		programLoader: loader,
 	}
 
-	runtime.hostImports.AddModule(NewMemoryModule())
-	runtime.hostImports.AddModule(NewStateAccessModule())
-	runtime.hostImports.AddModule(NewCallProgramModule(runtime))
+	runtime.AddImportModule(NewLogModule())
+	runtime.AddImportModule(NewMemoryModule())
+	runtime.AddImportModule(NewStateAccessModule())
+	runtime.AddImportModule(NewCallProgramModule(runtime))
 
 	return runtime
 }
 
-func (r *WasmRuntime) AddImports(mod *ImportModule) {
+func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 }
 

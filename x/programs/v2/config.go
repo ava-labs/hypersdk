@@ -18,14 +18,12 @@ const (
 )
 
 var (
-	DefaultMaxWasmStack         = 256 * units.MiB             // 256 MiB
-	DefaultLimitMaxMemory       = uint32(18 * 64 * units.KiB) // 18 pages
+	DefaultMaxWasmStack         = 256 * units.MiB // 256 MiB
 	DefaultSIMD                 = false
 	DefaultEnableReferenceTypes = false
 	DefaultEnableBulkMemory     = false
 	DefaultProfilingStrategy    = wasmtime.ProfilingStrategyNone
 	DefaultMultiValue           = false
-	DefaultCompileStrategy      = CompileWasm
 
 	defaultWasmThreads                  = false
 	defaultFuelMetering                 = true

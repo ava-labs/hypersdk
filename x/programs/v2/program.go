@@ -9,7 +9,9 @@ import (
 	"errors"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/near/borsh-go"
 )
 
 const (
@@ -23,7 +25,7 @@ type CallInfo struct {
 	StateAccessList StateAccessList
 	Account         ids.ID
 	ProgramID       ids.ID
-	MaxUnits        uint64
+	Fuel            uint64
 	FunctionName    string
 	Params          []byte
 	programInstance *ProgramInstance
@@ -50,23 +52,47 @@ func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) 
 }
 
 func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
-	// add context cancel handling
-	if err := p.store.AddFuel(callInfo.MaxUnits); err != nil {
+	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
+		return nil, err
+	}
+
+	// create the program context
+	programCtx := program.Context{ProgramID: callInfo.ProgramID}
+	programCtxBytes, err := borsh.Serialize(programCtx)
+	if err != nil {
 		return nil, err
 	}
 
 	//copy params into store linear memory
-	offsetIntf, err := p.inst.GetExport(p.store, AllocName).Func().Call(p.store, int32(len(callInfo.Params)))
+	ctxOffset, paramOffset, err := p.setParams(programCtxBytes, callInfo.Params)
 	if err != nil {
-		return nil, wasmtime.NewTrap(err.Error())
+		return nil, err
 	}
-	offset := offsetIntf.(int32)
+
+	_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, paramOffset)
+	return p.result, err
+}
+
+func (p *ProgramInstance) setParams(programCtxBytes, param []byte) (int32, int32, error) {
+	allocFn := p.inst.GetExport(p.store, AllocName).Func()
 	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	linearMem := programMemory.UnsafeData(p.store)
-	copy(linearMem[offset:], callInfo.Params)
 
-	_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, offset)
-	return p.result, err
+	ctxOffsetIntf, err := allocFn.Call(p.store, int32(len(programCtxBytes)))
+	if err != nil {
+		return 0, 0, wasmtime.NewTrap(err.Error())
+	}
+	ctxOffset := ctxOffsetIntf.(int32)
+	copy(linearMem[ctxOffset:], programCtxBytes)
+
+	paramOffsetIntf, err := allocFn.Call(p.store, int32(len(param)))
+	if err != nil {
+		return 0, 0, wasmtime.NewTrap(err.Error())
+	}
+	paramOffset := paramOffsetIntf.(int32)
+	copy(linearMem[paramOffset:], param)
+
+	return ctxOffset, paramOffset, nil
 }
 
 func (p *ProgramInstance) setResult(offset int32, length int32) error {

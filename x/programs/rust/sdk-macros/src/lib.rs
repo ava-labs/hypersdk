@@ -1,5 +1,7 @@
 extern crate proc_macro;
 
+use std::iter::Skip;
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
@@ -73,9 +75,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let input_args = input.sig.inputs.iter();
-
-    let param_idents = input_args.enumerate().skip(1).map(|(i, fn_arg)| {
+    let param_idents = input.sig.inputs.iter().enumerate().skip(1).map(|(i, fn_arg)| {
         match fn_arg {
             FnArg::Receiver(_) => Err(syn::Error::new(
                 fn_arg.span(),
@@ -90,7 +90,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                     fn_arg.span(),
                     "Functions with the `#[public]` attribute can only ignore the first parameter.",
                 )),
-                _ => Ok(Ident::new(&format!("param_{i}"), fn_arg.span())),
+                _ => Ok(pat)
             },
         }
     });
@@ -126,27 +126,54 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let converted_params = param_names.iter().map(|param_name| {
         quote! {
-            unsafe {
-                wasmlanche_sdk::from_host_ptr(#param_name).expect("error serializing ptr")
-            }
+           param_struct.#param_name
         }
     });
 
-    let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
+
 
     let return_type = &input.sig.output;
     let name = &input.sig.ident;
+    let struct_name = Ident::new(&format!("{name}_input"), name.span());
+
+    let args = input.sig.inputs.iter().skip(1).map(|fn_arg| {
+        match fn_arg {
+            FnArg::Receiver(_) => quote! {},
+            FnArg::Typed(PatType {  pat, ty, ..}) => quote! {
+                #pat: #ty
+            },
+        }
+    });
+    let has_no_args = args.len()==0;
+    let struct_declaration = if has_no_args {quote !{}} else {quote !{
+        #[derive(borsh::BorshDeserialize)]
+        struct #struct_name {
+            #(#args),*
+        }
+    }};
+
+    let struct_param_declaraion = if has_no_args {quote !{}} else {quote !{
+        , param_struct_ptr : *const u8
+    }};
+
+
+    let struct_deserialization = if has_no_args {quote !{}} else {quote !{
+        let param_struct: #struct_name = unsafe {
+            wasmlanche_sdk::from_host_ptr(param_struct_ptr).expect("error serializing ptr")
+        };
+    }};
 
     let external_call = quote! {
         mod private {
             use super::*;
-
+            #struct_declaration
             #[no_mangle]
-            unsafe extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
-                let param_0: #context_type = unsafe {
-                    wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
-                };
-                super::#name(param_0, #(#converted_params),*)
+            unsafe extern "C" fn #new_name(context_ptr: *const u8 #struct_param_declaraion) #return_type {
+                let ctx: #context_type = unsafe {
+                    wasmlanche_sdk::from_host_ptr(context_ptr).expect("error serializing ptr")
+                }; 
+                #struct_deserialization
+                super::#name(ctx, #(#converted_params),*)
             }
         }
     };
