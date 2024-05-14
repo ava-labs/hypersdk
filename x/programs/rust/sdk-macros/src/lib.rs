@@ -167,12 +167,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             #[link(wasm_import_module = "program")]
             extern "C" {
-                #[link_name = "set_result"]
-                fn set_call_result(ptr: *const u8, len: usize) -> usize;
-            }
-
-            #[link(wasm_import_module = "program")]
-            extern "C" {
                 #[link_name = "set_call_result"]
                 fn set_call_result(ptr: *const u8, len: usize);
             }

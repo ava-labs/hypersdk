@@ -68,6 +68,8 @@ func getFunctType(hf HostFunction) *wasmtime.FuncType {
 	return nil
 }
 
+var nilResult = []wasmtime.Val{wasmtime.ValI32(0)}
+
 func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		memExport := caller.GetExport(MemoryName)
@@ -77,17 +79,17 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 		case FunctionWithOutput:
 			results, err := f(callInfo, inputBytes)
 			if err != nil {
-				return []wasmtime.Val{wasmtime.ValI32(0)}, wasmtime.NewTrap(err.Error())
+				return nilResult, wasmtime.NewTrap(err.Error())
 			}
 			resultLength := int32(len(results))
 			allocExport := caller.GetExport(AllocName)
 			offsetIntf, err := allocExport.Func().Call(caller, resultLength)
 			if err != nil {
-				return []wasmtime.Val{wasmtime.ValI32(0)}, wasmtime.NewTrap(err.Error())
+				return nilResult, wasmtime.NewTrap(err.Error())
 			}
 			offset := offsetIntf.(int32)
 			copy(memExport.Memory().UnsafeData(caller)[offset:], results)
-			return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
+			return nilResult, nil
 		case FunctionNoOutput:
 			err := f(callInfo, inputBytes)
 			if err != nil {
