@@ -57,6 +57,15 @@ where
     }
 }
 
+impl<K> Default for State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+ {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<K> State<K>
 where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,

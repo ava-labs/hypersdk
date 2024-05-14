@@ -1,5 +1,4 @@
 use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
-use borsh::BorshDeserialize;
 
 #[state_keys]
 enum StateKeys {

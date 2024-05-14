@@ -1,6 +1,5 @@
 extern crate proc_macro;
 
-use std::iter::Skip;
 
 use proc_macro::TokenStream;
 use quote::quote;
