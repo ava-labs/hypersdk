@@ -109,11 +109,15 @@ func NewSimpleStateAccessList(readKeys [][]byte, writeKeys [][]byte) StateAccess
 }
 
 func (saList *stateAccessList) CanRead(key []byte) bool {
-	return true
-	//return saList.read.Contains(string(key))
+	return saList.read.Contains(string(key))
 }
 
 func (saList *stateAccessList) CanWrite(key []byte) bool {
-	return true
-	//return saList.write.Contains(string(key))
+	return saList.write.Contains(string(key))
 }
+
+type testAccessList struct{}
+
+func NewTestStateAccessList() StateAccessList  { return &testAccessList{} }
+func (*testAccessList) CanRead(_ []byte) bool  { return true }
+func (*testAccessList) CanWrite(_ []byte) bool { return true }
