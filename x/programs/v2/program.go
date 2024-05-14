@@ -32,7 +32,20 @@ type CallInfo struct {
 	Fuel            uint64
 	FunctionName    string
 	Params          []byte
-	result          []byte
+	inst            *ProgramInstance
+}
+
+func (c *CallInfo) RemainingFuel() uint64 {
+	remaining := c.Fuel
+	usedFuel, fuelEnabled := c.inst.store.FuelConsumed()
+	if fuelEnabled {
+		remaining -= usedFuel
+	}
+	return remaining
+}
+
+func (c *CallInfo) ConsumeFuel(fuel uint64) {
+	c.inst.store.ConsumeFuel(fuel)
 }
 
 type Program struct {
@@ -42,8 +55,9 @@ type Program struct {
 
 type ProgramInstance struct {
 	*Program
-	inst  *wasmtime.Instance
-	store *wasmtime.Store
+	inst   *wasmtime.Instance
+	store  *wasmtime.Store
+	result []byte
 }
 
 func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) (*Program, error) {
@@ -82,7 +96,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, paramsOffset)
 	}
 
-	return callInfo.result, err
+	return p.result, err
 }
 
 func (p *ProgramInstance) setParam(data []byte) (int32, error) {

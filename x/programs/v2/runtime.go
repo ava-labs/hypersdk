@@ -77,6 +77,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 	if err != nil {
 		return nil, err
 	}
+	callInfo.inst = inst
 	callInfo.FunctionName = callInfo.FunctionName + "_guest"
 	return inst.call(ctx, callInfo)
 }
