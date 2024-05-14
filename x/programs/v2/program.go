@@ -53,7 +53,6 @@ type Program struct {
 }
 
 type ProgramInstance struct {
-	*Program
 	inst   *wasmtime.Instance
 	store  *wasmtime.Store
 	result []byte

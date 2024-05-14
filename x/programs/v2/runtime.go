@@ -93,5 +93,5 @@ func (r *WasmRuntime) getInstance(callInfo *CallInfo, program *Program, imports 
 	if err != nil {
 		return nil, err
 	}
-	return &ProgramInstance{Program: program, inst: inst, store: store}, nil
+	return &ProgramInstance{inst: inst, store: store}, nil
 }
