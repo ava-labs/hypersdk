@@ -4,14 +4,8 @@ import (
 	"context"
 	"errors"
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/near/borsh-go"
 )
-
-type StateAccessModule struct {
-	ImportModule
-	mu state.Mutable
-}
 
 type keyInput struct {
 	Key []byte
@@ -66,8 +60,8 @@ func NewStateAccessModule() *ImportModule {
 				defer cancel()
 				return nil, callInfo.State.Remove(ctx, writeKey)
 			}),
-			"log": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
-				return log("INFO", input)
+			"log": FunctionNoOutput(func(_ *CallInfo, input []byte) error {
+				return log("", input)
 			}),
 		},
 	}
