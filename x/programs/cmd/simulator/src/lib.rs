@@ -10,6 +10,7 @@ use std::{
     path::Path,
     process::{Child, Command, Stdio},
 };
+use thiserror::Error;
 
 mod id;
 
@@ -199,8 +200,6 @@ pub struct PlanResult {
     /// The result of the function call.
     pub response: Option<String>,
 }
-
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
