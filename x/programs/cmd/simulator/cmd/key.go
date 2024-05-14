@@ -23,21 +23,19 @@ type keyCreateCmd struct {
 	cmd *argparse.Command
 
 	log  logging.Logger
-	db   **state.SimpleMutable
 	name *string
 }
 
-func (c *keyCreateCmd) New(parser *argparse.Parser, db **state.SimpleMutable) {
-	c.db = db
+func (c *keyCreateCmd) New(parser *argparse.Parser) {
 	c.cmd = parser.NewCommand("key-create", "Creates a new named private key and stores it in the database")
 	c.name = c.cmd.String("", "name", &argparse.Options{Required: true})
 }
 
-func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
 	resp := newResponse(0)
 	resp.setTimestamp(time.Now().Unix())
 	c.log = log
-	pkey, err := keyCreateFunc(ctx, *c.db, *c.name)
+	pkey, err := keyCreateFunc(ctx, db, *c.name)
 	if err != nil {
 		return resp, err
 	}

@@ -44,7 +44,7 @@ const (
 )
 
 type Cmd interface {
-	Run(context.Context, logging.Logger, []string) (*Response, error)
+	Run(context.Context, logging.Logger, *state.SimpleMutable, []string) (*Response, error)
 	Happened() bool
 }
 
@@ -89,7 +89,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 	for _, cmd := range subcommands {
 		if cmd.Happened() {
-			resp, err := cmd.Run(ctx, s.log, args)
+			resp, err := cmd.Run(ctx, s.log, s.db, args)
 			if err != nil {
 				return err
 			}
@@ -173,11 +173,11 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.reader = bufio.NewReader(stdin)
 
 	runCmd := runCmd{}
-	runCmd.New(parser, &s.db, s.programIDStrMap, &s.lastStep, s.reader)
+	runCmd.New(parser, s.programIDStrMap, &s.lastStep, s.reader)
 	programCmd := programCreateCmd{}
-	programCmd.New(parser, &s.db)
+	programCmd.New(parser)
 	keyCmd := keyCreateCmd{}
-	keyCmd.New(parser, &s.db)
+	keyCmd.New(parser)
 
 	return parser, []Cmd{&runCmd, &programCmd, &keyCmd}
 }

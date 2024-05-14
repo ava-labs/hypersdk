@@ -39,15 +39,13 @@ type runCmd struct {
 
 	step   *Step
 	log    logging.Logger
-	db     **state.SimpleMutable
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
 }
 
-func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
-	c.db = db
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
 	c.file = c.cmd.String("", "file", &argparse.Options{
@@ -60,7 +58,7 @@ func (c *runCmd) New(parser *argparse.Parser, db **state.SimpleMutable, programI
 	c.reader = reader
 }
 
-func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+func (c *runCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
 	c.log = log
 	var err error
 	if err = c.Init(); err != nil {
@@ -69,7 +67,7 @@ func (c *runCmd) Run(ctx context.Context, log logging.Logger, args []string) (*R
 	if err = c.Verify(); err != nil {
 		return newResponse(0), err
 	}
-	resp, err := c.RunStep(ctx)
+	resp, err := c.RunStep(ctx, db)
 	if err != nil {
 		return newResponse(0), err
 	}
@@ -174,7 +172,7 @@ func verifyEndpoint(i int, step *Step) error {
 	return nil
 }
 
-func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
+func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Response, error) {
 	index := *c.lastStep
 	step := c.step
 	c.log.Info("simulation",
@@ -185,14 +183,14 @@ func (c *runCmd) RunStep(ctx context.Context) (*Response, error) {
 		zap.Any("params", step.Params),
 	)
 
-	params, err := c.createCallParams(ctx, *c.db, step.Params)
+	params, err := c.createCallParams(ctx, db, step.Params)
 	if err != nil {
 		c.log.Error("simulation call", zap.Error(err))
 		return newResponse(0), err
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, *c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
 		c.log.Debug("simulation step", zap.Error(err))
 		resp.setError(err)
