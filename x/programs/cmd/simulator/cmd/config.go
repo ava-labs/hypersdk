@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/near/borsh-go"
 	"gopkg.in/yaml.v2"
 )
 
@@ -94,7 +95,7 @@ func (r *Response) setBalance(balance uint64) {
 	r.Result.Balance = balance
 }
 
-func (r *Response) setResponse(response []int64) {
+func (r *Response) setResponse(response []byte) {
 	r.Result.Response = response
 }
 
@@ -112,7 +113,7 @@ type Result struct {
 	// The balance after the step has completed.
 	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
 	// The response from the call.
-	Response []int64 `json:"response,omitempty" yaml:"response,omitempty"`
+	Response []byte `json:"response" yaml:"response"`
 	// An optional message.
 	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
 	// Timestamp of the response.
@@ -162,11 +163,13 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual int64, require *Require) (bool, error) {
+func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	if require == nil {
 		return true, nil
 	}
 
+	actual := int64(0)
+	borsh.Deserialize(&actual, bytes)
 	assertion := require.Result
 	// convert the assertion value(string) to uint64
 	value, err := strconv.ParseInt(assertion.Value, 10, 64)

@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 wasmlanche-sdk = { path = "../../" }
+# TODO: should probably re-export the borsh stuff?
+borsh = { version = "1.5.0", features = ["derive"] }
 
 [lib]
 crate-type = ["cdylib"]

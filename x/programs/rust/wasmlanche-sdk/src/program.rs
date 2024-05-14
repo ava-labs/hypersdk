@@ -1,4 +1,5 @@
 use crate::{
+    memory::into_bytes,
     state::{Error as StateError, Key, State},
     Params,
 };
@@ -41,16 +42,16 @@ impl Program {
     /// Returns a [`StateError`] if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function(
+    pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,
         args: &Params,
         max_units: i64,
-    ) -> Result<i64, StateError> {
+    ) -> Result<T, StateError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
-            fn ffi(ptr: *const u8, len: usize) -> i64;
+            fn ffi(ptr: *const u8, len: usize) -> *const u8;
         }
 
         let args = CallProgramArgs {
@@ -62,7 +63,11 @@ impl Program {
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-        Ok(unsafe { ffi(args_bytes.as_ptr(), args_bytes.len()) })
+        let ptr = unsafe { ffi(args_bytes.as_ptr(), args_bytes.len()) };
+
+        let bytes = into_bytes(ptr).unwrap_or_default();
+
+        borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
 }
 

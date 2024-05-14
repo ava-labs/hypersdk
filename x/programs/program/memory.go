@@ -145,6 +145,9 @@ func WriteBytes(m *Memory, buf []byte) (uint32, error) {
 	if len(buf) > math.MaxUint32 {
 		return 0, ErrOverflow
 	}
+	if len(buf) == 0 {
+		return 0, nil
+	}
 	offset, err := m.Alloc(uint32(len(buf)))
 	if err != nil {
 		return 0, err
