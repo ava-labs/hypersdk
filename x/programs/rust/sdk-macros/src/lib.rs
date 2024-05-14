@@ -172,10 +172,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(context_ptr: *const u8 #struct_param_declaraion) {
+            unsafe extern "C" fn #new_name(param_0: *const u8 #struct_param_declaraion) {
                 let param_0: #context_type = unsafe {
                     wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
-                }; 
+                };
                 #struct_deserialization
                 let result = super::#name(param_0, #(#converted_params),*);
                 let result = borsh::to_vec(&result).expect("error serializing result");
