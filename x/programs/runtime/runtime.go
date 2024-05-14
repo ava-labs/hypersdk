@@ -45,7 +45,7 @@ type WasmRuntime struct {
 	log logging.Logger
 }
 
-func (r *WasmRuntime) Initialize(ctx context.Context, callContext program.Context, programBytes []byte, maxUnits uint64) (err error) {
+func (r *WasmRuntime) Initialize(ctx context.Context, callContext *program.Context, programBytes []byte, maxUnits uint64) (err error) {
 	ctx, r.cancelFn = context.WithCancel(ctx)
 	go func(ctx context.Context) {
 		<-ctx.Done()
@@ -99,7 +99,7 @@ func (r *WasmRuntime) Initialize(ctx context.Context, callContext program.Contex
 	return nil
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, context program.Context, params ...uint32) ([]int64, error) {
+func (r *WasmRuntime) Call(_ context.Context, name string, context *program.Context, params ...uint32) ([]byte, error) {
 	fn, err := r.inst.GetFunc(name)
 	if err != nil {
 		return nil, err

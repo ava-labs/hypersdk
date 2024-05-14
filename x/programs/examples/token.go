@@ -65,8 +65,8 @@ type Token struct {
 	engine       *engine.Engine
 }
 
-func (t *Token) Context() program.Context {
-	return program.Context{
+func (t *Token) Context() *program.Context {
+	return &program.Context{
 		ProgramID: t.programID,
 	}
 }
@@ -110,22 +110,15 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programContext)
+	_, err = rt.Call(ctx, "init", programContext)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
 
-	t.log.Debug("init response",
-		zap.Int64("init", resp[0]),
-	)
-
-	result, err := rt.Call(ctx, "get_total_supply", programContext)
+	_, err = rt.Call(ctx, "get_total_supply", programContext)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("total supply",
-		zap.Int64("minted", result[0]),
-	)
 
 	// generate alice keys
 	alicePublicKey, err := newKey()
@@ -152,13 +145,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("bob", result[0]),
-	)
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
@@ -181,13 +171,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("alice", result[0]),
-	)
 
 	bobPtr, err = writeToMem(bobPublicKey, mem)
 	if err != nil {
@@ -195,13 +182,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("bob", result[0]),
-	)
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
@@ -258,13 +242,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("alice", result[0]),
-	)
 
 	bobPtr, err = writeToMem(bobPublicKey, mem)
 	if err != nil {
@@ -272,11 +253,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	balance, err = rt.Meter().GetBalance()
 	if err != nil {
@@ -320,13 +300,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("alice", result[0]),
-	)
 
 	bobPtr, err = writeToMem(bobPublicKey, mem)
 	if err != nil {
@@ -334,11 +311,10 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	return nil
 }
@@ -375,14 +351,11 @@ func (t *Token) RunShort(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", program.Context{ProgramID: programID})
+	_, err = rt.Call(ctx, "init", &program.Context{ProgramID: programID})
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
 
-	t.log.Debug("init response",
-		zap.Int64("init", resp[0]),
-	)
 	return nil
 }
 

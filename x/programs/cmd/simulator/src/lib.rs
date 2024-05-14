@@ -197,7 +197,7 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    pub response: Option<Vec<i64>>,
+    pub response: Option<String>,
 }
 
 use thiserror::Error;
