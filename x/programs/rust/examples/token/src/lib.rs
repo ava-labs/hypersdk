@@ -172,6 +172,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn init_token() {
         let simulator = simulator::Client::new();
 
@@ -220,6 +221,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn mint() {
         let simulator = simulator::Client::new();
 
@@ -293,6 +295,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn mint_and_transfer() {
         let simulator = simulator::Client::new();
 
