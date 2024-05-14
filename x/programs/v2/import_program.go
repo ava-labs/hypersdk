@@ -37,7 +37,7 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 					context.Background(),
 					&newInfo)
 			}),
-			"set_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"set_call_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				callInfo.result = input
 				return nil
 			}),
