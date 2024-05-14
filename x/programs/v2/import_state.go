@@ -115,9 +115,3 @@ func (saList *stateAccessList) CanRead(key []byte) bool {
 func (saList *stateAccessList) CanWrite(key []byte) bool {
 	return saList.write.Contains(string(key))
 }
-
-type testAccessList struct{}
-
-func NewTestStateAccessList() StateAccessList  { return &testAccessList{} }
-func (*testAccessList) CanRead(_ []byte) bool  { return true }
-func (*testAccessList) CanWrite(_ []byte) bool { return true }
