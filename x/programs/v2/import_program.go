@@ -20,8 +20,8 @@ type setResultInput struct {
 
 func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{name: "program",
-		funcs: map[string]Function{
-			"call": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+		funcs: map[string]HostFunction{
+			"call": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				newInfo := *callInfo
 				parsedInput := &callInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
@@ -36,11 +36,11 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 				return r.CallProgram(
 					context.Background(),
 					&newInfo)
-			},
-			"set_result": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			}),
+			"set_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				callInfo.result = input
-				return nil, nil
-			},
+				return nil
+			}),
 		},
 	}
 }

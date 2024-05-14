@@ -25,8 +25,8 @@ type keyValueInput struct {
 
 func NewStateAccessModule() *ImportModule {
 	return &ImportModule{name: "state",
-		funcs: map[string]Function{
-			"get": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+		funcs: map[string]HostFunction{
+			"get": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
@@ -39,36 +39,36 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				return callInfo.State.GetValue(ctx, readKey)
-			},
-			"put": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			}),
+			"put": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				parsedInput := &keyValueInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return nil, err
+					return err
 				}
 				// key is relative to current account
 				writeKey := []byte(callInfo.Account.String() + "/" + string(parsedInput.Key))
 				if !callInfo.StateAccessList.CanWrite(writeKey) {
-					return nil, errors.New("can only write to specified keys")
+					return errors.New("can only write to specified keys")
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return nil, callInfo.State.Insert(ctx, writeKey, parsedInput.Value)
-			},
-			"delete": func(callInfo *CallInfo, input []byte) ([]byte, error) {
+				return callInfo.State.Insert(ctx, writeKey, parsedInput.Value)
+			}),
+			"delete": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return nil, err
+					return err
 				}
 
 				// key is relative to current account
 				writeKey := []byte(callInfo.Account.String() + "/" + string(parsedInput.Key))
 				if !callInfo.StateAccessList.CanWrite(writeKey) {
-					return nil, errors.New("can only write to specified keys")
+					return errors.New("can only write to specified keys")
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return nil, callInfo.State.Remove(ctx, writeKey)
-			},
+				return callInfo.State.Remove(ctx, writeKey)
+			}),
 		},
 	}
 }

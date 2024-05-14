@@ -12,13 +12,23 @@ type Imports struct {
 
 type ImportModule struct {
 	name  string
-	funcs map[string]Function
+	funcs map[string]HostFunction
 }
 
-type Function func(*CallInfo, []byte) ([]byte, error)
+type HostFunction interface {
+	isHostFunction()
+}
+type FunctionWithOutput func(*CallInfo, []byte) ([]byte, error)
+
+func (FunctionWithOutput) isHostFunction() {}
+
+type FunctionNoOutput func(*CallInfo, []byte) error
+
+func (FunctionNoOutput) isHostFunction() {}
 
 var typeI32 = wasmtime.NewValType(wasmtime.KindI32)
-var functionType = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
+var functionWithOutputType = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
+var FunctionNoOutputType = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{})
 
 func NewImports() *Imports {
 	return &Imports{modules: map[string]*ImportModule{}}
@@ -39,7 +49,8 @@ func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmti
 	linker := wasmtime.NewLinker(engine)
 	for moduleName, module := range i.modules {
 		for funcName, function := range module.funcs {
-			if err := linker.FuncNew(moduleName, funcName, functionType, convertFunction(info, function)); err != nil {
+
+			if err := linker.FuncNew(moduleName, funcName, getFunctType(function), convertFunction(info, function)); err != nil {
 				return nil, err
 			}
 		}
@@ -47,25 +58,45 @@ func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmti
 	return linker, nil
 }
 
-func convertFunction(callInfo *CallInfo, function Function) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+func getFunctType(hf HostFunction) *wasmtime.FuncType {
+	switch hf.(type) {
+	case FunctionWithOutput:
+		return functionWithOutputType
+	case FunctionNoOutput:
+		return FunctionNoOutputType
+	}
+	return nil
+}
+
+func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		memExport := caller.GetExport(MemoryName)
 		inputBytes := memExport.Memory().UnsafeData(caller)[vals[0].I32() : vals[0].I32()+vals[1].I32()]
-		results, err := function(callInfo, inputBytes)
-		if err != nil {
-			return []wasmtime.Val{wasmtime.ValI32(0)}, wasmtime.NewTrap(err.Error())
+
+		switch f := hf.(type) {
+		case FunctionWithOutput:
+			results, err := f(callInfo, inputBytes)
+			if err != nil {
+				return []wasmtime.Val{wasmtime.ValI32(0)}, wasmtime.NewTrap(err.Error())
+			}
+			resultLength := int32(len(results))
+			allocExport := caller.GetExport(AllocName)
+			offsetIntf, err := allocExport.Func().Call(caller, resultLength)
+			if err != nil {
+				return []wasmtime.Val{wasmtime.ValI32(0)}, wasmtime.NewTrap(err.Error())
+			}
+			offset := offsetIntf.(int32)
+			copy(memExport.Memory().UnsafeData(caller)[offset:], results)
+			return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
+		case FunctionNoOutput:
+			err := f(callInfo, inputBytes)
+			if err != nil {
+				return []wasmtime.Val{}, wasmtime.NewTrap(err.Error())
+			}
+
+			return []wasmtime.Val{}, nil
+		default:
+			return []wasmtime.Val{}, nil
 		}
-		if results == nil {
-			return []wasmtime.Val{wasmtime.ValI32(0)}, nil
-		}
-		resultLength := int32(len(results))
-		allocExport := caller.GetExport(AllocName)
-		offsetIntf, err := allocExport.Func().Call(caller, resultLength)
-		if err != nil {
-			return nil, wasmtime.NewTrap(err.Error())
-		}
-		offset := offsetIntf.(int32)
-		copy(memExport.Memory().UnsafeData(caller)[offset:], results)
-		return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
 	}
 }
