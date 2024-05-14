@@ -42,7 +42,7 @@ pub(super) fn log_bytes(bytes: &[u8]) {
     #[link(wasm_import_module = "state")]
     extern "C" {
         #[link_name = "log"]
-        fn ffi(ptr: *const u8, len: usize) -> i32;
+        fn ffi(ptr: *const u8, len: usize);
     }
 
     unsafe { ffi(bytes.as_ptr(), bytes.len()) };

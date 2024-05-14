@@ -8,7 +8,6 @@ import (
 	"context"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
 )
@@ -17,6 +16,12 @@ const (
 	AllocName  = "alloc"
 	MemoryName = "memory"
 )
+
+type Context struct {
+	ProgramID ids.ID `json:"program"`
+	// Actor            [32]byte `json:"actor"`
+	// OriginatingActor [32]byte `json:"originating_actor"`
+}
 
 type CallInfo struct {
 	State           state.Mutable
@@ -55,7 +60,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	}
 
 	// create the program context
-	programCtx := program.Context{ProgramID: callInfo.ProgramID}
+	programCtx := Context{ProgramID: callInfo.ProgramID}
 	programCtxBytes, err := borsh.Serialize(programCtx)
 	if err != nil {
 		return nil, err
@@ -70,7 +75,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset)
 	} else {
 		// if params exist, copy them into linear memory too
-		paramsOffset, err := p.setParam(programCtxBytes)
+		paramsOffset, err := p.setParam(callInfo.Params)
 		if err != nil {
 			return nil, err
 		}

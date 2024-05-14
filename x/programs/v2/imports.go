@@ -81,6 +81,9 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 			if err != nil {
 				return nilResult, wasmtime.NewTrap(err.Error())
 			}
+			if results == nil {
+				return nilResult, nil
+			}
 			resultLength := int32(len(results))
 			allocExport := caller.GetExport(AllocName)
 			offsetIntf, err := allocExport.Func().Call(caller, resultLength)
@@ -89,7 +92,7 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 			}
 			offset := offsetIntf.(int32)
 			copy(memExport.Memory().UnsafeData(caller)[offset:], results)
-			return nilResult, nil
+			return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
 		case FunctionNoOutput:
 			err := f(callInfo, inputBytes)
 			if err != nil {
