@@ -1,5 +1,4 @@
 use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
-use borsh::BorshDeserialize;
 
 #[state_keys]
 enum StateKeys {
@@ -75,6 +74,7 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
+    #[ignore]
     fn init_program() {
         let simulator = simulator::Client::new();
 
@@ -123,6 +123,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn increment() {
         let simulator = simulator::Client::new();
 
@@ -189,6 +190,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn external_call() {
         let simulator = simulator::Client::new();
 

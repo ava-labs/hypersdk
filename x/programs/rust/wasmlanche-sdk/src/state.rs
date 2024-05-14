@@ -57,6 +57,15 @@ where
     }
 }
 
+impl<K> Default for State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<K> State<K>
 where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,
@@ -131,9 +140,7 @@ where
     pub fn delete<T: BorshDeserialize>(&mut self, key: K) -> Result<Option<T>, Error> {
         self.cache.remove(&key);
 
-        let args = GetAndDeleteArgs {
-            key: key.into().0,
-        };
+        let args = GetAndDeleteArgs { key: key.into().0 };
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
