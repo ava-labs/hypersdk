@@ -14,11 +14,6 @@ type callProgramInput struct {
 	Fuel         uint64
 }
 
-type setResultInput struct {
-	Offset int32
-	Length int32
-}
-
 func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{name: "program",
 		funcs: map[string]HostFunction{

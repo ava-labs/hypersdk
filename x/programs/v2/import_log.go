@@ -8,16 +8,14 @@ import (
 func NewLogModule() *ImportModule {
 	return &ImportModule{name: "log",
 		funcs: map[string]HostFunction{
-			"debug": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
-				return log("DEBUG", input)
-			}),
-			"info": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"debug": FunctionNoOutput(func(_ *CallInfo, input []byte) error { return log("DEBUG", input) }),
+			"info": FunctionNoOutput(func(_ *CallInfo, input []byte) error {
 				return log("INFO", input)
 			}),
-			"warn": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"warn": FunctionNoOutput(func(_ *CallInfo, input []byte) error {
 				return log("WARN", input)
 			}),
-			"error": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"error": FunctionNoOutput(func(_ *CallInfo, input []byte) error {
 				return log("ERROR", input)
 			}),
 		},
