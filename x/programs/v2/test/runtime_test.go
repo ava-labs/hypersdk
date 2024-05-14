@@ -28,12 +28,6 @@ func (tokenLoader) GetProgramBytes(_ ids.ID) ([]byte, error) {
 	return os.ReadFile(filepath.Join(dir, "token.wasm"))
 }
 
-type testAccessList struct{}
-
-func NewTestStateAccessList() v2.StateAccessList { return &testAccessList{} }
-func (*testAccessList) CanRead(_ []byte) bool    { return true }
-func (*testAccessList) CanWrite(_ []byte) bool   { return true }
-
 func TestSimpleCall(t *testing.T) {
 	require := require.New(t)
 
@@ -47,15 +41,13 @@ func TestSimpleCall(t *testing.T) {
 		},
 		tokenLoader{})
 
-	saList := NewTestStateAccessList()
-
 	state := newTestDB()
 	programID := ids.GenerateTestID()
-	finished, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, StateAccessList: saList, FunctionName: "init", Params: nil, Fuel: 1000000})
+	finished, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, FunctionName: "init", Params: nil, Fuel: 1000000})
 	require.NoError(err)
 	require.Equal([]byte{}, finished)
 
-	supplyBytes, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, StateAccessList: saList, FunctionName: "get_total_supply", Params: nil, Fuel: 1000000})
+	supplyBytes, err := runtime.CallProgram(ctx, &v2.CallInfo{ProgramID: programID, State: state, FunctionName: "get_total_supply", Params: nil, Fuel: 1000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(123456789)
 	require.NoError(err)

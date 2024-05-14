@@ -49,7 +49,6 @@ func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmti
 	linker := wasmtime.NewLinker(engine)
 	for moduleName, module := range i.modules {
 		for funcName, function := range module.funcs {
-
 			if err := linker.FuncNew(moduleName, funcName, getFunctType(function), convertFunction(info, function)); err != nil {
 				return nil, err
 			}

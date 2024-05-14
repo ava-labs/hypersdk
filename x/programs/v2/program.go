@@ -24,15 +24,14 @@ type Context struct {
 }
 
 type CallInfo struct {
-	State           state.Mutable
-	Actor           ids.ID
-	StateAccessList StateAccessList
-	Account         ids.ID
-	ProgramID       ids.ID
-	Fuel            uint64
-	FunctionName    string
-	Params          []byte
-	inst            *ProgramInstance
+	State        state.Mutable
+	Actor        ids.ID
+	Account      ids.ID
+	ProgramID    ids.ID
+	Fuel         uint64
+	FunctionName string
+	Params       []byte
+	inst         *ProgramInstance
 }
 
 func (c *CallInfo) RemainingFuel() uint64 {
