@@ -50,7 +50,7 @@ pub struct Step {
 #[serde(rename_all = "camelCase")]
 pub struct SimulatorStep<'a> {
     /// The key of the caller used in each step of the plan.
-    pub caller_key: &'a String,
+    pub caller_key: &'a str,
     #[serde(flatten)]
     pub step: &'a Step,
 }
@@ -204,12 +204,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
-    #[error("read")]
+    #[error("Read error: {0}")]
     Read(#[from] std::io::Error),
-    #[error("serde_json error")]
+    #[error("Deserialization error: {0}")]
     Deserialization(#[from] serde_json::Error),
-    #[error("custom")]
-    Custom(String),
+    #[error("EOF")]
+    Eof,
 }
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
@@ -254,19 +254,14 @@ impl Client {
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| -> Result<_, ClientError> {
-                let line = line.map_err(ClientError::Read)?;
-                let res = serde_json::from_str::<PlanResponse>(&line)
-                    .map_err(ClientError::Deserialization)?;
-                Ok(res)
-            });
+            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
 
         let mut child = SimulatorChild { writer, responses };
 
         plan.steps
             .iter()
             .map(|step| child.run_step(&plan.caller_key, step))
-            .collect::<Result<_, ClientError>>()
+            .collect()
     }
 }
 
@@ -286,7 +281,7 @@ where
     W: Write,
     R: Iterator<Item = Result<PlanResponse, ClientError>>,
 {
-    fn run_step(&mut self, caller_key: &String, step: &Step) -> Result<PlanResponse, ClientError> {
+    fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
@@ -296,10 +291,7 @@ where
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
 
-        let resp = self
-            .responses
-            .next()
-            .ok_or(ClientError::Custom("EOF".into()))??;
+        let resp = self.responses.next().ok_or(ClientError::Eof)??;
 
         Ok(resp)
     }
