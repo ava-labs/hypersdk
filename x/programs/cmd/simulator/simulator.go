@@ -5,17 +5,20 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/cmd"
 )
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if err := cmd.NewRootCmd().ExecuteContext(ctx); err != nil {
-		utils.Outf("{{red}}error: {{/}}%+v\n", err)
+	s := &cmd.Simulator{}
+	// initialize simulator vm
+	err := s.Execute(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	os.Exit(0)

@@ -17,14 +17,9 @@ const (
 	ProgramExecute = "execute"
 )
 
-type Plan struct {
-	// The key of the caller used in each step of the plan.
-	CallerKey string `yaml:"caller_key" json:"callerKey"`
-	// Steps to performed during simulation.
-	Steps []Step `json,yaml:"steps"`
-}
-
 type Step struct {
+	// The key of the caller used.
+	CallerKey string `yaml:"caller_key" json:"callerKey"`
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint" yaml:"endpoint"`
 	// The method to call on the endpoint.
@@ -209,22 +204,22 @@ func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	return false, nil
 }
 
-func unmarshalPlan(bytes []byte) (*Plan, error) {
-	var p Plan
+func unmarshalStep(bytes []byte) (*Step, error) {
+	var s Step
 	switch {
 	case isJSON(string(bytes)):
-		if err := json.Unmarshal(bytes, &p); err != nil {
+		if err := json.Unmarshal(bytes, &s); err != nil {
 			return nil, err
 		}
 	case isYAML(string(bytes)):
-		if err := yaml.Unmarshal(bytes, &p); err != nil {
+		if err := yaml.Unmarshal(bytes, &s); err != nil {
 			return nil, err
 		}
 	default:
 		return nil, ErrInvalidConfigFormat
 	}
 
-	return &p, nil
+	return &s, nil
 }
 
 func boolToUint64(b bool) uint64 {

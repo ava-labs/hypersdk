@@ -7,93 +7,65 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/akamensky/argparse"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	hutils "github.com/ava-labs/hypersdk/utils"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 )
 
-func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "program",
-		Short: "Manage HyperSDK programs",
-	}
+var _ Cmd = (*programCreateCmd)(nil)
 
-	// add subcommands
-	cmd.AddCommand(
-		newProgramCreateCmd(log, db),
-	)
+type programCreateCmd struct {
+	cmd *argparse.Command
 
-	return cmd
+	log     logging.Logger
+	keyName *string
+	path    *string
 }
 
-type programCreate struct {
-	db      *state.SimpleMutable
-	keyName string
-	path    string
-	id      ids.ID
+func (c *programCreateCmd) New(parser *argparse.Parser) {
+	c.cmd = parser.NewCommand("program-create", "Create a HyperSDK program transaction")
+	c.keyName = c.cmd.String("k", "key", &argparse.Options{
+		Help:     "name of the key to use to deploy the program",
+		Required: true,
+	})
+	c.path = c.cmd.String("p", "path", &argparse.Options{
+		Help:     "path",
+		Required: true,
+	})
 }
 
-func newProgramCreateCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	p := &programCreate{
-		db: db,
-	}
-	cmd := &cobra.Command{
-		Use:   "create --path [path] --key [key name]",
-		Short: "Create a HyperSDK program transaction",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			err := p.Init(args)
-			if err != nil {
-				return err
-			}
-			err = p.Verify(cmd.Context())
-			if err != nil {
-				return err
-			}
-			err = p.Run(cmd.Context())
-			if err != nil {
-				return err
-			}
-
-			hutils.Outf("{{green}}create program transaction successful: {{/}}%s\n", p.id.String())
-			return nil
-		},
-	}
-
-	cmd.PersistentFlags().StringVarP(&p.keyName, "key", "k", p.keyName, "name of the key to use to deploy the program")
-	cmd.MarkPersistentFlagRequired("key")
-
-	return cmd
-}
-
-func (p *programCreate) Init(args []string) error {
-	return nil
-}
-
-func (p *programCreate) Verify(ctx context.Context) error {
-	exists, err := hasKey(ctx, p.db, p.keyName)
-	if !exists {
-		return fmt.Errorf("%w: %s", ErrNamedKeyNotFound, p.keyName)
-	}
-
-	return err
-}
-
-func (p *programCreate) Run(ctx context.Context) (err error) {
-	p.id, err = programCreateFunc(ctx, p.db, p.path)
+func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+	c.log = log
+	exists, err := hasKey(ctx, db, *c.keyName)
 	if err != nil {
-		return err
+		return newResponse(0), err
+	}
+	if !exists {
+		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
 	}
 
-	return nil
+	id, err := programCreateFunc(ctx, db, *c.path)
+	if err != nil {
+		return newResponse(0), err
+	}
+
+	c.log.Debug("create program transaction successful", zap.String("id", id.String()))
+
+	resp := newResponse(0)
+	resp.setTimestamp(time.Now().Unix())
+	return resp, nil
+}
+
+func (c *programCreateCmd) Happened() bool {
+	return c.cmd.Happened()
 }
 
 // createProgram simulates a create program transaction and stores the program to disk.
