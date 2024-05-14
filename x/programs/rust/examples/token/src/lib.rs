@@ -19,7 +19,7 @@ enum StateKey {
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(context: Context) -> bool {
+pub fn init(context: Context) {
     let Context { program } = context;
 
     // set total supply
@@ -39,8 +39,6 @@ pub fn init(context: Context) -> bool {
         .state()
         .store(StateKey::Symbol, b"WACK")
         .expect("failed to store symbol");
-
-    true
 }
 
 /// Returns the total supply of the token.
@@ -163,6 +161,127 @@ mod tests {
         let plan_responses = simulator.run_plan(&plan).unwrap();
 
         // ensure no errors
+        assert!(
+            plan_responses.iter().all(|resp| resp.error.is_none()),
+            "error: {:?}",
+            plan_responses
+                .iter()
+                .filter_map(|resp| resp.error.as_ref())
+                .next()
+        );
+    }
+
+    #[test]
+    fn init_token() {
+        let simulator = simulator::Client::new();
+
+        let owner_key_id = String::from("owner");
+        let owner_key = Key::Ed25519(owner_key_id.clone());
+
+        let mut plan = Plan::new(owner_key_id);
+
+        plan.add_step(Step::create_key(owner_key.clone()));
+        let program_id = plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::String(PROGRAM_PATH.into())],
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "init".into(),
+            params: vec![program_id.into()],
+            max_units: 1000000,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::ReadOnly,
+            method: "get_total_supply".into(),
+            max_units: 0,
+            params: vec![program_id.into()],
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(INITIAL_SUPPLY as u64),
+            }),
+        });
+
+        let plan_responses = simulator.run_plan(&plan).unwrap();
+
+        assert!(
+            plan_responses.iter().all(|resp| resp.error.is_none()),
+            "error: {:?}",
+            plan_responses
+                .iter()
+                .filter_map(|resp| resp.error.as_ref())
+                .next()
+        );
+    }
+
+    #[test]
+    fn mint() {
+        let simulator = simulator::Client::new();
+
+        let owner_key_id = String::from("owner");
+        let [alice_key] = ["alice"]
+            .map(String::from)
+            .map(Key::Ed25519)
+            .map(Param::Key);
+        let alice_initial_balance = 1000;
+
+        let mut plan = Plan::new(owner_key_id.clone());
+
+        plan.add_step(Step::create_key(Key::Ed25519(owner_key_id)));
+
+        let program_id = plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::String(PROGRAM_PATH.into())],
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Key,
+            method: "key_create".into(),
+            params: vec![alice_key.clone()],
+            max_units: 0,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "init".into(),
+            params: vec![program_id.into()],
+            max_units: 1000000,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "mint_to".into(),
+            params: vec![
+                program_id.into(),
+                alice_key.clone(),
+                Param::U64(alice_initial_balance),
+            ],
+            max_units: 1000000,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::ReadOnly,
+            method: "get_balance".into(),
+            max_units: 0,
+            params: vec![program_id.into(), alice_key],
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(alice_initial_balance),
+            }),
+        });
+
+        let plan_responses = simulator.run_plan(&plan).unwrap();
+
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
             "error: {:?}",

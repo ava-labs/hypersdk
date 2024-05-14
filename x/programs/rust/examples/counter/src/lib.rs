@@ -44,7 +44,7 @@ pub fn inc(context: Context, to: Address, amount: i64) -> bool {
 
 /// Increments the count at the address by the amount for an external program.
 #[public]
-pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> i64 {
+pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> bool {
     let params = params!(&of, &amount).unwrap();
     target.call_function("inc", &params, max_units).unwrap()
 }
@@ -109,10 +109,8 @@ mod tests {
             require: None,
         });
 
-        // run plan
         let plan_responses = simulator.run_plan(&plan).unwrap();
 
-        // ensure no errors
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
             "error: {:?}",
@@ -142,7 +140,7 @@ mod tests {
             require: None,
         });
 
-        let counter1_id = plan.add_step(Step {
+        let counter_id = plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 1000000,
@@ -153,22 +151,7 @@ mod tests {
             endpoint: Endpoint::Execute,
             method: "initialize_address".into(),
             max_units: 1000000,
-            params: vec![counter1_id.into(), bob_key.clone()],
-            require: None,
-        });
-
-        let counter2_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 1000000,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
-        });
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter2_id.into(), bob_key.clone()],
+            params: vec![counter_id.into(), bob_key.clone()],
             require: None,
         });
 
@@ -176,7 +159,7 @@ mod tests {
             endpoint: Endpoint::Execute,
             method: "inc".into(),
             max_units: 1000000,
-            params: vec![counter2_id.into(), bob_key.clone(), 10.into()],
+            params: vec![counter_id.into(), bob_key.clone(), 10.into()],
             require: None,
         });
 
@@ -184,7 +167,7 @@ mod tests {
             endpoint: Endpoint::ReadOnly,
             method: "get_value".into(),
             max_units: 0,
-            params: vec![counter2_id.into(), bob_key.clone()],
+            params: vec![counter_id.into(), bob_key.clone()],
             require: Some(Require {
                 result: ResultAssertion::NumericEq(10),
             }),
@@ -228,13 +211,6 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
-        });
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter1_id.into(), bob_key.clone()],
             require: None,
         });
 

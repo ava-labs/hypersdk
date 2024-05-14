@@ -43,7 +43,7 @@ func (*Import) Name() string {
 	return Name
 }
 
-func (i *Import) Register(link *host.Link, _ program.Context) error {
+func (i *Import) Register(link *host.Link, _ *program.Context) error {
 	i.meter = link.Meter()
 	wrap := wrap.New(link)
 	if err := wrap.RegisterAnyParamFn(Name, "put", 2, i.putFnVariadic); err != nil {

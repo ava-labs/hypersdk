@@ -101,14 +101,14 @@ func (t *ProgramExecute) Execute(
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(logging.NoLog{}, mu)
 	})
-	callContext := program.Context{
+	callContext := &program.Context{
 		ProgramID: programID,
 		// Actor:            [32]byte(actor[1:]),
 		// OriginatingActor: [32]byte(actor[1:])
 	}
 
 	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg, &callContext)
+		return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
 	})
 	imports := importsBuilder.Build()
 
@@ -133,13 +133,7 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(err), nil
 	}
 
-	// TODO: remove this is to support readonly response for now.
-	p := codec.NewWriter(len(resp), consts.MaxInt)
-	for _, r := range resp {
-		p.PackInt64(r)
-	}
-
-	return true, 1, p.Bytes(), nil
+	return true, 1, resp, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
