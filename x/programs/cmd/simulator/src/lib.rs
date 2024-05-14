@@ -6,19 +6,18 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
-    error::Error,
-    ffi::OsStr,
-    io::Write,
+    io::{BufRead, BufReader, Write},
     path::Path,
-    process::{Command, Output, Stdio},
+    process::{Child, Command, Stdio},
 };
+use thiserror::Error;
 
 mod id;
 
 pub use id::Id;
 
 /// The endpoint to call for a [Step].
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
     /// Perform an operation against the key api.
@@ -32,7 +31,7 @@ pub enum Endpoint {
 }
 
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
     /// The API endpoint to call.
@@ -46,6 +45,15 @@ pub struct Step {
     /// If defined the result of the step must match this assertion.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub require: Option<Require>,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SimulatorStep<'a> {
+    /// The key of the caller used in each step of the plan.
+    pub caller_key: &'a str,
+    #[serde(flatten)]
+    pub step: &'a Step,
 }
 
 impl Step {
@@ -122,14 +130,14 @@ impl From<Key> for Param {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Require {
     /// If defined the result of the step must match this assertion.
     pub result: ResultAssertion,
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(tag = "operator", content = "value")]
 pub enum ResultAssertion {
     #[serde(rename = "==")]
@@ -193,20 +201,25 @@ pub struct PlanResult {
     pub response: Option<String>,
 }
 
+#[derive(Error, Debug)]
+pub enum ClientError {
+    #[error("Read error: {0}")]
+    Read(#[from] std::io::Error),
+    #[error("Deserialization error: {0}")]
+    Deserialization(#[from] serde_json::Error),
+    #[error("EOF")]
+    Eof,
+    #[error("Missing handle")]
+    StdIo,
+}
+
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
 pub struct Client {
     /// Path to the simulator binary
     path: &'static str,
 }
 
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Client {
-    #[must_use]
     pub fn new() -> Self {
         let path = env!("SIMULATOR_PATH");
 
@@ -227,105 +240,66 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(&self, plan: &Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
-        run_steps(self.path, plan)
-    }
+    pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
+        let Child {
+            mut stdin,
+            mut stdout,
+            ..
+        } = Command::new(self.path)
+            .arg("interpreter")
+            .arg("--cleanup")
+            .arg("--log-level")
+            .arg("error")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
 
-    /// Performs a single `Execute` step against the simulator and returns the result.
-    /// # Errors
-    ///
-    /// Returns an error if the serialization or single-[Step]-[Plan] fails.
-    pub fn execute_step(&self, key: &str, step: Step) -> Result<PlanResponse, Box<dyn Error>> {
-        let plan = &Plan {
-            caller_key: key.into(),
-            steps: vec![step],
-        };
+        let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
+        let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
 
-        run_step(self.path, plan)
+        let responses = BufReader::new(reader)
+            .lines()
+            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
+
+        let mut child = SimulatorChild { writer, responses };
+
+        plan.steps
+            .iter()
+            .map(|step| child.run_step(&plan.caller_key, step))
+            .collect()
     }
 }
 
-fn cmd_output<P>(path: P, plan: &Plan) -> Result<Output, Box<dyn Error>>
-where
-    P: AsRef<OsStr>,
-{
-    let mut child = Command::new(path)
-        .arg("run")
-        .arg("--cleanup")
-        .arg("-")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    // write json to stdin
-    let input =
-        serde_json::to_string(plan).map_err(|e| format!("failed to serialize json: {e}"))?;
-    if let Some(ref mut stdin) = child.stdin {
-        stdin
-            .write_all(input.as_bytes())
-            .map_err(|e| format!("failed to write to stdin: {e}"))?;
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
     }
-
-    child
-        .wait_with_output()
-        .map_err(|e| format!("failed to wait for child: {e}").into())
 }
 
-fn run_steps<P, T>(path: P, plan: &Plan) -> Result<Vec<T>, Box<dyn Error>>
-where
-    T: serde::de::DeserializeOwned + serde::Serialize,
-    P: AsRef<OsStr>,
-{
-    let output = cmd_output(path, plan)?;
-    let mut items: Vec<T> = Vec::new();
-
-    if !output.status.success() {
-        println!("stderr");
-        for line in String::from_utf8_lossy(&output.stderr).lines() {
-            println!("{line}");
-        }
-        println!("stdout");
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            println!("{line}");
-        }
-        return Err(String::from_utf8(output.stdout)?.into());
-    }
-
-    for line in String::from_utf8(output.stdout)?
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-    {
-        let item = serde_json::from_str(line)
-            .map_err(|e| format!("failed to parse output to json: {e}"))?;
-        items.push(item);
-    }
-
-    Ok(items)
+struct SimulatorChild<W, R> {
+    writer: W,
+    responses: R,
 }
 
-fn run_step<P, T>(path: P, plan: &Plan) -> Result<T, Box<dyn Error>>
+impl<W, R> SimulatorChild<W, R>
 where
-    T: serde::de::DeserializeOwned + serde::Serialize,
-    P: AsRef<OsStr>,
+    W: Write,
+    R: Iterator<Item = Result<PlanResponse, ClientError>>,
 {
-    let output = cmd_output(path, plan)?;
+    fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
+        let run_command = b"run --step '";
+        self.writer.write_all(run_command)?;
 
-    if !output.status.success() {
-        println!("stderr");
-        for line in String::from_utf8_lossy(&output.stderr).lines() {
-            println!("{line}");
-        }
-        println!("stdout");
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            println!("{line}");
-        }
-        return Err(String::from_utf8(output.stdout)?.into());
+        let step = SimulatorStep { caller_key, step };
+        let input = serde_json::to_vec(&step)?;
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"'\n")?;
+        self.writer.flush()?;
+
+        let resp = self.responses.next().ok_or(ClientError::Eof)??;
+
+        Ok(resp)
     }
-
-    let resp: T = serde_json::from_str(String::from_utf8(output.stdout)?.as_ref())
-        .map_err(|e| format!("failed to parse output to json: {e}"))?;
-
-    Ok(resp)
 }
 
 #[cfg(test)]

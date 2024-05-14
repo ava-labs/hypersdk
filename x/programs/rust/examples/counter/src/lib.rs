@@ -108,7 +108,8 @@ mod tests {
             require: None,
         });
 
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        // run plan
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
@@ -173,7 +174,7 @@ mod tests {
         });
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
         assert!(
@@ -267,7 +268,7 @@ mod tests {
         });
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
         assert!(

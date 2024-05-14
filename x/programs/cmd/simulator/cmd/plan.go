@@ -4,86 +4,95 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
-
-	"github.com/ava-labs/hypersdk/x/programs/program"
-
-	"github.com/spf13/cobra"
+	"github.com/akamensky/argparse"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
+var _ Cmd = (*runCmd)(nil)
+
 type runCmd struct {
-	plan *Plan
-	log  logging.Logger
-	db   *state.SimpleMutable
+	cmd *argparse.Command
+
+	lastStep *int
+	file     *string
+	planStep *string
+
+	step   *Step
+	log    logging.Logger
+	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
 	programIDStrMap map[string]string
-	stdinReader     io.Reader
 }
 
-func newRunCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
-	r := &runCmd{
-		log:             log,
-		db:              db,
-		programIDStrMap: make(map[string]string),
-	}
-	cmd := &cobra.Command{
-		Use:   "run [path]",
-		Short: "Run a HyperSDK program simulation plan",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// if the first argument is "-" read from stdin
-			r.stdinReader = cmd.InOrStdin()
-			err := r.Init(args)
-			if err != nil {
-				return err
-			}
-			err = r.Verify()
-			if err != nil {
-				return err
-			}
-			return r.Run(cmd.Context())
-		},
-	}
-
-	return cmd
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
+	c.programIDStrMap = programIDStrMap
+	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
+	c.file = c.cmd.String("", "file", &argparse.Options{
+		Required: false,
+	})
+	c.planStep = c.cmd.String("", "step", &argparse.Options{
+		Required: false,
+	})
+	c.lastStep = lastStep
+	c.reader = reader
 }
 
-func (c *runCmd) Init(args []string) (err error) {
-	var planBytes []byte
-	if args[0] == "-" {
-		// read simulation plan from stdin
-		planBytes, err = io.ReadAll(os.Stdin)
+func (c *runCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+	c.log = log
+	var err error
+	if err = c.Init(); err != nil {
+		return newResponse(0), err
+	}
+	if err = c.Verify(); err != nil {
+		return newResponse(0), err
+	}
+	resp, err := c.RunStep(ctx, db)
+	if err != nil {
+		return newResponse(0), err
+	}
+	return resp, nil
+}
+
+func (c *runCmd) Happened() bool {
+	return c.cmd.Happened()
+}
+
+func (c *runCmd) Init() (err error) {
+	var planStep []byte
+	if c.planStep != nil && len(*c.planStep) > 0 {
+		planStep = []byte(*c.planStep)
+	} else if len(*c.file) > 0 {
+		// read simulation step from file
+		planStep, err = os.ReadFile(*c.file)
 		if err != nil {
 			return err
 		}
 	} else {
-		// read simulation plan from arg[0]
-		planBytes, err = os.ReadFile(args[0])
-		if err != nil {
-			return err
-		}
+		return errors.New("please specify either a --plan or a --file flag")
 	}
-	c.plan, err = unmarshalPlan(planBytes)
+
+	c.step, err = unmarshalStep(planStep)
 	if err != nil {
 		return err
 	}
@@ -92,28 +101,26 @@ func (c *runCmd) Init(args []string) (err error) {
 }
 
 func (c *runCmd) Verify() error {
-	steps := c.plan.Steps
-	if steps == nil {
+	step := c.step
+	if step == nil {
 		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
 	}
 
-	if steps[0].Params == nil {
+	if step.Params == nil {
 		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
 	}
 
 	// verify endpoint requirements
-	for i, step := range steps {
-		err := verifyEndpoint(i, &step)
+	err := verifyEndpoint(*c.lastStep, step)
+	if err != nil {
+		return err
+	}
+
+	// verify assertions
+	if step.Require != nil {
+		err = verifyAssertion(*c.lastStep, step.Require)
 		if err != nil {
 			return err
-		}
-
-		// verify assertions
-		if step.Require != nil {
-			err = verifyAssertion(i, step.Require)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -165,42 +172,40 @@ func verifyEndpoint(i int, step *Step) error {
 	return nil
 }
 
-func (c *runCmd) Run(ctx context.Context) error {
-	for i, step := range c.plan.Steps {
-		c.log.Info("simulation",
-			zap.Int("step", i),
-			zap.String("endpoint", string(step.Endpoint)),
-			zap.String("method", step.Method),
-			zap.Uint64("maxUnits", step.MaxUnits),
-			zap.Any("params", step.Params),
-		)
+func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Response, error) {
+	index := *c.lastStep
+	step := c.step
+	c.log.Info("simulation",
+		zap.Int("step", index),
+		zap.String("endpoint", string(step.Endpoint)),
+		zap.String("method", step.Method),
+		zap.Uint64("maxUnits", step.MaxUnits),
+		zap.Any("params", step.Params),
+	)
 
-		params, err := c.createCallParams(ctx, c.db, step.Params)
-		if err != nil {
-			return err
-		}
-
-		resp := newResponse(i)
-		err = runStepFunc(ctx, c.log, c.db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
-		if err != nil {
-			resp.setError(err)
-			c.log.Error("simulation", zap.Error(err))
-		}
-
-		// map all transactions to their step_N identifier
-		txID, found := resp.getTxID()
-		if found {
-			c.programIDStrMap[fmt.Sprintf("step_%d", i)] = txID
-		}
-
-		// print response to stdout
-		err = resp.Print()
-		if err != nil {
-			return err
-		}
+	params, err := c.createCallParams(ctx, db, step.Params)
+	if err != nil {
+		c.log.Error("simulation call", zap.Error(err))
+		return newResponse(0), err
 	}
 
-	return nil
+	resp := newResponse(index)
+	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	if err != nil {
+		c.log.Debug("simulation step", zap.Error(err))
+		resp.setError(err)
+	}
+
+	// map all transactions to their step_N identifier
+	txID, found := resp.getTxID()
+	if found {
+		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
+	}
+
+	lastStep := index + 1
+	*c.lastStep = lastStep
+
+	return resp, nil
 }
 
 func runStepFunc(
