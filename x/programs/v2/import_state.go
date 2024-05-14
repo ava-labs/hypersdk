@@ -77,6 +77,9 @@ func NewStateAccessModule() *ImportModule {
 				defer cancel()
 				return nil, callInfo.State.Remove(ctx, writeKey)
 			}),
+			"log": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+				return log("INFO", input)
+			}),
 		},
 	}
 }
