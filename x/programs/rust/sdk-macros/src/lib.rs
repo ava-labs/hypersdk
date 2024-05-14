@@ -129,7 +129,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let name = &input.sig.ident;
-    let struct_name = Ident::new(&format!("{name}_input"), name.span());
+    let struct_name = Ident::new("Input", name.span());
 
     let args = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
         FnArg::Receiver(_) => quote! {},
