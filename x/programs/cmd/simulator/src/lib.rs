@@ -8,7 +8,7 @@ use serde_with::{serde_as, DisplayFromStr};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
 };
 
 mod id;
@@ -210,6 +210,8 @@ pub enum ClientError {
     Deserialization(#[from] serde_json::Error),
     #[error("EOF")]
     Eof,
+    #[error("Missing handle")]
+    StdIo,
 }
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
@@ -240,7 +242,11 @@ impl Client {
     ///
     /// Returns an error if the serialization or plan fails.
     pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
-        let mut child = Command::new(self.path)
+        let Child {
+            mut stdin,
+            mut stdout,
+            ..
+        } = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
@@ -249,8 +255,8 @@ impl Client {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let writer = child.stdin.take().ok_or("failed to open stdin").unwrap();
-        let reader = child.stdout.take().ok_or("failed to open stdout").unwrap();
+        let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
+        let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
 
         let responses = BufReader::new(reader)
             .lines()
