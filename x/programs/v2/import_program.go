@@ -27,20 +27,24 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 					return nil, err
 				}
 
+				// make sure there is enough fuel in current store to give to the new call
+				if callInfo.RemainingFuel() < parsedInput.Fuel {
+					return nil, errors.New("remaining fuel is less than requested fuel")
+				}
+
 				newInfo.ProgramID = ids.ID(parsedInput.ProgramID)
 				newInfo.FunctionName = parsedInput.FunctionName
 				newInfo.Params = parsedInput.Params
 				newInfo.Fuel = parsedInput.Fuel
 
-				if callInfo.RemainingFuel() < parsedInput.Fuel {
-					return nil, errors.New("remaining fuel is less than requested fuel")
-				}
-				// make sure there is enough fuel in current store to give
 				result, err := r.CallProgram(
 					context.Background(),
 					&newInfo)
+
+				// subtract the fuel used during this call from the calling program
 				remainingFuel := newInfo.RemainingFuel()
 				callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel)
+
 				return result, err
 			}),
 			"set_call_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
