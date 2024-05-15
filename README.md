@@ -52,6 +52,13 @@ higher throughput if you do ;).
 * `hypervm`: Avalanche Virtual Machine built using the `hypersdk`
 * `hyperchain`: `hypervm` deployed on the Avalanche Network
 
+### HyperSDK Developer Community
+The HyperSDK developer community is a group of programmers and tech enthusiasts dedicated to pushing the boundaries of the HyperSDK framework. If you would like to join and contribute to this group of early adopters, below is the invite link to the telegram group and sign up for our ~bi-weekly developer calls.
+
+[Telegram Group](https://t.me/+cItVrQJUNF9jODYx)
+
+[Community Call Signup](https://forms.gle/jkuNCeShm9GsYLbG8)
+
 ## Status
 `hypersdk` is considered **ALPHA** software and is not safe to use in
 production. The framework is under active development and may change
@@ -809,12 +816,6 @@ _This is a collection of posts from the community about the `hypersdk` and how t
 * [Avalanche – Building High Performance VMs With HyperSDK](https://epicenter.tv/episodes/506/)
 * [Avalanche’s HyperSDK blockchain upgrade hits 143K TPS on testnet](https://cointelegraph.com/news/avalanche-hyper-sdk-blockchain-upgrade-hits-143000-tps-on-testnet)
 * [Avalanche’s HyperSDK](https://simpleswap.io/blog/avalanches-hyper-sdk)
-
-## Community Projects
-_This is a collection of community projects building on top of the `hypersdk`._
-
-* [NodeKit: Decentralizing The L2 Sequencer on a Subnet](https://github.com/AnomalyFi/nodekit-seq)
-* [OracleVM: Providing OffChain Data to the Avalanche Ecosystem](https://github.com/bianyuanop/oraclevm)
 
 ## Future Work
 _If you want to take the lead on any of these items, please
