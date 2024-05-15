@@ -5,7 +5,6 @@ package test
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
 	"github.com/near/borsh-go"
@@ -36,9 +35,7 @@ func TestSimpleCall(t *testing.T) {
 
 	runtime := v2.NewRuntime(
 		v2.NewConfig(),
-		logging.NoLog{}, &testDB{
-			db: memdb.New(),
-		},
+		logging.NoLog{},
 		tokenLoader{})
 
 	state := newTestDB()
