@@ -39,9 +39,9 @@ pub fn log(text: &str) {
 
 /// Logging facility for debugging purposes
 pub(super) fn log_bytes(bytes: &[u8]) {
-    #[link(wasm_import_module = "state")]
+    #[link(wasm_import_module = "log")]
     extern "C" {
-        #[link_name = "log"]
+        #[link_name = "write"]
         fn ffi(ptr: *const u8, len: usize);
     }
 

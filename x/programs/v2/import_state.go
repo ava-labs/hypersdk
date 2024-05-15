@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package v2
 
 import (
@@ -59,9 +62,6 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				return nil, callInfo.State.Remove(ctx, writeKey)
-			}),
-			"log": FunctionNoOutput(func(_ *CallInfo, input []byte) error {
-				return log("", input)
 			}),
 		},
 	}
