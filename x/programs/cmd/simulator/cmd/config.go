@@ -164,7 +164,10 @@ func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	}
 
 	actual := int64(0)
-	borsh.Deserialize(&actual, bytes)
+	err := borsh.Deserialize(&actual, bytes)
+	if err != nil {
+		return false, err
+	}
 	assertion := require.Result
 	// convert the assertion value(string) to uint64
 	value, err := strconv.ParseInt(assertion.Value, 10, 64)

@@ -68,6 +68,7 @@ struct TestCrate {
     allocate_func: AllocFn,
     always_true_func: UserDefinedFn,
     combine_last_bit_of_each_id_byte_func: UserDefinedFn,
+    recursive: UserDefinedFn,
 }
 
 impl TestCrate {
@@ -109,6 +110,9 @@ impl TestCrate {
         let combine_last_bit_of_each_id_byte_func = instance
             .get_typed_func(&mut store, "combine_last_bit_of_each_id_byte_guest")
             .expect("combine_last_bit_of_each_id_byte should be a function");
+        let recursive = instance
+            .get_typed_func(&mut store, "recursive_guest")
+            .expect("recursive should be a function");
 
         Self {
             store,
@@ -116,6 +120,7 @@ impl TestCrate {
             allocate_func,
             always_true_func,
             combine_last_bit_of_each_id_byte_func,
+            recursive,
         }
     }
 
@@ -170,5 +175,11 @@ impl TestCrate {
             .take()
             .expect("combine_last_bit_of_each_id_byte should always return something");
         borsh::from_slice(&result).expect("failed to deserialize result")
+    }
+
+    fn recursive(&mut self, ptr: UserDefinedFnParam) {
+        self.recursive
+            .call(&mut self.store, ptr)
+            .expect("failed to call `recursive` function");
     }
 }

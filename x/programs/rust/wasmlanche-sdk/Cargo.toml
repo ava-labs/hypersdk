@@ -19,3 +19,4 @@ build = ["serde_json"]
 
 [dev-dependencies]
 wasmtime = "14"
+simulator = { path = "../../cmd/simulator" }
