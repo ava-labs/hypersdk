@@ -9,7 +9,7 @@ import (
 
 type callProgramInput struct {
 	ProgramID    []byte
-	FunctionName []byte
+	FunctionName string
 	Params       []byte
 	Fuel         uint64
 }
@@ -25,7 +25,7 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				newInfo.ProgramID = ids.ID(parsedInput.ProgramID)
-				newInfo.FunctionName = string(parsedInput.FunctionName)
+				newInfo.FunctionName = parsedInput.FunctionName
 				newInfo.Params = parsedInput.Params
 				newInfo.Fuel = parsedInput.Fuel
 
