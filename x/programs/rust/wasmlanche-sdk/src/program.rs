@@ -21,11 +21,6 @@ impl Program {
         &self.0
     }
 
-    #[must_use]
-    pub(crate) fn new(id: [u8; Self::LEN]) -> Self {
-        Self(id)
-    }
-
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
@@ -33,7 +28,7 @@ impl Program {
     where
         K: Into<Key> + Hash + PartialEq + Eq + Clone,
     {
-        State::new(Program::new(*self.id()))
+        State::new()
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method

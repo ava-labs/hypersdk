@@ -31,4 +31,5 @@ pub enum Error {
 #[derive(Clone, Copy, borsh::BorshSerialize, borsh::BorshDeserialize, Debug)]
 pub struct Context {
     pub program: program::Program,
+    pub actor: types::Address,
 }

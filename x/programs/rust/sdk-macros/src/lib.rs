@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse_macro_input, parse_str, spanned::Spanned, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat,
     PatType, Path, Type, Visibility,
@@ -73,27 +73,28 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let input_args = input.sig.inputs.iter();
-
-    let param_idents = input_args.enumerate().skip(1).map(|(i, fn_arg)| {
-        match fn_arg {
+    let arg_props = input
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(i, fn_arg)| match fn_arg {
             FnArg::Receiver(_) => Err(syn::Error::new(
                 fn_arg.span(),
                 "Functions with the `#[public]` attribute cannot have a `self` parameter.",
             )),
-            FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
-                // TODO:
-                // we should likely remove this constraint. If we provide upgradability
-                // in the future, we may not want to change the function signature
-                // which means we might want wildcards in order to help produce stable APIs
-                Pat::Wild(_) => Err(syn::Error::new(
-                    fn_arg.span(),
-                    "Functions with the `#[public]` attribute can only ignore the first parameter.",
+            FnArg::Typed(PatType {
+                ty, colon_token, ..
+            }) => Ok(PatType {
+                attrs: vec![],
+                pat: Box::new(Pat::Verbatim(
+                    format_ident!("param_{}", i).into_token_stream(),
                 )),
-                _ => Ok(Ident::new(&format!("param_{i}"), fn_arg.span())),
-            },
-        }
-    });
+                colon_token: *colon_token,
+                ty: ty.clone(),
+            }),
+        });
 
     let result = match (vis_err, first_arg_err) {
         (None, None) => Ok(vec![]),
@@ -104,7 +105,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let param_names_or_err = param_idents.fold(result, |result, param| match (result, param) {
+    let arg_props_or_err = arg_props.fold(result, |result, param| match (result, param) {
         // ignore Ok or first error encountered
         (Err(errors), Ok(_)) | (Ok(_), Err(errors)) => Err(errors),
         // combine errors
@@ -119,25 +120,26 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-    let param_names = match param_names_or_err {
+    let args_props = match arg_props_or_err {
         Ok(param_names) => param_names,
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let converted_params = param_names.iter().map(|param_name| {
+    let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
         quote! {
-            unsafe {
-                wasmlanche_sdk::from_host_ptr(#param_name).expect("error serializing ptr")
-            }
+           args.#name
         }
     });
 
-    let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
     let name = &input.sig.ident;
 
     let external_call = quote! {
         mod private {
             use super::*;
+            #[derive(borsh::BorshDeserialize)]
+            struct Args {
+                #(#args_props),*
+             }
 
             #[link(wasm_import_module = "program")]
             extern "C" {
@@ -146,11 +148,15 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) {
-                let param_0: #context_type = unsafe {
-                    wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
+            unsafe extern "C" fn #new_name(ctx: *const u8, args: *const u8) {
+                let (ctx, args): (#context_type, Args) = unsafe {
+                    (
+                        wasmlanche_sdk::from_host_ptr(ctx).expect("error fetching serialized context"),
+                        wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args"),
+                    )
                 };
-                let result = super::#name(param_0, #(#converted_params),*);
+
+                let result = super::#name(ctx, #(#converted_params),*);
                 let result = borsh::to_vec(&result).expect("error serializing result");
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
