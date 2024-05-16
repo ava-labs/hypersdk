@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
+
 	"github.com/ava-labs/hypersdk/state"
 )
 

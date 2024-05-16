@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
-	"github.com/near/borsh-go"
-
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
+
+	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
 )
 
 type tokenLoader struct{}
