@@ -9,7 +9,7 @@ enum StateKeys {
 /// Initializes the program address a count of 0.
 #[public]
 pub fn initialize_address(context: Context, address: Address) -> bool {
-    let Context { program } = context;
+    let Context { program, actor } = context;
 
     if program
         .state()
@@ -31,7 +31,7 @@ pub fn initialize_address(context: Context, address: Address) -> bool {
 #[public]
 pub fn inc(context: Context, to: Address, amount: i64) -> bool {
     let counter = amount + get_value(context, to);
-    let Context { program } = context;
+    let Context { program, actor } = context;
 
     program
         .state()
@@ -51,7 +51,7 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 /// Gets the count at the address.
 #[public]
 pub fn get_value(context: Context, of: Address) -> i64 {
-    let Context { program } = context;
+    let Context { program, actor } = context;
     program
         .state()
         .get(StateKeys::Counter(of))
