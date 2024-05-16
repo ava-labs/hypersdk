@@ -3,12 +3,9 @@ name = "test-crate"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 wasmlanche-sdk = { path = "../../" }
-# TODO: should probably re-export the borsh stuff?
-borsh = { version = "1.5.0", features = ["derive"] }
-
-[lib]
-crate-type = ["cdylib"]
+borsh = { workspace = true }

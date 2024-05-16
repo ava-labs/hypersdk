@@ -3,20 +3,18 @@ name = "counter"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
-wasmlanche-sdk = { version = "0.1.0", path = "../../wasmlanche-sdk" }
-borsh = { version = "1.5.0", features = ["derive"] }
+wasmlanche-sdk = { path = "../../wasmlanche-sdk" }
+borsh = { workspace = true }
 
 [dev-dependencies]
 simulator = { path = "../../../cmd/simulator/" }
 
 [build-dependencies]
 wasmlanche-sdk = { path = "../../wasmlanche-sdk", features = ["build"] }
-
-[lib]
-crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
 
 # when creating a new project, you can uncomment the following lines to enable optimizations
 # [profile.release]

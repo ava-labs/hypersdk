@@ -3,19 +3,13 @@ name = "wasmlanche-sdk"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-borsh = { version = "1.2.0", features = ["derive"] }
-sdk-macros = { version = "0.1.0", path = "../sdk-macros" }
-thiserror = "1.0.46"
-
-# optional dependencies
-serde_json = { version = "1.0.64", optional = true }
-
-
-[features]
-build = ["serde_json"]
+borsh = { workspace = true }
+sdk-macros = { path = "../sdk-macros" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 wasmtime = "14"
+
+[features]
+build = []
