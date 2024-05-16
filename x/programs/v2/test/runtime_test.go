@@ -5,19 +5,19 @@ package test
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/ids"
-	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
-	"github.com/near/borsh-go"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ava-labs/avalanchego/ids"
+	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
+	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
 )
 
-type tokenLoader struct {
-}
+type tokenLoader struct{}
 
 func (tokenLoader) GetProgramBytes(_ ids.ID) ([]byte, error) {
 	dir, err := os.Getwd()

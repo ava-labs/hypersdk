@@ -4,9 +4,10 @@
 package v2
 
 import (
+	"testing"
+
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // TestImportsLinking ensures that the linker created by [createLinker] correctly creates callable host functions

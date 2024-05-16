@@ -6,6 +6,7 @@ package v2
 import (
 	"context"
 	"errors"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 )
@@ -18,7 +19,8 @@ type callProgramInput struct {
 }
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {
-	return &ImportModule{name: "program",
+	return &ImportModule{
+		name: "program",
 		funcs: map[string]HostFunction{
 			"call_program": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				newInfo := *callInfo

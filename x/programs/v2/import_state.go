@@ -6,6 +6,7 @@ package v2
 import (
 	"context"
 	"errors"
+
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
@@ -26,7 +27,8 @@ func prependAccountToKey(account ids.ID, key []byte) []byte {
 }
 
 func NewStateAccessModule() *ImportModule {
-	return &ImportModule{name: "state",
+	return &ImportModule{
+		name: "state",
 		funcs: map[string]HostFunction{
 			"get": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}

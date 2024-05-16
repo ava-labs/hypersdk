@@ -29,9 +29,11 @@ type FunctionNoOutput func(*CallInfo, []byte) error
 
 func (FunctionNoOutput) isHostFunction() {}
 
-var typeI32 = wasmtime.NewValType(wasmtime.KindI32)
-var functionWithOutputType = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
-var FunctionNoOutputType = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{})
+var (
+	typeI32                = wasmtime.NewValType(wasmtime.KindI32)
+	functionWithOutputType = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
+	FunctionNoOutputType   = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{})
+)
 
 func NewImports() *Imports {
 	return &Imports{modules: map[string]*ImportModule{}}
@@ -48,6 +50,7 @@ func (i *Imports) Clone() *Imports {
 		totalImports: i.totalImports,
 	}
 }
+
 func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmtime.Linker, error) {
 	linker := wasmtime.NewLinker(engine)
 	for moduleName, module := range i.modules {

@@ -4,8 +4,10 @@
 package v2
 
 import "C"
+
 import (
 	"context"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/bytecodealliance/wasmtime-go/v14"
