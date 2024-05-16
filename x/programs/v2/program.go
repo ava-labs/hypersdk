@@ -77,32 +77,24 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 
 	// create the program context
 	programCtx := Context{ProgramID: callInfo.ProgramID, Actor: callInfo.Actor}
-	programCtxBytes, err := borsh.Serialize(programCtx)
+	paramsBytes, err := borsh.Serialize(programCtx)
+	if err != nil {
+		return nil, err
+	}
+	paramsBytes = append(paramsBytes, callInfo.Params...)
+
+	// copy params into store linear memory
+	paramsOffset, err := p.setParams(paramsBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	// copy context into store linear memory
-	ctxOffset, err := p.setParam(programCtxBytes)
-	if err != nil {
-		return nil, err
-	}
-	if callInfo.Params == nil {
-		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, 0)
-	} else {
-		var paramsOffset int32
-		// if params exist, copy them into linear memory too
-		paramsOffset, err = p.setParam(callInfo.Params)
-		if err != nil {
-			return nil, err
-		}
-		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, paramsOffset)
-	}
+	_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, paramsOffset)
 
 	return p.result, err
 }
 
-func (p *ProgramInstance) setParam(data []byte) (int32, error) {
+func (p *ProgramInstance) setParams(data []byte) (int32, error) {
 	allocFn := p.inst.GetExport(p.store, AllocName).Func()
 	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))
