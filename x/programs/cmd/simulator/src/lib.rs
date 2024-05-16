@@ -19,6 +19,7 @@ pub use id::Id;
 /// The endpoint to call for a [Step].
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
+#[deprecated]
 pub enum Endpoint {
     /// Perform an operation against the key api.
     Key,
@@ -45,6 +46,46 @@ pub struct Step {
     /// If defined the result of the step must match this assertion.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub require: Option<Require>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Step {
+    step_type: String,
+    message: ExecuteMessage
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum ExecuteMessage {
+    Key(Key),
+    Call(Call),
+    Create(Create),
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub enum Curve {
+    Ed1559,
+    Ecdsa
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct Key {
+    pub name: String,
+    pub curve: Curve,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Call {
+    pub read_only: bool,
+    pub program_id: [u8; 32],
+    pub bytes: [u8]
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct Create {
+    pub path: String
 }
 
 #[derive(Debug, Serialize, PartialEq)]

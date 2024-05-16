@@ -40,8 +40,8 @@ type Operation interface {
 var _ Operation = (*Key)(nil)
 
 type Key struct {
-	name      string;
-	algorithm KeyAlgorithm;
+	Name      string;
+	Algorithm KeyAlgorithm;
 }
 
 // TODO better package management ! This function was already defined
@@ -90,12 +90,12 @@ func (k *Key) Execute(ctx context.Context, log logging.Logger, db *state.SimpleM
 var _ Operation = (*Call)(nil)
 
 type Call struct {
-	readOnly  bool;
-	programID ids.ID;
-	method		string;
-	data		  []byte;
-	maxUnits  uint64;
-	require		*cmd.Require;
+	ReadOnly  bool				 `json:"readOnly"`
+	ProgramID ids.ID 			 `json:"programID"`
+	Method		string 			 `json:"string"`
+	Data		  []byte 			 `json:"data,omitempty"`;
+	MaxUnits  uint64 			 `json:"maxUnits"`;
+	Require   *cmd.Require `json:"require,omitempty" yaml:"require,omitempty"`
 }
 
 // generateRandomID creates a unique ID.
@@ -212,18 +212,18 @@ func validateAssertion(bytes []byte, require *cmd.Require) (bool, error) {
 }
 
 func (c *Call) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *cmd.Response) error {
-	maxUnits := c.maxUnits
-	if c.readOnly {
+	maxUnits := c.MaxUnits
+	if c.ReadOnly {
 		maxUnits = math.MaxUint64
 	}
 
-	id, response, balance, err := programExecuteFunc(ctx, log, db, c.programID, c.data, c.method, maxUnits)
+	id, response, balance, err := programExecuteFunc(ctx, log, db, c.ProgramID, c.Data, c.Method, maxUnits)
 	if err != nil {
 		return err
 	}
 	resp.SetResponse(response)
 
-	ok, err := validateAssertion(response, c.require)
+	ok, err := validateAssertion(response, c.Require)
 
 	if !ok {
 		return fmt.Errorf("%w", cmd.ErrResultAssertionFailed)
@@ -232,7 +232,7 @@ func (c *Call) Execute(ctx context.Context, log logging.Logger, db *state.Simple
 		return err
 	}
 
-	if !c.readOnly {
+	if !c.ReadOnly {
 		resp.SetTxID(id.String())
 		resp.SetBalance(balance)
 	}
@@ -243,7 +243,7 @@ func (c *Call) Execute(ctx context.Context, log logging.Logger, db *state.Simple
 var _ Operation = (*Create)(nil)
 
 type Create struct {
-	path string;
+	Path string;
 }
 
 // createProgram simulates a create program transaction and stores the program to disk.

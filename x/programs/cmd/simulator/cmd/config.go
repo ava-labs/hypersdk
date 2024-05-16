@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
+	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
 	"github.com/near/borsh-go"
 	"gopkg.in/yaml.v2"
 )
@@ -204,8 +205,20 @@ func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	return false, nil
 }
 
-func unmarshalStep(bytes []byte) (*Step, error) {
-	var s Step
+type Message struct {
+	StepType string          `json:"step_type"`
+	Message        json.RawMessage `json:"message"`
+}
+
+func unmarshalStep(bytes []byte) (v2.Operation, error) {
+	var s v2.Operation
+		var message Message
+	err := json.Unmarshal(bytes, &message)
+	if err != nil {
+		return nil, err
+	}
+	// TODO conditionally deserialize the message given the message type
+	// this should be platform agnostic btw!
 	switch {
 	case isJSON(string(bytes)):
 		if err := json.Unmarshal(bytes, &s); err != nil {
@@ -219,7 +232,7 @@ func unmarshalStep(bytes []byte) (*Step, error) {
 		return nil, ErrInvalidConfigFormat
 	}
 
-	return &s, nil
+	return s, nil
 }
 
 func boolToUint64(b bool) uint64 {

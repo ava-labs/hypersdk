@@ -26,6 +26,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 	"github.com/ava-labs/hypersdk/x/programs/program"
+	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -37,7 +38,7 @@ type runCmd struct {
 	file     *string
 	planStep *string
 
-	step   *Step
+	step		 v2.Operation
 	log    logging.Logger
 	reader *bufio.Reader
 
@@ -106,21 +107,17 @@ func (c *runCmd) Verify() error {
 		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
 	}
 
-	if step.Params == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
-	}
-
-	// verify endpoint requirements
-	err := verifyEndpoint(*c.lastStep, step)
-	if err != nil {
-		return err
-	}
-
-	// verify assertions
-	if step.Require != nil {
-		err = verifyAssertion(*c.lastStep, step.Require)
-		if err != nil {
-			return err
+	switch v := step.(type) {
+	case *v2.Call:
+		if v.Require != nil {
+			err := verifyAssertion(*c.lastStep, v.Require)
+			if err != nil {
+				return err
+			}
+		}
+	case *v2.Key:
+		if v.Algorithm != v2.KeyEd25519 && v.Algorithm != v2.KeySecp256k1 {
+			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, *c.lastStep, ErrInvalidParamType)
 		}
 	}
 
@@ -140,7 +137,7 @@ func verifyAssertion(i int, require *Require) error {
 	return nil
 }
 
-func verifyEndpoint(i int, step *Step) error {
+func verifyEndpoint(i int, step *v2.Operation) error {
 	firstParamType := step.Params[0].Type
 
 	switch step.Endpoint {
@@ -190,14 +187,15 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	// err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err = runStepFunc(ctx, c.log, db, op, resp)
 	if err != nil {
 		c.log.Debug("simulation step", zap.Error(err))
 		resp.SetError(err)
 	}
 
 	// map all transactions to their step_N identifier
-	txID, found := resp.getTxID()
+	txID, found := resp.GetTxID()
 	if found {
 		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
 	}
@@ -212,76 +210,16 @@ func runStepFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	endpoint Endpoint,
-	maxUnits uint64,
-	method string,
-	params []actions.CallParam,
-	require *Require,
+	operation v2.Operation,
+	// endpoint Endpoint,
+	// maxUnits uint64,
+	// method string,
+	// params []actions.CallParam,
+	// require *Require,
 	resp *Response,
 ) error {
 	defer resp.SetTimestamp(time.Now().Unix())
-	switch endpoint {
-	case EndpointKey:
-		keyName := params[0].Value.(string)
-		key, err := keyCreateFunc(ctx, db, keyName)
-		if errors.Is(err, ErrDuplicateKeyName) {
-			log.Debug("key already exists")
-		} else if err != nil {
-			return err
-		}
-		resp.SetMsg(fmt.Sprintf("created named key with address %s", utils.Address(key)))
-
-		return nil
-	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
-		if method == ProgramCreate {
-			// get program path from params
-			programPath := params[0].Value.(string)
-			id, err := programCreateFunc(ctx, db, programPath)
-			if err != nil {
-				return err
-			}
-			resp.SetTxID(id.String())
-			resp.SetTimestamp(time.Now().Unix())
-
-			return nil
-		}
-		id, response, balance, err := programExecuteFunc(ctx, log, db, params, method, maxUnits)
-		if err != nil {
-			return err
-		}
-		resp.setResponse(response)
-		ok, err := validateAssertion(response, require)
-		if !ok {
-			return fmt.Errorf("%w", ErrResultAssertionFailed)
-		}
-		if err != nil {
-			return err
-		}
-		resp.setTxID(id.String())
-		resp.setBalance(balance)
-
-		return nil
-	case EndpointReadOnly:
-		// TODO: implement readonly for now just don't charge for gas
-		_, response, _, err := programExecuteFunc(ctx, log, db, params, method, math.MaxUint64)
-		if err != nil {
-			return err
-		}
-
-		resp.setResponse(response)
-		ok, err := validateAssertion(response, require)
-
-		if !ok {
-			return fmt.Errorf("%w", ErrResultAssertionFailed)
-		}
-		if err != nil {
-			return err
-		}
-
-		return nil
-	default:
-		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, endpoint)
-	}
+	return operation.Execute(ctx, log, db, resp)
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
