@@ -69,12 +69,11 @@ pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Addre
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Plan, Require, ResultAssertion, Step};
+    use simulator::{Curve, Endpoint, Key, KeyStep, Param, Plan, Require, ResultAssertion, Step};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
-    #[ignore]
     fn init_program() {
         let simulator = simulator::Client::new();
 
@@ -85,12 +84,17 @@ mod tests {
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![alice_key.clone()],
-            max_units: 0,
-            require: None,
+        // plan.add_step(Step {
+        //     endpoint: Endpoint::Key,
+        //     method: "key_create".into(),
+        //     params: vec![alice_key.clone()],
+        //     max_units: 0,
+        //     require: None,
+        // });
+        // TODO do we require this alice_key to be passed ?
+        plan.add_step(KeyStep {
+            name: String::from("alice"),
+            curve: Curve::Ed25519,
         });
 
         let counter1_id = plan.add_step(Step {

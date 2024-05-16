@@ -48,29 +48,29 @@ pub struct Step {
     pub require: Option<Require>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-struct Step {
+struct StepTODO {
     step_type: String,
-    message: ExecuteMessage
+    message: ExecuteMessage,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ExecuteMessage {
-    Key(Key),
+    Key(KeyStep),
     Call(Call),
     Create(Create),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum Curve {
-    Ed1559,
-    Ecdsa
+    Ed25519,
+    Secp256r1,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct Key {
+pub struct KeyStep {
     pub name: String,
     pub curve: Curve,
 }
@@ -80,12 +80,12 @@ pub struct Key {
 pub struct Call {
     pub read_only: bool,
     pub program_id: [u8; 32],
-    pub bytes: [u8]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Create {
-    pub path: String
+    pub path: String,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -195,12 +195,12 @@ pub enum ResultAssertion {
     NumericLe(#[serde_as(as = "DisplayFromStr")] u64),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq)]
 pub struct Plan {
     /// The key of the caller used in each step of the plan.
     pub caller_key: String,
     /// The steps to perform in the plan.
-    pub steps: Vec<Step>,
+    pub steps: Vec<StepTODO>,
 }
 
 impl Plan {
@@ -214,8 +214,11 @@ impl Plan {
     }
 
     /// returns the [Id] of the added [Step]
-    pub fn add_step(&mut self, step: Step) -> Id {
-        self.steps.push(step);
+    pub fn add_step<S>(&mut self, step: S) -> Id
+    where
+        S: Into<StepTODO>,
+    {
+        self.steps.push(step.into());
         Id::from(self.steps.len() - 1)
     }
 }
