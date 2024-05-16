@@ -9,10 +9,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/akamensky/argparse"
@@ -22,10 +19,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	v2 "github.com/ava-labs/hypersdk/x/programs/v2"
 )
 
@@ -43,6 +36,7 @@ type runCmd struct {
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
+	// TODO #[deprecated]
 	programIDStrMap map[string]string
 }
 
@@ -137,168 +131,37 @@ func verifyAssertion(i int, require *Require) error {
 	return nil
 }
 
-func verifyEndpoint(i int, step *v2.Operation) error {
-	firstParamType := step.Params[0].Type
-
-	switch step.Endpoint {
-	case EndpointKey:
-		// verify the first param is a string for key name
-		if firstParamType != KeyEd25519 && firstParamType != KeySecp256k1 {
-			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
-		}
-	case EndpointReadOnly:
-		// verify the first param is a program ID
-		if firstParamType != ID {
-			return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
-		}
-	case EndpointExecute:
-		if step.Method == ProgramCreate {
-			// verify the first param is a string for the path
-			if step.Params[0].Type != String {
-				return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
-			}
-		} else {
-			// verify the first param is a program id
-			if step.Params[0].Type != ID {
-				return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
-			}
-		}
-	default:
-		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, step.Endpoint)
-	}
-	return nil
-}
-
 func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Response, error) {
 	index := *c.lastStep
 	step := c.step
-	c.log.Info("simulation",
-		zap.Int("step", index),
-		zap.String("endpoint", string(step.Endpoint)),
-		zap.String("method", step.Method),
-		zap.Uint64("maxUnits", step.MaxUnits),
-		zap.Any("params", step.Params),
-	)
-
-	params, err := c.createCallParams(ctx, db, step.Params)
-	if err != nil {
-		c.log.Error("simulation call", zap.Error(err))
-		return newResponse(0), err
-	}
+	// TODO most of these are not really relevant anymore
+	// c.log.Info("simulation",
+	// 	zap.Int("step", index),
+	// 	zap.String("endpoint", string(step.Endpoint)),
+	// 	zap.String("method", step.Method),
+	// 	zap.Uint64("maxUnits", step.MaxUnits),
+	// 	zap.Any("params", step.Params),
+	// )
 
 	resp := newResponse(index)
-	// err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
-	err = runStepFunc(ctx, c.log, db, op, resp)
+	defer resp.SetTimestamp(time.Now().Unix())
+	err := step.Execute(ctx, c.log, db, resp)
 	if err != nil {
 		c.log.Debug("simulation step", zap.Error(err))
 		resp.SetError(err)
 	}
 
+	// TODO I doubt this is extremely useful, we can just use the program ID
 	// map all transactions to their step_N identifier
-	txID, found := resp.GetTxID()
-	if found {
-		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
-	}
+	// txID, found := resp.GetTxID()
+	// if found {
+	// 	c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
+	// }
 
 	lastStep := index + 1
 	*c.lastStep = lastStep
 
 	return resp, nil
-}
-
-func runStepFunc(
-	ctx context.Context,
-	log logging.Logger,
-	db *state.SimpleMutable,
-	operation v2.Operation,
-	// endpoint Endpoint,
-	// maxUnits uint64,
-	// method string,
-	// params []actions.CallParam,
-	// require *Require,
-	resp *Response,
-) error {
-	defer resp.SetTimestamp(time.Now().Unix())
-	return operation.Execute(ctx, log, db, resp)
-}
-
-// createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([][]byte, error) {
-	cp := make([]actions.CallParam, 0, len(params))
-	for _, param := range params {
-		switch param.Type {
-		case String, ID:
-			stepIdStr, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			if strings.HasPrefix(stepIdStr, "step_") {
-				programIdStr, ok := c.programIDStrMap[stepIdStr]
-				if !ok {
-					return nil, fmt.Errorf("failed to map to id: %s", stepIdStr)
-				}
-				programId, err := ids.FromString(programIdStr)
-				if err != nil {
-					return nil, err
-				}
-				cp = append(cp, actions.CallParam{Value: programId})
-			} else {
-				programId, err := ids.FromString(stepIdStr)
-				if err == nil {
-					cp = append(cp, actions.CallParam{Value: programId})
-				} else {
-					// this is a path to the wasm program
-					cp = append(cp, actions.CallParam{Value: stepIdStr})
-				}
-			}
-		case Bool:
-			val, ok := param.Value.(bool)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			cp = append(cp, actions.CallParam{Value: boolToUint64(val)})
-		case KeyEd25519: // TODO: support secp256k1
-			val, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-
-			key := val
-			// get named public key from db
-			pk, ok, err := storage.GetPublicKey(ctx, db, val)
-			if ok {
-				// otherwise use the public key address
-				key = string(pk[:])
-			}
-			if err != nil {
-				return nil, err
-			}
-			cp = append(cp, actions.CallParam{Value: key})
-		case Uint64:
-			switch v := param.Value.(type) {
-			case float64:
-				// json unmarshal converts to float64
-				cp = append(cp, actions.CallParam{Value: uint64(v)})
-			case int:
-				if v < 0 {
-					return nil, fmt.Errorf("%w: %s", program.ErrNegativeValue, param.Type)
-				}
-				cp = append(cp, actions.CallParam{Value: uint64(v)})
-			case string:
-				number, err := strconv.ParseUint(v, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-				}
-				cp = append(cp, actions.CallParam{Value: number})
-			default:
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-		default:
-			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
-		}
-	}
-
-	return cp, nil
 }
 
 // generateRandomID creates a unique ID.
