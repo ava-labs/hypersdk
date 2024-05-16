@@ -49,7 +49,7 @@ func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *stat
 		return newResponse(0), err
 	}
 	if !exists {
-		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
+		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, *c.keyName)
 	}
 
 	id, err := programCreateFunc(ctx, db, *c.path)
