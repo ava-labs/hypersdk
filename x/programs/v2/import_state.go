@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 )
 
@@ -19,6 +20,11 @@ type keyValueInput struct {
 	Value []byte
 }
 
+// prependAccountToKey makes the key relative to the account
+func prependAccountToKey(account ids.ID, key []byte) []byte {
+	return []byte(account.String() + "/" + string(key))
+}
+
 func NewStateAccessModule() *ImportModule {
 	return &ImportModule{name: "state",
 		funcs: map[string]HostFunction{
@@ -27,11 +33,9 @@ func NewStateAccessModule() *ImportModule {
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
 				}
-				// key is relative to current account
-				readKey := []byte(callInfo.Account.String() + "/" + string(parsedInput.Key))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetValue(ctx, readKey)
+				val, err := callInfo.State.GetValue(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key))
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -45,11 +49,9 @@ func NewStateAccessModule() *ImportModule {
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
 				}
-				// key is relative to current account
-				writeKey := []byte(callInfo.Account.String() + "/" + string(parsedInput.Key))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return nil, callInfo.State.Insert(ctx, writeKey, parsedInput.Value)
+				return nil, callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
 			}),
 			"delete": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
@@ -57,11 +59,9 @@ func NewStateAccessModule() *ImportModule {
 					return nil, err
 				}
 
-				// key is relative to current account
-				writeKey := []byte(callInfo.Account.String() + "/" + string(parsedInput.Key))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return nil, callInfo.State.Remove(ctx, writeKey)
+				return nil, callInfo.State.Remove(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key))
 			}),
 		},
 	}

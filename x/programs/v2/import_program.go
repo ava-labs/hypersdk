@@ -17,7 +17,7 @@ type callProgramInput struct {
 	Fuel         uint64
 }
 
-func NewCallProgramModule(r *WasmRuntime) *ImportModule {
+func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{name: "program",
 		funcs: map[string]HostFunction{
 			"call_program": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {

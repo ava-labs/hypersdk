@@ -39,7 +39,7 @@ func NewRuntime(
 
 	runtime.AddImportModule(NewLogModule())
 	runtime.AddImportModule(NewStateAccessModule())
-	runtime.AddImportModule(NewCallProgramModule(runtime))
+	runtime.AddImportModule(NewProgramModule(runtime))
 
 	return runtime
 }
