@@ -18,8 +18,8 @@ const (
 )
 
 type Context struct {
-	ProgramID ids.ID `json:"program"`
-	// Actor            [32]byte `json:"actor"`
+	ProgramID ids.ID   `json:"program"`
+	Actor     [32]byte `json:"actor"`
 	// OriginatingActor [32]byte `json:"originating_actor"`
 }
 
@@ -73,7 +73,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	}
 
 	// create the program context
-	programCtx := Context{ProgramID: callInfo.ProgramID}
+	programCtx := Context{ProgramID: callInfo.ProgramID, Actor: callInfo.Actor}
 	programCtxBytes, err := borsh.Serialize(programCtx)
 	if err != nil {
 		return nil, err
