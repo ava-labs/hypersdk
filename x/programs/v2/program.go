@@ -43,8 +43,9 @@ func (c *CallInfo) RemainingFuel() uint64 {
 	return remaining
 }
 
-func (c *CallInfo) ConsumeFuel(fuel uint64) {
-	c.inst.store.ConsumeFuel(fuel)
+func (c *CallInfo) ConsumeFuel(fuel uint64) error {
+	_, err := c.inst.store.ConsumeFuel(fuel)
+	return err
 }
 
 type Program struct {
@@ -78,16 +79,17 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		return nil, err
 	}
 
-	//copy context into store linear memory
+	// copy context into store linear memory
 	ctxOffset, err := p.setParam(programCtxBytes)
 	if err != nil {
 		return nil, err
 	}
 	if callInfo.Params == nil {
-		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset)
+		_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, ctxOffset, 0)
 	} else {
+		var paramsOffset int32
 		// if params exist, copy them into linear memory too
-		paramsOffset, err := p.setParam(callInfo.Params)
+		paramsOffset, err = p.setParam(callInfo.Params)
 		if err != nil {
 			return nil, err
 		}

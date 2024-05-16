@@ -8,7 +8,7 @@ package v2
 func NewLogModule() *ImportModule {
 	return &ImportModule{name: "log",
 		funcs: map[string]HostFunction{
-			"write": FunctionNoOutput(func(_ *CallInfo, input []byte) error { return nil }),
+			"write": FunctionNoOutput(func(*CallInfo, []byte) error { return nil }),
 		},
 	}
 }

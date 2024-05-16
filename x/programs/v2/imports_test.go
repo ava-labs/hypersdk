@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestLinking ensures that the linker created by [createLinker] correctly creates callable host functions
+// TestImportsLinking ensures that the linker created by [createLinker] correctly creates callable host functions
 func TestImportsLinking(t *testing.T) {
 	require := require.New(t)
 
@@ -19,7 +19,7 @@ func TestImportsLinking(t *testing.T) {
 	imports.AddModule(&ImportModule{
 		name: "env",
 		funcs: map[string]HostFunction{
-			"alert": FunctionNoOutput(func(info *CallInfo, bytes []byte) error {
+			"alert": FunctionNoOutput(func(_ *CallInfo, _ []byte) error {
 				called = true
 				return nil
 			}),

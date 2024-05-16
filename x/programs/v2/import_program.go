@@ -40,12 +40,17 @@ func NewCallProgramModule(r *WasmRuntime) *ImportModule {
 				result, err := r.CallProgram(
 					context.Background(),
 					&newInfo)
+				if err != nil {
+					return nil, err
+				}
 
 				// subtract the fuel used during this call from the calling program
 				remainingFuel := newInfo.RemainingFuel()
-				callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel)
+				if err := callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel); err != nil {
+					return nil, err
+				}
 
-				return result, err
+				return result, nil
 			}),
 			"set_call_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				callInfo.inst.result = input
