@@ -7,11 +7,11 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.67"
-quote = "1.0.33"
-syn = { version = "2.0.37", features = ["full", "extra-traits"] }
+proc-macro2 = "1.0.82"
+quote = "1.0.36"
+syn = { version = "2.0.63", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
-borsh = "1.5.0"
-trybuild = "1.0.89"
+borsh = { workpsace = true }
+trybuild = "1.0.96"
 wasmlanche-sdk = { path = "../wasmlanche-sdk" }
