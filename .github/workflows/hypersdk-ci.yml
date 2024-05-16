@@ -36,6 +36,8 @@ jobs:
         working-directory: ./examples/tokenvm
         run: go mod tidy
       - shell: bash
+        run: git diff
+      - shell: bash
         run: scripts/tests.clean.sh
 
   hypersdk-lint:
