@@ -120,10 +120,16 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
+	programID, err := ids.ToID(callParams[0])
+	if err != nil {
+		return ids.Empty, nil, 0, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), err
+	}
+
 	programExecuteAction := actions.ProgramExecute{
 		Function: function,
-		Params:   callParams,
 		MaxUnits: maxUnits,
+		ProgramID: programID,
+		Params:   callParams,
 		Log:      log,
 	}
 

@@ -71,34 +71,34 @@ func (r *Response) Print() error {
 	return nil
 }
 
-func (r *Response) setError(err error) {
+func (r *Response) SetError(err error) {
 	r.Error = err.Error()
 }
 
-func (r *Response) setTxID(id string) {
+func (r *Response) SetTxID(id string) {
 	r.Result.ID = id
 }
 
-func (r *Response) getTxID() (string, bool) {
+func (r *Response) GetTxID() (string, bool) {
 	if r.Result.ID == "" {
 		return "", false
 	}
 	return r.Result.ID, true
 }
 
-func (r *Response) setBalance(balance uint64) {
+func (r *Response) SetBalance(balance uint64) {
 	r.Result.Balance = balance
 }
 
-func (r *Response) setResponse(response []byte) {
+func (r *Response) SetResponse(response []byte) {
 	r.Result.Response = response
 }
 
-func (r *Response) setMsg(msg string) {
+func (r *Response) SetMsg(msg string) {
 	r.Result.Msg = msg
 }
 
-func (r *Response) setTimestamp(timestamp int64) {
+func (r *Response) SetTimestamp(timestamp int64) {
 	r.Result.Timestamp = uint64(timestamp)
 }
 

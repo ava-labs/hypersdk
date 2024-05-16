@@ -11,8 +11,8 @@ import (
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/host"
+	// "github.com/ava-labs/hypersdk/x/programs/engine"
+	// "github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,22 +23,24 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
-	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	// importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
+	// "github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	// "github.com/ava-labs/hypersdk/x/programs/v2/runtime"
+	"github.com/ava-labs/hypersdk/x/programs/v2"
 )
 
 var _ chain.Action = (*ProgramExecute)(nil)
 
 type ProgramExecute struct {
-	Function string      `json:"programFunction"`
-	MaxUnits uint64      `json:"maxUnits"`
-	Params   []CallParam `json:"params"`
+	Function  string      `json:"programFunction"`
+	MaxUnits  uint64      `json:"maxUnits"`
+	ProgramID ids.ID      `json:"programID`
+	Params    []byte      `json:"params"`
 
 	Log logging.Logger
 
-	rt runtime.Runtime
+	rt v2.WasmRuntime
 }
 
 func (*ProgramExecute) GetTypeID() uint8 {
@@ -53,6 +55,25 @@ func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.ProgramChunks}
 }
 
+var _ v2.ProgramLoader = (*ProgramStore)(nil)
+
+type ProgramStore struct {
+	state.Mutable
+}
+
+func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+	// TODO: take fee out of balance?
+	programBytes, exists, err := storage.GetProgram(context.Background(), s, programID)
+	if !exists {
+		return []byte{}, errors.New("unknown program")
+	}
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return programBytes, nil
+}
+
 func (t *ProgramExecute) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -64,76 +85,89 @@ func (t *ProgramExecute) Execute(
 	if len(t.Function) == 0 {
 		return false, 1, OutputValueZero, nil
 	}
-	if len(t.Params) == 0 {
-		return false, 1, OutputValueZero, nil
-	}
+	// if len(t.Params) == 0 {
+	// 	return false, 1, OutputValueZero, nil
+	// }
 
-	programID, ok := t.Params[0].Value.(ids.ID)
-	if !ok {
-		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
-	}
+	// programID, err := ids.ToID(t.Params[0])
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), err
+	// }
 
-	// TODO: take fee out of balance?
-	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
-	if !exists {
-		err = errors.New("unknown program")
+	s := &ProgramStore {
+		Mutable: mu,
 	}
+	// TODO don't create a new runtime at every execute action
+	cfg := v2.NewConfig()
+	log := logging.NoLog{}
+	rt := *v2.NewRuntime(cfg, log, s)
+	callInfo := v2.CallInfo {
+		State: s.Mutable,
+		// Actor: ids.ID(actor),
+		Actor: ids.Empty,
+		ProgramID: t.ProgramID,
+		Fuel: 1000000, // TODO implement me
+		FunctionName: t.Function, // TODO don't call _guest functions it is prepended in the sim
+		Params: t.Params,
+	}
+	ret, err := rt.CallProgram(ctx, &callInfo)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 0, []byte{}, err
 	}
+	return true, 100000, ret, nil
 
-	// TODO: get cfg from genesis
-	cfg := runtime.NewConfig()
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
+	// // TODO: get cfg from genesis
+	// cfg := runtime.NewConfig()
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
 
-	ecfg, err := engine.NewConfigBuilder().
-		WithDefaultCache(true).
-		Build()
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-	eng := engine.New(ecfg)
+	// ecfg, err := engine.NewConfigBuilder().
+	// 	WithDefaultCache(true).
+	// 	Build()
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
+	// eng := engine.New(ecfg)
 
-	// TODO: allow configurable imports?
-	importsBuilder := host.NewImportsBuilder()
-	importsBuilder.Register("state", func() host.Import {
-		return pstate.New(logging.NoLog{}, mu)
-	})
-	callContext := &program.Context{
-		ProgramID: programID,
-		// Actor:            [32]byte(actor[1:]),
-		// OriginatingActor: [32]byte(actor[1:])
-	}
+	// // TODO: allow configurable imports?
+	// importsBuilder := host.NewImportsBuilder()
+	// importsBuilder.Register("state", func() host.Import {
+	// 	return pstate.New(logging.NoLog{}, mu)
+	// })
+	// callContext := &program.Context{
+	// 	ProgramID: programID,
+	// 	// Actor:            [32]byte(actor[1:]),
+	// 	// OriginatingActor: [32]byte(actor[1:])
+	// }
 
-	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
-	})
-	imports := importsBuilder.Build()
+	// importsBuilder.Register("program", func() host.Import {
+	// 	return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
+	// })
+	// imports := importsBuilder.Build()
 
-	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
-	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-	defer t.rt.Stop()
+	// t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
+	// err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
+	// defer t.rt.Stop()
 
-	mem, err := t.rt.Memory()
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-	params, err := WriteParams(mem, t.Params)
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
+	// mem, err := t.rt.Memory()
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
+	// params, err := WriteParams(mem, t.Params)
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
 
-	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
+	// resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
 
-	return true, 1, resp, nil
+	// return true, 1, resp, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {

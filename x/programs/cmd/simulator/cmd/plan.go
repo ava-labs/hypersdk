@@ -193,7 +193,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
 		c.log.Debug("simulation step", zap.Error(err))
-		resp.setError(err)
+		resp.SetError(err)
 	}
 
 	// map all transactions to their step_N identifier
@@ -219,7 +219,7 @@ func runStepFunc(
 	require *Require,
 	resp *Response,
 ) error {
-	defer resp.setTimestamp(time.Now().Unix())
+	defer resp.SetTimestamp(time.Now().Unix())
 	switch endpoint {
 	case EndpointKey:
 		keyName := params[0].Value.(string)
@@ -229,7 +229,7 @@ func runStepFunc(
 		} else if err != nil {
 			return err
 		}
-		resp.setMsg(fmt.Sprintf("created named key with address %s", utils.Address(key)))
+		resp.SetMsg(fmt.Sprintf("created named key with address %s", utils.Address(key)))
 
 		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
@@ -240,8 +240,8 @@ func runStepFunc(
 			if err != nil {
 				return err
 			}
-			resp.setTxID(id.String())
-			resp.setTimestamp(time.Now().Unix())
+			resp.SetTxID(id.String())
+			resp.SetTimestamp(time.Now().Unix())
 
 			return nil
 		}
@@ -285,7 +285,7 @@ func runStepFunc(
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]actions.CallParam, error) {
+func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([][]byte, error) {
 	cp := make([]actions.CallParam, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
