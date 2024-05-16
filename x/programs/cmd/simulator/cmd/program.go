@@ -137,7 +137,6 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
-
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
