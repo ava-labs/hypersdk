@@ -8,30 +8,9 @@ use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
-#[repr(C)]
-pub struct CPointer(pub *const u8, pub usize);
-
 thread_local! {
     /// Map of pointer to the length of its content on the heap
     static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
-}
-
-/// Converts a pointer to a i64 with the first 4 bytes of the pointer
-/// representing the length of the memory block.
-/// # Errors
-/// Returns an [`StateError`] if the pointer or length of `args` exceeds
-/// the maximum size of a u32.
-#[allow(clippy::cast_possible_truncation)]
-pub fn to_ffi_ptr(arg: &[u8]) -> Result<CPointer, StateError> {
-    let ptr = arg.as_ptr();
-    let len = arg.len();
-
-    // Make sure the pointer and length fit into u32
-    if ptr as usize > u32::MAX as usize || len > u32::MAX as usize {
-        return Err(StateError::IntegerConversion);
-    }
-
-    Ok(CPointer(ptr, len))
 }
 
 /// Converts a raw pointer to a deserialized value.
@@ -47,7 +26,13 @@ pub fn from_host_ptr<V>(ptr: *const u8) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
-    match into_bytes(ptr) {
+    let bytes = if ptr.is_null() {
+        Some(vec![])
+    } else {
+        into_bytes(ptr)
+    };
+
+    match bytes {
         Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
         None => Err(StateError::InvalidPointer),
     }
@@ -69,7 +54,9 @@ pub fn into_bytes(ptr: *const u8) -> Option<Vec<u8>> {
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
-    assert!(len > 0, "cannot allocate 0 sized data");
+    if len == 0 {
+        return std::ptr::null_mut();
+    }
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
     // take a mutable pointer to the layout
@@ -101,9 +88,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "cannot allocate 0 sized data"]
-    fn zero_allocation_panics() {
-        alloc(0);
+    fn zero_allocation() {
+        let ptr = alloc(0);
+        assert!(ptr.is_null());
     }
 
     #[test]

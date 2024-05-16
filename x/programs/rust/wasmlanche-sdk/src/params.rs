@@ -1,18 +1,15 @@
-use crate::{
-    memory::{to_ffi_ptr, CPointer},
-    state::Error as StateError,
-    Error,
-};
+use crate::Error;
 use borsh::BorshSerialize;
+use std::ops::Deref;
 
 #[macro_export]
 macro_rules! params {
     ($first:expr $(,$rest:expr)* $(,)*) => {
-        std::iter::once(wasmlanche_sdk::params::serialize_param($first))
+        std::iter::once($crate::params::serialize_param($first))
             $(
-                .chain(Some(wasmlanche_sdk::params::serialize_param($rest)))
+                .chain(Some($crate::params::serialize_param($rest)))
             )*
-            .collect::<Result<wasmlanche_sdk::Params, wasmlanche_sdk::Error>>()
+            .collect::<Result<$crate::Params, $crate::Error>>()
     }
 }
 
@@ -22,9 +19,11 @@ pub struct Param(Vec<u8>);
 /// A collection of [borsh] serialized parameters.
 pub struct Params(Vec<u8>);
 
-impl Params {
-    pub(crate) fn into_ffi_ptr(self) -> Result<CPointer, StateError> {
-        to_ffi_ptr(&self.0)
+impl Deref for Params {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -52,4 +51,34 @@ where
         .collect();
 
     Ok(Param(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::serialize_param;
+    use borsh::{BorshDeserialize, BorshSerialize};
+
+    #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
+    struct Data(usize);
+
+    #[test]
+    fn valid_serialized_host_ptr() {
+        let data = Data(12345);
+        let param = serialize_param(&data).unwrap();
+        let ret_data = check_components(&param.0);
+        assert_eq!(data, ret_data);
+
+        let ser_params = serialize_param(&param.0).unwrap().0;
+        let params = params!(&param.0).unwrap();
+
+        assert_eq!(params.0, ser_params);
+    }
+
+    fn check_components<T: BorshDeserialize>(bytes: &[u8]) -> T {
+        let len_bytes = bytes.get(0..4).unwrap();
+        let len_comp = u32::from_be_bytes(len_bytes.try_into().unwrap());
+        assert_eq!(bytes.len(), 4 + len_comp as usize, "invalid len pointer");
+        let data_bytes = bytes.get(4..).unwrap();
+        borsh::from_slice(data_bytes).unwrap()
+    }
 }

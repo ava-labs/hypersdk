@@ -1,7 +1,7 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse_macro_input, parse_str, spanned::Spanned, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat,
     PatType, Path, Type, Visibility,
@@ -10,10 +10,8 @@ use syn::{
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
-/// It does so by wrapping the `item` tokenstream in a new function that can be called by the host.
-/// The wrapper function will have the same name as the original function, but with "_guest" appended to it.
-/// The wrapper functions parameters will be converted to WASM supported types. When called, the wrapper function
-/// calls the original function by converting the parameters back to their intended types using .into().
+/// It does so by creating an `extern "C" fn` that handles all pointer resolution and deserialization.
+/// `#[public]` functions must have `pub` visibility and the first parameter must be of type `Context`.
 #[proc_macro_attribute]
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
@@ -29,17 +27,25 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let name = &input.sig.ident;
-    let input_args = &input.sig.inputs;
     // TODO:
     // prefix with an underscore
-    let new_name = Ident::new(&format!("{name}_guest"), name.span());
+    let new_name = {
+        let name = &input.sig.ident;
+        Ident::new(&format!("{name}_guest"), name.span())
+    };
 
-    // to be used as the result below
-    let first_arg_err = match input_args.first() {
-        Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => None,
-        arg => {
-            let err = match arg {
+    let (input, context_type, first_arg_err) = {
+        let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
+        let mut input = input;
+
+        let first_arg_err = match input.sig.inputs.first_mut() {
+            Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
+                std::mem::swap(&mut context_type, ty);
+                None
+            }
+
+            arg => {
+                let err = match arg {
                 Some(FnArg::Typed(PatType { ty, .. })) => {
                     syn::Error::new(
                         ty.span(),
@@ -60,11 +66,16 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 }
             };
 
-            Some(err)
-        }
+                Some(err)
+            }
+        };
+
+        (input, context_type, first_arg_err)
     };
 
-    let param_idents = input_args
+    let arg_props = input
+        .sig
+        .inputs
         .iter()
         .enumerate()
         .skip(1)
@@ -73,17 +84,16 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 fn_arg.span(),
                 "Functions with the `#[public]` attribute cannot have a `self` parameter.",
             )),
-            FnArg::Typed(PatType { pat, .. }) => match pat.as_ref() {
-                // TODO:
-                // we should likely remove this constraint. If we provide upgradability
-                // in the future, we may not want to change the function signature
-                // which means we might want wildcards in order to help produce stable APIs
-                Pat::Wild(_) => Err(syn::Error::new(
-                    fn_arg.span(),
-                    "Functions with the `#[public]` attribute can only ignore the first parameter.",
+            FnArg::Typed(PatType {
+                ty, colon_token, ..
+            }) => Ok(PatType {
+                attrs: vec![],
+                pat: Box::new(Pat::Verbatim(
+                    format_ident!("param_{}", i).into_token_stream(),
                 )),
-                _ => Ok(Ident::new(&format!("param_{i}"), fn_arg.span())),
-            },
+                colon_token: *colon_token,
+                ty: ty.clone(),
+            }),
         });
 
     let result = match (vis_err, first_arg_err) {
@@ -95,7 +105,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let param_names_or_err = param_idents.fold(result, |result, param| match (result, param) {
+    let arg_props_or_err = arg_props.fold(result, |result, param| match (result, param) {
         // ignore Ok or first error encountered
         (Err(errors), Ok(_)) | (Ok(_), Err(errors)) => Err(errors),
         // combine errors
@@ -110,37 +120,57 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-    let param_names = match param_names_or_err {
+    let args_props = match arg_props_or_err {
         Ok(param_names) => param_names,
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let converted_params = param_names.iter().map(|param_name| {
+    let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
         quote! {
-            unsafe {
-                wasmlanche_sdk::from_host_ptr(#param_name).expect("error serializing ptr")
-            }
+           args.#name
         }
     });
 
-    let param_types = std::iter::repeat(quote! { *const u8 }).take(param_names.len());
+    let name = &input.sig.ident;
 
-    // Extract the original function's return type. This must be a WASM supported type.
-    let return_type = &input.sig.output;
-    let context_type: Path = parse_str(CONTEXT_TYPE).unwrap();
-    let output = quote! {
-        // Need to include the original function in the output, so contract can call itself
-        #input
-        #[no_mangle]
-        pub extern "C" fn #new_name(param_0: *const u8, #(#param_names: #param_types), *) #return_type {
-            let param_0: #context_type = unsafe {
-                wasmlanche_sdk::from_host_ptr(param_0).expect("error serializing ptr")
-            };
-            #name(param_0, #(#converted_params),*)
+    let external_call = quote! {
+        mod private {
+            use super::*;
+            #[derive(borsh::BorshDeserialize)]
+            struct Args {
+                #(#args_props),*
+             }
+
+            #[link(wasm_import_module = "program")]
+            extern "C" {
+                #[link_name = "set_call_result"]
+                fn set_call_result(ptr: *const u8, len: usize);
+            }
+
+            #[no_mangle]
+            unsafe extern "C" fn #new_name(ctx: *const u8, args: *const u8) {
+                let (ctx, args): (#context_type, Args) = unsafe {
+                    (
+                        wasmlanche_sdk::from_host_ptr(ctx).expect("error fetching serialized context"),
+                        wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args"),
+                    )
+                };
+
+                let result = super::#name(ctx, #(#converted_params),*);
+                let result = borsh::to_vec(&result).expect("error serializing result");
+                unsafe { set_call_result(result.as_ptr(), result.len()) };
+            }
         }
     };
 
-    TokenStream::from(output)
+    let mut input = input;
+
+    input
+        .block
+        .stmts
+        .insert(0, syn::parse2(external_call).unwrap());
+
+    TokenStream::from(quote! { #input })
 }
 
 /// This macro assists in defining the schema for a program's state.  A user can

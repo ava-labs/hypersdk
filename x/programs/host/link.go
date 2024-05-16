@@ -42,7 +42,7 @@ type Link struct {
 
 // Instantiate registers a module with all imports defined in this linker.
 // This can only be called once after all imports have been registered.
-func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback, callContext program.Context) (*wasmtime.Instance, error) {
+func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback, callContext *program.Context) (*wasmtime.Instance, error) {
 	l.cb = cb
 	if l.debugMode {
 		err := l.EnableWasi()

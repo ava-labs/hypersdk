@@ -29,7 +29,7 @@ func TestLinkMissingImport(t *testing.T) {
 	store := engine.NewStore(eng, engine.NewStoreConfig())
 	link, err := newTestLink(store, NoSupportedImports)
 	require.NoError(err)
-	_, err = link.Instantiate(store, mod, ImportFnCallback{}, program.Context{})
+	_, err = link.Instantiate(store, mod, ImportFnCallback{}, &program.Context{})
 	require.ErrorIs(err, ErrMissingImportModule)
 }
 
@@ -80,7 +80,7 @@ func TestLinkImport(t *testing.T) {
 			require.NoError(err)
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
-			_, err = link.Instantiate(store, mod, ImportFnCallback{}, program.Context{})
+			_, err = link.Instantiate(store, mod, ImportFnCallback{}, &program.Context{})
 			if tt.errMsg != "" {
 				require.ErrorContains(err, tt.errMsg) //nolint:forbidigo
 				return
@@ -113,7 +113,7 @@ func BenchmarkInstantiate(b *testing.B) {
 			store := engine.NewStore(eng, engine.NewStoreConfig())
 			link, err := newTestLink(store, imports.Build())
 			require.NoError(err)
-			_, err = link.Instantiate(store, mod, ImportFnCallback{}, program.Context{})
+			_, err = link.Instantiate(store, mod, ImportFnCallback{}, &program.Context{})
 			require.NoError(err)
 		}
 	})
@@ -143,7 +143,7 @@ func (i *testImport) Name() string {
 	return i.module
 }
 
-func (i *testImport) Register(link *Link, _ program.Context) error {
+func (i *testImport) Register(link *Link, _ *program.Context) error {
 	if i.fn != nil {
 		return link.RegisterImportFn(i.module, "one", i.fn)
 	}
