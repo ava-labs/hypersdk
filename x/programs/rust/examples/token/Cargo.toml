@@ -3,21 +3,18 @@ name = "token"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 wasmlanche-sdk = { path = "../../wasmlanche-sdk" }
-borsh = { version = "1.2.0", features = ["derive"] }
+borsh = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1.0.68"
 simulator = { path = "../../../cmd/simulator" }
 
 [build-dependencies]
 wasmlanche-sdk = { path = "../../wasmlanche-sdk", features = ["build"] }
-
-[lib]
-crate-type = ["cdylib"] # set the crate(needed for cargo build to work properly)
 
 # when creating a new project, you can uncomment the following lines to enable optimizations
 # [profile.release]
