@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{Context, Program};
+use wasmlanche_sdk::{types::Address, Context, Program};
 use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -128,6 +128,7 @@ impl TestCrate {
         // this is a hack to create a program since the constructor is private
         let program: Program =
             borsh::from_slice(&program_id).expect("the program should deserialize");
+        let actor = Address::new(Default::default());
         let context = Context { program, actor };
         let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
 
