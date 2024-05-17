@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -21,20 +22,33 @@ const (
 )
 
 type Context struct {
-	ProgramID ids.ID   `json:"program"`
-	Actor     [32]byte `json:"actor"`
-	// OriginatingActor [32]byte `json:"originating_actor"`
+	ProgramID ids.ID        `json:"program"`
+	Actor     codec.Address `json:"actor"`
 }
 
 type CallInfo struct {
-	State        state.Mutable
-	Actor        ids.ID
-	Account      ids.ID
-	ProgramID    ids.ID
-	Fuel         uint64
+	// the state that the program will run against
+	State state.Mutable
+
+	// the address that originated the initial program call
+	Actor codec.Address
+
+	// the identifier of what state space the program is being run within
+	Account codec.Address
+
+	// the identifier of what program is being called
+	ProgramID ids.ID
+
+	// the name of the function within the program that is being called
 	FunctionName string
-	Params       []byte
-	inst         *ProgramInstance
+
+	// the serialized parameters that will be passed to the called function
+	Params []byte
+
+	// the amount of fuel allowed to be consumed by wasm for this call
+	Fuel uint64
+
+	inst *ProgramInstance
 }
 
 func (c *CallInfo) RemainingFuel() uint64 {

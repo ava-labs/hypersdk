@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	callProgramCost = 1000
-	setResultCost   = 1000
+	callProgramCost = 10000
+	setResultCost   = 10000
 )
 
 type callProgramInput struct {

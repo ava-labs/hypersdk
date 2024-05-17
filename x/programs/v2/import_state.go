@@ -6,16 +6,16 @@ package v2
 import (
 	"context"
 	"errors"
+	"github.com/ava-labs/hypersdk/codec"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 )
 
 const (
-	readCost   = 1000
-	writeCost  = 1000
-	deleteCost = 1000
+	readCost   = 10000
+	writeCost  = 10000
+	deleteCost = 10000
 )
 
 type keyInput struct {
@@ -28,8 +28,12 @@ type keyValueInput struct {
 }
 
 // prependAccountToKey makes the key relative to the account
-func prependAccountToKey(account ids.ID, key []byte) []byte {
-	return []byte(account.String() + "/" + string(key))
+func prependAccountToKey(account codec.Address, key []byte) []byte {
+	result := make([]byte, len(account)+len(key)+1)
+	copy(result, account[:])
+	copy(result[len(account):], "/")
+	copy(result[len(account)+1:], key)
+	return result
 }
 
 func NewStateAccessModule() *ImportModule {
