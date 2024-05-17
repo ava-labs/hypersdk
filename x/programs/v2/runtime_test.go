@@ -2,12 +2,14 @@ package v2
 
 import (
 	"context"
+	"testing"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/x/programs/v2/test"
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/ava-labs/hypersdk/x/programs/v2/test"
 )
 
 func TestRuntimeCallProgramBasic(t *testing.T) {

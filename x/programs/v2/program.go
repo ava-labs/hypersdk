@@ -7,12 +7,13 @@ import "C"
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/codec"
+
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
 

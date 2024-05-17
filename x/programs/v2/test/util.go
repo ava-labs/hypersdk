@@ -1,10 +1,11 @@
 package test
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/ava-labs/avalanchego/ids"
 )
 
 func CompileTests(programName string) (string, error) {
