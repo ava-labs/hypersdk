@@ -11,13 +11,14 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
+use wasmlanche_sdk::Params;
 
 mod id;
 
 pub use id::Id;
 
 /// The endpoint to call for a [Step].
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[deprecated]
 pub enum Endpoint {
@@ -32,7 +33,7 @@ pub enum Endpoint {
 }
 
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Step {
     /// The API endpoint to call.
@@ -48,7 +49,7 @@ struct Step {
     pub require: Option<Require>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepTODO {
     step_type: StepType,
@@ -82,7 +83,7 @@ impl From<CreateStep> for StepTODO {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StepType {
     Key,
@@ -90,7 +91,7 @@ pub enum StepType {
     Create,
 }
 
-#[derive(Debug, Serialize, PartialEq, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ExecuteMessage {
     Key(KeyStep),
@@ -98,29 +99,38 @@ pub enum ExecuteMessage {
     Create(CreateStep),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Curve {
     Ed25519,
     Secp256r1,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct KeyStep {
     pub name: String,
     pub curve: Curve,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CallStep {
     pub program_id: Id,
     pub method: String,
+    // #[serde(rename = "data", serialize_with = "borsh_serialize")]
+    #[serde(rename = "data")]
     pub params: Vec<Param>,
+    // pub params: Params,
+    // pub params: Vec<u8>,
     pub max_units: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+// fn borsh_serialize<S>(params: &Vec<Param>, s: S) -> Result<S::Ok, S::Error> where S: Serializer {
+//     let v = borsh::to_vec(params).map_err(|_| S::Error::custom("borsh serialization failed"))?;
+//     v.serialize(serializer)
+// }
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadStep {
     pub program_id: Id,
@@ -128,12 +138,12 @@ pub struct ReadStep {
     pub params: Vec<Param>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CreateStep {
     pub path: String,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimulatorStep<'a> {
     /// The key of the caller used in each step of the plan.
@@ -171,7 +181,7 @@ impl Step {
 }
 
 /// The algorithm used to generate the key along with a [String] identifier for the key.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type", content = "value")]
 pub enum Key {
@@ -182,7 +192,7 @@ pub enum Key {
 // TODO:
 // add `Cow` types for borrowing
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 pub enum Param {
     U64(#[serde_as(as = "DisplayFromStr")] u64),
@@ -216,14 +226,14 @@ impl From<Key> for Param {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Require {
     /// If defined the result of the step must match this assertion.
     pub result: ResultAssertion,
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "operator", content = "value")]
 pub enum ResultAssertion {
     #[serde(rename = "==")]
@@ -240,7 +250,7 @@ pub enum ResultAssertion {
     NumericLe(#[serde_as(as = "DisplayFromStr")] u64),
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize)]
 pub struct Plan {
     /// The key of the caller used in each step of the plan.
     pub caller_key: String,

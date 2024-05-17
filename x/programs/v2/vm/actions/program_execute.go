@@ -23,13 +23,29 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/v2/runtime"
 )
 
+type Type string
+
+const (
+	String       Type = "string"
+	Bool         Type = "bool"
+	ID           Type = "id"
+	Uint64       Type = "u64"
+)
+
+type Parameter struct {
+	// The type of the parameter. (required)
+	Type Type `json,yaml:"type"`
+	// The value of the parameter. (required)
+	Value interface{} `json,yaml:"value"`
+}
+
 var _ chain.Action = (*ProgramExecute)(nil)
 
 type ProgramExecute struct {
 	Function  string      `json:"programFunction"`
 	MaxUnits  uint64      `json:"maxUnits"`
 	ProgramID ids.ID      `json:"programID"`
-	Params    []byte      `json:"params"`
+	Params    []Parameter `json:"params"`
 
 	Log logging.Logger
 
@@ -75,93 +91,93 @@ func (t *ProgramExecute) Execute(
 	actor codec.Address,
 	_ ids.ID,
 ) (success bool, computeUnits uint64, output []byte, err error) {
-	return false, 0, nil, nil
-	// if len(t.Function) == 0 {
-	// 	return false, 1, OutputValueZero, nil
-	// }
-	// // if len(t.Params) == 0 {
-	// // 	return false, 1, OutputValueZero, nil
-	// // }
+	if len(t.Function) == 0 {
+		return false, 1, OutputValueZero, errors.New("no function called")
+	}
+	if len(t.Params) == 0 {
+		return false, 1, OutputValueZero, errors.New("no params passed")
+	}
 
-	// // programID, err := ids.ToID(t.Params[0])
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), err
-	// // }
+	data, err := ParamsToBytes(t.Params)
+	if err != nil {
+		return false, 0, nil, err
+	}
 
-	// s := &ProgramStore {
-	// 	Mutable: mu,
-	// }
-	// // TODO don't create a new runtime at every execute action
-	// cfg := NewConfig()
-	// log := logging.NoLog{}
-	// rt := *NewRuntime(cfg, log, s)
-	// callInfo := CallInfo {
-	// 	State: s.Mutable,
-	// 	// Actor: ids.ID(actor),
-	// 	Actor: ids.Empty,
-	// 	ProgramID: t.ProgramID,
-	// 	Fuel: 1000000, // TODO implement me
-	// 	FunctionName: t.Function, // TODO don't call _guest functions it is prepended in the sim
-	// 	Params: t.Params,
-	// }
-	// ret, err := rt.CallProgram(ctx, &callInfo)
+	s := &ProgramStore {
+		Mutable: mu,
+	}
+	// TODO don't create a new runtime at every execute action
+	cfg := runtime.NewConfig()
+	// TODO pass the logger
+	rt := *runtime.NewRuntime(cfg, t.Log, s)
+	callInfo := runtime.CallInfo {
+		State: s.Mutable,
+		// Actor: ids.ID(actor),
+		Actor: ids.Empty,
+		ProgramID: t.ProgramID,
+		Fuel: t.MaxUnits, // TODO implement me
+		FunctionName: t.Function, // TODO don't call _guest functions it is prepended in the sim
+		Params: data,
+	}
+	ret, err := rt.CallProgram(ctx, &callInfo)
+	if err != nil {
+		return false, 0, ret, err
+	}
+	// TODO spend fuel here
+	return true, 100000, ret, nil
+
+	// // TODO: get cfg from genesis
+	// cfg := runtime.NewConfig()
 	// if err != nil {
-	// 	return false, 0, []byte{}, err
+	// 	return false, 1, utils.ErrBytes(err), nil
 	// }
-	// return true, 100000, ret, nil
 
-	// // // TODO: get cfg from genesis
-	// // cfg := runtime.NewConfig()
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(err), nil
-	// // }
+	// ecfg, err := engine.NewConfigBuilder().
+	// 	WithDefaultCache(true).
+	// 	Build()
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
+	// eng := engine.New(ecfg)
 
-	// // ecfg, err := engine.NewConfigBuilder().
-	// // 	WithDefaultCache(true).
-	// // 	Build()
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(err), nil
-	// // }
-	// // eng := engine.New(ecfg)
+	// // TODO: allow configurable imports?
+	// importsBuilder := host.NewImportsBuilder()
+	// importsBuilder.Register("state", func() host.Import {
+	// 	return pstate.New(logging.NoLog{}, mu)
+	// })
+	// callContext := &program.Context{
+	// 	ProgramID: programID,
+	// 	// Actor:            [32]byte(actor[1:]),
+	// 	// OriginatingActor: [32]byte(actor[1:])
+	// }
 
-	// // // TODO: allow configurable imports?
-	// // importsBuilder := host.NewImportsBuilder()
-	// // importsBuilder.Register("state", func() host.Import {
-	// // 	return pstate.New(logging.NoLog{}, mu)
-	// // })
-	// // callContext := &program.Context{
-	// // 	ProgramID: programID,
-	// // 	// Actor:            [32]byte(actor[1:]),
-	// // 	// OriginatingActor: [32]byte(actor[1:])
-	// // }
+	// importsBuilder.Register("program", func() host.Import {
+	// 	return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
+	// })
+	// imports := importsBuilder.Build()
 
-	// // importsBuilder.Register("program", func() host.Import {
-	// // 	return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
-	// // })
-	// // imports := importsBuilder.Build()
+	// t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
+	// err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
+	// defer t.rt.Stop()
 
-	// // t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
-	// // err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(err), nil
-	// // }
-	// // defer t.rt.Stop()
+	// mem, err := t.rt.Memory()
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
+	// params, err := WriteParams(mem, t.Params)
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
 
-	// // mem, err := t.rt.Memory()
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(err), nil
-	// // }
-	// // params, err := WriteParams(mem, t.Params)
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(err), nil
-	// // }
+	// resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
+	// if err != nil {
+	// 	return false, 1, utils.ErrBytes(err), nil
+	// }
 
-	// // resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
-	// // if err != nil {
-	// // 	return false, 1, utils.ErrBytes(err), nil
-	// // }
-
-	// // return true, 1, resp, nil
+	// return true, 1, resp, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
@@ -196,42 +212,33 @@ type CallParam struct {
 	Value interface{} `json,yaml:"value"`
 }
 
-// WriteParams is a helper function that writes the given params to memory if non integer.
+// ParamsToBytes is a helper function that writes the given params to memory if non integer.
 // Supported types include int, uint64 and string.
-func WriteParams(m *program.Memory, p []CallParam) ([]uint32, error) {
-	var params []uint32
+func ParamsToBytes(p []CallParam) ([]byte, error) {
+	var bytes []byte
 	for _, param := range p {
 		switch v := param.Value.(type) {
 		case []byte:
-			smartPtr, err := program.AllocateBytes(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
+			bytes = append(bytes, v...)
 		case ids.ID:
-			smartPtr, err := program.AllocateBytes(v[:], m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
+			bytes = append(bytes, v[:]...)
 		case string:
-			smartPtr, err := program.AllocateBytes([]byte(v), m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
+			bytes = append(bytes, []byte(v)...)
 		case uint32:
-			params = append(params, v)
+			return nil, errors.New("unsupported type")
+			// TODO
+			// bytes = append(bytes, v)
 		default:
-			ptr, err := writeToMem(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, ptr)
+			return nil, errors.New("unsupported type")
+			// ptr, err := writeToMem(v, m)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// params = append(params, ptr)
 		}
 	}
 
-	return params, nil
+	return bytes, nil
 }
 
 // SerializeParameter serializes [obj] using Borsh

@@ -1,5 +1,6 @@
 use crate::Error;
 use borsh::BorshSerialize;
+use serde::Serialize;
 use std::ops::Deref;
 
 #[macro_export]
@@ -17,6 +18,7 @@ macro_rules! params {
 pub struct Param(Vec<u8>);
 
 /// A collection of [borsh] serialized parameters.
+#[derive(Serialize)]
 pub struct Params(Vec<u8>);
 
 impl Deref for Params {

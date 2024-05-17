@@ -139,22 +139,6 @@ const (
 	// TODO: Add string operators?
 )
 
-type Parameter struct {
-	// The type of the parameter. (required)
-	Type Type `json,yaml:"type"`
-	// The value of the parameter. (required)
-	Value interface{} `json,yaml:"value"`
-}
-
-type Type string
-
-const (
-	String       Type = "string"
-	Bool         Type = "bool"
-	ID           Type = "id"
-	Uint64       Type = "u64"
-)
-
 // validateAssertion validates the assertion against the actual value.
 func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	if require == nil {

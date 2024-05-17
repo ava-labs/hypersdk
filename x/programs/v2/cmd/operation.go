@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -66,7 +65,7 @@ type CallStep struct {
 	ReadOnly  bool				 `json:"readOnly"`
 	ProgramID string 			 `json:"programId"`
 	Method		string 			 `json:"string"`
-	Data		  []byte 			 `json:"data,omitempty"`;
+	Params		[]Parameter  `json:"params,omitempty"`;
 	MaxUnits  uint64 			 `json:"maxUnits"`;
 	Require   *Require `json:"require,omitempty" yaml:"require,omitempty"`
 }
@@ -131,11 +130,11 @@ func programExecuteFunc(
 	// execute the action
 	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 
-	if !success {
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
-	}
 	if err != nil {
 		return ids.Empty, nil, 0, err
+	}
+	if !success {
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}
 
 

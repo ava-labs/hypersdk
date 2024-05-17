@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"strconv"
+	"strings"
 	"bufio"
 	"context"
 	"crypto/rand"
@@ -17,12 +19,11 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"go.uber.org/zap"
 
-	// "gopkg.in/yaml.v2"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 const (
@@ -89,6 +90,7 @@ func (c *runCmd) unmarshalStep(bytes []byte) (Operation, error) {
 		return nil, err
 	}
 	msg := rawStep.Message[rawStep.StepType]
+	c.log.Debug("aze", zap.Any("aze", msg))
 
 	switch rawStep.StepType {
 	case Key:
@@ -246,4 +248,83 @@ func generateRandomID() (ids.ID, error) {
 	}
 
 	return id, nil
+}
+
+// createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
+func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]actions.CallParam, error) {
+	cp := make([]actions.CallParam, 0, len(params))
+	for _, param := range params {
+		switch param.Type {
+		case String, ID:
+			stepIdStr, ok := param.Value.(string)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			}
+			if strings.HasPrefix(stepIdStr, "step_") {
+				programIdStr, ok := c.programIDStrMap[stepIdStr]
+				if !ok {
+					return nil, fmt.Errorf("failed to map to id: %s", stepIdStr)
+				}
+				programId, err := ids.FromString(programIdStr)
+				if err != nil {
+					return nil, err
+				}
+				cp = append(cp, actions.CallParam{Value: programId})
+			} else {
+				programId, err := ids.FromString(stepIdStr)
+				if err == nil {
+					cp = append(cp, actions.CallParam{Value: programId})
+				} else {
+					// this is a path to the wasm program
+					cp = append(cp, actions.CallParam{Value: stepIdStr})
+				}
+			}
+		case Bool:
+			val, ok := param.Value.(bool)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			}
+			cp = append(cp, actions.CallParam{Value: boolToUint64(val)})
+		case "ed25519": // TODO use a constant // TODO: support secp256k1
+			val, ok := param.Value.(string)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			}
+
+			key := val
+			// get named public key from db
+			pk, ok, err := storage.GetPublicKey(ctx, db, val)
+			if ok {
+				// otherwise use the public key address
+				key = string(pk[:])
+			}
+			if err != nil {
+				return nil, err
+			}
+			cp = append(cp, actions.CallParam{Value: key})
+		case Uint64:
+			switch v := param.Value.(type) {
+			case float64:
+				// json unmarshal converts to float64
+				cp = append(cp, actions.CallParam{Value: uint64(v)})
+			case int:
+				if v < 0 {
+					return nil, fmt.Errorf("%w: %s", program.ErrNegativeValue, param.Type)
+				}
+				cp = append(cp, actions.CallParam{Value: uint64(v)})
+			case string:
+				number, err := strconv.ParseUint(v, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+				}
+				cp = append(cp, actions.CallParam{Value: number})
+			default:
+				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			}
+		default:
+			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
+		}
+	}
+
+	return cp, nil
 }
