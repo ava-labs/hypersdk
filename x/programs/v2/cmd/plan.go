@@ -45,7 +45,6 @@ type runCmd struct {
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
-	// TODO #[deprecated]
 	programIDStrMap map[string]string
 }
 
@@ -82,7 +81,7 @@ func (c *runCmd) Happened() bool {
 	return c.cmd.Happened()
 }
 
-func unmarshalStep(bytes []byte) (Operation, error) {
+func (c *runCmd) unmarshalStep(bytes []byte) (Operation, error) {
 	// TODO put back yaml
 	var rawStep RawStep
 	err := json.Unmarshal(bytes, &rawStep)
@@ -90,7 +89,6 @@ func unmarshalStep(bytes []byte) (Operation, error) {
 		return nil, err
 	}
 	msg := rawStep.Message[rawStep.StepType]
-	fmt.Fprintln(os.Stderr, msg)
 
 	switch rawStep.StepType {
 	case Key:
@@ -98,14 +96,17 @@ func unmarshalStep(bytes []byte) (Operation, error) {
 		if err := mapstructure.Decode(msg, &s); err != nil {
 			return nil, err
 		}
-		fmt.Fprintln(os.Stderr, s)
 		return s, nil
 	case Call:
 		var s *CallStep
 		if err := mapstructure.Decode(msg, &s); err != nil {
 			return nil, err
 		}
-		return s, nil
+		executeStep, err := s.ToExecuteStep(c.programIDStrMap)
+		if err != nil {
+			return nil, err
+		}
+		return executeStep, nil
 	case Create:
 		var s *CreateStep
 		if err := mapstructure.Decode(msg, &s); err != nil {
@@ -152,7 +153,7 @@ func (c *runCmd) Init() (err error) {
 		return errors.New("please specify either a --plan or a --file flag")
 	}
 
-	c.step, err = unmarshalStep(planStep)
+	c.step, err = c.unmarshalStep(planStep)
 	if err != nil {
 		return err
 	}
@@ -163,12 +164,13 @@ func (c *runCmd) Init() (err error) {
 func (c *runCmd) Verify() error {
 	step := c.step
 	if step == nil {
-		// return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
+		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
 		return nil
 	}
 
 	switch v := step.(type) {
-	case *CallStep:
+	case *ExecuteStep:
+	// , *ReadStep:
 		if v.Require != nil {
 			err := verifyAssertion(*c.lastStep, v.Require)
 			if err != nil {
@@ -176,7 +178,6 @@ func (c *runCmd) Verify() error {
 			}
 		}
 	case *KeyStep:
-		fmt.Fprintln(os.Stderr, v.Curve)
 		if v.Curve != KeyEd25519 && v.Curve != KeySecp256k1 {
 			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, *c.lastStep, ErrInvalidParamType)
 		}
@@ -218,12 +219,11 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		resp.SetError(err)
 	}
 
-	// TODO I doubt this is extremely useful, we can just use the program ID
 	// map all transactions to their step_N identifier
-	// txID, found := resp.GetTxID()
-	// if found {
-	// 	c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
-	// }
+	txID, found := resp.GetTxID()
+	if found {
+		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
+	}
 
 	lastStep := index + 1
 	*c.lastStep = lastStep

@@ -34,7 +34,7 @@ pub enum Endpoint {
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Step {
+struct Step {
     /// The API endpoint to call.
     pub endpoint: Endpoint,
     /// The method to call on the endpoint.
@@ -64,19 +64,19 @@ impl From<KeyStep> for StepTODO {
     }
 }
 
-impl From<Call> for StepTODO {
-    fn from(value: Call) -> Self {
+impl From<CallStep> for StepTODO {
+    fn from(value: CallStep) -> Self {
         Self {
-            step_type: StepType::Key,
+            step_type: StepType::Call,
             message: ExecuteMessage::Call(value),
         }
     }
 }
 
-impl From<Create> for StepTODO {
-    fn from(value: Create) -> Self {
+impl From<CreateStep> for StepTODO {
+    fn from(value: CreateStep) -> Self {
         Self {
-            step_type: StepType::Key,
+            step_type: StepType::Create,
             message: ExecuteMessage::Create(value),
         }
     }
@@ -94,8 +94,8 @@ pub enum StepType {
 #[serde(rename_all = "camelCase")]
 pub enum ExecuteMessage {
     Key(KeyStep),
-    Call(Call),
-    Create(Create),
+    Call(CallStep),
+    Create(CreateStep),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -113,14 +113,23 @@ pub struct KeyStep {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Call {
-    pub read_only: bool,
-    pub program_id: [u8; 32],
-    pub bytes: Vec<u8>,
+pub struct CallStep {
+    pub program_id: Id,
+    pub method: String,
+    pub params: Vec<Param>,
+    pub max_units: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct Create {
+#[serde(rename_all = "camelCase")]
+pub struct ReadStep {
+    pub program_id: Id,
+    pub method: String,
+    pub params: Vec<Param>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct CreateStep {
     pub path: String,
 }
 
@@ -312,7 +321,6 @@ impl Client {
 
             panic!("Simulator binary not found, must rebuild simulator");
         }
-        dbg!(&path);
 
         Self { path }
     }
@@ -334,7 +342,6 @@ impl Client {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
-        dbg!("azolieu");
 
         let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
         let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
@@ -373,7 +380,6 @@ where
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        dbg!(serde_json::to_string_pretty(&step));
         let input = serde_json::to_vec(&step)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -50,15 +51,58 @@ func (k *KeyStep) Execute(ctx context.Context, log logging.Logger, db *state.Sim
 	return nil
 }
 
-var _ Operation = (*CallStep)(nil)
+var _ Operation = (*ExecuteStep)(nil)
+
+type ExecuteStep struct {
+	ReadOnly  bool
+	ProgramID ids.ID
+	Method		string
+	Data		  []byte
+	MaxUnits  uint64
+	Require   *Require
+}
 
 type CallStep struct {
 	ReadOnly  bool				 `json:"readOnly"`
-	ProgramID ids.ID 			 `json:"programID"`
+	ProgramID string 			 `json:"programId"`
 	Method		string 			 `json:"string"`
 	Data		  []byte 			 `json:"data,omitempty"`;
 	MaxUnits  uint64 			 `json:"maxUnits"`;
 	Require   *Require `json:"require,omitempty" yaml:"require,omitempty"`
+}
+
+func (c *CallStep) ToExecuteStep(programIDStrMap map[string]string) (*ExecuteStep, error) {
+	programIdStr, ok := programIDStrMap[c.ProgramID]
+	if !ok {
+		return nil, fmt.Errorf("failed to map to id: %s", c.ProgramID)
+	}
+	programId, err := ids.FromString(programIdStr)
+	if err != nil {
+		return nil, err
+	}
+
+	executeStep := ExecuteStep {
+		ReadOnly: false,
+		ProgramID: programId,
+		Method: c.Method,
+		Data: c.Data,
+		MaxUnits: c.MaxUnits,
+		Require: c.Require,
+	}
+
+	return &executeStep, nil
+}
+
+// TODO write conversion functions
+type ReadStep struct {
+	// TODO fill me
+}
+
+func (r ReadStep) ToExecuteStep() ExecuteStep {
+	return ExecuteStep {
+		ReadOnly: true,
+		// TODO
+	}
 }
 
 func programExecuteFunc(
@@ -107,7 +151,7 @@ func programExecuteFunc(
 	return programTxID, resp, balance, err
 }
 
-func (c *CallStep) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
+func (c *ExecuteStep) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
 	maxUnits := c.MaxUnits
 	if c.ReadOnly {
 		maxUnits = math.MaxUint64

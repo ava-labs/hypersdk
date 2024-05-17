@@ -69,7 +69,9 @@ pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Addre
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Curve, Endpoint, Key, KeyStep, Param, Plan, Require, ResultAssertion, Step};
+    use simulator::{
+        CallStep, CreateStep, Curve, Endpoint, Key, KeyStep, Param, Plan, Require, ResultAssertion,
+    };
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -82,8 +84,10 @@ mod tests {
 
         let mut plan = Plan::new(owner_key.clone());
 
-        // plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
-
+        plan.add_step(KeyStep {
+            name: String::from("alice"),
+            curve: Curve::Ed25519,
+        });
         // plan.add_step(Step {
         //     endpoint: Endpoint::Key,
         //     method: "key_create".into(),
@@ -92,26 +96,17 @@ mod tests {
         //     require: None,
         // });
         // TODO do we require this alice_key to be passed ?
-        plan.add_step(KeyStep {
-            name: String::from("alice"),
-            curve: Curve::Ed25519,
+
+        let counter1_id = plan.add_step(CreateStep {
+            path: PROGRAM_PATH.into(),
         });
 
-        // let counter1_id = plan.add_step(Step {
-        //     endpoint: Endpoint::Execute,
-        //     method: "program_create".into(),
-        //     max_units: 1000000,
-        //     params: vec![Param::String(PROGRAM_PATH.into())],
-        //     require: None,
-        // });
-
-        // plan.add_step(Step {
-        //     endpoint: Endpoint::Execute,
-        //     method: "initialize_address".into(),
-        //     max_units: 1000000,
-        //     params: vec![counter1_id.into(), alice_key.clone()],
-        //     require: None,
-        // });
+        plan.add_step(CallStep {
+            program_id: counter1_id,
+            method: "initialize_address".into(),
+            max_units: 1000000,
+            params: vec![alice_key.clone()],
+        });
 
         // run plan
         let plan_responses = simulator.run_plan(plan).unwrap();
