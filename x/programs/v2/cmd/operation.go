@@ -30,14 +30,15 @@ type Operation interface {
 	Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error
 }
 
-var _ Operation = (*Key)(nil)
+var _ Operation = (*KeyStep)(nil)
 
-type Key struct {
-	Name      string;
-	Algorithm KeyAlgorithm;
+type KeyStep struct {
+	Name      string			`json:"name"`
+	Curve KeyAlgorithm `json:"curve"`
 }
 
-func (k *Key) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
+func (k *KeyStep) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
+	// TODO validate the algorithm
 	key, err := keyCreateFunc(ctx, db, k.Name)
 	if errors.Is(err, ErrDuplicateKeyName) {
 		log.Debug("key already exists")
@@ -49,9 +50,9 @@ func (k *Key) Execute(ctx context.Context, log logging.Logger, db *state.SimpleM
 	return nil
 }
 
-var _ Operation = (*Call)(nil)
+var _ Operation = (*CallStep)(nil)
 
-type Call struct {
+type CallStep struct {
 	ReadOnly  bool				 `json:"readOnly"`
 	ProgramID ids.ID 			 `json:"programID"`
 	Method		string 			 `json:"string"`
@@ -106,7 +107,7 @@ func programExecuteFunc(
 	return programTxID, resp, balance, err
 }
 
-func (c *Call) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
+func (c *CallStep) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
 	maxUnits := c.MaxUnits
 	if c.ReadOnly {
 		maxUnits = math.MaxUint64
@@ -135,13 +136,13 @@ func (c *Call) Execute(ctx context.Context, log logging.Logger, db *state.Simple
 	return nil
 }
 
-var _ Operation = (*Create)(nil)
+var _ Operation = (*CreateStep)(nil)
 
-type Create struct {
+type CreateStep struct {
 	Path string;
 }
 
-func (c *Create) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
+func (c *CreateStep) Execute(ctx context.Context, log logging.Logger, db *state.SimpleMutable, resp *Response) error {
 	// get program path from params
 	id, err := programCreateFunc(ctx, db, c.Path)
 	if err != nil {

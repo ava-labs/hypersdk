@@ -14,13 +14,21 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
+	"github.com/mitchellh/mapstructure"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
+
+	// "gopkg.in/yaml.v2"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
+)
+
+const (
+	Key    = "key"
+	Call  = "call"
+	Create  = "create"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -75,35 +83,59 @@ func (c *runCmd) Happened() bool {
 }
 
 func unmarshalStep(bytes []byte) (Operation, error) {
-	var s Operation
+	// TODO put back yaml
 	var rawStep RawStep
 	err := json.Unmarshal(bytes, &rawStep)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Fprintln(os.Stderr, rawStep)
-	fmt.Fprintln(os.Stderr, rawStep.StepType)
-	fmt.Fprintln(os.Stderr, rawStep.Message)
+	msg := rawStep.Message[rawStep.StepType]
+	fmt.Fprintln(os.Stderr, msg)
+
+	switch rawStep.StepType {
+	case Key:
+		var s *KeyStep
+		if err := mapstructure.Decode(msg, &s); err != nil {
+			return nil, err
+		}
+		fmt.Fprintln(os.Stderr, s)
+		return s, nil
+	case Call:
+		var s *CallStep
+		if err := mapstructure.Decode(msg, &s); err != nil {
+			return nil, err
+		}
+		return s, nil
+	case Create:
+		var s *CreateStep
+		if err := mapstructure.Decode(msg, &s); err != nil {
+			return nil, err
+		}
+		return s, nil
+	default:
+		return nil, errors.New("unsupported step type")
+	}
+
 	// TODO conditionally deserialize the message given the message type
 	// this should be platform agnostic btw!
-	if false {
-	switch {
-	case isJSON(string(bytes)):
-		if err := json.Unmarshal(bytes, &s); err != nil {
-			return nil, err
-		}
-	case isYAML(string(bytes)):
-		if err := yaml.Unmarshal(bytes, &s); err != nil {
-			return nil, err
-		}
-	default:
-		// TODO
-		// return nil, ErrInvalidConfigFormat
-		return nil, nil
-	}
-}
+	// if false {
+	// switch {
+	// case isJSON(string(bytes)):
+	// 	if err := json.Unmarshal(bytes, &s); err != nil {
+	// 		return nil, err
+	// 	}
+	// case isYAML(string(bytes)):
+	// 	if err := yaml.Unmarshal(bytes, &s); err != nil {
+	// 		return nil, err
+	// 	}
+	// default:
+	// 	// TODO
+	// 	// return nil, ErrInvalidConfigFormat
+	// 	return nil, nil
+	// }
+// }
 
-	return s, nil
+	// return s, nil
 }
 
 func (c *runCmd) Init() (err error) {
@@ -136,15 +168,16 @@ func (c *runCmd) Verify() error {
 	}
 
 	switch v := step.(type) {
-	case *Call:
+	case *CallStep:
 		if v.Require != nil {
 			err := verifyAssertion(*c.lastStep, v.Require)
 			if err != nil {
 				return err
 			}
 		}
-	case *Key:
-		if v.Algorithm != KeyEd25519 && v.Algorithm != KeySecp256k1 {
+	case *KeyStep:
+		fmt.Fprintln(os.Stderr, v.Curve)
+		if v.Curve != KeyEd25519 && v.Curve != KeySecp256k1 {
 			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, *c.lastStep, ErrInvalidParamType)
 		}
 	}

@@ -204,7 +204,7 @@ func validateAssertion(bytes []byte, require *Require) (bool, error) {
 
 type RawStep struct {
 	StepType string          `json:"stepType"`
-	Message  json.RawMessage `json:"message"`
+	Message  map[string]interface{} `json:"message"`
 }
 
 func boolToUint64(b bool) uint64 {

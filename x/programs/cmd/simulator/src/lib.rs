@@ -83,6 +83,7 @@ impl From<Create> for StepTODO {
 }
 
 #[derive(Debug, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum StepType {
     Key,
     Call,
@@ -98,6 +99,7 @@ pub enum ExecuteMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum Curve {
     Ed25519,
     Secp256r1,
@@ -371,7 +373,7 @@ where
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        dbg!(&step);
+        dbg!(serde_json::to_string_pretty(&step));
         let input = serde_json::to_vec(&step)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
