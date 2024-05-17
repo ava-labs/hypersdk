@@ -17,7 +17,11 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+<<<<<<< Updated upstream:x/programs/v2/cmd/program.go
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/actions"
+=======
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+>>>>>>> Stashed changes:x/programs/cmd/simulator/cmd/program.go
 )
 
 var _ Cmd = (*programCreateCmd)(nil)
@@ -26,6 +30,10 @@ type programCreateCmd struct {
 	cmd *argparse.Command
 
 	log     logging.Logger
+<<<<<<< Updated upstream:x/programs/v2/cmd/program.go
+=======
+	db      *state.SimpleMutable
+>>>>>>> Stashed changes:x/programs/cmd/simulator/cmd/program.go
 	keyName *string
 	path    *string
 }
@@ -42,9 +50,15 @@ func (c *programCreateCmd) New(parser *argparse.Parser) {
 	})
 }
 
+<<<<<<< Updated upstream:x/programs/v2/cmd/program.go
 func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
 	c.log = log
 	exists, err := hasKey(ctx, db, *c.keyName)
+=======
+func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, args []string) (*Response, error) {
+	c.log = log
+	exists, err := hasKey(ctx, c.db, *c.keyName)
+>>>>>>> Stashed changes:x/programs/cmd/simulator/cmd/program.go
 	if err != nil {
 		return newResponse(0), err
 	}

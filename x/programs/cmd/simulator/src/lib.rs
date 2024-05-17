@@ -339,6 +339,7 @@ impl Client {
     /// # Errors
     ///
     /// Returns an error if the serialization or plan fails.
+<<<<<<< Updated upstream
     pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
         let Child {
             mut stdin,
@@ -352,6 +353,11 @@ impl Client {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
+=======
+    pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, Box<dyn Error>> {
+        let mut child =
+            SimulatorChild::<ChildStdin, Lines<BufReader<ChildStdout>>>::new(self.path)?;
+>>>>>>> Stashed changes
 
         let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
         let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
@@ -375,6 +381,7 @@ impl Default for Client {
     }
 }
 
+<<<<<<< Updated upstream
 struct SimulatorChild<W, R> {
     writer: W,
     responses: R,
@@ -388,6 +395,70 @@ where
     fn run_step(&mut self, caller_key: &str, step: &StepTODO) -> Result<PlanResponse, ClientError> {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
+=======
+struct SimulatorStd {
+    // reader:
+}
+
+impl Iterator for SimulatorStd {
+    type Item = Result<PlanResponse, Box<dyn Error>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
+impl SimulatorStd {
+    fn new(path: &str) -> Result<Self, Box<dyn Error>> {
+        let child = Command::new(path)
+            .arg("interpreter")
+            .arg("--cleanup")
+            .arg("--log-level")
+            .arg("error")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let (Some(stdin), Some(stdout)) = (child.stdin, child.stdout) else {
+            panic!("could not attach to the child process stdio");
+        };
+        let lines = BufReader::new(stdout).lines();
+
+        let mut sim = Self { stdin, lines };
+
+        let _ = sim.read_response()?; // intepreter ready
+
+        Ok(sim)
+    }
+}
+
+struct SimulatorChild<W, R>
+where
+    W: std::io::Write,
+    R: Iterator<Item = Result<PlanResponse, Box<dyn Error>>>,
+{
+    writer: W,
+    responses: R,
+}
+
+impl<W, R> SimulatorChild<W, R>
+where
+    W: std::io::Write,
+    R: Iterator<Item = Result<PlanResponse, Box<dyn Error>>>,
+{
+    fn new(writer: W, responses: R) -> Result<Self, Box<dyn Error>> {
+        Ok(SimulatorChild { writer, responses })
+    }
+
+    fn run_step(
+        &mut self,
+        caller_key: &String,
+        step: &Step,
+    ) -> Result<PlanResponse, Box<dyn Error>> {
+        let run_command = "run --stdin\n";
+        self.write_stdin(run_command.as_bytes())?;
+        let _ = self.read_response()?;
+>>>>>>> Stashed changes
 
         let step = SimulatorStep { caller_key, step };
         let input = serde_json::to_vec(&step)?;
@@ -399,6 +470,33 @@ where
 
         Ok(resp)
     }
+<<<<<<< Updated upstream
+=======
+
+    fn read_response(&mut self) -> Result<PlanResponse, Box<dyn Error>> {
+        let text: String = self
+            .responses
+            .next()
+            .ok_or("EOF")?
+            .map_err(|e| format!("failed to read from stdout: {e}"))?;
+
+        let resp = serde_json::from_str(&text)
+            .map_err(|e| format!("failed to parse output to json: {e}"))?;
+
+        Ok(resp)
+    }
+
+    fn write_stdin(&mut self, bytes: &[u8]) -> Result<(), String> {
+        self.writer
+            .write_all(bytes)
+            .map_err(|e| format!("failed to write to stdin: {e}"))?;
+        self.writer
+            .flush()
+            .map_err(|e| format!("failed to flush from stdin: {e}"))?;
+
+        Ok(())
+    }
+>>>>>>> Stashed changes
 }
 
 #[cfg(test)]

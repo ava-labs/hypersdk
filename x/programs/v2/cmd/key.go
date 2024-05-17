@@ -14,7 +14,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+<<<<<<< Updated upstream:x/programs/v2/cmd/key.go
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
+=======
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+>>>>>>> Stashed changes:x/programs/cmd/simulator/cmd/key.go
 )
 
 var _ Cmd = (*keyCreateCmd)(nil)
