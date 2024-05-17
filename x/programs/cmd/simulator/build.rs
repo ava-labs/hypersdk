@@ -24,17 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let current_dir = std::env::current_dir().unwrap();
 
-    let simulator_path = "bin/simulator";
-    let simulator_src = "simulator.go";
+    let simulator_path = "../../v2/bin/simulator";
 
     let simulator_path = current_dir.join(simulator_path);
     let simulator_path = simulator_path.to_str().unwrap();
 
-    let simulator_src = current_dir.join(simulator_src);
-    let simulator_src = simulator_src.to_str().unwrap();
-
     let go_build_output = Command::new("go")
-        .args(["build", "-o", simulator_path, simulator_src])
+        .args(["build", "-o", simulator_path])
         .output()?;
 
     if !go_build_output.status.success() {

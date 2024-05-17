@@ -50,9 +50,43 @@ pub struct Step {
 
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-struct StepTODO {
-    step_type: String,
+pub struct StepTODO {
+    step_type: StepType,
     message: ExecuteMessage,
+}
+
+impl From<KeyStep> for StepTODO {
+    fn from(value: KeyStep) -> Self {
+        Self {
+            step_type: StepType::Key,
+            message: ExecuteMessage::Key(value),
+        }
+    }
+}
+
+impl From<Call> for StepTODO {
+    fn from(value: Call) -> Self {
+        Self {
+            step_type: StepType::Key,
+            message: ExecuteMessage::Call(value),
+        }
+    }
+}
+
+impl From<Create> for StepTODO {
+    fn from(value: Create) -> Self {
+        Self {
+            step_type: StepType::Key,
+            message: ExecuteMessage::Create(value),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq, Clone)]
+pub enum StepType {
+    Key,
+    Call,
+    Create,
 }
 
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -94,7 +128,7 @@ pub struct SimulatorStep<'a> {
     /// The key of the caller used in each step of the plan.
     pub caller_key: &'a str,
     #[serde(flatten)]
-    pub step: &'a Step,
+    pub step: &'a StepTODO,
 }
 
 impl Step {
@@ -276,6 +310,7 @@ impl Client {
 
             panic!("Simulator binary not found, must rebuild simulator");
         }
+        dbg!(&path);
 
         Self { path }
     }
@@ -293,10 +328,11 @@ impl Client {
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
-            .arg("error")
+            .arg("debug")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
+        dbg!("azolieu");
 
         let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
         let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
@@ -330,11 +366,12 @@ where
     W: Write,
     R: Iterator<Item = Result<PlanResponse, ClientError>>,
 {
-    fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
+    fn run_step(&mut self, caller_key: &str, step: &StepTODO) -> Result<PlanResponse, ClientError> {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
+        dbg!(&step);
         let input = serde_json::to_vec(&step)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
