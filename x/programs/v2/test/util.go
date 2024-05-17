@@ -1,0 +1,32 @@
+package test
+
+import (
+	"github.com/ava-labs/avalanchego/ids"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+func CompileTests(programName string) (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return dir, err
+	}
+	cmd := exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", "./")
+	return cmd.String(), cmd.Run()
+}
+
+type Loader struct {
+	ProgramName string
+}
+
+func (t Loader) GetProgramBytes(_ ids.ID) ([]byte, error) {
+	if stringVal, err := CompileTests(t.ProgramName); err != nil {
+		return []byte(stringVal), err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
+}

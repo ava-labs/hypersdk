@@ -17,7 +17,7 @@ const (
 )
 
 type callProgramInput struct {
-	ProgramID    []byte
+	ProgramID    ids.ID
 	FunctionName string
 	Params       []byte
 	Fuel         uint64
@@ -39,7 +39,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					return nil, errors.New("remaining fuel is less than requested fuel")
 				}
 
-				newInfo.ProgramID = ids.ID(parsedInput.ProgramID)
+				newInfo.ProgramID = parsedInput.ProgramID
 				newInfo.FunctionName = parsedInput.FunctionName
 				newInfo.Params = parsedInput.Params
 				newInfo.Fuel = parsedInput.Fuel
