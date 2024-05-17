@@ -34,7 +34,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Ident::new(&format!("{name}_guest"), name.span())
     };
 
-    let (input, context_type, first_arg_err) = {
+    let (input, user_specified_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
@@ -73,27 +73,26 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let arg_props = input
-        .sig
-        .inputs
-        .iter()
+    let input_types_iter = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
+        FnArg::Receiver(_) => Err(syn::Error::new(
+            fn_arg.span(),
+            "Functions with the `#[public]` attribute cannot have a `self` parameter.",
+        )),
+        FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
+    });
+
+    let arg_props = std::iter::once(Ok(user_specified_context_type))
+        .chain(input_types_iter)
         .enumerate()
-        .skip(1)
-        .map(|(i, fn_arg)| match fn_arg {
-            FnArg::Receiver(_) => Err(syn::Error::new(
-                fn_arg.span(),
-                "Functions with the `#[public]` attribute cannot have a `self` parameter.",
-            )),
-            FnArg::Typed(PatType {
-                ty, colon_token, ..
-            }) => Ok(PatType {
+        .map(|(i, ty)| {
+            ty.map(|ty| PatType {
                 attrs: vec![],
                 pat: Box::new(Pat::Verbatim(
                     format_ident!("param_{}", i).into_token_stream(),
                 )),
-                colon_token: *colon_token,
-                ty: ty.clone(),
-            }),
+                colon_token: Default::default(),
+                ty,
+            })
         });
 
     let result = match (vis_err, first_arg_err) {
@@ -148,15 +147,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(ctx: *const u8, args: *const u8) {
-                let (ctx, args): (#context_type, Args) = unsafe {
-                    (
-                        wasmlanche_sdk::from_host_ptr(ctx).expect("error fetching serialized context"),
-                        wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args"),
-                    )
+            unsafe extern "C" fn #new_name(args: *const u8) {
+                let args: Args = unsafe {
+                    wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
                 };
 
-                let result = super::#name(ctx, #(#converted_params),*);
+                let result = super::#name(#(#converted_params),*);
                 let result = borsh::to_vec(&result).expect("error serializing result");
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }

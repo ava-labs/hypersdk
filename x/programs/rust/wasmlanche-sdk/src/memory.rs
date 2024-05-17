@@ -26,13 +26,7 @@ pub fn from_host_ptr<V>(ptr: *const u8) -> Result<V, StateError>
 where
     V: BorshDeserialize,
 {
-    let bytes = if ptr.is_null() {
-        Some(vec![])
-    } else {
-        into_bytes(ptr)
-    };
-
-    match bytes {
+    match into_bytes(ptr) {
         Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
         None => Err(StateError::InvalidPointer),
     }
@@ -54,9 +48,7 @@ pub fn into_bytes(ptr: *const u8) -> Option<Vec<u8>> {
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
 pub extern "C" fn alloc(len: usize) -> *mut u8 {
-    if len == 0 {
-        return std::ptr::null_mut();
-    }
+    assert!(len > 0, "cannot allocate 0 sized data");
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
     // take a mutable pointer to the layout
@@ -88,9 +80,9 @@ mod tests {
     }
 
     #[test]
-    fn zero_allocation() {
-        let ptr = alloc(0);
-        assert!(ptr.is_null());
+    #[should_panic = "cannot allocate 0 sized data"]
+    fn zero_allocation_panics() {
+        alloc(0);
     }
 
     #[test]
