@@ -11,6 +11,11 @@ import (
 	"github.com/near/borsh-go"
 )
 
+const (
+	callProgramCost = 1000
+	setResultCost   = 1000
+)
+
 type callProgramInput struct {
 	ProgramID    []byte
 	FunctionName string
@@ -20,9 +25,9 @@ type callProgramInput struct {
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
-		name: "program",
-		funcs: map[string]HostFunction{
-			"call_program": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+		Name: "program",
+		HostFunctions: map[string]HostFunction{
+			"call_program": {FuelCost: callProgramCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
@@ -53,11 +58,11 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				return result, nil
-			}),
-			"set_call_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			})},
+			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				callInfo.inst.result = input
 				return nil
-			}),
+			})},
 		},
 	}
 }

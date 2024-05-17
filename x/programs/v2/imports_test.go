@@ -14,22 +14,6 @@ import (
 func TestImportsLinking(t *testing.T) {
 	require := require.New(t)
 
-	called := false
-
-	imports := NewImports()
-	imports.AddModule(&ImportModule{
-		name: "env",
-		funcs: map[string]HostFunction{
-			"alert": FunctionNoOutput(func(_ *CallInfo, _ []byte) error {
-				called = true
-				return nil
-			}),
-		},
-	})
-	engine := wasmtime.NewEngine()
-	linker, err := imports.createLinker(engine, &CallInfo{})
-	require.NoError(err)
-
 	wasm, err := wasmtime.Wat2Wasm(`
 	(module
       (import "env" "alert" (func $alert (param i32) (param i32)))
@@ -45,10 +29,26 @@ func TestImportsLinking(t *testing.T) {
 	`)
 	require.NoError(err)
 
-	module, err := wasmtime.NewModule(engine, wasm)
+	called := false
+
+	imports := NewImports()
+	imports.AddModule(&ImportModule{
+		Name: "env",
+		HostFunctions: map[string]HostFunction{
+			"alert": {Function: FunctionNoOutput(func(_ *CallInfo, _ []byte) error {
+				called = true
+				return nil
+			})},
+		},
+	})
+	engine := wasmtime.NewEngine()
+	store := wasmtime.NewStore(engine)
+	callInfo := &CallInfo{inst: &ProgramInstance{store: store}}
+	linker, err := imports.createLinker(engine, callInfo)
 	require.NoError(err)
 
-	store := wasmtime.NewStore(engine)
+	module, err := wasmtime.NewModule(engine, wasm)
+	require.NoError(err)
 
 	inst, err := linker.Instantiate(store, module)
 	require.NoError(err)

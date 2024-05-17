@@ -5,11 +5,13 @@
 
 package v2
 
+const logCost = 1000
+
 func NewLogModule() *ImportModule {
 	return &ImportModule{
-		name: "log",
-		funcs: map[string]HostFunction{
-			"write": FunctionNoOutput(func(*CallInfo, []byte) error { return nil }),
+		Name: "log",
+		HostFunctions: map[string]HostFunction{
+			"write": {FuelCost: logCost, Function: FunctionNoOutput(func(*CallInfo, []byte) error { return nil })},
 		},
 	}
 }

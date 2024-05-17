@@ -12,6 +12,12 @@ import (
 	"github.com/near/borsh-go"
 )
 
+const (
+	readCost   = 1000
+	writeCost  = 1000
+	deleteCost = 1000
+)
+
 type keyInput struct {
 	Key []byte
 }
@@ -28,9 +34,9 @@ func prependAccountToKey(account ids.ID, key []byte) []byte {
 
 func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
-		name: "state",
-		funcs: map[string]HostFunction{
-			"get": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+		Name: "state",
+		HostFunctions: map[string]HostFunction{
+			"get": {FuelCost: readCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
@@ -45,8 +51,8 @@ func NewStateAccessModule() *ImportModule {
 					return nil, err
 				}
 				return val, nil
-			}),
-			"put": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			})},
+			"put": {FuelCost: writeCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyValueInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
@@ -54,8 +60,8 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				return nil, callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
-			}),
-			"delete": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			})},
+			"delete": {FuelCost: deleteCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
@@ -64,7 +70,7 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				return nil, callInfo.State.Remove(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key))
-			}),
+			})},
 		},
 	}
 }
