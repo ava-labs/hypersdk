@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/near/borsh-go"

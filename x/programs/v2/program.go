@@ -8,7 +8,6 @@ import "C"
 import (
 	"context"
 
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
