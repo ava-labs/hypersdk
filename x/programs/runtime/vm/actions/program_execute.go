@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -158,11 +159,16 @@ func SerializeParams(p []CallParam) ([]byte, error) {
 			bytes = append(bytes, v[:]...)
 		case string:
 			bytes = append(bytes, []byte(v)...)
+		case uint64:
+			bs := make([]byte, 8)
+			binary.LittleEndian.PutUint64(bs, v)
+			bytes = append(bytes, bs...)
 		case uint32:
-			return nil, errors.New("unsupported")
-			// params = append(params, v)
+			bs := make([]byte, 4)
+			binary.LittleEndian.PutUint32(bs, v)
+			bytes = append(bytes, bs...)
 		default:
-			return nil, errors.New("unsupported")
+			return nil, errors.New("unsupported data type")
 			// ptr, err := writeToMem(v, m)
 			// if err != nil {
 			// 	return nil, err
