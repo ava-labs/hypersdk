@@ -11,12 +11,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-func CompileTests(_ string) (string, error) {
+func CompileTests(programName string) (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return dir, err
 	}
-	cmd := exec.Command("cargo", "build", "--target", "wasm32-unknown-unknown", "--target-dir", "./")
+	cmd := exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", "./")
 	return cmd.String(), cmd.Run()
 }
 
