@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let go_mod_download_output = Command::new("go").args(["mod", "download"]).output()?;
 
     if !go_mod_download_output.status.success() {
-        println!("cargo:warning=go mod downlod stdout:");
+        println!("cargo:warning=go mod download stdout:");
 
         for line in String::from_utf8_lossy(&go_mod_download_output.stdout).lines() {
             println!("cargo:warning={line}");
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let current_dir = std::env::current_dir().unwrap();
 
     let simulator_path = "../../v2/bin/simulator";
-    let simulator_src = "simulator.go";
+    let simulator_src = "../../v2/simulator.go";
 
     let simulator_path = current_dir.join(simulator_path);
     let simulator_path = simulator_path.to_str().unwrap();
