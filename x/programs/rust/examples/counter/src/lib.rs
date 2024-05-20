@@ -47,11 +47,11 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
     // let params = params!(&of, &amount).unwrap();
     // TODO adapt the params macro
     #[derive(borsh::BorshSerialize)]
-    struct MyArgs {
+    struct IncArgs {
         of: Address,
         amount: i64,
     }
-    let params = params::Params(borsh::to_vec(&MyArgs { of, amount }).unwrap());
+    let params = params::Params(borsh::to_vec(&IncArgs { of, amount }).unwrap());
     target.call_function("inc", &params, max_units).unwrap()
 }
 
@@ -72,8 +72,13 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
 /// Gets the count at the address for an external program.
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
-    // TODO the params macro is currently not adapted to the serialization in the `_guest` functions
-    let params = params!(&of).unwrap();
+    // let params = params!(&of).unwrap();
+    // TODO adapt the params macro
+    #[derive(borsh::BorshSerialize)]
+    struct GetValueArgs {
+        of: Address,
+    }
+    let params = params::Params(borsh::to_vec(&GetValueArgs { of }).unwrap());
     target
         .call_function("get_value", &params, max_units)
         .unwrap()
@@ -264,20 +269,20 @@ mod tests {
             require: None,
         });
 
-        // plan.add_step(Step {
-        //     endpoint: Endpoint::ReadOnly,
-        //     method: "get_value_external".into(),
-        //     max_units: 0,
-        //     params: vec![
-        //         counter1_id.into(),
-        //         counter2_id.into(),
-        //         1000000.into(),
-        //         bob_key.clone(),
-        //     ],
-        //     require: Some(Require {
-        //         result: ResultAssertion::NumericEq(10),
-        //     }),
-        // });
+        plan.add_step(Step {
+            endpoint: Endpoint::ReadOnly,
+            method: "get_value_external".into(),
+            max_units: 0,
+            params: vec![
+                counter1_id.into(),
+                counter2_id.into(),
+                1000000.into(),
+                bob_key.clone(),
+            ],
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(10),
+            }),
+        });
 
         // run plan
         let plan_responses = simulator.run_plan(plan).unwrap();

@@ -28,7 +28,6 @@ import (
 
 var _ chain.Action = (*ProgramExecute)(nil)
 
-// TODO pass a pointer to the runtime
 type ProgramExecute struct {
 	Function string      `json:"programFunction"`
 	MaxUnits uint64      `json:"maxUnits"`
@@ -65,8 +64,7 @@ func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys 
 }
 
 func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
-	// return []uint16{storage.ProgramChunks}
-	return []uint16{}
+	return []uint16{storage.ProgramChunks}
 }
 
 func (t *ProgramExecute) Execute(
@@ -169,11 +167,6 @@ func SerializeParams(p []CallParam) ([]byte, error) {
 			bytes = append(bytes, bs...)
 		default:
 			return nil, errors.New("unsupported data type")
-			// ptr, err := writeToMem(v, m)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// params = append(params, ptr)
 		}
 	}
 	return bytes, nil
