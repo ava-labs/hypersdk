@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*CreateOrder)(nil)
@@ -67,29 +66,29 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (bool, uint64, [][]byte) {
+) (uint64, [][]byte, error) {
 	if c.In == c.Out {
-		return false, CreateOrderComputeUnits, [][]byte{OutputSameInOut}
+		return CreateOrderComputeUnits, nil, ErrOutputSameInOut
 	}
 	if c.InTick == 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputInTickZero}
+		return CreateOrderComputeUnits, nil, ErrOutputInTickZero
 	}
 	if c.OutTick == 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputOutTickZero}
+		return CreateOrderComputeUnits, nil, ErrOutputOutTickZero
 	}
 	if c.Supply == 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputSupplyZero}
+		return CreateOrderComputeUnits, nil, ErrOutputSupplyZero
 	}
 	if c.Supply%c.OutTick != 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputSupplyMisaligned}
+		return CreateOrderComputeUnits, nil, ErrOutputSupplyMisaligned
 	}
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
-		return false, CreateOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return CreateOrderComputeUnits, nil, err
 	}
 	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return false, CreateOrderComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return CreateOrderComputeUnits, nil, err
 	}
-	return true, CreateOrderComputeUnits, [][]byte{{}}
+	return CreateOrderComputeUnits, [][]byte{}, nil
 }
 
 func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
