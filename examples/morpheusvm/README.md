@@ -4,12 +4,6 @@
 <p align="center">
   The Choice is Yours
 </p>
-<p align="center">
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-static-analysis.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-unit-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-sync-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/morpheusvm-load-tests.yml/badge.svg" /></a>
-</p>
 
 ---
 
