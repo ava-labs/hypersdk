@@ -19,6 +19,10 @@ impl Address {
     }
 }
 
+impl Default for Buffer {
+    fn default() -> Self { Buffer([0; 33]) }
+}
+
 impl IntoIterator for Address {
     type Item = u8;
     type IntoIter = std::array::IntoIter<Self::Item, { Address::LEN }>;
