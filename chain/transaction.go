@@ -305,7 +305,7 @@ func (t *Transaction) Execute(
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
-	// Always charge fee first (in case [Action] moves funds)
+	// Always charge fee first
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		// Should never happen
@@ -326,46 +326,38 @@ func (t *Transaction) Execute(
 	//
 	// We should favor reverting over returning an error because the caller won't be charged
 	// for a transaction that returns an error.
-	actionStart := ts.OpIndex()
-	handleRevert := func(outputs [][][]byte) (*Result, error) {
-		// Be warned that the variables captured in this function
-		// are set when this function is defined. If any of them are
-		// modified later, they will not be used here.
-		ts.Rollback(ctx, actionStart)
-		return &Result{false, outputs, maxUnits, maxFee}, nil
-	}
-
 	var (
+		actionStart   = ts.OpIndex()
+		resultOutputs = [][][]byte{}
+		handleRevert  = func(err error) (*Result, error) {
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), resultOutputs, maxUnits, maxFee}, nil
+		}
 		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
-		txSuccess      = true
-		resultOutputs  = [][][]byte{}
 	)
 	for i, action := range t.Actions {
-		// skip all following actions if one is unsuccessful
-		if !txSuccess {
-			break
-		}
 		actionID := codec.CreateLID(uint8(i), t.id)
+
 		// TODO: remove actionCUs return (VRYX)
-		success, actionCUs, outputs := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
-		if len(outputs) == 0 && outputs != nil {
+		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
+		if err != nil {
+			return handleRevert(err)
+		}
+		if outputs == nil {
 			// Enforce object standardization (this is a VM bug and we should fail
 			// fast)
-			return handleRevert(resultOutputs, ErrInvalidObject)
+			return handleRevert(ErrInvalidObject)
 		}
-		// TODO: we shouldn't add outputs until we confirm less than max?
-		// TODO: let the VM enforce this instead of doing so here?
+
+		// Wait to append outputs until after we check that there aren't too many
+		//
+		// TODO: consider removing max here
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
-			return handleRevert(resultOutputs, ErrTooManyOutputs)
+			return handleRevert(ErrTooManyOutputs)
 		}
-
 		resultOutputs = append(resultOutputs, outputs)
-		if !success {
-			txSuccess = false
-			ts.Rollback(ctx, actionStart)
-		}
 
-		// Calculate units used
+		// Add units used
 		computeUnitsOp.Add(actionCUs)
 	}
 	computeUnitsOp.Add(t.Auth.ComputeUnits(r))
@@ -452,7 +444,8 @@ func (t *Transaction) Execute(
 		}
 	}
 	return &Result{
-		Success: txSuccess,
+		Success: true,
+
 		Outputs: resultOutputs,
 
 		Consumed: used,

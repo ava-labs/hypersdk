@@ -13,6 +13,7 @@ type Result struct {
 	// TODO: need dedicated error field because error could be returned in output?
 	// TODO: assume success if no error returned by action (most go-like and allows explicit return of errors here)?
 	Success bool
+	Error   []byte
 
 	// TODO: if add to end, may look like the output of a different action?
 	// TODO: if are being charged, you should be told what error is
