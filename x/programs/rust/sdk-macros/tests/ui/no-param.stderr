@@ -1,0 +1,5 @@
+error: Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `wasmlanche_sdk::Context`
+ --> tests/ui/no-param.rs:4:12
+  |
+4 | pub fn test() {}
+  |            ^^
