@@ -65,7 +65,7 @@ func (c *CloseOrder) Execute(
 	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
 		return CloseOrderComputeUnits, nil, err
 	}
-	return CloseOrderComputeUnits, [][]byte{}, nil
+	return CloseOrderComputeUnits, nil, nil
 }
 
 func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {

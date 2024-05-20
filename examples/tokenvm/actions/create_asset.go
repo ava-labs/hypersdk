@@ -63,7 +63,7 @@ func (c *CreateAsset) Execute(
 	if err := storage.SetAsset(ctx, mu, actionID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
 		return CreateAssetComputeUnits, nil, err
 	}
-	return CreateAssetComputeUnits, [][]byte{}, nil
+	return CreateAssetComputeUnits, nil, nil
 }
 
 func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {

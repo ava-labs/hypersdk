@@ -68,7 +68,7 @@ func (b *BurnAsset) Execute(
 	if err := storage.SetAsset(ctx, mu, b.Asset, symbol, decimals, metadata, newSupply, owner); err != nil {
 		return BurnComputeUnits, nil, err
 	}
-	return BurnComputeUnits, [][]byte{}, nil
+	return BurnComputeUnits, nil, nil
 }
 
 func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {

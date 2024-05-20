@@ -56,7 +56,7 @@ func (t *Transfer) Execute(
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
 		return 1, nil, err
 	}
-	return 1, [][]byte{}, nil
+	return 1, nil, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {

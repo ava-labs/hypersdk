@@ -88,7 +88,7 @@ func (c *CreateOrder) Execute(
 	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
 		return CreateOrderComputeUnits, nil, err
 	}
-	return CreateOrderComputeUnits, [][]byte{}, nil
+	return CreateOrderComputeUnits, nil, nil
 }
 
 func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {

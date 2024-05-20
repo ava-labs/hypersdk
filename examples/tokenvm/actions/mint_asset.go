@@ -77,7 +77,7 @@ func (m *MintAsset) Execute(
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
 		return MintAssetComputeUnits, nil, err
 	}
-	return MintAssetComputeUnits, [][]byte{}, nil
+	return MintAssetComputeUnits, nil, nil
 }
 
 func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {

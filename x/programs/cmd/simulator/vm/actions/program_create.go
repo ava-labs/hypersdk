@@ -49,7 +49,7 @@ func (t *ProgramCreate) Execute(
 		return 1, nil, err
 	}
 
-	return 1, [][]byte{}, nil
+	return 1, nil, nil
 }
 
 func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {

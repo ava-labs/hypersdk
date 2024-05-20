@@ -344,9 +344,9 @@ func (t *Transaction) Execute(
 			return handleRevert(err)
 		}
 		if outputs == nil {
-			// Enforce object standardization (this is a VM bug and we should fail
-			// fast)
-			return handleRevert(ErrInvalidObject)
+			// Ensure output standardization (match form we will
+			// unmarshal)
+			outputs = [][]byte{}
 		}
 
 		// Wait to append outputs until after we check that there aren't too many
