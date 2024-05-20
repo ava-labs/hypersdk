@@ -129,7 +129,6 @@ func programExecuteFunc(
 
 	// execute the action
 	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
-
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}

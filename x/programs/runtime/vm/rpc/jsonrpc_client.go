@@ -15,8 +15,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/genesis"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
 	_ "github.com/ava-labs/hypersdk/x/programs/v2/vm/registry" // ensure registry populated
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
 )
 
 type JSONRPCClient struct {

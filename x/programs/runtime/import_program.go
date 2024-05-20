@@ -17,10 +17,10 @@ const (
 )
 
 type callProgramInput struct {
-	ProgramID    []byte
-	Function     []byte
-	Params       []byte
-	Fuel         uint64
+	ProgramID []byte
+	Function  []byte
+	Params    []byte
+	Fuel      uint64
 }
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {

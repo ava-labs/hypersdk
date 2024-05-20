@@ -22,10 +22,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/actions"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/utils"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
 var _ Cmd = (*runCmd)(nil)

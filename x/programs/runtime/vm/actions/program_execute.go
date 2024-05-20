@@ -93,18 +93,18 @@ func (t *ProgramExecute) Execute(
 	}
 
 	cfg := runtime.NewConfig()
-	store := &ProgramStore {
+	store := &ProgramStore{
 		Mutable: mu,
 	}
 	rt := runtime.NewRuntime(cfg, t.Log, store)
-	callInfo := &runtime.CallInfo {
-		State: mu,
-		Actor: ids.Empty,
-		Account: ids.Empty,
-		ProgramID: programID,
-		Fuel: t.MaxUnits,
+	callInfo := &runtime.CallInfo{
+		State:        mu,
+		Actor:        ids.Empty,
+		Account:      ids.Empty,
+		ProgramID:    programID,
+		Fuel:         t.MaxUnits,
 		FunctionName: t.Function,
-		Params: params,
+		Params:       params,
 	}
 	output, err = rt.CallProgram(ctx, callInfo)
 	if err != nil {
