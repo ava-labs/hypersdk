@@ -4,6 +4,8 @@
 package test
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,8 +13,19 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-func CompileTest(TmpDir, programName string) error {
-	return exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", TmpDir).Run()
+func CompileTest(tmpDir, programName string) error {
+	cmd := exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", tmpDir)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+		return err
+	}
+	fmt.Println("Result: " + out.String())
+	return nil
 }
 
 type Loader struct {
