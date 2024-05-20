@@ -23,7 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/version"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
 )
@@ -50,7 +50,7 @@ func New() *vm.VM {
 func (c *Controller) Initialize(
 	inner *vm.VM,
 	snowCtx *snow.Context,
-	gatherer ametrics.MultiGatherer,
+	gatherer avametrics.MultiGatherer,
 	genesisBytes []byte,
 	upgradeBytes []byte, // subnets to allow for AWM
 	configBytes []byte,
@@ -165,9 +165,6 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			if err != nil {
 				return err
 			}
-		}
-		if result.Success {
-			// todo manage metrics?
 		}
 	}
 	return batch.Write()

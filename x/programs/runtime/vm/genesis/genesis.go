@@ -113,7 +113,7 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutable) error {
+func (g *Genesis) Load(_ context.Context, _ trace.Tracer, _ state.Mutable) error {
 	if consts.HRP != g.HRP {
 		return ErrInvalidHRP
 	}

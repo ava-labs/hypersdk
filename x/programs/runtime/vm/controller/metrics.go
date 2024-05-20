@@ -9,14 +9,14 @@ import (
 
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 )
 
 type metrics struct {
 	transfer prometheus.Counter
 }
 
-func newMetrics(gatherer ametrics.MultiGatherer) (*metrics, error) {
+func newMetrics(gatherer avametrics.MultiGatherer) (*metrics, error) {
 	m := &metrics{
 		transfer: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "actions",
