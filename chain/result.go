@@ -10,7 +10,10 @@ import (
 )
 
 type Result struct {
+	// TODO: turn this into a []byte, if empty then success otherwise error
+	// This doesn't work if one of the outputs was the root cause of error
 	Success bool
+
 	// An error will always be in the last output
 	// of the last action
 	Outputs [][][]byte

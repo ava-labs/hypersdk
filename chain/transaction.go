@@ -325,15 +325,14 @@ func (t *Transaction) Execute(
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
 	actionStart := ts.OpIndex()
 	resultOutputs := [][][]byte{}
-	handleRevert := func(rerr error) (*Result, error) {
+	handleRevert := func(txErr error) (*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
-		//
-		// Note: Revert will not return an error per action.
 		ts.Rollback(ctx, actionStart)
 
 		// include error in the last action
+		// TODO: need to pass resultOutputs as an argument?
 		resultOutputs[len(resultOutputs)-1] = append(resultOutputs[len(resultOutputs)-1], utils.ErrBytes(rerr))
 		return &Result{false, resultOutputs, maxUnits, maxFee}, nil
 	}
@@ -348,6 +347,7 @@ func (t *Transaction) Execute(
 			break
 		}
 		actionID := codec.CreateLID(uint8(i), t.id)
+		// TODO: remove actionCUs return (VRYX)
 		success, actionCUs, outputs := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if len(outputs) == 0 && outputs != nil {
 			// Enforce object standardization (this is a VM bug and we should fail
@@ -355,6 +355,8 @@ func (t *Transaction) Execute(
 			return handleRevert(ErrInvalidObject)
 		}
 		resultOutputs = append(resultOutputs, outputs)
+		// TODO: we shouldn't add outputs until we confirm less than max?
+		// TODO: let the VM enforce this instead of doing so here?
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
 			return handleRevert(ErrTooManyOutputs)
 		}
@@ -384,6 +386,7 @@ func (t *Transaction) Execute(
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
+			// TODO: is this already checked in parse?
 			return handleRevert(ErrInvalidKeyValue)
 		}
 		writes[key] = maxChunks
@@ -391,6 +394,8 @@ func (t *Transaction) Execute(
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
+	//
+	// TODO: charge max (VRYX)
 	readsOp := math.NewUint64Operator(0)
 	for _, chunksRead := range reads {
 		readsOp.Add(r.GetStorageKeyReadUnits())
