@@ -12,7 +12,6 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*Transfer)(nil)
@@ -47,17 +46,17 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte) {
+) (uint64, [][]byte, error) {
 	if t.Value == 0 {
-		return false, 1, [][]byte{OutputValueZero}
+		return 1, nil, ErrOutputValueZero
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
-	return true, 1, [][]byte{{}}
+	return 1, [][]byte{}, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
