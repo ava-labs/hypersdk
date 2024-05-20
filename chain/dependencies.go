@@ -248,6 +248,8 @@ type Action interface {
 	//
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
+	//
+	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
 		r Rules,
