@@ -5,9 +5,6 @@ package examples
 
 import (
 	"context"
-	"fmt"
-	"os"
-
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/near/borsh-go"
 
@@ -58,12 +55,4 @@ func (c *testDB) Put(key []byte, value []byte) error {
 
 func (c *testDB) Remove(_ context.Context, key []byte) error {
 	return c.db.Delete(key)
-}
-
-func GetProgramBytes(filePath string) ([]byte, error) {
-	return os.ReadFile(filePath)
-}
-
-func GetGuestFnName(name string) string {
-	return name + "_guest"
 }
