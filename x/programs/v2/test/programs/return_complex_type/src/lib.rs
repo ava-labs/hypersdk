@@ -11,7 +11,7 @@ pub struct ComplexReturn {
 pub fn get_value(ctx: Context) -> ComplexReturn {
     let Context { program, .. } = ctx;
     ComplexReturn {
-        program: program,
+        program,
         max_units: 1000,
     }
 }
