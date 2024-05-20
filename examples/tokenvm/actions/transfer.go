@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*Transfer)(nil)
@@ -52,21 +51,21 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte) {
+) (uint64, [][]byte, error) {
 	if t.Value == 0 {
-		return false, TransferComputeUnits, [][]byte{OutputValueZero}
+		return TransferComputeUnits, nil, ErrOutputValueZero
 	}
 	if len(t.Memo) > MaxMemoSize {
-		return false, CreateAssetComputeUnits, [][]byte{OutputMemoTooLarge}
+		return CreateAssetComputeUnits, nil, ErrOutputMemoTooLarge
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
-		return false, TransferComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return TransferComputeUnits, nil, err
 	}
 	// TODO: allow sender to configure whether they will pay to create
 	if err := storage.AddBalance(ctx, mu, t.To, t.Asset, t.Value, true); err != nil {
-		return false, TransferComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return TransferComputeUnits, nil, err
 	}
-	return true, TransferComputeUnits, [][]byte{{}}
+	return TransferComputeUnits, [][]byte{}, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
