@@ -11,26 +11,18 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-func CompileTests(programName string) (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return dir, err
-	}
-	cmd := exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", "./")
-	return cmd.String(), cmd.Run()
+func CompileTest(TmpDir, programName string) error {
+	return exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", TmpDir).Run()
 }
 
 type Loader struct {
 	ProgramName string
+	TmpDir      string
 }
 
 func (t Loader) GetProgramBytes(_ ids.ID) ([]byte, error) {
-	if stringVal, err := CompileTests(t.ProgramName); err != nil {
-		return []byte(stringVal), err
-	}
-	dir, err := os.Getwd()
-	if err != nil {
+	if err := CompileTest(t.TmpDir, t.ProgramName); err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
+	return os.ReadFile(filepath.Join(t.TmpDir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
 }

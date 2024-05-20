@@ -24,7 +24,7 @@ func TestImportProgramCallProgram(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.Loader{TmpDir: t.TempDir(), ProgramName: "call_program"})
 
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()

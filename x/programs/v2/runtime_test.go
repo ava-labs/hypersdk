@@ -24,7 +24,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "simple"})
+		test.Loader{TmpDir: t.TempDir(), ProgramName: "simple"})
 
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
@@ -49,7 +49,7 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "return_complex_type"})
+		test.Loader{TmpDir: t.TempDir(), ProgramName: "return_complex_type"})
 
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
