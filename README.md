@@ -6,9 +6,9 @@
 </p>
 <p align="center">
   <a href="https://goreportcard.com/report/github.com/ava-labs/hypersdk"><img src="https://goreportcard.com/badge/github.com/ava-labs/hypersdk" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-unit-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-static-analysis.yml/badge.svg" /></a>
-<a href="./LICENSE" ><img src="https://img.shields.io/badge/License-Ecosystem-blue.svg" /></a>
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-ci.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-ci.yml/badge.svg" /></a>
+  <a href="./LICENSE" ><img src="https://img.shields.io/badge/License-Ecosystem-blue.svg" /></a>
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/codeql-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/codeql-analysis.yml/badge.svg" /></a>
 </p>
 
 ---
