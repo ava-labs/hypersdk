@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
@@ -41,16 +40,16 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	actionID codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (uint64, [][]byte, error) {
 	if len(t.Program) == 0 {
-		return false, 1, [][]byte{OutputValueZero}, nil
+		return 1, nil, ErrOutputValueZero
 	}
 
 	if err := storage.SetProgram(ctx, mu, actionID, t.Program); err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}, nil
+		return 1, nil, err
 	}
 
-	return true, 1, [][]byte{{}}, nil
+	return 1, nil, nil
 }
 
 func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {

@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*CreateAsset)(nil)
@@ -43,28 +42,28 @@ func (c *CreateAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (uint64, [][]byte, error) {
 	if len(c.Symbol) == 0 {
-		return false, CreateAssetComputeUnits, [][]byte{OutputSymbolEmpty}, nil
+		return CreateAssetComputeUnits, nil, ErrOutputSymbolEmpty
 	}
 	if len(c.Symbol) > MaxSymbolSize {
-		return false, CreateAssetComputeUnits, [][]byte{OutputSymbolTooLarge}, nil
+		return CreateAssetComputeUnits, nil, ErrOutputSymbolTooLarge
 	}
 	if c.Decimals > MaxDecimals {
-		return false, CreateAssetComputeUnits, [][]byte{OutputDecimalsTooLarge}, nil
+		return CreateAssetComputeUnits, nil, ErrOutputDecimalsTooLarge
 	}
 	if len(c.Metadata) == 0 {
-		return false, CreateAssetComputeUnits, [][]byte{OutputMetadataEmpty}, nil
+		return CreateAssetComputeUnits, nil, ErrOutputMetadataEmpty
 	}
 	if len(c.Metadata) > MaxMetadataSize {
-		return false, CreateAssetComputeUnits, [][]byte{OutputMetadataTooLarge}, nil
+		return CreateAssetComputeUnits, nil, ErrOutputMetadataTooLarge
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
 	if err := storage.SetAsset(ctx, mu, actionID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
-		return false, CreateAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return CreateAssetComputeUnits, nil, err
 	}
-	return true, CreateAssetComputeUnits, [][]byte{{}}, nil
+	return CreateAssetComputeUnits, nil, nil
 }
 
 func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {

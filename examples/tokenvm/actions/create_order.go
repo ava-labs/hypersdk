@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*CreateOrder)(nil)
@@ -67,29 +66,29 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (uint64, [][]byte, error) {
 	if c.In == c.Out {
-		return false, CreateOrderComputeUnits, [][]byte{OutputSameInOut}, nil
+		return CreateOrderComputeUnits, nil, ErrOutputSameInOut
 	}
 	if c.InTick == 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputInTickZero}, nil
+		return CreateOrderComputeUnits, nil, ErrOutputInTickZero
 	}
 	if c.OutTick == 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputOutTickZero}, nil
+		return CreateOrderComputeUnits, nil, ErrOutputOutTickZero
 	}
 	if c.Supply == 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputSupplyZero}, nil
+		return CreateOrderComputeUnits, nil, ErrOutputSupplyZero
 	}
 	if c.Supply%c.OutTick != 0 {
-		return false, CreateOrderComputeUnits, [][]byte{OutputSupplyMisaligned}, nil
+		return CreateOrderComputeUnits, nil, ErrOutputSupplyMisaligned
 	}
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
-		return false, CreateOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return CreateOrderComputeUnits, nil, err
 	}
 	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return false, CreateOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return CreateOrderComputeUnits, nil, err
 	}
-	return true, CreateOrderComputeUnits, [][]byte{{}}, nil
+	return CreateOrderComputeUnits, nil, nil
 }
 
 func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
@@ -123,6 +122,6 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func PairID(in codec.LID, out codec.LID) string {
+func PairID(in codec.LID, out codec.LID) string { //nolint:interfacer
 	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }

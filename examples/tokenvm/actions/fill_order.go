@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*FillOrder)(nil)
@@ -62,39 +61,39 @@ func (f *FillOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (uint64, [][]byte, error) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if !exists {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputOrderMissing}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputOrderMissing
 	}
 	if owner != f.Owner {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongOwner}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputWrongOwner
 	}
 	if in != f.In {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongIn}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputWrongIn
 	}
 	if out != f.Out {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputWrongOut}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputWrongOut
 	}
 	if f.Value == 0 {
 		// This should be guarded via [Unmarshal] but we check anyways.
-		return false, NoFillOrderComputeUnits, [][]byte{OutputValueZero}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputValueZero
 	}
 	if f.Value%inTick != 0 {
-		return false, NoFillOrderComputeUnits, [][]byte{OutputValueMisaligned}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputValueMisaligned
 	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
 	outputAmount, err := smath.Mul64(outTick, f.Value/inTick)
 	if err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if outputAmount == 0 {
 		// This should never happen because [f.Value] > 0
-		return false, NoFillOrderComputeUnits, [][]byte{OutputInsufficientOutput}, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputInsufficientOutput
 	}
 	var (
 		inputAmount    = f.Value
@@ -120,32 +119,32 @@ func (f *FillOrder) Execute(
 	}
 	if inputAmount == 0 {
 		// Don't allow free trades (can happen due to refund rounding)
-		return false, NoFillOrderComputeUnits, [][]byte{OutputInsufficientInput}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if shouldDelete {
 		if err := storage.DeleteOrder(ctx, mu, f.Order); err != nil {
-			return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+			return NoFillOrderComputeUnits, nil, err
 		}
 	} else {
 		if err := storage.SetOrder(ctx, mu, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
-			return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+			return NoFillOrderComputeUnits, nil, err
 		}
 	}
 	or := &OrderResult{In: inputAmount, Out: outputAmount, Remaining: orderRemaining}
 	output, err := or.Marshal()
 	if err != nil {
-		return false, NoFillOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
-	return true, FillOrderComputeUnits, [][]byte{output}, nil
+	return FillOrderComputeUnits, [][]byte{output}, nil
 }
 
 func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {

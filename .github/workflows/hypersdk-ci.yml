@@ -133,7 +133,7 @@ jobs:
           MODE: 'test'
 
   tokenvm-load-tests:
-    needs: [tokenvm-unit-tests]
+    needs: [tokenvm-lint, tokenvm-unit-tests]
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
@@ -154,7 +154,7 @@ jobs:
         run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
 
   tokenvm-sync-tests:
-    needs: [tokenvm-unit-tests]
+    needs: [tokenvm-lint, tokenvm-unit-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
@@ -255,7 +255,7 @@ jobs:
           MODE: 'test'
 
   morpheusvm-load-tests:
-    needs: [morpheusvm-unit-tests]
+    needs: [morpheusvm-lint, morpheusvm-unit-tests]
     strategy:
       matrix:
         level: [v1, v2, v3] # v4 is not supported
@@ -276,7 +276,7 @@ jobs:
         run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
 
   morpheusvm-sync-tests:
-    needs: [morpheusvm-unit-tests]
+    needs: [morpheusvm-lint, morpheusvm-unit-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:

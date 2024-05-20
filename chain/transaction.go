@@ -305,7 +305,7 @@ func (t *Transaction) Execute(
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
-	// Always charge fee first (in case [Action] moves funds)
+	// Always charge fee first
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		// Should never happen
@@ -323,51 +323,41 @@ func (t *Transaction) Execute(
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
-	actionStart := ts.OpIndex()
-	resultOutputs := [][][]byte{}
-	handleRevert := func(rerr error) (*Result, error) {
-		// Be warned that the variables captured in this function
-		// are set when this function is defined. If any of them are
-		// modified later, they will not be used here.
-		//
-		// Note: Revert will not return an error per action.
-		ts.Rollback(ctx, actionStart)
-
-		// include error in the last action
-		resultOutputs[len(resultOutputs)-1] = append(resultOutputs[len(resultOutputs)-1], utils.ErrBytes(rerr))
-		return &Result{false, resultOutputs, maxUnits, maxFee}, nil
-	}
-
+	//
+	// We should favor reverting over returning an error because the caller won't be charged
+	// for a transaction that returns an error.
 	var (
+		actionStart   = ts.OpIndex()
+		resultOutputs = [][][]byte{}
+		handleRevert  = func(err error) (*Result, error) {
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), resultOutputs, maxUnits, maxFee}, nil
+		}
 		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
-		txSuccess      = true
 	)
 	for i, action := range t.Actions {
-		// skip all following actions if one is unsuccessful
-		if !txSuccess {
-			break
-		}
 		actionID := codec.CreateLID(uint8(i), t.id)
-		success, actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
+
+		// TODO: remove actionCUs return (VRYX)
+		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
 		if err != nil {
 			return handleRevert(err)
 		}
-		if len(outputs) == 0 && outputs != nil {
-			// Enforce object standardization (this is a VM bug and we should fail
-			// fast)
-			return handleRevert(ErrInvalidObject)
+		if outputs == nil {
+			// Ensure output standardization (match form we will
+			// unmarshal)
+			outputs = [][]byte{}
 		}
-		resultOutputs = append(resultOutputs, outputs)
+
+		// Wait to append outputs until after we check that there aren't too many
+		//
+		// TODO: consider removing max here
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
 			return handleRevert(ErrTooManyOutputs)
 		}
+		resultOutputs = append(resultOutputs, outputs)
 
-		if !success {
-			txSuccess = false
-			ts.Rollback(ctx, actionStart)
-		}
-
-		// Calculate units used
+		// Add units used
 		computeUnitsOp.Add(actionCUs)
 	}
 	computeUnitsOp.Add(t.Auth.ComputeUnits(r))
@@ -387,6 +377,7 @@ func (t *Transaction) Execute(
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
+			// TODO: is this already checked in parse?
 			return handleRevert(ErrInvalidKeyValue)
 		}
 		writes[key] = maxChunks
@@ -394,6 +385,8 @@ func (t *Transaction) Execute(
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
+	//
+	// TODO: charge max (VRYX)
 	readsOp := math.NewUint64Operator(0)
 	for _, chunksRead := range reads {
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -451,7 +444,9 @@ func (t *Transaction) Execute(
 		}
 	}
 	return &Result{
-		Success: txSuccess,
+		Success: true,
+		Error:   []byte{},
+
 		Outputs: resultOutputs,
 
 		Consumed: used,

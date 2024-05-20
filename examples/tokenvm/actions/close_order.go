@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*CloseOrder)(nil)
@@ -46,27 +45,27 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (uint64, [][]byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
-		return false, CloseOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return CloseOrderComputeUnits, nil, err
 	}
 	if !exists {
-		return false, CloseOrderComputeUnits, [][]byte{OutputOrderMissing}, nil
+		return CloseOrderComputeUnits, nil, ErrOutputOrderMissing
 	}
 	if owner != actor {
-		return false, CloseOrderComputeUnits, [][]byte{OutputUnauthorized}, nil
+		return CloseOrderComputeUnits, nil, ErrOutputUnauthorized
 	}
 	if out != c.Out {
-		return false, CloseOrderComputeUnits, [][]byte{OutputWrongOut}, nil
+		return CloseOrderComputeUnits, nil, ErrOutputWrongOut
 	}
 	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
-		return false, CloseOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return CloseOrderComputeUnits, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
-		return false, CloseOrderComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return CloseOrderComputeUnits, nil, err
 	}
-	return true, CloseOrderComputeUnits, [][]byte{{}}, nil
+	return CloseOrderComputeUnits, nil, nil
 }
 
 func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {

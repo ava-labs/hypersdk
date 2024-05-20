@@ -1062,7 +1062,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	in := assetIDs[0]
 	inID, err := codec.FromString(in)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
@@ -1071,7 +1071,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	out := assetIDs[1]
 	outID, err := codec.FromString(out)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
@@ -1196,7 +1196,7 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	if err != nil {
 		return err
 	}
-	outID, err := codec.FromString(tconsts.HRP, assetOut)
+	outID, err := codec.FromString(assetOut)
 	if err != nil {
 		return err
 	}

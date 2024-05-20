@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*MintAsset)(nil)
@@ -51,34 +50,34 @@ func (m *MintAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte, error) {
+) (uint64, [][]byte, error) {
 	if m.Asset == codec.Empty {
-		return false, MintAssetComputeUnits, [][]byte{OutputAssetIsNative}, nil
+		return MintAssetComputeUnits, nil, ErrOutputAssetIsNative
 	}
 	if m.Value == 0 {
-		return false, MintAssetComputeUnits, [][]byte{OutputValueZero}, nil
+		return MintAssetComputeUnits, nil, ErrOutputValueZero
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
-		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return MintAssetComputeUnits, nil, err
 	}
 	if !exists {
-		return false, MintAssetComputeUnits, [][]byte{OutputAssetMissing}, nil
+		return MintAssetComputeUnits, nil, ErrOutputAssetMissing
 	}
 	if owner != actor {
-		return false, MintAssetComputeUnits, [][]byte{OutputWrongOwner}, nil
+		return MintAssetComputeUnits, nil, ErrOutputWrongOwner
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
-		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return MintAssetComputeUnits, nil, err
 	}
 	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor); err != nil {
-		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return MintAssetComputeUnits, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
-		return false, MintAssetComputeUnits, [][]byte{utils.ErrBytes(err)}, nil
+		return MintAssetComputeUnits, nil, err
 	}
-	return true, MintAssetComputeUnits, [][]byte{{}}, nil
+	return MintAssetComputeUnits, nil, nil
 }
 
 func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
