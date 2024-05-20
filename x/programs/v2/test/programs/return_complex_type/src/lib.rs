@@ -10,8 +10,8 @@ pub struct ComplexReturn {
 #[public]
 pub fn get_value(ctx: Context) -> ComplexReturn {
     let Context { program, .. } = ctx;
-        ComplexReturn {
-            program: program,
-            max_units: 1000,
-        }
+    ComplexReturn {
+        program: program,
+        max_units: 1000,
+    }
 }
