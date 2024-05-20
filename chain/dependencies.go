@@ -255,7 +255,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID codec.LID,
-	) (success bool, computeUnits uint64, outputs [][]byte)
+	) (computeUnits uint64, outputs [][]byte, err error)
 }
 
 type Auth interface {

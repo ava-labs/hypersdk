@@ -327,7 +327,7 @@ func (t *Transaction) Execute(
 	// We should favor reverting over returning an error because the caller won't be charged
 	// for a transaction that returns an error.
 	actionStart := ts.OpIndex()
-	handleRevert := func(outputs [][][]byte, txErr error) (*Result, error) {
+	handleRevert := func(outputs [][][]byte) (*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
@@ -351,15 +351,15 @@ func (t *Transaction) Execute(
 		if len(outputs) == 0 && outputs != nil {
 			// Enforce object standardization (this is a VM bug and we should fail
 			// fast)
-			return handleRevert(ErrInvalidObject)
+			return handleRevert(resultOutputs, ErrInvalidObject)
 		}
-		resultOutputs = append(resultOutputs, outputs)
 		// TODO: we shouldn't add outputs until we confirm less than max?
 		// TODO: let the VM enforce this instead of doing so here?
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
-			return handleRevert(ErrTooManyOutputs)
+			return handleRevert(resultOutputs, ErrTooManyOutputs)
 		}
 
+		resultOutputs = append(resultOutputs, outputs)
 		if !success {
 			txSuccess = false
 			ts.Rollback(ctx, actionStart)

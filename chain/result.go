@@ -10,12 +10,12 @@ import (
 )
 
 type Result struct {
-	// TODO: turn this into a []byte, if empty then success otherwise error
-	// This doesn't work if one of the outputs was the root cause of error
+	// TODO: need dedicated error field because error could be returned in output?
+	// TODO: assume success if no error returned by action (most go-like and allows explicit return of errors here)?
 	Success bool
 
-	// An error will always be in the last output
-	// of the last action
+	// TODO: if add to end, may look like the output of a different action?
+	// TODO: if are being charged, you should be told what error is
 	Outputs [][][]byte
 
 	Consumed fees.Dimensions
