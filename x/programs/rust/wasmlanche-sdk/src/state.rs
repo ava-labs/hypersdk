@@ -250,3 +250,28 @@ mod host {
         from_host_ptr(ptr.as_ptr())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use wasmtime::{Engine, Module};
+
+    fn new_runtime() {
+        let engine = Engine::default();
+
+        let wat = r#"
+        (module
+            (import "host" "host_func" (func $host_hello (param i32)))
+
+            (func (export "hello")
+                i32.const 3
+                call $host_hello)
+        )
+    "#;
+        let module = Module::new(&engine, wat).expect("failed to instantiate the module");
+    }
+
+    #[test]
+    fn todo() {
+        todo!()
+    }
+}
