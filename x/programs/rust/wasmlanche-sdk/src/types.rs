@@ -20,7 +20,9 @@ impl Address {
 }
 
 impl Default for Address {
-    fn default() -> Self { Address([0; 33]) }
+    fn default() -> Self {
+        Address([0; 33])
+    }
 }
 
 impl IntoIterator for Address {
