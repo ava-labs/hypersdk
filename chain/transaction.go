@@ -323,23 +323,22 @@ func (t *Transaction) Execute(
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
+	//
+	// We should favor reverting over returning an error because the caller won't be charged
+	// for a transaction that returns an error.
 	actionStart := ts.OpIndex()
-	resultOutputs := [][][]byte{}
-	handleRevert := func(txErr error) (*Result, error) {
+	handleRevert := func(outputs [][][]byte, txErr error) (*Result, error) {
 		// Be warned that the variables captured in this function
 		// are set when this function is defined. If any of them are
 		// modified later, they will not be used here.
 		ts.Rollback(ctx, actionStart)
-
-		// include error in the last action
-		// TODO: need to pass resultOutputs as an argument?
-		resultOutputs[len(resultOutputs)-1] = append(resultOutputs[len(resultOutputs)-1], utils.ErrBytes(rerr))
-		return &Result{false, resultOutputs, maxUnits, maxFee}, nil
+		return &Result{false, outputs, maxUnits, maxFee}, nil
 	}
 
 	var (
 		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
 		txSuccess      = true
+		resultOutputs  = [][][]byte{}
 	)
 	for i, action := range t.Actions {
 		// skip all following actions if one is unsuccessful
