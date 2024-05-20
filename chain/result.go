@@ -10,13 +10,9 @@ import (
 )
 
 type Result struct {
-	// TODO: need dedicated error field because error could be returned in output?
-	// TODO: assume success if no error returned by action (most go-like and allows explicit return of errors here)?
 	Success bool
 	Error   []byte
 
-	// TODO: if add to end, may look like the output of a different action?
-	// TODO: if are being charged, you should be told what error is
 	Outputs [][][]byte
 
 	Consumed fees.Dimensions
@@ -24,21 +20,23 @@ type Result struct {
 }
 
 func (r *Result) Size() int {
-	outputSize := len(r.Outputs)
+	outputSize := consts.Uint8Len // actions
 	for _, action := range r.Outputs {
+		outputSize += consts.Uint8Len
 		for _, output := range action {
-			outputSize += codec.BytesLen(output) + 1 // for each output
+			outputSize += codec.BytesLen(output)
 		}
 	}
-	return consts.BoolLen + outputSize + fees.DimensionsLen + consts.Uint64Len
+	return consts.BoolLen + codec.BytesLen(r.Error) + outputSize + fees.DimensionsLen + consts.Uint64Len
 }
 
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
-	p.PackInt(len(r.Outputs))
-	for _, action := range r.Outputs {
-		p.PackInt(len(action))
-		for _, output := range action {
+	p.PackBytes(r.Error)
+	p.PackByte(uint8(len(r.Outputs)))
+	for _, outputs := range r.Outputs {
+		p.PackByte(uint8(len(outputs)))
+		for _, output := range outputs {
 			p.PackBytes(output)
 		}
 	}
@@ -63,23 +61,20 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
-	totalOutputs := [][][]byte{}
+	p.UnpackBytes(consts.MaxInt, false, &result.Error)
+	outputs := [][][]byte{}
 	numActions := p.UnpackInt(false)
 	for i := 0; i < numActions; i++ {
 		numOutputs := p.UnpackInt(false)
-		outputs := [][]byte{}
+		actionOutputs := [][]byte{}
 		for j := 0; j < numOutputs; j++ {
 			var output []byte
 			p.UnpackBytes(consts.MaxInt, false, &output)
-			outputs = append(outputs, output)
+			actionOutputs = append(actionOutputs, output)
 		}
-		totalOutputs = append(totalOutputs, outputs)
+		outputs = append(outputs, actionOutputs)
 	}
-	result.Outputs = totalOutputs
-	if len(result.Outputs) == 0 {
-		// Enforce object standardization
-		result.Outputs = nil
-	}
+	result.Outputs = outputs
 	consumedRaw := make([]byte, fees.DimensionsLen)
 	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
 	consumed, err := fees.UnpackDimensions(consumedRaw)
