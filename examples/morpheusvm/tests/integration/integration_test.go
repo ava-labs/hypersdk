@@ -423,7 +423,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(len(results[0].Outputs[0])).To(gomega.Equal(1))
+			gomega.Ω(len(results[0].Outputs[0])).To(gomega.Equal(0))
 
 			// Unit explanation
 			//

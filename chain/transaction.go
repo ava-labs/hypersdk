@@ -445,6 +445,7 @@ func (t *Transaction) Execute(
 	}
 	return &Result{
 		Success: true,
+		Error:   []byte{},
 
 		Outputs: resultOutputs,
 

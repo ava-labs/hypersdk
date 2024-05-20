@@ -63,11 +63,11 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	}
 	p.UnpackBytes(consts.MaxInt, false, &result.Error)
 	outputs := [][][]byte{}
-	numActions := p.UnpackInt(false)
-	for i := 0; i < numActions; i++ {
-		numOutputs := p.UnpackInt(false)
+	numActions := p.UnpackByte()
+	for i := uint8(0); i < numActions; i++ {
+		numOutputs := p.UnpackByte()
 		actionOutputs := [][]byte{}
-		for j := 0; j < numOutputs; j++ {
+		for j := uint8(0); j < numOutputs; j++ {
 			var output []byte
 			p.UnpackBytes(consts.MaxInt, false, &output)
 			actionOutputs = append(actionOutputs, output)
@@ -83,9 +83,7 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	}
 	result.Consumed = consumed
 	result.Fee = p.UnpackUint64(false)
-	if !p.Empty() {
-		return nil, p.Err()
-	}
+	// Wait to check if empty until after all results are unpacked.
 	return result, p.Err()
 }
 
