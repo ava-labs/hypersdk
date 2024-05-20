@@ -122,6 +122,6 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func PairID(in codec.LID, out codec.LID) string {
+func PairID(in codec.LID, out codec.LID) string { //nolint:interfacer
 	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }
