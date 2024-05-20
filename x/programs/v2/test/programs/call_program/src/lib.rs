@@ -1,5 +1,4 @@
-use wasmlanche_sdk::params::Param;
-use wasmlanche_sdk::{public, Context, Program};
+use wasmlanche_sdk::{public, Context, Program, params::Param};
 
 #[public]
 pub fn get_value(_: Context) -> i64 {
