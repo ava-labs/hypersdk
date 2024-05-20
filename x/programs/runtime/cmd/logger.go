@@ -11,9 +11,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"go.uber.org/zap"
-
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

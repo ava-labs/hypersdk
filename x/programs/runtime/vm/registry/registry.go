@@ -5,9 +5,9 @@ package registry
 
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/actions"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
 )

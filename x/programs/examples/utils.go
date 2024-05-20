@@ -5,6 +5,7 @@ package examples
 
 import (
 	"context"
+
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/near/borsh-go"
 

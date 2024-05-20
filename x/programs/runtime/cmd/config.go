@@ -19,7 +19,7 @@ const (
 
 type Step struct {
 	// The key of the caller used.
-	CallerKey string `yaml:"caller_key" json:"callerKey"`
+	CallerKey string `json:"callerKey" yaml:"caller_key"`
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint" yaml:"endpoint"`
 	// The method to call on the endpoint.

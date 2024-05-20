@@ -8,6 +8,7 @@ import (
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/hypersdk/state"
 )
 

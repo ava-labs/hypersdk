@@ -15,19 +15,17 @@ import (
 	"path"
 
 	"github.com/akamensky/argparse"
-	"github.com/mattn/go-shellwords"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/mattn/go-shellwords"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
-
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/controller"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/genesis"
 )

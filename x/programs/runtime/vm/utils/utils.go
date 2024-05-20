@@ -5,10 +5,10 @@ package utils
 
 import (
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
 )
 

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"

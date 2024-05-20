@@ -16,10 +16,9 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/program"
