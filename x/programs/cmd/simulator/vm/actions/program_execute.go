@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 
 	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
@@ -58,30 +57,30 @@ func (t *ProgramExecute) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID codec.LID,
-) (success bool, computeUnits uint64, output [][]byte) {
+) (computeUnits uint64, output [][]byte, err error) {
 	if len(t.Function) == 0 {
-		return false, 1, [][]byte{OutputValueZero}
+		return 1, nil, ErrOutputValueZero
 	}
 	if len(t.Params) == 0 {
-		return false, 1, [][]byte{OutputValueZero}
+		return 1, nil, ErrOutputValueZero
 	}
 
 	programBytes, _, err := storage.GetProgram(ctx, mu, actionID)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 
 	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 	eng := engine.New(ecfg)
 
@@ -104,22 +103,22 @@ func (t *ProgramExecute) Execute(
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
 	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 	defer t.rt.Stop()
 
 	mem, err := t.rt.Memory()
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 	params, err := WriteParams(mem, t.Params)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		return false, 1, [][]byte{utils.ErrBytes(err)}
+		return 1, nil, err
 	}
 
 	// TODO: remove this is to support readonly response for now.
@@ -128,7 +127,7 @@ func (t *ProgramExecute) Execute(
 		p.PackInt64(r)
 	}
 
-	return true, 1, [][]byte{p.Bytes()}
+	return 1, [][]byte{p.Bytes()}, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
