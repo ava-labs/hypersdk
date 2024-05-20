@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*BurnAsset)(nil)
@@ -48,28 +47,28 @@ func (b *BurnAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ codec.LID,
-) (bool, uint64, [][]byte) {
+) (uint64, [][]byte, error) {
 	if b.Value == 0 {
-		return false, BurnComputeUnits, [][]byte{OutputValueZero}
+		return BurnComputeUnits, nil, ErrOutputValueZero
 	}
 	if err := storage.SubBalance(ctx, mu, actor, b.Asset, b.Value); err != nil {
-		return false, BurnComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return BurnComputeUnits, nil, err
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, b.Asset)
 	if err != nil {
-		return false, BurnComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return BurnComputeUnits, nil, err
 	}
 	if !exists {
-		return false, BurnComputeUnits, [][]byte{OutputAssetMissing}
+		return BurnComputeUnits, nil, ErrOutputAssetMissing
 	}
 	newSupply, err := smath.Sub(supply, b.Value)
 	if err != nil {
-		return false, BurnComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return BurnComputeUnits, nil, err
 	}
 	if err := storage.SetAsset(ctx, mu, b.Asset, symbol, decimals, metadata, newSupply, owner); err != nil {
-		return false, BurnComputeUnits, [][]byte{utils.ErrBytes(err)}
+		return BurnComputeUnits, nil, err
 	}
-	return true, BurnComputeUnits, [][]byte{{}}
+	return BurnComputeUnits, [][]byte{}, nil
 }
 
 func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {
