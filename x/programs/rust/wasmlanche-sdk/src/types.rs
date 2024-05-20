@@ -19,8 +19,8 @@ impl Address {
     }
 }
 
-impl Default for Buffer {
-    fn default() -> Self { Buffer([0; 33]) }
+impl Default for Address {
+    fn default() -> Self { Address([0; 33]) }
 }
 
 impl IntoIterator for Address {
