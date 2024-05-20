@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	hutils "github.com/ava-labs/hypersdk/utils"
 
@@ -115,21 +114,16 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, outputs, err := programCreateAction.Execute(ctx, nil, db, 0, codec.Empty, programID)
-	var resultOutputs string
-	for i := 0; i < len(outputs); i++ {
-		for j := 0; j < len(outputs[i]); j++ {
-			resultOutputs += fmt.Sprintf(" %s", string(outputs[i][j]))
-		}
-	}
-	if len(resultOutputs) > 0 {
-		fmt.Println(resultOutputs)
-	}
-	if !success {
-		return codec.Empty, fmt.Errorf("program creation failed: %s", err)
-	}
+	_, outputs, err := programCreateAction.Execute(ctx, nil, db, 0, codec.Empty, programID)
 	if err != nil {
-		return codec.Empty, err
+		return codec.Empty, fmt.Errorf("program creation failed: %w", err)
+	}
+	if len(outputs) > 0 {
+		var results []string
+		for _, output := range outputs {
+			results = append(results, string(output))
+		}
+		fmt.Println(results)
 	}
 
 	// store program to disk only on success
@@ -164,29 +158,18 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.Empty, programActionID)
-
-	if !success {
-		var respOutput string
-		for i := 0; i < len(resp); i++ {
-			respOutput += fmt.Sprintf(" %s", string(resp[i]))
-		}
-		return codec.Empty, nil, 0, fmt.Errorf("program execution failed: %s", respOutput)
-	}
+	_, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.Empty, programActionID)
 	if err != nil {
-		return codec.Empty, nil, 0, err
+		return codec.Empty, nil, 0, fmt.Errorf("program execution failed: %w", err)
 	}
 
-	// TODO: I don't think this is right
-	size := 0
-	for i := 1; i < len(resp); i++ {
-		size += consts.IntLen + codec.BytesLen(resp[i])
-	}
-	p := codec.NewWriter(size, consts.MaxInt)
 	var result []int64
-	for !p.Empty() {
-		v := p.UnpackInt64(true)
-		result = append(result, v)
+	for _, r := range resp {
+		p := codec.NewReader(r, len(r))
+		for !p.Empty() {
+			v := p.UnpackInt64(true)
+			result = append(result, v)
+		}
 	}
 
 	// store program to disk only on success
@@ -197,6 +180,5 @@ func programExecuteFunc(
 
 	// get remaining balance from runtime meter
 	balance, err := programExecuteAction.GetBalance()
-
 	return programActionID, result, balance, err
 }
