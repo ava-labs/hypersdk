@@ -27,7 +27,7 @@ MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s}
-if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
+if [[ ${MODE} != "run" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
@@ -263,7 +263,7 @@ echo "running e2e tests"
 --mode="${MODE}"
 
 ############################
-if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
+if [[ ${MODE} == "run" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
