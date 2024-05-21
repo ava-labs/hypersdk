@@ -22,14 +22,14 @@ type Item interface {
 // instead of grouping by expiry to support this feature, which makes it
 // less efficient).
 type ExpiryHeap[T Item] struct {
-	minHeap *heap.Heap[ids.ID, T, int64]
+	minHeap *heap.Heap[T, int64]
 }
 
 // New returns an instance of ExpiryHeap with minHeap and maxHeap
 // containing [items].
 func New[T Item](items int) *ExpiryHeap[T] {
 	return &ExpiryHeap[T]{
-		minHeap: heap.New[ids.ID, T, int64](items, true),
+		minHeap: heap.New[T, int64](items, true),
 	}
 }
 
@@ -37,7 +37,7 @@ func New[T Item](items int) *ExpiryHeap[T] {
 func (eh *ExpiryHeap[T]) Add(item T) {
 	itemID := item.ID()
 	poolLen := eh.minHeap.Len()
-	eh.minHeap.Push(&heap.Entry[ids.ID, T, int64]{
+	eh.minHeap.Push(&heap.Entry[T, int64]{
 		ID:    itemID,
 		Val:   item.Expiry(),
 		Item:  item,

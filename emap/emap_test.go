@@ -27,7 +27,7 @@ func TestEmapNew(t *testing.T) {
 	emptyE := &EMap[*TestTx]{
 		seen:  set.Set[ids.ID]{},
 		times: make(map[int64]*bucket),
-		bh:    heap.New[ids.ID, *bucket, int64](0, true),
+		bh:    heap.New[*bucket, int64](0, true),
 	}
 	require.Equal(emptyE.seen, e.seen, "Emap did not return an empty emap struct.")
 	require.Equal(emptyE.times, e.times, "Emap did not return an empty emap struct.")
