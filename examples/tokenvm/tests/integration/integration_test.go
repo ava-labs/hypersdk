@@ -1671,6 +1671,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders).Should(gomega.HaveLen(0))
 	})
 
+	// Use new instance to make balance checks easier (note, instances are in different
+	// states and would never agree)
 	ginkgo.It("transfer to multiple accounts in a single tx", func() {
 		parser, err := instances[3].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
