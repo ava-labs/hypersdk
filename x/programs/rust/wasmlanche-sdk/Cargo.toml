@@ -10,6 +10,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 wasmtime = "14"
+tempdir = "0.3.7"
 
 [features]
 build = []
