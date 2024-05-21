@@ -14,7 +14,6 @@ import (
 	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -169,7 +168,7 @@ func (i *Import) callProgramFn(callContext program.Context) func(*wasmtime.Calle
 
 		functionName := string(args.Function)
 		res, err := rt.Call(ctx, functionName, program.Context{
-			ProgramID: codec.LID(args.ProgramID),
+			ProgramID: ids.ID(args.ProgramID),
 			// Actor:            callContext.ProgramID,
 			// OriginatingActor: callContext.OriginatingActor,
 		}, params...)
@@ -208,16 +207,15 @@ func getCallArgs(_ context.Context, memory *program.Memory, buffer []byte) ([]ui
 }
 
 func getProgramWasmBytes(log logging.Logger, db state.Immutable, idBytes []byte) ([]byte, error) {
-	id, err := ids.ToID(idBytes)
+	programID, err := ids.ToID(idBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	programID := codec.CreateLID(0, id)
 	// get the program bytes from storage
 	bytes, exists, err := storage.GetProgram(context.Background(), db, programID)
 	if !exists {
-		log.Debug("key does not exist", zap.String("id", id.String()))
+		log.Debug("key does not exist", zap.Stringer("id", programID))
 		return nil, errors.New("unknown program")
 	}
 	if err != nil {

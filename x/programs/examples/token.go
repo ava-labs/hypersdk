@@ -7,11 +7,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/near/borsh-go"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
@@ -34,7 +34,7 @@ const (
 	Balance
 )
 
-func NewToken(programID codec.LID, log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
+func NewToken(programID ids.ID, log logging.Logger, engine *engine.Engine, programBytes []byte, db state.Mutable, cfg *runtime.Config, imports host.SupportedImports, maxUnits uint64) *Token {
 	return &Token{
 		programID:    programID,
 		log:          log,
@@ -55,7 +55,7 @@ type minter struct {
 }
 
 type Token struct {
-	programID    codec.LID
+	programID    ids.ID
 	log          logging.Logger
 	programBytes []byte
 	cfg          *runtime.Config
@@ -71,7 +71,7 @@ func (t *Token) Context() program.Context {
 	}
 }
 
-func (t *Token) ProgramID() codec.LID {
+func (t *Token) ProgramID() ids.ID {
 	return t.programID
 }
 
@@ -386,7 +386,7 @@ func (t *Token) RunShort(ctx context.Context) error {
 	return nil
 }
 
-func (t *Token) GetUserBalanceFromState(ctx context.Context, programID codec.LID, userPublicKey ed25519.PublicKey) (res int64, err error) {
+func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, userPublicKey ed25519.PublicKey) (res int64, err error) {
 	key := storage.ProgramPrefixKey(programID[:], append([]byte{uint8(Balance)}, userPublicKey[:]...))
 	b, err := t.db.GetValue(ctx, key)
 	if err != nil {

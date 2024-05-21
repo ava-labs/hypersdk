@@ -42,7 +42,7 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
+func (t *ProgramExecute) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{}
 }
 
@@ -56,7 +56,7 @@ func (t *ProgramExecute) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID codec.LID,
+	actionID ids.ID,
 ) (computeUnits uint64, output [][]byte, err error) {
 	if len(t.Function) == 0 {
 		return 1, nil, ErrOutputValueZero

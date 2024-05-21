@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
@@ -47,8 +46,8 @@ const ProgramChunks uint16 = 1
 // Program
 //
 
-func ProgramKey(id codec.LID) (k []byte) {
-	k = make([]byte, 1+codec.LIDLen)
+func ProgramKey(id ids.ID) (k []byte) {
+	k = make([]byte, 1+ids.IDLen)
 	k[0] = programPrefix
 	copy(k[1:], id[:])
 	return
@@ -58,7 +57,7 @@ func ProgramKey(id codec.LID) (k []byte) {
 func GetProgram(
 	ctx context.Context,
 	db state.Immutable,
-	programID codec.LID,
+	programID ids.ID,
 ) (
 	[]byte, // program bytes
 	bool, // exists
@@ -79,7 +78,7 @@ func GetProgram(
 func SetProgram(
 	ctx context.Context,
 	mu state.Mutable,
-	programID codec.LID,
+	programID ids.ID,
 	program []byte,
 ) error {
 	return storage.SetProgram(ctx, mu, programID, program)
