@@ -12,7 +12,7 @@ func TestCreateCallParams(t *testing.T) {
 	// This test creates a simulator to initialize the db we need to use
 	ctx := context.Background()
 	newSimulator := func() *Simulator {
-		logLevel := "info"
+		logLevel := "error"
 		disableWriterDisplaying := false
 		cleanup := true
 		return &Simulator{
