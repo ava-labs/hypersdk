@@ -21,7 +21,7 @@ impl Address {
 
 impl Default for Address {
     fn default() -> Self {
-        Address([0; 33])
+        Self([0; Self::LEN])
     }
 }
 
