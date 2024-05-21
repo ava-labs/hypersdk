@@ -7,41 +7,43 @@ import (
 	"cmp"
 	"container/heap"
 	"fmt"
+
+	"github.com/ava-labs/avalanchego/ids"
 )
 
-var _ heap.Interface = (*innerHeap[any, any, uint64])(nil)
+var _ heap.Interface = (*innerHeap[any, uint64])(nil)
 
-type Entry[T comparable, I any, V cmp.Ordered] struct {
-	ID   T // id of entry
-	Item I // associated item
-	Val  V // Value to be prioritized
+type Entry[I any, V cmp.Ordered] struct {
+	ID   ids.ID // id of entry
+	Item I      // associated item
+	Val  V      // Value to be prioritized
 
 	Index int // Index of the entry in heap
 }
 
-type innerHeap[T comparable, I any, V cmp.Ordered] struct {
-	isMinHeap bool                  // true for Min-Heap, false for Max-Heap
-	items     []*Entry[T, I, V]     // items in this heap
-	lookup    map[T]*Entry[T, I, V] // ids in the heap mapping to an entry
+type innerHeap[I any, V cmp.Ordered] struct {
+	isMinHeap bool                    // true for Min-Heap, false for Max-Heap
+	items     []*Entry[I, V]          // items in this heap
+	lookup    map[ids.ID]*Entry[I, V] // ids in the heap mapping to an entry
 }
 
-func newInnerHeap[T comparable, I any, V cmp.Ordered](items int, isMinHeap bool) *innerHeap[T, I, V] {
-	return &innerHeap[T, I, V]{
+func newInnerHeap[I any, V cmp.Ordered](items int, isMinHeap bool) *innerHeap[I, V] {
+	return &innerHeap[I, V]{
 		isMinHeap: isMinHeap,
 
-		items:  make([]*Entry[T, I, V], 0, items),
-		lookup: make(map[T]*Entry[T, I, V], items),
+		items:  make([]*Entry[I, V], 0, items),
+		lookup: make(map[ids.ID]*Entry[I, V], items),
 	}
 }
 
 // Len returns the number of items in ih.
-func (ih *innerHeap[T, I, V]) Len() int { return len(ih.items) }
+func (ih *innerHeap[I, V]) Len() int { return len(ih.items) }
 
 // Less compares the priority of [i] and [j] based on th.isMinHeap.
 //
 // This should never be called by an external caller and is required to
 // confirm to `heap.Interface`.
-func (ih *innerHeap[T, I, V]) Less(i, j int) bool {
+func (ih *innerHeap[I, V]) Less(i, j int) bool {
 	if ih.isMinHeap {
 		return ih.items[i].Val < ih.items[j].Val
 	}
@@ -52,7 +54,7 @@ func (ih *innerHeap[T, I, V]) Less(i, j int) bool {
 //
 // This should never be called by an external caller and is required to
 // confirm to `heap.Interface`.
-func (ih *innerHeap[T, I, V]) Swap(i, j int) {
+func (ih *innerHeap[I, V]) Swap(i, j int) {
 	ih.items[i], ih.items[j] = ih.items[j], ih.items[i]
 	ih.items[i].Index = i
 	ih.items[j].Index = j
@@ -63,8 +65,8 @@ func (ih *innerHeap[T, I, V]) Swap(i, j int) {
 //
 // This should never be called by an external caller and is required to
 // confirm to `heap.Interface`.
-func (ih *innerHeap[T, I, V]) Push(x any) {
-	entry, ok := x.(*Entry[T, I, V])
+func (ih *innerHeap[I, V]) Push(x any) {
+	entry, ok := x.(*Entry[I, V])
 	if !ok {
 		panic(fmt.Errorf("unexpected %T, expected *Entry", x))
 	}
@@ -80,7 +82,7 @@ func (ih *innerHeap[T, I, V]) Push(x any) {
 //
 // This should never be called by an external caller and is required to
 // confirm to `heap.Interface`.
-func (ih *innerHeap[T, I, V]) Pop() any {
+func (ih *innerHeap[I, V]) Pop() any {
 	n := len(ih.items)
 	item := ih.items[n-1]
 	ih.items[n-1] = nil // avoid memory leak
@@ -91,13 +93,13 @@ func (ih *innerHeap[T, I, V]) Pop() any {
 
 // Get returns the entry in th associated with [id], and a bool if [id] was
 // found in th.
-func (ih *innerHeap[T, I, V]) Get(id T) (*Entry[T, I, V], bool) {
+func (ih *innerHeap[I, V]) Get(id ids.ID) (*Entry[I, V], bool) {
 	entry, ok := ih.lookup[id]
 	return entry, ok
 }
 
 // Has returns whether [id] is found in th.
-func (ih *innerHeap[T, I, V]) Has(id T) bool {
+func (ih *innerHeap[I, V]) Has(id ids.ID) bool {
 	_, has := ih.Get(id)
 	return has
 }
