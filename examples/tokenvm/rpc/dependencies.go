@@ -31,5 +31,4 @@ type Controller interface {
 		codec.Address, // owner
 		error,
 	)
-	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
 }

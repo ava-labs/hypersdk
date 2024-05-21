@@ -156,24 +156,6 @@ func (cli *JSONRPCClient) GetOrder(ctx context.Context, orderID ids.ID) (*orderb
 	return resp.Order, err
 }
 
-func (cli *JSONRPCClient) Loan(
-	ctx context.Context,
-	asset ids.ID,
-	destination ids.ID,
-) (uint64, error) {
-	resp := new(LoanReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"loan",
-		&LoanArgs{
-			Asset:       asset,
-			Destination: destination,
-		},
-		resp,
-	)
-	return resp.Amount, err
-}
-
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
 	addr string,

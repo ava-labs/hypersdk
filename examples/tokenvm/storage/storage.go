@@ -33,11 +33,9 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 //   -> [asset] => metadataLen|metadata|supply|owner
 // 0x2/ (orders)
 //   -> [txID] => in|out|rate|remaining|owner
-// 0x3/ (loans)
-//   -> [assetID|destination] => amount
-// 0x4/ (hypersdk-height)
-// 0x5/ (hypersdk-timestamp)
-// 0x6/ (hypersdk-fee)
+// 0x3/ (hypersdk-height)
+// 0x4/ (hypersdk-timestamp)
+// 0x5/ (hypersdk-fee)
 
 const (
 	// metaDB
@@ -47,17 +45,15 @@ const (
 	balancePrefix   = 0x0
 	assetPrefix     = 0x1
 	orderPrefix     = 0x2
-	loanPrefix      = 0x3
-	heightPrefix    = 0x4
-	timestampPrefix = 0x5
-	feePrefix       = 0x6
+	heightPrefix    = 0x3
+	timestampPrefix = 0x4
+	feePrefix       = 0x5
 )
 
 const (
 	BalanceChunks uint16 = 1
 	AssetChunks   uint16 = 5
 	OrderChunks   uint16 = 2
-	LoanChunks    uint16 = 1
 )
 
 var (

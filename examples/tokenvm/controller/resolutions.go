@@ -69,11 +69,3 @@ func (c *Controller) GetOrderFromState(
 ) {
 	return storage.GetOrderFromState(ctx, c.inner.ReadState, orderID)
 }
-
-func (c *Controller) GetLoanFromState(
-	ctx context.Context,
-	asset ids.ID,
-	destination ids.ID,
-) (uint64, error) {
-	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
-}
