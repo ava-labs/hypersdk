@@ -48,7 +48,7 @@ func PrefixBlockKey(height uint64) []byte {
 }
 
 func PrefixBlockIDHeightKey(id ids.ID) []byte {
-	k := make([]byte, 1+consts.IDLen)
+	k := make([]byte, 1+ids.IDLen)
 	k[0] = blockIDHeightPrefix
 	copy(k[1:], id[:])
 	return k

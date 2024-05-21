@@ -20,7 +20,7 @@ const (
 var ID ids.ID
 
 func init() {
-	b := make([]byte, consts.IDLen)
+	b := make([]byte, ids.IDLen)
 	copy(b, []byte(Name))
 	vmID, err := ids.ToID(b)
 	if err != nil {
