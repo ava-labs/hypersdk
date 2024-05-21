@@ -17,6 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
+const keyBase = "blah" // key must be long enough to be valid
+
 // Setup parent immutable state
 var _ state.Immutable = &testDB{}
 
@@ -33,7 +35,7 @@ func newTestDB() *testDB {
 func newTestDBWithValue() *testDB {
 	db := testDB{storage: make(map[string][]byte)}
 	for i := 0; i < 100; i += 2 {
-		db.storage[strconv.Itoa(i)] = []byte("value")
+		db.storage[keyBase+strconv.Itoa(i)] = []byte("value") // key must be long enough to be valid
 	}
 	return &db
 }
@@ -108,7 +110,7 @@ func TestFetchSameKeys(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
 		// We are fetching the same keys, so we should
@@ -149,7 +151,7 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
 
@@ -199,7 +201,7 @@ func TestFetchKeysWithValues(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
@@ -238,7 +240,7 @@ func TestFetcherStop(t *testing.T) {
 		stateKeys := make(state.Keys, (i + 1))
 		for k := 0; k < i+1; k++ {
 			// Generate the same keys
-			stateKeys.Add(strconv.Itoa(k), state.Read)
+			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
 		}
 		txID := ids.GenerateTestID()
 		err := f.Fetch(ctx, txID, stateKeys)
