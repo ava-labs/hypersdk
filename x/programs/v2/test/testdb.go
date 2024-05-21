@@ -12,30 +12,30 @@ import (
 )
 
 var (
-	_ state.Mutable   = &testDB{}
-	_ state.Immutable = &testDB{}
+	_ state.Mutable   = &DB{}
+	_ state.Immutable = &DB{}
 )
 
-func newTestDB() *testDB {
-	return &testDB{db: memdb.New()}
+func NewTestDB() *DB {
+	return &DB{db: memdb.New()}
 }
 
-type testDB struct {
+type DB struct {
 	db *memdb.Database
 }
 
-func (c *testDB) GetValue(_ context.Context, key []byte) ([]byte, error) {
+func (c *DB) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	return c.db.Get(key)
 }
 
-func (c *testDB) Insert(_ context.Context, key []byte, value []byte) error {
+func (c *DB) Insert(_ context.Context, key []byte, value []byte) error {
 	return c.db.Put(key, value)
 }
 
-func (c *testDB) Put(key []byte, value []byte) error {
+func (c *DB) Put(key []byte, value []byte) error {
 	return c.db.Put(key, value)
 }
 
-func (c *testDB) Remove(_ context.Context, key []byte) error {
+func (c *DB) Remove(_ context.Context, key []byte) error {
 	return c.db.Delete(key)
 }

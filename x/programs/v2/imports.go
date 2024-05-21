@@ -9,25 +9,30 @@ import (
 )
 
 type Imports struct {
-	modules      map[string]*ImportModule
-	totalImports int
+	Modules map[string]*ImportModule
 }
 
 type ImportModule struct {
-	name  string
-	funcs map[string]HostFunction
+	Name          string
+	HostFunctions map[string]HostFunction
 }
 
-type HostFunction interface {
-	isHostFunction()
+type HostFunction struct {
+	Function HostFunctionType
+	FuelCost uint64
 }
+
+type HostFunctionType interface {
+	isHostFunctionType()
+}
+
 type FunctionWithOutput func(*CallInfo, []byte) ([]byte, error)
 
-func (FunctionWithOutput) isHostFunction() {}
+func (FunctionWithOutput) isHostFunctionType() {}
 
 type FunctionNoOutput func(*CallInfo, []byte) error
 
-func (FunctionNoOutput) isHostFunction() {}
+func (FunctionNoOutput) isHostFunctionType() {}
 
 var (
 	typeI32                = wasmtime.NewValType(wasmtime.KindI32)
@@ -35,27 +40,43 @@ var (
 	FunctionNoOutputType   = wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{})
 )
 
+func (i *ImportModule) SetFuelCost(functionName string, fuelCost uint64) bool {
+	hostFunction, ok := i.HostFunctions[functionName]
+	if ok {
+		hostFunction.FuelCost = fuelCost
+		i.HostFunctions[functionName] = hostFunction
+	}
+
+	return ok
+}
+
 func NewImports() *Imports {
-	return &Imports{modules: map[string]*ImportModule{}}
+	return &Imports{Modules: map[string]*ImportModule{}}
 }
 
 func (i *Imports) AddModule(mod *ImportModule) {
-	i.modules[mod.name] = mod
-	i.totalImports += len(mod.funcs)
+	i.Modules[mod.Name] = mod
+}
+
+func (i *Imports) SetFuelCost(moduleName string, functionName string, fuelCost uint64) bool {
+	if module, ok := i.Modules[moduleName]; ok {
+		return module.SetFuelCost(functionName, fuelCost)
+	}
+
+	return false
 }
 
 func (i *Imports) Clone() *Imports {
 	return &Imports{
-		modules:      maps.Clone(i.modules),
-		totalImports: i.totalImports,
+		Modules: maps.Clone(i.Modules),
 	}
 }
 
 func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmtime.Linker, error) {
 	linker := wasmtime.NewLinker(engine)
-	for moduleName, module := range i.modules {
-		for funcName, function := range module.funcs {
-			if err := linker.FuncNew(moduleName, funcName, getFunctType(function), convertFunction(info, function)); err != nil {
+	for moduleName, module := range i.Modules {
+		for funcName, hostFunction := range module.HostFunctions {
+			if err := linker.FuncNew(moduleName, funcName, getFunctType(hostFunction), convertFunction(info, hostFunction)); err != nil {
 				return nil, err
 			}
 		}
@@ -64,7 +85,7 @@ func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmti
 }
 
 func getFunctType(hf HostFunction) *wasmtime.FuncType {
-	switch hf.(type) {
+	switch hf.Function.(type) {
 	case FunctionWithOutput:
 		return functionWithOutputType
 	case FunctionNoOutput:
@@ -80,7 +101,10 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 		memExport := caller.GetExport(MemoryName)
 		inputBytes := memExport.Memory().UnsafeData(caller)[vals[0].I32() : vals[0].I32()+vals[1].I32()]
 
-		switch f := hf.(type) {
+		if err := callInfo.ConsumeFuel(hf.FuelCost); err != nil {
+			return nil, wasmtime.NewTrap(err.Error())
+		}
+		switch f := hf.Function.(type) {
 		case FunctionWithOutput:
 			results, err := f(callInfo, inputBytes)
 			if err != nil {

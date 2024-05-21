@@ -50,7 +50,7 @@ impl Program {
         }
 
         let args = CallProgramArgs {
-            target_id: self.id(),
+            target_id: self,
             function: function_name.as_bytes(),
             args_ptr: args,
             max_units,
@@ -68,7 +68,7 @@ impl Program {
 
 #[derive(BorshSerialize)]
 struct CallProgramArgs<'a> {
-    target_id: &'a [u8],
+    target_id: &'a Program,
     function: &'a [u8],
     args_ptr: &'a [u8],
     max_units: i64,
