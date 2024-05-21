@@ -956,7 +956,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			balance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddressBech32(lconsts.HRP, addr))
 			gomega.Ω(err).Should(gomega.BeNil())
-			gomega.Ω(balance).Should(gomega.Equal(uint64(bbalance + 100)))
+			gomega.Ω(balance).Should(gomega.Equal(bbalance + 100))
 		})
 	})
 })
