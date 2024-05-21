@@ -125,15 +125,15 @@ func (h *Handler) StoreDefaultKey(addr codec.Address) error {
 func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	raddr, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
-		return codec.Empty, nil, err
+		return codec.EmptyAddress, nil, err
 	}
 	if len(raddr) == 0 {
-		return codec.Empty, nil, ErrNoKeys
+		return codec.EmptyAddress, nil, ErrNoKeys
 	}
 	addr := codec.Address(raddr)
 	priv, err := h.GetKey(addr)
 	if err != nil {
-		return codec.Empty, nil, err
+		return codec.EmptyAddress, nil, err
 	}
 	if log {
 		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(addr))

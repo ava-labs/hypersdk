@@ -492,9 +492,7 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				if result.Success {
 					confirmedTxs++
 				} else {
-					// revert error is populated in the last output of the last action
-					output := result.Outputs[len(result.Outputs)-1][len(result.Outputs[len(result.Outputs)-1])-1]
-					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(output), result.Success)
+					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.
@@ -535,7 +533,7 @@ func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys 
 	if createAccount != nil {
 		priv, err := createAccount()
 		if err != nil {
-			return codec.Empty, err
+			return codec.EmptyAddress, err
 		}
 		return priv.Address, nil
 	}
