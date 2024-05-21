@@ -372,7 +372,6 @@ func (t *Transaction) Execute(
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
-			// TODO: is this already checked in parse?
 			return handleRevert(ErrInvalidKeyValue)
 		}
 		writes[key] = maxChunks
@@ -410,9 +409,6 @@ func (t *Transaction) Execute(
 		return handleRevert(err)
 	}
 	used := fees.Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
-	if err != nil {
-		return handleRevert(err)
-	}
 
 	// Check to see if the units consumed are greater than the max units
 	//
