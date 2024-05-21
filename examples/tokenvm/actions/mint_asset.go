@@ -6,13 +6,15 @@ package actions
 import (
 	"context"
 
-	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ chain.Action = (*MintAsset)(nil)
@@ -22,7 +24,7 @@ type MintAsset struct {
 	To codec.Address `json:"to"`
 
 	// Asset is the [ActionID] that created the asset.
-	Asset codec.LID `json:"asset"`
+	Asset ids.ID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
@@ -32,7 +34,7 @@ func (*MintAsset) GetTypeID() uint8 {
 	return mintAssetID
 }
 
-func (m *MintAsset) StateKeys(codec.Address, codec.LID) state.Keys {
+func (m *MintAsset) StateKeys(codec.Address, ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(m.Asset)):         state.Read | state.Write,
 		string(storage.BalanceKey(m.To, m.Asset)): state.All,
@@ -49,9 +51,9 @@ func (m *MintAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.LID,
+	_ ids.ID,
 ) (uint64, [][]byte, error) {
-	if m.Asset == codec.Empty {
+	if m.Asset == ids.Empty {
 		return MintAssetComputeUnits, nil, ErrOutputAssetIsNative
 	}
 	if m.Value == 0 {
@@ -85,19 +87,19 @@ func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*MintAsset) Size() int {
-	return codec.AddressLen + codec.LIDLen + consts.Uint64Len
+	return codec.AddressLen + ids.IDLen + consts.Uint64Len
 }
 
 func (m *MintAsset) Marshal(p *codec.Packer) {
-	p.PackLID(m.To)
-	p.PackLID(m.Asset)
+	p.PackAddress(m.To)
+	p.PackID(m.Asset)
 	p.PackUint64(m.Value)
 }
 
 func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
 	var mint MintAsset
-	p.UnpackLID(true, &mint.To)
-	p.UnpackLID(true, &mint.Asset) // empty ID is the native asset
+	p.UnpackAddress(&mint.To)
+	p.UnpackID(true, &mint.Asset) // empty ID is the native asset
 	mint.Value = p.UnpackUint64(true)
 	return &mint, p.Err()
 }

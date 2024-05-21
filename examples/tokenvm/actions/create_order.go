@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -18,7 +20,7 @@ var _ chain.Action = (*CreateOrder)(nil)
 
 type CreateOrder struct {
 	// [In] is the asset you trade for [Out].
-	In codec.LID `json:"in"`
+	In ids.ID `json:"in"`
 
 	// [InTick] is the amount of [In] required to purchase
 	// [OutTick] of [Out].
@@ -27,7 +29,7 @@ type CreateOrder struct {
 	// [Out] is the asset you receive when trading for [In].
 	//
 	// This is the asset that is actually provided by the creator.
-	Out codec.LID `json:"out"`
+	Out ids.ID `json:"out"`
 
 	// [OutTick] is the amount of [Out] the counterparty gets per [InTick] of
 	// [In].
@@ -48,7 +50,7 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(actor codec.Address, actionID codec.LID) state.Keys {
+func (c *CreateOrder) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, c.Out)): state.Read | state.Write,
 		string(storage.OrderKey(actionID)):       state.Allocate | state.Write,
@@ -65,7 +67,7 @@ func (c *CreateOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID codec.LID,
+	actionID ids.ID,
 ) (uint64, [][]byte, error) {
 	if c.In == c.Out {
 		return CreateOrderComputeUnits, nil, ErrOutputSameInOut
@@ -96,22 +98,22 @@ func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*CreateOrder) Size() int {
-	return codec.LIDLen*2 + consts.Uint64Len*3
+	return ids.IDLen*2 + consts.Uint64Len*3
 }
 
 func (c *CreateOrder) Marshal(p *codec.Packer) {
-	p.PackLID(c.In)
+	p.PackID(c.In)
 	p.PackUint64(c.InTick)
-	p.PackLID(c.Out)
+	p.PackID(c.Out)
 	p.PackUint64(c.OutTick)
 	p.PackUint64(c.Supply)
 }
 
 func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	var create CreateOrder
-	p.UnpackLID(false, &create.In) // empty ID is the native asset
+	p.UnpackID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)
-	p.UnpackLID(false, &create.Out) // empty ID is the native asset
+	p.UnpackID(false, &create.Out) // empty ID is the native asset
 	create.OutTick = p.UnpackUint64(true)
 	create.Supply = p.UnpackUint64(true)
 	return &create, p.Err()
@@ -122,6 +124,6 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func PairID(in codec.LID, out codec.LID) string { //nolint:interfacer
+func PairID(in, out ids.ID) string {
 	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }

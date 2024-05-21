@@ -7,13 +7,11 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/cb58"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 )
 
 const (
 	AddressLen = 33
-	LIDLen     = 33
 
 	// These consts are pulled from BIP-173: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
 	fromBits      = 8
@@ -23,28 +21,9 @@ const (
 	maxBech32Size = 90
 )
 
-type (
-	LID     [LIDLen]byte // Long ID
-	Address = LID
-)
+type Address [AddressLen]byte
 
-// Empty is a useful all zero value
-var Empty = LID{}
-
-// CreateLID returns [LID] made from concatenating
-// some [i] with an [id].
-//
-// This is commonly used for creating an ActionID. We
-// keep the index|txID format to keep consistency with
-// how address construction works. Index is the index
-// in the [Action] array of a transaction. txID is the
-// ID of that transaction.
-func CreateLID(i uint8, id ids.ID) LID {
-	a := make([]byte, LIDLen)
-	a[0] = i
-	copy(a[1:], id[:])
-	return LID(a)
-}
+var EmptyAddress = Address{}
 
 // CreateAddress returns [Address] made from concatenating
 // [typeID] with [id].
@@ -85,31 +64,17 @@ func MustAddressBech32(hrp string, p Address) string {
 func ParseAddressBech32(hrp, saddr string) (Address, error) {
 	phrp, p, err := address.ParseBech32(saddr)
 	if err != nil {
-		return Empty, err
+		return EmptyAddress, err
 	}
 	if phrp != hrp {
-		return Empty, ErrIncorrectHRP
+		return EmptyAddress, ErrIncorrectHRP
 	}
 	// The parsed value may be greater than [minLength] because the
 	// underlying Bech32 implementation requires bytes to each encode 5 bits
 	// instead of 8 (and we must pad the input to ensure we fill all bytes):
 	// https://github.com/btcsuite/btcd/blob/902f797b0c4b3af3f7196d2f5d2343931d1b2bdf/btcutil/bech32/bech32.go#L325-L331
 	if len(p) < AddressLen {
-		return Empty, ErrInsufficientLength
+		return EmptyAddress, ErrInsufficientLength
 	}
 	return Address(p[:AddressLen]), nil
-}
-
-func (l LID) String() string {
-	s, _ := cb58.Encode(l[:])
-	return s
-}
-
-// FromString is the inverse of LID.String()
-func FromString(lidStr string) (LID, error) {
-	bytes, err := cb58.Decode(lidStr)
-	if err != nil {
-		return LID{}, err
-	}
-	return LID(bytes), nil
 }

@@ -11,12 +11,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	_ "github.com/ava-labs/hypersdk/examples/tokenvm/registry" // ensure registry populated
+
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-	_ "github.com/ava-labs/hypersdk/examples/tokenvm/registry" // ensure registry populated
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -29,7 +29,7 @@ type JSONRPCClient struct {
 	chainID   ids.ID
 	g         *genesis.Genesis
 	assetsL   sync.Mutex
-	assets    map[codec.LID]*AssetReply
+	assets    map[ids.ID]*AssetReply
 }
 
 // New creates a new client object.
@@ -41,7 +41,7 @@ func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClie
 		requester: req,
 		networkID: networkID,
 		chainID:   chainID,
-		assets:    map[codec.LID]*AssetReply{},
+		assets:    map[ids.ID]*AssetReply{},
 	}
 }
 
@@ -85,7 +85,7 @@ func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64,
 
 func (cli *JSONRPCClient) Asset(
 	ctx context.Context,
-	asset codec.LID,
+	asset ids.ID,
 	useCache bool,
 ) (bool, []byte, uint8, []byte, uint64, string, error) {
 	cli.assetsL.Lock()
@@ -117,7 +117,7 @@ func (cli *JSONRPCClient) Asset(
 	return true, resp.Symbol, resp.Decimals, resp.Metadata, resp.Supply, resp.Owner, nil
 }
 
-func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset codec.LID) (uint64, error) {
+func (cli *JSONRPCClient) Balance(ctx context.Context, addr string, asset ids.ID) (uint64, error) {
 	resp := new(BalanceReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -144,7 +144,7 @@ func (cli *JSONRPCClient) Orders(ctx context.Context, pair string) ([]*orderbook
 	return resp.Orders, err
 }
 
-func (cli *JSONRPCClient) GetOrder(ctx context.Context, orderID codec.LID) (*orderbook.Order, error) {
+func (cli *JSONRPCClient) GetOrder(ctx context.Context, orderID ids.ID) (*orderbook.Order, error) {
 	resp := new(GetOrderReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -157,28 +157,10 @@ func (cli *JSONRPCClient) GetOrder(ctx context.Context, orderID codec.LID) (*ord
 	return resp.Order, err
 }
 
-func (cli *JSONRPCClient) Loan(
-	ctx context.Context,
-	asset codec.LID,
-	destination ids.ID,
-) (uint64, error) {
-	resp := new(LoanReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"loan",
-		&LoanArgs{
-			Asset:       asset,
-			Destination: destination,
-		},
-		resp,
-	)
-	return resp.Amount, err
-}
-
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
 	addr string,
-	asset codec.LID,
+	asset ids.ID,
 	min uint64,
 ) error {
 	exists, symbol, decimals, _, _, _, err := cli.Asset(ctx, asset, true)

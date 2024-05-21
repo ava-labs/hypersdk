@@ -29,7 +29,7 @@ type ED25519 struct {
 }
 
 func (d *ED25519) address() codec.Address {
-	if d.addr == codec.Empty {
+	if d.addr == codec.EmptyAddress {
 		d.addr = NewED25519Address(d.Signer)
 	}
 	return d.addr

@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	hutils "github.com/ava-labs/hypersdk/utils"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+
+	hutils "github.com/ava-labs/hypersdk/utils"
 )
 
 func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
@@ -37,7 +37,7 @@ type programCreate struct {
 	db      *state.SimpleMutable
 	keyName string
 	path    string
-	id      codec.LID
+	id      ids.ID
 }
 
 func newProgramCreateCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {
@@ -96,27 +96,26 @@ func (p *programCreate) Run(ctx context.Context) (err error) {
 }
 
 // createProgram simulates a create program transaction and stores the program to disk.
-func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (codec.LID, error) {
+func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (ids.ID, error) {
 	programBytes, err := os.ReadFile(path)
 	if err != nil {
-		return codec.Empty, err
+		return ids.Empty, err
 	}
 
 	// simulate create program transaction
-	id, err := generateRandomID()
+	programID, err := generateRandomID()
 	if err != nil {
-		return codec.Empty, err
+		return ids.Empty, err
 	}
-	programID := codec.CreateLID(0, id)
 
 	programCreateAction := actions.ProgramCreate{
 		Program: programBytes,
 	}
 
 	// execute the action
-	_, outputs, err := programCreateAction.Execute(ctx, nil, db, 0, codec.Empty, programID)
+	_, outputs, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
 	if err != nil {
-		return codec.Empty, fmt.Errorf("program creation failed: %w", err)
+		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
 	}
 	if len(outputs) > 0 {
 		var results []string
@@ -129,7 +128,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return codec.Empty, err
+		return ids.Empty, err
 	}
 
 	return programID, nil
@@ -142,13 +141,12 @@ func programExecuteFunc(
 	callParams []actions.CallParam,
 	function string,
 	maxUnits uint64,
-) (codec.LID, []int64, uint64, error) {
+) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
-	programTxID, err := generateRandomID()
+	programActionID, err := generateRandomID()
 	if err != nil {
-		return codec.Empty, nil, 0, err
+		return ids.Empty, nil, 0, err
 	}
-	programActionID := codec.CreateLID(0, programTxID)
 
 	programExecuteAction := actions.ProgramExecute{
 		Function: function,
@@ -158,9 +156,9 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	_, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.Empty, programActionID)
+	_, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programActionID)
 	if err != nil {
-		return codec.Empty, nil, 0, fmt.Errorf("program execution failed: %w", err)
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %w", err)
 	}
 
 	var result []int64
@@ -175,7 +173,7 @@ func programExecuteFunc(
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return codec.Empty, nil, 0, err
+		return ids.Empty, nil, 0, err
 	}
 
 	// get remaining balance from runtime meter

@@ -799,10 +799,10 @@ func (b *StatelessBlock) FeeManager() *fees.Manager {
 }
 
 func (b *StatefulBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
+	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
 		consts.IntLen + codec.CummSize(b.Txs) +
-		consts.IDLen + consts.Uint64Len + consts.Uint64Len
+		ids.IDLen + consts.Uint64Len + consts.Uint64Len
 
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 

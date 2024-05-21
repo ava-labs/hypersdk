@@ -30,27 +30,27 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/fatih/color"
-	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/pebble"
-	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/workers"
-
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/vm"
+	"github.com/ava-labs/hypersdk/workers"
+
+	hconsts "github.com/ava-labs/hypersdk/consts"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	hutils "github.com/ava-labs/hypersdk/utils"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 const genesisBalance uint64 = hconsts.MaxUint64
@@ -303,7 +303,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		for _, alloc := range g.CustomAllocation {
-			bal, err := cli.Balance(context.Background(), alloc.Address, codec.Empty)
+			bal, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(bal).Should(gomega.Equal(alloc.Balance))
 		}

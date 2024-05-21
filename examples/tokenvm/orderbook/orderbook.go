@@ -6,23 +6,25 @@ package orderbook
 import (
 	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/heap"
-	"go.uber.org/zap"
 )
 
 const allPairs = "*"
 
 type Order struct {
-	ID        codec.LID `json:"id"`
-	Owner     string    `json:"owner"` // we always send address over RPC
-	InAsset   codec.LID `json:"inAsset"`
-	InTick    uint64    `json:"inTick"`
-	OutAsset  codec.LID `json:"outAsset"`
-	OutTick   uint64    `json:"outTick"`
-	Remaining uint64    `json:"remaining"`
+	ID        ids.ID `json:"id"`
+	Owner     string `json:"owner"` // we always send address over RPC
+	InAsset   ids.ID `json:"inAsset"`
+	InTick    uint64 `json:"inTick"`
+	OutAsset  ids.ID `json:"outAsset"`
+	OutTick   uint64 `json:"outTick"`
+	Remaining uint64 `json:"remaining"`
 
 	owner codec.Address
 }
@@ -34,8 +36,8 @@ type OrderBook struct {
 	// dust orders from filling the heap.
 	//
 	// TODO: Allow operator to specify min creation supply per pair to be tracked
-	orders           map[string]*heap.Heap[codec.LID, *Order, float64]
-	orderToPair      map[codec.LID]string // needed to delete from [CloseOrder] actions
+	orders           map[string]*heap.Heap[*Order, float64]
+	orderToPair      map[ids.ID]string // needed to delete from [CloseOrder] actions
 	maxOrdersPerPair int
 	l                sync.RWMutex
 
@@ -43,7 +45,7 @@ type OrderBook struct {
 }
 
 func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
-	m := map[string]*heap.Heap[codec.LID, *Order, float64]{}
+	m := map[string]*heap.Heap[*Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
 		trackAll = true
@@ -51,20 +53,20 @@ func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
-			m[pair] = heap.New[codec.LID, *Order, float64](maxOrdersPerPair+1, true)
+			m[pair] = heap.New[*Order, float64](maxOrdersPerPair+1, true)
 			c.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
 	return &OrderBook{
 		c:                c,
 		orders:           m,
-		orderToPair:      map[codec.LID]string{},
+		orderToPair:      map[ids.ID]string{},
 		maxOrdersPerPair: maxOrdersPerPair,
 		trackAll:         trackAll,
 	}
 }
 
-func (o *OrderBook) Add(actionID codec.LID, actor codec.Address, action *actions.CreateOrder) {
+func (o *OrderBook) Add(actionID ids.ID, actor codec.Address, action *actions.CreateOrder) {
 	pair := actions.PairID(action.In, action.Out)
 	order := &Order{
 		actionID,
@@ -85,10 +87,10 @@ func (o *OrderBook) Add(actionID codec.LID, actor codec.Address, action *actions
 		return
 	case !ok && o.trackAll:
 		o.c.Logger().Info("tracking order book", zap.String("pair", pair))
-		h = heap.New[codec.LID, *Order, float64](o.maxOrdersPerPair+1, true)
+		h = heap.New[*Order, float64](o.maxOrdersPerPair+1, true)
 		o.orders[pair] = h
 	}
-	h.Push(&heap.Entry[codec.LID, *Order, float64]{
+	h.Push(&heap.Entry[*Order, float64]{
 		ID:    order.ID,
 		Val:   float64(order.InTick) / float64(order.OutTick),
 		Item:  order,
@@ -104,7 +106,7 @@ func (o *OrderBook) Add(actionID codec.LID, actor codec.Address, action *actions
 	}
 }
 
-func (o *OrderBook) Remove(id codec.LID) {
+func (o *OrderBook) Remove(id ids.ID) {
 	o.l.Lock()
 	defer o.l.Unlock()
 
@@ -126,7 +128,7 @@ func (o *OrderBook) Remove(id codec.LID) {
 	h.Remove(entry.Index) // O(log N)
 }
 
-func (o *OrderBook) UpdateRemaining(id codec.LID, remaining uint64) {
+func (o *OrderBook) UpdateRemaining(id ids.ID, remaining uint64) {
 	o.l.Lock()
 	defer o.l.Unlock()
 

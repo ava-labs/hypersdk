@@ -8,17 +8,19 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -123,19 +125,19 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, mu, pk, codec.Empty, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, ids.Empty, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
 	return storage.SetAsset(
 		ctx,
 		mu,
-		codec.Empty,
+		ids.Empty,
 		[]byte(consts.Symbol),
 		consts.Decimals,
 		[]byte(consts.Name),
 		supply,
-		codec.Empty,
+		codec.EmptyAddress,
 	)
 }
 

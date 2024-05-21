@@ -6,12 +6,13 @@ package actions
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
@@ -21,7 +22,7 @@ type ProgramCreate struct {
 	Program []byte `json:"program"`
 }
 
-func (t *ProgramCreate) StateKeys(_ codec.Address, _ codec.LID) state.Keys {
+func (t *ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{}
 }
 
@@ -39,7 +40,7 @@ func (t *ProgramCreate) Execute(
 	mu state.Mutable,
 	_ int64,
 	_ codec.Address,
-	actionID codec.LID,
+	actionID ids.ID,
 ) (uint64, [][]byte, error) {
 	if len(t.Program) == 0 {
 		return 1, nil, ErrOutputValueZero

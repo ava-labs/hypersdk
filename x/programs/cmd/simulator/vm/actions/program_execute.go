@@ -6,24 +6,23 @@ package actions
 import (
 	"context"
 
-	"github.com/near/borsh-go"
-
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/near/borsh-go"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-
-	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
 	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
+
+	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
 )
 
 var _ chain.Action = (*ProgramExecute)(nil)
@@ -42,7 +41,7 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
+func (t *ProgramExecute) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{}
 }
 
@@ -56,7 +55,7 @@ func (t *ProgramExecute) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID codec.LID,
+	actionID ids.ID,
 ) (computeUnits uint64, output [][]byte, err error) {
 	if len(t.Function) == 0 {
 		return 1, nil, ErrOutputValueZero

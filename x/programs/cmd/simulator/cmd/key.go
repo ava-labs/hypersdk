@@ -7,12 +7,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 

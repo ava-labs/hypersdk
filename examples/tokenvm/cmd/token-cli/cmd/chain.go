@@ -8,8 +8,9 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/chain"
 
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )

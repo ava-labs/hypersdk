@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -22,10 +23,10 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"go.uber.org/zap"
+
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )
 
 type Manager struct {
@@ -61,7 +62,7 @@ func New(logger logging.Logger, config *config.Config) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	bal, err := tcli.Balance(ctx, m.config.AddressBech32(), codec.Empty)
+	bal, err := tcli.Balance(ctx, m.config.AddressBech32(), ids.Empty)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +127,7 @@ func (m *Manager) sendFunds(ctx context.Context, destination codec.Address, amou
 	}
 	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, []chain.Action{&actions.Transfer{
 		To:    destination,
-		Asset: codec.Empty,
+		Asset: ids.Empty,
 		Value: amount,
 	}}, m.factory)
 	if err != nil {
@@ -136,7 +137,7 @@ func (m *Manager) sendFunds(ctx context.Context, destination codec.Address, amou
 		m.log.Warn("abandoning airdrop because network fee is greater than amount", zap.String("maxFee", utils.FormatBalance(maxFee, consts.Decimals)))
 		return ids.Empty, 0, errors.New("network fee too high")
 	}
-	bal, err := m.tcli.Balance(ctx, m.config.AddressBech32(), codec.Empty)
+	bal, err := m.tcli.Balance(ctx, m.config.AddressBech32(), ids.Empty)
 	if err != nil {
 		return ids.Empty, 0, err
 	}

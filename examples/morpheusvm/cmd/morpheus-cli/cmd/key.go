@@ -8,6 +8,8 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
@@ -15,9 +17,9 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
+
+	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 const (
@@ -217,7 +219,7 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, _ codec.LID) error {
+func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, _ ids.ID) error {
 	_, err := handler.GetBalance(context.TODO(), brpc.NewJSONRPCClient(uri, networkID, chainID), addr)
 	return err
 }

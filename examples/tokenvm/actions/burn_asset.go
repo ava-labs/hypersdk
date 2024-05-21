@@ -6,20 +6,22 @@ package actions
 import (
 	"context"
 
-	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ chain.Action = (*BurnAsset)(nil)
 
 type BurnAsset struct {
 	// Asset is the [ActionID] that created the asset.
-	Asset codec.LID `json:"asset"`
+	Asset ids.ID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
@@ -29,7 +31,7 @@ func (*BurnAsset) GetTypeID() uint8 {
 	return burnAssetID
 }
 
-func (b *BurnAsset) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
+func (b *BurnAsset) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(b.Asset)):          state.Read | state.Write,
 		string(storage.BalanceKey(actor, b.Asset)): state.Read | state.Write,
@@ -46,7 +48,7 @@ func (b *BurnAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.LID,
+	_ ids.ID,
 ) (uint64, [][]byte, error) {
 	if b.Value == 0 {
 		return BurnComputeUnits, nil, ErrOutputValueZero
@@ -76,17 +78,17 @@ func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*BurnAsset) Size() int {
-	return codec.LIDLen + consts.Uint64Len
+	return ids.IDLen + consts.Uint64Len
 }
 
 func (b *BurnAsset) Marshal(p *codec.Packer) {
-	p.PackLID(b.Asset)
+	p.PackID(b.Asset)
 	p.PackUint64(b.Value)
 }
 
 func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
 	var burn BurnAsset
-	p.UnpackLID(false, &burn.Asset) // can burn native asset
+	p.UnpackID(false, &burn.Asset) // can burn native asset
 	burn.Value = p.UnpackUint64(true)
 	return &burn, p.Err()
 }

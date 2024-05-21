@@ -27,7 +27,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/fatih/color"
-	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"go.uber.org/zap"
 
@@ -35,18 +34,19 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
-	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	hutils "github.com/ava-labs/hypersdk/utils"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
@@ -109,19 +109,19 @@ var (
 	asset1         []byte
 	asset1Symbol   []byte
 	asset1Decimals uint8
-	asset1ID       codec.LID
+	asset1ID       ids.ID
 	asset2         []byte
 	asset2Symbol   []byte
 	asset2Decimals uint8
-	asset2ID       codec.LID
+	asset2ID       ids.ID
 	asset3         []byte
 	asset3Symbol   []byte
 	asset3Decimals uint8
-	asset3ID       codec.LID
+	asset3ID       ids.ID
 	asset4         []byte
 	asset4Symbol   []byte
 	asset4Decimals uint8
-	asset4ID       codec.LID
+	asset4ID       ids.ID
 
 	// when used with embedded VMs
 	genesisBytes []byte
@@ -285,19 +285,19 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		csupply := uint64(0)
 		for _, alloc := range g.CustomAllocation {
-			balance, err := cli.Balance(context.Background(), alloc.Address, codec.Empty)
+			balance, err := cli.Balance(context.Background(), alloc.Address, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(balance).Should(gomega.Equal(alloc.Balance))
 			csupply += alloc.Balance
 		}
-		exists, symbol, decimals, metadata, supply, owner, err := cli.Asset(context.Background(), codec.Empty, false)
+		exists, symbol, decimals, metadata, supply, owner, err := cli.Asset(context.Background(), ids.Empty, false)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(exists).Should(gomega.BeTrue())
 		gomega.Ω(string(symbol)).Should(gomega.Equal(tconsts.Symbol))
 		gomega.Ω(decimals).Should(gomega.Equal(uint8(tconsts.Decimals)))
 		gomega.Ω(string(metadata)).Should(gomega.Equal(tconsts.Name))
 		gomega.Ω(supply).Should(gomega.Equal(csupply))
-		gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(tconsts.HRP, codec.Empty)))
+		gomega.Ω(owner).Should(gomega.Equal(codec.MustAddressBech32(tconsts.HRP, codec.EmptyAddress)))
 	}
 	blocks = []snowman.Block{}
 
@@ -453,20 +453,20 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// read: 2 keys reads, 1 had 0 chunks
 			// allocate: 1 key created
 			// write: 1 key modified, 1 key new
-			transferTxConsumed := fees.Dimensions{228, 7, 12, 25, 26}
+			transferTxConsumed := fees.Dimensions{224, 7, 12, 25, 26}
 			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
 
 			// Fee explanation
 			//
 			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(298)))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(294)))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
-			balance, err := instances[1].tcli.Balance(context.Background(), sender, codec.Empty)
+			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899702)))
-			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.Empty)
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899706)))
+			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
 		})
@@ -493,7 +493,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, codec.Empty)
+			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100101)))
 		})
@@ -636,7 +636,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		time.Sleep(2 * pubsub.MaxMessageWait)
 
 		// Fetch balances
-		balance, err := instances[0].tcli.Balance(context.TODO(), sender, codec.Empty)
+		balance, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 
 		// Send tx
@@ -669,13 +669,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
 		tx := blk.Txs[0].Actions[0].(*actions.Transfer)
-		gomega.Ω(tx.Asset).To(gomega.Equal(codec.LID{}))
+		gomega.Ω(tx.Asset).To(gomega.Equal(ids.Empty))
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
 		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
 
 		// Check balance modifications are correct
-		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, codec.Empty)
+		balancea, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(balancea + lresults[0].Fee + 1))
 
@@ -794,7 +794,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	ginkgo.It("mint an asset that doesn't exist", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		assetID := codec.CreateLID(0, ids.GenerateTestID())
+		assetID := ids.GenerateTestID()
 		parser, err := instances[0].tcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 		submit, _, _, err := instances[0].cli.GenerateTransaction(
@@ -932,7 +932,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		asset1ID = codec.CreateLID(0, tx.ID())
+		asset1ID = chain.CreateActionID(tx.ID(), 0)
 		balance, err := instances[0].tcli.Balance(context.TODO(), sender, asset1ID)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(balance).Should(gomega.Equal(uint64(0)))
@@ -1208,7 +1208,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		results := accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-		asset2ID = codec.CreateLID(0, tx.ID())
+		asset2ID = chain.CreateActionID(tx.ID(), 0)
 
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
@@ -1251,7 +1251,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		results := accept(false)
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-		asset3ID = codec.CreateLID(0, tx.ID())
+		asset3ID = chain.CreateActionID(tx.ID(), 0)
 
 		submit, _, _, err = instances[0].cli.GenerateTransaction(
 			context.Background(),
@@ -1305,7 +1305,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
+		gomega.Ω(order.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 0)))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender))
@@ -1368,7 +1368,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
+		gomega.Ω(order.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 0)))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(4)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender2))
@@ -1612,7 +1612,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(orders).Should(gomega.HaveLen(1))
 		order := orders[0]
-		gomega.Ω(order.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
+		gomega.Ω(order.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 0)))
 		gomega.Ω(order.InTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order.OutTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order.Owner).Should(gomega.Equal(sender))
@@ -1697,11 +1697,11 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		balance2, err := instances[3].tcli.Balance(context.Background(), sender2, codec.Empty)
+		balance2, err := instances[3].tcli.Balance(context.Background(), sender2, ids.Empty)
 		gomega.Ω(err).To(gomega.BeNil())
 		gomega.Ω(balance2).To(gomega.Equal(uint64(10000)))
 
-		balance3, err := instances[3].tcli.Balance(context.Background(), sender3, codec.Empty)
+		balance3, err := instances[3].tcli.Balance(context.Background(), sender3, ids.Empty)
 		gomega.Ω(err).To(gomega.BeNil())
 		gomega.Ω(balance3).To(gomega.Equal(uint64(5000)))
 	})
@@ -1744,10 +1744,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(results).Should(gomega.HaveLen(1))
 		gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 
-		asset1ID = codec.CreateLID(0, tx.ID())
-		asset2ID = codec.CreateLID(1, tx.ID())
-		asset3ID = codec.CreateLID(2, tx.ID())
-		asset4ID = codec.CreateLID(3, tx.ID())
+		asset1ID = chain.CreateActionID(tx.ID(), 0)
+		asset2ID = chain.CreateActionID(tx.ID(), 1)
+		asset3ID = chain.CreateActionID(tx.ID(), 2)
+		asset4ID = chain.CreateActionID(tx.ID(), 3)
 
 		// Mint multiple
 		submit, _, _, err = instances[3].cli.GenerateTransaction(
@@ -1868,7 +1868,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders32).Should(gomega.HaveLen(1))
 
 		order32 := orders32[0]
-		gomega.Ω(order32.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
+		gomega.Ω(order32.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 0)))
 		gomega.Ω(order32.InTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order32.OutTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order32.Owner).Should(gomega.Equal(sender))
@@ -1879,7 +1879,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders14).Should(gomega.HaveLen(1))
 
 		order14 := orders14[0]
-		gomega.Ω(order14.ID).Should(gomega.Equal(codec.CreateLID(1, tx.ID())))
+		gomega.Ω(order14.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 1)))
 		gomega.Ω(order14.InTick).Should(gomega.Equal(uint64(1)))
 		gomega.Ω(order14.OutTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order14.Owner).Should(gomega.Equal(sender))
@@ -1976,7 +1976,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders13).Should(gomega.HaveLen(1))
 
 		order13 := orders13[0]
-		gomega.Ω(order13.ID).Should(gomega.Equal(codec.CreateLID(0, tx.ID())))
+		gomega.Ω(order13.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 0)))
 		gomega.Ω(order13.InTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order13.OutTick).Should(gomega.Equal(uint64(4)))
 		gomega.Ω(order13.Owner).Should(gomega.Equal(sender))
@@ -1987,7 +1987,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		gomega.Ω(orders24).Should(gomega.HaveLen(1))
 
 		order24 := orders24[0]
-		gomega.Ω(order24.ID).Should(gomega.Equal(codec.CreateLID(1, tx.ID())))
+		gomega.Ω(order24.ID).Should(gomega.Equal(chain.CreateActionID(tx.ID(), 1)))
 		gomega.Ω(order24.InTick).Should(gomega.Equal(uint64(2)))
 		gomega.Ω(order24.OutTick).Should(gomega.Equal(uint64(4)))
 		gomega.Ω(order24.Owner).Should(gomega.Equal(sender))

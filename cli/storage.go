@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -125,15 +124,15 @@ func (h *Handler) StoreDefaultKey(addr codec.Address) error {
 func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 	raddr, err := h.GetDefault(defaultKeyKey)
 	if err != nil {
-		return codec.Empty, nil, err
+		return codec.EmptyAddress, nil, err
 	}
 	if len(raddr) == 0 {
-		return codec.Empty, nil, ErrNoKeys
+		return codec.EmptyAddress, nil, ErrNoKeys
 	}
 	addr := codec.Address(raddr)
 	priv, err := h.GetKey(addr)
 	if err != nil {
-		return codec.Empty, nil, err
+		return codec.EmptyAddress, nil, err
 	}
 	if log {
 		utils.Outf("{{yellow}}address:{{/}} %s\n", h.c.Address(addr))
@@ -142,12 +141,12 @@ func (h *Handler) GetDefaultKey(log bool) (codec.Address, []byte, error) {
 }
 
 func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
-	k := make([]byte, 1+consts.IDLen*2)
+	k := make([]byte, 1+ids.IDLen*2)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
 	brpc := []byte(rpc)
 	rpcID := utils.ToID(brpc)
-	copy(k[1+consts.IDLen:], rpcID[:])
+	copy(k[1+ids.IDLen:], rpcID[:])
 	has, err := h.db.Has(k)
 	if err != nil {
 		return err
@@ -159,7 +158,7 @@ func (h *Handler) StoreChain(chainID ids.ID, rpc string) error {
 }
 
 func (h *Handler) GetChain(chainID ids.ID) ([]string, error) {
-	k := make([]byte, 1+consts.IDLen)
+	k := make([]byte, 1+ids.IDLen)
 	k[0] = chainPrefix
 	copy(k[1:], chainID[:])
 
@@ -183,7 +182,7 @@ func (h *Handler) GetChains() (map[ids.ID][]string, error) {
 		// It is safe to use these bytes directly because the database copies the
 		// iterator value for us.
 		k := iter.Key()
-		chainID := ids.ID(k[1 : 1+consts.IDLen])
+		chainID := ids.ID(k[1 : 1+ids.IDLen])
 		rpcs, ok := chains[chainID]
 		if !ok {
 			rpcs = []string{}
@@ -202,12 +201,12 @@ func (h *Handler) DeleteChains() ([]ids.ID, error) {
 	chainIDs := make([]ids.ID, 0, len(chains))
 	for chainID, rpcs := range chains {
 		for _, rpc := range rpcs {
-			k := make([]byte, 1+consts.IDLen*2)
+			k := make([]byte, 1+ids.IDLen*2)
 			k[0] = chainPrefix
 			copy(k[1:], chainID[:])
 			brpc := []byte(rpc)
 			rpcID := utils.ToID(brpc)
-			copy(k[1+consts.IDLen:], rpcID[:])
+			copy(k[1+ids.IDLen:], rpcID[:])
 			if err := h.db.Delete(k); err != nil {
 				return nil, err
 			}

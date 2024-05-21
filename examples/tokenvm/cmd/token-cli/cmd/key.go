@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
-
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
+	"github.com/ava-labs/hypersdk/utils"
+
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
@@ -89,7 +90,7 @@ var importKeyCmd = &cobra.Command{
 func lookupSetKeyBalance(choice int, address string, uri string, networkID uint32, chainID ids.ID) error {
 	// TODO: just load once
 	cli := trpc.NewJSONRPCClient(uri, networkID, chainID)
-	balance, err := cli.Balance(context.TODO(), address, codec.Empty)
+	balance, err := cli.Balance(context.TODO(), address, ids.Empty)
 	if err != nil {
 		return err
 	}
@@ -110,7 +111,7 @@ var setKeyCmd = &cobra.Command{
 	},
 }
 
-func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, assetID codec.LID) error {
+func lookupKeyBalance(addr codec.Address, uri string, networkID uint32, chainID ids.ID, assetID ids.ID) error {
 	_, _, _, _, err := handler.GetAssetInfo(
 		context.TODO(), trpc.NewJSONRPCClient(uri, networkID, chainID),
 		addr, assetID, true)

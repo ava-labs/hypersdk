@@ -30,7 +30,7 @@ func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	}
 	recipient, err := promptText.Run()
 	if err != nil {
-		return codec.Empty, err
+		return codec.EmptyAddress, err
 	}
 	recipient = strings.TrimSpace(recipient)
 	return h.c.ParseAddress(recipient)
@@ -56,7 +56,7 @@ func (*Handler) PromptString(label string, min int, max int) (string, error) {
 	return strings.TrimSpace(text), err
 }
 
-func (h *Handler) PromptAsset(label string, allowNative bool) (codec.LID, error) {
+func (h *Handler) PromptAsset(label string, allowNative bool) (ids.ID, error) {
 	symbol := h.c.Symbol()
 	text := fmt.Sprintf("%s (use %s for native token)", label, symbol)
 	if !allowNative {
@@ -71,24 +71,24 @@ func (h *Handler) PromptAsset(label string, allowNative bool) (codec.LID, error)
 			if allowNative && input == symbol {
 				return nil
 			}
-			_, err := codec.FromString(input)
+			_, err := ids.FromString(input)
 			return err
 		},
 	}
 	asset, err := promptText.Run()
 	if err != nil {
-		return codec.Empty, err
+		return ids.Empty, err
 	}
 	asset = strings.TrimSpace(asset)
-	var assetID codec.LID
+	var assetID ids.ID
 	if asset != symbol {
-		assetID, err = codec.FromString(asset)
+		assetID, err = ids.FromString(asset)
 		if err != nil {
-			return codec.Empty, err
+			return ids.Empty, err
 		}
 	}
-	if !allowNative && assetID == codec.Empty {
-		return codec.Empty, ErrInvalidChoice
+	if !allowNative && assetID == ids.Empty {
+		return ids.Empty, ErrInvalidChoice
 	}
 	return assetID, nil
 }
@@ -275,25 +275,6 @@ func (*Handler) PromptID(label string) (ids.ID, error) {
 		return ids.Empty, err
 	}
 	return id, nil
-}
-
-func (*Handler) PromptLID(label string) (codec.LID, error) {
-	promptText := promptui.Prompt{
-		Label: label,
-		Validate: func(input string) error {
-			if len(input) == 0 {
-				return ErrInputEmpty
-			}
-			_, err := codec.FromString(input)
-			return err
-		},
-	}
-	rawID, err := promptText.Run()
-	if err != nil {
-		return codec.Empty, err
-	}
-	rawID = strings.TrimSpace(rawID)
-	return codec.FromString(rawID)
 }
 
 func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {

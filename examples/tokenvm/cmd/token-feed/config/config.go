@@ -25,7 +25,7 @@ type Config struct {
 }
 
 func (c *Config) RecipientAddress() (codec.Address, error) {
-	if c.recipientAddr != codec.Empty {
+	if c.recipientAddr != codec.EmptyAddress {
 		return c.recipientAddr, nil
 	}
 	addr, err := codec.ParseAddressBech32(consts.HRP, c.Recipient)

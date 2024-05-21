@@ -8,23 +8,24 @@ import (
 	"fmt"
 	"net/http"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/gossiper"
-	hrpc "github.com/ava-labs/hypersdk/rpc"
-	hstorage "github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/vm"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/config"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/rpc"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/version"
+
+	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	hrpc "github.com/ava-labs/hypersdk/rpc"
+	hstorage "github.com/ava-labs/hypersdk/storage"
 )
 
 var _ vm.Controller = (*Controller)(nil)

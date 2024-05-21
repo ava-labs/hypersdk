@@ -62,7 +62,7 @@ func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) erro
 }
 
 type AssetArgs struct {
-	Asset codec.LID `json:"asset"`
+	Asset ids.ID `json:"asset"`
 }
 
 type AssetReply struct {
@@ -93,8 +93,8 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 }
 
 type BalanceArgs struct {
-	Address string    `json:"address"`
-	Asset   codec.LID `json:"asset"`
+	Address string `json:"address"`
+	Asset   ids.ID `json:"asset"`
 }
 
 type BalanceReply struct {
@@ -134,7 +134,7 @@ func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *Order
 }
 
 type GetOrderArgs struct {
-	OrderID codec.LID `json:"orderID"`
+	OrderID ids.ID `json:"orderID"`
 }
 
 type GetOrderReply struct {
@@ -161,26 +161,5 @@ func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *G
 		OutTick:   outTick,
 		Remaining: remaining,
 	}
-	return nil
-}
-
-type LoanArgs struct {
-	Destination ids.ID    `json:"destination"`
-	Asset       codec.LID `json:"asset"`
-}
-
-type LoanReply struct {
-	Amount uint64 `json:"amount"`
-}
-
-func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Loan")
-	defer span.End()
-
-	amount, err := j.c.GetLoanFromState(ctx, args.Asset, args.Destination)
-	if err != nil {
-		return err
-	}
-	reply.Amount = amount
 	return nil
 }

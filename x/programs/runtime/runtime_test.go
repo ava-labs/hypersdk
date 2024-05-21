@@ -13,7 +13,6 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/engine"
 	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
@@ -45,7 +44,7 @@ func TestStop(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -91,7 +90,7 @@ func TestCallParams(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -138,7 +137,7 @@ func TestInfiniteLoop(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -177,7 +176,7 @@ func TestMetering(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -225,7 +224,7 @@ func TestMeterAfterStop(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -265,7 +264,7 @@ func TestLimitMaxMemory(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -296,7 +295,7 @@ func TestLimitMaxMemoryGrow(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -336,7 +335,7 @@ func TestWriteExceedsLimitMaxMemory(t *testing.T) {
 	eng := engine.New(engine.NewConfig())
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}
@@ -380,7 +379,7 @@ func TestWithMaxWasmStack(t *testing.T) {
 	cfg := NewConfig()
 	runtime := New(logging.NoLog{}, eng, host.NoSupportedImports, cfg)
 
-	id := codec.CreateLID(0, ids.GenerateTestID())
+	id := ids.GenerateTestID()
 	programContext := program.Context{
 		ProgramID: id,
 	}

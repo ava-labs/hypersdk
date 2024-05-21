@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )
 
@@ -52,7 +51,7 @@ func (p *Packer) PackID(src ids.ID) {
 // UnpackID unpacks an avalanchego ID into [dest]. If [required] is true,
 // and the unpacked bytes are empty, Packer will add an ErrFieldNotPopulated error.
 func (p *Packer) UnpackID(required bool, dest *ids.ID) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(consts.IDLen))
+	copy((*dest)[:], p.p.UnpackFixedBytes(ids.IDLen))
 	if required && *dest == ids.Empty {
 		p.addErr(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
 	}
@@ -70,14 +69,14 @@ func (p *Packer) PackFixedBytes(b []byte) {
 	p.p.PackFixedBytes(b)
 }
 
-func (p *Packer) PackLID(a LID) {
+func (p *Packer) PackAddress(a Address) {
 	p.p.PackFixedBytes(a[:])
 }
 
-func (p *Packer) UnpackLID(required bool, dest *LID) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(LIDLen))
-	if required && *dest == Empty {
-		p.addErr(fmt.Errorf("%w: LID field is not populated", ErrFieldNotPopulated))
+func (p *Packer) UnpackAddress(dest *Address) {
+	copy((*dest)[:], p.p.UnpackFixedBytes(AddressLen))
+	if *dest == EmptyAddress {
+		p.addErr(fmt.Errorf("%w: Address field is not populated", ErrFieldNotPopulated))
 	}
 }
 

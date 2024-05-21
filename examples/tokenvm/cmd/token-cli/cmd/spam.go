@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -14,11 +16,11 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
+
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )
 
 var spamCmd = &cobra.Command{
@@ -62,7 +64,7 @@ var runSpamCmd = &cobra.Command{
 				}, nil
 			},
 			func(choice int, address string) (uint64, error) { // lookupBalance
-				balance, err := tclient.Balance(context.TODO(), address, codec.Empty)
+				balance, err := tclient.Balance(context.TODO(), address, ids.Empty)
 				if err != nil {
 					return 0, err
 				}
@@ -81,7 +83,7 @@ var runSpamCmd = &cobra.Command{
 			func(addr codec.Address, amount uint64) []chain.Action { // getTransfer
 				return []chain.Action{&actions.Transfer{
 					To:    addr,
-					Asset: codec.Empty,
+					Asset: ids.Empty,
 					Value: amount,
 				}}
 			},
