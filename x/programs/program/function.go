@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
-	"github.com/near/borsh-go"
 )
 
 // Func is a wrapper around a wasmtime.Func
@@ -24,7 +23,7 @@ func NewFunc(inner *wasmtime.Func, inst Instance) *Func {
 	}
 }
 
-func (f *Func) Call(context Context, params ...SmartPtr) ([]int64, error) {
+func (f *Func) Call(context *Context, params ...uint32) ([]byte, error) {
 	fnParams := f.Type().Params()[1:] // strip program_id
 	if len(params) != len(fnParams) {
 		return nil, fmt.Errorf("%w for function: %d expected: %d", ErrInvalidParamCount, len(params), len(fnParams))
@@ -40,37 +39,18 @@ func (f *Func) Call(context Context, params ...SmartPtr) ([]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	contextPtr, err := argumentToSmartPtr(context, mem)
+	contextPtr, err := context.WriteToMem(mem)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := f.inner.Call(f.inst.GetStore(), append([]interface{}{int64(contextPtr)}, callParams...)...)
-	if err != nil {
+	if _, err := f.inner.Call(f.inst.GetStore(), append([]interface{}{int32(contextPtr)}, callParams...)...); err != nil {
 		return nil, HandleTrapError(err)
 	}
-	switch v := result.(type) {
-	case int32:
-		value := int64(result.(int32))
-		return []int64{value}, nil
-	case int64:
-		value := result.(int64)
-		return []int64{value}, nil
-	case nil:
-		// the function had no return values
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("invalid result type: %T", v)
-	}
-}
 
-func argumentToSmartPtr(obj interface{}, memory *Memory) (SmartPtr, error) {
-	bytes, err := borsh.Serialize(obj)
-	if err != nil {
-		return 0, err
-	}
-
-	return BytesToSmartPtr(bytes, memory)
+	result := context.Result()
+	context.ClearResult()
+	return result, nil
 }
 
 func (f *Func) Type() *wasmtime.FuncType {
@@ -78,7 +58,7 @@ func (f *Func) Type() *wasmtime.FuncType {
 }
 
 // mapFunctionParams maps call input to the expected wasm function params.
-func mapFunctionParams(input []SmartPtr, values []*wasmtime.ValType) ([]interface{}, error) {
+func mapFunctionParams(input []uint32, values []*wasmtime.ValType) ([]interface{}, error) {
 	params := make([]interface{}, len(values))
 	for i, v := range values {
 		switch v.Kind() {

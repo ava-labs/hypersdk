@@ -1,0 +1,52 @@
+name: 'Release VM'
+description: 'Release the VM'
+
+inputs:
+  vm-name:
+    description: 'VM name'
+    required: true
+  github-token:
+    description: 'GitHub Token'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: ./.github/actions/install-go
+      with:
+        cache-dependency-path: |
+          go.sum
+          examples/${{ inputs.vm-name }}/go.sum
+    - name: Set up arm64 cross compiler
+      shell: bash
+      run: |
+        sudo apt-get -y update
+        sudo apt-get -y install gcc-aarch64-linux-gnu
+    - name: Checkout osxcross
+      uses: actions/checkout@v2
+      with:
+        repository: tpoechtrager/osxcross
+        path: osxcross
+    - name: Build osxcross
+      shell: bash
+      run: |
+        sudo apt-get -y install clang llvm-dev libxml2-dev uuid-dev libssl-dev bash patch make tar xz-utils bzip2 gzip sed cpio libbz2-dev
+        cd osxcross
+        wget https://github.com/joseluisq/macosx-sdks/releases/download/12.3/$MACOS_SDK_FNAME -O tarballs/$MACOS_SDK_FNAME
+        echo $MACOS_SDK_CHECKSUM tarballs/$MACOS_SDK_FNAME | sha256sum -c -
+        UNATTENDED=1 ./build.sh
+        echo $PWD/target/bin >> $GITHUB_PATH
+      env:
+        MACOS_SDK_FNAME: MacOSX12.3.sdk.tar.xz
+        MACOS_SDK_CHECKSUM: 3abd261ceb483c44295a6623fdffe5d44fc4ac2c872526576ec5ab5ad0f6e26c
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v2
+      with:
+        distribution: goreleaser
+        version: latest
+        args: release
+        workdir: ./examples/${{ inputs.vm-name }}/
+      env:
+        # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#about-the-github_token-secret
+        GITHUB_TOKEN: ${{ inputs.github-token }}

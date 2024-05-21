@@ -1,0 +1,43 @@
+# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# See the file LICENSE for licensing terms.
+
+name: VM Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  token-wallet-release:
+    runs-on: macos-latest-xl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/token-wallet-release
+
+  tokenvm-release:
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/vm-release
+        with:
+          vm-name: tokenvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  morpheusvm-release:
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/vm-release
+        with:
+          vm-name: morpheusvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}

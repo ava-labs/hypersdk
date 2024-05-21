@@ -4,11 +4,13 @@ pub mod params;
 pub mod state;
 pub mod types;
 
+mod logging;
 mod memory;
 mod program;
 
 pub use self::{
-    memory::{from_host_ptr, HostPtr},
+    logging::log,
+    memory::from_host_ptr,
     params::{serialize_param, Params},
     program::Program,
 };
@@ -26,7 +28,8 @@ pub enum Error {
     Param(#[from] std::io::Error),
 }
 
-#[derive(Clone, Copy, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Clone, Copy, borsh::BorshSerialize, borsh::BorshDeserialize, Debug)]
 pub struct Context {
     pub program: program::Program,
+    pub actor: types::Address,
 }

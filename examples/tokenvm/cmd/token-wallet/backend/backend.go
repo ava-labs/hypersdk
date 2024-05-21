@@ -226,7 +226,7 @@ func (b *Backend) collectBlocks() {
 					continue
 				}
 
-				_, symbol, decimals, _, _, owner, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
+				_, symbol, decimals, _, _, owner, err := b.tcli.Asset(b.ctx, action.Asset, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -309,7 +309,7 @@ func (b *Backend) collectBlocks() {
 					continue
 				}
 
-				_, symbol, decimals, _, _, owner, _, err := b.tcli.Asset(b.ctx, action.Asset, true)
+				_, symbol, decimals, _, _, owner, err := b.tcli.Asset(b.ctx, action.Asset, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -361,12 +361,12 @@ func (b *Backend) collectBlocks() {
 					continue
 				}
 
-				_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.In, true)
+				_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, action.In, true)
 				if err != nil {
 					b.fatal(err)
 					return
 				}
-				_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Out, true)
+				_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, action.Out, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -402,12 +402,12 @@ func (b *Backend) collectBlocks() {
 					continue
 				}
 
-				_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.In, true)
+				_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, action.In, true)
 				if err != nil {
 					b.fatal(err)
 					return
 				}
-				_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, action.Out, true)
+				_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, action.Out, true)
 				if err != nil {
 					b.fatal(err)
 					return
@@ -608,7 +608,7 @@ func (b *Backend) GetMyAssets() []*AssetInfo {
 		if !owned[i] {
 			continue
 		}
-		_, symbol, decimals, metadata, supply, owner, _, err := b.tcli.Asset(b.ctx, asset, false)
+		_, symbol, decimals, metadata, supply, owner, err := b.tcli.Asset(b.ctx, asset, false)
 		if err != nil {
 			b.fatal(err)
 			return nil
@@ -639,7 +639,7 @@ func (b *Backend) CreateAsset(symbol string, decimals string, metadata string) e
 	if err != nil {
 		return err
 	}
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.CreateAsset{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.CreateAsset{
 		Symbol:   []byte(symbol),
 		Decimals: uint8(udecimals),
 		Metadata: []byte(metadata),
@@ -674,7 +674,7 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	if err != nil {
 		return err
 	}
-	_, _, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
+	_, _, decimals, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
 	}
@@ -694,7 +694,7 @@ func (b *Backend) MintAsset(asset string, address string, amount string) error {
 	}
 
 	// Generate transaction
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.MintAsset{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.MintAsset{
 		To:    to,
 		Asset: assetID,
 		Value: value,
@@ -729,7 +729,7 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 	if err != nil {
 		return err
 	}
-	_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
+	_, symbol, decimals, _, _, _, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
 	}
@@ -758,7 +758,7 @@ func (b *Backend) Transfer(asset string, address string, amount string, memo str
 	}
 
 	// Generate transaction
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.Transfer{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.Transfer{
 		To:    to,
 		Asset: assetID,
 		Value: value,
@@ -805,7 +805,7 @@ func (b *Backend) GetBalance() ([]*BalanceInfo, error) {
 	}
 	balances := []*BalanceInfo{}
 	for _, asset := range assets {
-		_, symbol, decimals, _, _, _, _, err := b.tcli.Asset(b.ctx, asset, true)
+		_, symbol, decimals, _, _, _, err := b.tcli.Asset(b.ctx, asset, true)
 		if err != nil {
 			return nil, err
 		}
@@ -937,7 +937,7 @@ func (b *Backend) GetAllAssets() []*AssetInfo {
 	}
 	assets := []*AssetInfo{}
 	for _, asset := range arr {
-		_, symbol, decimals, metadata, supply, owner, _, err := b.tcli.Asset(b.ctx, asset, false)
+		_, symbol, decimals, metadata, supply, owner, err := b.tcli.Asset(b.ctx, asset, false)
 		if err != nil {
 			b.fatal(err)
 			return nil
@@ -968,7 +968,7 @@ func (b *Backend) AddAsset(asset string) error {
 	if hasAsset {
 		return nil
 	}
-	exists, _, _, _, _, owner, _, err := b.tcli.Asset(b.ctx, assetID, true)
+	exists, _, _, _, _, owner, err := b.tcli.Asset(b.ctx, assetID, true)
 	if err != nil {
 		return err
 	}
@@ -993,12 +993,12 @@ func (b *Backend) GetMyOrders() ([]*Order, error) {
 			continue
 		}
 		inID := order.InAsset
-		_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
+		_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 		if err != nil {
 			return nil, err
 		}
 		outID := order.OutAsset
-		_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
+		_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 		if err != nil {
 			return nil, err
 		}
@@ -1035,7 +1035,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
+	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1044,7 +1044,7 @@ func (b *Backend) GetOrders(pair string) ([]*Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
+	_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,11 +1080,11 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	if err != nil {
 		return err
 	}
-	_, _, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
+	_, _, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
 	}
-	_, outSymbol, outDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
+	_, outSymbol, outDecimals, _, _, _, err := b.tcli.Asset(b.ctx, outID, true)
 	if err != nil {
 		return err
 	}
@@ -1112,7 +1112,7 @@ func (b *Backend) CreateOrder(assetIn string, inTick string, assetOut string, ou
 	}
 
 	// Generate transaction
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.CreateOrder{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.CreateOrder{
 		In:      inID,
 		InTick:  iTick,
 		Out:     outID,
@@ -1171,7 +1171,7 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	if err != nil {
 		return err
 	}
-	_, inSymbol, inDecimals, _, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
+	_, inSymbol, inDecimals, _, _, _, err := b.tcli.Asset(b.ctx, inID, true)
 	if err != nil {
 		return err
 	}
@@ -1198,7 +1198,7 @@ func (b *Backend) FillOrder(orderID string, orderOwner string, assetIn string, i
 	}
 
 	// Generate transaction
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.FillOrder{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.FillOrder{
 		Order: oID,
 		Owner: owner,
 		In:    inID,
@@ -1255,7 +1255,7 @@ func (b *Backend) CloseOrder(orderID string, assetOut string) error {
 	}
 
 	// Generate transaction
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.CloseOrder{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.CloseOrder{
 		Order: oID,
 		Out:   outID,
 	}, b.factory)
@@ -1395,7 +1395,7 @@ func (b *Backend) Message(message string, url string) error {
 	}
 
 	// Generate transaction
-	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, nil, &actions.Transfer{
+	_, tx, maxFee, err := b.cli.GenerateTransaction(b.ctx, b.parser, &actions.Transfer{
 		To:    recipientAddr,
 		Asset: ids.Empty,
 		Value: fee,

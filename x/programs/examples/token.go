@@ -65,8 +65,8 @@ type Token struct {
 	engine       *engine.Engine
 }
 
-func (t *Token) Context() program.Context {
-	return program.Context{
+func (t *Token) Context() *program.Context {
+	return &program.Context{
 		ProgramID: t.programID,
 	}
 }
@@ -110,22 +110,15 @@ func (t *Token) Run(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", programContext)
+	_, err = rt.Call(ctx, "init", programContext)
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
 
-	t.log.Debug("init response",
-		zap.Int64("init", resp[0]),
-	)
-
-	result, err := rt.Call(ctx, "get_total_supply", programContext)
+	_, err = rt.Call(ctx, "get_total_supply", programContext)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("total supply",
-		zap.Int64("minted", result[0]),
-	)
 
 	// generate alice keys
 	alicePublicKey, err := newKey()
@@ -134,7 +127,7 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write alice's key to stack and get pointer
-	alicePtr, err := argumentToSmartPtr(alicePublicKey, mem)
+	alicePtr, err := writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -146,23 +139,20 @@ func (t *Token) Run(ctx context.Context) error {
 	}
 
 	// write bob's key to stack and get pointer
-	bobPtr, err := argumentToSmartPtr(bobPublicKey, mem)
+	bobPtr, err := writeToMem(bobPublicKey, mem)
 	if err != nil {
 		return err
 	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("bob", result[0]),
-	)
 
 	// mint 100 tokens to alice
 	mintAlice := int64(1000)
-	mintAlicePtr, err := argumentToSmartPtr(mintAlice, mem)
+	mintAlicePtr, err := writeToMem(mintAlice, mem)
 	if err != nil {
 		return err
 	}
@@ -175,30 +165,44 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("alice", mintAlice),
 	)
 
-	// check balance of alice
-	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	alicePtr, err = writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("alice", result[0]),
-	)
+
+	// check balance of alice
+	_, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	if err != nil {
+		return err
+	}
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
 
 	// check balance of bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("bob", result[0]),
-	)
 
 	// transfer 50 from alice to bob
 	transferToBob := int64(50)
-	transferToBobPtr, err := argumentToSmartPtr(transferToBob, mem)
+	transferToBobPtr, err := writeToMem(transferToBob, mem)
 	if err != nil {
 		return err
 	}
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
+
+	alicePtr, err = writeToMem(alicePublicKey, mem)
+	if err != nil {
+		return err
+	}
+
 	_, err = rt.Call(ctx, "transfer", programContext, alicePtr, bobPtr, transferToBobPtr)
 	if err != nil {
 		return err
@@ -208,7 +212,17 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", transferToBob),
 	)
 
-	onePtr, err := argumentToSmartPtr(int64(1), mem)
+	onePtr, err := writeToMem(int64(1), mem)
+	if err != nil {
+		return err
+	}
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
+
+	alicePtr, err = writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
@@ -222,21 +236,27 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int64("to bob", 1),
 	)
 
-	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	alicePtr, err = writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("alice", result[0]),
-	)
+
+	// get balance alice
+	_, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	if err != nil {
+		return err
+	}
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	balance, err = rt.Meter().GetBalance()
 	if err != nil {
@@ -259,7 +279,7 @@ func (t *Token) Run(ctx context.Context) error {
 		},
 	}
 
-	mintersPtr, err := argumentToSmartPtr(minters, mem)
+	mintersPtr, err := writeToMem(minters, mem)
 	if err != nil {
 		return err
 	}
@@ -274,21 +294,27 @@ func (t *Token) Run(ctx context.Context) error {
 		zap.Int32("to bob", minters[1].Amount),
 	)
 
-	// get balance alice
-	result, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	alicePtr, err = writeToMem(alicePublicKey, mem)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance",
-		zap.Int64("alice", result[0]),
-	)
+
+	// get balance alice
+	_, err = rt.Call(ctx, "get_balance", programContext, alicePtr)
+	if err != nil {
+		return err
+	}
+
+	bobPtr, err = writeToMem(bobPublicKey, mem)
+	if err != nil {
+		return err
+	}
 
 	// get balance bob
-	result, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
+	_, err = rt.Call(ctx, "get_balance", programContext, bobPtr)
 	if err != nil {
 		return err
 	}
-	t.log.Debug("balance", zap.Int64("bob", result[0]))
 
 	return nil
 }
@@ -325,18 +351,15 @@ func (t *Token) RunShort(ctx context.Context) error {
 	)
 
 	// initialize program
-	resp, err := rt.Call(ctx, "init", program.Context{ProgramID: programID})
+	_, err = rt.Call(ctx, "init", &program.Context{ProgramID: programID})
 	if err != nil {
 		return fmt.Errorf("failed to initialize program: %w", err)
 	}
 
-	t.log.Debug("init response",
-		zap.Int64("init", resp[0]),
-	)
 	return nil
 }
 
-func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, userPublicKey ed25519.PublicKey) (res int64, err error) {
+func (t *Token) GetUserBalanceFromState(ctx context.Context, programID ids.ID, userPublicKey ed25519.PublicKey) (res uint32, err error) {
 	key := storage.ProgramPrefixKey(programID[:], append([]byte{uint8(Balance)}, userPublicKey[:]...))
 	b, err := t.db.GetValue(ctx, key)
 	if err != nil {

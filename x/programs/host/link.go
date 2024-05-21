@@ -42,7 +42,7 @@ type Link struct {
 
 // Instantiate registers a module with all imports defined in this linker.
 // This can only be called once after all imports have been registered.
-func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback, callContext program.Context) (*wasmtime.Instance, error) {
+func (l *Link) Instantiate(store *engine.Store, mod *wasmtime.Module, cb ImportFnCallback, callContext *program.Context) (*wasmtime.Instance, error) {
 	l.cb = cb
 	if l.debugMode {
 		err := l.EnableWasi()
@@ -136,12 +136,12 @@ func (l *Link) RegisterImportWrapFn(module, name string, paramCount int, f func(
 	// TODO: support other types?
 	valType := make([]*wasmtime.ValType, paramCount)
 	for i := 0; i < paramCount; i++ {
-		valType[i] = wasmtime.NewValType(wasmtime.KindI64)
+		valType[i] = wasmtime.NewValType(wasmtime.KindI32)
 	}
 
 	funcType := wasmtime.NewFuncType(
 		valType,
-		[]*wasmtime.ValType{wasmtime.NewValType(wasmtime.KindI64)},
+		[]*wasmtime.ValType{wasmtime.NewValType(wasmtime.KindI32)},
 	)
 
 	return l.wasmLink.FuncNew(module, name, funcType, fn)

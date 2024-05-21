@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "x/programs/cmd/simulator",
-    "x/programs/rust/sdk_macros",
+    "x/programs/rust/sdk-macros",
     "x/programs/rust/wasmlanche-sdk",
     "x/programs/rust/examples/token",
     "x/programs/rust/examples/counter",
@@ -16,3 +16,7 @@ codegen-units = 1
 overflow-checks = true
 panic = 'abort'
 strip = true
+
+[workspace.dependencies]
+borsh = { version = "1.5.0", features = ["derive"] }
+thiserror = "1.0.60"

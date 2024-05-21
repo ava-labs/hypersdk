@@ -1,0 +1,310 @@
+name: HyperSDK CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mock-gen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - shell: bash
+        run: scripts/mock.gen.sh
+      - shell: bash
+        run: scripts/tests.clean.sh
+
+  go-mod-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - shell: bash
+        run: go mod tidy
+      - shell: bash
+        working-directory: ./examples/morpheusvm
+        run: go mod tidy
+      - shell: bash
+        working-directory: ./examples/tokenvm
+        run: go mod tidy
+      - shell: bash
+        run: git diff
+      - shell: bash
+        run: scripts/tests.clean.sh
+
+  hypersdk-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - name: Run static analysis tests
+        shell: bash
+        run: scripts/tests.lint.sh
+      - name: Run shellcheck
+        shell: bash
+        run: scripts/tests.shellcheck.sh
+
+  hypersdk-unit-tests:
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+      - name: Run unit tests
+        shell: bash
+        run: scripts/tests.unit.sh
+
+  hypersdk-tests:
+    runs-on: ubuntu-latest
+    needs: [mock-gen, go-mod-tidy, hypersdk-lint, hypersdk-unit-tests]
+    steps:
+      - name: Finished HyperSDK tests
+        run: echo "Finished HyperSDK tests"
+
+  # TokenVM
+  tokenvm-lint:
+    needs: [hypersdk-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
+      - name: Run static analysis tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/tests.lint.sh
+      - name: Build vm, cli, faucet, feed
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/build.sh
+
+  tokenvm-unit-tests:
+    needs: [hypersdk-tests]
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
+      - name: Run unit tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/tests.unit.sh
+      - name: Run integration tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/tests.integration.sh
+      # - name: Archive code coverage results (text)
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: code-coverage-out
+      #     path: ./examples/tokenvm/integration.coverage.out
+      # - name: Archive code coverage results (html)
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: code-coverage-html
+      #     path: ./examples/tokenvm/integration.coverage.html
+      - name: Run e2e tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/run.sh
+        env:
+          MODE: 'test'
+
+  tokenvm-load-tests:
+    needs: [tokenvm-unit-tests]
+    strategy:
+      matrix:
+        level: [v1, v2, v3] # v4 is not supported
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
+      - name: Run load tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
+
+  tokenvm-sync-tests:
+    needs: [tokenvm-unit-tests]
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/tokenvm/go.sum
+      - name: Run sync tests
+        working-directory: ./examples/tokenvm
+        shell: bash
+        run: scripts/run.sh
+        env:
+          MODE: 'full-test'
+
+  token-wallet-release:
+    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    runs-on: macos-latest-xl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/token-wallet-release
+
+  tokenvm-release:
+    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/vm-release
+        with:
+          vm-name: tokenvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # MorpheusVM
+  morpheusvm-lint:
+    needs: [hypersdk-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/morpheusvm/go.sum
+      - name: Run static analysis tests
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: scripts/tests.lint.sh
+      - name: Build vm, cli
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: scripts/build.sh
+
+  morpheusvm-unit-tests:
+    needs: [hypersdk-tests]
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/morpheusvm/go.sum
+      - name: Run unit tests
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: scripts/tests.unit.sh
+      - name: Run integration tests
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: scripts/tests.integration.sh
+      # - name: Archive code coverage results (text)
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: code-coverage-out
+      #     path: ./examples/morpheusvm/integration.coverage.out
+      # - name: Archive code coverage results (html)
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: code-coverage-html
+      #     path: ./examples/morpheusvm/integration.coverage.html
+      - name: Run e2e tests
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: scripts/run.sh
+        env:
+          MODE: 'test'
+
+  morpheusvm-load-tests:
+    needs: [morpheusvm-unit-tests]
+    strategy:
+      matrix:
+        level: [v1, v2, v3] # v4 is not supported
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/morpheusvm/go.sum
+      - name: Run load tests
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
+
+  morpheusvm-sync-tests:
+    needs: [morpheusvm-unit-tests]
+    runs-on: ubuntu-20.04-32
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: ./.github/actions/install-go
+        with:
+          cache-dependency-path: |
+            go.sum
+            examples/morpheusvm/go.sum
+      - name: Run sync tests
+        working-directory: ./examples/morpheusvm
+        shell: bash
+        run: scripts/run.sh
+        env:
+          MODE: 'full-test'
+
+  morpheusvm-release:
+    needs: [morpheusvm-load-tests, morpheusvm-sync-tests]
+    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
+    runs-on: ubuntu-20.04-32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/vm-release
+        with:
+          vm-name: morpheusvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -2,8 +2,8 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{Context, HostPtr, Program};
-use wasmtime::{Instance, Module, Store, TypedFunc};
+use wasmlanche_sdk::{types::Address, Context, Program};
+use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const TEST_PKG: &str = "test-crate";
@@ -46,49 +46,68 @@ fn public_functions() {
 
     let mut test_crate = TestCrate::new(wasm_path);
 
-    let context_ptr = {
-        let program_id: [u8; Program::LEN] = std::array::from_fn(|_| 1);
-        // this is a hack to create a program since the constructor is private
-        let program: Program =
-            borsh::from_slice(&program_id).expect("the program should deserialize");
-        let context = Context { program };
-        let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
-
-        test_crate.allocate(serialized_context)
-    };
-
+    let context_ptr = test_crate.write_context();
     assert!(test_crate.always_true(context_ptr));
 
+    let context_ptr = test_crate.write_context();
     let combined_binary_digits = test_crate.combine_last_bit_of_each_id_byte(context_ptr);
     assert_eq!(combined_binary_digits, u32::MAX);
 }
 
 type AllocParam = i32;
-type AllocReturn = i32;
+type AllocReturn = u32;
+type AllocFn = TypedFunc<AllocParam, AllocReturn>;
+type UserDefinedFnParam = u32;
+type UserDefinedFnReturn = ();
+type UserDefinedFn = TypedFunc<UserDefinedFnParam, UserDefinedFnReturn>;
+type StoreData = Option<Vec<u8>>;
 
 struct TestCrate {
-    store: Store<()>,
+    store: Store<StoreData>,
     instance: Instance,
-    allocate_func: TypedFunc<AllocParam, AllocReturn>,
-    always_true_func: TypedFunc<HostPtr, i64>,
-    combine_last_bit_of_each_id_byte_func: TypedFunc<HostPtr, u32>,
+    allocate_func: AllocFn,
+    always_true_func: UserDefinedFn,
+    combine_last_bit_of_each_id_byte_func: UserDefinedFn,
 }
 
 impl TestCrate {
     fn new(wasm_path: impl AsRef<Path>) -> Self {
-        let mut store: Store<()> = Store::default();
+        let mut store: Store<StoreData> = Store::default();
         let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
-        let instance = Instance::new(&mut store, &module, &[]).expect("failed to instantiate wasm");
+
+        let set_result_fn = Func::wrap(
+            &mut store,
+            |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
+                let Extern::Memory(memory) = caller
+                    .get_export("memory")
+                    .expect("memory should be exported")
+                else {
+                    panic!("export `memory` should be of type `Memory`");
+                };
+
+                let (ptr, len) = (ptr as usize, len as usize);
+
+                let result = memory
+                    .data(&mut caller)
+                    .get(ptr..ptr + len)
+                    .expect("data should exist");
+
+                *caller.data_mut() = Some(result.to_vec());
+            },
+        );
+
+        let instance = Instance::new(&mut store, &module, &[set_result_fn.into()])
+            .expect("failed to instantiate wasm");
 
         let allocate_func = instance
-            .get_typed_func::<AllocParam, AllocReturn>(&mut store, "alloc")
+            .get_typed_func(&mut store, "alloc")
             .expect("failed to find `alloc` function");
 
         let always_true_func = instance
-            .get_typed_func::<i64, i64>(&mut store, "always_true_guest")
+            .get_typed_func(&mut store, "always_true_guest")
             .expect("failed to find `always_true` function");
         let combine_last_bit_of_each_id_byte_func = instance
-            .get_typed_func::<i64, u32>(&mut store, "combine_last_bit_of_each_id_byte_guest")
+            .get_typed_func(&mut store, "combine_last_bit_of_each_id_byte_guest")
             .expect("combine_last_bit_of_each_id_byte should be a function");
 
         Self {
@@ -100,7 +119,19 @@ impl TestCrate {
         }
     }
 
-    fn allocate(&mut self, data: Vec<u8>) -> HostPtr {
+    fn write_context(&mut self) -> AllocReturn {
+        let program_id: [u8; Program::LEN] = std::array::from_fn(|_| 1);
+        // this is a hack to create a program since the constructor is private
+        let program: Program =
+            borsh::from_slice(&program_id).expect("the program should deserialize");
+        let actor = Address::new(Default::default());
+        let context = Context { program, actor };
+        let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
+
+        self.allocate(serialized_context)
+    }
+
+    fn allocate(&mut self, data: Vec<u8>) -> AllocReturn {
         let offset = self
             .allocate_func
             .call(&mut self.store, data.len() as i32)
@@ -114,19 +145,31 @@ impl TestCrate {
             .write(&mut self.store, offset as usize, &data)
             .expect("failed to write data to memory");
 
-        ((data.len() as HostPtr) << 32) | offset as HostPtr
+        offset
     }
 
-    fn always_true(&mut self, ptr: HostPtr) -> bool {
+    fn always_true(&mut self, ptr: UserDefinedFnParam) -> bool {
         self.always_true_func
             .call(&mut self.store, ptr)
-            .expect("failed to call `always_true` function")
-            == true as i64
+            .expect("failed to call `always_true` function");
+        let result = self
+            .store
+            .data_mut()
+            .take()
+            .expect("always_true should always return something");
+
+        borsh::from_slice(&result).expect("failed to deserialize result")
     }
 
-    fn combine_last_bit_of_each_id_byte(&mut self, ptr: HostPtr) -> u32 {
+    fn combine_last_bit_of_each_id_byte(&mut self, ptr: UserDefinedFnParam) -> u32 {
         self.combine_last_bit_of_each_id_byte_func
             .call(&mut self.store, ptr)
-            .expect("failed to call `combine_last_bit_of_each_id_byte` function")
+            .expect("failed to call `combine_last_bit_of_each_id_byte` function");
+        let result = self
+            .store
+            .data_mut()
+            .take()
+            .expect("combine_last_bit_of_each_id_byte should always return something");
+        borsh::from_slice(&result).expect("failed to deserialize result")
     }
 }
