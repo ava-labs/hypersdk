@@ -23,7 +23,6 @@ const (
 
 type Address [AddressLen]byte
 
-// Empty is a useful all zero value
 var EmptyAddress = Address{}
 
 // CreateAddress returns [Address] made from concatenating
