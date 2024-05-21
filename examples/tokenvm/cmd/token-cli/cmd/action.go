@@ -7,6 +7,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -47,7 +48,7 @@ var fundFaucetCmd = &cobra.Command{
 		}
 
 		// Get balance
-		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, codec.Empty, true)
+		_, decimals, balance, _, err := handler.GetAssetInfo(ctx, tcli, priv.Address, ids.Empty, true)
 		if balance == 0 || err != nil {
 			return err
 		}
@@ -71,7 +72,7 @@ var fundFaucetCmd = &cobra.Command{
 		}
 		if err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    addr,
-			Asset: codec.Empty,
+			Asset: ids.Empty,
 			Value: amount,
 		}}, cli, scli, tcli, factory, true); err != nil {
 			return err
@@ -245,7 +246,7 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Select inbound token
-		orderID, err := handler.Root().PromptLID("orderID")
+		orderID, err := handler.Root().PromptID("orderID")
 		if err != nil {
 			return err
 		}
@@ -289,7 +290,7 @@ var createOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if inAssetID != codec.Empty {
+		if inAssetID != ids.Empty {
 			if !exists {
 				hutils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
 				hutils.Outf("{{red}}exiting...{{/}}\n")
