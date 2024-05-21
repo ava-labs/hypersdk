@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -25,7 +26,7 @@ func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
-func (*CreateAsset) StateKeys(_ codec.Address, actionID codec.LID) state.Keys {
+func (*CreateAsset) StateKeys(_ codec.Address, actionID ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.AssetKey(actionID)): state.Allocate | state.Write,
 	}
@@ -41,7 +42,7 @@ func (c *CreateAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID codec.LID,
+	actionID ids.ID,
 ) (uint64, [][]byte, error) {
 	if len(c.Symbol) == 0 {
 		return CreateAssetComputeUnits, nil, ErrOutputSymbolEmpty

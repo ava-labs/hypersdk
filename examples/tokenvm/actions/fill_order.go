@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -19,7 +20,7 @@ var _ chain.Action = (*FillOrder)(nil)
 
 type FillOrder struct {
 	// [Order] is the OrderID you wish to close.
-	Order codec.LID `json:"order"`
+	Order ids.ID `json:"order"`
 
 	// [Owner] is the owner of the order and the recipient of the trade
 	// proceeds.
@@ -27,11 +28,11 @@ type FillOrder struct {
 
 	// [In] is the asset that will be sent to the owner from the fill. We need to provide this to
 	// populate [StateKeys].
-	In codec.LID `json:"in"`
+	In ids.ID `json:"in"`
 
 	// [Out] is the asset that will be received from the fill. We need to provide this to
 	// populate [StateKeys].
-	Out codec.LID `json:"out"`
+	Out ids.ID `json:"out"`
 
 	// [Value] is the max amount of [In] that will be swapped for [Out].
 	Value uint64 `json:"value"`
@@ -41,7 +42,7 @@ func (*FillOrder) GetTypeID() uint8 {
 	return fillOrderID
 }
 
-func (f *FillOrder) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
+func (f *FillOrder) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.OrderKey(f.Order)):         state.Read | state.Write,
 		string(storage.BalanceKey(f.Owner, f.In)): state.All,
@@ -60,7 +61,7 @@ func (f *FillOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.LID,
+	_ ids.ID,
 ) (uint64, [][]byte, error) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
@@ -152,23 +153,23 @@ func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*FillOrder) Size() int {
-	return codec.LIDLen*3 + codec.AddressLen + consts.Uint64Len
+	return ids.IDLen*3 + codec.AddressLen + consts.Uint64Len
 }
 
 func (f *FillOrder) Marshal(p *codec.Packer) {
-	p.PackLID(f.Order)
-	p.PackLID(f.Owner)
-	p.PackLID(f.In)
-	p.PackLID(f.Out)
+	p.PackID(f.Order)
+	p.PackAddress(f.Owner)
+	p.PackID(f.In)
+	p.PackID(f.Out)
 	p.PackUint64(f.Value)
 }
 
 func UnmarshalFillOrder(p *codec.Packer) (chain.Action, error) {
 	var fill FillOrder
-	p.UnpackLID(true, &fill.Order)
-	p.UnpackLID(true, &fill.Owner)
-	p.UnpackLID(false, &fill.In)  // empty ID is the native asset
-	p.UnpackLID(false, &fill.Out) // empty ID is the native asset
+	p.UnpackID(true, &fill.Order)
+	p.UnpackAddress(&fill.Owner)
+	p.UnpackID(false, &fill.In)  // empty ID is the native asset
+	p.UnpackID(false, &fill.Out) // empty ID is the native asset
 	fill.Value = p.UnpackUint64(true)
 	return &fill, p.Err()
 }

@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -20,7 +21,7 @@ type Transfer struct {
 	To codec.Address `json:"to"`
 
 	// Asset to transfer to [To].
-	Asset codec.LID `json:"asset"`
+	Asset ids.ID `json:"asset"`
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
@@ -33,7 +34,7 @@ func (*Transfer) GetTypeID() uint8 {
 	return transferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, t.Asset)): state.Read | state.Write,
 		string(storage.BalanceKey(t.To, t.Asset)):  state.All,
@@ -50,7 +51,7 @@ func (t *Transfer) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.LID,
+	_ ids.ID,
 ) (uint64, [][]byte, error) {
 	if t.Value == 0 {
 		return TransferComputeUnits, nil, ErrOutputValueZero
@@ -73,20 +74,20 @@ func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *Transfer) Size() int {
-	return codec.AddressLen + codec.LIDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+	return codec.AddressLen + ids.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackLID(t.To)
-	p.PackLID(t.Asset)
+	p.PackAddress(t.To)
+	p.PackID(t.Asset)
 	p.PackUint64(t.Value)
 	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackLID(true, &transfer.To)
-	p.UnpackLID(false, &transfer.Asset) // empty ID is the native asset
+	p.UnpackAddress(&transfer.To)
+	p.UnpackID(false, &transfer.Asset) // empty ID is the native asset
 	transfer.Value = p.UnpackUint64(true)
 	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
 	return &transfer, p.Err()
