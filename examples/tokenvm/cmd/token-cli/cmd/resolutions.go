@@ -61,7 +61,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 	actor := tx.Auth.Actor()
 	if !result.Success {
 		utils.Outf(
-			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
+			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}error:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"❌",
 			tx.ID(),
 			codec.MustAddressBech32(tconsts.HRP, actor),
