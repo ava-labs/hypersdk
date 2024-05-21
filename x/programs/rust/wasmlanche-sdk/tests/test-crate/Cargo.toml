@@ -7,5 +7,5 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasmlanche-sdk = { path = "../../" }
+wasmlanche-sdk = { workspace = true }
 borsh = { workspace = true }

@@ -14,4 +14,4 @@ syn = { version = "2.0.63", features = ["full", "extra-traits"] }
 [dev-dependencies]
 borsh = { workpsace = true }
 trybuild = "1.0.96"
-wasmlanche-sdk = { path = "../wasmlanche-sdk" }
+wasmlanche-sdk = { workspace = true }
