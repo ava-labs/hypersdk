@@ -62,7 +62,7 @@ func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) erro
 }
 
 type AssetArgs struct {
-	Asset codec.LID `json:"asset"`
+	Asset ids.ID `json:"asset"`
 }
 
 type AssetReply struct {
@@ -93,8 +93,8 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 }
 
 type BalanceArgs struct {
-	Address string    `json:"address"`
-	Asset   codec.LID `json:"asset"`
+	Address string `json:"address"`
+	Asset   ids.ID `json:"asset"`
 }
 
 type BalanceReply struct {
@@ -134,7 +134,7 @@ func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *Order
 }
 
 type GetOrderArgs struct {
-	OrderID codec.LID `json:"orderID"`
+	OrderID ids.ID `json:"orderID"`
 }
 
 type GetOrderReply struct {
@@ -165,8 +165,8 @@ func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *G
 }
 
 type LoanArgs struct {
-	Destination ids.ID    `json:"destination"`
-	Asset       codec.LID `json:"asset"`
+	Destination ids.ID `json:"destination"`
+	Asset       ids.ID `json:"asset"`
 }
 
 type LoanReply struct {
