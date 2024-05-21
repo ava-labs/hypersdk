@@ -11,8 +11,13 @@ import (
 	"github.com/near/borsh-go"
 )
 
+const (
+	callProgramCost = 10000
+	setResultCost   = 10000
+)
+
 type callProgramInput struct {
-	ProgramID    []byte
+	ProgramID    ids.ID
 	FunctionName string
 	Params       []byte
 	Fuel         uint64
@@ -20,9 +25,9 @@ type callProgramInput struct {
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
-		name: "program",
-		funcs: map[string]HostFunction{
-			"call_program": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+		Name: "program",
+		HostFunctions: map[string]HostFunction{
+			"call_program": {FuelCost: callProgramCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
@@ -34,7 +39,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					return nil, errors.New("remaining fuel is less than requested fuel")
 				}
 
-				newInfo.ProgramID = ids.ID(parsedInput.ProgramID)
+				newInfo.ProgramID = parsedInput.ProgramID
 				newInfo.FunctionName = parsedInput.FunctionName
 				newInfo.Params = parsedInput.Params
 				newInfo.Fuel = parsedInput.Fuel
@@ -53,11 +58,11 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				return result, nil
-			}),
-			"set_call_result": FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			})},
+			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				callInfo.inst.result = input
 				return nil
-			}),
+			})},
 		},
 	}
 }
