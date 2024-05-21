@@ -6,6 +6,7 @@ package actions
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -28,7 +29,7 @@ func (*Transfer) GetTypeID() uint8 {
 	return mconsts.TransferID
 }
 
-func (t *Transfer) StateKeys(actor codec.Address, _ codec.LID) state.Keys {
+func (t *Transfer) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor)): state.Read | state.Write,
 		string(storage.BalanceKey(t.To)):  state.All,
@@ -45,7 +46,7 @@ func (t *Transfer) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	_ codec.LID,
+	_ ids.ID,
 ) (uint64, [][]byte, error) {
 	if t.Value == 0 {
 		return 1, nil, ErrOutputValueZero
@@ -68,13 +69,13 @@ func (*Transfer) Size() int {
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackLID(t.To)
+	p.PackAddress(t.To)
 	p.PackUint64(t.Value)
 }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackLID(true, &transfer.To) // we do not verify the typeID is valid
+	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
 	if err := p.Err(); err != nil {
 		return nil, err
