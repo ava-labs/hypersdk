@@ -12,7 +12,7 @@ import (
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/x/programs/v2/test"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestImportProgramCallProgram(t *testing.T) {

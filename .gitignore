@@ -70,6 +70,6 @@ Cargo.lock
 **/*.rs.bk
 
 x/programs/cmd/simulator/simulator
-x/programs/v2/debug
-x/programs/v2/wasm32-unknown-unknown
-x/programs/v2/.rustc_info.json
+x/programs/runtime/debug
+x/programs/runtime/wasm32-unknown-unknown
+x/programs/runtime/.rustc_info.json
