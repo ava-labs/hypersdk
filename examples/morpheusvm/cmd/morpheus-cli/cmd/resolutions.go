@@ -62,11 +62,11 @@ func handleTx(tx *chain.Transaction, result *chain.Result) {
 	actor := tx.Auth.Actor()
 	if !result.Success {
 		utils.Outf(
-			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
+			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}error:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"❌",
 			tx.ID(),
 			codec.MustAddressBech32(consts.HRP, actor),
-			string(result.Error), // revert error
+			result.Error,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, consts.Decimals),
 			consts.Symbol,

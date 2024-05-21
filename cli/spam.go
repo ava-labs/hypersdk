@@ -186,7 +186,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Outputs)
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
 		}
 	}
 	var recipientFunc func() (*PrivateKey, error)
@@ -446,7 +446,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Outputs)
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
 		}
 	}
 	utils.Outf(

@@ -78,7 +78,7 @@ func Default() *Genesis {
 
 		// Tx Parameters
 		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
-		MaxActionsPerTx:     1,
+		MaxActionsPerTx:     16,
 		MaxOutputsPerAction: 1,
 
 		// Tx Fee Compute Parameters

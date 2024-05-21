@@ -61,11 +61,11 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 	actor := tx.Auth.Actor()
 	if !result.Success {
 		utils.Outf(
-			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}summary:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
+			"%s {{yellow}}%s{{/}} {{yellow}}actor:{{/}} %s {{yellow}}error:{{/}} [%s] {{yellow}}fee (max %.2f%%):{{/}} %s %s {{yellow}}consumed:{{/}} [%s]\n",
 			"❌",
 			tx.ID(),
 			codec.MustAddressBech32(tconsts.HRP, actor),
-			string(result.Error),
+			result.Error,
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, tconsts.Decimals),
 			tconsts.Symbol,
@@ -75,11 +75,11 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 	}
 
 	for i, act := range tx.Actions {
-		assetID := chain.CreateActionID(tx.ID(), uint8(i))
+		actionID := chain.CreateActionID(tx.ID(), uint8(i))
 		var summaryStr string
 		switch action := act.(type) {
 		case *actions.CreateAsset:
-			summaryStr = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", assetID, action.Symbol, action.Decimals, action.Metadata)
+			summaryStr = fmt.Sprintf("assetID: %s symbol: %s decimals: %d metadata: %s", actionID, action.Symbol, action.Decimals, action.Metadata)
 		case *actions.MintAsset:
 			_, symbol, decimals, _, _, _, err := c.Asset(context.TODO(), action.Asset, true)
 			if err != nil {

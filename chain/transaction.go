@@ -111,22 +111,16 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 
 	// Verify the formatting of state keys passed by the controller
 	for i, action := range t.Actions {
-		actionKeys := action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
-		for k, v := range actionKeys {
-			if !keys.Valid(k) {
+		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
+			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
-			// [Add] will take the union of key permissions
-			stateKeys.Add(k, v)
 		}
 	}
-	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	for k, v := range sponsorKeys {
-		if !keys.Valid(k) {
+	for k, v := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
+		if !stateKeys.Add(k, v) {
 			return nil, ErrInvalidKeyValue
 		}
-		// [Add] will take the union of key permissions
-		stateKeys.Add(k, v)
 	}
 
 	// Cache keys if called again
@@ -378,7 +372,6 @@ func (t *Transaction) Execute(
 		// so we don't need to check for pre-existing values.
 		maxChunks, ok := keys.MaxChunks([]byte(key))
 		if !ok {
-			// TODO: is this already checked in parse?
 			return handleRevert(ErrInvalidKeyValue)
 		}
 		writes[key] = maxChunks
@@ -416,9 +409,6 @@ func (t *Transaction) Execute(
 		return handleRevert(err)
 	}
 	used := fees.Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
-	if err != nil {
-		return handleRevert(err)
-	}
 
 	// Check to see if the units consumed are greater than the max units
 	//

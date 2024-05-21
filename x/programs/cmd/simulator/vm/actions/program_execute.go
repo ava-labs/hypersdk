@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -55,7 +56,7 @@ func (t *ProgramExecute) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	actionID ids.ID,
+	_ ids.ID,
 ) (computeUnits uint64, output [][]byte, err error) {
 	if len(t.Function) == 0 {
 		return 1, nil, ErrOutputValueZero
@@ -64,7 +65,13 @@ func (t *ProgramExecute) Execute(
 		return 1, nil, ErrOutputValueZero
 	}
 
-	programBytes, _, err := storage.GetProgram(ctx, mu, actionID)
+	programID, ok := t.Params[0].Value.(ids.ID)
+	if !ok {
+		return 1, nil, fmt.Errorf("invalid call param: must be ID")
+	}
+
+	// TODO: take fee out of balance?
+	programBytes, _, err := storage.GetProgram(ctx, mu, programID)
 	if err != nil {
 		return 1, nil, err
 	}
@@ -89,7 +96,7 @@ func (t *ProgramExecute) Execute(
 		return pstate.New(logging.NoLog{}, mu)
 	})
 	callContext := program.Context{
-		ProgramID: actionID,
+		ProgramID: programID,
 		// Actor:            [32]byte(actor[1:]),
 		// OriginatingActor: [32]byte(actor[1:])
 	}
