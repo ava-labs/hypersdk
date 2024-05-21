@@ -5,122 +5,91 @@ package runtime
 
 import (
 	"context"
-	"sync"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
-
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 )
 
-var _ Runtime = &WasmRuntime{}
-
-// New returns a new wasm runtime.
-func New(
-	log logging.Logger,
-	engine *engine.Engine,
-	imports host.SupportedImports,
-	cfg *Config,
-) Runtime {
-	return &WasmRuntime{
-		log:     log,
-		engine:  engine,
-		imports: imports,
-		cfg:     cfg,
-	}
-}
-
 type WasmRuntime struct {
-	engine  *engine.Engine
-	meter   *engine.Meter
-	inst    program.Instance
-	imports host.SupportedImports
-	cfg     *Config
-
-	once     sync.Once
-	cancelFn context.CancelFunc
-
-	log logging.Logger
+	log           logging.Logger
+	engine        *wasmtime.Engine
+	hostImports   *Imports
+	cfg           *Config
+	programs      map[ids.ID]*Program
+	programLoader ProgramLoader
 }
 
-func (r *WasmRuntime) Initialize(ctx context.Context, callContext *program.Context, programBytes []byte, maxUnits uint64) (err error) {
-	ctx, r.cancelFn = context.WithCancel(ctx)
-	go func(ctx context.Context) {
-		<-ctx.Done()
-		// send immediate interrupt to engine
-		r.Stop()
-	}(ctx)
+type ProgramLoader interface {
+	GetProgramBytes(programID ids.ID) ([]byte, error)
+}
 
-	// create store
-	cfg := engine.NewStoreConfig()
-	cfg.SetLimitMaxMemory(r.cfg.LimitMaxMemory)
-	store := engine.NewStore(r.engine, cfg)
-
-	// enable wasi logging support only in debug mode
-	if r.cfg.EnableDebugMode {
-		wasiConfig := wasmtime.NewWasiConfig()
-		wasiConfig.InheritStderr()
-		wasiConfig.InheritStdout()
-		store.SetWasi(wasiConfig)
+func NewRuntime(
+	cfg *Config,
+	log logging.Logger,
+	loader ProgramLoader,
+) *WasmRuntime {
+	runtime := &WasmRuntime{
+		log:           log,
+		cfg:           cfg,
+		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
+		hostImports:   NewImports(),
+		programs:      map[ids.ID]*Program{},
+		programLoader: loader,
 	}
 
-	// add metered units to the store
-	err = store.AddUnits(maxUnits)
+	runtime.AddImportModule(NewLogModule())
+	runtime.AddImportModule(NewStateAccessModule())
+	runtime.AddImportModule(NewProgramModule(runtime))
+
+	return runtime
+}
+
+func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
+	r.hostImports.AddModule(mod)
+}
+
+func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
+	programModule, err := newProgram(r.engine, programID, bytes)
 	if err != nil {
 		return err
 	}
-
-	// setup metering
-	r.meter, err = engine.NewMeter(store)
-	if err != nil {
-		return err
-	}
-
-	// create module
-	mod, err := engine.NewModule(r.engine, programBytes, r.cfg.CompileStrategy)
-	if err != nil {
-		return err
-	}
-
-	// create linker
-	link := host.NewLink(r.log, store.GetEngine(), r.imports, r.meter, r.cfg.EnableDebugMode)
-
-	// instantiate the module with all of the imports defined by the linker
-	inst, err := link.Instantiate(store, mod, r.cfg.ImportFnCallback, callContext)
-	if err != nil {
-		return err
-	}
-
-	// set the instance
-	r.inst = NewInstance(store, inst)
-
+	r.programs[programID] = programModule
 	return nil
 }
 
-func (r *WasmRuntime) Call(_ context.Context, name string, context *program.Context, params ...uint32) ([]byte, error) {
-	fn, err := r.inst.GetFunc(name)
+func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
+	program, ok := r.programs[callInfo.ProgramID]
+	if !ok {
+		bytes, err := r.programLoader.GetProgramBytes(callInfo.ProgramID)
+		if err != nil {
+			return nil, err
+		}
+		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
+		if err != nil {
+			return nil, err
+		}
+		r.programs[callInfo.ProgramID] = program
+	}
+	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
 		return nil, err
 	}
-
-	return fn.Call(context, params...)
+	callInfo.inst = inst
+	callInfo.FunctionName += "_guest"
+	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) Memory() (*program.Memory, error) {
-	return r.inst.Memory()
-}
-
-func (r *WasmRuntime) Meter() *engine.Meter {
-	return r.meter
-}
-
-func (r *WasmRuntime) Stop() {
-	r.once.Do(func() {
-		r.log.Debug("shutting down runtime engine...")
-		// send immediate interrupt to engine and all children stores.
-		r.engine.Stop()
-		r.cancelFn()
-	})
+func (r *WasmRuntime) getInstance(callInfo *CallInfo, program *Program, imports *Imports) (*ProgramInstance, error) {
+	linker, err := imports.createLinker(r.engine, callInfo)
+	if err != nil {
+		return nil, err
+	}
+	store := wasmtime.NewStore(r.engine)
+	store.SetEpochDeadline(1)
+	inst, err := linker.Instantiate(store, program.module)
+	if err != nil {
+		return nil, err
+	}
+	return &ProgramInstance{inst: inst, store: store}, nil
 }
