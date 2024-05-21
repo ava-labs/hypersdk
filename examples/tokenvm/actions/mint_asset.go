@@ -7,13 +7,14 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ chain.Action = (*MintAsset)(nil)

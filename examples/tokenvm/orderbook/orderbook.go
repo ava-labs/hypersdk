@@ -7,11 +7,12 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/heap"
-	"go.uber.org/zap"
 )
 
 const allPairs = "*"

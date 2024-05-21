@@ -6,10 +6,11 @@ package cmd
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/spf13/cobra"
 )
 
 var actionCmd = &cobra.Command{

@@ -8,16 +8,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	hutils "github.com/ava-labs/hypersdk/utils"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+
+	hutils "github.com/ava-labs/hypersdk/utils"
 )
 
 func newProgramCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {

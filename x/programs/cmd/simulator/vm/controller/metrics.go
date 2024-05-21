@@ -4,11 +4,12 @@
 package controller
 
 import (
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
+
+	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 )
 
 type metrics struct {
