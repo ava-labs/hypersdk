@@ -143,7 +143,7 @@ func programExecuteFunc(
 	maxUnits uint64,
 ) (ids.ID, []int64, uint64, error) {
 	// simulate create program transaction
-	programActionID, err := generateRandomID()
+	actionID, err := generateRandomID()
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
@@ -156,7 +156,7 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	_, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programActionID)
+	_, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, actionID)
 	if err != nil {
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %w", err)
 	}
@@ -178,5 +178,5 @@ func programExecuteFunc(
 
 	// get remaining balance from runtime meter
 	balance, err := programExecuteAction.GetBalance()
-	return programActionID, result, balance, err
+	return actionID, result, balance, err
 }
