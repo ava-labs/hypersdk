@@ -52,11 +52,11 @@ func (t *Transaction) Digest() ([]byte, error) {
 	}
 	size := t.Base.Size()
 	for _, action := range t.Actions {
-		size += consts.ByteLen + action.Size()
+		size += consts.Uint8Len + consts.ByteLen + action.Size()
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
-	p.PackInt(len(t.Actions))
+	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
 		action.Marshal(p)
@@ -111,7 +111,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 
 	// Verify the formatting of state keys passed by the controller
 	for i, action := range t.Actions {
-		actionKeys := action.StateKeys(t.Auth.Actor(), codec.CreateLID(uint8(i), t.id))
+		actionKeys := action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		for k, v := range actionKeys {
 			if !keys.Valid(k) {
 				return nil, ErrInvalidKeyValue
@@ -125,6 +125,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 		if !keys.Valid(k) {
 			return nil, ErrInvalidKeyValue
 		}
+		// [Add] will take the union of key permissions
 		stateKeys.Add(k, v)
 	}
 
@@ -152,8 +153,6 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 
 	// Calculate the max storage cost we could incur by processing all
 	// state keys.
-	//
-	// TODO: make this a tighter bound (allow for granular storage controls)
 	stateKeys, err := t.StateKeys(sm)
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -194,24 +193,31 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
 func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
-	authBandwidth, authCompute := authFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + consts.ByteLen + authBandwidth
-	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	computeUnitsOp.Add(authCompute)
+	var (
+		bandwidth          = uint64(BaseSize)
+		stateKeysMaxChunks = []uint16{} // TODO: preallocate
+		computeOp          = math.NewUint64Operator(r.GetBaseComputeUnits())
+		readsOp            = math.NewUint64Operator(0)
+		allocatesOp        = math.NewUint64Operator(0)
+		writesOp           = math.NewUint64Operator(0)
+	)
 
-	stateKeysMaxChunks := []uint16{}
-	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
-	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
+	// Calculate over action/auth
+	bandwidth += consts.Uint8Len
 	for _, action := range actions {
-		bandwidth += uint64(action.Size())
+		bandwidth += consts.ByteLen + uint64(action.Size())
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
-
-		computeUnitsOp.Add(action.MaxComputeUnits(r))
+		computeOp.Add(action.MaxComputeUnits(r))
 	}
+	authBandwidth, authCompute := authFactory.MaxUnits()
+	bandwidth += consts.ByteLen + authBandwidth
+	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
+	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
+	computeOp.Add(authCompute)
 
 	// Estimate compute costs
-	computeUnits, err := computeUnitsOp.Value()
+	compute, err := computeOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
@@ -219,9 +225,6 @@ func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.
 	// Estimate storage costs
 	//
 	// TODO: unify this with [MaxUnits] handling
-	readsOp := math.NewUint64Operator(0)
-	allocatesOp := math.NewUint64Operator(0)
-	writesOp := math.NewUint64Operator(0)
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -245,7 +248,7 @@ func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
@@ -336,10 +339,8 @@ func (t *Transaction) Execute(
 		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
 	)
 	for i, action := range t.Actions {
-		actionID := codec.CreateLID(uint8(i), t.id)
-
 		// TODO: remove actionCUs return (VRYX)
-		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), actionID)
+		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
 			return handleRevert(err)
 		}
@@ -437,9 +438,8 @@ func (t *Transaction) Execute(
 	refund := maxFee - feeRequired
 	if refund > 0 {
 		ts.DisableAllocation()
-		err = s.Refund(ctx, t.Auth.Sponsor(), ts, refund)
-		ts.EnableAllocation()
-		if err != nil {
+		defer ts.EnableAllocation()
+		if err := s.Refund(ctx, t.Auth.Sponsor(), ts, refund); err != nil {
 			return handleRevert(err)
 		}
 	}
@@ -465,7 +465,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 
 func (t *Transaction) marshalActions(p *codec.Packer) error {
 	t.Base.Marshal(p)
-	p.PackInt(len(t.Actions))
+	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
@@ -567,16 +567,17 @@ func unmarshalActions(
 	p *codec.Packer,
 	actionRegistry *codec.TypeParser[Action, bool],
 ) ([]Action, error) {
-	actionCount := p.UnpackInt(true)
-	actions := make([]Action, 0)
-
-	for i := 0; i < actionCount; i++ {
+	actionCount := p.UnpackByte()
+	if actionCount == 0 {
+		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
+	}
+	actions := []Action{}
+	for i := uint8(0); i < actionCount; i++ {
 		actionType := p.UnpackByte()
 		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}
-
 		action, err := unmarshalAction(p)
 		if err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal action", err)

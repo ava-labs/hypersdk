@@ -99,7 +99,7 @@ func TestPackerAddress(t *testing.T) {
 	t.Run("Pack", func(t *testing.T) {
 		require := require.New(t)
 
-		wp.PackLID(addr)
+		wp.PackAddress(addr)
 		b := wp.Bytes()
 		require.NoError(wp.Err())
 		require.Len(b, AddressLen)
@@ -112,7 +112,7 @@ func TestPackerAddress(t *testing.T) {
 		rp := NewReader(wp.Bytes(), AddressLen)
 		require.Equal(wp.Bytes(), rp.Bytes())
 		var unpackedAddr Address
-		rp.UnpackLID(true, &unpackedAddr)
+		rp.UnpackAddress(&unpackedAddr)
 		require.Equal(addr[:], unpackedAddr[:])
 		require.NoError(rp.Err())
 	})
