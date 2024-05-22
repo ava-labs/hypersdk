@@ -230,6 +230,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		if err != nil {
 			return err
 		}
+		// TODO: collect from transactions directly?
 		consumed := fees.Dimensions{}
 		for _, result := range results {
 			nconsumed, err := fees.Add(consumed, result.Units)

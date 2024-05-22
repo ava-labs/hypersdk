@@ -63,7 +63,7 @@ func (b *StatelessBlock) Execute(
 		}
 		e.Run(stateKeys, func() error {
 			// Wait for stateKeys to be read from disk
-			reads, storage, err := f.Get(txID)
+			storage, err := f.Get(txID)
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func (b *StatelessBlock) Execute(
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}
