@@ -27,11 +27,6 @@ func (m *StateManager) Deduct(_ context.Context, _ codec.Address, _ state.Mutabl
 	panic("implement me")
 }
 
-func (m *StateManager) Refund(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (*StateManager) HeightKey() []byte {
 	return HeightKey()
 }
