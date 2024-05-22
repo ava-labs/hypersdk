@@ -14,9 +14,10 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
 
-	hconsts "github.com/ava-labs/hypersdk/consts"
+"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
+
+hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)

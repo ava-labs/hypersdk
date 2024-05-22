@@ -1,10 +1,8 @@
 [workspace]
 members = [
-    "x/programs/cmd/simulator",
+    "x/programs/cmd/simulator/rust",
     "x/programs/rust/sdk-macros",
     "x/programs/rust/wasmlanche-sdk",
-    "x/programs/rust/examples/token",
-    "x/programs/rust/examples/counter",
     "x/programs/rust/wasmlanche-sdk/tests/test-crate",
     "x/programs/test/programs/*",
 ]

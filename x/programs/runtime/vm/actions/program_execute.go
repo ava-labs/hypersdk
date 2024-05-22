@@ -5,8 +5,8 @@ package actions
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -16,17 +16,16 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/x/programs/v2/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ chain.Action = (*ProgramExecute)(nil)
 
 type ProgramExecute struct {
-	Function string      `json:"programFunction"`
-	MaxUnits uint64      `json:"maxUnits"`
-	Params   []CallParam `json:"params"`
+	ProgramID ids.ID `json:"programID"`
+	Function  string `json:"programFunction"`
+	MaxUnits  uint64 `json:"maxUnits"`
+	Params    []byte `json:"params"`
 
 	Log logging.Logger
 }
@@ -65,7 +64,7 @@ func (t *ProgramExecute) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	_ codec.Address,
+	actor codec.Address,
 	_ ids.ID,
 ) (success bool, computeUnits uint64, output []byte, err error) {
 	if len(t.Function) == 0 {
@@ -75,16 +74,6 @@ func (t *ProgramExecute) Execute(
 		return false, 1, OutputValueZero, nil
 	}
 
-	programID, ok := t.Params[0].Value.(ids.ID)
-	if !ok {
-		return false, 1, utils.ErrBytes(errors.New("invalid call param: must be ID")), nil
-	}
-
-	params, err := SerializeParams(t.Params[1:])
-	if err != nil {
-		return false, 0, []byte{}, err
-	}
-
 	cfg := runtime.NewConfig()
 	store := &ProgramStore{
 		Mutable: mu,
@@ -92,12 +81,12 @@ func (t *ProgramExecute) Execute(
 	rt := runtime.NewRuntime(cfg, t.Log, store)
 	callInfo := &runtime.CallInfo{
 		State:        mu,
-		Actor:        ids.Empty,
-		Account:      ids.Empty,
-		ProgramID:    programID,
+		Actor:        actor,
+		Account:      codec.EmptyAddress,
+		ProgramID:    t.ProgramID,
 		Fuel:         t.MaxUnits,
 		FunctionName: t.Function,
-		Params:       params,
+		Params:       t.Params,
 	}
 	output, err = rt.CallProgram(ctx, callInfo)
 	if err != nil {
@@ -133,34 +122,4 @@ func UnmarshalProgramExecute(_ *codec.Packer) (chain.Action, error) {
 func (*ProgramExecute) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-// CallParam defines a value to be passed to a guest function.
-type CallParam struct {
-	Value interface{} `json,yaml:"value"`
-}
-
-func SerializeParams(p []CallParam) ([]byte, error) {
-	var bytes []byte
-	for _, param := range p {
-		switch v := param.Value.(type) {
-		case []byte:
-			bytes = append(bytes, v...)
-		case ids.ID:
-			bytes = append(bytes, v[:]...)
-		case string:
-			bytes = append(bytes, []byte(v)...)
-		case uint64:
-			bs := make([]byte, 8)
-			binary.LittleEndian.PutUint64(bs, v)
-			bytes = append(bytes, bs...)
-		case uint32:
-			bs := make([]byte, 4)
-			binary.LittleEndian.PutUint32(bs, v)
-			bytes = append(bytes, bs...)
-		default:
-			return nil, errors.New("unsupported data type")
-		}
-	}
-	return bytes, nil
 }

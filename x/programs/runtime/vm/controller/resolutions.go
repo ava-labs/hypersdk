@@ -11,8 +11,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/genesis"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
 func (c *Controller) Genesis() *genesis.Genesis {

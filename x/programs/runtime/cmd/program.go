@@ -5,7 +5,10 @@ package simulator
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 	"os"
 	"time"
 
@@ -16,7 +19,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/actions"
 )
 
 var _ Cmd = (*programCreateCmd)(nil)
@@ -109,7 +111,8 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	callParams []actions.CallParam,
+	programID ids.ID,
+	callParams []Parameter,
 	function string,
 	maxUnits uint64,
 ) (ids.ID, []byte, uint64, error) {
@@ -119,11 +122,16 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
+	bytes, err := SerializeParams(callParams)
+	if err != nil {
+		return ids.Empty, nil, 0, err
+	}
 	programExecuteAction := actions.ProgramExecute{
-		Function: function,
-		Params:   callParams,
-		MaxUnits: maxUnits,
-		Log:      log,
+		ProgramID: programID,
+		Function:  function,
+		Params:    bytes,
+		MaxUnits:  maxUnits,
+		Log:       log,
 	}
 
 	// execute the action
@@ -145,4 +153,29 @@ func programExecuteFunc(
 	balance, err := programExecuteAction.GetBalance()
 
 	return programTxID, resp, balance, err
+}
+
+func SerializeParams(p []Parameter) ([]byte, error) {
+	var bytes []byte
+	for _, param := range p {
+		switch v := param.Value.(type) {
+		case []byte:
+			bytes = append(bytes, v...)
+		case ids.ID:
+			bytes = append(bytes, v[:]...)
+		case string:
+			bytes = append(bytes, []byte(v)...)
+		case uint64:
+			bs := make([]byte, 8)
+			binary.LittleEndian.PutUint64(bs, v)
+			bytes = append(bytes, bs...)
+		case uint32:
+			bs := make([]byte, 4)
+			binary.LittleEndian.PutUint32(bs, v)
+			bytes = append(bytes, bs...)
+		default:
+			return nil, errors.New("unsupported data type")
+		}
+	}
+	return bytes, nil
 }

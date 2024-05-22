@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/genesis"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
 )
 
 type Controller interface {

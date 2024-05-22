@@ -14,7 +14,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
 var _ Cmd = (*keyCreateCmd)(nil)

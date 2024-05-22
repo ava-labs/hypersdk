@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 	"math"
 	"os"
 	"strconv"
@@ -21,10 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/actions"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/v2/vm/utils"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -187,14 +185,8 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		zap.Any("params", step.Params),
 	)
 
-	params, err := c.createCallParams(ctx, db, step.Params)
-	if err != nil {
-		c.log.Error("simulation call", zap.Error(err))
-		return newResponse(0), err
-	}
-
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err := runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, step.Params, step.Require, resp)
 	if err != nil {
 		c.log.Error("simulation step err", zap.Error(err))
 		resp.setError(err)
@@ -219,7 +211,7 @@ func runStepFunc(
 	endpoint Endpoint,
 	maxUnits uint64,
 	method string,
-	params []actions.CallParam,
+	params []Parameter,
 	require *Require,
 	resp *Response,
 ) error {
@@ -249,7 +241,7 @@ func runStepFunc(
 
 			return nil
 		}
-		id, response, balance, err := programExecuteFunc(ctx, log, db, params, method, maxUnits)
+		id, response, balance, err := programExecuteFunc(ctx, log, db, params[0].Value.(ids.ID), params[1:], method, maxUnits)
 		if err != nil {
 			return err
 		}
@@ -267,7 +259,7 @@ func runStepFunc(
 		return nil
 	case EndpointReadOnly:
 		// TODO: implement readonly for now just don't charge for gas
-		_, response, _, err := programExecuteFunc(ctx, log, db, params, method, math.MaxUint64)
+		_, response, _, err := programExecuteFunc(ctx, log, db, params[0].Value.(ids.ID), params[1:], method, math.MaxUint64)
 		if err != nil {
 			return err
 		}
@@ -289,8 +281,8 @@ func runStepFunc(
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]actions.CallParam, error) {
-	cp := make([]actions.CallParam, 0, len(params))
+func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]Parameter, error) {
+	cp := make([]Parameter, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
 		case String, ID:
@@ -307,22 +299,18 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				if err != nil {
 					return nil, err
 				}
-				cp = append(cp, actions.CallParam{Value: programID})
+				cp = append(cp, Parameter{Value: programID, Type: param.Type})
 			} else {
 				programID, err := ids.FromString(stepIDStr)
 				if err == nil {
-					cp = append(cp, actions.CallParam{Value: programID})
+					cp = append(cp, Parameter{Value: programID, Type: param.Type})
 				} else {
 					// this is a path to the wasm program
-					cp = append(cp, actions.CallParam{Value: stepIDStr})
+					cp = append(cp, Parameter{Value: stepIDStr, Type: param.Type})
 				}
 			}
 		case Bool:
-			val, ok := param.Value.(bool)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			cp = append(cp, actions.CallParam{Value: boolToUint64(val)})
+			cp = append(cp, param)
 		case KeyEd25519: // TODO: support secp256k1
 			val, ok := param.Value.(string)
 			if !ok {
@@ -339,23 +327,23 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			if err != nil {
 				return nil, err
 			}
-			cp = append(cp, actions.CallParam{Value: key})
+			cp = append(cp, Parameter{Value: key, Type: param.Type})
 		case Uint64:
 			switch v := param.Value.(type) {
 			case float64:
 				// json unmarshal converts to float64
-				cp = append(cp, actions.CallParam{Value: uint64(v)})
+				cp = append(cp, Parameter{Value: uint64(v), Type: param.Type})
 			case int:
 				if v < 0 {
-					return nil, fmt.Errorf("%w: %s", program.ErrNegativeValue, param.Type)
+					return nil, fmt.Errorf("%w: %s", errors.New("negative value"), param.Type)
 				}
-				cp = append(cp, actions.CallParam{Value: uint64(v)})
+				cp = append(cp, Parameter{Value: uint64(v), Type: param.Type})
 			case string:
 				number, err := strconv.ParseUint(v, 10, 64)
 				if err != nil {
 					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 				}
-				cp = append(cp, actions.CallParam{Value: number})
+				cp = append(cp, Parameter{Value: number, Type: param.Type})
 			default:
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}

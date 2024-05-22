@@ -21,7 +21,7 @@ type WasmRuntime struct {
 }
 
 type ProgramLoader interface {
-	GetProgramBytes(programID ids.ID) ([]byte, error)
+	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
 }
 
 func NewRuntime(
@@ -61,7 +61,7 @@ func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
 	program, ok := r.programs[callInfo.ProgramID]
 	if !ok {
-		bytes, err := r.programLoader.GetProgramBytes(callInfo.ProgramID)
+		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.ProgramID)
 		if err != nil {
 			return nil, err
 		}
