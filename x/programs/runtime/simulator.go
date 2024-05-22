@@ -1,11 +1,12 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package simulator
+package main
 
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/cmd"
 	"os"
 )
 
@@ -23,5 +24,5 @@ func runSimulator() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	return (&Simulator{}).Execute(ctx)
+	return (&cmd.Simulator{}).Execute(ctx)
 }
