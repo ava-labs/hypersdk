@@ -45,10 +45,13 @@ func (*FillOrder) GetTypeID() uint8 {
 
 func (f *FillOrder) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
+		// We assume that both the [actor] and [owner] exist whenever
+		// this action is invoked. This allows us to avoid consuming
+		// any unnecessary allocation units.
 		string(storage.OrderKey(f.Order)):         state.Read | state.Write,
-		string(storage.BalanceKey(f.Owner, f.In)): state.All,
-		string(storage.BalanceKey(actor, f.In)):   state.All,
-		string(storage.BalanceKey(actor, f.Out)):  state.All,
+		string(storage.BalanceKey(f.Owner, f.In)): state.Read | state.Write,
+		string(storage.BalanceKey(actor, f.In)):   state.Read | state.Write,
+		string(storage.BalanceKey(actor, f.Out)):  state.Read | state.Write,
 	}
 }
 
@@ -63,39 +66,39 @@ func (f *FillOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if !exists {
-		return NoFillOrderComputeUnits, nil, ErrOutputOrderMissing
+		return nil, ErrOutputOrderMissing
 	}
 	if owner != f.Owner {
-		return NoFillOrderComputeUnits, nil, ErrOutputWrongOwner
+		return nil, ErrOutputWrongOwner
 	}
 	if in != f.In {
-		return NoFillOrderComputeUnits, nil, ErrOutputWrongIn
+		return nil, ErrOutputWrongIn
 	}
 	if out != f.Out {
-		return NoFillOrderComputeUnits, nil, ErrOutputWrongOut
+		return nil, ErrOutputWrongOut
 	}
 	if f.Value == 0 {
 		// This should be guarded via [Unmarshal] but we check anyways.
-		return NoFillOrderComputeUnits, nil, ErrOutputValueZero
+		return nil, ErrOutputValueZero
 	}
 	if f.Value%inTick != 0 {
-		return NoFillOrderComputeUnits, nil, ErrOutputValueMisaligned
+		return nil, ErrOutputValueMisaligned
 	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
 	outputAmount, err := smath.Mul64(outTick, f.Value/inTick)
 	if err != nil {
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if outputAmount == 0 {
 		// This should never happen because [f.Value] > 0
-		return NoFillOrderComputeUnits, nil, ErrOutputInsufficientOutput
+		return nil, ErrOutputInsufficientOutput
 	}
 	var (
 		inputAmount    = f.Value
@@ -121,35 +124,35 @@ func (f *FillOrder) Execute(
 	}
 	if inputAmount == 0 {
 		// Don't allow free trades (can happen due to refund rounding)
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if shouldDelete {
 		if err := storage.DeleteOrder(ctx, mu, f.Order); err != nil {
-			return NoFillOrderComputeUnits, nil, err
+			return nil, err
 		}
 	} else {
 		if err := storage.SetOrder(ctx, mu, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
-			return NoFillOrderComputeUnits, nil, err
+			return nil, err
 		}
 	}
 	or := &OrderResult{In: inputAmount, Out: outputAmount, Remaining: orderRemaining}
 	output, err := or.Marshal()
 	if err != nil {
-		return NoFillOrderComputeUnits, nil, err
+		return nil, err
 	}
-	return FillOrderComputeUnits, [][]byte{output}, nil
+	return [][]byte{output}, nil
 }
 
-func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
+func (*FillOrder) ComputeUnits(chain.Rules) uint64 {
 	return FillOrderComputeUnits
 }
 

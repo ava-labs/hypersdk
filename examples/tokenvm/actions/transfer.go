@@ -29,6 +29,9 @@ type Transfer struct {
 
 	// Optional message to accompany transaction.
 	Memo []byte `json:"memo"`
+
+	// TODO: add boolean to indicate whether sender will
+	// create recipient account
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -53,24 +56,24 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	if t.Value == 0 {
-		return TransferComputeUnits, nil, ErrOutputValueZero
+		return nil, ErrOutputValueZero
 	}
 	if len(t.Memo) > MaxMemoSize {
-		return CreateAssetComputeUnits, nil, ErrOutputMemoTooLarge
+		return nil, ErrOutputMemoTooLarge
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
-		return TransferComputeUnits, nil, err
+		return nil, err
 	}
 	// TODO: allow sender to configure whether they will pay to create
 	if err := storage.AddBalance(ctx, mu, t.To, t.Asset, t.Value, true); err != nil {
-		return TransferComputeUnits, nil, err
+		return nil, err
 	}
-	return TransferComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
+func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
