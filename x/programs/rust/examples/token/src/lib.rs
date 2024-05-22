@@ -79,7 +79,7 @@ pub fn burn_from(context: Context, recipient: Address) -> i64 {
         .expect("recipient balance not found")
 }
 
-/// Transfers balance from the sender to the the recipient.
+/// Transfers balance from the sender to the recipient.
 #[public]
 pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i64) -> bool {
     let Context { program, .. } = context;
