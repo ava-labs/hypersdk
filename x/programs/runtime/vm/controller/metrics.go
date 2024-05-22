@@ -8,7 +8,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
 )
 
 type metrics struct {

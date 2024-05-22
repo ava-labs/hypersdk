@@ -28,8 +28,8 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/controller"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/controller"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/genesis"
 )
 
 const (

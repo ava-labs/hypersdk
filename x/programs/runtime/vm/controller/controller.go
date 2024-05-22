@@ -19,12 +19,12 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/config"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/rpc"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/version"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/config"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/genesis"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/rpc"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/version"
 )
 
 var _ vm.Controller = (*Controller)(nil)

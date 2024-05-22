@@ -17,7 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/actions"
 )
 
 var _ Cmd = (*programCreateCmd)(nil)

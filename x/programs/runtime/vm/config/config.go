@@ -17,8 +17,8 @@ import (
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/version"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/consts"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/version"
 )
 
 var _ vm.Config = (*Config)(nil)
