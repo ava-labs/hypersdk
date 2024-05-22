@@ -1,5 +1,5 @@
 [package]
-name = "test-crate"
+name = "return_complex_type"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,6 @@ crate-type = ["cdylib"]
 [dependencies]
 wasmlanche-sdk = { workspace = true }
 borsh = { workspace = true }
+
+[build-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["build"] }

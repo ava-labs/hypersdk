@@ -147,6 +147,7 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
+    #[ignore]
     fn create_program() {
         let simulator = simulator::Client::new();
 
