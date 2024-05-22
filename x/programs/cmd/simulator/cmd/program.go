@@ -8,9 +8,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 	"os"
 	"time"
+
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"

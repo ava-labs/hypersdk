@@ -6,8 +6,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/cmd"
 	"os"
+
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/cmd"
 )
 
 func main() {

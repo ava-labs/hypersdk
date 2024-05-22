@@ -9,12 +9,13 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"

@@ -7,10 +7,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/prometheus/client_golang/prometheus"
 
-"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 
-avametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 )
+
 type metrics struct {
 	transfer prometheus.Counter
 }
