@@ -29,9 +29,8 @@ var (
 type Transaction struct {
 	Base *Base `json:"base"`
 
-	// TODO: turn [Action] into an array (#335)
-	Action Action `json:"action"`
-	Auth   Auth   `json:"auth"`
+	Actions []Action `json:"actions"`
+	Auth    Auth     `json:"auth"`
 
 	digest    []byte
 	bytes     []byte
@@ -40,10 +39,10 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
-func NewTx(base *Base, act Action) *Transaction {
+func NewTx(base *Base, actions []Action) *Transaction {
 	return &Transaction{
-		Base:   base,
-		Action: act,
+		Base:    base,
+		Actions: actions,
 	}
 }
 
@@ -51,11 +50,17 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	actionID := t.Action.GetTypeID()
-	p := codec.NewWriter(t.Base.Size()+consts.ByteLen+t.Action.Size(), consts.NetworkSizeLimit)
+	size := t.Base.Size() + consts.Uint8Len
+	for _, action := range t.Actions {
+		size += consts.ByteLen + action.Size()
+	}
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
+	p.PackByte(uint8(len(t.Actions)))
+	for _, action := range t.Actions {
+		p.PackByte(action.GetTypeID())
+		action.Marshal(p)
+	}
 	return p.Bytes(), p.Err()
 }
 
@@ -102,17 +107,19 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
+	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
-	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	stateKeys := make(state.Keys)
-	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
-		for k, v := range m {
-			if !keys.Valid(k) {
+	for i, action := range t.Actions {
+		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
+			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
-			stateKeys.Add(k, v)
+		}
+	}
+	for k, v := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
+		if !stateKeys.Add(k, v) {
+			return nil, ErrInvalidKeyValue
 		}
 	}
 
@@ -129,7 +136,9 @@ func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
+	for _, action := range t.Actions {
+		maxComputeUnitsOp.Add(action.MaxComputeUnits(r))
+	}
 	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
 	if err != nil {
@@ -138,8 +147,6 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 
 	// Calculate the max storage cost we could incur by processing all
 	// state keys.
-	//
-	// TODO: make this a tighter bound (allow for granular storage controls)
 	stateKeys, err := t.StateKeys(sm)
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -179,20 +186,32 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+	var (
+		bandwidth          = uint64(BaseSize)
+		stateKeysMaxChunks = []uint16{} // TODO: preallocate
+		computeOp          = math.NewUint64Operator(r.GetBaseComputeUnits())
+		readsOp            = math.NewUint64Operator(0)
+		allocatesOp        = math.NewUint64Operator(0)
+		writesOp           = math.NewUint64Operator(0)
+	)
+
+	// Calculate over action/auth
+	bandwidth += consts.Uint8Len
+	for _, action := range actions {
+		bandwidth += consts.ByteLen + uint64(action.Size())
+		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
+		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
+		computeOp.Add(action.MaxComputeUnits(r))
+	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
+	bandwidth += consts.ByteLen + authBandwidth
 	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
-	stateKeysMaxChunks := make([]uint16, 0, len(sponsorStateKeyMaxChunks)+len(actionStateKeysMaxChunks))
 	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
-	stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
+	computeOp.Add(authCompute)
 
 	// Estimate compute costs
-	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	computeUnitsOp.Add(authCompute)
-	computeUnitsOp.Add(action.MaxComputeUnits(r))
-	computeUnits, err := computeUnitsOp.Value()
+	compute, err := computeOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
@@ -200,9 +219,6 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory) (fees.Dim
 	// Estimate storage costs
 	//
 	// TODO: unify this with [MaxUnits] handling
-	readsOp := math.NewUint64Operator(0)
-	allocatesOp := math.NewUint64Operator(0)
-	writesOp := math.NewUint64Operator(0)
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -226,7 +242,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory) (fees.Dim
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
@@ -240,14 +256,19 @@ func (t *Transaction) PreExecute(
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
-	start, end := t.Action.ValidRange(r)
-	if start >= 0 && timestamp < start {
-		return ErrActionNotActivated
+	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
+		return ErrTooManyActions
 	}
-	if end >= 0 && timestamp > end {
-		return ErrActionNotActivated
+	for i, action := range t.Actions {
+		start, end := action.ValidRange(r)
+		if start >= 0 && timestamp < start {
+			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+		}
+		if end >= 0 && timestamp > end {
+			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+		}
 	}
-	start, end = t.Auth.ValidRange(r)
+	start, end := t.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
 		return ErrAuthNotActivated
 	}
@@ -281,7 +302,7 @@ func (t *Transaction) Execute(
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
-	// Always charge fee first (in case [Action] moves funds)
+	// Always charge fee first
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		// Should never happen
@@ -299,31 +320,42 @@ func (t *Transaction) Execute(
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
-	actionStart := ts.OpIndex()
-	handleRevert := func(rerr error) (*Result, error) {
-		// Be warned that the variables captured in this function
-		// are set when this function is defined. If any of them are
-		// modified later, they will not be used here.
-		ts.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee}, nil
-	}
-	success, actionCUs, output, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id)
-	if err != nil {
-		return handleRevert(err)
-	}
-	if len(output) == 0 && output != nil {
-		// Enforce object standardization (this is a VM bug and we should fail
-		// fast)
-		return handleRevert(ErrInvalidObject)
-	}
-	if !success {
-		ts.Rollback(ctx, actionStart)
-	}
+	//
+	// We should favor reverting over returning an error because the caller won't be charged
+	// for a transaction that returns an error.
+	var (
+		actionStart   = ts.OpIndex()
+		resultOutputs = [][][]byte{}
+		handleRevert  = func(err error) (*Result, error) {
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), resultOutputs, maxUnits, maxFee}, nil
+		}
+		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
+	)
+	for i, action := range t.Actions {
+		// TODO: remove actionCUs return (VRYX)
+		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		if err != nil {
+			return handleRevert(err)
+		}
+		if outputs == nil {
+			// Ensure output standardization (match form we will
+			// unmarshal)
+			outputs = [][]byte{}
+		}
 
-	// Calculate units used
-	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+		// Wait to append outputs until after we check that there aren't too many
+		//
+		// TODO: consider removing max here
+		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
+			return handleRevert(ErrTooManyOutputs)
+		}
+		resultOutputs = append(resultOutputs, outputs)
+
+		// Add units used
+		computeUnitsOp.Add(actionCUs)
+	}
 	computeUnitsOp.Add(t.Auth.ComputeUnits(r))
-	computeUnitsOp.Add(actionCUs)
 	computeUnits, err := computeUnitsOp.Value()
 	if err != nil {
 		return handleRevert(err)
@@ -347,6 +379,8 @@ func (t *Transaction) Execute(
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
+	//
+	// TODO: charge max (VRYX)
 	readsOp := math.NewUint64Operator(0)
 	for _, chunksRead := range reads {
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -400,8 +434,10 @@ func (t *Transaction) Execute(
 		}
 	}
 	return &Result{
-		Success: success,
-		Output:  output,
+		Success: true,
+		Error:   []byte{},
+
+		Outputs: resultOutputs,
 
 		Consumed: used,
 		Fee:      feeRequired,
@@ -414,11 +450,18 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 
-	actionID := t.Action.GetTypeID()
-	authID := t.Auth.GetTypeID()
+	return t.marshalActions(p)
+}
+
+func (t *Transaction) marshalActions(p *codec.Packer) error {
 	t.Base.Marshal(p)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
+	p.PackByte(uint8(len(t.Actions)))
+	for _, action := range t.Actions {
+		actionID := action.GetTypeID()
+		p.PackByte(actionID)
+		action.Marshal(p)
+	}
+	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
 	t.Auth.Marshal(p)
 	return p.Err()
@@ -474,14 +517,9 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	actionType := p.UnpackByte()
-	unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
-	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
-	}
-	action, err := unmarshalAction(p)
+	actions, err := unmarshalActions(p, actionRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
@@ -502,7 +540,7 @@ func UnmarshalTx(
 
 	var tx Transaction
 	tx.Base = base
-	tx.Action = action
+	tx.Actions = actions
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
@@ -513,4 +551,28 @@ func UnmarshalTx(
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	return &tx, nil
+}
+
+func unmarshalActions(
+	p *codec.Packer,
+	actionRegistry *codec.TypeParser[Action, bool],
+) ([]Action, error) {
+	actionCount := p.UnpackByte()
+	if actionCount == 0 {
+		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
+	}
+	actions := []Action{}
+	for i := uint8(0); i < actionCount; i++ {
+		actionType := p.UnpackByte()
+		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
+		if !ok {
+			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+		}
+		action, err := unmarshalAction(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		}
+		actions = append(actions, action)
+	}
+	return actions, nil
 }

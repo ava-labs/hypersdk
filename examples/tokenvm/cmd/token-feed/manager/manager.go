@@ -13,15 +13,17 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/timer"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-feed/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"go.uber.org/zap"
+
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )
 
 type FeedContent struct {
@@ -131,64 +133,66 @@ func (m *Manager) Run(ctx context.Context) error {
 
 			// Look for transactions to recipient
 			for i, tx := range blk.Txs {
-				action, ok := tx.Action.(*actions.Transfer)
-				if !ok {
-					continue
-				}
-				if action.To != recipientAddr {
-					continue
-				}
-				if len(action.Memo) == 0 {
-					continue
-				}
-				result := results[i]
-				from := tx.Auth.Actor()
-				fromStr := codec.MustAddressBech32(consts.HRP, from)
-				if !result.Success {
-					m.log.Info("incoming message failed on-chain", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
-					continue
-				}
-				if action.Value < m.feeAmount {
-					m.log.Info("incoming message did not pay enough", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
-					continue
-				}
+				for _, act := range tx.Actions {
+					action, ok := act.(*actions.Transfer)
+					if !ok {
+						continue
+					}
+					if action.To != recipientAddr {
+						continue
+					}
+					if len(action.Memo) == 0 {
+						continue
+					}
+					result := results[i]
+					from := tx.Auth.Actor()
+					fromStr := codec.MustAddressBech32(consts.HRP, from)
+					if !result.Success {
+						m.log.Info("incoming message failed on-chain", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
+						continue
+					}
+					if action.Value < m.feeAmount {
+						m.log.Info("incoming message did not pay enough", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("required", m.feeAmount))
+						continue
+					}
 
-				var c FeedContent
-				if err := json.Unmarshal(action.Memo, &c); err != nil {
-					m.log.Info("incoming message could not be parsed", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Error(err))
-					continue
+					var c FeedContent
+					if err := json.Unmarshal(action.Memo, &c); err != nil {
+						m.log.Info("incoming message could not be parsed", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Error(err))
+						continue
+					}
+					if len(c.Message) == 0 {
+						m.log.Info("incoming message was empty", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value))
+						continue
+					}
+					// TODO: pre-verify URLs
+					m.l.Lock()
+					m.f.Lock()
+					m.feed = append([]*FeedObject{{
+						Address:   fromStr,
+						TxID:      tx.ID(), // TODO: may need to change to action ID
+						Timestamp: blk.Tmstmp,
+						Fee:       action.Value,
+						Content:   &c,
+					}}, m.feed...)
+					if len(m.feed) > m.config.FeedSize {
+						// TODO: do this more efficiently using a rolling window
+						m.feed[m.config.FeedSize] = nil // prevent memory leak
+						m.feed = m.feed[:m.config.FeedSize]
+					}
+					m.epochMessages++
+					if m.epochMessages >= m.config.MessagesPerEpoch {
+						m.feeAmount += m.config.FeeDelta
+						m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
+						m.epochMessages = 0
+						m.epochStart = time.Now().Unix()
+						m.t.Cancel()
+						m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch) * time.Second)
+					}
+					m.log.Info("received incoming message", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
+					m.f.Unlock()
+					m.l.Unlock()
 				}
-				if len(c.Message) == 0 {
-					m.log.Info("incoming message was empty", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value))
-					continue
-				}
-				// TODO: pre-verify URLs
-				m.l.Lock()
-				m.f.Lock()
-				m.feed = append([]*FeedObject{{
-					Address:   fromStr,
-					TxID:      tx.ID(),
-					Timestamp: blk.Tmstmp,
-					Fee:       action.Value,
-					Content:   &c,
-				}}, m.feed...)
-				if len(m.feed) > m.config.FeedSize {
-					// TODO: do this more efficiently using a rolling window
-					m.feed[m.config.FeedSize] = nil // prevent memory leak
-					m.feed = m.feed[:m.config.FeedSize]
-				}
-				m.epochMessages++
-				if m.epochMessages >= m.config.MessagesPerEpoch {
-					m.feeAmount += m.config.FeeDelta
-					m.log.Info("increasing message fee", zap.Uint64("fee", m.feeAmount))
-					m.epochMessages = 0
-					m.epochStart = time.Now().Unix()
-					m.t.Cancel()
-					m.t.SetTimeoutIn(time.Duration(m.config.TargetDurationPerEpoch) * time.Second)
-				}
-				m.log.Info("received incoming message", zap.String("from", fromStr), zap.String("memo", string(action.Memo)), zap.Uint64("payment", action.Value), zap.Uint64("new required", m.feeAmount))
-				m.f.Unlock()
-				m.l.Unlock()
 			}
 		}
 		if ctx.Err() != nil {

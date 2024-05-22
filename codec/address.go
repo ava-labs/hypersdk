@@ -23,7 +23,7 @@ const (
 
 type Address [AddressLen]byte
 
-var EmptyAddress = [AddressLen]byte{}
+var EmptyAddress = Address{}
 
 // CreateAddress returns [Address] made from concatenating
 // [typeID] with [id].

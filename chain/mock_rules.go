@@ -86,6 +86,20 @@ func (mr *MockRulesMockRecorder) GetBaseComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseComputeUnits))
 }
 
+// GetMaxActionsPerTx mocks base method.
+func (m *MockRules) GetMaxActionsPerTx() byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMaxActionsPerTx")
+	ret0, _ := ret[0].(byte)
+	return ret0
+}
+
+// GetMaxActionsPerTx indicates an expected call of GetMaxActionsPerTx.
+func (mr *MockRulesMockRecorder) GetMaxActionsPerTx() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxActionsPerTx", reflect.TypeOf((*MockRules)(nil).GetMaxActionsPerTx))
+}
+
 // GetMaxBlockUnits mocks base method.
 func (m *MockRules) GetMaxBlockUnits() fees.Dimensions {
 	m.ctrl.T.Helper()
@@ -98,6 +112,20 @@ func (m *MockRules) GetMaxBlockUnits() fees.Dimensions {
 func (mr *MockRulesMockRecorder) GetMaxBlockUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxBlockUnits", reflect.TypeOf((*MockRules)(nil).GetMaxBlockUnits))
+}
+
+// GetMaxOutputsPerAction mocks base method.
+func (m *MockRules) GetMaxOutputsPerAction() byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMaxOutputsPerAction")
+	ret0, _ := ret[0].(byte)
+	return ret0
+}
+
+// GetMaxOutputsPerAction indicates an expected call of GetMaxOutputsPerAction.
+func (mr *MockRulesMockRecorder) GetMaxOutputsPerAction() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaxOutputsPerAction", reflect.TypeOf((*MockRules)(nil).GetMaxOutputsPerAction))
 }
 
 // GetMinBlockGap mocks base method.

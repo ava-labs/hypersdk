@@ -7,13 +7,14 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
+
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 var _ chain.Action = (*Transfer)(nil)
@@ -48,17 +49,17 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (bool, uint64, []byte, error) {
+) (uint64, [][]byte, error) {
 	if t.Value == 0 {
-		return false, 1, OutputValueZero, nil
+		return 1, nil, ErrOutputValueZero
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return 1, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return 1, nil, err
 	}
-	return true, 1, nil, nil
+	return 1, nil, nil
 }
 
 func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {

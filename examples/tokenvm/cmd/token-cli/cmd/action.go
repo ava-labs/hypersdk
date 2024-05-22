@@ -8,13 +8,16 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
 )
 
 var actionCmd = &cobra.Command{
@@ -69,11 +72,11 @@ var fundFaucetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err = sendAndWait(ctx, &actions.Transfer{
+		if err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
-		}, cli, scli, tcli, factory, true); err != nil {
+		}}, cli, scli, tcli, factory, true); err != nil {
 			return err
 		}
 		hutils.Outf("{{green}}funded faucet:{{/}} %s\n", faucetAddress)
@@ -119,11 +122,11 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.Transfer{
+		err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -162,11 +165,11 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.CreateAsset{
+		err = sendAndWait(ctx, []chain.Action{&actions.CreateAsset{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -226,11 +229,11 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.MintAsset{
+		err = sendAndWait(ctx, []chain.Action{&actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -263,10 +266,10 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.CloseOrder{
+		err = sendAndWait(ctx, []chain.Action{&actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -349,13 +352,13 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.CreateOrder{
+		err = sendAndWait(ctx, []chain.Action{&actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -466,13 +469,13 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		err = sendAndWait(ctx, &actions.FillOrder{
+		err = sendAndWait(ctx, []chain.Action{&actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }

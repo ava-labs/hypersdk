@@ -116,9 +116,6 @@ key for this address is
 `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`._
 
-_If you don't need 2 Subnets for your testing, you can run `MODE="run-single"
-./scripts/run.sh`._
-
 To make it easy to interact with the `tokenvm`, we implemented the `token-cli`.
 Next, you'll need to build this. You can use the following command from this location
 to do so:
@@ -306,39 +303,6 @@ height:14 txs:1 units:1536 root:2vqraWhyd98zVk2ALMmbHPApXjjvHpxh4K4u1QhSb6i3w4VZ
 height:15 txs:1 units:464 root:u2FyTtup4gwPfEFybMNTgL2svvSnajfGH4QKqiJ9vpZBSvx7q avg TPS:0.036967
 ✅ Lsad3MZ8i5V5hrGcRxXsghV5G1o1a9XStHY3bYmg7ha7W511e actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [orderID: 2Qb172jGBtjTTLhrzYD8ZLatjg6FFmbiFSP6CBq2Xy4aBV2WxL]
 ```
-
-### Transfer Assets to Another Subnet
-Unlike the mint and trade demo, the AWM demo only requires running a single
-command. You can kick off a transfer between the 2 Subnets you created by
-running the following command from this location:
-```bash
-./build/token-cli action export
-```
-
-When you are done, the output should look something like this:
-```
-database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-✔ assetID (use TKN for native token): TKN
-balance: 997.999988891 TKN
-recipient: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-amount: 10
-reward: 0
-available chains: 1 excluded: [Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9]
-0) chainID: cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-destination: 0
-swap on import (y/n): n
-continue (y/n): y
-✅ txID: 24Y2zR2qEQZSmyaG1BCqpZZaWMDVDtimGDYFsEkpCcWYH4dUfJ
-perform import on destination (y/n): y
-22u9zvTa8cRX7nork3koubETsKDn43ydaVEZZWMGcTDerucq4b to: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp source assetID: TKN output assetID: 2rST7KDPjRvDxypr6Q4SwfAwdApLwKXuukrSc42jA3dQDgo7jx value: 10000000000 reward: 10000000000 return: false
-✔ switch default chain to destination (y/n): y
-```
-
-_The `export` command will automatically run the `import` command on the
-destination. If you wish to import the AWM message using a separate account,
-you can run the `import` command after changing your key._
 
 ### Running a Load Test
 _Before running this demo, make sure to stop the network you started using

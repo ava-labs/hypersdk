@@ -7,12 +7,12 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*CreateAsset)(nil)
@@ -27,9 +27,9 @@ func (*CreateAsset) GetTypeID() uint8 {
 	return createAssetID
 }
 
-func (*CreateAsset) StateKeys(_ codec.Address, txID ids.ID) state.Keys {
+func (*CreateAsset) StateKeys(_ codec.Address, actionID ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.AssetKey(txID)): state.Allocate | state.Write,
+		string(storage.AssetKey(actionID)): state.Allocate | state.Write,
 	}
 }
 
@@ -43,29 +43,29 @@ func (c *CreateAsset) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	txID ids.ID,
-) (bool, uint64, []byte, error) {
+	actionID ids.ID,
+) (uint64, [][]byte, error) {
 	if len(c.Symbol) == 0 {
-		return false, CreateAssetComputeUnits, OutputSymbolEmpty, nil
+		return CreateAssetComputeUnits, nil, ErrOutputSymbolEmpty
 	}
 	if len(c.Symbol) > MaxSymbolSize {
-		return false, CreateAssetComputeUnits, OutputSymbolTooLarge, nil
+		return CreateAssetComputeUnits, nil, ErrOutputSymbolTooLarge
 	}
 	if c.Decimals > MaxDecimals {
-		return false, CreateAssetComputeUnits, OutputDecimalsTooLarge, nil
+		return CreateAssetComputeUnits, nil, ErrOutputDecimalsTooLarge
 	}
 	if len(c.Metadata) == 0 {
-		return false, CreateAssetComputeUnits, OutputMetadataEmpty, nil
+		return CreateAssetComputeUnits, nil, ErrOutputMetadataEmpty
 	}
 	if len(c.Metadata) > MaxMetadataSize {
-		return false, CreateAssetComputeUnits, OutputMetadataTooLarge, nil
+		return CreateAssetComputeUnits, nil, ErrOutputMetadataTooLarge
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
-	if err := storage.SetAsset(ctx, mu, txID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
-		return false, CreateAssetComputeUnits, utils.ErrBytes(err), nil
+	if err := storage.SetAsset(ctx, mu, actionID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
+		return CreateAssetComputeUnits, nil, err
 	}
-	return true, CreateAssetComputeUnits, nil, nil
+	return CreateAssetComputeUnits, nil, nil
 }
 
 func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {

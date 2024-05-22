@@ -5,6 +5,7 @@ package genesis
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
@@ -42,6 +43,14 @@ func (r *Rules) GetMinEmptyBlockGap() int64 {
 
 func (r *Rules) GetValidityWindow() int64 {
 	return r.g.ValidityWindow
+}
+
+func (r *Rules) GetMaxActionsPerTx() uint8 {
+	return r.g.MaxActionsPerTx
+}
+
+func (r *Rules) GetMaxOutputsPerAction() uint8 {
+	return r.g.MaxOutputsPerAction
 }
 
 func (r *Rules) GetMaxBlockUnits() fees.Dimensions {

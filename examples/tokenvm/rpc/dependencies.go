@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
@@ -31,5 +32,4 @@ type Controller interface {
 		codec.Address, // owner
 		error,
 	)
-	GetLoanFromState(context.Context, ids.ID, ids.ID) (uint64, error)
 }

@@ -7,20 +7,20 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ chain.Action = (*BurnAsset)(nil)
 
 type BurnAsset struct {
-	// Asset is the [TxID] that created the asset.
+	// Asset is the [ActionID] that created the asset.
 	Asset ids.ID `json:"asset"`
 
 	// Number of assets to mint to [To].
@@ -49,28 +49,28 @@ func (b *BurnAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (bool, uint64, []byte, error) {
+) (uint64, [][]byte, error) {
 	if b.Value == 0 {
-		return false, BurnComputeUnits, OutputValueZero, nil
+		return BurnComputeUnits, nil, ErrOutputValueZero
 	}
 	if err := storage.SubBalance(ctx, mu, actor, b.Asset, b.Value); err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil
+		return BurnComputeUnits, nil, err
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, b.Asset)
 	if err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil
+		return BurnComputeUnits, nil, err
 	}
 	if !exists {
-		return false, BurnComputeUnits, OutputAssetMissing, nil
+		return BurnComputeUnits, nil, ErrOutputAssetMissing
 	}
 	newSupply, err := smath.Sub(supply, b.Value)
 	if err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil
+		return BurnComputeUnits, nil, err
 	}
 	if err := storage.SetAsset(ctx, mu, b.Asset, symbol, decimals, metadata, newSupply, owner); err != nil {
-		return false, BurnComputeUnits, utils.ErrBytes(err), nil
+		return BurnComputeUnits, nil, err
 	}
-	return true, BurnComputeUnits, nil, nil
+	return BurnComputeUnits, nil, nil
 }
 
 func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {
@@ -78,7 +78,7 @@ func (*BurnAsset) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*BurnAsset) Size() int {
-	return consts.IDLen + consts.Uint64Len
+	return ids.IDLen + consts.Uint64Len
 }
 
 func (b *BurnAsset) Marshal(p *codec.Packer) {

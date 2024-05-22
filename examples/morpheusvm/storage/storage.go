@@ -11,12 +11,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	smath "github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 
+	smath "github.com/ava-labs/avalanchego/utils/math"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
@@ -58,7 +59,7 @@ var (
 
 // [txPrefix] + [txID]
 func TxKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+	k = make([]byte, 1+ids.IDLen)
 	k[0] = txPrefix
 	copy(k[1:], id[:])
 	return
