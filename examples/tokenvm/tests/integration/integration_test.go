@@ -52,45 +52,10 @@ import (
 var (
 	logFactory logging.Factory
 	log        logging.Logger
-)
 
-func init() {
-	logFactory = logging.NewFactory(logging.Config{
-		DisplayLevel: logging.Debug,
-	})
-	l, err := logFactory.Make("main")
-	if err != nil {
-		panic(err)
-	}
-	log = l
-}
-
-func TestIntegration(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "tokenvm integration test suites")
-}
-
-var (
 	requestTimeout time.Duration
 	vms            int
-)
 
-func init() {
-	flag.DurationVar(
-		&requestTimeout,
-		"request-timeout",
-		120*time.Second,
-		"timeout for transaction issuance and confirmation",
-	)
-	flag.IntVar(
-		&vms,
-		"vms",
-		4,
-		"number of VMs to create",
-	)
-}
-
-var (
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
 	rsender codec.Address
@@ -131,6 +96,37 @@ var (
 	networkID uint32
 	gen       *genesis.Genesis
 )
+
+func init() {
+	logFactory = logging.NewFactory(logging.Config{
+		DisplayLevel: logging.Debug,
+	})
+	l, err := logFactory.Make("main")
+	if err != nil {
+		panic(err)
+	}
+	log = l
+}
+
+func TestIntegration(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "tokenvm integration test suites")
+}
+
+func init() {
+	flag.DurationVar(
+		&requestTimeout,
+		"request-timeout",
+		120*time.Second,
+		"timeout for transaction issuance and confirmation",
+	)
+	flag.IntVar(
+		&vms,
+		"vms",
+		4,
+		"number of VMs to create",
+	)
+}
 
 type instance struct {
 	chainID            ids.ID
