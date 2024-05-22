@@ -315,8 +315,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	// read: 2 keys reads
 	// allocate: 1 key created with 1 chunk
 	// write: 2 keys modified
-	expectedTxUnits := fees.Dimensions{188, 7, 14, 50, 26}
-	expectedTxFee := uint64(285)
+	transferTxUnits := fees.Dimensions{188, 7, 14, 50, 26}
+	transferTxFee := uint64(285)
 
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
@@ -430,8 +430,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
 			gomega.Ω(len(results[0].Outputs[0])).To(gomega.Equal(0))
-			gomega.Ω(results[0].Units).Should(gomega.Equal(expectedTxUnits))
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(expectedTxFee))
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxUnits))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(transferTxFee))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
@@ -463,8 +463,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := accept(true)
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Units).Should(gomega.Equal(expectedTxUnits))
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(expectedTxFee))
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxUnits))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(transferTxFee))
 
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
@@ -532,8 +532,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(results).Should(gomega.HaveLen(4))
 			for i := 0; i < 4; i++ {
 				gomega.Ω(results[i].Success).Should(gomega.BeTrue())
-				gomega.Ω(results[i].Units).Should(gomega.Equal(expectedTxUnits))
-				gomega.Ω(results[i].Fee).Should(gomega.Equal(expectedTxFee))
+				gomega.Ω(results[i].Units).Should(gomega.Equal(transferTxUnits))
+				gomega.Ω(results[i].Fee).Should(gomega.Equal(transferTxFee))
 			}
 
 			// Check end balance
