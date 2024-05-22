@@ -59,7 +59,7 @@ impl<K> Program<K> {
         }
 
         let args = CallProgramArgs {
-            target_id: self,
+            target_id: self.id(),
             function: function_name.as_bytes(),
             args_ptr: args,
             max_units,
@@ -84,14 +84,14 @@ impl<K: Key> Program<K> {
     }
 }
 
-struct CallProgramArgs<'a, K> {
-    target_id: &'a Program<K>,
+struct CallProgramArgs<'a> {
+    target_id: &'a [u8],
     function: &'a [u8],
     args_ptr: &'a [u8],
     max_units: i64,
 }
 
-impl<K> BorshSerialize for CallProgramArgs<'_, K> {
+impl BorshSerialize for CallProgramArgs<'_> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self {
             target_id,
