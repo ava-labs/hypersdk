@@ -315,11 +315,13 @@ func BuildBlock(
 				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
-				if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
+				//
+				// TODO: do this check before execution
+				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
 					log.Debug(
 						"skipping tx: too many units",
 						zap.Int("dimension", int(dimension)),
-						zap.Uint64("tx", result.Consumed[dimension]),
+						zap.Uint64("tx", result.Units[dimension]),
 						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
 						zap.Uint64("max block units", maxUnits[dimension]),
 					)

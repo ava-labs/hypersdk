@@ -87,7 +87,9 @@ func (b *StatelessBlock) Execute(
 
 			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
 			// exit with an error based on which tx over the limit is processed first)
-			if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
+			//
+			// TODO: can compute this ahead of time
+			if ok, d := feeManager.Consume(result.Units, r.GetMaxBlockUnits()); !ok {
 				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
 			}
 

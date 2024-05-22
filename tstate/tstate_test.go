@@ -122,11 +122,6 @@ func TestInsertNew(t *testing.T) {
 	// SetScope
 	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{})
 
-	// Test Disable Allocate
-	tsv.DisableAllocation()
-	require.ErrorIs(tsv.Insert(ctx, testKey, testVal), ErrAllocationDisabled)
-	tsv.EnableAllocation()
-
 	// Insert key
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	val, err := tsv.GetValue(ctx, testKey)
