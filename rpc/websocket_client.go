@@ -162,7 +162,7 @@ func (c *WebSocketClient) RegisterTx(tx *chain.Transaction) error {
 	return c.mb.Send(append([]byte{TxMode}, tx.Bytes()...))
 }
 
-// ListenForTx listens for responses from the streamingServer.
+// ListenTx listens for responses from the streamingServer.
 //
 // TODO: add the option to subscribe to a single TxID to avoid
 // trampling other listeners (could have an intermediate tracking

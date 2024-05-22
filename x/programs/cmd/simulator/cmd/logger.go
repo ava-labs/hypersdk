@@ -34,7 +34,7 @@ type logFactory struct {
 	loggers map[string]logWrapper
 }
 
-// NewFactory returns a new instance of a Factory producing loggers configured with
+// newLogFactory returns a new instance of a Factory producing loggers configured with
 // the values set in the [config] parameter
 func newLogFactory(config logging.Config) *logFactory {
 	return &logFactory{
