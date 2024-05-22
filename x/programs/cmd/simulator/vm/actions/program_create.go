@@ -43,19 +43,19 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	id ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	if len(t.Program) == 0 {
-		return 1, [][]byte{OutputValueZero}, errors.New("cannot deploy empty program")
+		return [][]byte{OutputValueZero}, errors.New("cannot deploy empty program")
 	}
 
 	if err := storage.SetProgram(ctx, mu, id, t.Program); err != nil {
-		return 1, [][]byte{utils.ErrBytes(err)}, err
+		return [][]byte{utils.ErrBytes(err)}, err
 	}
 
-	return 1, nil, nil
+	return nil, nil
 }
 
-func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {
+func (*ProgramCreate) ComputeUnits(chain.Rules) uint64 {
 	return ProgramCreateComputeUnits
 }
 
