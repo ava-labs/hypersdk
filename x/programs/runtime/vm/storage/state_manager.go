@@ -12,21 +12,29 @@ import (
 
 type StateManager struct{}
 
-func (m *StateManager) SponsorStateKeys(_ codec.Address) state.Keys {
+func (*StateManager) SponsorStateKeys(_ codec.Address) state.Keys {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (m *StateManager) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
+func (*StateManager) CanDeduct(_ context.Context, _ codec.Address, _ state.Immutable, _ uint64) error {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (m *StateManager) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+func (*StateManager) Deduct(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
 	// TODO implement me
 	panic("implement me")
 }
 
+<<<<<<< HEAD:x/programs/runtime/vm/storage/state_manager.go
+=======
+func (*StateManager) Refund(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+>>>>>>> 32a72b9e (linting):x/programs/v2/vm/storage/state_manager.go
 func (*StateManager) HeightKey() []byte {
 	return HeightKey()
 }

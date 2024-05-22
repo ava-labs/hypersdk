@@ -22,7 +22,7 @@ func (s *InterpreterCmd) New(parser *argparse.Parser) {
 	s.cmd = parser.NewCommand("interpreter", "Read input from a buffered stdin")
 }
 
-func (s *InterpreterCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (*InterpreterCmd) Run(_ context.Context, _ logging.Logger, _ *state.SimpleMutable, _ []string) (*Response, error) {
 	// no-op
 	return newResponse(0), nil
 }

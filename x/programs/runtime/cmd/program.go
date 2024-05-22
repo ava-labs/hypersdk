@@ -41,14 +41,14 @@ func (c *programCreateCmd) New(parser *argparse.Parser) {
 	})
 }
 
-func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, _ []string) (*Response, error) {
 	c.log = log
 	exists, err := hasKey(ctx, db, *c.keyName)
 	if err != nil {
 		return newResponse(0), err
 	}
 	if !exists {
-		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
+		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, *c.keyName)
 	}
 
 	id, err := programCreateFunc(ctx, db, *c.path)
@@ -90,7 +90,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		fmt.Println(string(output))
 	}
 	if !success {
-		return ids.Empty, fmt.Errorf("program creation failed: %s", err)
+		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
 	}
 	if err != nil {
 		return ids.Empty, err

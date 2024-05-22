@@ -57,7 +57,7 @@ func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]string,
 	c.reader = reader
 }
 
-func (c *runCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (c *runCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, _ []string) (*Response, error) {
 	c.log = log
 	var err error
 	if err = c.Init(); err != nil {
@@ -79,15 +79,20 @@ func (c *runCmd) Happened() bool {
 
 func (c *runCmd) Init() (err error) {
 	var planStep []byte
-	if c.planStep != nil && len(*c.planStep) > 0 {
-		planStep = []byte(*c.planStep)
-	} else if len(*c.file) > 0 {
-		// read simulation step from file
-		planStep, err = os.ReadFile(*c.file)
-		if err != nil {
-			return err
+	switch {
+	case c.planStep != nil && len(*c.planStep) > 0:
+		{
+			planStep = []byte(*c.planStep)
 		}
-	} else {
+	case len(*c.file) > 0:
+		{
+			// read simulation step from file
+			planStep, err = os.ReadFile(*c.file)
+			if err != nil {
+				return err
+			}
+		}
+	default:
 		return errors.New("please specify either a --plan or a --file flag")
 	}
 
@@ -151,18 +156,18 @@ func verifyEndpoint(i int, step *Step) error {
 	case EndpointReadOnly:
 		// verify the first param is a program ID
 		if firstParamType != ID {
-			return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
 		}
 	case EndpointExecute:
 		if step.Method == ProgramCreate {
 			// verify the first param is a string for the path
 			if step.Params[0].Type != String {
-				return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
 			}
 		} else {
 			// verify the first param is a program id
 			if step.Params[0].Type != ID {
-				return fmt.Errorf("%w %d %w: %s", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
 			}
 		}
 	default:
@@ -228,7 +233,7 @@ func runStepFunc(
 		} else if err != nil {
 			return err
 		}
-		resp.setMsg(fmt.Sprintf("created named key with address %s", utils.Address(key)))
+		resp.setMsg("created named key with address " + utils.Address(key))
 
 		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
@@ -289,27 +294,27 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	for _, param := range params {
 		switch param.Type {
 		case String, ID:
-			stepIdStr, ok := param.Value.(string)
+			stepIDStr, ok := param.Value.(string)
 			if !ok {
 				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
 			}
-			if strings.HasPrefix(stepIdStr, "step_") {
-				programIdStr, ok := c.programIDStrMap[stepIdStr]
+			if strings.HasPrefix(stepIDStr, "step_") {
+				programIDStr, ok := c.programIDStrMap[stepIDStr]
 				if !ok {
-					return nil, fmt.Errorf("failed to map to id: %s", stepIdStr)
+					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
 				}
-				programId, err := ids.FromString(programIdStr)
+				programID, err := ids.FromString(programIDStr)
 				if err != nil {
 					return nil, err
 				}
-				cp = append(cp, actions.CallParam{Value: programId})
+				cp = append(cp, actions.CallParam{Value: programID})
 			} else {
-				programId, err := ids.FromString(stepIdStr)
+				programID, err := ids.FromString(stepIDStr)
 				if err == nil {
-					cp = append(cp, actions.CallParam{Value: programId})
+					cp = append(cp, actions.CallParam{Value: programID})
 				} else {
 					// this is a path to the wasm program
-					cp = append(cp, actions.CallParam{Value: stepIdStr})
+					cp = append(cp, actions.CallParam{Value: stepIDStr})
 				}
 			}
 		case Bool:

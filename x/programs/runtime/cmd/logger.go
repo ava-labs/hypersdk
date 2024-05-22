@@ -106,7 +106,7 @@ func newDiscardWriteCloser() *discardWriteCloser {
 }
 
 // Close implements the io.Closer interface.
-func (n *discardWriteCloser) Close() error {
+func (*discardWriteCloser) Close() error {
 	// Do nothing and return nil.
 	return nil
 }

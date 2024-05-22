@@ -31,7 +31,7 @@ func (c *keyCreateCmd) New(parser *argparse.Parser) {
 	c.name = c.cmd.String("", "name", &argparse.Options{Required: true})
 }
 
-func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, _ []string) (*Response, error) {
 	resp := newResponse(0)
 	resp.setTimestamp(time.Now().Unix())
 	c.log = log

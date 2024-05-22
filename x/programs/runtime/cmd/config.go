@@ -64,7 +64,7 @@ type Response struct {
 func (r *Response) Print() error {
 	jsonBytes, err := json.Marshal(r)
 	if err != nil {
-		return fmt.Errorf("failed to marshal response: %s", err)
+		return fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	fmt.Println(string(jsonBytes))
@@ -164,7 +164,10 @@ func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	}
 
 	actual := int64(0)
-	borsh.Deserialize(&actual, bytes)
+	if err := borsh.Deserialize(&actual, bytes); err != nil {
+		return false, err
+	}
+
 	assertion := require.Result
 	// convert the assertion value(string) to uint64
 	value, err := strconv.ParseInt(assertion.Value, 10, 64)

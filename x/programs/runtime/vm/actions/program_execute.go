@@ -7,19 +7,15 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/near/borsh-go"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/x/programs/program"
 	"github.com/ava-labs/hypersdk/x/programs/v2/runtime"
 	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
 )
@@ -32,8 +28,6 @@ type ProgramExecute struct {
 	Params   []CallParam `json:"params"`
 
 	Log logging.Logger
-
-	rt runtime.WasmRuntime
 }
 
 type ProgramStore struct {
@@ -57,7 +51,7 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
+func (*ProgramExecute) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{}
 }
 
@@ -70,7 +64,7 @@ func (t *ProgramExecute) Execute(
 	_ chain.Rules,
 	mu state.Mutable,
 	_ int64,
-	actor codec.Address,
+	_ codec.Address,
 	_ ids.ID,
 ) (success bool, computeUnits uint64, output []byte, err error) {
 	if len(t.Function) == 0 {
@@ -82,7 +76,7 @@ func (t *ProgramExecute) Execute(
 
 	programID, ok := t.Params[0].Value.(ids.ID)
 	if !ok {
-		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
+		return false, 1, utils.ErrBytes(errors.New("invalid call param: must be ID")), nil
 	}
 
 	params, err := SerializeParams(t.Params[1:])
@@ -120,17 +114,17 @@ func (*ProgramExecute) Size() int {
 	return ed25519.PublicKeyLen + consts.Uint64Len
 }
 
-func (t *ProgramExecute) Marshal(p *codec.Packer) {
+func (*ProgramExecute) Marshal(_ *codec.Packer) {
 	// TODO
 }
 
-func (t *ProgramExecute) GetBalance() (uint64, error) {
+func (*ProgramExecute) GetBalance() (uint64, error) {
 	// TODO implement metering once available
 	// return t.rt.Meter().GetBalance()
 	return 0, nil
 }
 
-func UnmarshalProgramExecute(p *codec.Packer) (chain.Action, error) {
+func UnmarshalProgramExecute(_ *codec.Packer) (chain.Action, error) {
 	// TODO
 	return nil, nil
 }
@@ -168,58 +162,4 @@ func SerializeParams(p []CallParam) ([]byte, error) {
 		}
 	}
 	return bytes, nil
-}
-
-// WriteParams is a helper function that writes the given params to memory if non integer.
-// Supported types include int, uint64 and string.
-func WriteParams(m *program.Memory, p []CallParam) ([]uint32, error) {
-	var params []uint32
-	for _, param := range p {
-		switch v := param.Value.(type) {
-		case []byte:
-			smartPtr, err := program.AllocateBytes(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
-		case ids.ID:
-			smartPtr, err := program.AllocateBytes(v[:], m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
-		case string:
-			smartPtr, err := program.AllocateBytes([]byte(v), m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, smartPtr)
-		case uint32:
-			params = append(params, v)
-		default:
-			ptr, err := writeToMem(v, m)
-			if err != nil {
-				return nil, err
-			}
-			params = append(params, ptr)
-		}
-	}
-
-	return params, nil
-}
-
-// SerializeParameter serializes [obj] using Borsh
-func serializeParameter(obj interface{}) ([]byte, error) {
-	bytes, err := borsh.Serialize(obj)
-	return bytes, err
-}
-
-// Serialize the parameter and create a smart ptr
-func writeToMem(obj interface{}, memory *program.Memory) (uint32, error) {
-	bytes, err := serializeParameter(obj)
-	if err != nil {
-		return 0, err
-	}
-
-	return program.AllocateBytes(bytes, memory)
 }
