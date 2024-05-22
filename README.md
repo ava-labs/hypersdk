@@ -392,6 +392,26 @@ for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
+### Action Batches and Arbitrary Outputs
+Each `hypersdk` transaction specifies an array of `Actions` that
+must all execute successfully for any state changes to be committed.
+Additionally, each `Action` is permitted to return an array of outputs (each
+output is arbitrary bytes defined by the `hypervm`) upon successful execution.
+
+The `tokenvm` uses `Action` batches to offer complex, atomic interactions over simple
+primitives (i.e. create order, fill order, and cancel order). For example, a user
+can create a transaction that fills 8 orders. If any of the fills fail, all pending
+state changes in the transaction are rolled back. The `tokenvm` uses `Action` outputs to
+return the remaining units on any partially filled order to power an in-memory orderbook.
+
+The outcome of execution is not stored/indexed by the `hypersdk`. Unlike most other
+blockchains/blockchain frameworks, which provide an optional "archival mode" for historical access,
+the `hypersdk` only stores what is necessary to validate the next valid block and to help new nodes
+sync to the current state. Rather, the `hypersdk` invokes the `hypervm` with all execution
+results whenever a block is accepted for it to perform arbitrary operations (as
+required by a developer's use case). In this callback, a `hypervm` could store
+results in a SQL database or write to a Kafka stream.
+
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
 parameter (i.e. `Unit Price`) is scoped by block timestamp. This makes it
@@ -416,23 +436,6 @@ aligned with the `Actions` you define in your `hypervm`), you can always
 override the default gossip technique with your own. For example, you may wish
 to not have any node-to-node gossip and just require validators to propose
 blocks only with the transactions they've received over RPC.
-
-### Transaction Results and Execution Rollback
-The `hypersdk` allows for any `Action` to return a result from execution
-(which can be any arbitrary bytes), the amount of fee units it consumed, and
-whether or not it was successful (if unsuccessful, all state changes are rolled
-back). This support is typically required by anyone using the `hypersdk` to
-implement a smart contract-based runtime that allows for cost-effective
-conditional execution (exiting early if a condition does not hold can be much
-cheaper than the full execution of the transaction).
-
-The outcome of execution is not stored/indexed by the `hypersdk`. Unlike most other
-blockchains/blockchain frameworks, which provide an optional "archival mode" for historical access,
-the `hypersdk` only stores what is necessary to validate the next valid block and to help new nodes
-sync to the current state. Rather, the `hypersdk` invokes the `hypervm` with all execution
-results whenever a block is accepted for it to perform arbitrary operations (as
-required by a developer's use case). In this callback, a `hypervm` could store
-results in a SQL database or write to a Kafka stream.
 
 ### Support for Generic Storage Backends
 When initializing a `hypervm`, the developer explicitly specifies which storage backends
