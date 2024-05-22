@@ -92,11 +92,11 @@ transaction is ~400 bytes); this would would require the `hypersdk` to store 10M
 second (not including any overhead in the database for doing so). **This works out to
 864GB per day or 315.4TB per year.**
 
-When `MinimumBlockGap=250ms` (minimum time betweem blocks), the `hypersdk` must store at
+When `MinimumBlockGap=250ms` (minimum time between blocks), the `hypersdk` must store at
 least ~240 blocks to allow for the entire `ValidityWindow` to be backfilled (otherwise
 a fully-synced, restarting `hypervm` will not become "ready" until it accepts a block at
 least `ValidityWindow` after the last accepted block). To provide some room for error during
-disaster recovery (network outage), however, it is recommened to configure the `hypersdk` to
+disaster recovery (network outage), however, it is recommend to configure the `hypersdk` to
 store the last >= ~50,000 accepted blocks (~3.5 hours of activity with a 250ms `MinimumBlockGap`).
 This allows archival nodes that become disconnected from the network (due to a data center outage or bug)
 to ensure they can persist all historical blocks (which would otherwise be deleted by all participants and
