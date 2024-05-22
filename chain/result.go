@@ -15,6 +15,8 @@ type Result struct {
 
 	Outputs [][][]byte
 
+	// Computing [Units] requires access to [StateManager], so it is returned
+	// to make life easier for indexers.
 	Units fees.Dimensions
 	Fee   uint64
 }
