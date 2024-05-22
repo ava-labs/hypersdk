@@ -31,7 +31,7 @@ func TestAddPermissions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 			keys := make(Keys)
-			keys.Add(tt.key, tt.permission)
+			require.True(keys.Add(tt.key, tt.permission))
 
 			// Check permission
 			perm := keys[tt.key]
@@ -70,11 +70,17 @@ func TestUnionPermissions(t *testing.T) {
 			keys := Keys{tt.key: tt.permission1}
 
 			// Add new permission this should test the Union part
-			keys.Add(tt.key, tt.permission2)
+			require.True(keys.Add(tt.key, tt.permission2))
 
 			// Check updated positions
 			perm := keys[tt.key]
 			require.Equal(tt.expectedPermission, perm)
 		})
 	}
+}
+
+func TestMalformedKey(t *testing.T) {
+	require := require.New(t)
+	keys := make(Keys)
+	require.False(keys.Add("", Read))
 }

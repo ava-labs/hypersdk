@@ -71,14 +71,13 @@ type AssetReply struct {
 	Metadata []byte `json:"metadata"`
 	Supply   uint64 `json:"supply"`
 	Owner    string `json:"owner"`
-	Warp     bool   `json:"warp"`
 }
 
 func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, symbol, decimals, metadata, supply, owner, warp, err := j.c.GetAssetFromState(ctx, args.Asset)
+	exists, symbol, decimals, metadata, supply, owner, err := j.c.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -90,7 +89,6 @@ func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetRe
 	reply.Metadata = metadata
 	reply.Supply = supply
 	reply.Owner = codec.MustAddressBech32(consts.HRP, owner)
-	reply.Warp = warp
 	return err
 }
 
@@ -163,26 +161,5 @@ func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *G
 		OutTick:   outTick,
 		Remaining: remaining,
 	}
-	return nil
-}
-
-type LoanArgs struct {
-	Destination ids.ID `json:"destination"`
-	Asset       ids.ID `json:"asset"`
-}
-
-type LoanReply struct {
-	Amount uint64 `json:"amount"`
-}
-
-func (j *JSONRPCServer) Loan(req *http.Request, args *LoanArgs, reply *LoanReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Loan")
-	defer span.End()
-
-	amount, err := j.c.GetLoanFromState(ctx, args.Asset, args.Destination)
-	if err != nil {
-		return err
-	}
-	reply.Amount = amount
 	return nil
 }

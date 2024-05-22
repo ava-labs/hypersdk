@@ -4,8 +4,6 @@
 package chain
 
 import (
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
@@ -13,34 +11,37 @@ import (
 
 type Result struct {
 	Success bool
-	Output  []byte
+	Error   []byte
+
+	Outputs [][][]byte
 
 	Consumed fees.Dimensions
 	Fee      uint64
-
-	WarpMessage *warp.UnsignedMessage
 }
 
 func (r *Result) Size() int {
-	size := consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
-	if r.WarpMessage != nil {
-		size += codec.BytesLen(r.WarpMessage.Bytes())
-	} else {
-		size += codec.BytesLen(nil)
+	outputSize := consts.Uint8Len // actions
+	for _, action := range r.Outputs {
+		outputSize += consts.Uint8Len
+		for _, output := range action {
+			outputSize += codec.BytesLen(output)
+		}
 	}
-	return size
+	return consts.BoolLen + codec.BytesLen(r.Error) + outputSize + fees.DimensionsLen + consts.Uint64Len
 }
 
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
-	p.PackBytes(r.Output)
+	p.PackBytes(r.Error)
+	p.PackByte(uint8(len(r.Outputs)))
+	for _, outputs := range r.Outputs {
+		p.PackByte(uint8(len(outputs)))
+		for _, output := range outputs {
+			p.PackBytes(output)
+		}
+	}
 	p.PackFixedBytes(r.Consumed.Bytes())
 	p.PackUint64(r.Fee)
-	var warpBytes []byte
-	if r.WarpMessage != nil {
-		warpBytes = r.WarpMessage.Bytes()
-	}
-	p.PackBytes(warpBytes)
 	return nil
 }
 
@@ -60,11 +61,20 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
-	p.UnpackBytes(consts.MaxInt, false, &result.Output)
-	if len(result.Output) == 0 {
-		// Enforce object standardization
-		result.Output = nil
+	p.UnpackBytes(consts.MaxInt, false, &result.Error)
+	outputs := [][][]byte{}
+	numActions := p.UnpackByte()
+	for i := uint8(0); i < numActions; i++ {
+		numOutputs := p.UnpackByte()
+		actionOutputs := [][]byte{}
+		for j := uint8(0); j < numOutputs; j++ {
+			var output []byte
+			p.UnpackBytes(consts.MaxInt, false, &output)
+			actionOutputs = append(actionOutputs, output)
+		}
+		outputs = append(outputs, actionOutputs)
 	}
+	result.Outputs = outputs
 	consumedRaw := make([]byte, fees.DimensionsLen)
 	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
 	consumed, err := fees.UnpackDimensions(consumedRaw)
@@ -73,15 +83,7 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	}
 	result.Consumed = consumed
 	result.Fee = p.UnpackUint64(false)
-	var warpMessage []byte
-	p.UnpackBytes(MaxWarpMessageSize, false, &warpMessage)
-	if len(warpMessage) > 0 {
-		msg, err := warp.ParseUnsignedMessage(warpMessage)
-		if err != nil {
-			return nil, err
-		}
-		result.WarpMessage = msg
-	}
+	// Wait to check if empty until after all results are unpacked.
 	return result, p.Err()
 }
 

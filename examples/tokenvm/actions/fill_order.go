@@ -7,15 +7,14 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	smath "github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ chain.Action = (*FillOrder)(nil)
@@ -57,10 +56,6 @@ func (*FillOrder) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.OrderChunks, storage.BalanceChunks, storage.BalanceChunks, storage.BalanceChunks}
 }
 
-func (*FillOrder) OutputsWarpMessage() bool {
-	return false
-}
-
 func (f *FillOrder) Execute(
 	ctx context.Context,
 	_ chain.Rules,
@@ -68,40 +63,39 @@ func (f *FillOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+) (uint64, [][]byte, error) {
 	exists, in, inTick, out, outTick, remaining, owner, err := storage.GetOrder(ctx, mu, f.Order)
 	if err != nil {
-		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if !exists {
-		return false, NoFillOrderComputeUnits, OutputOrderMissing, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputOrderMissing
 	}
 	if owner != f.Owner {
-		return false, NoFillOrderComputeUnits, OutputWrongOwner, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputWrongOwner
 	}
 	if in != f.In {
-		return false, NoFillOrderComputeUnits, OutputWrongIn, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputWrongIn
 	}
 	if out != f.Out {
-		return false, NoFillOrderComputeUnits, OutputWrongOut, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputWrongOut
 	}
 	if f.Value == 0 {
 		// This should be guarded via [Unmarshal] but we check anyways.
-		return false, NoFillOrderComputeUnits, OutputValueZero, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputValueZero
 	}
 	if f.Value%inTick != 0 {
-		return false, NoFillOrderComputeUnits, OutputValueMisaligned, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputValueMisaligned
 	}
 	// Determine amount of [Out] counterparty will receive if the trade is
 	// successful.
 	outputAmount, err := smath.Mul64(outTick, f.Value/inTick)
 	if err != nil {
-		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if outputAmount == 0 {
 		// This should never happen because [f.Value] > 0
-		return false, NoFillOrderComputeUnits, OutputInsufficientOutput, nil, nil
+		return NoFillOrderComputeUnits, nil, ErrOutputInsufficientOutput
 	}
 	var (
 		inputAmount    = f.Value
@@ -127,32 +121,32 @@ func (f *FillOrder) Execute(
 	}
 	if inputAmount == 0 {
 		// Don't allow free trades (can happen due to refund rounding)
-		return false, NoFillOrderComputeUnits, OutputInsufficientInput, nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if err := storage.SubBalance(ctx, mu, actor, f.In, inputAmount); err != nil {
-		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, f.Owner, f.In, inputAmount, true); err != nil {
-		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, actor, f.Out, outputAmount, true); err != nil {
-		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
 	if shouldDelete {
 		if err := storage.DeleteOrder(ctx, mu, f.Order); err != nil {
-			return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+			return NoFillOrderComputeUnits, nil, err
 		}
 	} else {
 		if err := storage.SetOrder(ctx, mu, f.Order, in, inTick, out, outTick, orderRemaining, owner); err != nil {
-			return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+			return NoFillOrderComputeUnits, nil, err
 		}
 	}
 	or := &OrderResult{In: inputAmount, Out: outputAmount, Remaining: orderRemaining}
 	output, err := or.Marshal()
 	if err != nil {
-		return false, NoFillOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return NoFillOrderComputeUnits, nil, err
 	}
-	return true, FillOrderComputeUnits, output, nil, nil
+	return FillOrderComputeUnits, [][]byte{output}, nil
 }
 
 func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
@@ -160,7 +154,7 @@ func (*FillOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*FillOrder) Size() int {
-	return consts.IDLen*3 + codec.AddressLen + consts.Uint64Len
+	return ids.IDLen*3 + codec.AddressLen + consts.Uint64Len
 }
 
 func (f *FillOrder) Marshal(p *codec.Packer) {
@@ -171,7 +165,7 @@ func (f *FillOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(f.Value)
 }
 
-func UnmarshalFillOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalFillOrder(p *codec.Packer) (chain.Action, error) {
 	var fill FillOrder
 	p.UnpackID(true, &fill.Order)
 	p.UnpackAddress(&fill.Owner)

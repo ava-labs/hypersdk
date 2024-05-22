@@ -4,12 +4,6 @@
 <p align="center">
   Mint, Transfer, and Trade User-Generated Tokens, All On-Chain
 </p>
-<p align="center">
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-static-analysis.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-unit-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-sync-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/tokenvm-load-tests.yml/badge.svg" /></a>
-</p>
 
 ---
 
@@ -105,41 +99,6 @@ be valid only until a particular time. This enables you to go for orders as you
 see fit at the time and not have to worry about your fill sitting around until you
 explicitly cancel it/replace it.
 
-### Avalanche Warp Support
-We take advantage of the Avalanche Warp Messaging (AWM) support provided by the
-`hypersdk` to enable any `tokenvm` to send assets to any other `tokenvm` without
-relying on a trusted relayer or bridge (just the validators of the `tokenvm`
-sending the message).
-
-By default, a `tokenvm` will accept a message from another `tokenvm` if 80% of
-the stake weight of the source has signed it. Because each imported asset is
-given a unique `AssetID` (hash of `sourceChainID + sourceAssetID`), it is not
-possible for a malicious/rogue Subnet to corrupt token balances imported from
-other Subnets with this default import setting. `tokenvms` also track the
-amount of assets exported to all other `tokenvms` and ensure that more assets
-can't be brought back from a `tokenvm` than were exported to it (prevents
-infinite minting).
-
-To limit "contagion" in the case of a `tokenvm` failure, we ONLY allow the
-export of natively minted assets to another `tokenvm`. This means you can
-transfer an asset between two `tokenvms` A and B but you can't export from
-`tokenvm` A to `tokenvm` B to `tokenvm` C. This ensures that the import policy
-for an external `tokenvm` is always transparent and is never inherited
-implicitly by the transfers between other `tokenvms`. The ability to impose
-this restriction (without massively driving up the cost of each transfer) is
-possible because AWM does not impose an additional overhead per Subnet
-connection (no "per connection" state to maintain). This means it is just as
-cheap/scalable to communicate with every other `tokenvm` as it is to only
-communicate with one.
-
-Lastly, the `tokenvm` allows users to both tip relayers (whoever sends
-a transaction that imports their message) and to swap for another asset when
-their message is imported (so they can acquire fee-paying tokens right when
-they arrive).
-
-You can see how this works by checking out the [E2E test suite](./tests/e2e/e2e_test.go) that
-runs through these flows.
-
 ## Demos
 Someone: "Seems cool but I need to see it to really get it."
 Me: "Look no further."
@@ -156,9 +115,6 @@ _By default, this allocates all funds on the network to
 key for this address is
 `0x323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7`.
 For convenience, this key has is also stored at `demo.pk`._
-
-_If you don't need 2 Subnets for your testing, you can run `MODE="run-single"
-./scripts/run.sh`._
 
 To make it easy to interact with the `tokenvm`, we implemented the `token-cli`.
 Next, you'll need to build this. You can use the following command from this location
@@ -237,7 +193,7 @@ database: .token-cli
 address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
 chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000 warp: false
+metadata: MarioCoin supply: 10000
 balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 ```
 
@@ -257,7 +213,7 @@ chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 in assetID (use TKN for native token): TKN
 ✔ in tick: 1█
 out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000 warp: false
+metadata: MarioCoin supply: 10000
 balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 out tick: 10
 supply (must be multiple of out tick): 100
@@ -287,7 +243,7 @@ chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
 in assetID (use TKN for native token): TKN
 balance: 997.999993843 TKN
 out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000 warp: false
+metadata: MarioCoin supply: 10000
 available orders: 1
 0) Rate(in/out): 100000000.0000 InTick: 1.000000000 TKN OutTick: 10 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug Remaining: 100 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 select order: 0
@@ -347,39 +303,6 @@ height:14 txs:1 units:1536 root:2vqraWhyd98zVk2ALMmbHPApXjjvHpxh4K4u1QhSb6i3w4VZ
 height:15 txs:1 units:464 root:u2FyTtup4gwPfEFybMNTgL2svvSnajfGH4QKqiJ9vpZBSvx7q avg TPS:0.036967
 ✅ Lsad3MZ8i5V5hrGcRxXsghV5G1o1a9XStHY3bYmg7ha7W511e actor: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp units: 464 summary (*actions.CloseOrder): [orderID: 2Qb172jGBtjTTLhrzYD8ZLatjg6FFmbiFSP6CBq2Xy4aBV2WxL]
 ```
-
-### Transfer Assets to Another Subnet
-Unlike the mint and trade demo, the AWM demo only requires running a single
-command. You can kick off a transfer between the 2 Subnets you created by
-running the following command from this location:
-```bash
-./build/token-cli action export
-```
-
-When you are done, the output should look something like this:
-```
-database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-✔ assetID (use TKN for native token): TKN
-balance: 997.999988891 TKN
-recipient: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-amount: 10
-reward: 0
-available chains: 1 excluded: [Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9]
-0) chainID: cKVefMmNPSKmLoshR15Fzxmx52Y5yUSPqWiJsNFUg1WgNQVMX
-destination: 0
-swap on import (y/n): n
-continue (y/n): y
-✅ txID: 24Y2zR2qEQZSmyaG1BCqpZZaWMDVDtimGDYFsEkpCcWYH4dUfJ
-perform import on destination (y/n): y
-22u9zvTa8cRX7nork3koubETsKDn43ydaVEZZWMGcTDerucq4b to: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp source assetID: TKN output assetID: 2rST7KDPjRvDxypr6Q4SwfAwdApLwKXuukrSc42jA3dQDgo7jx value: 10000000000 reward: 10000000000 return: false
-✔ switch default chain to destination (y/n): y
-```
-
-_The `export` command will automatically run the `import` command on the
-destination. If you wish to import the AWM message using a separate account,
-you can run the `import` command after changing your key._
 
 ### Running a Load Test
 _Before running this demo, make sure to stop the network you started using
@@ -484,10 +407,6 @@ out on the Avalanche Discord._
 * Add expiring order support (can't fill an order after some point in time but
   still need to explicitly close it to get your funds back -> async cleanup is
   not a good idea)
-* Add lockup fee for creating a Warp Message and ability to reclaim the lockup
-  with a refund action (this will allow for "user-driven" acks on
-  messages, which will remain signable and in state until a refund action is
-  issued)
 
 <br>
 <br>

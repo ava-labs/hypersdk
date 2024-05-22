@@ -8,17 +8,12 @@ import (
 	"fmt"
 	"net/http"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/hypersdk/builder"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/gossiper"
-	hrpc "github.com/ava-labs/hypersdk/rpc"
-	hstorage "github.com/ava-labs/hypersdk/storage"
-	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/builder"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
@@ -27,6 +22,12 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
+	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/vm"
+
+	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	hrpc "github.com/ava-labs/hypersdk/rpc"
+	hstorage "github.com/ava-labs/hypersdk/storage"
 )
 
 var _ vm.Controller = (*Controller)(nil)
@@ -168,9 +169,11 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			}
 		}
 		if result.Success {
-			switch tx.Action.(type) { //nolint:gocritic
-			case *actions.Transfer:
-				c.metrics.transfer.Inc()
+			for _, action := range tx.Actions {
+				switch action.(type) { //nolint:gocritic
+				case *actions.Transfer:
+					c.metrics.transfer.Inc()
+				}
 			}
 		}
 	}

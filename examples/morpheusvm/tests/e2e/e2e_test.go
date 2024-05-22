@@ -11,22 +11,25 @@ import (
 	"testing"
 	"time"
 
-	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/fatih/color"
+	"github.com/onsi/gomega"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/fatih/color"
+
+	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 const (
@@ -262,10 +265,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 5 new validators (which should have BLS key registered)
+	// Add 5 validators (already have BLS key registered)
 	subnet := []string{}
 	for i := 1; i <= int(numValidators); i++ {
-		n := fmt.Sprintf("node%d-bls", i)
+		n := fmt.Sprintf("node%d", i)
 		subnet = append(subnet, n)
 	}
 	specs := []*rpcpb.BlockchainSpec{
@@ -424,11 +427,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 			submit, tx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				nil,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    aother,
 					Value: sendAmount,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -717,11 +719,10 @@ func generateBlocks(
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    aother,
 				Value: 1,
-			},
+			}},
 			factory,
 		)
 		if failOnError {
@@ -786,11 +787,10 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			nil,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    aother,
 				Value: 1,
-			},
+			}},
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())

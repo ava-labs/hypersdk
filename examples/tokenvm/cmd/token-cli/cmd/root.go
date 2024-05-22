@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -162,9 +163,6 @@ func init() {
 		createOrderCmd,
 		fillOrderCmd,
 		closeOrderCmd,
-
-		importAssetCmd,
-		exportAssetCmd,
 	)
 
 	// spam

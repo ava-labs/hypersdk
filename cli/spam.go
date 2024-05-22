@@ -52,7 +52,7 @@ func (h *Handler) Spam(
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64) chain.Action,
+	getTransfer func(codec.Address, uint64) []chain.Action,
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
@@ -110,8 +110,8 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	action := getTransfer(keys[0].Address, 0)
-	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), action, factory, nil)
+	actions := getTransfer(keys[0].Address, 0)
+	maxUnits, err := chain.EstimateMaxUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (h *Handler) Spam(
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(pk.Address, distAmount), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
 		}
 	}
 	var recipientFunc func() (*PrivateKey, error)
@@ -307,7 +307,7 @@ func (h *Handler) Spam(
 						}
 						v := selected[recipient] + 1
 						selected[recipient] = v
-						action := getTransfer(recipient, uint64(v))
+						actions := getTransfer(recipient, uint64(v))
 						fee, err := fees.MulSum(unitPrices, maxUnits)
 						if err != nil {
 							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
@@ -316,7 +316,7 @@ func (h *Handler) Spam(
 						if maxFee != nil {
 							fee = *maxFee
 						}
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, nil, action, factory, fee, tm)
+						_, tx, err := issuer.c.GenerateTransactionManual(parser, actions, factory, fee, tm)
 						if err != nil {
 							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 							continue
@@ -424,7 +424,7 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
-		_, tx, err := cli.GenerateTransactionManual(parser, nil, getTransfer(key.Address, returnAmt), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt), f, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -446,7 +446,7 @@ func (h *Handler) Spam(
 		}
 		if !result.Success {
 			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Output)
+			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
 		}
 	}
 	utils.Outf(
@@ -492,7 +492,7 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				if result.Success {
 					confirmedTxs++
 				} else {
-					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Output), result.Success)
+					utils.Outf("{{orange}}on-chain tx failure:{{/}} %s %t\n", string(result.Error), result.Success)
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.

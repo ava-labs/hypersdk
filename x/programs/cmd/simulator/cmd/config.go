@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/near/borsh-go"
 	"gopkg.in/yaml.v2"
 )
 
@@ -16,14 +17,9 @@ const (
 	ProgramExecute = "execute"
 )
 
-type Plan struct {
-	// The key of the caller used in each step of the plan.
-	CallerKey string `yaml:"caller_key" json:"callerKey"`
-	// Steps to performed during simulation.
-	Steps []Step `json,yaml:"steps"`
-}
-
 type Step struct {
+	// The key of the caller used.
+	CallerKey string `yaml:"caller_key" json:"callerKey"`
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint" yaml:"endpoint"`
 	// The method to call on the endpoint.
@@ -94,7 +90,7 @@ func (r *Response) setBalance(balance uint64) {
 	r.Result.Balance = balance
 }
 
-func (r *Response) setResponse(response []int64) {
+func (r *Response) setResponse(response []byte) {
 	r.Result.Response = response
 }
 
@@ -112,7 +108,7 @@ type Result struct {
 	// The balance after the step has completed.
 	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
 	// The response from the call.
-	Response []int64 `json:"response,omitempty" yaml:"response,omitempty"`
+	Response []byte `json:"response" yaml:"response"`
 	// An optional message.
 	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
 	// Timestamp of the response.
@@ -162,11 +158,13 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual int64, require *Require) (bool, error) {
+func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	if require == nil {
 		return true, nil
 	}
 
+	actual := int64(0)
+	borsh.Deserialize(&actual, bytes)
 	assertion := require.Result
 	// convert the assertion value(string) to uint64
 	value, err := strconv.ParseInt(assertion.Value, 10, 64)
@@ -206,22 +204,22 @@ func validateAssertion(actual int64, require *Require) (bool, error) {
 	return false, nil
 }
 
-func unmarshalPlan(bytes []byte) (*Plan, error) {
-	var p Plan
+func unmarshalStep(bytes []byte) (*Step, error) {
+	var s Step
 	switch {
 	case isJSON(string(bytes)):
-		if err := json.Unmarshal(bytes, &p); err != nil {
+		if err := json.Unmarshal(bytes, &s); err != nil {
 			return nil, err
 		}
 	case isYAML(string(bytes)):
-		if err := yaml.Unmarshal(bytes, &p); err != nil {
+		if err := yaml.Unmarshal(bytes, &s); err != nil {
 			return nil, err
 		}
 	default:
 		return nil, ErrInvalidConfigFormat
 	}
 
-	return &p, nil
+	return &s, nil
 }
 
 func boolToUint64(b bool) uint64 {

@@ -48,17 +48,17 @@ func (f *logFactory) makeLogger(config logging.Config) (logging.Logger, error) {
 	if _, ok := f.loggers[config.LoggerName]; ok {
 		return nil, fmt.Errorf("logger with name %q already exists", config.LoggerName)
 	}
-	consoleEnc := config.LogFormat.ConsoleEncoder()
+	consoleEnc := logging.Colors.ConsoleEncoder()
 	fileEnc := config.LogFormat.FileEncoder()
 
 	var consoleWriter io.WriteCloser
 	if config.DisableWriterDisplaying {
 		consoleWriter = newDiscardWriteCloser()
 	} else {
-		consoleWriter = os.Stdout
+		consoleWriter = os.Stderr
 	}
 
-	consoleCore := logging.NewWrappedCore(config.DisplayLevel, consoleWriter, consoleEnc)
+	consoleCore := logging.NewWrappedCore(config.LogLevel, consoleWriter, consoleEnc)
 	consoleCore.WriterDisabled = config.DisableWriterDisplaying
 
 	rw := &lumberjack.Logger{

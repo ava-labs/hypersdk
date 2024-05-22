@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -27,14 +28,6 @@ func (*StateManager) TimestampKey() []byte {
 
 func (*StateManager) FeeKey() []byte {
 	return storage.FeeKey()
-}
-
-func (*StateManager) IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte {
-	return storage.IncomingWarpKeyPrefix(sourceChainID, msgID)
-}
-
-func (*StateManager) OutgoingWarpKeyPrefix(txID ids.ID) []byte {
-	return storage.OutgoingWarpKeyPrefix(txID)
 }
 
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
