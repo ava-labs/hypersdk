@@ -81,7 +81,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	require.Len(cache, 0)
+	require.Empty(cache)
 }
 
 func TestFetchSameKeys(t *testing.T) {
