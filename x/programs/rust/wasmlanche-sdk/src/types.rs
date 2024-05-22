@@ -33,3 +33,9 @@ impl IntoIterator for Address {
         IntoIterator::into_iter(self.0)
     }
 }
+
+impl AsRef<[u8]> for Address {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}

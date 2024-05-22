@@ -1,6 +1,6 @@
 use crate::{memory::into_bytes, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::{collections::HashMap, hash::Hash, ops::Deref};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, io::ErrorKind};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -38,43 +38,27 @@ pub enum Error {
     Delete,
 }
 
-pub struct State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
-    cache: HashMap<K, Vec<u8>>,
+pub struct State<'a, K: Key> {
+    cache: &'a RefCell<HashMap<K, Vec<u8>>>,
 }
 
-impl<K> Drop for State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
+pub trait Key: Copy + PartialEq + Eq + Hash {
+    fn as_prefixed(&self) -> PrefixedBytes<'_>;
+}
+
+impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {
-        if !self.cache.is_empty() {
+        if !self.cache.borrow().is_empty() {
             // force flush
             self.flush().unwrap();
         }
     }
 }
 
-impl<K> Default for State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<K> State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
+impl<'a, K: Key> State<'a, K> {
     #[must_use]
-    pub fn new() -> Self {
-        Self {
-            cache: HashMap::new(),
-        }
+    pub fn new(cache: &'a RefCell<HashMap<K, Vec<u8>>>) -> Self {
+        Self { cache }
     }
 
     /// Store a key and value to the host storage. If the key already exists,
@@ -82,12 +66,12 @@ where
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<V>(&mut self, key: K, value: &V) -> Result<(), Error>
+    pub fn store<V>(self, key: K, value: &V) -> Result<(), Error>
     where
         V: BorshSerialize,
     {
         let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
-        self.cache.insert(key, serialized);
+        self.cache.borrow_mut().insert(key, serialized);
 
         Ok(())
     }
@@ -102,16 +86,17 @@ where
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<V>(&mut self, key: K) -> Result<V, Error>
+    pub fn get<V>(self, key: K) -> Result<V, Error>
     where
         V: BorshDeserialize,
     {
-        let val_bytes = if let Some(val) = self.cache.get(&key) {
+        let mut cache = self.cache.borrow_mut();
+
+        let val_bytes = if let Some(val) = cache.get(&key) {
             val
         } else {
             let args = GetAndDeleteArgs {
-                // TODO: shouldn't have to clone here
-                key: key.clone().into().0,
+                key: key.as_prefixed(),
             };
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
@@ -120,14 +105,7 @@ where
 
             let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
 
-            // TODO:
-            // should be able to do something like the following
-            // `let key = Key(args.key);`
-            // to avoid cloning. The problem is we convert into a Key without knowing
-            // that we can convert back into a K.
-            // Either we need the key to actually be `Key` instead of `Into<Key>`
-            // or we put the bound `K: From<Key>` as well.
-            self.cache.entry(key).or_insert(bytes)
+            cache.entry(key).or_insert(bytes)
         };
 
         from_slice::<V>(val_bytes).map_err(|_| StateError::Deserialization)
@@ -137,10 +115,15 @@ where
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete<T: BorshDeserialize>(&mut self, key: K) -> Result<Option<T>, Error> {
-        self.cache.remove(&key);
+    pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
+        // TODO:
+        // we should actually cache deletes as well
+        // to avoid cache misses after delete
+        self.cache.borrow_mut().remove(&key);
 
-        let args = GetAndDeleteArgs { key: key.into().0 };
+        let args = GetAndDeleteArgs {
+            key: key.as_prefixed(),
+        };
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
@@ -148,16 +131,16 @@ where
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    fn flush(&mut self) -> Result<(), Error> {
-        let args_iter = self
-            .cache
-            .drain()
-            .map(|(key, val)| (key.into(), val))
-            .map(|(key, val)| PutArgs {
-                key: key.0,
-                bytes: val,
+    fn flush(&self) -> Result<(), Error> {
+        let mut cache = self.cache.borrow_mut();
+
+        let args_iter = cache.drain().map(|(key, value)| {
+            borsh::to_vec(&PutArgs {
+                key: key.as_prefixed(),
+                value,
             })
-            .map(|args| borsh::to_vec(&args).map_err(|_| StateError::Serialization));
+            .map_err(|_| StateError::Serialization)
+        });
 
         for args in args_iter {
             host::put_bytes(&args?)?;
@@ -167,35 +150,38 @@ where
     }
 }
 
-/// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
-#[derive(Debug, Default, Clone)]
-pub struct Key(Vec<u8>);
+pub struct PrefixedBytes<'a>(u8, &'a [u8]);
 
-impl Deref for Key {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Key {
-    /// Returns a new Key from the bytes.
+impl<'a> PrefixedBytes<'a> {
     #[must_use]
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Self(bytes)
+    pub fn new(prefix: u8, bytes: &'a [u8]) -> Self {
+        Self(prefix, bytes)
+    }
+}
+
+impl BorshSerialize for PrefixedBytes<'_> {
+    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let Self(prefix, bytes) = self;
+        let len = 1 + u32::try_from(bytes.len()).map_err(|_| ErrorKind::InvalidData)?;
+
+        // TODO: just use bytemuck with the enum
+        writer.write_all(&len.to_le_bytes())?;
+        writer.write_all(&[*prefix])?;
+        writer.write_all(bytes)?;
+
+        Ok(())
     }
 }
 
 #[derive(BorshSerialize)]
-struct PutArgs {
-    key: Vec<u8>,
-    bytes: Vec<u8>,
+struct GetAndDeleteArgs<'a> {
+    key: PrefixedBytes<'a>,
 }
 
 #[derive(BorshSerialize)]
-struct GetAndDeleteArgs {
-    key: Vec<u8>,
+struct PutArgs<'a> {
+    key: PrefixedBytes<'a>,
+    value: Vec<u8>,
 }
 
 mod host {

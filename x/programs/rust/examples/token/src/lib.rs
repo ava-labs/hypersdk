@@ -6,7 +6,7 @@ const INITIAL_SUPPLY: i64 = 123456789;
 
 /// The program state keys.
 #[state_keys]
-enum StateKey {
+pub enum StateKeys {
     /// The total supply of the token. Key prefix 0x0.
     TotalSupply,
     /// The name of the token. Key prefix 0x1.
@@ -19,94 +19,109 @@ enum StateKey {
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(context: Context) {
+pub fn init(context: Context<StateKeys>) {
     let Context { program, .. } = context;
 
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply, &INITIAL_SUPPLY)
+        .store(StateKeys::TotalSupply, &INITIAL_SUPPLY)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKey::Name, b"WasmCoin")
+        .store(StateKeys::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKey::Symbol, b"WACK")
+        .store(StateKeys::Symbol, b"WACK")
         .expect("failed to store symbol");
 }
 
 /// Returns the total supply of the token.
 #[public]
-pub fn get_total_supply(context: Context) -> i64 {
+pub fn get_total_supply(context: Context<StateKeys>) -> i64 {
     let Context { program, .. } = context;
     program
         .state()
-        .get(StateKey::TotalSupply)
+        .get(StateKeys::TotalSupply)
         .expect("failed to get total supply")
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
-    let Context { program, .. } = context;
+pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: i64) -> bool {
+    mint_to_internal(context, recipient, amount);
+    true
+}
+
+fn mint_to_internal(
+    context: Context<StateKeys>,
+    recipient: Address,
+    amount: i64,
+) -> Context<StateKeys> {
+    let program = &context.program;
+
     let balance = program
         .state()
-        .get::<i64>(StateKey::Balance(recipient))
+        .get::<i64>(StateKeys::Balance(recipient))
         .unwrap_or_default();
 
     program
         .state()
-        .store(StateKey::Balance(recipient), &(balance + amount))
+        .store(StateKeys::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
-    true
+    context
 }
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(context: Context, recipient: Address) -> i64 {
+pub fn burn_from(context: Context<StateKeys>, recipient: Address) -> i64 {
     let Context { program, .. } = context;
     program
         .state()
-        .delete::<i64>(StateKey::Balance(recipient))
+        .delete::<i64>(StateKeys::Balance(recipient))
         .expect("failed to burn recipient tokens")
         .expect("recipient balance not found")
 }
 
 /// Transfers balance from the sender to the recipient.
 #[public]
-pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i64) -> bool {
+pub fn transfer(
+    context: Context<StateKeys>,
+    sender: Address,
+    recipient: Address,
+    amount: i64,
+) -> bool {
     let Context { program, .. } = context;
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<i64>(StateKey::Balance(sender))
+        .get::<i64>(StateKeys::Balance(sender))
         .expect("failed to update balance");
 
     assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
-        .get::<i64>(StateKey::Balance(recipient))
+        .get::<i64>(StateKeys::Balance(recipient))
         .unwrap_or_default();
 
     // update balances
     program
         .state()
-        .store(StateKey::Balance(sender), &(sender_balance - amount))
+        .store(StateKeys::Balance(sender), &(sender_balance - amount))
         .expect("failed to store balance");
 
     program
         .state()
-        .store(StateKey::Balance(recipient), &(recipient_balance + amount))
+        .store(StateKeys::Balance(recipient), &(recipient_balance + amount))
         .expect("failed to store balance");
 
     true
@@ -120,21 +135,20 @@ pub struct Minter {
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(context: Context, minters: Vec<Minter>) -> bool {
-    for minter in minters.iter() {
-        mint_to(context, minter.to, minter.amount as i64);
-    }
-
+pub fn mint_to_many(context: Context<StateKeys>, minters: Vec<Minter>) -> bool {
+    minters.into_iter().fold(context, |context, minter| {
+        mint_to_internal(context, minter.to, minter.amount as i64)
+    });
     true
 }
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn get_balance(context: Context, recipient: Address) -> i64 {
+pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
     let Context { program, .. } = context;
     program
         .state()
-        .get(StateKey::Balance(recipient))
+        .get(StateKeys::Balance(recipient))
         .unwrap_or_default()
 }
 
