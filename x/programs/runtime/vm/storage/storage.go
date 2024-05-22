@@ -61,7 +61,15 @@ func GetProgram(
 	bool, // exists
 	error,
 ) {
-	return storage.GetProgram(ctx, db, programID)
+	k := ProgramKey(programID)
+	v, err := db.GetValue(ctx, k)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return v, true, nil
 }
 
 // setProgram stores [program] at [programID]
@@ -71,7 +79,7 @@ func SetProgram(
 	programID ids.ID,
 	program []byte,
 ) error {
-	return storage.SetProgram(ctx, mu, programID, program)
+	return mu.Insert(ctx, ProgramKey(programID), program)
 }
 
 //
