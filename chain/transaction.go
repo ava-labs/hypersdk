@@ -320,17 +320,12 @@ func (t *Transaction) Execute(
 	var (
 		actionStart   = ts.OpIndex()
 		resultOutputs = [][][]byte{}
-		handleRevert  = func(err error) (*Result, error) {
-			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), resultOutputs, units, fee}, nil
-		}
 	)
-
-	// Execute all actions
 	for i, action := range t.Actions {
 		outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
-			return handleRevert(err)
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), resultOutputs, units, fee}, nil
 		}
 		if outputs == nil {
 			// Ensure output standardization (match form we will
@@ -340,7 +335,8 @@ func (t *Transaction) Execute(
 
 		// Wait to append outputs until after we check that there aren't too many
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
-			return handleRevert(ErrTooManyOutputs)
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), resultOutputs, units, fee}, nil
 		}
 		resultOutputs = append(resultOutputs, outputs)
 	}
