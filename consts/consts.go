@@ -7,7 +7,6 @@ const (
 	// These `codec` consts are defined here to avoid a circular dependency
 	BoolLen   = 1
 	ByteLen   = 1
-	IDLen     = 32
 	IntLen    = 4
 	Uint8Len  = 1
 	Uint16Len = 2
