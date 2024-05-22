@@ -3,6 +3,8 @@ members = [
     "x/programs/cmd/simulator/rust",
     "x/programs/rust/sdk-macros",
     "x/programs/rust/wasmlanche-sdk",
+    "x/programs/rust/examples/token",
+    "x/programs/rust/examples/counter",
     "x/programs/rust/wasmlanche-sdk/tests/test-crate",
     "x/programs/test/programs/*",
 ]
@@ -18,7 +20,7 @@ strip = true
 
 [workspace.dependencies]
 sdk-macros = { path = "x/programs/rust/sdk-macros" }
-simulator = { path = "x/programs/cmd/simulator" }
+simulator = { path = "x/programs/cmd/simulator/rust" }
 wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
 
 borsh = { version = "1.5.0", features = ["derive"] }
