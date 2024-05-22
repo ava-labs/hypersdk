@@ -20,7 +20,7 @@ strip = true
 
 [workspace.dependencies]
 sdk-macros = { path = "x/programs/rust/sdk-macros" }
-simulator = { path = "x/programs/cmd/simulator/rust" }
+simulator = { path = "x/programs/cmd/simulator" }
 wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
 
 borsh = { version = "1.5.0", features = ["derive"] }
