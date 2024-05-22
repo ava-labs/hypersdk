@@ -1,4 +1,4 @@
-use crate::{memory::into_bytes, program::Program, state::Error as StateError};
+use crate::{memory::into_bytes, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{collections::HashMap, hash::Hash, ops::Deref};
 
@@ -42,7 +42,6 @@ pub struct State<K>
 where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
-    program: Program,
     cache: HashMap<K, Vec<u8>>,
 }
 
@@ -58,14 +57,22 @@ where
     }
 }
 
+impl<K> Default for State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<K> State<K>
 where
     K: Into<Key> + Hash + PartialEq + Eq + Clone,
 {
     #[must_use]
-    pub fn new(program: Program) -> Self {
+    pub fn new() -> Self {
         Self {
-            program,
             cache: HashMap::new(),
         }
     }
@@ -103,7 +110,6 @@ where
             val
         } else {
             let args = GetAndDeleteArgs {
-                caller: self.program,
                 // TODO: shouldn't have to clone here
                 key: key.clone().into().0,
             };
@@ -134,10 +140,7 @@ where
     pub fn delete<T: BorshDeserialize>(&mut self, key: K) -> Result<Option<T>, Error> {
         self.cache.remove(&key);
 
-        let args = GetAndDeleteArgs {
-            caller: self.program,
-            key: key.into().0,
-        };
+        let args = GetAndDeleteArgs { key: key.into().0 };
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
@@ -151,7 +154,6 @@ where
             .drain()
             .map(|(key, val)| (key.into(), val))
             .map(|(key, val)| PutArgs {
-                caller: self.program,
                 key: key.0,
                 bytes: val,
             })
@@ -187,14 +189,12 @@ impl Key {
 
 #[derive(BorshSerialize)]
 struct PutArgs {
-    caller: Program,
     key: Vec<u8>,
     bytes: Vec<u8>,
 }
 
 #[derive(BorshSerialize)]
 struct GetAndDeleteArgs {
-    caller: Program,
     key: Vec<u8>,
 }
 

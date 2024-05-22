@@ -11,12 +11,12 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 
-	hconsts "github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -44,9 +44,7 @@ type Genesis struct {
 	MaxBlockUnits              fees.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
-	ValidityWindow      int64 `json:"validityWindow"` // ms
-	MaxActionsPerTx     uint8 `json:"maxActionsPerTx"`
-	MaxOutputsPerAction uint8 `json:"maxOutputsPerAction"`
+	ValidityWindow int64 `json:"validityWindow"` // ms
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
@@ -96,9 +94,7 @@ func Default() *Genesis {
 		StorageValueWriteUnits:    3,
 
 		// Tx Parameters
-		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
-		MaxActionsPerTx:     1,
-		MaxOutputsPerAction: 1,
+		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
 
 		// program Runtime Parameters
 		EnableDebugMode: true,

@@ -5,25 +5,28 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/near/borsh-go"
+
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/ava-labs/hypersdk/x/programs/host"
+	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/near/borsh-go"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
-	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/utils"
 
 	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
+	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ chain.Action = (*ProgramExecute)(nil)
@@ -42,7 +45,7 @@ func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
 
-func (t *ProgramExecute) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
 	return state.Keys{}
 }
 
@@ -57,36 +60,39 @@ func (t *ProgramExecute) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (computeUnits uint64, output [][]byte, err error) {
+) (success bool, computeUnits uint64, output []byte, err error) {
 	if len(t.Function) == 0 {
-		return 1, nil, ErrOutputValueZero
+		return false, 1, OutputValueZero, nil
 	}
 	if len(t.Params) == 0 {
-		return 1, nil, ErrOutputValueZero
+		return false, 1, OutputValueZero, nil
 	}
 
 	programID, ok := t.Params[0].Value.(ids.ID)
 	if !ok {
-		return 1, nil, fmt.Errorf("invalid call param: must be ID")
+		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
 	}
 
 	// TODO: take fee out of balance?
-	programBytes, _, err := storage.GetProgram(ctx, mu, programID)
+	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
+	if !exists {
+		err = errors.New("unknown program")
+	}
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	ecfg, err := engine.NewConfigBuilder().
 		WithDefaultCache(true).
 		Build()
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	eng := engine.New(ecfg)
 
@@ -95,45 +101,39 @@ func (t *ProgramExecute) Execute(
 	importsBuilder.Register("state", func() host.Import {
 		return pstate.New(logging.NoLog{}, mu)
 	})
-	callContext := program.Context{
+	callContext := &program.Context{
 		ProgramID: programID,
 		// Actor:            [32]byte(actor[1:]),
 		// OriginatingActor: [32]byte(actor[1:])
 	}
 
 	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg, &callContext)
+		return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
 	})
 	imports := importsBuilder.Build()
 
 	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
 	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	defer t.rt.Stop()
 
 	mem, err := t.rt.Memory()
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 	params, err := WriteParams(mem, t.Params)
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
 	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
 	if err != nil {
-		return 1, nil, err
+		return false, 1, utils.ErrBytes(err), nil
 	}
 
-	// TODO: remove this is to support readonly response for now.
-	p := codec.NewWriter(len(resp), consts.MaxInt)
-	for _, r := range resp {
-		p.PackInt64(r)
-	}
-
-	return 1, [][]byte{p.Bytes()}, nil
+	return true, 1, resp, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {

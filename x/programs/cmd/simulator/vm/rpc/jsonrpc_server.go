@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/fees"
+
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
 )
 

@@ -12,11 +12,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
+
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/version"
 )

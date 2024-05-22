@@ -3,6 +3,4 @@
 
 package actions
 
-import "errors"
-
-var ErrOutputValueZero = errors.New("value is zero")
+var OutputValueZero = []byte("value is zero")

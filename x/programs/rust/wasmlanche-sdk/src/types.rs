@@ -7,7 +7,7 @@ pub struct Address([u8; Self::LEN]);
 
 impl Address {
     // TODO: move to HyperSDK.Address which will be 33 bytes
-    pub const LEN: usize = 32;
+    pub const LEN: usize = 33;
     // Constructor function for Address
     #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
@@ -16,6 +16,12 @@ impl Address {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl Default for Address {
+    fn default() -> Self {
+        Self([0; Self::LEN])
     }
 }
 
