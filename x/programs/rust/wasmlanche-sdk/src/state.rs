@@ -2,7 +2,7 @@ use crate::{memory::into_bytes, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{collections::HashMap, hash::Hash, ops::Deref};
 
-#[derive(Clone, thiserror::Error, Debug)]
+#[derive(Clone, thiserror::Error, Debug, BorshSerialize)]
 pub enum Error {
     #[error("an unclassified error has occurred: {0}")]
     Other(String),

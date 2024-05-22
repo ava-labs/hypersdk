@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
+use wasmlanche_sdk::{params, public, state::Error, state_keys, types::Address, Context, Program};
 
 #[state_keys]
 enum StateKeys {
@@ -6,9 +6,10 @@ enum StateKeys {
     Counter(Address),
 }
 
+// TODO define a new result with an error that is from wasmlanche_sdk
 /// Initializes the program address a count of 0.
 #[public]
-pub fn initialize_address(context: Context, address: Address) -> bool {
+pub fn initialize_address(context: Context, address: Address) -> Result<bool, Error> {
     let Context { program, .. } = context;
 
     if program
@@ -16,55 +17,66 @@ pub fn initialize_address(context: Context, address: Address) -> bool {
         .get::<i64>(StateKeys::Counter(address))
         .is_ok()
     {
-        panic!("counter already initialized for address")
+        return Err(Error::Other(
+            "counter already initialized for address".into(),
+        ));
     }
 
     program
         .state()
         .store(StateKeys::Counter(address), &0_i64)
-        .expect("failed to store counter");
+        .map_err(|_| Error::Other("failed to store counter".into()))?;
 
-    true
+    Ok(true)
 }
 
 /// Increments the count at the address by the amount.
 #[public]
-pub fn inc(context: Context, to: Address, amount: i64) -> bool {
-    let counter = amount + get_value(context, to);
+pub fn inc(context: Context, to: Address, amount: i64) -> Result<bool, Error> {
+    let counter = amount + get_value(context, to)?;
     let Context { program, .. } = context;
 
     program
         .state()
         .store(StateKeys::Counter(to), &counter)
-        .expect("failed to store counter");
+        .map_err(|_| Error::Other("failed to store counter".into()))?;
 
-    true
+    Ok(true)
 }
 
 /// Increments the count at the address by the amount for an external program.
 #[public]
-pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> bool {
+pub fn inc_external(
+    _: Context,
+    target: Program,
+    max_units: i64,
+    of: Address,
+    amount: i64,
+) -> Result<bool, Error> {
     let params = params!(&of, &amount).unwrap();
-    target.call_function("inc", &params, max_units).unwrap()
+    target.call_function("inc", &params, max_units)
 }
 
 /// Gets the count at the address.
 #[public]
-pub fn get_value(context: Context, of: Address) -> i64 {
+pub fn get_value(context: Context, of: Address) -> Result<i64, Error> {
     let Context { program, .. } = context;
     program
         .state()
         .get(StateKeys::Counter(of))
-        .expect("failed to get counter")
+        .map_err(|_| Error::Other("failed to get counter".into()))
 }
 
 /// Gets the count at the address for an external program.
 #[public]
-pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
+pub fn get_value_external(
+    _: Context,
+    target: Program,
+    max_units: i64,
+    of: Address,
+) -> Result<i64, Error> {
     let params = params!(&of).unwrap();
-    target
-        .call_function("get_value", &params, max_units)
-        .unwrap()
+    target.call_function("get_value", &params, max_units)
 }
 
 #[cfg(test)]
