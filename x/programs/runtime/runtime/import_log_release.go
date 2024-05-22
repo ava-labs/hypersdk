@@ -3,7 +3,7 @@
 
 //go:build !debug
 
-package v2
+package runtime
 
 func NewLogModule() *ImportModule {
 	return &ImportModule{

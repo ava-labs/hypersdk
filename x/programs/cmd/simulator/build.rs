@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let current_dir = std::env::current_dir().unwrap();
 
-    let simulator_path = "bin/simulator";
+    let simulator_path = "../../v2/bin/simulator";
     let simulator_src = "simulator.go";
 
     let simulator_path = current_dir.join(simulator_path);

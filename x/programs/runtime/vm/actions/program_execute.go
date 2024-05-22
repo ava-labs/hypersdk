@@ -11,8 +11,6 @@ import (
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/host"
 	"github.com/ava-labs/hypersdk/x/programs/program"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,14 +21,13 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
 
-	importProgram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
-	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/ava-labs/hypersdk/x/programs/v2/runtime"
+	"github.com/ava-labs/hypersdk/x/programs/v2/vm/storage"
 )
 
 var _ chain.Action = (*ProgramExecute)(nil)
 
+// TODO pass a pointer to the runtime
 type ProgramExecute struct {
 	Function string      `json:"programFunction"`
 	MaxUnits uint64      `json:"maxUnits"`
@@ -38,7 +35,24 @@ type ProgramExecute struct {
 
 	Log logging.Logger
 
-	rt runtime.Runtime
+	rt runtime.WasmRuntime
+}
+
+type ProgramStore struct {
+	state.Mutable
+}
+
+func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+	// TODO: take fee out of balance?
+	programBytes, exists, err := storage.GetProgram(ctx, s, programID)
+	if err != nil {
+		return []byte{}, err
+	}
+	if !exists {
+		return []byte{}, errors.New("unknown program")
+	}
+
+	return programBytes, nil
 }
 
 func (*ProgramExecute) GetTypeID() uint8 {
@@ -50,7 +64,8 @@ func (t *ProgramExecute) StateKeys(actor codec.Address, txID ids.ID) state.Keys 
 }
 
 func (*ProgramExecute) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.ProgramChunks}
+	// return []uint16{storage.ProgramChunks}
+	return []uint16{}
 }
 
 func (t *ProgramExecute) Execute(
@@ -73,67 +88,31 @@ func (t *ProgramExecute) Execute(
 		return false, 1, utils.ErrBytes(fmt.Errorf("invalid call param: must be ID")), nil
 	}
 
-	// TODO: take fee out of balance?
-	programBytes, exists, err := storage.GetProgram(context.Background(), mu, programID)
-	if !exists {
-		err = errors.New("unknown program")
-	}
+	params, err := SerializeParams(t.Params[1:])
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 0, []byte{}, err
 	}
 
-	// TODO: get cfg from genesis
 	cfg := runtime.NewConfig()
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+	store := &ProgramStore {
+		Mutable: mu,
 	}
-
-	ecfg, err := engine.NewConfigBuilder().
-		WithDefaultCache(true).
-		Build()
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-	eng := engine.New(ecfg)
-
-	// TODO: allow configurable imports?
-	importsBuilder := host.NewImportsBuilder()
-	importsBuilder.Register("state", func() host.Import {
-		return pstate.New(logging.NoLog{}, mu)
-	})
-	callContext := &program.Context{
+	rt := runtime.NewRuntime(cfg, t.Log, store)
+	callInfo := &runtime.CallInfo {
+		State: mu,
+		Actor: ids.Empty,
+		Account: ids.Empty,
 		ProgramID: programID,
-		// Actor:            [32]byte(actor[1:]),
-		// OriginatingActor: [32]byte(actor[1:])
+		Fuel: t.MaxUnits,
+		FunctionName: t.Function,
+		Params: params,
 	}
-
-	importsBuilder.Register("program", func() host.Import {
-		return importProgram.New(logging.NoLog{}, eng, mu, cfg, callContext)
-	})
-	imports := importsBuilder.Build()
-
-	t.rt = runtime.New(logging.NoLog{}, eng, imports, cfg)
-	err = t.rt.Initialize(ctx, callContext, programBytes, t.MaxUnits)
+	output, err = rt.CallProgram(ctx, callInfo)
 	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return false, 0, output, err
 	}
-	defer t.rt.Stop()
-
-	mem, err := t.rt.Memory()
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-	params, err := WriteParams(mem, t.Params)
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-
-	resp, err := t.rt.Call(ctx, t.Function, callContext, params[1:]...)
-	if err != nil {
-		return false, 1, utils.ErrBytes(err), nil
-	}
-
-	return true, 1, resp, nil
+	// TODO don't exhaust all fuel here
+	return true, 0, output, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
@@ -149,7 +128,9 @@ func (t *ProgramExecute) Marshal(p *codec.Packer) {
 }
 
 func (t *ProgramExecute) GetBalance() (uint64, error) {
-	return t.rt.Meter().GetBalance()
+	// TODO implement metering once available
+	// return t.rt.Meter().GetBalance()
+	return 0, nil
 }
 
 func UnmarshalProgramExecute(p *codec.Packer) (chain.Action, error) {
@@ -165,6 +146,31 @@ func (*ProgramExecute) ValidRange(chain.Rules) (int64, int64) {
 // CallParam defines a value to be passed to a guest function.
 type CallParam struct {
 	Value interface{} `json,yaml:"value"`
+}
+
+func SerializeParams(p []CallParam) ([]byte, error) {
+	var bytes []byte
+	for _, param := range p {
+		switch v := param.Value.(type) {
+		case []byte:
+			bytes = append(bytes, v...)
+		case ids.ID:
+			bytes = append(bytes, v[:]...)
+		case string:
+			bytes = append(bytes, []byte(v)...)
+		case uint32:
+			return nil, errors.New("unsupported")
+			// params = append(params, v)
+		default:
+			return nil, errors.New("unsupported")
+			// ptr, err := writeToMem(v, m)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// params = append(params, ptr)
+		}
+	}
+	return bytes, nil
 }
 
 // WriteParams is a helper function that writes the given params to memory if non integer.

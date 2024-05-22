@@ -130,11 +130,11 @@ func programExecuteFunc(
 	// execute the action
 	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 
-	if !success {
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
-	}
 	if err != nil {
 		return ids.Empty, nil, 0, err
+	}
+	if !success {
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
 	}
 
 	// store program to disk only on success
