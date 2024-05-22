@@ -52,6 +52,16 @@ func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 	return r.g.WindowTargetUnits
 }
 
+func (*Rules) GetMaxActionsPerTx() uint8 {
+	// TODO
+	return 0
+}
+
+func (*Rules) GetMaxOutputsPerAction() uint8 {
+	// TODO
+	return 0
+}
+
 func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 	return r.g.MaxBlockUnits
 }

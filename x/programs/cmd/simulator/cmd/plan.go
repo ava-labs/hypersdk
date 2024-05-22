@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
-
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -24,6 +22,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -186,8 +185,14 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		zap.Any("params", step.Params),
 	)
 
+	params, err := c.createCallParams(ctx, db, step.Params)
+	if err != nil {
+		c.log.Error("simulation call", zap.Error(err))
+		return newResponse(0), err
+	}
+
 	resp := newResponse(index)
-	err := runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, step.Params, step.Require, resp)
+	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
 		c.log.Error("simulation step err", zap.Error(err))
 		resp.setError(err)
@@ -246,8 +251,13 @@ func runStepFunc(
 		if err != nil {
 			return err
 		}
-		resp.setResponse(response)
-		ok, err := validateAssertion(response, require)
+
+		if len(response) > 1 {
+			return errors.New("multi response not supported")
+		}
+		res := response[0]
+		resp.setResponse(res)
+		ok, err := validateAssertion(res, require)
 		if !ok {
 			return fmt.Errorf("%w", ErrResultAssertionFailed)
 		}
@@ -265,8 +275,12 @@ func runStepFunc(
 			return err
 		}
 
-		resp.setResponse(response)
-		ok, err := validateAssertion(response, require)
+		if len(response) > 1 {
+			return errors.New("multi response not supported")
+		}
+		res := response[0]
+		resp.setResponse(res)
+		ok, err := validateAssertion(res, require)
 
 		if !ok {
 			return fmt.Errorf("%w", ErrResultAssertionFailed)

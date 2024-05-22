@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -42,16 +43,16 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	id ids.ID,
-) (bool, uint64, []byte, error) {
+) (uint64, [][]byte, error) {
 	if len(t.Program) == 0 {
-		return false, 1, OutputValueZero, nil
+		return 1, [][]byte{OutputValueZero}, errors.New("cannot deploy empty program")
 	}
 
 	if err := storage.SetProgram(ctx, mu, id, t.Program); err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return 1, [][]byte{utils.ErrBytes(err)}, err
 	}
 
-	return true, 1, nil, nil
+	return 1, nil, nil
 }
 
 func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {

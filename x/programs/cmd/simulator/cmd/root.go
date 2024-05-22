@@ -103,7 +103,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				}
 			}
 
-			if _, ok := cmd.(*cmd.InterpreterCmd); !ok && !interpreterMode {
+			if _, ok := cmd.(*InterpreterCmd); !ok && !interpreterMode {
 				return nil
 			}
 

@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/version"
 )

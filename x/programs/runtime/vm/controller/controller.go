@@ -17,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/vm"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/config"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/rpc"

@@ -11,8 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
-
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -20,6 +18,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 )
 
 var _ Cmd = (*programCreateCmd)(nil)
@@ -88,15 +87,13 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
+	_, output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
 	if output != nil {
-		fmt.Println(string(output))
-	}
-	if !success {
-		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
+		response := multilineOutput(output)
+		fmt.Println(response)
 	}
 	if err != nil {
-		return ids.Empty, err
+		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
 	}
 
 	// store program to disk only on success
@@ -116,7 +113,7 @@ func programExecuteFunc(
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) (ids.ID, []byte, uint64, error) {
+) (ids.ID, [][]byte, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
@@ -136,12 +133,10 @@ func programExecuteFunc(
 	}
 
 	// execute the action
-	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
+	_, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 	if err != nil {
-		return ids.Empty, nil, 0, err
-	}
-	if !success {
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
+		response := multilineOutput(resp)
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
 	// store program to disk only on success
@@ -179,4 +174,11 @@ func SerializeParams(p []Parameter) ([]byte, error) {
 		}
 	}
 	return bytes, nil
+}
+
+func multilineOutput(resp [][]byte) (response string) {
+	for _, res := range resp {
+		response += string(res) + "\n"
+	}
+	return response
 }

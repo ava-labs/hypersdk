@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
@@ -17,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -67,12 +66,12 @@ func (t *ProgramExecute) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (success bool, computeUnits uint64, output []byte, err error) {
+) (computeUnits uint64, output [][]byte, err error) {
 	if len(t.Function) == 0 {
-		return false, 1, OutputValueZero, nil
+		return 1, [][]byte{OutputValueZero}, errors.New("no function called")
 	}
 	if len(t.Params) == 0 {
-		return false, 1, OutputValueZero, nil
+		return 1, [][]byte{OutputValueZero}, errors.New("there should be at least 1 parameter passed")
 	}
 
 	cfg := runtime.NewConfig()
@@ -89,12 +88,13 @@ func (t *ProgramExecute) Execute(
 		FunctionName: t.Function,
 		Params:       t.Params,
 	}
-	output, err = rt.CallProgram(ctx, callInfo)
+	programOutput, err := rt.CallProgram(ctx, callInfo)
+	output = [][]byte{programOutput}
 	if err != nil {
-		return false, 0, output, err
+		return 0, output, err
 	}
 	// TODO don't exhaust all fuel here
-	return true, 0, output, nil
+	return 0, output, nil
 }
 
 func (*ProgramExecute) MaxComputeUnits(chain.Rules) uint64 {
