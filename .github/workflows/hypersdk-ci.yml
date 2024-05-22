@@ -36,6 +36,8 @@ jobs:
         working-directory: ./examples/tokenvm
         run: go mod tidy
       - shell: bash
+        run: git diff
+      - shell: bash
         run: scripts/tests.clean.sh
 
   hypersdk-lint:
@@ -60,6 +62,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Go
         uses: ./.github/actions/install-go
+      - name: Install Rust
+        uses: ./.github/actions/install-rust
+        with:
+          targets: wasm32-unknown-unknown
+          cache: false
       - name: Run unit tests
         shell: bash
         run: scripts/tests.unit.sh
