@@ -55,9 +55,9 @@ higher throughput if you do ;).
 ### HyperSDK Developer Community
 The HyperSDK developer community is a group of programmers and tech enthusiasts dedicated to pushing the boundaries of the HyperSDK framework. If you would like to join and contribute to this group of early adopters, below is the invite link to the telegram group and sign up for our ~bi-weekly developer calls.
 
-[Telegram Group](https://t.me/+cItVrQJUNF9jODYx)
 
-[Community Call Signup](https://forms.gle/jkuNCeShm9GsYLbG8)
+  - [Telegram Group](https://t.me/+cItVrQJUNF9jODYx)
+  - [Community Call Signup](https://forms.gle/jkuNCeShm9GsYLbG8)
 
 ## Status
 `hypersdk` is considered **ALPHA** software and is not safe to use in
