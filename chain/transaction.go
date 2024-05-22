@@ -131,22 +131,20 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 // Sponsor is the [codec.Address] that pays fees for this transaction.
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
-// Units is charged whether or not a transaction is successful because state
-// lookup is not free.
-func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error) {
-	// Cacluate max compute costs
-	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
+// Units is charged whether or not a transaction is successful.
+func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
+	// Calculate compute usage
+	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
-		maxComputeUnitsOp.Add(action.MaxComputeUnits(r))
+		computeOp.Add(action.ComputeUnits(r))
 	}
-	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
-	maxComputeUnits, err := maxComputeUnitsOp.Value()
+	computeOp.Add(t.Auth.ComputeUnits(r))
+	maxComputeUnits, err := computeOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
 
-	// Calculate the max storage cost we could incur by processing all
-	// state keys.
+	// Calculate storage usage
 	stateKeys, err := t.StateKeys(sm)
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -184,9 +182,11 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 	return fees.Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
-// EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
-// typically used during transaction construction.
-func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+// EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost
+// to execute a transaction.
+//
+// This is typically used during transaction construction.
+func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -202,7 +202,7 @@ func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.
 		bandwidth += consts.ByteLen + uint64(action.Size())
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
-		computeOp.Add(action.MaxComputeUnits(r))
+		computeOp.Add(action.ComputeUnits(r))
 	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
 	bandwidth += consts.ByteLen + authBandwidth
@@ -217,8 +217,6 @@ func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.
 	}
 
 	// Estimate storage costs
-	//
-	// TODO: unify this with [MaxUnits] handling
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -275,45 +273,41 @@ func (t *Transaction) PreExecute(
 	if end >= 0 && timestamp > end {
 		return ErrAuthNotActivated
 	}
-	maxUnits, err := t.MaxUnits(s, r)
+	units, err := t.Units(s, r)
 	if err != nil {
 		return err
 	}
-	maxFee, err := feeManager.MaxFee(maxUnits)
+	fee, err := feeManager.Fee(units)
 	if err != nil {
 		return err
 	}
-	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, maxFee)
+	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
 }
 
 // Execute after knowing a transaction can pay a fee. Attempt
 // to charge the fee in as many cases as possible.
 //
-// ColdRead/WarmRead size is based on the amount read BEFORE
-// the block begins.
-//
 // Invariant: [PreExecute] is called just before [Execute]
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *fees.Manager,
-	reads map[string]uint16,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {
 	// Always charge fee first
-	maxUnits, err := t.MaxUnits(s, r)
+	units, err := t.Units(s, r)
 	if err != nil {
 		// Should never happen
 		return nil, err
 	}
-	maxFee, err := feeManager.MaxFee(maxUnits)
+	fee, err := feeManager.Fee(units)
 	if err != nil {
 		// Should never happen
 		return nil, err
 	}
-	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, maxFee); err != nil {
+	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
@@ -326,17 +320,12 @@ func (t *Transaction) Execute(
 	var (
 		actionStart   = ts.OpIndex()
 		resultOutputs = [][][]byte{}
-		handleRevert  = func(err error) (*Result, error) {
-			ts.Rollback(ctx, actionStart)
-			return &Result{false, utils.ErrBytes(err), resultOutputs, maxUnits, maxFee}, nil
-		}
-		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
 	)
 	for i, action := range t.Actions {
-		// TODO: remove actionCUs return (VRYX)
-		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
-			return handleRevert(err)
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), resultOutputs, units, fee}, nil
 		}
 		if outputs == nil {
 			// Ensure output standardization (match form we will
@@ -345,93 +334,11 @@ func (t *Transaction) Execute(
 		}
 
 		// Wait to append outputs until after we check that there aren't too many
-		//
-		// TODO: consider removing max here
 		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
-			return handleRevert(ErrTooManyOutputs)
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(ErrTooManyOutputs), resultOutputs, units, fee}, nil
 		}
 		resultOutputs = append(resultOutputs, outputs)
-
-		// Add units used
-		computeUnitsOp.Add(actionCUs)
-	}
-	computeUnitsOp.Add(t.Auth.ComputeUnits(r))
-	computeUnits, err := computeUnitsOp.Value()
-	if err != nil {
-		return handleRevert(err)
-	}
-
-	// Because the key database is abstracted from [Auth]/[Actions], we can compute
-	// all storage use in the background. KeyOperations is unique to a view.
-	allocates, writes := ts.KeyOperations()
-
-	// Because we compute the fee before [Auth.Refund] is called, we need
-	// to pessimistically precompute the storage it will change.
-	for key := range s.SponsorStateKeys(t.Auth.Sponsor()) {
-		// maxChunks will be greater than the chunks read in any of these keys,
-		// so we don't need to check for pre-existing values.
-		maxChunks, ok := keys.MaxChunks([]byte(key))
-		if !ok {
-			return handleRevert(ErrInvalidKeyValue)
-		}
-		writes[key] = maxChunks
-	}
-
-	// We only charge for the chunks read from disk instead of charging for the max chunks
-	// specified by the key.
-	//
-	// TODO: charge max (VRYX)
-	readsOp := math.NewUint64Operator(0)
-	for _, chunksRead := range reads {
-		readsOp.Add(r.GetStorageKeyReadUnits())
-		readsOp.MulAdd(uint64(chunksRead), r.GetStorageValueReadUnits())
-	}
-	readUnits, err := readsOp.Value()
-	if err != nil {
-		return handleRevert(err)
-	}
-	allocatesOp := math.NewUint64Operator(0)
-	for _, chunksStored := range allocates {
-		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
-		allocatesOp.MulAdd(uint64(chunksStored), r.GetStorageValueAllocateUnits())
-	}
-	allocateUnits, err := allocatesOp.Value()
-	if err != nil {
-		return handleRevert(err)
-	}
-	writesOp := math.NewUint64Operator(0)
-	for _, chunksModified := range writes {
-		writesOp.Add(r.GetStorageKeyWriteUnits())
-		writesOp.MulAdd(uint64(chunksModified), r.GetStorageValueWriteUnits())
-	}
-	writeUnits, err := writesOp.Value()
-	if err != nil {
-		return handleRevert(err)
-	}
-	used := fees.Dimensions{uint64(t.Size()), computeUnits, readUnits, allocateUnits, writeUnits}
-
-	// Check to see if the units consumed are greater than the max units
-	//
-	// This should never be the case but erroring here is better than
-	// underflowing the refund.
-	if !maxUnits.Greater(used) {
-		return nil, fmt.Errorf("%w: max=%+v consumed=%+v", ErrInvalidUnitsConsumed, maxUnits, used)
-	}
-
-	// Return any funds from unused units
-	//
-	// To avoid storage abuse of [Auth.Refund], we precharge for possible usage.
-	feeRequired, err := feeManager.MaxFee(used)
-	if err != nil {
-		return handleRevert(err)
-	}
-	refund := maxFee - feeRequired
-	if refund > 0 {
-		ts.DisableAllocation()
-		defer ts.EnableAllocation()
-		if err := s.Refund(ctx, t.Auth.Sponsor(), ts, refund); err != nil {
-			return handleRevert(err)
-		}
 	}
 	return &Result{
 		Success: true,
@@ -439,8 +346,8 @@ func (t *Transaction) Execute(
 
 		Outputs: resultOutputs,
 
-		Consumed: used,
-		Fee:      feeRequired,
+		Units: units,
+		Fee:   fee,
 	}, nil
 }
 

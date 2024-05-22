@@ -15,8 +15,10 @@ type Result struct {
 
 	Outputs [][][]byte
 
-	Consumed fees.Dimensions
-	Fee      uint64
+	// Computing [Units] requires access to [StateManager], so it is returned
+	// to make life easier for indexers.
+	Units fees.Dimensions
+	Fee   uint64
 }
 
 func (r *Result) Size() int {
@@ -40,7 +42,7 @@ func (r *Result) Marshal(p *codec.Packer) error {
 			p.PackBytes(output)
 		}
 	}
-	p.PackFixedBytes(r.Consumed.Bytes())
+	p.PackFixedBytes(r.Units.Bytes())
 	p.PackUint64(r.Fee)
 	return nil
 }
@@ -77,11 +79,11 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result.Outputs = outputs
 	consumedRaw := make([]byte, fees.DimensionsLen)
 	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
-	consumed, err := fees.UnpackDimensions(consumedRaw)
+	units, err := fees.UnpackDimensions(consumedRaw)
 	if err != nil {
 		return nil, err
 	}
-	result.Consumed = consumed
+	result.Units = units
 	result.Fee = p.UnpackUint64(false)
 	// Wait to check if empty until after all results are unpacked.
 	return result, p.Err()

@@ -47,30 +47,30 @@ func (c *CloseOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	exists, _, _, out, _, remaining, owner, err := storage.GetOrder(ctx, mu, c.Order)
 	if err != nil {
-		return CloseOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if !exists {
-		return CloseOrderComputeUnits, nil, ErrOutputOrderMissing
+		return nil, ErrOutputOrderMissing
 	}
 	if owner != actor {
-		return CloseOrderComputeUnits, nil, ErrOutputUnauthorized
+		return nil, ErrOutputUnauthorized
 	}
 	if out != c.Out {
-		return CloseOrderComputeUnits, nil, ErrOutputWrongOut
+		return nil, ErrOutputWrongOut
 	}
 	if err := storage.DeleteOrder(ctx, mu, c.Order); err != nil {
-		return CloseOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, actor, c.Out, remaining, true); err != nil {
-		return CloseOrderComputeUnits, nil, err
+		return nil, err
 	}
-	return CloseOrderComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*CloseOrder) MaxComputeUnits(chain.Rules) uint64 {
+func (*CloseOrder) ComputeUnits(chain.Rules) uint64 {
 	return CloseOrderComputeUnits
 }
 

@@ -45,14 +45,27 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 	return m.recorder
 }
 
+// ComputeUnits mocks base method.
+func (m *MockAction) ComputeUnits(arg0 Rules) uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ComputeUnits", arg0)
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ComputeUnits indicates an expected call of ComputeUnits.
+func (mr *MockActionMockRecorder) ComputeUnits(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ComputeUnits", reflect.TypeOf((*MockAction)(nil).ComputeUnits), arg0)
+}
+
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID) (uint64, [][]byte, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID) ([][]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].([][]byte)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].([][]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
@@ -85,20 +98,6 @@ func (m *MockAction) Marshal(arg0 *codec.Packer) {
 func (mr *MockActionMockRecorder) Marshal(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Marshal", reflect.TypeOf((*MockAction)(nil).Marshal), arg0)
-}
-
-// MaxComputeUnits mocks base method.
-func (m *MockAction) MaxComputeUnits(arg0 Rules) uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MaxComputeUnits", arg0)
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// MaxComputeUnits indicates an expected call of MaxComputeUnits.
-func (mr *MockActionMockRecorder) MaxComputeUnits(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxComputeUnits", reflect.TypeOf((*MockAction)(nil).MaxComputeUnits), arg0)
 }
 
 // Size mocks base method.

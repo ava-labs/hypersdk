@@ -52,45 +52,10 @@ import (
 var (
 	logFactory logging.Factory
 	log        logging.Logger
-)
 
-func init() {
-	logFactory = logging.NewFactory(logging.Config{
-		DisplayLevel: logging.Debug,
-	})
-	l, err := logFactory.Make("main")
-	if err != nil {
-		panic(err)
-	}
-	log = l
-}
-
-func TestIntegration(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "tokenvm integration test suites")
-}
-
-var (
 	requestTimeout time.Duration
 	vms            int
-)
 
-func init() {
-	flag.DurationVar(
-		&requestTimeout,
-		"request-timeout",
-		120*time.Second,
-		"timeout for transaction issuance and confirmation",
-	)
-	flag.IntVar(
-		&vms,
-		"vms",
-		4,
-		"number of VMs to create",
-	)
-}
-
-var (
 	priv    ed25519.PrivateKey
 	factory *auth.ED25519Factory
 	rsender codec.Address
@@ -131,6 +96,37 @@ var (
 	networkID uint32
 	gen       *genesis.Genesis
 )
+
+func init() {
+	logFactory = logging.NewFactory(logging.Config{
+		DisplayLevel: logging.Debug,
+	})
+	l, err := logFactory.Make("main")
+	if err != nil {
+		panic(err)
+	}
+	log = l
+}
+
+func TestIntegration(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "tokenvm integration test suites")
+}
+
+func init() {
+	flag.DurationVar(
+		&requestTimeout,
+		"request-timeout",
+		120*time.Second,
+		"timeout for transaction issuance and confirmation",
+	)
+	flag.IntVar(
+		&vms,
+		"vms",
+		4,
+		"number of VMs to create",
+	)
+}
 
 type instance struct {
 	chainID            ids.ID
@@ -340,6 +336,16 @@ var _ = ginkgo.Describe("[Network]", func() {
 })
 
 var _ = ginkgo.Describe("[Tx Processing]", func() {
+	// Unit explanation
+	//
+	// bandwidth: tx size
+	// compute: 5 for signature, 1 for base, 1 for transfer
+	// read: 2 keys reads
+	// allocate: 1 key created with 1 chunk
+	// write: 2 keys modified
+	transferTxUnits := fees.Dimensions{224, 7, 14, 50, 26}
+	transferTxFee := uint64(321)
+
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
 			cli := inst.cli
@@ -445,27 +451,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 keys reads, 1 had 0 chunks
-			// allocate: 1 key created
-			// write: 1 key modified, 1 key new
-			transferTxConsumed := fees.Dimensions{224, 7, 12, 25, 26}
-			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
-
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(294)))
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxUnits))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(transferTxFee))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899706)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899679)))
 			balance2, err := instances[1].tcli.Balance(context.Background(), sender2, ids.Empty)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))

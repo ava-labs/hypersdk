@@ -68,32 +68,32 @@ func (c *CreateOrder) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	if c.In == c.Out {
-		return CreateOrderComputeUnits, nil, ErrOutputSameInOut
+		return nil, ErrOutputSameInOut
 	}
 	if c.InTick == 0 {
-		return CreateOrderComputeUnits, nil, ErrOutputInTickZero
+		return nil, ErrOutputInTickZero
 	}
 	if c.OutTick == 0 {
-		return CreateOrderComputeUnits, nil, ErrOutputOutTickZero
+		return nil, ErrOutputOutTickZero
 	}
 	if c.Supply == 0 {
-		return CreateOrderComputeUnits, nil, ErrOutputSupplyZero
+		return nil, ErrOutputSupplyZero
 	}
 	if c.Supply%c.OutTick != 0 {
-		return CreateOrderComputeUnits, nil, ErrOutputSupplyMisaligned
+		return nil, ErrOutputSupplyMisaligned
 	}
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
-		return CreateOrderComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return CreateOrderComputeUnits, nil, err
+		return nil, err
 	}
-	return CreateOrderComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
+func (*CreateOrder) ComputeUnits(chain.Rules) uint64 {
 	return CreateOrderComputeUnits
 }
 

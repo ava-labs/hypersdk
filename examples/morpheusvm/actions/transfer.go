@@ -49,20 +49,20 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	if t.Value == 0 {
-		return 1, nil, ErrOutputValueZero
+		return nil, ErrOutputValueZero
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
-		return 1, nil, err
+		return nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, t.To, t.Value, true); err != nil {
-		return 1, nil, err
+		return nil, err
 	}
-	return 1, nil, nil
+	return nil, nil
 }
 
-func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
+func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 

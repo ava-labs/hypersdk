@@ -28,6 +28,9 @@ type MintAsset struct {
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
+
+	// TODO: add boolean to indicate whether sender will
+	// create recipient account
 }
 
 func (*MintAsset) GetTypeID() uint8 {
@@ -52,37 +55,37 @@ func (m *MintAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	if m.Asset == ids.Empty {
-		return MintAssetComputeUnits, nil, ErrOutputAssetIsNative
+		return nil, ErrOutputAssetIsNative
 	}
 	if m.Value == 0 {
-		return MintAssetComputeUnits, nil, ErrOutputValueZero
+		return nil, ErrOutputValueZero
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
-		return MintAssetComputeUnits, nil, err
+		return nil, err
 	}
 	if !exists {
-		return MintAssetComputeUnits, nil, ErrOutputAssetMissing
+		return nil, ErrOutputAssetMissing
 	}
 	if owner != actor {
-		return MintAssetComputeUnits, nil, ErrOutputWrongOwner
+		return nil, ErrOutputWrongOwner
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
-		return MintAssetComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor); err != nil {
-		return MintAssetComputeUnits, nil, err
+		return nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
-		return MintAssetComputeUnits, nil, err
+		return nil, err
 	}
-	return MintAssetComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
+func (*MintAsset) ComputeUnits(chain.Rules) uint64 {
 	return MintAssetComputeUnits
 }
 

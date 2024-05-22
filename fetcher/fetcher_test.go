@@ -27,12 +27,6 @@ type testDB struct {
 }
 
 func newTestDB() *testDB {
-	return &testDB{
-		storage: make(map[string][]byte),
-	}
-}
-
-func newTestDBWithValue() *testDB {
 	db := testDB{storage: make(map[string][]byte)}
 	for i := 0; i < 100; i += 2 {
 		db.storage[keyBase+strconv.Itoa(i)] = []byte("value") // key must be long enough to be valid
@@ -74,14 +68,11 @@ func TestFetchDifferentKeys(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			// Get keys from cache
-			reads, storage, err := f.Get(txID)
+			storage, err := f.Get(txID)
 			require.NoError(err)
 
 			// Add to cache
 			l.Lock()
-			for k := range reads {
-				cache.Add(k)
-			}
 			for k := range storage {
 				cache.Add(k)
 			}
@@ -90,7 +81,7 @@ func TestFetchDifferentKeys(t *testing.T) {
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	require.Len(cache, 5050)
+	require.Empty(cache)
 }
 
 func TestFetchSameKeys(t *testing.T) {
@@ -118,12 +109,9 @@ func TestFetchSameKeys(t *testing.T) {
 		require.NoError(f.Fetch(ctx, txID, stateKeys))
 		go func() {
 			defer wg.Done()
-			reads, storage, err := f.Get(txID)
+			storage, err := f.Get(txID)
 			require.NoError(err)
 			l.Lock()
-			for k := range reads {
-				cache.Add(k)
-			}
 			for k := range storage {
 				cache.Add(k)
 			}
@@ -132,7 +120,7 @@ func TestFetchSameKeys(t *testing.T) {
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	require.Len(cache, 100)
+	require.Len(cache, 50)
 }
 
 func TestFetchSameKeysSlow(t *testing.T) {
@@ -163,15 +151,12 @@ func TestFetchSameKeysSlow(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			// Get the keys from cache
-			reads, storage, err := f.Get(txID)
+			storage, err := f.Get(txID)
 			require.NoError(err)
 
 			// Notify we're done
 			close(delay)
 			l.Lock()
-			for k := range reads {
-				cache.Add(k)
-			}
 			for k := range storage {
 				cache.Add(k)
 			}
@@ -182,53 +167,14 @@ func TestFetchSameKeysSlow(t *testing.T) {
 	}
 	wg.Wait()
 	require.NoError(f.Wait())
-	require.Len(cache, 1000)
-}
-
-func TestFetchKeysWithValues(t *testing.T) {
-	var (
-		require = require.New(t)
-		numTxs  = 100
-		f       = New(newTestDBWithValue(), numTxs, 4)
-		ctx     = context.TODO()
-		wg      sync.WaitGroup
-
-		l     sync.Mutex
-		cache = set.Set[string]{}
-	)
-	wg.Add(numTxs)
-	for i := 0; i < numTxs; i++ {
-		stateKeys := make(state.Keys, (i + 1))
-		for k := 0; k < i+1; k++ {
-			// Generate the same keys
-			stateKeys.Add(keyBase+strconv.Itoa(k), state.Read)
-		}
-		txID := ids.GenerateTestID()
-		require.NoError(f.Fetch(ctx, txID, stateKeys))
-		go func() {
-			defer wg.Done()
-			reads, storage, err := f.Get(txID)
-			require.NoError(err)
-			l.Lock()
-			for k := range reads {
-				cache.Add(k)
-			}
-			for k := range storage {
-				cache.Add(k)
-			}
-			l.Unlock()
-		}()
-	}
-	wg.Wait()
-	require.NoError(f.Wait())
-	require.Len(cache, 100)
+	require.Len(cache, 50)
 }
 
 func TestFetcherStop(t *testing.T) {
 	var (
 		require = require.New(t)
 		numTxs  = 100
-		f       = New(newTestDBWithValue(), numTxs, 10)
+		f       = New(newTestDB(), numTxs, 10)
 		ctx     = context.TODO()
 		wg      sync.WaitGroup
 
@@ -251,14 +197,11 @@ func TestFetcherStop(t *testing.T) {
 		}
 		go func(i int) {
 			defer wg.Done()
-			reads, storage, err := f.Get(txID)
+			storage, err := f.Get(txID)
 			if err != nil {
 				return
 			}
 			l.Lock()
-			for k := range reads {
-				cache.Add(k)
-			}
 			for k := range storage {
 				cache.Add(k)
 			}

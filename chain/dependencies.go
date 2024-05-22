@@ -177,15 +177,6 @@ type FeeHandler interface {
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
-
-	// Refund returns [amount] to [addr] after transaction execution if any fees were
-	// not used.
-	//
-	// Refund will return an error if it attempts to create any new keys. It can only
-	// modify or remove existing keys.
-	//
-	// Refund is only invoked if [amount] > 0.
-	Refund(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
 
 // StateManager allows [Chain] to safely store certain types of items in state
@@ -220,13 +211,9 @@ type Object interface {
 type Action interface {
 	Object
 
-	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
-	// used to determine whether the [Action] can be included in a given block and to compute
-	// the required fee to execute.
-	//
-	// Developers should make every effort to bound this as tightly to the actual max so that
-	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
-	MaxComputeUnits(Rules) uint64
+	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
+	// whether the [Action] can be included in a given block and to compute the required fee to execute.
+	ComputeUnits(Rules) uint64
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
 	// chunks each state key could use without requiring the state keys to actually be provided (may
@@ -257,7 +244,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (computeUnits uint64, outputs [][]byte, err error)
+	) (outputs [][]byte, err error)
 }
 
 type Auth interface {

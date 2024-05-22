@@ -44,31 +44,31 @@ func (c *CreateAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	actionID ids.ID,
-) (uint64, [][]byte, error) {
+) ([][]byte, error) {
 	if len(c.Symbol) == 0 {
-		return CreateAssetComputeUnits, nil, ErrOutputSymbolEmpty
+		return nil, ErrOutputSymbolEmpty
 	}
 	if len(c.Symbol) > MaxSymbolSize {
-		return CreateAssetComputeUnits, nil, ErrOutputSymbolTooLarge
+		return nil, ErrOutputSymbolTooLarge
 	}
 	if c.Decimals > MaxDecimals {
-		return CreateAssetComputeUnits, nil, ErrOutputDecimalsTooLarge
+		return nil, ErrOutputDecimalsTooLarge
 	}
 	if len(c.Metadata) == 0 {
-		return CreateAssetComputeUnits, nil, ErrOutputMetadataEmpty
+		return nil, ErrOutputMetadataEmpty
 	}
 	if len(c.Metadata) > MaxMetadataSize {
-		return CreateAssetComputeUnits, nil, ErrOutputMetadataTooLarge
+		return nil, ErrOutputMetadataTooLarge
 	}
 	// It should only be possible to overwrite an existing asset if there is
 	// a hash collision.
 	if err := storage.SetAsset(ctx, mu, actionID, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
-		return CreateAssetComputeUnits, nil, err
+		return nil, err
 	}
-	return CreateAssetComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*CreateAsset) MaxComputeUnits(chain.Rules) uint64 {
+func (*CreateAsset) ComputeUnits(chain.Rules) uint64 {
 	return CreateAssetComputeUnits
 }
 

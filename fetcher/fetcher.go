@@ -194,13 +194,13 @@ func (f *Fetcher) Fetch(ctx context.Context, txID ids.ID, stateKeys state.Keys) 
 // that caused fetching to fail.
 //
 // Get can be called concurrently.
-func (f *Fetcher) Get(txID ids.ID) (map[string]uint16, map[string][]byte, error) {
+func (f *Fetcher) Get(txID ids.ID) (map[string][]byte, error) {
 	// Block until all keys for the tx are fetched or if the fetcher errored
 	f.l.RLock()
 	tx, ok := f.txs[txID]
 	f.l.RUnlock()
 	if !ok {
-		return nil, nil, fmt.Errorf("%w: unable to get keys for transaction %s", ErrMissingTx, txID)
+		return nil, fmt.Errorf("%w: unable to get keys for transaction %s", ErrMissingTx, txID)
 	}
 	if tx.waiter != nil { // if there are no blockers, waiter is nil
 		select {
@@ -208,7 +208,7 @@ func (f *Fetcher) Get(txID ids.ID) (map[string]uint16, map[string][]byte, error)
 		case <-f.stop:
 			// While waiting, the fetcher may error. Handling this case
 			// prevents a deadlock.
-			return nil, nil, f.err
+			return nil, f.err
 		}
 	}
 
@@ -217,18 +217,16 @@ func (f *Fetcher) Get(txID ids.ID) (map[string]uint16, map[string][]byte, error)
 	defer f.l.RUnlock()
 	var (
 		stateKeys = tx.keys
-		reads     = make(map[string]uint16, len(stateKeys))
 		storage   = make(map[string][]byte, len(stateKeys))
 	)
 	for k := range stateKeys {
 		if v := f.keys[k].cache; v != nil {
-			reads[k] = v.chunks
 			if v.exists {
 				storage[k] = v.v
 			}
 		}
 	}
-	return reads, storage, nil
+	return storage, nil
 }
 
 // Stop terminates the fetcher before all keys have been fetched.
