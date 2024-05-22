@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 	"math"
 	"os"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 var _ Cmd = (*runCmd)(nil)

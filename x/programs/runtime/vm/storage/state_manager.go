@@ -27,14 +27,11 @@ func (*StateManager) Deduct(_ context.Context, _ codec.Address, _ state.Mutable,
 	panic("implement me")
 }
 
-<<<<<<< HEAD:x/programs/runtime/vm/storage/state_manager.go
-=======
 func (*StateManager) Refund(_ context.Context, _ codec.Address, _ state.Mutable, _ uint64) error {
 	// TODO implement me
 	panic("implement me")
 }
 
->>>>>>> 32a72b9e (linting):x/programs/v2/vm/storage/state_manager.go
 func (*StateManager) HeightKey() []byte {
 	return HeightKey()
 }

@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
