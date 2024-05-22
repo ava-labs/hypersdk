@@ -8,13 +8,12 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*CreateOrder)(nil)
@@ -51,19 +50,15 @@ func (*CreateOrder) GetTypeID() uint8 {
 	return createOrderID
 }
 
-func (c *CreateOrder) StateKeys(actor codec.Address, txID ids.ID) state.Keys {
+func (c *CreateOrder) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.BalanceKey(actor, c.Out)): state.Read | state.Write,
-		string(storage.OrderKey(txID)):           state.Allocate | state.Write,
+		string(storage.OrderKey(actionID)):       state.Allocate | state.Write,
 	}
 }
 
 func (*CreateOrder) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.BalanceChunks, storage.OrderChunks}
-}
-
-func (*CreateOrder) OutputsWarpMessage() bool {
-	return false
 }
 
 func (c *CreateOrder) Execute(
@@ -72,31 +67,30 @@ func (c *CreateOrder) Execute(
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
-	txID ids.ID,
-	_ bool,
-) (bool, uint64, []byte, *warp.UnsignedMessage, error) {
+	actionID ids.ID,
+) (uint64, [][]byte, error) {
 	if c.In == c.Out {
-		return false, CreateOrderComputeUnits, OutputSameInOut, nil, nil
+		return CreateOrderComputeUnits, nil, ErrOutputSameInOut
 	}
 	if c.InTick == 0 {
-		return false, CreateOrderComputeUnits, OutputInTickZero, nil, nil
+		return CreateOrderComputeUnits, nil, ErrOutputInTickZero
 	}
 	if c.OutTick == 0 {
-		return false, CreateOrderComputeUnits, OutputOutTickZero, nil, nil
+		return CreateOrderComputeUnits, nil, ErrOutputOutTickZero
 	}
 	if c.Supply == 0 {
-		return false, CreateOrderComputeUnits, OutputSupplyZero, nil, nil
+		return CreateOrderComputeUnits, nil, ErrOutputSupplyZero
 	}
 	if c.Supply%c.OutTick != 0 {
-		return false, CreateOrderComputeUnits, OutputSupplyMisaligned, nil, nil
+		return CreateOrderComputeUnits, nil, ErrOutputSupplyMisaligned
 	}
 	if err := storage.SubBalance(ctx, mu, actor, c.Out, c.Supply); err != nil {
-		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
+		return CreateOrderComputeUnits, nil, err
 	}
-	if err := storage.SetOrder(ctx, mu, txID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
-		return false, CreateOrderComputeUnits, utils.ErrBytes(err), nil, nil
+	if err := storage.SetOrder(ctx, mu, actionID, c.In, c.InTick, c.Out, c.OutTick, c.Supply, actor); err != nil {
+		return CreateOrderComputeUnits, nil, err
 	}
-	return true, CreateOrderComputeUnits, nil, nil, nil
+	return CreateOrderComputeUnits, nil, nil
 }
 
 func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
@@ -104,7 +98,7 @@ func (*CreateOrder) MaxComputeUnits(chain.Rules) uint64 {
 }
 
 func (*CreateOrder) Size() int {
-	return consts.IDLen*2 + consts.Uint64Len*3
+	return ids.IDLen*2 + consts.Uint64Len*3
 }
 
 func (c *CreateOrder) Marshal(p *codec.Packer) {
@@ -115,7 +109,7 @@ func (c *CreateOrder) Marshal(p *codec.Packer) {
 	p.PackUint64(c.Supply)
 }
 
-func UnmarshalCreateOrder(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	var create CreateOrder
 	p.UnpackID(false, &create.In) // empty ID is the native asset
 	create.InTick = p.UnpackUint64(true)
@@ -130,6 +124,6 @@ func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func PairID(in ids.ID, out ids.ID) string {
+func PairID(in, out ids.ID) string {
 	return fmt.Sprintf("%s-%s", in.String(), out.String())
 }

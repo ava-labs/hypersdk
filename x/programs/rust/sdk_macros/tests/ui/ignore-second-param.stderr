@@ -1,5 +1,0 @@
-error: Functions with the `#[public]` attribute can only ignore the first parameter.
- --> tests/ui/ignore-second-param.rs:6:25
-  |
-6 | pub fn test(_: Context, _: u32) {}
-  |                         ^

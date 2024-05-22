@@ -8,17 +8,12 @@ import (
 	"fmt"
 	"net/http"
 
-	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/hypersdk/builder"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/gossiper"
-	hrpc "github.com/ava-labs/hypersdk/rpc"
-	hstorage "github.com/ava-labs/hypersdk/storage"
-	"github.com/ava-labs/hypersdk/vm"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/builder"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
@@ -28,6 +23,12 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
+	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/vm"
+
+	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+	hrpc "github.com/ava-labs/hypersdk/rpc"
+	hstorage "github.com/ava-labs/hypersdk/storage"
 )
 
 var _ vm.Controller = (*Controller)(nil)
@@ -179,37 +180,38 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			}
 		}
 		if result.Success {
-			switch action := tx.Action.(type) {
-			case *actions.CreateAsset:
-				c.metrics.createAsset.Inc()
-			case *actions.MintAsset:
-				c.metrics.mintAsset.Inc()
-			case *actions.BurnAsset:
-				c.metrics.burnAsset.Inc()
-			case *actions.Transfer:
-				c.metrics.transfer.Inc()
-			case *actions.CreateOrder:
-				c.metrics.createOrder.Inc()
-				c.orderBook.Add(tx.ID(), tx.Auth.Actor(), action)
-			case *actions.FillOrder:
-				c.metrics.fillOrder.Inc()
-				orderResult, err := actions.UnmarshalOrderResult(result.Output)
-				if err != nil {
-					// This should never happen
-					return err
-				}
-				if orderResult.Remaining == 0 {
+			for i, act := range tx.Actions {
+				switch action := act.(type) {
+				case *actions.CreateAsset:
+					c.metrics.createAsset.Inc()
+				case *actions.MintAsset:
+					c.metrics.mintAsset.Inc()
+				case *actions.BurnAsset:
+					c.metrics.burnAsset.Inc()
+				case *actions.Transfer:
+					c.metrics.transfer.Inc()
+				case *actions.CreateOrder:
+					c.metrics.createOrder.Inc()
+					c.orderBook.Add(chain.CreateActionID(tx.ID(), uint8(i)), tx.Auth.Actor(), action)
+				case *actions.FillOrder:
+					c.metrics.fillOrder.Inc()
+					outputs := result.Outputs[i]
+					for _, output := range outputs {
+						orderResult, err := actions.UnmarshalOrderResult(output)
+						if err != nil {
+							// This should never happen
+							return err
+						}
+						if orderResult.Remaining == 0 {
+							c.orderBook.Remove(action.Order)
+							continue
+						}
+						c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
+					}
+				case *actions.CloseOrder:
+					c.metrics.closeOrder.Inc()
 					c.orderBook.Remove(action.Order)
-					continue
 				}
-				c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
-			case *actions.CloseOrder:
-				c.metrics.closeOrder.Inc()
-				c.orderBook.Remove(action.Order)
-			case *actions.ImportAsset:
-				c.metrics.importAsset.Inc()
-			case *actions.ExportAsset:
-				c.metrics.exportAsset.Inc()
 			}
 		}
 	}

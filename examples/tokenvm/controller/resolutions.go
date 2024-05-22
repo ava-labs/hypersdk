@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
@@ -38,7 +39,7 @@ func (c *Controller) GetTransaction(
 func (c *Controller) GetAssetFromState(
 	ctx context.Context,
 	asset ids.ID,
-) (bool, []byte, uint8, []byte, uint64, codec.Address, bool, error) {
+) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
 	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
 }
 
@@ -68,12 +69,4 @@ func (c *Controller) GetOrderFromState(
 	error,
 ) {
 	return storage.GetOrderFromState(ctx, c.inner.ReadState, orderID)
-}
-
-func (c *Controller) GetLoanFromState(
-	ctx context.Context,
-	asset ids.ID,
-	destination ids.ID,
-) (uint64, error) {
-	return storage.GetLoanFromState(ctx, c.inner.ReadState, asset, destination)
 }

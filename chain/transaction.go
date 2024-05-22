@@ -5,12 +5,9 @@ package chain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -30,36 +27,22 @@ var (
 )
 
 type Transaction struct {
-	Base        *Base         `json:"base"`
-	WarpMessage *warp.Message `json:"warpMessage"`
+	Base *Base `json:"base"`
 
-	// TODO: turn [Action] into an array (#335)
-	Action Action `json:"action"`
-	Auth   Auth   `json:"auth"`
+	Actions []Action `json:"actions"`
+	Auth    Auth     `json:"auth"`
 
-	digest         []byte
-	bytes          []byte
-	size           int
-	id             ids.ID
-	numWarpSigners int
-	// warpID is just the hash of the *warp.Message.Payload. We assumed that
-	// all warp messages from a single source have some unique field that
-	// prevents duplicates (like txID). We will not allow 2 instances of the same
-	// warpID from the same sourceChainID to be accepted.
-	warpID    ids.ID
+	digest    []byte
+	bytes     []byte
+	size      int
+	id        ids.ID
 	stateKeys state.Keys
 }
 
-type WarpResult struct {
-	Message   *warp.Message
-	VerifyErr error
-}
-
-func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
+func NewTx(base *Base, actions []Action) *Transaction {
 	return &Transaction{
-		Base:        base,
-		WarpMessage: wm,
-		Action:      act,
+		Base:    base,
+		Actions: actions,
 	}
 }
 
@@ -67,19 +50,17 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	actionID := t.Action.GetTypeID()
-	var warpBytes []byte
-	if t.WarpMessage != nil {
-		warpBytes = t.WarpMessage.Bytes()
+	size := t.Base.Size() + consts.Uint8Len
+	for _, action := range t.Actions {
+		size += consts.ByteLen + action.Size()
 	}
-	size := t.Base.Size() +
-		codec.BytesLen(warpBytes) +
-		consts.ByteLen + t.Action.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 	t.Base.Marshal(p)
-	p.PackBytes(warpBytes)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
+	p.PackByte(uint8(len(t.Actions)))
+	for _, action := range t.Actions {
+		p.PackByte(action.GetTypeID())
+		action.Marshal(p)
+	}
 	return p.Bytes(), p.Err()
 }
 
@@ -126,30 +107,20 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
 		return t.stateKeys, nil
 	}
+	stateKeys := make(state.Keys)
 
 	// Verify the formatting of state keys passed by the controller
-	actionKeys := t.Action.StateKeys(t.Auth.Actor(), t.ID())
-	sponsorKeys := sm.SponsorStateKeys(t.Auth.Sponsor())
-	stateKeys := make(state.Keys)
-	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
-		for k, v := range m {
-			if !keys.Valid(k) {
+	for i, action := range t.Actions {
+		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
+			if !stateKeys.Add(k, v) {
 				return nil, ErrInvalidKeyValue
 			}
-			stateKeys.Add(k, v)
 		}
 	}
-
-	// Add keys used to manage warp operations
-	if t.WarpMessage != nil {
-		p := sm.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
-		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		stateKeys.Add(string(k), state.All)
-	}
-	if t.Action.OutputsWarpMessage() {
-		p := sm.OutgoingWarpKeyPrefix(t.id)
-		k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-		stateKeys.Add(string(k), state.Allocate|state.Write)
+	for k, v := range sm.SponsorStateKeys(t.Auth.Sponsor()) {
+		if !stateKeys.Add(k, v) {
+			return nil, ErrInvalidKeyValue
+		}
 	}
 
 	// Cache keys if called again
@@ -165,16 +136,10 @@ func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error) {
 	// Cacluate max compute costs
 	maxComputeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	maxComputeUnitsOp.Add(t.Action.MaxComputeUnits(r))
+	for _, action := range t.Actions {
+		maxComputeUnitsOp.Add(action.MaxComputeUnits(r))
+	}
 	maxComputeUnitsOp.Add(t.Auth.ComputeUnits(r))
-	if t.WarpMessage != nil {
-		maxComputeUnitsOp.Add(r.GetBaseWarpComputeUnits())
-		maxComputeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
-	}
-	if t.Action.OutputsWarpMessage() {
-		// Chunks later accounted for by call to [StateKeys]
-		maxComputeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
-	}
 	maxComputeUnits, err := maxComputeUnitsOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -182,8 +147,6 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 
 	// Calculate the max storage cost we could incur by processing all
 	// state keys.
-	//
-	// TODO: make this a tighter bound (allow for granular storage controls)
 	stateKeys, err := t.StateKeys(sm)
 	if err != nil {
 		return fees.Dimensions{}, err
@@ -223,34 +186,32 @@ func (t *Transaction) MaxUnits(sm StateManager, r Rules) (fees.Dimensions, error
 
 // EstimateMaxUnits provides a pessimistic estimate of the cost to execute a transaction. This is
 // typically used during transaction construction.
-func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessage *warp.Message) (fees.Dimensions, error) {
+func EstimateMaxUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+	var (
+		bandwidth          = uint64(BaseSize)
+		stateKeysMaxChunks = []uint16{} // TODO: preallocate
+		computeOp          = math.NewUint64Operator(r.GetBaseComputeUnits())
+		readsOp            = math.NewUint64Operator(0)
+		allocatesOp        = math.NewUint64Operator(0)
+		writesOp           = math.NewUint64Operator(0)
+	)
+
+	// Calculate over action/auth
+	bandwidth += consts.Uint8Len
+	for _, action := range actions {
+		bandwidth += consts.ByteLen + uint64(action.Size())
+		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
+		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
+		computeOp.Add(action.MaxComputeUnits(r))
+	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
-	bandwidth := BaseSize + consts.ByteLen + uint64(action.Size()) + consts.ByteLen + authBandwidth
-	actionStateKeysMaxChunks := action.StateKeysMaxChunks()
+	bandwidth += consts.ByteLen + authBandwidth
 	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
-	stateKeysMaxChunks := make([]uint16, 0, len(sponsorStateKeyMaxChunks)+len(actionStateKeysMaxChunks))
 	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
-	stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
+	computeOp.Add(authCompute)
 
 	// Estimate compute costs
-	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
-	computeUnitsOp.Add(authCompute)
-	computeUnitsOp.Add(action.MaxComputeUnits(r))
-	if warpMessage != nil {
-		bandwidth += uint64(codec.BytesLen(warpMessage.Bytes()))
-		stateKeysMaxChunks = append(stateKeysMaxChunks, MaxIncomingWarpChunks)
-		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
-		numSigners, err := warpMessage.Signature.NumSigners()
-		if err != nil {
-			return fees.Dimensions{}, err
-		}
-		computeUnitsOp.MulAdd(uint64(numSigners), r.GetWarpComputeUnitsPerSigner())
-	}
-	if action.OutputsWarpMessage() {
-		stateKeysMaxChunks = append(stateKeysMaxChunks, MaxOutgoingWarpChunks)
-		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
-	}
-	computeUnits, err := computeUnitsOp.Value()
+	compute, err := computeOp.Value()
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
@@ -258,9 +219,6 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	// Estimate storage costs
 	//
 	// TODO: unify this with [MaxUnits] handling
-	readsOp := math.NewUint64Operator(0)
-	allocatesOp := math.NewUint64Operator(0)
-	writesOp := math.NewUint64Operator(0)
 	for maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -284,7 +242,7 @@ func EstimateMaxUnits(r Rules, action Action, authFactory AuthFactory, warpMessa
 	if err != nil {
 		return fees.Dimensions{}, err
 	}
-	return fees.Dimensions{bandwidth, computeUnits, reads, allocates, writes}, nil
+	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
 }
 
 func (t *Transaction) PreExecute(
@@ -298,14 +256,19 @@ func (t *Transaction) PreExecute(
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
-	start, end := t.Action.ValidRange(r)
-	if start >= 0 && timestamp < start {
-		return ErrActionNotActivated
+	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
+		return ErrTooManyActions
 	}
-	if end >= 0 && timestamp > end {
-		return ErrActionNotActivated
+	for i, action := range t.Actions {
+		start, end := action.ValidRange(r)
+		if start >= 0 && timestamp < start {
+			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+		}
+		if end >= 0 && timestamp > end {
+			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+		}
 	}
-	start, end = t.Auth.ValidRange(r)
+	start, end := t.Auth.ValidRange(r)
 	if start >= 0 && timestamp < start {
 		return ErrAuthNotActivated
 	}
@@ -338,9 +301,8 @@ func (t *Transaction) Execute(
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
-	warpVerified bool,
 ) (*Result, error) {
-	// Always charge fee first (in case [Action] moves funds)
+	// Always charge fee first
 	maxUnits, err := t.MaxUnits(s, r)
 	if err != nil {
 		// Should never happen
@@ -357,92 +319,43 @@ func (t *Transaction) Execute(
 		return nil, err
 	}
 
-	// Check warp message is not duplicate
-	if t.WarpMessage != nil {
-		p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
-		k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-		_, err := ts.GetValue(ctx, k)
-		switch {
-		case err == nil:
-			// Override all errors because warp message is a duplicate
-			warpVerified = false
-		case errors.Is(err, database.ErrNotFound):
-			// This means there are no conflicts
-		case err != nil:
-			// An error here can indicate there is an issue with the database or that
-			// the key was not properly specified.
-			return &Result{false, utils.ErrBytes(err), maxUnits, maxFee, nil}, nil
-		}
-	}
-
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.
-	actionStart := ts.OpIndex()
-	handleRevert := func(rerr error) (*Result, error) {
-		// Be warned that the variables captured in this function
-		// are set when this function is defined. If any of them are
-		// modified later, they will not be used here.
-		ts.Rollback(ctx, actionStart)
-		return &Result{false, utils.ErrBytes(rerr), maxUnits, maxFee, nil}, nil
-	}
-	success, actionCUs, output, warpMessage, err := t.Action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), t.id, warpVerified)
-	if err != nil {
-		return handleRevert(err)
-	}
-	if len(output) == 0 && output != nil {
-		// Enforce object standardization (this is a VM bug and we should fail
-		// fast)
-		return handleRevert(ErrInvalidObject)
-	}
-	outputsWarp := t.Action.OutputsWarpMessage()
-	if !success {
-		ts.Rollback(ctx, actionStart)
-		warpMessage = nil // warp messages can only be emitted on success
-	} else {
-		// Ensure constraints hold if successful
-		if (warpMessage == nil && outputsWarp) || (warpMessage != nil && !outputsWarp) {
-			return handleRevert(ErrInvalidObject)
+	//
+	// We should favor reverting over returning an error because the caller won't be charged
+	// for a transaction that returns an error.
+	var (
+		actionStart   = ts.OpIndex()
+		resultOutputs = [][][]byte{}
+		handleRevert  = func(err error) (*Result, error) {
+			ts.Rollback(ctx, actionStart)
+			return &Result{false, utils.ErrBytes(err), resultOutputs, maxUnits, maxFee}, nil
+		}
+		computeUnitsOp = math.NewUint64Operator(r.GetBaseComputeUnits())
+	)
+	for i, action := range t.Actions {
+		// TODO: remove actionCUs return (VRYX)
+		actionCUs, outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		if err != nil {
+			return handleRevert(err)
+		}
+		if outputs == nil {
+			// Ensure output standardization (match form we will
+			// unmarshal)
+			outputs = [][]byte{}
 		}
 
-		// Store incoming warp messages in state by their ID to prevent replays
-		if t.WarpMessage != nil {
-			p := s.IncomingWarpKeyPrefix(t.WarpMessage.SourceChainID, t.warpID)
-			k := keys.EncodeChunks(p, MaxIncomingWarpChunks)
-			if err := ts.Insert(ctx, k, nil); err != nil {
-				return handleRevert(err)
-			}
+		// Wait to append outputs until after we check that there aren't too many
+		//
+		// TODO: consider removing max here
+		if len(outputs) > int(r.GetMaxOutputsPerAction()) {
+			return handleRevert(ErrTooManyOutputs)
 		}
+		resultOutputs = append(resultOutputs, outputs)
 
-		// Store newly created warp messages in state by their txID to ensure we can
-		// always sign for a message
-		if warpMessage != nil {
-			// Enforce we are the source of our own messages
-			warpMessage.NetworkID = r.NetworkID()
-			warpMessage.SourceChainID = r.ChainID()
-			// Initialize message (compute bytes) now that everything is populated
-			if err := warpMessage.Initialize(); err != nil {
-				return handleRevert(err)
-			}
-			// We use txID here because did not know the warpID before execution (and
-			// we pre-reserve this key for the processor).
-			p := s.OutgoingWarpKeyPrefix(t.id)
-			k := keys.EncodeChunks(p, MaxOutgoingWarpChunks)
-			if err := ts.Insert(ctx, k, warpMessage.Bytes()); err != nil {
-				return handleRevert(err)
-			}
-		}
+		// Add units used
+		computeUnitsOp.Add(actionCUs)
 	}
-
-	// Calculate units used
-	computeUnitsOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	computeUnitsOp.Add(t.Auth.ComputeUnits(r))
-	computeUnitsOp.Add(actionCUs)
-	if t.WarpMessage != nil {
-		computeUnitsOp.Add(r.GetBaseWarpComputeUnits())
-		computeUnitsOp.MulAdd(uint64(t.numWarpSigners), r.GetWarpComputeUnitsPerSigner())
-	}
-	if success && outputsWarp {
-		computeUnitsOp.Add(r.GetOutgoingWarpComputeUnits())
-	}
 	computeUnits, err := computeUnitsOp.Value()
 	if err != nil {
 		return handleRevert(err)
@@ -466,6 +379,8 @@ func (t *Transaction) Execute(
 
 	// We only charge for the chunks read from disk instead of charging for the max chunks
 	// specified by the key.
+	//
+	// TODO: charge max (VRYX)
 	readsOp := math.NewUint64Operator(0)
 	for _, chunksRead := range reads {
 		readsOp.Add(r.GetStorageKeyReadUnits())
@@ -519,13 +434,13 @@ func (t *Transaction) Execute(
 		}
 	}
 	return &Result{
-		Success: success,
-		Output:  output,
+		Success: true,
+		Error:   []byte{},
+
+		Outputs: resultOutputs,
 
 		Consumed: used,
 		Fee:      feeRequired,
-
-		WarpMessage: warpMessage,
 	}, nil
 }
 
@@ -535,19 +450,18 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 		return p.Err()
 	}
 
-	actionID := t.Action.GetTypeID()
-	authID := t.Auth.GetTypeID()
+	return t.marshalActions(p)
+}
+
+func (t *Transaction) marshalActions(p *codec.Packer) error {
 	t.Base.Marshal(p)
-	var warpBytes []byte
-	if t.WarpMessage != nil {
-		warpBytes = t.WarpMessage.Bytes()
-		if len(warpBytes) == 0 {
-			return ErrWarpMessageNotInitialized
-		}
+	p.PackByte(uint8(len(t.Actions)))
+	for _, action := range t.Actions {
+		actionID := action.GetTypeID()
+		p.PackByte(actionID)
+		action.Marshal(p)
 	}
-	p.PackBytes(warpBytes)
-	p.PackByte(actionID)
-	t.Action.Marshal(p)
+	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
 	t.Auth.Marshal(p)
 	return p.Err()
@@ -595,55 +509,25 @@ func UnmarshalTxs(
 
 func UnmarshalTx(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, *warp.Message, bool],
-	authRegistry *codec.TypeParser[Auth, *warp.Message, bool],
+	actionRegistry *codec.TypeParser[Action, bool],
+	authRegistry *codec.TypeParser[Auth, bool],
 ) (*Transaction, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
-	var warpBytes []byte
-	p.UnpackBytes(MaxWarpMessageSize, false, &warpBytes)
-	var warpMessage *warp.Message
-	var numWarpSigners int
-	if len(warpBytes) > 0 {
-		msg, err := warp.ParseMessage(warpBytes)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal warp message", err)
-		}
-		if len(msg.Payload) == 0 {
-			return nil, ErrEmptyWarpPayload
-		}
-		warpMessage = msg
-		numSigners, err := msg.Signature.NumSigners()
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not calculate number of warp signers", err)
-		}
-		numWarpSigners = numSigners
-	}
-	actionType := p.UnpackByte()
-	unmarshalAction, actionWarp, ok := actionRegistry.LookupIndex(actionType)
-	if !ok {
-		return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
-	}
-	if actionWarp && warpMessage == nil {
-		return nil, fmt.Errorf("%w: action %d", ErrExpectedWarpMessage, actionType)
-	}
-	action, err := unmarshalAction(p, warpMessage)
+	actions, err := unmarshalActions(p, actionRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
 	}
 	digest := p.Offset()
 	authType := p.UnpackByte()
-	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
+	unmarshalAuth, ok := authRegistry.LookupIndex(authType)
 	if !ok {
 		return nil, fmt.Errorf("%w: %d is unknown auth type", ErrInvalidObject, authType)
 	}
-	if authWarp && warpMessage == nil {
-		return nil, fmt.Errorf("%w: auth %d", ErrExpectedWarpMessage, authType)
-	}
-	auth, err := unmarshalAuth(p, warpMessage)
+	auth, err := unmarshalAuth(p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal auth", err)
 	}
@@ -653,15 +537,10 @@ func UnmarshalTx(
 	if sponsorType := auth.Sponsor()[0]; sponsorType != authType {
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
-	warpExpected := actionWarp || authWarp
-	if !warpExpected && warpMessage != nil {
-		return nil, ErrUnexpectedWarpMessage
-	}
 
 	var tx Transaction
 	tx.Base = base
-	tx.Action = action
-	tx.WarpMessage = warpMessage
+	tx.Actions = actions
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
@@ -671,9 +550,29 @@ func UnmarshalTx(
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
-	if tx.WarpMessage != nil {
-		tx.numWarpSigners = numWarpSigners
-		tx.warpID = tx.WarpMessage.ID()
-	}
 	return &tx, nil
+}
+
+func unmarshalActions(
+	p *codec.Packer,
+	actionRegistry *codec.TypeParser[Action, bool],
+) ([]Action, error) {
+	actionCount := p.UnpackByte()
+	if actionCount == 0 {
+		return nil, fmt.Errorf("%w: no actions", ErrInvalidObject)
+	}
+	actions := []Action{}
+	for i := uint8(0); i < actionCount; i++ {
+		actionType := p.UnpackByte()
+		unmarshalAction, ok := actionRegistry.LookupIndex(actionType)
+		if !ok {
+			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
+		}
+		action, err := unmarshalAction(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		}
+		actions = append(actions, action)
+	}
+	return actions, nil
 }

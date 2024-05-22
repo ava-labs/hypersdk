@@ -1,6 +1,6 @@
-use crate::{memory::from_host_ptr, program::Program};
-use borsh::{BorshDeserialize, BorshSerialize};
-use std::ops::Deref;
+use crate::{memory::into_bytes, state::Error as StateError};
+use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
+use std::{collections::HashMap, hash::Hash, ops::Deref};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -12,6 +12,9 @@ pub enum Error {
 
     #[error("invalid byte length: {0}")]
     InvalidByteLength(usize),
+
+    #[error("invalid pointer offset")]
+    InvalidPointer,
 
     #[error("invalid tag: {0}")]
     InvalidTag(u8),
@@ -35,14 +38,43 @@ pub enum Error {
     Delete,
 }
 
-pub struct State {
-    program: Program,
+pub struct State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
+    cache: HashMap<K, Vec<u8>>,
 }
 
-impl State {
+impl<K> Drop for State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
+    fn drop(&mut self) {
+        if !self.cache.is_empty() {
+            // force flush
+            self.flush().unwrap();
+        }
+    }
+}
+
+impl<K> Default for State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K> State<K>
+where
+    K: Into<Key> + Hash + PartialEq + Eq + Clone,
+{
     #[must_use]
-    pub fn new(program: Program) -> Self {
-        Self { program }
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
     }
 
     /// Store a key and value to the host storage. If the key already exists,
@@ -50,12 +82,14 @@ impl State {
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<K, V>(&self, key: K, value: &V) -> Result<(), Error>
+    pub fn store<V>(&mut self, key: K, value: &V) -> Result<(), Error>
     where
         V: BorshSerialize,
-        K: Into<Key>,
     {
-        unsafe { host::put_bytes(&self.program, &key.into(), value) }
+        let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
+        self.cache.insert(key, serialized);
+
+        Ok(())
     }
 
     /// Get a value from the host's storage.
@@ -68,29 +102,68 @@ impl State {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<T, K>(&self, key: K) -> Result<T, Error>
+    pub fn get<V>(&mut self, key: K) -> Result<V, Error>
     where
-        K: Into<Key>,
-        T: BorshDeserialize,
+        V: BorshDeserialize,
     {
-        let val_ptr = unsafe { host::get_bytes(&self.program, &key.into())? };
-        if val_ptr < 0 {
-            return Err(Error::Read);
-        }
+        let val_bytes = if let Some(val) = self.cache.get(&key) {
+            val
+        } else {
+            let args = GetAndDeleteArgs {
+                // TODO: shouldn't have to clone here
+                key: key.clone().into().0,
+            };
 
-        // Wrap in OK for now, change from_raw_ptr to return Result
-        unsafe { from_host_ptr(val_ptr) }
+            let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+            let ptr = host::get_bytes(&args_bytes)?;
+
+            let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
+
+            // TODO:
+            // should be able to do something like the following
+            // `let key = Key(args.key);`
+            // to avoid cloning. The problem is we convert into a Key without knowing
+            // that we can convert back into a K.
+            // Either we need the key to actually be `Key` instead of `Into<Key>`
+            // or we put the bound `K: From<Key>` as well.
+            self.cache.entry(key).or_insert(bytes)
+        };
+
+        from_slice::<V>(val_bytes).map_err(|_| StateError::Deserialization)
     }
 
     /// Delete a value from the hosts's storage.
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete<K>(&self, key: K) -> Result<(), Error>
-    where
-        K: Into<Key>,
-    {
-        unsafe { host::delete_bytes(&self.program, &key.into()) }
+    pub fn delete<T: BorshDeserialize>(&mut self, key: K) -> Result<Option<T>, Error> {
+        self.cache.remove(&key);
+
+        let args = GetAndDeleteArgs { key: key.into().0 };
+
+        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+        host::delete_bytes(&args_bytes)
+    }
+
+    /// Apply all pending operations to storage and mark the cache as flushed
+    fn flush(&mut self) -> Result<(), Error> {
+        let args_iter = self
+            .cache
+            .drain()
+            .map(|(key, val)| (key.into(), val))
+            .map(|(key, val)| PutArgs {
+                key: key.0,
+                bytes: val,
+            })
+            .map(|args| borsh::to_vec(&args).map_err(|_| StateError::Serialization));
+
+        for args in args_iter {
+            host::put_bytes(&args?)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -114,54 +187,66 @@ impl Key {
     }
 }
 
+#[derive(BorshSerialize)]
+struct PutArgs {
+    key: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+#[derive(BorshSerialize)]
+struct GetAndDeleteArgs {
+    key: Vec<u8>,
+}
+
 mod host {
-    use super::{BorshSerialize, Key, Program};
-    use crate::{memory::to_host_ptr, state::Error};
+    use super::Error;
+    use crate::memory::from_host_ptr;
+    use borsh::BorshDeserialize;
+    use std::ptr::NonNull;
 
-    #[link(wasm_import_module = "state")]
-    extern "C" {
-        #[link_name = "put"]
-        fn _put(caller: i64, key: i64, value: i64) -> i64;
+    /// Persists the bytes at key on the host storage.
+    pub(super) fn put_bytes(bytes: &[u8]) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "put"]
+            fn ffi(ptr: *const u8, len: usize) -> usize;
+        }
 
-        #[link_name = "get"]
-        fn _get(caller: i64, key: i64) -> i64;
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
 
-        #[link_name = "delete"]
-        fn _delete(caller: i64, key: i64) -> i64;
-    }
-
-    /// Persists the bytes at `value` at key on the host storage.
-    pub(super) unsafe fn put_bytes<V>(caller: &Program, key: &Key, value: &V) -> Result<(), Error>
-    where
-        V: BorshSerialize,
-    {
-        let value_bytes = borsh::to_vec(value).map_err(|_| Error::Serialization)?;
-        // prepend length to both key & value
-        let caller = to_host_ptr(caller.id())?;
-        let value = to_host_ptr(&value_bytes)?;
-        let key = to_host_ptr(key)?;
-
-        match unsafe { _put(caller, key, value) } {
+        match result {
             0 => Ok(()),
             _ => Err(Error::Write),
         }
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i64, Error> {
-        // prepend length to key
-        let caller = to_host_ptr(caller.id())?;
-        let key = to_host_ptr(key)?;
-        Ok(unsafe { _get(caller, key) })
+    pub(super) fn get_bytes(bytes: &[u8]) -> Result<*const u8, Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "get"]
+            fn ffi(ptr: *const u8, len: usize) -> *const u8;
+        }
+
+        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        if result.is_null() {
+            Err(Error::Read)
+        } else {
+            Ok(result)
+        }
     }
 
     /// Deletes the bytes at key ptr from the host storage
-    pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        let caller = to_host_ptr(caller.id())?;
-        let key = to_host_ptr(key)?;
-        match unsafe { _delete(caller, key) } {
-            0 => Ok(()),
-            _ => Err(Error::Delete),
+    pub(super) fn delete_bytes<T: BorshDeserialize>(bytes: &[u8]) -> Result<Option<T>, Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "delete"]
+            fn ffi(ptr: *const u8, len: usize) -> NonNull<u8>;
         }
+
+        let ptr = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
+
+        from_host_ptr(ptr.as_ptr())
     }
 }

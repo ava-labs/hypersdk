@@ -14,16 +14,19 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/utils/timer"
+	"go.uber.org/zap"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/challenge"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"go.uber.org/zap"
+
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )
 
 type Manager struct {
@@ -122,11 +125,11 @@ func (m *Manager) sendFunds(ctx context.Context, destination codec.Address, amou
 	if err != nil {
 		return ids.Empty, 0, err
 	}
-	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
+	submit, tx, maxFee, err := m.cli.GenerateTransaction(ctx, parser, []chain.Action{&actions.Transfer{
 		To:    destination,
 		Asset: ids.Empty,
 		Value: amount,
-	}, m.factory)
+	}}, m.factory)
 	if err != nil {
 		return ids.Empty, 0, err
 	}

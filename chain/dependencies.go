@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -24,8 +23,8 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action, *warp.Message, bool]
-	AuthRegistry   *codec.TypeParser[Auth, *warp.Message, bool]
+	ActionRegistry *codec.TypeParser[Action, bool]
+	AuthRegistry   *codec.TypeParser[Auth, bool]
 )
 
 type Parser interface {
@@ -125,15 +124,15 @@ type Rules interface {
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
 
+	GetMaxActionsPerTx() uint8
+	GetMaxOutputsPerAction() uint8
+
 	GetMinUnitPrice() fees.Dimensions
 	GetUnitPriceChangeDenominator() fees.Dimensions
 	GetWindowTargetUnits() fees.Dimensions
 	GetMaxBlockUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
-	GetBaseWarpComputeUnits() uint64
-	GetWarpComputeUnitsPerSigner() uint64
-	GetOutgoingWarpComputeUnits() uint64
 
 	// Invariants:
 	// * Controllers must manage the max key length and max value length (max network
@@ -155,8 +154,6 @@ type Rules interface {
 	GetStorageKeyWriteUnits() uint64
 	GetStorageValueWriteUnits() uint64 // per chunk
 
-	GetWarpConfig(sourceChainID ids.ID) (bool, uint64, uint64)
-
 	FetchCustom(string) (any, bool)
 }
 
@@ -164,11 +161,6 @@ type MetadataManager interface {
 	HeightKey() []byte
 	TimestampKey() []byte
 	FeeKey() []byte
-}
-
-type WarpManager interface {
-	IncomingWarpKeyPrefix(sourceChainID ids.ID, msgID ids.ID) []byte
-	OutgoingWarpKeyPrefix(txID ids.ID) []byte
 }
 
 type FeeHandler interface {
@@ -205,7 +197,6 @@ type FeeHandler interface {
 type StateManager interface {
 	FeeHandler
 	MetadataManager
-	WarpManager
 }
 
 type Object interface {
@@ -250,7 +241,7 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) state.Keys
+	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
@@ -258,21 +249,15 @@ type Action interface {
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
 	//
-	// An error should only be returned if a fatal error was encountered, otherwise [success] should
-	// be marked as false and fees will still be charged.
+	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
 		r Rules,
 		mu state.Mutable,
 		timestamp int64,
 		actor codec.Address,
-		txID ids.ID,
-		warpVerified bool,
-	) (success bool, computeUnits uint64, output []byte, warpMessage *warp.UnsignedMessage, err error)
-
-	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
-	// of any warp message is [MaxOutgoingWarpChunks].
-	OutputsWarpMessage() bool
+		actionID ids.ID,
+	) (computeUnits uint64, outputs [][]byte, err error)
 }
 
 type Auth interface {

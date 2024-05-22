@@ -10,16 +10,17 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
-	smath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
+	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -44,13 +45,12 @@ type Genesis struct {
 	MaxBlockUnits              fees.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
 
 	// Tx Parameters
-	ValidityWindow int64 `json:"validityWindow"` // ms
+	ValidityWindow      int64 `json:"validityWindow"` // ms
+	MaxActionsPerTx     uint8 `json:"maxActionsPerTx"`
+	MaxOutputsPerAction uint8 `json:"maxOutputsPerAction"`
 
 	// Tx Fee Parameters
 	BaseComputeUnits          uint64 `json:"baseUnits"`
-	BaseWarpComputeUnits      uint64 `json:"baseWarpUnits"`
-	WarpComputeUnitsPerSigner uint64 `json:"warpUnitsPerSigner"`
-	OutgoingWarpComputeUnits  uint64 `json:"outgoingWarpComputeUnits"`
 	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
 	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
 	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
@@ -78,13 +78,12 @@ func Default() *Genesis {
 		MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
 
 		// Tx Parameters
-		ValidityWindow: 60 * hconsts.MillisecondsPerSecond, // ms
+		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
+		MaxActionsPerTx:     16,
+		MaxOutputsPerAction: 1,
 
 		// Tx Fee Compute Parameters
-		BaseComputeUnits:          1,
-		BaseWarpComputeUnits:      1_024,
-		WarpComputeUnitsPerSigner: 128,
-		OutgoingWarpComputeUnits:  1_024,
+		BaseComputeUnits: 1,
 
 		// Tx Fee Storage Parameters
 		//
@@ -139,7 +138,6 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 		[]byte(consts.Name),
 		supply,
 		codec.EmptyAddress,
-		false,
 	)
 }
 

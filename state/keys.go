@@ -3,6 +3,8 @@
 
 package state
 
+import "github.com/ava-labs/hypersdk/keys"
+
 const (
 	Read     Permissions = 1
 	Allocate             = 1<<1 | Read
@@ -20,12 +22,19 @@ type Keys map[string]Permissions
 // All acceptable permission options
 type Permissions byte
 
-// Transactions are expected to use this to prevent
-// overriding of key permissions
-func (k Keys) Add(name string, permission Permissions) {
+// Add verifies that a key is well-formatted and adds it to the conflict set.
+//
+// If the key already exists, the permissions are unioned.
+func (k Keys) Add(key string, permission Permissions) bool {
+	// If a key is not properly formatted, it cannot be added.
+	if !keys.Valid(key) {
+		return false
+	}
+
 	// Transaction's permissions are the union of all
 	// state keys from both Actions and Auth
-	k[name] |= permission
+	k[key] |= permission
+	return true
 }
 
 // Has returns true if [p] has all the permissions that are contained in require

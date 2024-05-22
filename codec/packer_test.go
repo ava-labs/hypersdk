@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )
 
@@ -35,7 +34,7 @@ func TestNewWriter(t *testing.T) {
 }
 
 func TestPackerID(t *testing.T) {
-	wp := NewWriter(consts.IDLen, consts.IDLen)
+	wp := NewWriter(ids.IDLen, ids.IDLen)
 	id := ids.GenerateTestID()
 	t.Run("Pack", func(t *testing.T) {
 		require := require.New(t)
@@ -49,7 +48,7 @@ func TestPackerID(t *testing.T) {
 	t.Run("Unpack", func(t *testing.T) {
 		require := require.New(t)
 
-		rp := NewReader(wp.Bytes(), consts.IDLen)
+		rp := NewReader(wp.Bytes(), ids.IDLen)
 		require.Equal(wp.Bytes(), rp.Bytes(), "Reader not initialized correctly.")
 		unpackedID := ids.Empty
 		rp.UnpackID(true, &unpackedID)
