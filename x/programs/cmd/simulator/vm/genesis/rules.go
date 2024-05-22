@@ -53,13 +53,11 @@ func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 }
 
 func (*Rules) GetMaxActionsPerTx() uint8 {
-	// TODO
-	return 0
+	panic("unimplemented")
 }
 
 func (*Rules) GetMaxOutputsPerAction() uint8 {
-	// TODO
-	return 0
+	panic("unimplemented")
 }
 
 func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
