@@ -74,10 +74,6 @@ func NewStateAccessModule() *ImportModule {
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-<<<<<<< HEAD:x/programs/runtime/import_state.go
-				return nil, callInfo.State.Remove(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key))
-			})},
-=======
 
 				key := prependAccountToKey(callInfo.Account, parsedInput.Key)
 				bytes, err := callInfo.State.GetValue(ctx, key)
@@ -98,8 +94,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 
 				return bytes, nil
-			}),
->>>>>>> e03304d6 (tests passing):x/programs/v2/runtime/import_state.go
+			})},
 		},
 	}
 }
