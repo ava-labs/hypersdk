@@ -17,7 +17,7 @@ const (
 )
 
 type callProgramInput struct {
-	ProgramID []byte
+	ProgramID ids.ID
 	Function  []byte
 	Params    []byte
 	Fuel      uint64
