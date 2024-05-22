@@ -4,40 +4,31 @@ use crate::{
     Params,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap};
-
-pub const PROGRAM_ID_LEN: usize = 32;
-type Id = [u8; PROGRAM_ID_LEN];
+use std::hash::Hash;
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
-#[derive(Clone, Debug)]
-pub struct Program<K = ()> {
-    id: Id,
-    state_cache: RefCell<HashMap<K, Vec<u8>>>,
-}
+#[derive(Clone, Copy, BorshDeserialize, BorshSerialize, Debug)]
+pub struct Program([u8; Self::LEN]);
 
-impl<K> BorshSerialize for Program<K> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self { id, state_cache: _ } = self;
-        BorshSerialize::serialize(id, writer)
-    }
-}
+impl Program {
+    /// The length of ids.ID
+    pub const LEN: usize = 32;
 
-impl<K> BorshDeserialize for Program<K> {
-    fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let id: Id = BorshDeserialize::deserialize_reader(reader)?;
-        Ok(Self {
-            id,
-            state_cache: RefCell::default(),
-        })
-    }
-}
-
-impl<K> Program<K> {
+    /// Returns the id of the program.
     #[must_use]
-    pub fn id(&self) -> &[u8; PROGRAM_ID_LEN] {
-        &self.id
+    pub fn id(&self) -> &[u8; Self::LEN] {
+        &self.0
+    }
+
+    /// Returns a State object that can be used to interact with persistent
+    /// storage exposed by the host.
+    #[must_use]
+    pub fn state<K>(&self) -> State<K>
+    where
+        K: Into<Key> + Hash + PartialEq + Eq + Clone,
+    {
+        State::new()
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method
@@ -75,34 +66,10 @@ impl<K> Program<K> {
     }
 }
 
-impl<K: Key> Program<K> {
-    /// Returns a State object that can be used to interact with persistent
-    /// storage exposed by the host.
-    #[must_use]
-    pub fn state(&self) -> State<K> {
-        State::new(&self.state_cache)
-    }
-}
-
-struct CallProgramArgs<'a, K> {
-    target_id: &'a Program<K>,
+#[derive(BorshSerialize)]
+struct CallProgramArgs<'a> {
+    target_id: &'a Program,
     function: &'a [u8],
     args_ptr: &'a [u8],
     max_units: i64,
-}
-
-impl<K> BorshSerialize for CallProgramArgs<'_, K> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            target_id,
-            function,
-            args_ptr,
-            max_units,
-        } = self;
-        BorshSerialize::serialize(target_id, writer)?;
-        BorshSerialize::serialize(function, writer)?;
-        BorshSerialize::serialize(args_ptr, writer)?;
-        BorshSerialize::serialize(max_units, writer)?;
-        Ok(())
-    }
 }

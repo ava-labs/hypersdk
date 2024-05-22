@@ -5,6 +5,8 @@ package runtime
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -59,20 +61,24 @@ func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
+	fmt.Fprintln(os.Stderr, callInfo.Params);
 	program, ok := r.programs[callInfo.ProgramID]
 	if !ok {
 		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.ProgramID)
 		if err != nil {
+			fmt.Fprintln(os.Stderr, err);
 			return nil, err
 		}
 		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
 		if err != nil {
+			fmt.Fprintln(os.Stderr, err);
 			return nil, err
 		}
 		r.programs[callInfo.ProgramID] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err);
 		return nil, err
 	}
 	callInfo.inst = inst

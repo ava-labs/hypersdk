@@ -151,10 +151,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let external_call = quote! {
         mod private {
             use super::*;
-            #[derive(borsh::BorshDeserialize)]
+            #[derive(Debug, borsh::BorshDeserialize)]
             struct Args {
                 #(#args_props),*
-             }
+            }
 
             #[link(wasm_import_module = "program")]
             extern "C" {
@@ -164,13 +164,20 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             #[no_mangle]
             unsafe extern "C" fn #new_name(args: *const u8) {
+                wasmlanche_sdk::dbg!(stringify!(#new_name));
                 let args: Args = unsafe {
-                    wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
+                    wasmlanche_sdk::dbg!(wasmlanche_sdk::from_host_ptr(args)).expect("error fetching serialized args")
                 };
 
+                // wasmlanche_sdk::dbg!(#(#converted_params),*);
+                wasmlanche_sdk::dbg!("a");
                 let result = super::#name(#(#converted_params),*);
+                wasmlanche_sdk::dbg!("b");
+                // wasmlanche_sdk::dbg!("result");
                 let result = borsh::to_vec(&result).expect("error serializing result");
+                // wasmlanche_sdk::dbg!("result2");
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
+                // wasmlanche_sdk::dbg!("SAD");
             }
         }
     };

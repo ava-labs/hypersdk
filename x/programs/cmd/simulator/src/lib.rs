@@ -249,7 +249,7 @@ impl Client {
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
-            .arg("debug")
+            .arg("info")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;

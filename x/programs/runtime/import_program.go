@@ -6,6 +6,8 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
@@ -17,8 +19,8 @@ const (
 )
 
 type callProgramInput struct {
-	ProgramID    ids.ID
-	FunctionName string
+	ProgramID    []byte
+	Function     []byte
 	Params       []byte
 	Fuel         uint64
 }
@@ -39,8 +41,8 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					return nil, errors.New("remaining fuel is less than requested fuel")
 				}
 
-				newInfo.ProgramID = parsedInput.ProgramID
-				newInfo.FunctionName = parsedInput.FunctionName
+				newInfo.ProgramID = ids.ID(parsedInput.ProgramID)
+				newInfo.FunctionName = string(parsedInput.Function)
 				newInfo.Params = parsedInput.Params
 				newInfo.Fuel = parsedInput.Fuel
 

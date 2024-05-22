@@ -6,8 +6,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -49,7 +47,6 @@ func GetProgram(
 	bool, // exists
 	error,
 ) {
-	fmt.Fprintln(os.Stderr, programID)
 	k := ProgramKey(programID)
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
