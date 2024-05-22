@@ -137,6 +137,8 @@ func (ts *TStateView) OpIndex() int {
 // If an operation is performed more than once during this time, the largest
 // operation will be returned here (if 1 chunk then 2 chunks are written to a key,
 // this function will return 2 chunks).
+//
+// TODO: this function is no longer used but could be a useful metric
 func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 	return ts.allocates, ts.writes
 }

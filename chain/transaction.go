@@ -291,7 +291,6 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *fees.Manager,
-	reads map[string]uint16,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
