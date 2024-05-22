@@ -164,9 +164,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             #[no_mangle]
             unsafe extern "C" fn #new_name(args: *const u8) {
-                wasmlanche_sdk::dbg!(args);
-                wasmlanche_sdk::dbg!("test");
-
                 let args: Args = unsafe {
                     wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
                 };

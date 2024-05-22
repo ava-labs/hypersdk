@@ -20,6 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
@@ -337,7 +338,10 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			pk, ok, err := storage.GetPublicKey(ctx, db, val)
 			if ok {
 				// otherwise use the public key address
-				key = string(pk[:])
+				address := make([]byte, codec.AddressLen)
+				address[0] = 0 // prefix
+				copy(address[1:], pk[:])
+				key = string(address[:])
 			}
 			if err != nil {
 				return nil, err

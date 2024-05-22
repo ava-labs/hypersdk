@@ -70,9 +70,9 @@ func (t *ProgramExecute) Execute(
 	if len(t.Function) == 0 {
 		return 1, [][]byte{OutputValueZero}, errors.New("no function called")
 	}
-	if len(t.Params) == 0 {
-		return 1, [][]byte{OutputValueZero}, errors.New("there should be at least 1 parameter passed")
-	}
+	// if len(t.Params) == 0 {
+	// 	return 1, [][]byte{OutputValueZero}, errors.New("there should be at least 1 parameter passed")
+	// }
 
 	cfg := runtime.NewConfig()
 	store := &ProgramStore{

@@ -8,8 +8,6 @@ import "C"
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -106,12 +104,6 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		return nil, err
 	}
 
-	fmt.Fprintln(os.Stderr, callInfo.FunctionName)
-	fmt.Fprintln(os.Stderr, callInfo.Params)
-	fmt.Fprintln(os.Stderr, callInfo.Fuel)
-	fmt.Fprintln(os.Stderr, callInfo.Actor)
-	fmt.Fprintln(os.Stderr, callInfo.ProgramID)
-	fmt.Fprintln(os.Stderr, paramsOffset)
 	function := p.inst.GetFunc(p.store, callInfo.FunctionName)
 	if function == nil {
 		return nil, errors.New("this function does not exist")
