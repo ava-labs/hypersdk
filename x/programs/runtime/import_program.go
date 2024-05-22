@@ -6,8 +6,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
@@ -27,9 +25,15 @@ type callProgramInput struct {
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
+<<<<<<< HEAD:x/programs/runtime/import_program.go
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
 			"call_program": {FuelCost: callProgramCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+=======
+		name: "program",
+		funcs: map[string]HostFunction{
+			"call_program": FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+>>>>>>> e03304d6 (tests passing):x/programs/v2/runtime/import_program.go
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
@@ -48,7 +52,12 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 
 				result, err := r.CallProgram(
 					context.Background(),
+<<<<<<< HEAD:x/programs/runtime/import_program.go
 					&newInfo)
+=======
+					&newInfo,
+				)
+>>>>>>> e03304d6 (tests passing):x/programs/v2/runtime/import_program.go
 				if err != nil {
 					return nil, err
 				}

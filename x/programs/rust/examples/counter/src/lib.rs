@@ -1,4 +1,3 @@
-use wasmlanche_sdk::dbg;
 use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
 
 #[state_keys]
@@ -46,17 +45,14 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
 #[public]
 pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> bool {
     // let params = params!(&of, &amount).unwrap();
+    // TODO adapt the params macro
     #[derive(borsh::BorshSerialize)]
     struct MyArgs {
         of: Address,
         amount: i64,
     }
     let params = params::Params(borsh::to_vec(&MyArgs { of, amount }).unwrap());
-    // target.call_function("inc", &params, max_units).unwrap()
-    dbg!("BEFORE CALL");
-    let a = target.call_function("inc", &params, max_units).unwrap();
-    dbg!("after");
-    a
+    target.call_function("inc", &params, max_units).unwrap()
 }
 
 /// Gets the count at the address.
@@ -76,6 +72,7 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
 /// Gets the count at the address for an external program.
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
+    // TODO the params macro is currently not adapted to the serialization in the `_guest` functions
     let params = params!(&of).unwrap();
     target
         .call_function("get_value", &params, max_units)

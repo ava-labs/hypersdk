@@ -4,7 +4,6 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use crate::dbg;
 use crate::state::Error as StateError;
 use borsh::{from_slice, BorshDeserialize};
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
