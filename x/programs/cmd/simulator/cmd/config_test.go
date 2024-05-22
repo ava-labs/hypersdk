@@ -6,6 +6,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +30,9 @@ func TestValidateAssertion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result, err := validateAssertion(tt.actual, &tt.assertion)
+		actual, err := borsh.Serialize(tt.actual)
+		require.NoError(err)
+		result, err := validateAssertion(actual, &tt.assertion)
 		if tt.wantErr {
 			require.Error(err)
 		} else {
