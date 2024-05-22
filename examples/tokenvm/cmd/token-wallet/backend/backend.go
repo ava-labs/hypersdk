@@ -208,7 +208,7 @@ func (b *Backend) collectBlocks() {
 		consumed := fees.Dimensions{}
 		failTxs := 0
 		for i, result := range results {
-			nconsumed, err := fees.Add(consumed, result.Consumed)
+			nconsumed, err := fees.Add(consumed, result.Units)
 			if err != nil {
 				b.fatal(err)
 				return
@@ -242,7 +242,7 @@ func (b *Backend) collectBlocks() {
 						Timestamp: blk.Tmstmp,
 						Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 						Type:      "Transfer",
-						Units:     hcli.ParseDimensions(result.Consumed),
+						Units:     hcli.ParseDimensions(result.Units),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					}
 					if result.Success {
@@ -296,7 +296,7 @@ func (b *Backend) collectBlocks() {
 						Timestamp: blk.Tmstmp,
 						Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 						Type:      "CreateAsset",
-						Units:     hcli.ParseDimensions(result.Consumed),
+						Units:     hcli.ParseDimensions(result.Units),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					}
 					if result.Success {
@@ -325,7 +325,7 @@ func (b *Backend) collectBlocks() {
 						Success:   result.Success,
 						Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 						Type:      "Mint",
-						Units:     hcli.ParseDimensions(result.Consumed),
+						Units:     hcli.ParseDimensions(result.Units),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					}
 					if result.Success {
@@ -382,7 +382,7 @@ func (b *Backend) collectBlocks() {
 						Success:   result.Success,
 						Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 						Type:      "CreateOrder",
-						Units:     hcli.ParseDimensions(result.Consumed),
+						Units:     hcli.ParseDimensions(result.Units),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					}
 					if result.Success {
@@ -423,7 +423,7 @@ func (b *Backend) collectBlocks() {
 						Success:   result.Success,
 						Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 						Type:      "FillOrder",
-						Units:     hcli.ParseDimensions(result.Consumed),
+						Units:     hcli.ParseDimensions(result.Units),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					}
 					if result.Success {
@@ -465,7 +465,7 @@ func (b *Backend) collectBlocks() {
 						Success:   result.Success,
 						Actor:     codec.MustAddressBech32(tconsts.HRP, actor),
 						Type:      "CloseOrder",
-						Units:     hcli.ParseDimensions(result.Consumed),
+						Units:     hcli.ParseDimensions(result.Units),
 						Fee:       fmt.Sprintf("%s %s", hutils.FormatBalance(result.Fee, tconsts.Decimals), tconsts.Symbol),
 					}
 					if result.Success {

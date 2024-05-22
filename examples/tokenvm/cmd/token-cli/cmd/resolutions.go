@@ -69,7 +69,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, tconsts.Decimals),
 			tconsts.Symbol,
-			cli.ParseDimensions(result.Consumed),
+			cli.ParseDimensions(result.Units),
 		)
 		return
 	}
@@ -148,7 +148,7 @@ func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result
 			float64(result.Fee)/float64(tx.Base.MaxFee)*100,
 			utils.FormatBalance(result.Fee, tconsts.Decimals),
 			tconsts.Symbol,
-			cli.ParseDimensions(result.Consumed),
+			cli.ParseDimensions(result.Units),
 		)
 	}
 }

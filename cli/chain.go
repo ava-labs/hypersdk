@@ -230,13 +230,13 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		if err != nil {
 			return err
 		}
-		used := fees.Dimensions{}
+		consumed := fees.Dimensions{}
 		for _, result := range results {
-			nused, err := fees.Add(used, result.Units)
+			nconsumed, err := fees.Add(consumed, result.Units)
 			if err != nil {
 				return err
 			}
-			used = nused
+			consumed = nconsumed
 		}
 		now := time.Now()
 		if start.IsZero() {
@@ -258,7 +258,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 				len(blk.Txs),
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
-				ParseDimensions(used),
+				ParseDimensions(consumed),
 				ParseDimensions(prices),
 				float64(window.Sum(tpsWindow))/tpsDivisor,
 				time.Now().UnixMilli()-blk.Tmstmp,
@@ -271,7 +271,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 				len(blk.Txs),
 				blk.StateRoot,
 				float64(blk.Size())/units.KiB,
-				ParseDimensions(used),
+				ParseDimensions(consumed),
 				ParseDimensions(prices),
 			)
 			window.Update(&tpsWindow, window.WindowSliceSize-consts.Uint64Len, uint64(len(blk.Txs)))

@@ -403,7 +403,7 @@ var _ = ginkgo.Describe("load tests vm", func() {
 				for _, result := range blk.Results() {
 					if !result.Success {
 						unitPrices, _ := instances[0].cli.UnitPrices(context.Background(), false)
-						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Consumed, "fee:", result.Fee, "error:", result.Error)
+						fmt.Println("tx failed", "unit prices:", unitPrices, "consumed:", result.Units, "fee:", result.Fee, "error:", result.Error)
 					}
 					gomega.Ω(result.Success).Should(gomega.BeTrue())
 				}
