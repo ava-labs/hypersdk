@@ -290,8 +290,6 @@ func BuildBlock(
 				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
-				//
-				// TODO: do this check before execution
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
 					log.Debug(
 						"skipping tx: too many units",
