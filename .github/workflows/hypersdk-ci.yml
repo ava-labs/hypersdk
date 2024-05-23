@@ -160,7 +160,7 @@ jobs:
           MODE: 'full-test'
 
   token-wallet-release:
-    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    needs: [tokenvm-sync-tests]
     runs-on: macos-latest-xl
     steps:
       - name: Checkout
@@ -168,7 +168,7 @@ jobs:
       - uses: ./.github/actions/token-wallet-release
 
   tokenvm-release:
-    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    needs: [tokenvm-sync-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     steps:
@@ -261,7 +261,7 @@ jobs:
           MODE: 'full-test'
 
   morpheusvm-release:
-    needs: [morpheusvm-load-tests, morpheusvm-sync-tests]
+    needs: [morpheusvm-sync-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     steps:
