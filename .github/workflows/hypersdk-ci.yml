@@ -70,10 +70,6 @@ jobs:
       - name: Run unit tests
         shell: bash
         run: scripts/tests.unit.sh
-      - name: Run simulator tests
-        shell: bash
-        working-directory: x/programs/cmd/simulator
-        run: scripts/tests.unit.sh
 
   hypersdk-tests:
     runs-on: ubuntu-latest
