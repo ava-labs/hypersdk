@@ -157,7 +157,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "verifyAuth":true,
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
-  "logLevel": "${LOGLEVEL}",
+  "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }

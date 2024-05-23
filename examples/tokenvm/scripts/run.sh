@@ -163,7 +163,7 @@ cat <<EOF > "${TMPDIR}"/tokenvm.config
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
-  "logLevel": "${LOGLEVEL}",
+  "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
