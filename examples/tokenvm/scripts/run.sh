@@ -20,15 +20,17 @@ fi
 VERSION=v1.11.6
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
-AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
-LOGLEVEL=${LOGLEVEL:-info}
+LOG_LEVEL=${LOG_LEVEL:-INFO}
+AGO_LOG_LEVEL=${AGO_LOG_LEVEL:-INFO}
+AGO_LOG_DISPLAY_LEVEL=${AGO_LOG_DISPLAY_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s}
 if [[ ${MODE} != "run" ]]; then
-  LOGLEVEL=debug
+  LOG_LEVEL=debug
+  AGO_LOG_DISPLAY_LEVEL=info
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
   STORE_TXS=true
@@ -44,8 +46,9 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
-echo AGO_LOGLEVEL: "${AGO_LOGLEVEL}"
-echo LOGLEVEL: "${LOGLEVEL}"
+echo LOG_LEVEL: "${LOG_LEVEL}"
+echo AGO_LOG_LEVEL: "${AGO_LOG_LEVEL}"
+echo AGO_LOG_DISPLAY_LEVEL: "${AGO_LOG_DISPLAY_LEVEL}"
 echo VERSION: "${VERSION}"
 echo MODE: "${MODE}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
@@ -251,7 +254,8 @@ echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
 --network-runner-log-level verbo \
---avalanchego-log-level "${AGO_LOGLEVEL}" \
+--avalanchego-log-level "${AGO_LOG_LEVEL}" \
+--avalanchego-log-display-level "${AGO_LOG_DISPLAY_LEVEL}" \
 --network-runner-grpc-endpoint="0.0.0.0:12352" \
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
