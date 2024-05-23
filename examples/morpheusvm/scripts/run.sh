@@ -17,7 +17,7 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.18
+VERSION=v1.11.6
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
@@ -197,7 +197,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=90aa9ae77845665b7638404a2a5e6a4dcce6d489
+ANR_VERSION=v1.8.0
 # version set
 go install -v "${ANR_REPO_PATH}"@"${ANR_VERSION}"
 
