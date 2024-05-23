@@ -5,7 +5,6 @@ package trace
 
 import (
 	"github.com/ava-labs/avalanchego/trace"
-
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
