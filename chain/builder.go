@@ -59,7 +59,7 @@ func HandlePreExecute(log logging.Logger, err error) bool {
 	}
 }
 
-// Note: This code is terrible and will be removed during the Vryx integration.
+// TODO: This code is terrible and will be removed during the Vryx integration.
 func BuildBlock(
 	ctx context.Context,
 	vm VM,
@@ -270,34 +270,9 @@ func BuildBlock(
 					}
 					return nil
 				}
-
-				// If execution works, keep moving forward with new state
-				//
-				// Note, these calculations must match block verification exactly
-				// otherwise they will produce a different state root.
-				blockLock.RLock()
-				reads := make(map[string]uint16, len(stateKeys))
-				var invalidStateKeys bool
-				for k := range stateKeys {
-					v := storage[k]
-					numChunks, ok := keys.NumChunks(v)
-					if !ok {
-						invalidStateKeys = true
-						break
-					}
-					reads[k] = numChunks
-				}
-				blockLock.RUnlock()
-				if invalidStateKeys {
-					// This should not happen because we check this before
-					// adding a transaction to the mempool.
-					log.Warn("invalid tx: invalid state keys")
-					return nil
-				}
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
-					reads,
 					sm,
 					r,
 					tsv,
@@ -315,11 +290,11 @@ func BuildBlock(
 				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
-				if ok, dimension := feeManager.Consume(result.Consumed, maxUnits); !ok {
+				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
 					log.Debug(
 						"skipping tx: too many units",
 						zap.Int("dimension", int(dimension)),
-						zap.Uint64("tx", result.Consumed[dimension]),
+						zap.Uint64("tx", result.Units[dimension]),
 						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
 						zap.Uint64("max block units", maxUnits[dimension]),
 					)

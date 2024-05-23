@@ -8,6 +8,7 @@ import (
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -21,7 +22,7 @@ func (s *InterpreterCmd) New(parser *argparse.Parser) {
 	s.cmd = parser.NewCommand("interpreter", "Read input from a buffered stdin")
 }
 
-func (s *InterpreterCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (*InterpreterCmd) Run(_ context.Context, _ logging.Logger, _ *state.SimpleMutable, _ []string) (*Response, error) {
 	// no-op
 	return newResponse(0), nil
 }

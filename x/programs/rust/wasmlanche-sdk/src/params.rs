@@ -17,7 +17,8 @@ macro_rules! params {
 pub struct Param(Vec<u8>);
 
 /// A collection of [borsh] serialized parameters.
-pub struct Params(Vec<u8>);
+// TODO remove this pub attribute once the params! case is resolved
+pub struct Params(pub Vec<u8>);
 
 impl Deref for Params {
     type Target = Vec<u8>;

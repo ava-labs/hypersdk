@@ -15,19 +15,17 @@ import (
 	"path"
 
 	"github.com/akamensky/argparse"
-	"github.com/mattn/go-shellwords"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/api/metrics"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/mattn/go-shellwords"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/controller"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
 )
@@ -79,11 +77,13 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 	err := parser.Parse(args)
 	if err != nil {
 		fmt.Println(parser.Usage(err))
-		os.Exit(1)
+		return err
 	}
 
 	if !interpreterMode {
-		s.Init()
+		if err := s.Init(); err != nil {
+			return err
+		}
 	}
 	s.log.Debug("simulator args", zap.Any("args", args))
 
@@ -98,33 +98,35 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 			if interpreterMode {
 				// we need feedback, so print response to stdout
-				resp.Print()
+				if err := resp.Print(); err != nil {
+					return err
+				}
 			}
 
-			if _, ok := cmd.(*InterpreterCmd); ok || interpreterMode {
-				s.log.Debug("reading next cmd from stdin")
-				readString, err := s.reader.ReadString('\n')
-				if err == io.EOF {
-					// happens when the caller dropped, we should stop here
-					return nil
-				} else if err != nil {
-					s.log.Error("error while reading from stdin", zap.Error(err))
-					return err
-				}
+			if _, ok := cmd.(*InterpreterCmd); !ok && !interpreterMode {
+				return nil
+			}
 
-				rawArgs := []string{"simulator"}
-				parsed, err := shellwords.Parse(readString)
-				if err != nil {
-					return err
-				}
-				rawArgs = append(rawArgs, parsed...)
+			s.log.Debug("reading next cmd from stdin")
+			readString, err := s.reader.ReadString('\n')
+			if err == io.EOF {
+				// happens when the caller dropped, we should stop here
+				return nil
+			} else if err != nil {
+				s.log.Error("error while reading from stdin", zap.Error(err))
+				return err
+			}
 
-				err = s.ParseCommandArgs(ctx, rawArgs, true)
-				if err != nil {
-					return err
-				} else {
-					return nil
-				}
+			rawArgs := []string{"simulator"}
+			parsed, err := shellwords.Parse(readString)
+			if err != nil {
+				return err
+			}
+			rawArgs = append(rawArgs, parsed...)
+
+			err = s.ParseCommandArgs(ctx, rawArgs, true)
+			if err != nil {
+				return err
 			} else {
 				return nil
 			}
@@ -143,7 +145,7 @@ func (s *Simulator) Execute(ctx context.Context) error {
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
 		s.log.Error("error when parsing command args", zap.Error(err))
-		os.Exit(1)
+		return err
 	}
 
 	return nil
@@ -203,7 +205,7 @@ func (s *Simulator) Init() error {
 	chainID := ids.GenerateTestID()
 
 	basePath := path.Join(homeDir, simulatorFolder)
-	dbPath := path.Join(basePath, fmt.Sprintf("db-%s", nodeID.String()))
+	dbPath := path.Join(basePath, "db-"+nodeID.String())
 
 	loggingConfig := logging.Config{}
 	typedLogLevel, err := logging.ToLevel(*s.logLevel)
@@ -211,7 +213,7 @@ func (s *Simulator) Init() error {
 		return err
 	}
 	loggingConfig.LogLevel = typedLogLevel
-	loggingConfig.Directory = path.Join(basePath, fmt.Sprintf("logs-%s", nodeID.String()))
+	loggingConfig.Directory = path.Join(basePath, "logs-"+nodeID.String())
 	loggingConfig.LogFormat = logging.JSON
 	loggingConfig.DisableWriterDisplaying = *s.disableWriterDisplaying
 

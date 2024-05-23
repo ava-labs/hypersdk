@@ -11,11 +11,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	_ "github.com/ava-labs/hypersdk/examples/tokenvm/registry" // ensure registry populated
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
-	_ "github.com/ava-labs/hypersdk/examples/tokenvm/registry" // ensure registry populated
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -154,24 +155,6 @@ func (cli *JSONRPCClient) GetOrder(ctx context.Context, orderID ids.ID) (*orderb
 		resp,
 	)
 	return resp.Order, err
-}
-
-func (cli *JSONRPCClient) Loan(
-	ctx context.Context,
-	asset ids.ID,
-	destination ids.ID,
-) (uint64, error) {
-	resp := new(LoanReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"loan",
-		&LoanArgs{
-			Asset:       asset,
-			Destination: destination,
-		},
-		resp,
-	)
-	return resp.Amount, err
 }
 
 func (cli *JSONRPCClient) WaitForBalance(

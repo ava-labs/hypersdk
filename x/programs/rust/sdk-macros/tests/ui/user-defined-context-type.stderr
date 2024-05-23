@@ -16,8 +16,8 @@ note: `Context` is defined in the current crate
 note: `wasmlanche_sdk::Context` is defined in crate `wasmlanche_sdk`
  --> $WORKSPACE/x/programs/rust/wasmlanche-sdk/src/lib.rs
   |
-  | pub struct Context {
-  | ^^^^^^^^^^^^^^^^^^
+  | pub struct Context<K = ()> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: function defined here
  --> tests/ui/user-defined-context-type.rs:8:8
   |

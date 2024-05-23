@@ -3,8 +3,8 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_str, spanned::Spanned, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat,
-    PatType, Path, Type, Visibility,
+    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, Ident,
+    ItemEnum, ItemFn, Pat, PatType, Path, Type, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -17,7 +17,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
 
     let vis_err = if !matches!(input.vis, Visibility::Public(_)) {
-        let err = syn::Error::new(
+        let err = Error::new(
             input.sig.span(),
             "Functions with the `#[public]` attribute must have `pub` visibility.",
         );
@@ -34,12 +34,28 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Ident::new(&format!("{name}_guest"), name.span())
     };
 
-    let (input, context_type, first_arg_err) = {
+    let (input, user_specified_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
         let first_arg_err = match input.sig.inputs.first_mut() {
             Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
+                let types = (context_type.as_mut(), ty.as_mut());
+
+                if let (Type::Path(context_type), Type::Path(ty)) = types {
+                    let args = [context_type, ty].map(|type_path| {
+                        type_path
+                            .path
+                            .segments
+                            .last_mut()
+                            .map(|segment| &mut segment.arguments)
+                    });
+
+                    if let [Some(context_type_args), Some(ty_args)] = args {
+                        *context_type_args = ty_args.clone();
+                    }
+                }
+
                 std::mem::swap(&mut context_type, ty);
                 None
             }
@@ -47,19 +63,19 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             arg => {
                 let err = match arg {
                 Some(FnArg::Typed(PatType { ty, .. })) => {
-                    syn::Error::new(
+                    Error::new(
                         ty.span(),
                         format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
                     )
                 }
                 Some(_) => {
-                    syn::Error::new(
+                    Error::new(
                         arg.span(),
                         format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
                     )
                 }
                 None => {
-                    syn::Error::new(
+                    Error::new(
                         input.sig.paren_token.span.join(),
                         format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
                     )
@@ -73,27 +89,26 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let arg_props = input
-        .sig
-        .inputs
-        .iter()
+    let input_types_iter = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
+        FnArg::Receiver(_) => Err(Error::new(
+            fn_arg.span(),
+            "Functions with the `#[public]` attribute cannot have a `self` parameter.",
+        )),
+        FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
+    });
+
+    let arg_props = std::iter::once(Ok(user_specified_context_type))
+        .chain(input_types_iter)
         .enumerate()
-        .skip(1)
-        .map(|(i, fn_arg)| match fn_arg {
-            FnArg::Receiver(_) => Err(syn::Error::new(
-                fn_arg.span(),
-                "Functions with the `#[public]` attribute cannot have a `self` parameter.",
-            )),
-            FnArg::Typed(PatType {
-                ty, colon_token, ..
-            }) => Ok(PatType {
+        .map(|(i, ty)| {
+            ty.map(|ty| PatType {
                 attrs: vec![],
                 pat: Box::new(Pat::Verbatim(
                     format_ident!("param_{}", i).into_token_stream(),
                 )),
-                colon_token: *colon_token,
-                ty: ty.clone(),
-            }),
+                colon_token: Default::default(),
+                ty,
+            })
         });
 
     let result = match (vis_err, first_arg_err) {
@@ -139,7 +154,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             #[derive(borsh::BorshDeserialize)]
             struct Args {
                 #(#args_props),*
-             }
+            }
 
             #[link(wasm_import_module = "program")]
             extern "C" {
@@ -148,15 +163,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(ctx: *const u8, args: *const u8) {
-                let (ctx, args): (#context_type, Args) = unsafe {
-                    (
-                        wasmlanche_sdk::from_host_ptr(ctx).expect("error fetching serialized context"),
-                        wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args"),
-                    )
+            unsafe extern "C" fn #new_name(args: *const u8) {
+                let args: Args = unsafe {
+                    wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
                 };
 
-                let result = super::#name(ctx, #(#converted_params),*);
+                let result = super::#name(#(#converted_params),*);
                 let result = borsh::to_vec(&result).expect("error serializing result");
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
@@ -183,74 +195,83 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut item_enum = parse_macro_input!(item as ItemEnum);
+
+    if !matches!(item_enum.vis, Visibility::Public(_)) {
+        return Error::new(
+            item_enum.span(),
+            "`enum`s with the `#[state_keys]` attribute must have `pub` visibility.",
+        )
+        .to_compile_error()
+        .into();
+    }
+
     // add default attributes
-    item_enum.attrs.push(syn::parse_quote! {
+    item_enum.attrs.push(parse_quote! {
          #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-    });
-    item_enum.attrs.push(syn::parse_quote! {
-         #[repr(u8)]
     });
 
     let name = &item_enum.ident;
     let variants = &item_enum.variants;
 
-    let to_vec_tokens = generate_to_vec(variants);
-    let gen = quote! {
-        // generate the original enum definition with attributes
-        #item_enum
-
-        // generate the to_vec implementation
-        impl #name {
-            pub fn to_vec(self) -> Vec<u8> {
-                match self {
-                    #(#to_vec_tokens),*
-                }
-            }
-        }
-
-        // Generate the Into<key> implementation needed to
-        // convert the enum to a Key type.
-        impl Into<wasmlanche_sdk::state::Key> for #name {
-            fn into(self) -> wasmlanche_sdk::state::Key {
-                wasmlanche_sdk::state::Key::new(self.to_vec())
-            }
-        }
-    };
-
-    TokenStream::from(gen)
-}
-
-fn generate_to_vec(
-    variants: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>,
-) -> Vec<proc_macro2::TokenStream> {
-    variants
+    let match_arms: Result<Vec<_>, _> = variants
         .iter()
         .enumerate()
         .map(|(idx, variant)| {
             let variant_ident = &variant.ident;
-            let index = idx as u8;
+            let idx = idx as u8;
+
             match &variant.fields {
-                // ex: Point(f64, f64)
-                Fields::Unnamed(_) => quote! {
-                    Self::#variant_ident(a) => std::iter::once(#index).chain(a.into_iter()).collect()
-                },
-                // ex: Point
-                Fields::Unit => quote! {
-                    Self::#variant_ident => vec![#index]
-                },
-                // ex: Point { x: f64, y: f64 }
-                Fields::Named(_) => quote! {
-                    Self::#variant_ident { .. } => panic!("named enum fields are not supported"),
-                },
+                // TODO:
+                // use bytemuck to represent the raw bytes of the key
+                // and figure out way to enforce backwards compatibility
+                Fields::Unnamed(_) => Ok(quote! {
+                    Self::#variant_ident(a) => wasmlanche_sdk::state::PrefixedBytes::new(#idx, a.as_ref())
+                }),
+
+                Fields::Unit => Ok(quote! {
+                    Self::#variant_ident => wasmlanche_sdk::state::PrefixedBytes::new(#idx, &[])
+                }),
+
+                Fields::Named(_) => Err(
+                    Error::new(
+                        variant_ident.span(),
+                        "enums with named fields are not supported".to_string(),
+                    ).into_compile_error()
+                ),
             }
         })
-        .collect()
+        .collect();
+
+    let match_arms = match match_arms {
+        Ok(match_arms) => match_arms,
+        Err(err) => return err.into(),
+    };
+
+    let trait_implementation_body = if !variants.is_empty() {
+        quote! {
+           impl wasmlanche_sdk::state::Key for #name {
+               fn as_prefixed(&self) -> wasmlanche_sdk::state::PrefixedBytes<'_> {
+                   match self { #(#match_arms),* }
+               }
+           }
+        }
+    } else {
+        quote! {}
+    };
+
+    quote! {
+        #item_enum
+        #trait_implementation_body
+    }
+    .into()
 }
 
 /// Returns whether the type_path represents a Program type.
-fn is_context(type_path: &std::boxed::Box<Type>) -> bool {
-    if let Type::Path(type_path) = type_path.as_ref() {
-        type_path.path.segments.last() == parse_str::<Path>(CONTEXT_TYPE).unwrap().segments.last()
+fn is_context(type_path: &Type) -> bool {
+    if let Type::Path(type_path) = type_path {
+        let context_path = parse_str::<Path>(CONTEXT_TYPE).unwrap();
+        let context_ident = context_path.segments.last().map(|segment| &segment.ident);
+        type_path.path.segments.last().map(|segment| &segment.ident) == context_ident
     } else {
         false
     }

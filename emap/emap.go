@@ -20,7 +20,7 @@ type bucket struct {
 // Item defines an interface accepted by EMap
 type Item interface {
 	ID() ids.ID    // method for returning an id of the item
-	Expiry() int64 // method for returing this items timestamp
+	Expiry() int64 // method for returning this items timestamp
 }
 
 // A Emap implements en eviction map that stores the status

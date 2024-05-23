@@ -5,15 +5,16 @@ package actions
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
@@ -23,7 +24,7 @@ type ProgramCreate struct {
 	Program []byte `json:"program"`
 }
 
-func (t *ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+func (*ProgramCreate) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{}
 }
 
@@ -42,19 +43,19 @@ func (t *ProgramCreate) Execute(
 	_ int64,
 	_ codec.Address,
 	id ids.ID,
-) (bool, uint64, []byte, error) {
+) ([][]byte, error) {
 	if len(t.Program) == 0 {
-		return false, 1, OutputValueZero, nil
+		return [][]byte{OutputValueZero}, errors.New("cannot deploy empty program")
 	}
 
 	if err := storage.SetProgram(ctx, mu, id, t.Program); err != nil {
-		return false, 1, utils.ErrBytes(err), nil
+		return [][]byte{utils.ErrBytes(err)}, err
 	}
 
-	return true, 1, nil, nil
+	return nil, nil
 }
 
-func (*ProgramCreate) MaxComputeUnits(chain.Rules) uint64 {
+func (*ProgramCreate) ComputeUnits(chain.Rules) uint64 {
 	return ProgramCreateComputeUnits
 }
 

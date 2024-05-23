@@ -455,7 +455,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// Compare state root
 	//
 	// Because fee bytes are not recorded in state, it is sufficient to check the state root
-	// to verify all fee calcuations were correct.
+	// to verify all fee calculations were correct.
 	_, rspan := b.vm.Tracer().Start(ctx, "StatelessBlock.Verify.WaitRoot")
 	start := time.Now()
 	computedRoot, err := parentView.GetMerkleRoot(ctx)
@@ -799,10 +799,10 @@ func (b *StatelessBlock) FeeManager() *fees.Manager {
 }
 
 func (b *StatefulBlock) Marshal() ([]byte, error) {
-	size := consts.IDLen + consts.Uint64Len + consts.Uint64Len +
+	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
 		consts.IntLen + codec.CummSize(b.Txs) +
-		consts.IDLen + consts.Uint64Len + consts.Uint64Len
+		ids.IDLen + consts.Uint64Len + consts.Uint64Len
 
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 

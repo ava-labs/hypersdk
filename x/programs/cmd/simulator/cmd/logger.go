@@ -11,9 +11,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"go.uber.org/zap"
-
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -34,7 +32,7 @@ type logFactory struct {
 	loggers map[string]logWrapper
 }
 
-// NewFactory returns a new instance of a Factory producing loggers configured with
+// newLogFactory returns a new instance of a Factory producing loggers configured with
 // the values set in the [config] parameter
 func newLogFactory(config logging.Config) *logFactory {
 	return &logFactory{
@@ -108,7 +106,7 @@ func newDiscardWriteCloser() *discardWriteCloser {
 }
 
 // Close implements the io.Closer interface.
-func (n *discardWriteCloser) Close() error {
+func (*discardWriteCloser) Close() error {
 	// Do nothing and return nil.
 	return nil
 }

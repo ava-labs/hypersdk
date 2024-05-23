@@ -6,9 +6,9 @@
 </p>
 <p align="center">
   <a href="https://goreportcard.com/report/github.com/ava-labs/hypersdk"><img src="https://goreportcard.com/badge/github.com/ava-labs/hypersdk" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-unit-tests.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-unit-tests.yml/badge.svg" /></a>
-  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-static-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-static-analysis.yml/badge.svg" /></a>
-<a href="./LICENSE" ><img src="https://img.shields.io/badge/License-Ecosystem-blue.svg" /></a>
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-ci.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/hypersdk-ci.yml/badge.svg" /></a>
+  <a href="./LICENSE" ><img src="https://img.shields.io/badge/License-Ecosystem-blue.svg" /></a>
+  <a href="https://github.com/ava-labs/hypersdk/actions/workflows/codeql-analysis.yml"><img src="https://github.com/ava-labs/hypersdk/actions/workflows/codeql-analysis.yml/badge.svg" /></a>
 </p>
 
 ---
@@ -92,11 +92,11 @@ transaction is ~400 bytes); this would would require the `hypersdk` to store 10M
 second (not including any overhead in the database for doing so). **This works out to
 864GB per day or 315.4TB per year.**
 
-When `MinimumBlockGap=250ms` (minimum time betweem blocks), the `hypersdk` must store at
+When `MinimumBlockGap=250ms` (minimum time between blocks), the `hypersdk` must store at
 least ~240 blocks to allow for the entire `ValidityWindow` to be backfilled (otherwise
 a fully-synced, restarting `hypervm` will not become "ready" until it accepts a block at
 least `ValidityWindow` after the last accepted block). To provide some room for error during
-disaster recovery (network outage), however, it is recommened to configure the `hypersdk` to
+disaster recovery (network outage), however, it is recommend to configure the `hypersdk` to
 store the last >= ~50,000 accepted blocks (~3.5 hours of activity with a 250ms `MinimumBlockGap`).
 This allows archival nodes that become disconnected from the network (due to a data center outage or bug)
 to ensure they can persist all historical blocks (which would otherwise be deleted by all participants and
@@ -392,6 +392,26 @@ for a single account and ensure they are ordered) and makes the network layer
 more efficient (we can gossip any valid transaction to any node instead of just
 the transactions for each account that can be executed at the moment).
 
+### Action Batches and Arbitrary Outputs
+Each `hypersdk` transaction specifies an array of `Actions` that
+must all execute successfully for any state changes to be committed.
+Additionally, each `Action` is permitted to return an array of outputs (each
+output is arbitrary bytes defined by the `hypervm`) upon successful execution.
+
+The `tokenvm` uses `Action` batches to offer complex, atomic interactions over simple
+primitives (i.e. create order, fill order, and cancel order). For example, a user
+can create a transaction that fills 8 orders. If any of the fills fail, all pending
+state changes in the transaction are rolled back. The `tokenvm` uses `Action` outputs to
+return the remaining units on any partially filled order to power an in-memory orderbook.
+
+The outcome of execution is not stored/indexed by the `hypersdk`. Unlike most other
+blockchains/blockchain frameworks, which provide an optional "archival mode" for historical access,
+the `hypersdk` only stores what is necessary to validate the next valid block and to help new nodes
+sync to the current state. Rather, the `hypersdk` invokes the `hypervm` with all execution
+results whenever a block is accepted for it to perform arbitrary operations (as
+required by a developer's use case). In this callback, a `hypervm` could store
+results in a SQL database or write to a Kafka stream.
+
 ### Easy Functionality Upgrades
 Every object that can appear on-chain (i.e. `Actions` and/or `Auth`) and every chain
 parameter (i.e. `Unit Price`) is scoped by block timestamp. This makes it
@@ -416,23 +436,6 @@ aligned with the `Actions` you define in your `hypervm`), you can always
 override the default gossip technique with your own. For example, you may wish
 to not have any node-to-node gossip and just require validators to propose
 blocks only with the transactions they've received over RPC.
-
-### Transaction Results and Execution Rollback
-The `hypersdk` allows for any `Action` to return a result from execution
-(which can be any arbitrary bytes), the amount of fee units it consumed, and
-whether or not it was successful (if unsuccessful, all state changes are rolled
-back). This support is typically required by anyone using the `hypersdk` to
-implement a smart contract-based runtime that allows for cost-effective
-conditional execution (exiting early if a condition does not hold can be much
-cheaper than the full execution of the transaction).
-
-The outcome of execution is not stored/indexed by the `hypersdk`. Unlike most other
-blockchains/blockchain frameworks, which provide an optional "archival mode" for historical access,
-the `hypersdk` only stores what is necessary to validate the next valid block and to help new nodes
-sync to the current state. Rather, the `hypersdk` invokes the `hypervm` with all execution
-results whenever a block is accepted for it to perform arbitrary operations (as
-required by a developer's use case). In this callback, a `hypervm` could store
-results in a SQL database or write to a Kafka stream.
 
 ### Support for Generic Storage Backends
 When initializing a `hypervm`, the developer explicitly specifies which storage backends
@@ -648,24 +651,23 @@ type Action interface {
 	// key (formatted as a big-endian uint16). This is used to automatically calculate storage usage.
 	//
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
-	StateKeys(actor codec.Address, txID ids.ID) state.Keys
+	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
 	//
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
-	//
-	// An error should only be returned if a fatal error was encountered, otherwise [success] should
-	// be marked as false and fees will still be charged.
+    //
+	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
 		r Rules,
 		mu state.Mutable,
 		timestamp int64,
 		actor codec.Address,
-		txID ids.ID,
-	) (success bool, computeUnits uint64, output []byte, err error)
+		actionID ids.ID,
+	) (computeUnits uint64, outputs [][]byte, err error)
 }
 ```
 
@@ -743,6 +745,9 @@ type Rules interface {
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
+	
+	GetMaxActionsPerTx() uint8
+	GetMaxOutputsPerAction() uint8
 
 	GetMinUnitPrice() Dimensions
 	GetUnitPriceChangeDenominator() Dimensions

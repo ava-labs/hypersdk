@@ -11,12 +11,12 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
-
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/consts"
+
+	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
@@ -113,7 +113,7 @@ func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
 	return g, nil
 }
 
-func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutable) error {
+func (g *Genesis) Load(_ context.Context, _ trace.Tracer, _ state.Mutable) error {
 	if consts.HRP != g.HRP {
 		return ErrInvalidHRP
 	}

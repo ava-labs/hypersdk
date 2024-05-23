@@ -15,8 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
-
-	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
 )
 
 const (
@@ -47,7 +45,7 @@ const ProgramChunks uint16 = 1
 //
 
 func ProgramKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+	k = make([]byte, 1+ids.IDLen)
 	k[0] = programPrefix
 	copy(k[1:], id[:])
 	return
@@ -81,7 +79,7 @@ func SetProgram(
 	programID ids.ID,
 	program []byte,
 ) error {
-	return storage.SetProgram(ctx, mu, programID, program)
+	return mu.Insert(ctx, ProgramKey(programID), program)
 }
 
 //
@@ -164,7 +162,7 @@ func GetTransaction(
 
 // [txPrefix] + [txID]
 func txKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+consts.IDLen)
+	k = make([]byte, 1+ids.IDLen)
 	k[0] = txPrefix
 	copy(k[1:], id[:])
 	return

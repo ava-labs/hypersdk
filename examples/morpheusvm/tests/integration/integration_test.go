@@ -27,72 +27,37 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/fatih/color"
-	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
-	hutils "github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
+	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	hutils "github.com/ava-labs/hypersdk/utils"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
 	logFactory logging.Factory
 	log        logging.Logger
-)
 
-func init() {
-	logFactory = logging.NewFactory(logging.Config{
-		DisplayLevel: logging.Debug,
-	})
-	l, err := logFactory.Make("main")
-	if err != nil {
-		panic(err)
-	}
-	log = l
-}
-
-func TestIntegration(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
-}
-
-var (
 	requestTimeout time.Duration
 	vms            int
-)
 
-func init() {
-	flag.DurationVar(
-		&requestTimeout,
-		"request-timeout",
-		120*time.Second,
-		"timeout for transaction issuance and confirmation",
-	)
-	flag.IntVar(
-		&vms,
-		"vms",
-		3,
-		"number of VMs to create",
-	)
-}
-
-var (
 	priv    ed25519.PrivateKey
 	pk      ed25519.PublicKey
 	factory *auth.ED25519Factory
@@ -119,6 +84,37 @@ var (
 	networkID uint32
 	gen       *genesis.Genesis
 )
+
+func init() {
+	logFactory = logging.NewFactory(logging.Config{
+		DisplayLevel: logging.Debug,
+	})
+	l, err := logFactory.Make("main")
+	if err != nil {
+		panic(err)
+	}
+	log = l
+}
+
+func TestIntegration(t *testing.T) {
+	gomega.RegisterFailHandler(ginkgo.Fail)
+	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
+}
+
+func init() {
+	flag.DurationVar(
+		&requestTimeout,
+		"request-timeout",
+		120*time.Second,
+		"timeout for transaction issuance and confirmation",
+	)
+	flag.IntVar(
+		&vms,
+		"vms",
+		3,
+		"number of VMs to create",
+	)
+}
 
 type instance struct {
 	chainID           ids.ID
@@ -312,6 +308,16 @@ var _ = ginkgo.Describe("[Network]", func() {
 })
 
 var _ = ginkgo.Describe("[Tx Processing]", func() {
+	// Unit explanation
+	//
+	// bandwidth: tx size
+	// compute: 5 for signature, 1 for base, 1 for transfer
+	// read: 2 keys reads
+	// allocate: 1 key created with 1 chunk
+	// write: 2 keys modified
+	transferTxUnits := fees.Dimensions{188, 7, 14, 50, 26}
+	transferTxFee := uint64(285)
+
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
 			cli := inst.cli
@@ -334,10 +340,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, transferTx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 100_000, // must be more than StateLockup
-				},
+				}},
 				factory,
 			)
 			transferTxRoot = transferTx
@@ -366,10 +372,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Timestamp: 0,
 					MaxFee:    1000,
 				},
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 110,
-				},
+				}},
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
@@ -423,28 +429,15 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := blk.(*chain.StatelessBlock).Results()
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			gomega.Ω(results[0].Output).Should(gomega.BeNil())
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 keys reads, 1 had 0 chunks
-			// allocate: 1 key created with 1 chunk
-			// write: 2 keys modified (new + old)
-			transferTxConsumed := fees.Dimensions{187, 7, 12, 25, 26}
-			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
-
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(257)))
+			gomega.Ω(len(results[0].Outputs[0])).To(gomega.Equal(0))
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxUnits))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(transferTxFee))
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			gomega.Ω(err).To(gomega.BeNil())
-			gomega.Ω(balance).To(gomega.Equal(uint64(9899743)))
+			gomega.Ω(balance).To(gomega.Equal(uint64(9899715)))
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
 			gomega.Ω(balance2).To(gomega.Equal(uint64(100000)))
@@ -458,10 +451,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 101,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -470,21 +463,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := accept(true)
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 keys reads, 1 chunk each
-			// allocate: 0 key created
-			// write: 2 key modified
-			transferTxConsumed := fees.Dimensions{187, 7, 14, 0, 26}
-			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
-
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(234)))
+			gomega.Ω(results[0].Units).Should(gomega.Equal(transferTxUnits))
+			gomega.Ω(results[0].Fee).Should(gomega.Equal(transferTxFee))
 
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			gomega.Ω(err).To(gomega.BeNil())
@@ -498,10 +478,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 102,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -509,10 +489,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 103,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -520,10 +500,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr3,
 					Value: 104,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -531,10 +511,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr3,
 					Value: 105,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -550,66 +530,11 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			// Check results
 			gomega.Ω(results).Should(gomega.HaveLen(4))
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 keys reads, 1 chunk each
-			// allocate: 0 key created
-			// write: 2 key modified
-			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
-			transferTxConsumed := fees.Dimensions{187, 7, 14, 0, 26}
-			gomega.Ω(results[0].Consumed).Should(gomega.Equal(transferTxConsumed))
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[0].Fee).Should(gomega.Equal(uint64(234)))
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 keys reads (previously read), 1 chunk each
-			// allocate: 0 key created
-			// write: 2 keys modified
-			gomega.Ω(results[1].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{187, 7, 14, 0, 26}
-			gomega.Ω(results[1].Consumed).Should(gomega.Equal(transferTxConsumed))
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[1].Fee).Should(gomega.Equal(uint64(234)))
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 1 keys read (0 chunk), 1 key read (1 chunk)
-			// allocate: 1 key created (1 chunk)
-			// write: 2 key modified (1 chunk), both previously modified
-			gomega.Ω(results[2].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{187, 7, 12, 25, 26}
-			gomega.Ω(results[2].Consumed).Should(gomega.Equal(transferTxConsumed))
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[2].Fee).Should(gomega.Equal(uint64(257)))
-
-			// Unit explanation
-			//
-			// bandwidth: tx size
-			// compute: 5 for signature, 1 for base, 1 for transfer
-			// read: 2 keys reads (1 chunk, 0 chunk) -> note, this is based on disk BEFORE block
-			// allocate: 0 key created
-			// write: 2 keys modified (1 chunk)
-			gomega.Ω(results[3].Success).Should(gomega.BeTrue())
-			transferTxConsumed = fees.Dimensions{187, 7, 12, 0, 26}
-			gomega.Ω(results[3].Consumed).Should(gomega.Equal(transferTxConsumed))
-			// Fee explanation
-			//
-			// Multiply all unit consumption by 1 and sum
-			gomega.Ω(results[3].Fee).Should(gomega.Equal(uint64(232)))
+			for i := 0; i < 4; i++ {
+				gomega.Ω(results[i].Success).Should(gomega.BeTrue())
+				gomega.Ω(results[i].Units).Should(gomega.Equal(transferTxUnits))
+				gomega.Ω(results[i].Fee).Should(gomega.Equal(transferTxFee))
+			}
 
 			// Check end balance
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
@@ -630,10 +555,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 200,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -643,10 +568,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err = instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 201,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -671,10 +596,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[1].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 203,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -751,10 +676,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// Send tx
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		transfer := &actions.Transfer{
+		transfer := []chain.Action{&actions.Transfer{
 			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
-		}
+		}}
 
 		parser, err := instances[0].lcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
@@ -777,7 +702,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(len(blk.Txs)).Should(gomega.Equal(1))
-		tx := blk.Txs[0].Action.(*actions.Transfer)
+		tx := blk.Txs[0].Actions[0].(*actions.Transfer)
 		gomega.Ω(tx.Value).To(gomega.Equal(uint64(1)))
 		gomega.Ω(lresults).Should(gomega.Equal(results))
 		gomega.Ω(prices).Should(gomega.Equal(fees.Dimensions{1, 1, 1, 1, 1}))
@@ -799,10 +724,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		// Create tx
 		other, err := ed25519.GeneratePrivateKey()
 		gomega.Ω(err).Should(gomega.BeNil())
-		transfer := &actions.Transfer{
+		transfer := []chain.Action{&actions.Transfer{
 			To:    auth.NewED25519Address(other.PublicKey()),
 			Value: 1,
-		}
+		}}
 		parser, err := instances[0].lcli.Parser(context.Background())
 		gomega.Ω(err).Should(gomega.BeNil())
 		_, tx, _, err := instances[0].cli.GenerateTransaction(
@@ -856,10 +781,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    r1addr,
 					Value: 2000,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -880,10 +805,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    addr,
 					Value: 100,
-				},
+				}},
 				r1factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -908,10 +833,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    r1addr,
 					Value: 2000,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -926,15 +851,24 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			gomega.Ω(balance).Should(gomega.Equal(uint64(2000)))
 		})
 
-		ginkgo.By("send back to ed25519", func() {
+		ginkgo.By("send back to ed25519 (in separate actions)", func() {
+			bbalance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddressBech32(lconsts.HRP, addr))
+			gomega.Ω(err).Should(gomega.BeNil())
+
 			parser, err := instances[0].lcli.Parser(context.Background())
 			gomega.Ω(err).Should(gomega.BeNil())
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
-					To:    addr,
-					Value: 100,
+				[]chain.Action{
+					&actions.Transfer{
+						To:    addr,
+						Value: 75,
+					},
+					&actions.Transfer{
+						To:    addr,
+						Value: 25,
+					},
 				},
 				r1factory,
 			)
@@ -944,6 +878,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := accept(false)
 			gomega.Ω(results).Should(gomega.HaveLen(1))
 			gomega.Ω(results[0].Success).Should(gomega.BeTrue())
+
+			balance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddressBech32(lconsts.HRP, addr))
+			gomega.Ω(err).Should(gomega.BeNil())
+			gomega.Ω(balance).Should(gomega.Equal(bbalance + 100))
 		})
 	})
 })

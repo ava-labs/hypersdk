@@ -232,7 +232,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		}
 		consumed := fees.Dimensions{}
 		for _, result := range results {
-			nconsumed, err := fees.Add(consumed, result.Consumed)
+			nconsumed, err := fees.Add(consumed, result.Units)
 			if err != nil {
 				return err
 			}

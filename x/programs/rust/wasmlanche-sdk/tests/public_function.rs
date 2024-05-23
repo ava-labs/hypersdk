@@ -1,9 +1,8 @@
-use borsh::BorshSerialize;
 use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{types::Address, Context, Program};
+use wasmlanche_sdk::{types::Address, Context, Program, PROGRAM_ID_LEN};
 use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -48,20 +47,17 @@ fn public_functions() {
     let mut test_crate = TestCrate::new(wasm_path);
 
     let context_ptr = test_crate.write_context();
-    let args_ptr = test_crate.write_args([0u8; 0]);
-    assert!(test_crate.always_true((context_ptr, args_ptr)));
+    assert!(test_crate.always_true(context_ptr));
 
     let context_ptr = test_crate.write_context();
-    let args_ptr = test_crate.write_args([0u8; 0]);
-    let combined_binary_digits =
-        test_crate.combine_last_bit_of_each_id_byte((context_ptr, args_ptr));
+    let combined_binary_digits = test_crate.combine_last_bit_of_each_id_byte(context_ptr);
     assert_eq!(combined_binary_digits, u32::MAX);
 }
 
 type AllocParam = i32;
 type AllocReturn = u32;
 type AllocFn = TypedFunc<AllocParam, AllocReturn>;
-type UserDefinedFnParam = (u32, u32);
+type UserDefinedFnParam = u32;
 type UserDefinedFnReturn = ();
 type UserDefinedFn = TypedFunc<UserDefinedFnParam, UserDefinedFnReturn>;
 type StoreData = Option<Vec<u8>>;
@@ -124,20 +120,15 @@ impl TestCrate {
     }
 
     fn write_context(&mut self) -> AllocReturn {
-        let program_id: [u8; Program::LEN] = std::array::from_fn(|_| 1);
+        let program_id: [u8; PROGRAM_ID_LEN] = std::array::from_fn(|_| 1);
         // this is a hack to create a program since the constructor is private
-        let program: Program =
+        let program: Program<()> =
             borsh::from_slice(&program_id).expect("the program should deserialize");
-        let actor = Address::new(Default::default());
+        let actor = Address::default();
         let context = Context { program, actor };
         let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
 
         self.allocate(serialized_context)
-    }
-
-    fn write_args(&mut self, args: impl BorshSerialize) -> AllocReturn {
-        let args = borsh::to_vec(&args).expect("failed to serialize args");
-        self.allocate(args)
     }
 
     fn allocate(&mut self, data: Vec<u8>) -> AllocReturn {
@@ -157,9 +148,9 @@ impl TestCrate {
         offset
     }
 
-    fn always_true(&mut self, param: UserDefinedFnParam) -> bool {
+    fn always_true(&mut self, ptr: UserDefinedFnParam) -> bool {
         self.always_true_func
-            .call(&mut self.store, param)
+            .call(&mut self.store, ptr)
             .expect("failed to call `always_true` function");
         let result = self
             .store
@@ -170,9 +161,9 @@ impl TestCrate {
         borsh::from_slice(&result).expect("failed to deserialize result")
     }
 
-    fn combine_last_bit_of_each_id_byte(&mut self, param: UserDefinedFnParam) -> u32 {
+    fn combine_last_bit_of_each_id_byte(&mut self, ptr: UserDefinedFnParam) -> u32 {
         self.combine_last_bit_of_each_id_byte_func
-            .call(&mut self.store, param)
+            .call(&mut self.store, ptr)
             .expect("failed to call `combine_last_bit_of_each_id_byte` function");
         let result = self
             .store

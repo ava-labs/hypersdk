@@ -1,14 +1,14 @@
 use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
 
 #[state_keys]
-enum StateKeys {
+pub enum StateKeys {
     /// The count of this program. Key prefix 0x0 + address
     Counter(Address),
 }
 
 /// Initializes the program address a count of 0.
 #[public]
-pub fn initialize_address(context: Context, address: Address) -> bool {
+pub fn initialize_address(context: Context<StateKeys>, address: Address) -> bool {
     let Context { program, .. } = context;
 
     if program
@@ -29,8 +29,8 @@ pub fn initialize_address(context: Context, address: Address) -> bool {
 
 /// Increments the count at the address by the amount.
 #[public]
-pub fn inc(context: Context, to: Address, amount: i64) -> bool {
-    let counter = amount + get_value(context, to);
+pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
+    let counter = amount + get_value_internal(&context, to);
     let Context { program, .. } = context;
 
     program
@@ -50,9 +50,13 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 
 /// Gets the count at the address.
 #[public]
-pub fn get_value(context: Context, of: Address) -> i64 {
-    let Context { program, .. } = context;
-    program
+pub fn get_value(context: Context<StateKeys>, of: Address) -> i64 {
+    get_value_internal(&context, of)
+}
+
+fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
+    context
+        .program
         .state()
         .get(StateKeys::Counter(of))
         .expect("failed to get counter")
@@ -74,7 +78,6 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
-    #[ignore]
     fn init_program() {
         let simulator = simulator::Client::new();
 
@@ -123,7 +126,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn increment() {
         let simulator = simulator::Client::new();
 
@@ -190,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "need to fix params macro"]
     fn external_call() {
         let simulator = simulator::Client::new();
 

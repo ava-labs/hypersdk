@@ -14,7 +14,7 @@ import (
 // and/or [eheap].
 type Item interface {
 	ID() ids.ID    // method for returning an id of the item
-	Expiry() int64 // method for returing this items timestamp
+	Expiry() int64 // method for returning this items timestamp
 }
 
 // List implements a double-linked list. It offers

@@ -21,10 +21,7 @@ const (
 	BurnComputeUnits        = 2
 	CloseOrderComputeUnits  = 5
 	CreateAssetComputeUnits = 10
-	ExportAssetComputeUnits = 10
-	ImportAssetComputeUnits = 10
 	CreateOrderComputeUnits = 5
-	NoFillOrderComputeUnits = 5
 	FillOrderComputeUnits   = 15
 	MintAssetComputeUnits   = 2
 	TransferComputeUnits    = 1

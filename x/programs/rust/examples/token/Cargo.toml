@@ -7,14 +7,14 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasmlanche-sdk = { path = "../../wasmlanche-sdk" }
+wasmlanche-sdk = { workspace = true }
 borsh = { workspace = true }
 
 [dev-dependencies]
-simulator = { path = "../../../cmd/simulator" }
+simulator = { workspace = true }
 
 [build-dependencies]
-wasmlanche-sdk = { path = "../../wasmlanche-sdk", features = ["build"] }
+wasmlanche-sdk = { workspace = true, features = ["build"] }
 
 # when creating a new project, you can uncomment the following lines to enable optimizations
 # [profile.release]

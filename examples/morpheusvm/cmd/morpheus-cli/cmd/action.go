@@ -6,9 +6,11 @@ package cmd
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/spf13/cobra"
 )
 
 var actionCmd = &cobra.Command{
@@ -52,10 +54,10 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, &actions.Transfer{
+		_, _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
-		}, cli, bcli, ws, factory, true)
+		}}, cli, bcli, ws, factory, true)
 		return err
 	},
 }
