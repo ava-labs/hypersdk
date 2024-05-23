@@ -114,6 +114,7 @@ type Mempool interface {
 	FinishStreaming(context.Context, []*Transaction) int
 }
 
+// TODO: add fixed rules as a subset of this interface
 type Rules interface {
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
@@ -140,12 +141,6 @@ type Rules interface {
 	// * Creating a new key involves first allocating and then writing
 	// * Keys are only charged once per transaction (even if used multiple times), it is
 	//   up to the controller to ensure multiple usage has some compute cost
-	//
-	// Interesting Scenarios:
-	// * If a key is created and then modified during a transaction, the second
-	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
-	// * If a key is removed and then re-created with the same value during a transaction,
-	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
 	GetSponsorStateKeysMaxChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk

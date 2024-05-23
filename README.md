@@ -630,13 +630,9 @@ You can view what this looks like in the `tokenvm` by clicking this
 type Action interface {
 	Object
 
-	// MaxComputeUnits is the maximum amount of compute a given [Action] could use. This is
-	// used to determine whether the [Action] can be included in a given block and to compute
-	// the required fee to execute.
-	//
-	// Developers should make every effort to bound this as tightly to the actual max so that
-	// users don't need to have a large balance to call an [Action] (must prepay fee before execution).
-	MaxComputeUnits(Rules) uint64
+	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
+	// whether the [Action] can be included in a given block and to compute the required fee to execute.
+	ComputeUnits(Rules) uint64
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
 	// chunks each state key could use without requiring the state keys to actually be provided (may
@@ -658,7 +654,7 @@ type Action interface {
 	//
 	// If any keys are touched during [Execute] that are not specified in [StateKeys], the transaction
 	// will revert and the max fee will be charged.
-    //
+	//
 	// If [Execute] returns an error, execution will halt and any state changes will revert.
 	Execute(
 		ctx context.Context,
@@ -667,7 +663,7 @@ type Action interface {
 		timestamp int64,
 		actor codec.Address,
 		actionID ids.ID,
-	) (computeUnits uint64, outputs [][]byte, err error)
+	) (outputs [][]byte, err error)
 }
 ```
 
@@ -683,10 +679,14 @@ and what a more complex "fill order" `Action` looks like [here](./examples/token
 ```golang
 type Result struct {
 	Success bool
-	Output  []byte
+	Error   []byte
 
-	Consumed Dimensions
-	Fee      uint64
+	Outputs [][][]byte
+
+	// Computing [Units] requires access to [StateManager], so it is returned
+	// to make life easier for indexers.
+	Units fees.Dimensions
+	Fee   uint64
 }
 ```
 
@@ -745,14 +745,14 @@ type Rules interface {
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
-	
+
 	GetMaxActionsPerTx() uint8
 	GetMaxOutputsPerAction() uint8
 
-	GetMinUnitPrice() Dimensions
-	GetUnitPriceChangeDenominator() Dimensions
-	GetWindowTargetUnits() Dimensions
-	GetMaxBlockUnits() Dimensions
+	GetMinUnitPrice() fees.Dimensions
+	GetUnitPriceChangeDenominator() fees.Dimensions
+	GetWindowTargetUnits() fees.Dimensions
+	GetMaxBlockUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
 
@@ -762,12 +762,6 @@ type Rules interface {
 	// * Creating a new key involves first allocating and then writing
 	// * Keys are only charged once per transaction (even if used multiple times), it is
 	//   up to the controller to ensure multiple usage has some compute cost
-	//
-	// Interesting Scenarios:
-	// * If a key is created and then modified during a transaction, the second
-	//   read will be a read of 0 chunks (reads are based on disk contents before exec)
-	// * If a key is removed and then re-created with the same value during a transaction,
-	//   it doesn't count as a modification (returning to the current value on-disk is a no-op)
 	GetSponsorStateKeysMaxChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk

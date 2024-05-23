@@ -146,20 +146,13 @@ func (b *Backend) Start(ctx context.Context) error {
 	configPath := path.Join(homeDir, configFile)
 	rawConifg, err := os.ReadFile(configPath)
 	if err != nil {
-		// TODO: replace with DEVNET
-		b.c = &Config{
-			TokenRPC:    "http://54.190.240.186:9090",
-			FaucetRPC:   "http://54.190.240.186:9091",
-			SearchCores: 4,
-			FeedRPC:     "http://54.190.240.186:9092",
-		}
-	} else {
-		var config Config
-		if err := json.Unmarshal(rawConifg, &config); err != nil {
-			return err
-		}
-		b.c = &config
+		return fmt.Errorf("%w: cannot open config file at %s", err, configPath)
 	}
+	var config Config
+	if err := json.Unmarshal(rawConifg, &config); err != nil {
+		return err
+	}
+	b.c = &config
 
 	// Create clients
 	b.cli = rpc.NewJSONRPCClient(b.c.TokenRPC)
