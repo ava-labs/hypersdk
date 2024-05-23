@@ -5,6 +5,7 @@ package genesis
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/fees"
 )
@@ -49,6 +50,14 @@ func (r *Rules) GetUnitPriceChangeDenominator() fees.Dimensions {
 
 func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 	return r.g.WindowTargetUnits
+}
+
+func (*Rules) GetMaxActionsPerTx() uint8 {
+	panic("unimplemented")
+}
+
+func (*Rules) GetMaxOutputsPerAction() uint8 {
+	panic("unimplemented")
 }
 
 func (r *Rules) GetMaxBlockUnits() fees.Dimensions {

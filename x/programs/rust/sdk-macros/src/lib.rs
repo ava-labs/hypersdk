@@ -154,7 +154,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             #[derive(borsh::BorshDeserialize)]
             struct Args {
                 #(#args_props),*
-             }
+            }
 
             #[link(wasm_import_module = "program")]
             extern "C" {

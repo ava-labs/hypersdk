@@ -5,6 +5,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -31,7 +32,7 @@ type Loader struct {
 	ProgramName string
 }
 
-func (t Loader) GetProgramBytes(_ ids.ID) ([]byte, error) {
+func (t Loader) GetProgramBytes(_ context.Context, _ ids.ID) ([]byte, error) {
 	if err := CompileTest(t.ProgramName); err != nil {
 		return nil, err
 	}

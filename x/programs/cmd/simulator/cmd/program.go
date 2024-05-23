@@ -5,15 +5,16 @@ package cmd
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/akamensky/argparse"
-	"go.uber.org/zap"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -42,14 +43,14 @@ func (c *programCreateCmd) New(parser *argparse.Parser) {
 	})
 }
 
-func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, _ []string) (*Response, error) {
 	c.log = log
 	exists, err := hasKey(ctx, db, *c.keyName)
 	if err != nil {
 		return newResponse(0), err
 	}
 	if !exists {
-		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, c.keyName)
+		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, *c.keyName)
 	}
 
 	id, err := programCreateFunc(ctx, db, *c.path)
@@ -86,15 +87,13 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 	}
 
 	// execute the action
-	success, _, output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
+	output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
 	if output != nil {
-		fmt.Println(string(output))
-	}
-	if !success {
-		return ids.Empty, fmt.Errorf("program creation failed: %s", err)
+		response := multilineOutput(output)
+		fmt.Println(response)
 	}
 	if err != nil {
-		return ids.Empty, err
+		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
 	}
 
 	// store program to disk only on success
@@ -110,31 +109,34 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	callParams []actions.CallParam,
+	programID ids.ID,
+	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) (ids.ID, []byte, uint64, error) {
+) (ids.ID, [][]byte, uint64, error) {
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
 
+	bytes, err := SerializeParams(callParams)
+	if err != nil {
+		return ids.Empty, nil, 0, err
+	}
 	programExecuteAction := actions.ProgramExecute{
-		Function: function,
-		Params:   callParams,
-		MaxUnits: maxUnits,
-		Log:      log,
+		ProgramID: programID,
+		Function:  function,
+		Params:    bytes,
+		MaxUnits:  maxUnits,
+		Log:       log,
 	}
 
 	// execute the action
-	success, _, resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
-
-	if !success {
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s", string(resp))
-	}
+	resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 	if err != nil {
-		return ids.Empty, nil, 0, err
+		response := multilineOutput(resp)
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
 	// store program to disk only on success
@@ -147,4 +149,36 @@ func programExecuteFunc(
 	balance, err := programExecuteAction.GetBalance()
 
 	return programTxID, resp, balance, err
+}
+
+func SerializeParams(p []Parameter) ([]byte, error) {
+	var bytes []byte
+	for _, param := range p {
+		switch v := param.Value.(type) {
+		case []byte:
+			bytes = append(bytes, v...)
+		case ids.ID:
+			bytes = append(bytes, v[:]...)
+		case string:
+			bytes = append(bytes, []byte(v)...)
+		case uint64:
+			bs := make([]byte, 8)
+			binary.LittleEndian.PutUint64(bs, v)
+			bytes = append(bytes, bs...)
+		case uint32:
+			bs := make([]byte, 4)
+			binary.LittleEndian.PutUint32(bs, v)
+			bytes = append(bytes, bs...)
+		default:
+			return nil, errors.New("unsupported data type")
+		}
+	}
+	return bytes, nil
+}
+
+func multilineOutput(resp [][]byte) (response string) {
+	for _, res := range resp {
+		response += string(res) + "\n"
+	}
+	return response
 }

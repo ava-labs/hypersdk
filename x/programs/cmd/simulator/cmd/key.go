@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
@@ -31,7 +31,7 @@ func (c *keyCreateCmd) New(parser *argparse.Parser) {
 	c.name = c.cmd.String("", "name", &argparse.Options{Required: true})
 }
 
-func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, args []string) (*Response, error) {
+func (c *keyCreateCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMutable, _ []string) (*Response, error) {
 	resp := newResponse(0)
 	resp.setTimestamp(time.Now().Unix())
 	c.log = log

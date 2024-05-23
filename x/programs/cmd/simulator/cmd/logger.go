@@ -11,9 +11,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
-
 	"go.uber.org/zap"
-
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -108,7 +106,7 @@ func newDiscardWriteCloser() *discardWriteCloser {
 }
 
 // Close implements the io.Closer interface.
-func (n *discardWriteCloser) Close() error {
+func (*discardWriteCloser) Close() error {
 	// Do nothing and return nil.
 	return nil
 }

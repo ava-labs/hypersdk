@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -103,7 +104,11 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		return nil, err
 	}
 
-	_, err = p.inst.GetFunc(p.store, callInfo.FunctionName).Call(p.store, paramsOffset)
+	function := p.inst.GetFunc(p.store, callInfo.FunctionName)
+	if function == nil {
+		return nil, errors.New("this function does not exist")
+	}
+	_, err = function.Call(p.store, paramsOffset)
 
 	return p.result, err
 }

@@ -78,7 +78,6 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
-    #[ignore]
     fn init_program() {
         let simulator = simulator::Client::new();
 
@@ -127,7 +126,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn increment() {
         let simulator = simulator::Client::new();
 
@@ -194,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "need to fix params macro"]
     fn external_call() {
         let simulator = simulator::Client::new();
 
