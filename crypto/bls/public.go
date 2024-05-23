@@ -19,11 +19,11 @@ type (
 )
 
 func PublicKeyToBytes(pk *PublicKey) []byte {
-	return bls.PublicKeyToBytes(pk)
+	return bls.PublicKeyToCompressedBytes(pk)
 }
 
 func PublicKeyFromBytes(pkBytes []byte) (*PublicKey, error) {
-	return bls.PublicKeyFromBytes(pkBytes)
+	return bls.PublicKeyFromCompressedBytes(pkBytes)
 }
 
 func AggregatePublicKeys(pks []*PublicKey) (*PublicKey, error) {

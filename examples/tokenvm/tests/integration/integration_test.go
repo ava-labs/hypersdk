@@ -2062,7 +2062,7 @@ type appSender struct {
 	instances []instance
 }
 
-func (app *appSender) SendAppGossip(ctx context.Context, appGossipBytes []byte) error {
+func (app *appSender) SendAppGossip(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
 	n := len(app.instances)
 	sender := app.instances[app.next].nodeID
 	app.next++
@@ -2074,11 +2074,11 @@ func (*appSender) SendAppRequest(context.Context, set.Set[ids.NodeID], uint32, [
 	return nil
 }
 
-func (*appSender) SendAppResponse(context.Context, ids.NodeID, uint32, []byte) error {
+func (*appSender) SendAppError(context.Context, ids.NodeID, uint32, int32, string) error {
 	return nil
 }
 
-func (*appSender) SendAppGossipSpecific(context.Context, set.Set[ids.NodeID], []byte) error {
+func (*appSender) SendAppResponse(context.Context, ids.NodeID, uint32, []byte) error {
 	return nil
 }
 
@@ -2087,5 +2087,9 @@ func (*appSender) SendCrossChainAppRequest(context.Context, ids.ID, uint32, []by
 }
 
 func (*appSender) SendCrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
+	return nil
+}
+
+func (*appSender) SendCrossChainAppError(context.Context, ids.ID, uint32, int32, string) error {
 	return nil
 }
