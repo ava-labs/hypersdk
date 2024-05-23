@@ -341,7 +341,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				address := make([]byte, codec.AddressLen)
 				address[0] = 0 // prefix
 				copy(address[1:], pk[:])
-				key = string(address[:])
+				key = string(address)
 			}
 			if err != nil {
 				return nil, err
