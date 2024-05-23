@@ -72,7 +72,8 @@ jobs:
         run: scripts/tests.unit.sh
       - name: Run simulator tests
         shell: bash
-        run: x/programs/cmd/simulator/scripts/tests.unit.sh
+        working-directory: x/programs/cmd/simulator
+        run: scripts/tests.unit.sh
 
   hypersdk-tests:
     runs-on: ubuntu-latest
