@@ -16,5 +16,5 @@ if ! [[ "$0" =~ scripts/tests.unit.sh ]]; then
 fi
 
 # Provision of the list of tests requires word splitting, so disable the shellcheck
-# shellcheck disable=SC2046
+# shellcheck disable=SC2046,SC2038
 go test -race -timeout="10m" -coverprofile="coverage.out" -covermode="atomic" $(find . -name "*.go" | xargs -n1 dirname | sort -u | xargs)
