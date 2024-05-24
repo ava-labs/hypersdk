@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/utils"
 
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -72,7 +73,7 @@ var fundFaucetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
+		if _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
@@ -122,7 +123,7 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
@@ -165,12 +166,19 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, []chain.Action{&actions.CreateAsset{
+		txID, err := sendAndWait(ctx, []chain.Action{&actions.CreateAsset{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
 		}}, cli, scli, tcli, factory, true)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Print assetID
+		assetID := chain.CreateActionID(txID, 0)
+		utils.Outf("{{green}}assetID:{{/}} %s\n", assetID)
+		return nil
 	},
 }
 
@@ -229,7 +237,7 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, []chain.Action{&actions.MintAsset{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
@@ -266,7 +274,7 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, []chain.Action{&actions.CloseOrder{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
 		}}, cli, scli, tcli, factory, true)
@@ -352,14 +360,21 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, []chain.Action{&actions.CreateOrder{
+		txID, err := sendAndWait(ctx, []chain.Action{&actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
 		}}, cli, scli, tcli, factory, true)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Print orderID
+		orderID := chain.CreateActionID(txID, 0)
+		utils.Outf("{{green}}orderID:{{/}} %s\n", orderID)
+		return nil
 	},
 }
 
@@ -469,7 +484,7 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		err = sendAndWait(ctx, []chain.Action{&actions.FillOrder{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,

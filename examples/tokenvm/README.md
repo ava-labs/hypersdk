@@ -154,8 +154,6 @@ continue (y/n): y
 ✅ txID: 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
 ```
 
-_`txID` is the `assetID` of your new asset._
-
 The "loaded address" here is the address of the default private key (`demo.pk`). We
 use this key to authenticate all interactions with the `tokenvm`.
 
