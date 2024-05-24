@@ -341,7 +341,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			}
 			if !ok && endpoint != EndpointKey {
 				// using not stored named public key in other context than key creation
-				return nil, fmt.Errorf("%s: %s", ErrNamedKeyNotFound, val)
+				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, val)
 			}
 			if ok {
 				// otherwise use the public key address

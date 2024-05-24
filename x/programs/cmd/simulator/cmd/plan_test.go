@@ -1,3 +1,6 @@
+// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package cmd
 
 import (
@@ -26,7 +29,7 @@ func TestCreateCallParams(t *testing.T) {
 	defer s.manageCleanup(ctx)
 	cmd := &runCmd{}
 	_, err := cmd.createCallParams(ctx, s.db, []Parameter{{Type: KeyEd25519, Value: "alice"}}, EndpointExecute)
-	require.ErrorAs(t, err, &ErrNamedKeyNotFound)
+	require.ErrorIs(t, err, ErrNamedKeyNotFound)
 	_, err = keyCreateFunc(ctx, s.db, "alice")
 	require.NoError(t, err)
 	_, err = cmd.createCallParams(ctx, s.db, []Parameter{{Type: KeyEd25519, Value: "alice"}}, EndpointExecute)
