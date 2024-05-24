@@ -4,7 +4,7 @@
 //! Simulator binary directly.
 
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{base64::Base64, serde_as, DisplayFromStr};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -42,9 +42,6 @@ pub struct Step {
     pub max_units: u64,
     /// The parameters to pass to the method.
     pub params: Vec<Param>,
-    /// If defined the result of the step must match this assertion.
-    #[serde(skip)]
-    pub require: Option<Require>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -65,7 +62,6 @@ impl Step {
             method: "create_key".into(),
             max_units: 0,
             params: vec![Param::Key(key)],
-            require: None,
         }
     }
 
@@ -79,7 +75,6 @@ impl Step {
             method: "program_create".into(),
             max_units: 0,
             params: vec![Param::String(path.into())],
-            require: None,
         }
     }
 }
@@ -155,17 +150,17 @@ pub enum ResultAssertion {
 }
 
 #[derive(Debug, Serialize, PartialEq)]
-pub struct Plan {
+pub struct Plan<'a> {
     /// The key of the caller used in each step of the plan.
-    pub caller_key: String,
+    pub caller_key: &'a str,
     /// The steps to perform in the plan.
     pub steps: Vec<Step>,
 }
 
-impl Plan {
+impl<'a> Plan<'a> {
     /// Pass in the `caller_key` to be used in each step of the plan.
     #[must_use]
-    pub fn new(caller_key: String) -> Self {
+    pub fn new(caller_key: &'a str) -> Self {
         Self {
             caller_key,
             steps: vec![],
@@ -189,6 +184,7 @@ pub struct PlanResponse {
     pub error: Option<String>,
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct PlanResult {
     /// The ID created from the program execution.
@@ -198,7 +194,8 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    pub response: Option<String>,
+    #[serde_as(as = "Base64")]
+    pub response: Vec<u8>,
 }
 
 #[derive(Error, Debug)]
@@ -218,9 +215,9 @@ pub struct Client<W, R> {
     child: SimulatorChild<W, R>,
 }
 
-impl Client<ChildStdin, Box<dyn Iterator<Item = Result<PlanResponse, ClientError>>>> 
-{
-    pub fn new_stdin() -> Client<ChildStdin, impl Iterator<Item = Result<PlanResponse, ClientError>>> {
+impl Client<ChildStdin, Box<dyn Iterator<Item = Result<PlanResponse, ClientError>>>> {
+    pub fn new_stdin() -> Client<ChildStdin, impl Iterator<Item = Result<PlanResponse, ClientError>>>
+    {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -261,7 +258,6 @@ where
     W: Write,
     R: Iterator<Item = Result<PlanResponse, ClientError>>,
 {
-
     /// Runs a [Plan] against the simulator and returns vec of result.
     /// # Errors
     ///
@@ -269,12 +265,12 @@ where
     pub fn run_plan(&mut self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
         plan.steps
             .iter()
-            .map(|step| self.child.run_step(&plan.caller_key, step))
+            .map(|step| self.child.run_step(plan.caller_key, step))
             .collect()
     }
 
-    pub fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
-        self.child.run_step(caller_key, step)
+    pub fn run_step(&mut self, caller_key: &str, step: Step) -> Result<PlanResponse, ClientError> {
+        self.child.run_step(caller_key, &step)
     }
 }
 

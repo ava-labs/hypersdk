@@ -73,7 +73,7 @@ pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Addre
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Plan, Require, ResultAssertion, Step};
+    use simulator::{Endpoint, Key, Param, Plan, Step};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -84,16 +84,15 @@ mod tests {
         let owner_key = String::from("owner");
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
 
-        let mut plan = Plan::new(owner_key.clone());
+        let mut plan = Plan::new(&owner_key);
 
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
+        plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
 
         plan.add_step(Step {
             endpoint: Endpoint::Key,
             method: "key_create".into(),
             params: vec![alice_key.clone()],
             max_units: 0,
-            require: None,
         });
 
         let counter1_id = plan.add_step(Step {
@@ -101,7 +100,6 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
         });
 
         plan.add_step(Step {
@@ -109,10 +107,8 @@ mod tests {
             method: "initialize_address".into(),
             max_units: 1000000,
             params: vec![counter1_id.into(), alice_key.clone()],
-            require: None,
         });
 
-        // run plan
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
@@ -132,16 +128,15 @@ mod tests {
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
 
-        let mut plan = Plan::new(owner_key.clone());
+        let mut plan = Plan::new(&owner_key);
 
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
+        plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
 
         plan.add_step(Step {
             endpoint: Endpoint::Key,
             method: "key_create".into(),
             params: vec![bob_key.clone()],
             max_units: 0,
-            require: None,
         });
 
         let counter_id = plan.add_step(Step {
@@ -149,14 +144,12 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
         });
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "initialize_address".into(),
             max_units: 1000000,
             params: vec![counter_id.into(), bob_key.clone()],
-            require: None,
         });
 
         plan.add_step(Step {
@@ -164,23 +157,10 @@ mod tests {
             method: "inc".into(),
             max_units: 1000000,
             params: vec![counter_id.into(), bob_key.clone(), 10.into()],
-            require: None,
         });
 
-        plan.add_step(Step {
-            endpoint: Endpoint::ReadOnly,
-            method: "get_value".into(),
-            max_units: 0,
-            params: vec![counter_id.into(), bob_key.clone()],
-            require: Some(Require {
-                result: ResultAssertion::NumericEq(10),
-            }),
-        });
-
-        // run plan
         let plan_responses = simulator.run_plan(plan).unwrap();
 
-        // ensure no errors
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
             "error: {:?}",
@@ -189,6 +169,23 @@ mod tests {
                 .filter_map(|resp| resp.error.as_ref())
                 .next()
         );
+
+        let value = bytes_to_u64(
+            simulator
+                .run_step(
+                    &owner_key,
+                    Step {
+                        endpoint: Endpoint::ReadOnly,
+                        method: "get_value".into(),
+                        max_units: 0,
+                        params: vec![counter_id.into(), bob_key.clone()],
+                    },
+                )
+                .unwrap()
+                .result
+                .response,
+        );
+        assert_eq!(value, 10);
     }
 
     #[test]
@@ -199,16 +196,15 @@ mod tests {
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
 
-        let mut plan = Plan::new(owner_key.clone());
+        let mut plan = Plan::new(&owner_key);
 
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key)));
+        plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
 
         plan.add_step(Step {
             endpoint: Endpoint::Key,
             method: "key_create".into(),
             params: vec![bob_key.clone()],
             max_units: 0,
-            require: None,
         });
 
         let counter1_id = plan.add_step(Step {
@@ -216,7 +212,6 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
         });
 
         let counter2_id = plan.add_step(Step {
@@ -224,58 +219,16 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
         });
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "initialize_address".into(),
             max_units: 1000000,
             params: vec![counter2_id.into(), bob_key.clone()],
-            require: None,
-        });
-        plan.add_step(Step {
-            endpoint: Endpoint::ReadOnly,
-            method: "get_value".into(),
-            max_units: 0,
-            params: vec![counter2_id.into(), bob_key.clone()],
-            require: Some(Require {
-                result: ResultAssertion::NumericEq(0),
-            }),
         });
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "inc_external".into(),
-            max_units: 100000000,
-            params: vec![
-                counter1_id.into(),
-                counter2_id.into(),
-                1000000.into(),
-                bob_key.clone(),
-                10.into(),
-            ],
-            require: None,
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::ReadOnly,
-            method: "get_value_external".into(),
-            max_units: 0,
-            params: vec![
-                counter1_id.into(),
-                counter2_id.into(),
-                1000000.into(),
-                bob_key.clone(),
-            ],
-            require: Some(Require {
-                result: ResultAssertion::NumericEq(10),
-            }),
-        });
-
-        // run plan
         let plan_responses = simulator.run_plan(plan).unwrap();
 
-        // ensure no errors
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
             "error: {:?}",
@@ -284,5 +237,66 @@ mod tests {
                 .filter_map(|resp| resp.error.as_ref())
                 .next()
         );
+
+        let value = bytes_to_u64(
+            simulator
+                .run_step(
+                    &owner_key,
+                    Step {
+                        endpoint: Endpoint::ReadOnly,
+                        method: "get_value".into(),
+                        max_units: 0,
+                        params: vec![counter2_id.into(), bob_key.clone()],
+                    },
+                )
+                .unwrap()
+                .result
+                .response,
+        );
+        assert_eq!(value, 0);
+
+        simulator
+            .run_step(
+                &owner_key,
+                Step {
+                    endpoint: Endpoint::Execute,
+                    method: "inc_external".into(),
+                    max_units: 100000000,
+                    params: vec![
+                        counter1_id.into(),
+                        counter2_id.into(),
+                        1000000.into(),
+                        bob_key.clone(),
+                        10.into(),
+                    ],
+                },
+            )
+            .unwrap();
+
+        let value = bytes_to_u64(
+            simulator
+                .run_step(
+                    &owner_key,
+                    Step {
+                        endpoint: Endpoint::ReadOnly,
+                        method: "get_value_external".into(),
+                        max_units: 0,
+                        params: vec![
+                            counter1_id.into(),
+                            counter2_id.into(),
+                            1000000.into(),
+                            bob_key.clone(),
+                        ],
+                    },
+                )
+                .unwrap()
+                .result
+                .response,
+        );
+        assert_eq!(value, 10);
+    }
+
+    fn bytes_to_u64(bytes: Vec<u8>) -> u64 {
+        u64::from_le_bytes(bytes.try_into().unwrap())
     }
 }
