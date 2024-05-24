@@ -6,10 +6,9 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
-    io::{BufRead, BufReader, Lines, Write},
-    iter::Map,
+    io::{BufRead, BufReader, Write},
     path::Path,
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    process::{Child, ChildStdin, Command, Stdio},
 };
 use thiserror::Error;
 
@@ -131,14 +130,14 @@ impl From<Key> for Param {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 pub struct Require {
     /// If defined the result of the step must match this assertion.
     pub result: ResultAssertion,
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(tag = "operator", content = "value")]
 pub enum ResultAssertion {
     #[serde(rename = "==")]
@@ -155,7 +154,7 @@ pub enum ResultAssertion {
     NumericLe(#[serde_as(as = "DisplayFromStr")] u64),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq)]
 pub struct Plan {
     /// The key of the caller used in each step of the plan.
     pub caller_key: String,
@@ -180,7 +179,7 @@ impl Plan {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct PlanResponse {
     /// The numeric id of the step.
     pub id: u32,
@@ -190,7 +189,7 @@ pub struct PlanResponse {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct PlanResult {
     /// The ID created from the program execution.
     pub id: Option<String>,
@@ -216,17 +215,12 @@ pub enum ClientError {
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
 pub struct Client<W, R> {
-    /// Path to the simulator binary
-    path: &'static str,
     child: SimulatorChild<W, R>,
 }
 
-impl<W, R> Client<W, R>
-where
-    W: Write,
-    R: Iterator<Item = Result<PlanResponse, ClientError>>,
+impl Client<ChildStdin, Box<dyn Iterator<Item = Result<PlanResponse, ClientError>>>> 
 {
-    pub fn new() -> Client<ChildStdin, impl Iterator<Item = Result<PlanResponse, ClientError>>> {
+    pub fn new_stdin() -> Client<ChildStdin, impl Iterator<Item = Result<PlanResponse, ClientError>>> {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -254,12 +248,19 @@ where
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| serde_json::from_str(&line.unwrap()).map_err(Into::into));
+            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
 
         let child = SimulatorChild { writer, responses };
 
-        Client { path, child }
+        Client { child }
     }
+}
+
+impl<W, R> Client<W, R>
+where
+    W: Write,
+    R: Iterator<Item = Result<PlanResponse, ClientError>>,
+{
 
     /// Runs a [Plan] against the simulator and returns vec of result.
     /// # Errors
@@ -272,8 +273,8 @@ where
             .collect()
     }
 
-    pub fn run_step(&self, step: Step) -> Result<PlanResponse, ClientError> {
-        todo!()
+    pub fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
+        self.child.run_step(caller_key, step)
     }
 }
 

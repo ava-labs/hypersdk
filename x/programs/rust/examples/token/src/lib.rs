@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
 
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn init_token() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key_id = String::from("owner");
         let owner_key = Key::Ed25519(owner_key_id.clone());
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn mint() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key_id = String::from("owner");
         let [alice_key] = ["alice"]
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn mint_and_transfer() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key_id = String::from("owner");
         let [alice_key, bob_key] = ["alice", "bob"]

@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn init_program() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn increment() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     #[ignore = "need to fix params macro"]
     fn external_call() {
-        let simulator = simulator::Client::new();
+        let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
