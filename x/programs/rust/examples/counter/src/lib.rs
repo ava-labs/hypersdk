@@ -6,27 +6,6 @@ pub enum StateKeys {
     Counter(Address),
 }
 
-/// Initializes the program address a count of 0.
-#[public]
-pub fn initialize_address(context: Context<StateKeys>, address: Address) -> bool {
-    let Context { program, .. } = context;
-
-    if program
-        .state()
-        .get::<i64>(StateKeys::Counter(address))
-        .is_ok()
-    {
-        panic!("counter already initialized for address")
-    }
-
-    program
-        .state()
-        .store(StateKeys::Counter(address), &0_i64)
-        .expect("failed to store counter");
-
-    true
-}
-
 /// Increments the count at the address by the amount.
 #[public]
 pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
@@ -60,7 +39,8 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
         .program
         .state()
         .get(StateKeys::Counter(of))
-        .expect("failed to get counter")
+        .expect("state corrupt")
+        .unwrap_or_default()
 }
 
 /// Gets the count at the address for an external program.
@@ -94,19 +74,11 @@ mod tests {
             require: None,
         });
 
-        let counter1_id = plan.add_step(Step {
+        plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter1_id.into(), alice_key.clone()],
             require: None,
         });
 
@@ -147,13 +119,6 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
-        });
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter_id.into(), bob_key.clone()],
             require: None,
         });
 

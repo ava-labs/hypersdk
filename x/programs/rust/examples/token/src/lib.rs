@@ -45,10 +45,12 @@ pub fn init(context: Context<StateKeys>) {
 #[public]
 pub fn get_total_supply(context: Context<StateKeys>) -> i64 {
     let Context { program, .. } = context;
+
     program
         .state()
         .get(StateKeys::TotalSupply)
         .expect("failed to get total supply")
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
@@ -68,6 +70,7 @@ fn mint_to_internal(
     let balance = program
         .state()
         .get::<i64>(StateKeys::Balance(recipient))
+        .expect("balance should deserialize")
         .unwrap_or_default();
 
     program
@@ -104,13 +107,15 @@ pub fn transfer(
     let sender_balance = program
         .state()
         .get::<i64>(StateKeys::Balance(sender))
-        .expect("failed to update balance");
+        .expect("failed to deserialize balance")
+        .unwrap_or_default();
 
     assert!(amount >= 0 && sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
         .get::<i64>(StateKeys::Balance(recipient))
+        .expect("failed to deserialize balance")
         .unwrap_or_default();
 
     // update balances
@@ -149,6 +154,7 @@ pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
     program
         .state()
         .get(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default()
 }
 

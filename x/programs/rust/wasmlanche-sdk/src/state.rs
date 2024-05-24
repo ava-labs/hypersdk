@@ -86,7 +86,7 @@ impl<'a, K: Key> State<'a, K> {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<V>(self, key: K) -> Result<V, Error>
+    pub fn get<V>(self, key: K) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
@@ -101,14 +101,17 @@ impl<'a, K: Key> State<'a, K> {
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-            let ptr = host::get_bytes(&args_bytes)?;
-
-            let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
+            let bytes = match host::get_bytes(&args_bytes) {
+                Some(ptr) => into_bytes(ptr.as_ptr()).ok_or(Error::InvalidPointer)?,
+                None => return Ok(None),
+            };
 
             cache.entry(key).or_insert(bytes)
         };
 
-        from_slice::<V>(val_bytes).map_err(|_| StateError::Deserialization)
+        from_slice::<V>(val_bytes)
+            .map_err(|_| StateError::Deserialization)
+            .map(Some)
     }
 
     /// Delete a value from the hosts's storage.
@@ -207,20 +210,16 @@ mod host {
     }
 
     /// Gets the bytes associated with the key from the host.
-    pub(super) fn get_bytes(bytes: &[u8]) -> Result<*const u8, Error> {
+    pub(super) fn get_bytes(bytes: &[u8]) -> Option<NonNull<u8>> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "get"]
-            fn ffi(ptr: *const u8, len: usize) -> *const u8;
+            fn ffi(ptr: *const u8, len: usize) -> *mut u8;
         }
 
         let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
 
-        if result.is_null() {
-            Err(Error::Read)
-        } else {
-            Ok(result)
-        }
+        NonNull::new(result)
     }
 
     /// Deletes the bytes at key ptr from the host storage
