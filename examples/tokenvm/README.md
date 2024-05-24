@@ -147,11 +147,14 @@ command from this location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-metadata (can be changed later): MarioCoin
+address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
+chainID: 2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
+symbol: MARIO
+decimals: 2
+metadata: its a me, mario
 continue (y/n): y
-✅ txID: 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+✅ txID: o7bJT3aRwgLR19c2avPSKBNjdrCsPgxBXA3oc1MeLvvEKKNP7
+assetID: 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
 ```
 
 The "loaded address" here is the address of the default private key (`demo.pk`). We
@@ -168,14 +171,13 @@ When you are done, the output should look something like this (usually easiest
 just to mint to yourself).
 ```
 database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-assetID: 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 0
-recipient: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-amount: 10000
+address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
+chainID: 2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
+assetID: 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
+symbol: MARIO decimals: 2 metadata: its a me, mario supply: 0
+amount: 100
 continue (y/n): y
-✅ txID: X1E5CVFgFFgniFyWcj5wweGg66TyzjK2bMWWTzFwJcwFYkF72
+✅ txID: Zrq8CUXeXQqjX97QnNAd4RRi2SiWz14cHyMh16NjQ15vFakPg
 ```
 
 #### Step 3: View Your Balance
@@ -188,15 +190,16 @@ so by running the following command from this location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000
-balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
+chainID: 2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
+assetID (use TKN for native token): 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
+uri: http://127.0.0.1:9652/ext/bc/2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
+symbol: MARIO decimals: 2 metadata: its a me, mario supply: 10000
+balance: 100.00 MARIO
 ```
 
 #### Step 4: Create an Order
-So, we have some of our token (`MarioCoin`)...now what? Let's put an order
+So, we have some of our token (`MARIO`)...now what? Let's put an order
 on-chain that will allow someone to trade the native token (`TKN`) for some.
 You can do so by running the following command from this location:
 ```bash
@@ -206,20 +209,20 @@ You can do so by running the following command from this location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+2024/05/24 15:29:44 [JOB 1] WAL file .token-cli/000376.log with log number 000376 stopped reading at offset: 0; replayed 0 keys in 0 batches
+address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
+chainID: 2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
 in assetID (use TKN for native token): TKN
-✔ in tick: 1█
-out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000
-balance: 10000 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+in tick: 1
+out assetID (use TKN for native token): 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
+symbol: MARIO decimals: 2 metadata: its a me, mario supply: 10000
+balance: 100.00 MARIO
 out tick: 10
 supply (must be multiple of out tick): 100
 continue (y/n): y
-✅ txID: 2TdeT2ZsQtJhbWJuhLZ3eexuCY4UP6W7q5ZiAHMYtVfSSp1ids
+✅ txID: 23xyvTKHZUy9ym2VC8ysdsaRz9xbLyfuUoRgGXn6zmotuvxw2e
+orderID: 2hJdJV2JisA1ESQ2SbGapjHn9ZetouU6TyptMNLsRgufQK1hVc
 ```
-
-_`txID` is the `orderID` of your new order._
 
 The "in tick" is how much of the "in assetID" that someone must trade to get
 "out tick" of the "out assetID". Any fill of this order must send a multiple of
@@ -236,19 +239,19 @@ following command from this location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
+address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
+chainID: 2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
 in assetID (use TKN for native token): TKN
-balance: 997.999993843 TKN
-out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-metadata: MarioCoin supply: 10000
+balance: 9999999999.999856949 TKN
+out assetID (use TKN for native token): 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
+symbol: MARIO decimals: 2 metadata: its a me, mario supply: 10000
 available orders: 1
-0) Rate(in/out): 100000000.0000 InTick: 1.000000000 TKN OutTick: 10 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug Remaining: 100 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
-select order: 0
+0) Rate(in/out): 1000000.0000 InTick: 1.000000000 TKN OutTick: 10.00 MARIO Remaining: 100.00 MARIO
+select order: 0 [auto-selected]
 value (must be multiple of in tick): 2
-in: 2.000000000 TKN out: 20 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+in: 2.000000000 TKN out: 20.00 MARIO
 continue (y/n): y
-✅ txID: uw9YrZcs4QQTEBSR3guVnzQTFyKKm5QFGVTvuGyntSTrx3aGm
+✅ txID: B2MCLPTHouQMzd2dfxod2qiJC8p58vSahSDGVhZEJCCvQpzXB
 ```
 
 Note how all available orders for this pair are listed by the CLI (these come
@@ -265,12 +268,12 @@ location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-address: token1rvzhmceq997zntgvravfagsks6w0ryud3rylh4cdvayry0dl97nsjzf3yp
-chainID: Em2pZtHr7rDCzii43an2bBi1M2mTFyLN33QP1Xfjy7BcWtaH9
-orderID: 2TdeT2ZsQtJhbWJuhLZ3eexuCY4UP6W7q5ZiAHMYtVfSSp1ids
-out assetID (use TKN for native token): 27grFs9vE2YP9kwLM5hQJGLDvqEY9ii71zzdoRHNGC4Appavug
+2024/05/24 15:31:57 [JOB 1] WAL file .token-cli/000385.log with log number 000385 stopped reading at offset: 0; replayed 0 keys in 0 batches
+address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
+orderID: 2hJdJV2JisA1ESQ2SbGapjHn9ZetouU6TyptMNLsRgufQK1hVc
+out assetID (use TKN for native token): 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
 continue (y/n): y
-✅ txID: poGnxYiLZAruurNjugTPfN1JjwSZzGZdZnBEezp5HB98PhKcn
+✅ txID: KuPqXinaS2H7uDLh6LriPCMyn8DzNQP9XZ8Lv7wWjY88sDK4A
 ```
 
 Any funds that were locked up in the order will be returned to the creator's
