@@ -57,6 +57,7 @@ func NewDefaultConfig() Config {
 	}
 }
 
+// TODO: replace with AvalancheGo implementation (if still used for Vryx)
 func New(file string, cfg Config) (database.Database, *prometheus.Registry, error) {
 	// These default settings are based on https://github.com/ethereum/go-ethereum/blob/master/ethdb/pebble/pebble.go
 	d := &Database{closing: make(chan struct{})}
@@ -64,7 +65,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		Cache:                       pebble.NewCache(int64(cfg.CacheSize)),
 		BytesPerSync:                cfg.BytesPerSync,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
-		MemTableSize:                cfg.MemTableSize,
+		MemTableSize:                uint64(cfg.MemTableSize),
 		MaxOpenFiles:                cfg.MaxOpenFiles,
 		MaxConcurrentCompactions:    cfg.ConcurrentCompactions, // TODO: may want to tweak this?
 		Levels:                      make([]pebble.LevelOptions, 7),
@@ -229,18 +230,22 @@ type iter struct {
 
 // NewIterator creates a lexicographically ordered iterator over the database
 func (db *Database) NewIterator() database.Iterator {
+	it, err := db.db.NewIter(&pebble.IterOptions{})
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{}),
+		iter: it,
+		err:  err,
 	}
 }
 
 // NewIteratorWithStart creates a lexicographically ordered iterator over the
 // database starting at the provided key
 func (db *Database) NewIteratorWithStart(start []byte) database.Iterator {
+	it, err := db.db.NewIter(&pebble.IterOptions{LowerBound: start})
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(&pebble.IterOptions{LowerBound: start}),
+		iter: it,
+		err:  err,
 	}
 }
 
@@ -263,9 +268,11 @@ func bytesPrefix(prefix []byte) *pebble.IterOptions {
 // NewIteratorWithPrefix creates a lexicographically ordered iterator over the
 // database ignoring keys that do not start with the provided prefix
 func (db *Database) NewIteratorWithPrefix(prefix []byte) database.Iterator {
+	it, err := db.db.NewIter(bytesPrefix(prefix))
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(bytesPrefix(prefix)),
+		iter: it,
+		err:  err,
 	}
 }
 
@@ -280,14 +287,21 @@ func (db *Database) NewIteratorWithStartAndPrefix(start, prefix []byte) database
 	if bytes.Compare(start, prefix) == 1 {
 		iterRange.LowerBound = start
 	}
+	it, err := db.db.NewIter(iterRange)
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(iterRange),
+		iter: it,
+		err:  err,
 	}
 }
 
 func (it *iter) Next() bool {
-	// Short-circuit and set an error if the underlying database has been closed.
+	// If error already set, return
+	if it.err != nil {
+		return false
+	}
+
+	// Set an error if the underlying database has been closed.
 	if it.db.closed.Get() {
 		it.valid = false
 		it.err = database.ErrClosed

@@ -52,11 +52,10 @@ func (t *tracer) Close() error {
 
 func New(config *Config) (trace.Tracer, error) {
 	if !config.Enabled {
-		return &noOpTracer{
-			t: oteltrace.NewNoopTracerProvider().Tracer(config.AppName),
-		}, nil
+		return &noOpTracer{}, nil
 	}
 
+	// TODO: remove zipkin exporter
 	exporter, err := zipkin.New(
 		"http://localhost:9411/api/v2/spans",
 	)

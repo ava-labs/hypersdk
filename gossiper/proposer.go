@@ -6,6 +6,7 @@ package gossiper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -361,12 +362,11 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 		g.cfg.GossipProposerDiff,
 		g.cfg.GossipProposerDepth,
 	)
-	if err != nil || proposers.Len() == 0 {
-		g.vm.Logger().Warn(
-			"unable to find any proposers, falling back to all-to-all gossip",
-			zap.Error(err),
-		)
-		return g.appSender.SendAppGossip(ctx, b)
+	if err != nil {
+		return fmt.Errorf("%w: unable to fetch proposers", err)
+	}
+	if proposers.Len() == 0 {
+		return errors.New("no proposers to gossip to")
 	}
 	recipients := set.NewSet[ids.NodeID](len(proposers))
 	for proposer := range proposers {
@@ -376,5 +376,5 @@ func (g *Proposer) sendTxs(ctx context.Context, txs []*chain.Transaction) error 
 		}
 		recipients.Add(proposer)
 	}
-	return g.appSender.SendAppGossipSpecific(ctx, recipients, b)
+	return g.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: recipients}, b)
 }

@@ -73,7 +73,7 @@ func (g *Manual) Force(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := g.appSender.SendAppGossip(ctx, b); err != nil {
+	if err := g.appSender.SendAppGossip(ctx, common.SendConfig{Validators: 10}, b); err != nil {
 		g.vm.Logger().Warn(
 			"GossipTxs failed",
 			zap.Error(err),

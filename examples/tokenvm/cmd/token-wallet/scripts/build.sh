@@ -15,7 +15,7 @@ export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 PUBLISH=${PUBLISH:-true}
 
 # Install wails
-go install -v github.com/wailsapp/wails/v2/cmd/wails@v2.5.1
+go install -v github.com/wailsapp/wails/v2/cmd/wails@v2.6.0
 
 # Build file for local arch
 #
