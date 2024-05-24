@@ -6,9 +6,10 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use std::{
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Lines, Write},
+    iter::Map,
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
 };
 use thiserror::Error;
 
@@ -17,7 +18,7 @@ mod id;
 pub use id::Id;
 
 /// The endpoint to call for a [Step].
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
     /// Perform an operation against the key api.
@@ -31,7 +32,7 @@ pub enum Endpoint {
 }
 
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
     /// The API endpoint to call.
@@ -43,7 +44,7 @@ pub struct Step {
     /// The parameters to pass to the method.
     pub params: Vec<Param>,
     /// If defined the result of the step must match this assertion.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip)]
     pub require: Option<Require>,
 }
 
@@ -214,13 +215,18 @@ pub enum ClientError {
 }
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
-pub struct Client {
+pub struct Client<W, R> {
     /// Path to the simulator binary
     path: &'static str,
+    child: SimulatorChild<W, R>,
 }
 
-impl Client {
-    pub fn new() -> Self {
+impl<W, R> Client<W, R>
+where
+    W: Write,
+    R: Iterator<Item = Result<PlanResponse, ClientError>>,
+{
+    pub fn new() -> Client<ChildStdin, impl Iterator<Item = Result<PlanResponse, ClientError>>> {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -233,46 +239,41 @@ impl Client {
             panic!("Simulator binary not found, must rebuild simulator");
         }
 
-        Self { path }
-    }
-
-    /// Runs a [Plan] against the simulator and returns vec of result.
-    /// # Errors
-    ///
-    /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
-        let Child {
-            mut stdin,
-            mut stdout,
-            ..
-        } = Command::new(self.path)
+        let Child { stdin, stdout, .. } = Command::new(path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
             .arg("error")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .unwrap();
 
-        let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
-        let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
+        let writer = stdin.ok_or(ClientError::StdIo).unwrap();
+        let reader = stdout.ok_or(ClientError::StdIo).unwrap();
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
+            .map(|line| serde_json::from_str(&line.unwrap()).map_err(Into::into));
 
-        let mut child = SimulatorChild { writer, responses };
+        let child = SimulatorChild { writer, responses };
 
+        Client { path, child }
+    }
+
+    /// Runs a [Plan] against the simulator and returns vec of result.
+    /// # Errors
+    ///
+    /// Returns an error if the serialization or plan fails.
+    pub fn run_plan(&mut self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
         plan.steps
             .iter()
-            .map(|step| child.run_step(&plan.caller_key, step))
+            .map(|step| self.child.run_step(&plan.caller_key, step))
             .collect()
     }
-}
 
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
+    pub fn run_step(&self, step: Step) -> Result<PlanResponse, ClientError> {
+        todo!()
     }
 }
 

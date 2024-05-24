@@ -6,9 +6,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
-
-	"github.com/near/borsh-go"
 )
 
 const (
@@ -27,8 +24,6 @@ type Step struct {
 	MaxUnits uint64 `json:"maxUnits"`
 	// The parameters to pass to the method.
 	Params []Parameter `json:"params"`
-	// Define required assertions against this step.
-	Require *Require `json:"require,omitempty"`
 }
 
 type Endpoint string
@@ -114,30 +109,6 @@ type Result struct {
 	Timestamp uint64 `json:"timestamp,omitempty"`
 }
 
-type Require struct {
-	// Assertions against the result of the step.
-	Result ResultAssertion `json:"result,omitempty"`
-}
-
-type ResultAssertion struct {
-	// The operator to use for the assertion.
-	Operator string `json:"operator"`
-	// The value to compare against.
-	Value string `json:"value"`
-}
-
-type Operator string
-
-const (
-	NumericGt Operator = ">"
-	NumericLt Operator = "<"
-	NumericGe Operator = ">="
-	NumericLe Operator = "<="
-	NumericEq Operator = "=="
-	NumericNe Operator = "!="
-	// TODO: Add string operators?
-)
-
 type Parameter struct {
 	// The type of the parameter. (required)
 	Type Type `json:"type"`
@@ -155,56 +126,6 @@ const (
 	KeySecp256k1 Type = "secp256k1"
 	Uint64       Type = "u64"
 )
-
-// validateAssertion validates the assertion against the actual value.
-func validateAssertion(bytes []byte, require *Require) (bool, error) {
-	if require == nil {
-		return true, nil
-	}
-
-	actual := int64(0)
-	if err := borsh.Deserialize(&actual, bytes); err != nil {
-		return false, err
-	}
-
-	assertion := require.Result
-	// convert the assertion value(string) to uint64
-	value, err := strconv.ParseInt(assertion.Value, 10, 64)
-	if err != nil {
-		return false, err
-	}
-
-	switch Operator(assertion.Operator) {
-	case NumericGt:
-		if actual > value {
-			return true, nil
-		}
-	case NumericLt:
-		if actual < value {
-			return true, nil
-		}
-	case NumericGe:
-		if actual >= value {
-			return true, nil
-		}
-	case NumericLe:
-		if actual <= value {
-			return true, nil
-		}
-	case NumericEq:
-		if actual == value {
-			return true, nil
-		}
-	case NumericNe:
-		if actual != value {
-			return true, nil
-		}
-	default:
-		return false, fmt.Errorf("invalid assertion operator: %s", assertion.Operator)
-	}
-
-	return false, nil
-}
 
 func unmarshalStep(bytes []byte) (*Step, error) {
 	var s Step
