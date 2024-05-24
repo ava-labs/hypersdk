@@ -82,31 +82,21 @@ mod tests {
         let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
-        let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
+        let alice_key = String::from("alice");
+        let alice_key_param = Param::Key(Key::Ed25519(alice_key.clone()));
 
         let mut plan = Plan::new(&owner_key);
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
+        plan.add_step(Step::create_key(Key::Ed25519(alice_key)));
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![alice_key.clone()],
-            max_units: 0,
-        });
-
-        let counter1_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 1000000,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
+        let counter1_id = plan.add_step(Step::create_program(PROGRAM_PATH));
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "initialize_address".into(),
             max_units: 1000000,
-            params: vec![counter1_id.into(), alice_key.clone()],
+            params: vec![counter1_id.into(), alice_key_param],
         });
 
         let plan_responses = simulator.run_plan(plan).unwrap();
@@ -126,37 +116,28 @@ mod tests {
         let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
-        let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
+        let bob_key = String::from("bob");
+        let bob_key_param = Param::Key(Key::Ed25519(String::from("bob")));
 
         let mut plan = Plan::new(&owner_key);
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
+        plan.add_step(Step::create_key(Key::Ed25519(bob_key)));
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![bob_key.clone()],
-            max_units: 0,
-        });
+        let counter_id = plan.add_step(Step::create_program(PROGRAM_PATH));
 
-        let counter_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 1000000,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "initialize_address".into(),
             max_units: 1000000,
-            params: vec![counter_id.into(), bob_key.clone()],
+            params: vec![counter_id.into(), bob_key_param.clone()],
         });
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "inc".into(),
             max_units: 1000000,
-            params: vec![counter_id.into(), bob_key.clone(), 10.into()],
+            params: vec![counter_id.into(), bob_key_param.clone(), 10.into()],
         });
 
         let plan_responses = simulator.run_plan(plan).unwrap();
@@ -178,7 +159,7 @@ mod tests {
                         endpoint: Endpoint::ReadOnly,
                         method: "get_value".into(),
                         max_units: 0,
-                        params: vec![counter_id.into(), bob_key.clone()],
+                        params: vec![counter_id.into(), bob_key_param],
                     },
                 )
                 .unwrap()
@@ -194,37 +175,22 @@ mod tests {
         let mut simulator = simulator::Client::new_stdin();
 
         let owner_key = String::from("owner");
-        let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
+        let bob_key = String::from("bob");
+        let bob_key_param = Param::Key(Key::Ed25519(String::from("bob")));
 
         let mut plan = Plan::new(&owner_key);
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
+        plan.add_step(Step::create_key(Key::Ed25519(bob_key.clone())));
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![bob_key.clone()],
-            max_units: 0,
-        });
+        let counter1_id = plan.add_step(Step::create_program(PROGRAM_PATH));
+        let counter2_id = plan.add_step(Step::create_program(PROGRAM_PATH));
 
-        let counter1_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 1000000,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
-
-        let counter2_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 1000000,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "initialize_address".into(),
             max_units: 1000000,
-            params: vec![counter2_id.into(), bob_key.clone()],
+            params: vec![counter2_id.into(), bob_key_param.clone()],
         });
 
         let plan_responses = simulator.run_plan(plan).unwrap();
@@ -246,7 +212,7 @@ mod tests {
                         endpoint: Endpoint::ReadOnly,
                         method: "get_value".into(),
                         max_units: 0,
-                        params: vec![counter2_id.into(), bob_key.clone()],
+                        params: vec![counter2_id.into(), bob_key_param.clone()],
                     },
                 )
                 .unwrap()
@@ -266,7 +232,7 @@ mod tests {
                         counter1_id.into(),
                         counter2_id.into(),
                         1000000.into(),
-                        bob_key.clone(),
+                        bob_key_param.clone(),
                         10.into(),
                     ],
                 },
@@ -285,7 +251,7 @@ mod tests {
                             counter1_id.into(),
                             counter2_id.into(),
                             1000000.into(),
-                            bob_key.clone(),
+                            bob_key_param.clone(),
                         ],
                     },
                 )

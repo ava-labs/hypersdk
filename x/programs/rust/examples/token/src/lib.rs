@@ -192,12 +192,7 @@ mod tests {
         let mut plan = Plan::new(&owner_key_id);
 
         plan.add_step(Step::create_key(owner_key.clone()));
-        let program_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
+        let program_id = plan.add_step(Step::create_program(PROGRAM_PATH));
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
@@ -241,29 +236,16 @@ mod tests {
         let mut simulator = simulator::Client::new_stdin();
 
         let owner_key_id = String::from("owner");
-        let [alice_key] = ["alice"]
-            .map(String::from)
-            .map(Key::Ed25519)
-            .map(Param::Key);
+        let alice_key = String::from("alice");
+        let alice_key_param = Param::Key(Key::Ed25519(alice_key.clone()));
         let alice_initial_balance = 1000;
 
         let mut plan = Plan::new(&owner_key_id);
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key_id.clone())));
+        let program_id = plan.add_step(Step::create_program(PROGRAM_PATH));
 
-        let program_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![alice_key.clone()],
-            max_units: 0,
-        });
+        plan.add_step(Step::create_key(Key::Ed25519(alice_key)));
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
@@ -277,7 +259,7 @@ mod tests {
             method: "mint_to".into(),
             params: vec![
                 program_id.into(),
-                alice_key.clone(),
+                alice_key_param.clone(),
                 Param::U64(alice_initial_balance),
             ],
             max_units: 1000000,
@@ -302,7 +284,7 @@ mod tests {
                         endpoint: Endpoint::ReadOnly,
                         method: "get_balance".into(),
                         max_units: 0,
-                        params: vec![program_id.into(), alice_key],
+                        params: vec![program_id.into(), alice_key_param],
                     },
                 )
                 .unwrap()
@@ -318,8 +300,8 @@ mod tests {
         let mut simulator = simulator::Client::new_stdin();
 
         let owner_key_id = String::from("owner");
-        let [alice_key, bob_key] = ["alice", "bob"]
-            .map(String::from)
+        let [alice_key, bob_key] = ["alice", "bob"].map(String::from);
+        let [alice_key_param, bob_key_param] = [alice_key.clone(), bob_key.clone()]
             .map(Key::Ed25519)
             .map(Param::Key);
         let alice_initial_balance = 1000;
@@ -329,27 +311,10 @@ mod tests {
         let mut plan = Plan::new(&owner_key_id);
 
         plan.add_step(Step::create_key(Key::Ed25519(owner_key_id.clone())));
+        let program_id = plan.add_step(Step::create_program(PROGRAM_PATH));
 
-        let program_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![alice_key.clone()],
-            max_units: 0,
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![bob_key.clone()],
-            max_units: 0,
-        });
+        plan.add_step(Step::create_key(Key::Ed25519(alice_key)));
+        plan.add_step(Step::create_key(Key::Ed25519(bob_key)));
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
@@ -363,7 +328,7 @@ mod tests {
             method: "mint_to".into(),
             params: vec![
                 program_id.into(),
-                alice_key.clone(),
+                alice_key_param.clone(),
                 Param::U64(alice_initial_balance),
             ],
             max_units: 1000000,
@@ -374,8 +339,8 @@ mod tests {
             method: "transfer".into(),
             params: vec![
                 program_id.into(),
-                alice_key.clone(),
-                bob_key.clone(),
+                alice_key_param.clone(),
+                bob_key_param.clone(),
                 Param::U64(transfer_amount),
             ],
             max_units: 1000000,
@@ -417,7 +382,7 @@ mod tests {
                         endpoint: Endpoint::ReadOnly,
                         method: "get_balance".into(),
                         max_units: 0,
-                        params: vec![program_id.into(), alice_key.clone()],
+                        params: vec![program_id.into(), alice_key_param.clone()],
                     },
                 )
                 .unwrap()
@@ -434,7 +399,7 @@ mod tests {
                         endpoint: Endpoint::ReadOnly,
                         method: "get_balance".into(),
                         max_units: 0,
-                        params: vec![program_id.into(), bob_key],
+                        params: vec![program_id.into(), bob_key_param],
                     },
                 )
                 .unwrap()
@@ -450,7 +415,7 @@ mod tests {
                     Step {
                         endpoint: Endpoint::Execute,
                         method: "burn_from".into(),
-                        params: vec![program_id.into(), alice_key.clone()],
+                        params: vec![program_id.into(), alice_key_param.clone()],
                         max_units: 1000000,
                     },
                 )
@@ -468,7 +433,7 @@ mod tests {
                         endpoint: Endpoint::ReadOnly,
                         method: "get_balance".into(),
                         max_units: 0,
-                        params: vec![program_id.into(), alice_key],
+                        params: vec![program_id.into(), alice_key_param],
                     },
                 )
                 .unwrap()
