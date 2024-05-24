@@ -6,9 +6,11 @@ pub enum StateKeys {
     Counter(Address),
 }
 
+type Count = u64;
+
 /// Increments the count at the address by the amount.
 #[public]
-pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
+pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     let counter = amount + get_value_internal(&context, to);
     let Context { program, .. } = context;
 
@@ -22,7 +24,13 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
 
 /// Increments the count at the address by the amount for an external program.
 #[public]
-pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> bool {
+pub fn inc_external(
+    _: Context,
+    target: Program,
+    max_units: i64,
+    of: Address,
+    amount: Count,
+) -> bool {
     target
         .call_function("inc", (of, amount), max_units)
         .unwrap()
@@ -30,11 +38,11 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 
 /// Gets the count at the address.
 #[public]
-pub fn get_value(context: Context<StateKeys>, of: Address) -> i64 {
+pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
     get_value_internal(&context, of)
 }
 
-fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
+fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
     context
         .program
         .state()
@@ -45,7 +53,7 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
 
 /// Gets the count at the address for an external program.
 #[public]
-pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
+pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> Count {
     target.call_function("get_value", of, max_units).unwrap()
 }
 
