@@ -209,7 +209,6 @@ You can do so by running the following command from this location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-2024/05/24 15:29:44 [JOB 1] WAL file .token-cli/000376.log with log number 000376 stopped reading at offset: 0; replayed 0 keys in 0 batches
 address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
 chainID: 2btpGNEt7pGXxYUMk7Pp3TTiq8ij4JsrDxTv9oNB46wpwqLVQ9
 in assetID (use TKN for native token): TKN
@@ -268,7 +267,6 @@ location:
 When you are done, the output should look something like this:
 ```
 database: .token-cli
-2024/05/24 15:31:57 [JOB 1] WAL file .token-cli/000385.log with log number 000385 stopped reading at offset: 0; replayed 0 keys in 0 batches
 address: token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s
 orderID: 2hJdJV2JisA1ESQ2SbGapjHn9ZetouU6TyptMNLsRgufQK1hVc
 out assetID (use TKN for native token): 2r9rd3oUGfir4pnmkyy7aBUcScQrkuqbYjdmxaJDAe1pb2Je8u
