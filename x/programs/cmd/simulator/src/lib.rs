@@ -125,30 +125,6 @@ impl From<Key> for Param {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq, Clone)]
-pub struct Require {
-    /// If defined the result of the step must match this assertion.
-    pub result: ResultAssertion,
-}
-
-#[serde_as]
-#[derive(Debug, Serialize, PartialEq, Clone)]
-#[serde(tag = "operator", content = "value")]
-pub enum ResultAssertion {
-    #[serde(rename = "==")]
-    NumericEq(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = "!=")]
-    NumericNe(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = ">")]
-    NumericGt(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = "<")]
-    NumericLt(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = ">=")]
-    NumericGe(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = "<=")]
-    NumericLe(#[serde_as(as = "DisplayFromStr")] u64),
-}
-
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Plan<'a> {
     /// The key of the caller used in each step of the plan.
@@ -238,10 +214,10 @@ impl Client<ChildStdin, Box<dyn Iterator<Item = Result<PlanResponse, ClientError
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .unwrap();
+            .expect("failed to run the simulator in interpreter mode");
 
-        let writer = stdin.ok_or(ClientError::StdIo).unwrap();
-        let reader = stdout.ok_or(ClientError::StdIo).unwrap();
+        let writer = stdin.expect("stdin has been captured");
+        let reader = stdout.expect("stdout has been captured");
 
         let responses = BufReader::new(reader)
             .lines()
