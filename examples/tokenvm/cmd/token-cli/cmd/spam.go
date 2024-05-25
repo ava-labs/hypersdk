@@ -89,10 +89,11 @@ var runSpamCmd = &cobra.Command{
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
 				return func(ictx context.Context, count uint64) error {
-					return sendAndWait(ictx, []chain.Action{&actions.Transfer{
+					_, err := sendAndWait(ictx, []chain.Action{&actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
 					}}, cli, sclient, tclient, auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), false)
+					return err
 				}
 			},
 		)

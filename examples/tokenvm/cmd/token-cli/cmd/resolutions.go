@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -23,38 +25,39 @@ import (
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *rpc.JSONRPCClient,
 	scli *rpc.WebSocketClient, tcli *trpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
-) error {
+) (ids.ID, error) {
 	parser, err := tcli.Parser(ctx)
 	if err != nil {
-		return err
+		return ids.Empty, err
 	}
 	_, tx, _, err := cli.GenerateTransaction(ctx, parser, actions, factory)
 	if err != nil {
-		return err
+		return ids.Empty, err
 	}
 
 	if err := scli.RegisterTx(tx); err != nil {
-		return err
+		return ids.Empty, err
 	}
 	var res *chain.Result
 	for {
 		txID, dErr, result, err := scli.ListenTx(ctx)
 		if dErr != nil {
-			return dErr
+			return ids.Empty, dErr
 		}
 		if err != nil {
-			return err
+			return ids.Empty, err
 		}
 		if txID == tx.ID() {
 			res = result
 			break
 		}
+		// TODO: don't drop these results (may be needed by a different connection)
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
 		handler.Root().PrintStatus(tx.ID(), res.Success)
 	}
-	return nil
+	return tx.ID(), nil
 }
 
 func handleTx(c *trpc.JSONRPCClient, tx *chain.Transaction, result *chain.Result) {
