@@ -187,7 +187,7 @@ impl BorshSerialize for PrefixedMultiBytes<'_> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self(prefix, bytes) = self;
     
-        let len = 1+u32::try_from( bytes.iter().map(|byte| (byte.len())).sum::<usize>()).map_err(|_| ErrorKind::InvalidData)?;
+        let len = 1 + u32::try_from(bytes.iter().map(|byte| (byte.len())).sum::<usize>()).map_err(|_| ErrorKind::InvalidData)?;
         // TODO: just use bytemuck with the enum
         writer.write_all(&len.to_le_bytes())?;
         writer.write_all(&[*prefix])?;
