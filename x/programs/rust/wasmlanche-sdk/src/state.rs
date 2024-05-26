@@ -191,11 +191,7 @@ impl BorshSerialize for PrefixedMultiBytes<'_> {
         // TODO: just use bytemuck with the enum
         writer.write_all(&len.to_le_bytes())?;
         writer.write_all(&[*prefix])?;
-        for byte in bytes.iter() {
-            writer.write_all(byte)?;
-        }
-
-        Ok(())
+        bytes.iter().map(|buf| Ok(writer.write_all(buf)?)).collect()
     }
 }
 
