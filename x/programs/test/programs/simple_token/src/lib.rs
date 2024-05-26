@@ -15,22 +15,23 @@ pub enum StateKey {
     /// The balance of the token by address. Key prefix 0x3 + address.
     Balance(Address),
 
-    Allowance([Address;2]),
+    Allowance([Address; 2]),
 
     Owner,
 }
 
-
-
-pub fn get_owner(program: &Program<StateKey>) -> Address{
-   program
-          .state()
-          .get(StateKey::Owner)
-          .expect("failed to get total supply")
+pub fn get_owner(program: &Program<StateKey>) -> Address {
+    program
+        .state()
+        .get(StateKey::Owner)
+        .expect("failed to get total supply")
 }
 
-pub fn owner_check(program: &Program<StateKey>, actor:Address) {
-    assert!(get_owner(program) == actor, "caller is required to be owner")
+pub fn owner_check(program: &Program<StateKey>, actor: Address) {
+    assert!(
+        get_owner(program) == actor,
+        "caller is required to be owner"
+    )
 }
 
 /// Initializes the program with a name, symbol, and total supply.
@@ -75,8 +76,8 @@ pub fn total_supply(context: Context<StateKey>) -> i64 {
 /// Transfers balance from the token owner to the recipient.
 #[public]
 pub fn mint(context: Context<StateKey>, recipient: Address, amount: i64) -> bool {
-    let Context { program , actor} = context;
-    owner_check(&program , actor);
+    let Context { program, actor } = context;
+    owner_check(&program, actor);
     let balance = program
         .state()
         .get::<i64>(StateKey::Balance(recipient))
@@ -93,8 +94,8 @@ pub fn mint(context: Context<StateKey>, recipient: Address, amount: i64) -> bool
 /// Burn the token from the recipient.
 #[public]
 pub fn burn(context: Context<StateKey>, recipient: Address) -> i64 {
-    let Context { program , actor} = context;
-    owner_check(&program , actor);
+    let Context { program, actor } = context;
+    owner_check(&program, actor);
     program
         .state()
         .delete::<i64>(StateKey::Balance(recipient))
@@ -102,12 +103,11 @@ pub fn burn(context: Context<StateKey>, recipient: Address) -> i64 {
         .expect("recipient balance not found")
 }
 
-
 /// Burn the token from the recipient.
 #[public]
 pub fn burn_from(context: Context<StateKey>, recipient: Address) -> i64 {
-    let Context { program , actor} = context;
-    owner_check(&program , actor);
+    let Context { program, actor } = context;
+    owner_check(&program, actor);
     program
         .state()
         .delete::<i64>(StateKey::Balance(recipient))
@@ -125,10 +125,9 @@ pub fn balance_of(context: Context<StateKey>, account: Address) -> i64 {
         .unwrap_or_default()
 }
 
-
 #[public]
-pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address)-> i64{
-    let Context { program, ..} = context;
+pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address) -> i64 {
+    let Context { program, .. } = context;
     program
         .state()
         .get::<i64>(StateKey::Allowance([owner, spender]))
@@ -141,8 +140,6 @@ pub fn approve(context: Context<StateKey>, spender: Address, amount: i64) -> boo
     assert_ne!(actor, spender, "actor and spender must be different");
     false
 }
-
-
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
@@ -179,6 +176,11 @@ pub fn transfer(context: Context<StateKey>, recipient: Address, amount: i64) -> 
 }
 
 #[public]
-pub fn transfer_from(context: Context<StateKey>, sender: Address, recipient: Address, amount:i64)-> bool {
+pub fn transfer_from(
+    context: Context<StateKey>,
+    sender: Address,
+    recipient: Address,
+    amount: i64,
+) -> bool {
     false
 }

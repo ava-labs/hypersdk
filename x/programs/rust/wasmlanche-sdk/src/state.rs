@@ -173,7 +173,6 @@ impl BorshSerialize for PrefixedBytes<'_> {
     }
 }
 
-
 pub struct PrefixedMultiBytes<'a>(u8, &'a [&'a [u8]]);
 
 impl<'a> PrefixedMultiBytes<'a> {
@@ -189,7 +188,7 @@ impl BorshSerialize for PrefixedMultiBytes<'_> {
 
         let len = 1 + u32::try_from(bytes.iter().map(|byte| (byte.len())).sum::<usize>())
             .map_err(|_| ErrorKind::InvalidData)?;
-        
+
         // TODO: just use bytemuck with the enum
         writer.write_all(&len.to_le_bytes())?;
         writer.write_all(&[*prefix])?;
