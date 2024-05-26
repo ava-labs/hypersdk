@@ -173,6 +173,35 @@ impl BorshSerialize for PrefixedBytes<'_> {
     }
 }
 
+
+pub struct PrefixedMultiBytes<'a>(u8, &'a [&'a [u8]]);
+
+impl<'a> PrefixedMultiBytes<'a> {
+    #[must_use]
+    pub fn new(prefix: u8, bytes: &'a [&'a [u8]]) -> Self {
+        Self(prefix, bytes)
+    }
+}
+
+impl BorshSerialize for PrefixedMultiBytes<'_> {
+    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let Self(prefix, bytes) = self;
+        let mut len = 1;
+        for byte in bytes.iter() {
+            len += u32::try_from(byte.len()).map_err(|_| ErrorKind::InvalidData)?
+        }
+
+        // TODO: just use bytemuck with the enum
+        writer.write_all(&len.to_le_bytes())?;
+        writer.write_all(&[*prefix])?;
+        for byte in bytes.iter() {
+            writer.write_all(byte)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(BorshSerialize)]
 struct GetAndDeleteArgs<'a> {
     key: PrefixedBytes<'a>,
