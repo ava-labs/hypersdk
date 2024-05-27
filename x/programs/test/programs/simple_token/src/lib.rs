@@ -103,18 +103,6 @@ pub fn burn(context: Context<StateKey>, recipient: Address) -> i64 {
         .expect("recipient balance not found")
 }
 
-/// Burn the token from the recipient.
-#[public]
-pub fn burn_from(context: Context<StateKey>, recipient: Address) -> i64 {
-    let Context { program, actor } = context;
-    owner_check(&program, actor);
-    program
-        .state()
-        .delete::<i64>(StateKey::Balance(recipient))
-        .expect("failed to burn recipient tokens")
-        .expect("recipient balance not found")
-}
-
 /// Gets the balance of the recipient.
 #[public]
 pub fn balance_of(context: Context<StateKey>, account: Address) -> i64 {
