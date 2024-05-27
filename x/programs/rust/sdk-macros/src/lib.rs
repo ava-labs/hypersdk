@@ -215,27 +215,62 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
             .into();
         }
         variant.attrs = kept;
+
         if let Some(key) = state_keys.first() {
             // TODO how do we match tokens in the quote world ?
             let ret_type = quote! { i64 };
             let getter: Attribute = parse_quote!(#[state_keys(getter = #ret_type)]);
             if key == &getter {
-                eprintln!("{:?}", &key);
-
                 let var_ident = &variant.ident;
                 let snake_ident = Ident::new(
                     snake_case(var_ident.to_string()).as_str(),
                     variant.ident.span(),
                 );
-                getter_functions.push(quote! {
-                    #[public]
-                    pub fn #snake_ident(wasmlanche_sdk::Context { program, .. }: wasmlanche_sdk::Context<#name>) -> #ret_type {
-                        program
-                            .state()
-                            .get(#name::#var_ident)
-                            .expect("failed to get TODO key")
+
+                match &variant.fields {
+                    Fields::Unit => {
+                        getter_functions.push(quote! {
+                            #[public]
+                            pub fn #snake_ident(wasmlanche_sdk::Context { program, .. }: wasmlanche_sdk::Context<#name>) -> #ret_type {
+                                program
+                                    .state()
+                                    .get(#name::#var_ident)
+                                    .expect("failed to get TODO key")
+                            }
+                        })
+                    },
+                    Fields::Unnamed(field) => {
+                        let ty = &field.unnamed.first().unwrap().ty;
+                        let ty_ident = if let Type::Path(path_ty) = ty {
+                            path_ty.path.get_ident().unwrap()
+                        } else {
+                            return Error::new(
+                                variant.span(),
+                                "this type is not supported".to_string(),
+                            )
+                            .into_compile_error()
+                            .into()
+                        };
+
+                        getter_functions.push(quote! {
+                            #[public]
+                            pub fn #snake_ident(wasmlanche_sdk::Context { program, .. }: wasmlanche_sdk::Context<#name>, ty: #ty_ident) -> #ret_type {
+                                program
+                                    .state()
+                                    .get(#name::#var_ident(ty))
+                                    .expect("failed to get TODO key")
+                            }
+                        })
                     }
-                });
+                    Fields::Named(_) => {
+                        return Error::new(
+                            variant.span(),
+                            "enums with named fields are not supported".to_string(),
+                        )
+                        .into_compile_error()
+                        .into()
+                    }
+                }
             } else {
                 // TODO the span is not very correct
                 return Error::new(key.span(), "invalid state keys attribute")
@@ -244,7 +279,6 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     }
-    eprintln!("{:?}", &getter_functions);
 
     if !matches!(item_enum.vis, Visibility::Public(_)) {
         return Error::new(

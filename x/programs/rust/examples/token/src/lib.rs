@@ -42,16 +42,6 @@ pub fn init(context: Context<StateKeys>) {
         .expect("failed to store symbol");
 }
 
-/// Returns the total supply of the token.
-#[public]
-pub fn get_total_supply(context: Context<StateKeys>) -> i64 {
-    let Context { program, .. } = context;
-    program
-        .state()
-        .get(StateKeys::TotalSupply)
-        .expect("failed to get total supply")
-}
-
 /// Transfers balance from the token owner to the recipient.
 #[public]
 pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: i64) -> bool {
@@ -214,7 +204,7 @@ mod tests {
 
         plan.add_step(Step {
             endpoint: Endpoint::ReadOnly,
-            method: "get_total_supply".into(),
+            method: "total_supply".into(),
             max_units: 0,
             params: vec![program_id.into()],
             require: Some(Require {
@@ -383,7 +373,7 @@ mod tests {
 
         plan.add_step(Step {
             endpoint: Endpoint::ReadOnly,
-            method: "get_total_supply".into(),
+            method: "total_supply".into(),
             max_units: 0,
             params: vec![program_id.into()],
             require: Some(Require {
