@@ -2,9 +2,10 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use syn::Attribute;
 use syn::{
     parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, Ident,
-    ItemEnum, ItemFn, Pat, PatType, Path, Type, Visibility,
+    ItemEnum, ItemFn, Pat, PatType, Path, Type, Variant, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -196,6 +197,48 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut item_enum = parse_macro_input!(item as ItemEnum);
 
+    let name = &item_enum.ident;
+
+    let mut getter_functions = Vec::new();
+    for variant in &mut item_enum.variants {
+        let (kept, state_keys) = variant
+            .clone()
+            .attrs
+            .into_iter()
+            .partition::<Vec<_>, _>(|attr| !attr.path().is_ident("state_keys"));
+        if state_keys.len() > 1 {
+            return Error::new(
+                variant.span(), // TODO merge all spans of the keys
+                "cannot specify more than one state_keys variant attribute",
+            )
+            .to_compile_error()
+            .into();
+        }
+        variant.attrs = kept;
+        if let Some(key) = state_keys.first() {
+            let getter: Attribute = parse_quote!(#[state_keys(getter)]);
+            if key == &getter {
+                eprintln!("{:?}", &key);
+
+                let snake_ident = Ident::new(
+                    snake_case(variant.ident.to_string()).as_str(),
+                    variant.ident.span(),
+                );
+                getter_functions.push(quote! {
+                    #[public]
+                    pub fn #snake_ident(context: wasmlanche_sdk::Context<#name>) {
+                        todo!()
+                    }
+                });
+            } else {
+                return Error::new(key.span(), "invalid state keys attribute")
+                    .to_compile_error()
+                    .into();
+            }
+        }
+    }
+    eprintln!("{:?}", &getter_functions);
+
     if !matches!(item_enum.vis, Visibility::Public(_)) {
         return Error::new(
             item_enum.span(),
@@ -210,7 +253,6 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
          #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     });
 
-    let name = &item_enum.ident;
     let variants = &item_enum.variants;
 
     let match_arms: Result<Vec<_>, _> = variants
@@ -262,6 +304,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     quote! {
         #item_enum
         #trait_implementation_body
+        #(#getter_functions)*
     }
     .into()
 }
@@ -275,4 +318,18 @@ fn is_context(type_path: &Type) -> bool {
     } else {
         false
     }
+}
+
+fn snake_case(input: String) -> String {
+    input
+        .chars()
+        .enumerate()
+        .flat_map(|(i, ch)| {
+            if i == 0 || !ch.is_ascii_uppercase() {
+                vec![ch.to_ascii_lowercase()]
+            } else {
+                vec!['_', ch.to_ascii_lowercase()]
+            }
+        })
+        .collect()
 }

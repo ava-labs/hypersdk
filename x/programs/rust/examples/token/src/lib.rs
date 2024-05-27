@@ -8,6 +8,7 @@ const INITIAL_SUPPLY: i64 = 123456789;
 #[state_keys]
 pub enum StateKeys {
     /// The total supply of the token. Key prefix 0x0.
+    #[state_keys(getter)]
     TotalSupply,
     /// The name of the token. Key prefix 0x1.
     Name,
