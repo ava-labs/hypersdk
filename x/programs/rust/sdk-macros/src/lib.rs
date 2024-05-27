@@ -216,21 +216,28 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
         variant.attrs = kept;
         if let Some(key) = state_keys.first() {
-            let getter: Attribute = parse_quote!(#[state_keys(getter)]);
+            // TODO how do we match tokens in the quote world ?
+            let ret_type = quote! { i64 };
+            let getter: Attribute = parse_quote!(#[state_keys(getter = #ret_type)]);
             if key == &getter {
                 eprintln!("{:?}", &key);
 
+                let var_ident = &variant.ident;
                 let snake_ident = Ident::new(
-                    snake_case(variant.ident.to_string()).as_str(),
+                    snake_case(var_ident.to_string()).as_str(),
                     variant.ident.span(),
                 );
                 getter_functions.push(quote! {
                     #[public]
-                    pub fn #snake_ident(context: wasmlanche_sdk::Context<#name>) {
-                        todo!()
+                    pub fn #snake_ident(wasmlanche_sdk::Context { program, .. }: wasmlanche_sdk::Context<#name>) -> #ret_type {
+                        program
+                            .state()
+                            .get(#name::#var_ident)
+                            .expect("failed to get TODO key")
                     }
                 });
             } else {
+                // TODO the span is not very correct
                 return Error::new(key.span(), "invalid state keys attribute")
                     .to_compile_error()
                     .into();
