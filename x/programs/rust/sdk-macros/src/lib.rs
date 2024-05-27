@@ -5,7 +5,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::Attribute;
 use syn::{
     parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, Ident,
-    ItemEnum, ItemFn, Pat, PatType, Path, Type, Variant, Visibility,
+    ItemEnum, ItemFn, Pat, PatType, Path, Type, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -239,28 +239,35 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                         })
                     },
-                    Fields::Unnamed(field) => {
-                        let ty = &field.unnamed.first().unwrap().ty;
-                        let ty_ident = if let Type::Path(path_ty) = ty {
-                            path_ty.path.get_ident().unwrap()
+                    Fields::Unnamed(fields) => {
+                        if let Some(ty) = &fields.unnamed.first().map(|field| &field.ty) {
+                            if let Type::Path(path_ty) = ty {
+                                getter_functions.push(quote! {
+                                    #[public]
+                                    pub fn #snake_ident(wasmlanche_sdk::Context { program, .. }: wasmlanche_sdk::Context<#name>, ty: #path_ty) -> #ret_type {
+                                        program
+                                            .state()
+                                            .get(#name::#var_ident(ty))
+                                            .expect("failed to get TODO key")
+                                    }
+                                })
+                            } else {
+                                return Error::new(
+                                    fields.span(),
+                                    "this type is not supported".to_string(),
+                                )
+                                .into_compile_error()
+                                .into()
+                            };
+
                         } else {
                             return Error::new(
-                                variant.span(),
-                                "this type is not supported".to_string(),
+                                fields.span(),
+                                "variant without field is not supported".to_string(),
                             )
                             .into_compile_error()
                             .into()
-                        };
-
-                        getter_functions.push(quote! {
-                            #[public]
-                            pub fn #snake_ident(wasmlanche_sdk::Context { program, .. }: wasmlanche_sdk::Context<#name>, ty: #ty_ident) -> #ret_type {
-                                program
-                                    .state()
-                                    .get(#name::#var_ident(ty))
-                                    .expect("failed to get TODO key")
-                            }
-                        })
+                        }
                     }
                     Fields::Named(_) => {
                         return Error::new(
