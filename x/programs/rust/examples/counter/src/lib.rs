@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn init_program() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key = String::from("owner");
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn increment() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
@@ -143,28 +143,26 @@ mod tests {
                 .next()
         );
 
-        let value = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_value".into(),
-                        max_units: 0,
-                        params: vec![counter_id.into(), bob_key.clone()],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let value = simulator
+            .run_step::<u64>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_value".into(),
+                    max_units: 0,
+                    params: vec![counter_id.into(), bob_key.clone()],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(value, 10);
     }
 
     #[test]
     #[ignore = "need to fix params macro"]
     fn external_call() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
@@ -211,27 +209,25 @@ mod tests {
                 .next()
         );
 
-        let value = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_value".into(),
-                        max_units: 0,
-                        params: vec![counter2_id.into(), bob_key.clone()],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let value = simulator
+            .run_step::<u64>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_value".into(),
+                    max_units: 0,
+                    params: vec![counter2_id.into(), bob_key.clone()],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(value, 0);
 
         simulator
-            .run_step(
+            .run_step::<bool>(
                 &owner_key,
-                Step {
+                &Step {
                     endpoint: Endpoint::Execute,
                     method: "inc_external".into(),
                     max_units: 100000000,
@@ -246,30 +242,24 @@ mod tests {
             )
             .unwrap();
 
-        let value = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_value_external".into(),
-                        max_units: 0,
-                        params: vec![
-                            counter1_id.into(),
-                            counter2_id.into(),
-                            1000000.into(),
-                            bob_key.clone(),
-                        ],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let value = simulator
+            .run_step::<u64>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_value_external".into(),
+                    max_units: 0,
+                    params: vec![
+                        counter1_id.into(),
+                        counter2_id.into(),
+                        1000000.into(),
+                        bob_key.clone(),
+                    ],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(value, 10);
-    }
-
-    fn bytes_to_u64(bytes: Vec<u8>) -> u64 {
-        u64::from_le_bytes(bytes.try_into().unwrap())
     }
 }

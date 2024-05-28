@@ -3,12 +3,14 @@
 //! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
-use serde::{Deserialize, Serialize};
-use serde_with::{base64::Base64, serde_as, DisplayFromStr};
+use borsh::BorshDeserialize;
+use serde::{de::Error, Deserialize, Deserializer, Serialize};
+use serde_with::base64::Base64;
+use serde_with::{serde_as, DisplayFromStr};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{Child, Command, Stdio},
 };
 use thiserror::Error;
 
@@ -155,14 +157,27 @@ pub struct PlanResponse {
     /// The numeric id of the step.
     pub id: u32,
     /// The result of the plan.
-    pub result: PlanResult,
+    pub result: StepResult,
+    /// An optional error message.
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlanResponse2<T>
+where
+    T: BorshDeserialize,
+{
+    /// The numeric id of the step.
+    pub id: u32,
+    /// The result of the plan.
+    pub result: StepResult2<T>,
     /// An optional error message.
     pub error: Option<String>,
 }
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
-pub struct PlanResult {
+pub struct StepResult {
     /// The ID created from the program execution.
     pub id: Option<String>,
     /// An optional message.
@@ -174,12 +189,52 @@ pub struct PlanResult {
     pub response: Vec<u8>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct StepResult2<T>
+where
+    T: BorshDeserialize,
+{
+    /// The ID created from the program execution.
+    pub id: Option<String>,
+    /// An optional message.
+    pub msg: Option<String>,
+    /// The timestamp of the function call response.
+    pub timestamp: u64,
+    /// The result of the function call.
+    pub response: T,
+}
+
+impl<T> TryInto<StepResult2<T>> for StepResult
+where
+    T: BorshDeserialize,
+{
+    type Error = borsh::io::Error;
+
+    fn try_into(self) -> Result<StepResult2<T>, Self::Error> {
+        let StepResult {
+            id,
+            msg,
+            timestamp,
+            response,
+        } = self;
+
+        Ok(StepResult2 {
+            id,
+            msg,
+            timestamp,
+            response: borsh::from_slice(&dbg!(response))?,
+        })
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum ClientError {
     #[error("Read error: {0}")]
     Read(#[from] std::io::Error),
     #[error("Deserialization error: {0}")]
     Deserialization(#[from] serde_json::Error),
+    #[error("Borsh deserialization error")]
+    BorshDeserialization,
     #[error("EOF")]
     Eof,
     #[error("Missing handle")]
@@ -188,12 +243,17 @@ pub enum ClientError {
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
 pub struct Client<W, R> {
-    child: SimulatorChild<W, R>,
+    writer: W,
+    responses: R,
 }
 
-impl Client<ChildStdin, Box<dyn Iterator<Item = Result<PlanResponse, ClientError>>>> {
-    pub fn new_stdin() -> Client<ChildStdin, impl Iterator<Item = Result<PlanResponse, ClientError>>>
-    {
+pub struct ClientBuilder;
+
+impl ClientBuilder {
+    pub fn new() -> Result<
+        Client<impl Write, impl Iterator<Item = Result<PlanResponse, ClientError>>>,
+        ClientError,
+    > {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -221,11 +281,9 @@ impl Client<ChildStdin, Box<dyn Iterator<Item = Result<PlanResponse, ClientError
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
+            .map(|line| serde_json::from_str(&dbg!(line)?).map_err(Into::into));
 
-        let child = SimulatorChild { writer, responses };
-
-        Client { child }
+        Ok(Client { writer, responses })
     }
 }
 
@@ -241,38 +299,47 @@ where
     pub fn run_plan(&mut self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
         plan.steps
             .iter()
-            .map(|step| self.child.run_step(plan.caller_key, step))
+            .map(|step| self._run_step(plan.caller_key, step))
             .collect()
     }
 
-    pub fn run_step(&mut self, caller_key: &str, step: Step) -> Result<PlanResponse, ClientError> {
-        self.child.run_step(caller_key, &step)
-    }
-}
-
-struct SimulatorChild<W, R> {
-    writer: W,
-    responses: R,
-}
-
-impl<W, R> SimulatorChild<W, R>
-where
-    W: Write,
-    R: Iterator<Item = Result<PlanResponse, ClientError>>,
-{
-    fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
+    fn _run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
-        let step = SimulatorStep { caller_key, step };
+        let step = dbg!(SimulatorStep { caller_key, step });
         let input = serde_json::to_vec(&step)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
 
-        let resp = self.responses.next().ok_or(ClientError::Eof)??;
+        self.responses.next().ok_or(ClientError::Eof)?
+    }
 
-        Ok(resp)
+    pub fn run_step<T>(
+        &mut self,
+        caller_key: &str,
+        step: &Step,
+    ) -> Result<PlanResponse2<T>, ClientError>
+    where
+        T: BorshDeserialize,
+    {
+        let run_command = b"run --step '";
+        self.writer.write_all(run_command)?;
+
+        let step = dbg!(SimulatorStep { caller_key, step });
+        let input = serde_json::to_vec(&step)?;
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"'\n")?;
+        self.writer.flush()?;
+
+        let PlanResponse { id, result, error } =
+            dbg!(self.responses.next().ok_or(ClientError::Eof)??);
+        let result = result
+            .try_into()
+            .map_err(|_| ClientError::BorshDeserialization)?;
+
+        Ok(PlanResponse2 { id, result, error })
     }
 }
 

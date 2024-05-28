@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key = String::from("owner");
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn init_token() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key_id = String::from("owner");
         let owner_key = Key::Ed25519(owner_key_id.clone());
@@ -223,28 +223,26 @@ mod tests {
                 .next()
         );
 
-        let supply = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_total_supply".into(),
-                        max_units: 0,
-                        params: vec![program_id.into()],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let supply = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_total_supply".into(),
+                    max_units: 0,
+                    params: vec![program_id.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
 
         assert_eq!(supply, INITIAL_SUPPLY as u64);
     }
 
     #[test]
     fn mint() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key_id = String::from("owner");
         let [alice_key] = ["alice"]
@@ -300,28 +298,26 @@ mod tests {
                 .next()
         );
 
-        let balance = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_balance".into(),
-                        max_units: 0,
-                        params: vec![program_id.into(), alice_key],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let balance = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_balance".into(),
+                    max_units: 0,
+                    params: vec![program_id.into(), alice_key],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
 
         assert_eq!(balance, alice_initial_balance);
     }
 
     #[test]
     fn mint_and_transfer() {
-        let mut simulator = simulator::Client::new_stdin();
+        let mut simulator = simulator::ClientBuilder::new().unwrap();
 
         let owner_key_id = String::from("owner");
         let [alice_key, bob_key] = ["alice", "bob"]
@@ -398,93 +394,79 @@ mod tests {
                 .next()
         );
 
-        let supply = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_total_supply".into(),
-                        max_units: 0,
-                        params: vec![program_id.into()],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let supply = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_total_supply".into(),
+                    max_units: 0,
+                    params: vec![program_id.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(supply, INITIAL_SUPPLY as u64);
 
-        let balance = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_balance".into(),
-                        max_units: 0,
-                        params: vec![program_id.into(), alice_key.clone()],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let balance = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_balance".into(),
+                    max_units: 0,
+                    params: vec![program_id.into(), alice_key.clone()],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(balance, post_transfer_balance);
 
-        let balance = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_balance".into(),
-                        max_units: 0,
-                        params: vec![program_id.into(), bob_key],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let balance = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_balance".into(),
+                    max_units: 0,
+                    params: vec![program_id.into(), bob_key],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(balance, transfer_amount);
 
-        let balance = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::Execute,
-                        method: "burn_from".into(),
-                        params: vec![program_id.into(), alice_key.clone()],
-                        max_units: 1000000,
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let balance = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "burn_from".into(),
+                    params: vec![program_id.into(), alice_key.clone()],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(balance, post_transfer_balance);
 
-        let balance = bytes_to_u64(
-            simulator
-                .run_step(
-                    &owner_key_id,
-                    Step {
-                        endpoint: Endpoint::ReadOnly,
-                        method: "get_balance".into(),
-                        max_units: 0,
-                        params: vec![program_id.into(), alice_key],
-                    },
-                )
-                .unwrap()
-                .result
-                .response,
-        );
+        let balance = simulator
+            .run_step::<u64>(
+                &owner_key_id,
+                &Step {
+                    endpoint: Endpoint::ReadOnly,
+                    method: "get_balance".into(),
+                    max_units: 0,
+                    params: vec![program_id.into(), alice_key],
+                },
+            )
+            .unwrap()
+            .result
+            .response;
         assert_eq!(balance, 0);
-    }
-
-    fn bytes_to_u64(bytes: Vec<u8>) -> u64 {
-        u64::from_le_bytes(bytes.try_into().unwrap())
     }
 }
