@@ -195,7 +195,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	resp := newResponse(index)
 	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
 	if err != nil {
-		c.log.Error("simulation step err", zap.Error(err))
+		c.log.Error(fmt.Sprintf("simulation step err: %s", err))
 		resp.setError(err)
 	}
 
