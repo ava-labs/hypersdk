@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, Ident,
+    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg,
     ItemEnum, ItemFn, Pat, PatType, Path, Type, Visibility,
 };
 
