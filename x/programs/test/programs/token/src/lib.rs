@@ -3,6 +3,16 @@ use wasmlanche_sdk::{public, state_keys, types::Address, Program};
 
 const INITIAL_SUPPLY: u64 = 123456789;
 
+
+pub trait ERC20 {
+    fn total_supply(context: Context) -> u64;
+    fn balance_of(context: Context, account:Address) -> u64;
+    fn transfer(context: Context, recipient:Address, amount:u64) -> bool;
+    fn allowance(context: Context, owner:Address, spender:Address) -> u64;
+    fn approve(context: Context, spender:Address, amount:u64) -> bool;
+    fn transfer_from(context: Context, sender:Address, recipient:Address, amount:u64) -> bool;
+}
+
 /// The program state keys.
 #[state_keys]
 pub enum StateKey {
@@ -19,6 +29,30 @@ pub enum StateKey {
 
     Owner,
 }
+
+
+pub struct Token {}
+impl ERC20 for Token {
+    fn total_supply(context: Context<StateKey>) -> u64 {
+        total_supply(context)
+    }
+    fn balance_of(context: Context<StateKey>, account:Address) -> u64 {
+        balance_of(context, account)
+    }
+    fn transfer(context: Context<StateKey>, recipient:Address, amount:u64) -> bool {
+        transfer(context, recipient, amount)
+    }
+    fn allowance(context: Context<StateKey>, owner:Address, spender:Address) -> u64 {
+        allowance(context, owner, spender)
+    }
+    fn approve(context: Context<StateKey>, spender:Address, amount:u64) -> bool {
+        approve(context, spender, amount)
+    }
+    fn transfer_from(context: Context<StateKey>, sender:Address, recipient:Address, amount:u64) -> bool {
+        transfer_from(context, sender, recipient, amount)
+    }
+}
+
 
 pub fn get_owner(program: &Program<StateKey>) -> Address {
     program
@@ -184,3 +218,4 @@ pub fn transfer_from(
     transfer(context, recipient, amount);
     true
 }
+
