@@ -11,10 +11,10 @@ thread_local! {
     static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
-/// Reconstructs the vec that was created using the [alloc] function.
+/// Reconstructs the vec that was created using the module's `alloc` function.
 /// # Panics
 /// If you are trying to dereference data that has already been dereferenced
-/// or the pointer is invalid (wasn't created with [alloc])
+/// or the pointer is invalid (wasn't created with the module's `alloc` function).
 #[must_use]
 pub fn deref_bytes(ptr: *const u8) -> Vec<u8> {
     GLOBAL_STORE
