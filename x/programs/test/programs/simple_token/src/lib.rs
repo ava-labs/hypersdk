@@ -70,7 +70,7 @@ pub fn total_supply(context: Context<StateKey>) -> u64 {
     program
         .state()
         .get(StateKey::TotalSupply)
-        .expect("failed to get total supply")
+        .unwrap_or_defaul()
 }
 
 /// Transfers balance from the token owner to the recipient.
