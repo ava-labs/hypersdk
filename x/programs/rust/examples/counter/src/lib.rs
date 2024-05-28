@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{params, public, state_keys, types::Address, Context, Program};
+use wasmlanche_sdk::{public, state_keys, types::Address, Context, Program};
 
 #[state_keys]
 pub enum StateKeys {
@@ -44,8 +44,9 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
 /// Increments the count at the address by the amount for an external program.
 #[public]
 pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> bool {
-    let params = params!(&of, &amount).unwrap();
-    target.call_function("inc", &params, max_units).unwrap()
+    target
+        .call_function("inc", (of, amount), max_units)
+        .unwrap()
 }
 
 /// Gets the count at the address.
@@ -65,10 +66,7 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
 /// Gets the count at the address for an external program.
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
-    let params = params!(&of).unwrap();
-    target
-        .call_function("get_value", &params, max_units)
-        .unwrap()
+    target.call_function("get_value", of, max_units).unwrap()
 }
 
 #[cfg(test)]

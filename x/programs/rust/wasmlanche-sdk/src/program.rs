@@ -1,7 +1,6 @@
 use crate::{
     memory::into_bytes,
     state::{Error as StateError, Key, State},
-    Params,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
@@ -46,10 +45,10 @@ impl<K> Program<K> {
     /// Returns a [`StateError`] if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function<T: BorshDeserialize>(
+    pub fn call_function<T: BorshDeserialize, ArgType: BorshSerialize>(
         &self,
         function_name: &str,
-        args: &Params,
+        args: ArgType,
         max_units: i64,
     ) -> Result<T, StateError> {
         #[link(wasm_import_module = "program")]
@@ -58,10 +57,12 @@ impl<K> Program<K> {
             fn ffi(ptr: *const u8, len: usize) -> *const u8;
         }
 
+        let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
         let args = CallProgramArgs {
             target_id: self,
             function: function_name.as_bytes(),
-            args_ptr: args,
+            args_ptr: &args_ptr,
             max_units,
         };
 

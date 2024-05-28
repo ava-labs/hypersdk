@@ -1,14 +1,41 @@
-use wasmlanche_sdk::{params::Param, public, Context, Program};
+use wasmlanche_sdk::{public, Context, Program};
 
 #[public]
-pub fn get_value(_: Context) -> i64 {
+pub fn simple_call(_: Context) -> i64 {
     0
 }
 
 #[public]
-pub fn get_value_external(_: Context, target: Program, max_units: i64) -> i64 {
-    let v: Vec<Param> = vec![];
+pub fn simple_call_external(_: Context, target: Program, max_units: i64) -> i64 {
+    target.call_function("simple_call", (), max_units).unwrap()
+}
+
+#[public]
+pub fn call_with_param(_: Context, value: i64) -> i64 {
+    value
+}
+
+#[public]
+pub fn call_with_param_external(_: Context, target: Program, max_units: i64, value: i64) -> i64 {
     target
-        .call_function("get_value", &v.into_iter().collect(), max_units)
+        .call_function("call_with_param", value, max_units)
+        .unwrap()
+}
+
+#[public]
+pub fn call_with_two_params(_: Context, value1: i64, value2: i64) -> i64 {
+    value1 + value2
+}
+
+#[public]
+pub fn call_with_two_params_external(
+    _: Context,
+    target: Program,
+    max_units: i64,
+    value1: i64,
+    value2: i64,
+) -> i64 {
+    target
+        .call_function("call_with_two_params", (value1, value2), max_units)
         .unwrap()
 }
