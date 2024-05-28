@@ -27,13 +27,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    // TODO:
-    // prefix with an underscore
-    let new_name = {
-        let name = &input.sig.ident;
-        Ident::new(&format!("{name}_guest"), name.span())
-    };
-
     let (input, user_specified_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
@@ -163,7 +156,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(args: *const u8) {
+            unsafe extern "C" fn #name(args: *const u8) {
                 let args: Args = unsafe {
                     wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
                 };
