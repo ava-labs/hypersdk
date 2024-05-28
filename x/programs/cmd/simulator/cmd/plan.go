@@ -188,7 +188,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 
 	params, err := c.createCallParams(ctx, db, step.Params)
 	if err != nil {
-		c.log.Error("simulation call", zap.Error(err))
+		c.log.Error(fmt.Sprintf("simulation call: %s", err))
 		return newResponse(0), err
 	}
 
