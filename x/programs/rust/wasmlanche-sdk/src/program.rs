@@ -1,5 +1,5 @@
 use crate::{
-    memory::into_bytes,
+    memory::deref_bytes,
     state::{Error as StateError, Key, State},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -70,7 +70,7 @@ impl<K> Program<K> {
 
         let ptr = unsafe { ffi(args_bytes.as_ptr(), args_bytes.len()) };
 
-        let bytes = into_bytes(ptr).unwrap_or_default();
+        let bytes = deref_bytes(ptr);
 
         borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }

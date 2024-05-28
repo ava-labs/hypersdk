@@ -4,8 +4,6 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use crate::state::Error as StateError;
-use borsh::{from_slice, BorshDeserialize};
 use std::{alloc::Layout, cell::RefCell, collections::HashMap};
 
 thread_local! {
@@ -13,32 +11,18 @@ thread_local! {
     static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
-/// Converts a raw pointer to a deserialized value.
-/// Expects the first 4 bytes of the pointer to represent the `length` of the serialized value,
-/// with the subsequent `length` bytes comprising the serialized data.
+/// Reconstructs the vec that was created using the module's `alloc` function.
 /// # Panics
-/// Panics if the bytes cannot be deserialized.
-/// # Safety
-/// This function is unsafe because it dereferences raw pointers.
-/// # Errors
-/// Returns an [`StateError`] if the bytes cannot be deserialized.
-pub fn from_host_ptr<V>(ptr: *const u8) -> Result<V, StateError>
-where
-    V: BorshDeserialize,
-{
-    match into_bytes(ptr) {
-        Some(bytes) => from_slice::<V>(&bytes).map_err(|_| StateError::Deserialization),
-        None => Err(StateError::InvalidPointer),
-    }
-}
-
-/// Reconstructs the vec from the pointer with the length given by the store
-/// `host_ptr` is encoded using Big Endian as an i64.
+/// If you are trying to dereference data that has already been dereferenced
+/// or the pointer is invalid (wasn't created with the module's `alloc` function).
 #[must_use]
-pub fn into_bytes(ptr: *const u8) -> Option<Vec<u8>> {
+pub fn deref_bytes(ptr: *const u8) -> Vec<u8> {
     GLOBAL_STORE
         .with_borrow_mut(|s| s.remove(&ptr))
+        // SAFETY:
+        // the space is reserved by the `alloc` function
         .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr.cast_mut(), len, len) })
+        .expect("value missing or taken")
 }
 
 /* memory functions ------------------------------------------- */
@@ -51,32 +35,32 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
     assert!(len > 0, "cannot allocate 0 sized data");
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
-    // take a mutable pointer to the layout
+
     let ptr = unsafe { std::alloc::alloc(layout) };
+
     if ptr.is_null() {
         std::alloc::handle_alloc_error(layout);
     }
-    // keep track of the pointer and the length of the allocated data
+
     GLOBAL_STORE.with_borrow_mut(|s| s.insert(ptr, len));
-    // return the pointer so the runtime
-    // can write data at this offset
+
     ptr
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{alloc, into_bytes};
-    use crate::memory::GLOBAL_STORE;
+    use super::*;
 
     #[test]
     fn data_allocation() {
         let len = 1024;
         let ptr = alloc(len);
-        let vec = vec![1; len];
+        let vec: Vec<_> = (u8::MIN..=u8::MAX).cycle().take(len).collect();
         unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
-        let val = into_bytes(ptr).unwrap();
+        let val = deref_bytes(ptr);
         assert_eq!(val, vec);
-        assert!(GLOBAL_STORE.with_borrow(|s| s.get(&(ptr.cast_const())).is_none()));
+
+        GLOBAL_STORE.with_borrow(|map| assert!(!map.contains_key(&ptr.cast_const())));
     }
 
     #[test]
