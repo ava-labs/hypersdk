@@ -118,7 +118,7 @@ func (p *ProgramInstance) setParams(data []byte) (int32, error) {
 	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))
 	if err != nil {
-		return 0, wasmtime.NewTrap(err.Error())
+		return 0, err
 	}
 	dataOffset := dataOffsetIntf.(int32)
 	linearMem := programMemory.UnsafeData(p.store)
