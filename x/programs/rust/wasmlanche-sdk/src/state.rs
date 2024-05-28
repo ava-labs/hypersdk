@@ -1,6 +1,6 @@
-use crate::{deref_bytes, state::Error as StateError};
+use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap, hash::Hash, io::ErrorKind, ptr::NonNull};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, io::ErrorKind};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -93,7 +93,7 @@ impl<'a, K: Key> State<'a, K> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "get"]
-            fn get_bytes(ptr: *const u8, len: usize) -> *mut u8;
+            fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
         }
 
         let mut cache = self.cache.borrow_mut();
@@ -107,17 +107,13 @@ impl<'a, K: Key> State<'a, K> {
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-            let bytes = {
-                let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
+            let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
-                if ptr.is_null() {
-                    return Ok(None);
-                }
+            if ptr.is_null() {
+                return Ok(None);
+            }
 
-                deref_bytes(ptr)
-            };
-
-            cache.entry(key).or_insert(bytes)
+            cache.entry(key).or_insert(ptr.into())
         };
 
         from_slice::<V>(val_bytes)
@@ -133,7 +129,7 @@ impl<'a, K: Key> State<'a, K> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "delete"]
-            fn delete(ptr: *const u8, len: usize) -> NonNull<u8>;
+            fn delete(ptr: *const u8, len: usize) -> HostPtr;
         }
 
         // TODO:
@@ -147,9 +143,8 @@ impl<'a, K: Key> State<'a, K> {
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-        let ptr = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
+        let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
 
-        let bytes = deref_bytes(ptr.as_ptr());
         from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
 

@@ -1,5 +1,5 @@
 use crate::{
-    memory::deref_bytes,
+    memory::HostPtr,
     state::{Error as StateError, Key, State},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -54,7 +54,7 @@ impl<K> Program<K> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
-            fn ffi(ptr: *const u8, len: usize) -> *const u8;
+            fn call_program(ptr: *const u8, len: usize) -> HostPtr;
         }
 
         let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
@@ -68,9 +68,7 @@ impl<K> Program<K> {
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-        let ptr = unsafe { ffi(args_bytes.as_ptr(), args_bytes.len()) };
-
-        let bytes = deref_bytes(ptr);
+        let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
         borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
