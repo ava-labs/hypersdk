@@ -70,7 +70,7 @@ pub fn total_supply(context: Context<StateKey>) -> u64 {
     program
         .state()
         .get(StateKey::TotalSupply)
-        .unwrap_or_defaul()
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
@@ -118,7 +118,7 @@ pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address) -
     let Context { program, .. } = context;
     program
         .state()
-        .get::<u64>(StateKey::Allowance([owner, spender]))
+        .get::<u64>(StateKey::Allowance(owner, spender))
         .unwrap_or_default()
 }
 
@@ -128,7 +128,7 @@ pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> boo
     assert_ne!(actor, spender, "actor and spender must be different");
     program
         .state()
-        .store(StateKey::Allowance([actor,spender]), &amount)
+        .store(StateKey::Allowance(actor,spender), &amount)
         .expect("failed to store allowance");
     true
 }
@@ -174,5 +174,20 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    false
+    let Context { program, actor } = context;
+    consume_allowance(context, sender, actor, amount);
+    transfer(context, recipient, amount);
+    true
 }
+
+fn consume_allowance(context: Context<StateKey>, owner: Address, spender: Address, amount: u64) -> bool {
+    let Context { program, .. } = context;
+    let total_allowance = allowance(context, owner, spender);
+    assert!(total_allowance>amount);
+    program
+        .state()
+        .store(StateKey::Allowance(owner,spender), &(total_allowance - amount))
+        .expect("failed to store allowance");
+    true
+}
+
