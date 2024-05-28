@@ -7,14 +7,11 @@ pub fn simple_call(_: Context) -> i64 {
 
 #[public]
 pub fn simple_call_external(_: Context, target: Program, max_units: i64) -> i64 {
-    target
-        .call_function("simple_call", (), max_units)
-        .unwrap()
+    target.call_function("simple_call", (), max_units).unwrap()
 }
 
-
 #[public]
-pub fn call_with_param(_: Context, value:i64) -> i64 {
+pub fn call_with_param(_: Context, value: i64) -> i64 {
     value
 }
 
@@ -25,14 +22,19 @@ pub fn call_with_param_external(_: Context, target: Program, max_units: i64, val
         .unwrap()
 }
 
-
 #[public]
-pub fn call_with_two_params(_: Context, value1: i64, value2:i64) -> i64 {
+pub fn call_with_two_params(_: Context, value1: i64, value2: i64) -> i64 {
     value1 + value2
 }
 
 #[public]
-pub fn call_with_two_params_external(_: Context, target: Program, max_units: i64, value1: i64, value2:i64) -> i64 {
+pub fn call_with_two_params_external(
+    _: Context,
+    target: Program,
+    max_units: i64,
+    value1: i64,
+    value2: i64,
+) -> i64 {
     target
         .call_function("call_with_two_params", &(value1, value2), max_units)
         .unwrap()
