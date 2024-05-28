@@ -75,6 +75,9 @@ impl<K> Program<K> {
         borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
 
+    /// Gets the remaining fuel available to this program
+    /// # Errors
+    /// Returns a [`StateError`] if the call fails.
     pub fn remaining_fuel(&self) -> Result<u64, StateError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
