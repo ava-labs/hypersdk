@@ -46,11 +46,11 @@ impl<K> Program<K> {
     /// Returns a [`StateError`] if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function<T: BorshDeserialize>(
+    pub fn call_function<T: BorshDeserialize, ArgType: BorshSerialize>(
         &self,
         function_name: &str,
-        args: &Params,
-        max_units: i64,
+        args: ArgType,
+        max_units: u64,
     ) -> Result<T, StateError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -58,10 +58,12 @@ impl<K> Program<K> {
             fn ffi(ptr: *const u8, len: usize) -> *const u8;
         }
 
+        let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        
         let args = CallProgramArgs {
             target_id: self,
             function: function_name.as_bytes(),
-            args_ptr: args,
+            args_ptr: &args_ptr,
             max_units,
         };
 
@@ -88,7 +90,7 @@ struct CallProgramArgs<'a, K> {
     target_id: &'a Program<K>,
     function: &'a [u8],
     args_ptr: &'a [u8],
-    max_units: i64,
+    max_units: u64,
 }
 
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {
