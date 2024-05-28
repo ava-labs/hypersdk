@@ -3,8 +3,8 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, Ident,
-    ItemEnum, ItemFn, Pat, PatType, Path, Type, Visibility,
+    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, ItemEnum,
+    ItemFn, Pat, PatType, Path, Type, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -25,13 +25,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Some(err)
     } else {
         None
-    };
-
-    // TODO:
-    // prefix with an underscore
-    let new_name = {
-        let name = &input.sig.ident;
-        Ident::new(&format!("{name}_guest"), name.span())
     };
 
     let (input, user_specified_context_type, first_arg_err) = {
@@ -163,7 +156,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(args: *const u8) {
+            unsafe extern "C" fn #name(args: *const u8) {
                 let args: Args = unsafe {
                     wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
                 };
