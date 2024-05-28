@@ -66,7 +66,7 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
 /// Gets the count at the address for an external program.
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
-    target.call_function("get_value", &of, max_units).unwrap()
+    target.call_function("get_value", of, max_units).unwrap()
 }
 
 #[cfg(test)]
