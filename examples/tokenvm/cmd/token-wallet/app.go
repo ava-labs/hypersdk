@@ -155,7 +155,7 @@ func (a *App) OpenLink(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
 }
 
-func (a *App) GetCommitHash() string {
+func (*App) GetCommitHash() string {
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {
