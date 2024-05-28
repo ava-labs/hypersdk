@@ -36,7 +36,7 @@ func TestImportProgramCallProgram(t *testing.T) {
 
 	params := struct {
 		Program  ids.ID
-		MaxUnits uint64
+		MaxUnits int64
 	}{
 		Program:  programID,
 		MaxUnits: 1000000,
