@@ -15,7 +15,7 @@ pub enum StateKey {
     /// The balance of the token by address. Key prefix 0x3 + address.
     Balance(Address),
 
-    Allowance([Address; 2]),
+    Allowance(Address, Address),
 
     Owner,
 }
