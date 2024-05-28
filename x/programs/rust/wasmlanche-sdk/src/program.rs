@@ -58,7 +58,7 @@ impl<K> Program<K> {
         }
 
         let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
-        
+
         let args = CallProgramArgs {
             target_id: self,
             function: function_name.as_bytes(),
