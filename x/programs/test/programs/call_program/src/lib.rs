@@ -18,7 +18,7 @@ pub fn call_with_param(_: Context, value: i64) -> i64 {
 #[public]
 pub fn call_with_param_external(_: Context, target: Program, max_units: i64, value: i64) -> i64 {
     target
-        .call_function("call_with_param", &value, max_units)
+        .call_function("call_with_param", value, max_units)
         .unwrap()
 }
 
@@ -36,6 +36,6 @@ pub fn call_with_two_params_external(
     value2: i64,
 ) -> i64 {
     target
-        .call_function("call_with_two_params", &(value1, value2), max_units)
+        .call_function("call_with_two_params", (value1, value2), max_units)
         .unwrap()
 }
