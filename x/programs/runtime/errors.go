@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"errors"
+
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
