@@ -27,7 +27,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {FuelCost: callProgramCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"call_program": {FuelCost: callProgramCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
@@ -62,6 +62,9 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				callInfo.inst.result = input
 				return nil
+			})},
+			"remaining_fuel": {FuelCost: setResultCost, Function: FunctionNoInput(func(callInfo *CallInfo) ([]byte, error) {
+				return borsh.Serialize(callInfo.RemainingFuel())
 			})},
 		},
 	}

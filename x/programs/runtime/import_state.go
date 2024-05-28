@@ -41,7 +41,7 @@ func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
-			"get": {FuelCost: readCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"get": {FuelCost: readCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
@@ -66,7 +66,7 @@ func NewStateAccessModule() *ImportModule {
 				defer cancel()
 				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
 			})},
-			"delete": {FuelCost: deleteCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"delete": {FuelCost: deleteCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				parsedInput := &keyInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return nil, err
