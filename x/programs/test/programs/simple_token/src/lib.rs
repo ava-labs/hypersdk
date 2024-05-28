@@ -175,19 +175,12 @@ pub fn transfer_from(
     amount: u64,
 ) -> bool {
     let Context { program, actor } = context;
-    consume_allowance(context, sender, actor, amount);
-    transfer(context, recipient, amount);
-    true
-}
-
-fn consume_allowance(context: Context<StateKey>, owner: Address, spender: Address, amount: u64) -> bool {
-    let Context { program, .. } = context;
-    let total_allowance = allowance(context, owner, spender);
+    let total_allowance = allowance(context, sender, actor);
     assert!(total_allowance>amount);
     program
         .state()
-        .store(StateKey::Allowance(owner,spender), &(total_allowance - amount))
+        .store(StateKey::Allowance(sender, actor), &(total_allowance - amount))
         .expect("failed to store allowance");
+    transfer(context, recipient, amount);
     true
 }
-
