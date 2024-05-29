@@ -237,7 +237,7 @@ mod tests {
             .result
             .response;
 
-        assert_eq!(supply, INITIAL_SUPPLY as u64);
+        assert_eq!(supply, INITIAL_SUPPLY);
     }
 
     #[test]
@@ -407,7 +407,7 @@ mod tests {
             .unwrap()
             .result
             .response;
-        assert_eq!(supply, INITIAL_SUPPLY as u64);
+        assert_eq!(supply, INITIAL_SUPPLY);
 
         let balance = simulator
             .run_step::<u64>(
