@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn init_program() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key = String::from("owner");
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
@@ -91,18 +91,18 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
     }
 
     #[test]
     fn increment() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
@@ -135,11 +135,11 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
 
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     #[ignore = "need to fix params macro"]
     fn external_call() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
@@ -201,11 +201,11 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
 

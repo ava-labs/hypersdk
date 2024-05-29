@@ -4,9 +4,8 @@
 //! Simulator binary directly.
 
 use borsh::BorshDeserialize;
-use serde::{de::Error, Deserialize, Deserializer, Serialize};
-use serde_with::base64::Base64;
-use serde_with::{serde_as, DisplayFromStr};
+use serde::{Deserialize, Serialize};
+use serde_with::{base64::Base64, serde_as, DisplayFromStr};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -153,31 +152,16 @@ impl<'a> Plan<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PlanResponse {
+pub struct BaseResponse {
     /// The numeric id of the step.
     pub id: u32,
-    /// The result of the plan.
-    pub result: StepResult,
-    /// An optional error message.
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PlanResponse2<T>
-where
-    T: BorshDeserialize,
-{
-    /// The numeric id of the step.
-    pub id: u32,
-    /// The result of the plan.
-    pub result: StepResult2<T>,
     /// An optional error message.
     pub error: Option<String>,
 }
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
-pub struct StepResult {
+pub struct PlanResult {
     /// The ID created from the program execution.
     pub id: Option<String>,
     /// An optional message.
@@ -190,7 +174,7 @@ pub struct StepResult {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct StepResult2<T>
+pub struct BaseResultTyped<T>
 where
     T: BorshDeserialize,
 {
@@ -204,25 +188,52 @@ where
     pub response: T,
 }
 
-impl<T> TryInto<StepResult2<T>> for StepResult
+#[serde_as]
+#[derive(Debug, Deserialize)]
+pub struct PlanResponse {
+    #[serde(flatten)]
+    pub base: BaseResponse,
+    /// The result of the plan.
+    pub result: PlanResult,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlanResponseTyped<T>
+where
+    T: BorshDeserialize,
+{
+    #[serde(flatten)]
+    pub base: BaseResponse,
+    /// The result of the plan.
+    pub result: BaseResultTyped<T>,
+}
+
+impl<T> TryInto<PlanResponseTyped<T>> for PlanResponse
 where
     T: BorshDeserialize,
 {
     type Error = borsh::io::Error;
 
-    fn try_into(self) -> Result<StepResult2<T>, Self::Error> {
-        let StepResult {
-            id,
-            msg,
-            timestamp,
-            response,
+    fn try_into(self) -> Result<PlanResponseTyped<T>, Self::Error> {
+        let PlanResponse {
+            base: BaseResponse { id: resp_id, error },
+            result:
+                PlanResult {
+                    id,
+                    msg,
+                    timestamp,
+                    response,
+                },
         } = self;
 
-        Ok(StepResult2 {
-            id,
-            msg,
-            timestamp,
-            response: borsh::from_slice(&dbg!(response))?,
+        Ok(PlanResponseTyped {
+            base: BaseResponse { id: resp_id, error },
+            result: BaseResultTyped {
+                id,
+                msg,
+                timestamp,
+                response: borsh::from_slice(&response)?,
+            },
         })
     }
 }
@@ -250,7 +261,7 @@ pub struct Client<W, R> {
 pub struct ClientBuilder;
 
 impl ClientBuilder {
-    pub fn new() -> Result<
+    pub fn create() -> Result<
         Client<impl Write, impl Iterator<Item = Result<PlanResponse, ClientError>>>,
         ClientError,
     > {
@@ -307,7 +318,7 @@ where
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
-        let step = dbg!(SimulatorStep { caller_key, step });
+        let step = SimulatorStep { caller_key, step };
         let input = serde_json::to_vec(&step)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
@@ -320,26 +331,13 @@ where
         &mut self,
         caller_key: &str,
         step: &Step,
-    ) -> Result<PlanResponse2<T>, ClientError>
+    ) -> Result<PlanResponseTyped<T>, ClientError>
     where
         T: BorshDeserialize,
     {
-        let run_command = b"run --step '";
-        self.writer.write_all(run_command)?;
-
-        let step = dbg!(SimulatorStep { caller_key, step });
-        let input = serde_json::to_vec(&step)?;
-        self.writer.write_all(&input)?;
-        self.writer.write_all(b"'\n")?;
-        self.writer.flush()?;
-
-        let PlanResponse { id, result, error } =
-            dbg!(self.responses.next().ok_or(ClientError::Eof)??);
-        let result = result
+        self._run_step(caller_key, step)?
             .try_into()
-            .map_err(|_| ClientError::BorshDeserialization)?;
-
-        Ok(PlanResponse2 { id, result, error })
+            .map_err(|_| ClientError::BorshDeserialization)
     }
 }
 

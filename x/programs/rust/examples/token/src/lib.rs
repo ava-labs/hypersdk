@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key = String::from("owner");
 
@@ -179,18 +179,18 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
     }
 
     #[test]
     fn init_token() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key_id = String::from("owner");
         let owner_key = Key::Ed25519(owner_key_id.clone());
@@ -215,11 +215,11 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
 
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn mint() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key_id = String::from("owner");
         let [alice_key] = ["alice"]
@@ -290,11 +290,11 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
 
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn mint_and_transfer() {
-        let mut simulator = simulator::ClientBuilder::new().unwrap();
+        let mut simulator = simulator::ClientBuilder::create().unwrap();
 
         let owner_key_id = String::from("owner");
         let [alice_key, bob_key] = ["alice", "bob"]
@@ -386,11 +386,11 @@ mod tests {
         let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
-            plan_responses.iter().all(|resp| resp.error.is_none()),
+            plan_responses.iter().all(|resp| resp.base.error.is_none()),
             "error: {:?}",
             plan_responses
                 .iter()
-                .filter_map(|resp| resp.error.as_ref())
+                .filter_map(|resp| resp.base.error.as_ref())
                 .next()
         );
 
