@@ -74,8 +74,8 @@ impl<K> Program<K> {
     }
 
     /// Gets the remaining fuel available to this program
-    /// # Errors
-    /// Returns a [`StateError`] if the call fails.
+    /// # Panics
+    /// Panics if there was an issue deserializing the remaining fuel
     pub fn remaining_fuel(&self) -> u64 {
         #[link(wasm_import_module = "program")]
         extern "C" {
