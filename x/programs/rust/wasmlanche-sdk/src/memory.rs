@@ -4,34 +4,70 @@
 //! the program. These methods are unsafe as should be used
 //! with caution.
 
-use std::{alloc::Layout, cell::RefCell, collections::HashMap};
+use std::{alloc::Layout, cell::RefCell, collections::HashMap, mem::ManuallyDrop, ops::Deref};
 
 thread_local! {
     /// Map of pointer to the length of its content on the heap
-    static GLOBAL_STORE: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
+    static ALLOCATIONS: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
-/// Reconstructs the vec that was created using the module's `alloc` function.
-/// # Panics
-/// If you are trying to dereference data that has already been dereferenced
-/// or the pointer is invalid (wasn't created with the module's `alloc` function).
-#[must_use]
-pub fn deref_bytes(ptr: *const u8) -> Vec<u8> {
-    GLOBAL_STORE
-        .with_borrow_mut(|s| s.remove(&ptr))
-        // SAFETY:
-        // the space is reserved by the `alloc` function
-        .map(|len| unsafe { std::vec::Vec::from_raw_parts(ptr.cast_mut(), len, len) })
-        .expect("value missing or taken")
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct HostPtr(*const u8);
+
+impl Deref for HostPtr {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        let len = ALLOCATIONS
+            .with_borrow(|allocations| allocations.get(&self.0).copied())
+            .expect("attempted to deref invalid host pointer");
+
+        unsafe { std::slice::from_raw_parts(self.0, len) }
+    }
 }
 
-/* memory functions ------------------------------------------- */
+impl Drop for HostPtr {
+    fn drop(&mut self) {
+        if self.is_null() {
+            return;
+        }
+
+        let len = ALLOCATIONS
+            .with_borrow_mut(|allocations| allocations.remove(&self.0))
+            .expect("attempted to drop invalid host pointer");
+        let layout = Layout::array::<u8>(len).expect("capacity overflow");
+
+        unsafe { std::alloc::dealloc(self.0.cast_mut(), layout) };
+    }
+}
+
+impl From<HostPtr> for Vec<u8> {
+    fn from(host_ptr: HostPtr) -> Self {
+        // drop will dealloc the bytes
+        let host_ptr = ManuallyDrop::new(host_ptr);
+
+        let len = ALLOCATIONS
+            .with_borrow_mut(|allocations| allocations.remove(&host_ptr.0))
+            .expect("attempted to drop invalid host pointer");
+
+        unsafe { Vec::from_raw_parts(host_ptr.0.cast_mut(), len, len) }
+    }
+}
+
+impl HostPtr {
+    #[must_use]
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+}
+
 /// Allocate memory into the instance of Program and return the offset to the
 /// start of the block.
 /// # Panics
 /// Panics if the pointer exceeds the maximum size of an isize or that the allocated memory is null.
 #[no_mangle]
-pub extern "C" fn alloc(len: usize) -> *mut u8 {
+pub extern "C" fn alloc(len: usize) -> HostPtr {
     assert!(len > 0, "cannot allocate 0 sized data");
     // can only fail if `len > isize::MAX` for u8
     let layout = Layout::array::<u8>(len).expect("capacity overflow");
@@ -42,9 +78,9 @@ pub extern "C" fn alloc(len: usize) -> *mut u8 {
         std::alloc::handle_alloc_error(layout);
     }
 
-    GLOBAL_STORE.with_borrow_mut(|s| s.insert(ptr, len));
+    ALLOCATIONS.with_borrow_mut(|s| s.insert(ptr, len));
 
-    ptr
+    HostPtr(ptr.cast_const())
 }
 
 #[cfg(test)]
@@ -56,11 +92,13 @@ mod tests {
         let len = 1024;
         let ptr = alloc(len);
         let vec: Vec<_> = (u8::MIN..=u8::MAX).cycle().take(len).collect();
-        unsafe { std::ptr::copy(vec.as_ptr(), ptr, vec.len()) }
-        let val = deref_bytes(ptr);
-        assert_eq!(val, vec);
+        unsafe { std::ptr::copy(vec.as_ptr(), ptr.0.cast_mut(), vec.len()) }
+        assert_eq!(*ptr, vec);
 
-        GLOBAL_STORE.with_borrow(|map| assert!(!map.contains_key(&ptr.cast_const())));
+        let inner = ptr.0;
+        drop(ptr);
+
+        ALLOCATIONS.with_borrow(|map| assert!(!map.contains_key(&inner)));
     }
 
     #[test]
