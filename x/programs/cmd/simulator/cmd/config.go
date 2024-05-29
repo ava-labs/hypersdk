@@ -41,8 +41,10 @@ const (
 
 func newResponse(id int) *Response {
 	return &Response{
-		ID:     id,
-		Result: &Result{},
+		ID: id,
+		Result: &Result{
+			Response: []byte{},
+		},
 	}
 }
 
