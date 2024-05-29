@@ -17,11 +17,9 @@ const (
 	readCost   = 10000
 	writeCost  = 10000
 	deleteCost = 10000
-)
 
-type keyInput struct {
-	Key []byte
-}
+	writeManyCost = 10000
+)
 
 type keyValueInput struct {
 	Key   []byte
@@ -42,13 +40,13 @@ func NewStateAccessModule() *ImportModule {
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
 			"get": {FuelCost: readCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
-				parsedInput := &keyInput{}
-				if err := borsh.Deserialize(parsedInput, input); err != nil {
+				var parsedInput []byte
+				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetValue(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key))
+				val, err := callInfo.State.GetValue(ctx, prependAccountToKey(callInfo.Account, parsedInput))
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -57,25 +55,39 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return val, nil
 			})},
-			"put": {FuelCost: writeCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"put": {FuelCost: writeCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				parsedInput := &keyValueInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return nil, err
+					return err
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return nil, callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
+				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
+			})},
+			"put_many": {FuelCost: writeManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+				var parsedInput []keyValueInput
+				if err := borsh.Deserialize(&parsedInput, input); err != nil {
+					return err
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				for _, entry := range parsedInput {
+					if err := callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, entry.Key), entry.Value); err != nil {
+						return err
+					}
+				}
+				return nil
 			})},
 			"delete": {FuelCost: deleteCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
-				parsedInput := &keyInput{}
-				if err := borsh.Deserialize(parsedInput, input); err != nil {
+				var parsedInput []byte
+				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
 				}
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
-				key := prependAccountToKey(callInfo.Account, parsedInput.Key)
+				key := prependAccountToKey(callInfo.Account, parsedInput)
 				bytes, err := callInfo.State.GetValue(ctx, key)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {

@@ -27,13 +27,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    // TODO:
-    // prefix with an underscore
-    let new_name = {
-        let name = &input.sig.ident;
-        Ident::new(&format!("{name}_guest"), name.span())
-    };
-
     let (input, user_specified_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
@@ -163,9 +156,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #new_name(args: *const u8) {
+            unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
                 let args: Args = unsafe {
-                    wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
+                    borsh::from_slice(&args).expect("error fetching serialized args")
                 };
 
                 let result = super::#name(#(#converted_params),*);
@@ -224,20 +217,42 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 // TODO:
                 // use bytemuck to represent the raw bytes of the key
                 // and figure out way to enforce backwards compatibility
-                Fields::Unnamed(_) => Ok(quote! {
-                    Self::#variant_ident(a) => wasmlanche_sdk::state::PrefixedBytes::new(#idx, a.as_ref())
-                }),
+                Fields::Unnamed(fields) => {
+                    let fields = &fields.unnamed;
+
+                    let fields = fields
+                        .iter()
+                        .enumerate()
+                        .map(|(i, field)| Ident::new(&format!("field_{i}"), field.span()));
+                    let fields_2 = fields.clone();
+                    let fields_3 = fields.clone();
+
+                    Ok(quote! {
+                        Self::#variant_ident(#(#fields),*) => {
+                            let len = 1 + #(#fields_2.as_ref().len())+*;
+                            let len = u32::try_from(len).map_err(|_| std::io::ErrorKind::InvalidData)?;
+                            writer.write_all(&len.to_le_bytes())?;
+                            writer.write_all(&[#idx])?;
+                            #(
+                                writer.write_all(#fields_3.as_ref())?;
+                            )*
+                        }
+                    })
+                }
 
                 Fields::Unit => Ok(quote! {
-                    Self::#variant_ident => wasmlanche_sdk::state::PrefixedBytes::new(#idx, &[])
+                    Self::#variant_ident => {
+                        let len = 1u32;
+                        writer.write_all(&len.to_le_bytes())?;
+                        writer.write_all(&[#idx])?;
+                    }
                 }),
 
-                Fields::Named(_) => Err(
-                    Error::new(
-                        variant_ident.span(),
-                        "enums with named fields are not supported".to_string(),
-                    ).into_compile_error()
-                ),
+                Fields::Named(_) => Err(Error::new(
+                    variant_ident.span(),
+                    "enums with named fields are not supported".to_string(),
+                )
+                .into_compile_error()),
             }
         })
         .collect();
@@ -248,20 +263,20 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let trait_implementation_body = if !variants.is_empty() {
-        quote! {
-           impl wasmlanche_sdk::state::Key for #name {
-               fn as_prefixed(&self) -> wasmlanche_sdk::state::PrefixedBytes<'_> {
-                   match self { #(#match_arms),* }
-               }
-           }
-        }
+        quote! { match self { #(#match_arms),* } }
     } else {
         quote! {}
     };
 
     quote! {
         #item_enum
-        #trait_implementation_body
+        impl borsh::BorshSerialize for #name {
+            fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+                #trait_implementation_body
+                Ok(())
+            }
+        }
+        impl wasmlanche_sdk::state::Key for #name {}
     }
     .into()
 }

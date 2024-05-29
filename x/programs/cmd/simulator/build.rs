@@ -2,9 +2,9 @@ use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=go.mod");
     println!("cargo:rerun-if-changed=simulator.go");
     println!("cargo:rerun-if-changed=cmd/");
+    println!("cargo:rerun-if-changed=../runtime");
 
     let go_mod_download_output = Command::new("go").args(["mod", "download"]).output()?;
 
@@ -34,7 +34,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let simulator_src = simulator_src.to_str().unwrap();
 
     let go_build_output = Command::new("go")
-        .args(["build", "-o", simulator_path, simulator_src])
+        .arg("build")
+        .arg("-tags")
+        .arg("debug")
+        .arg("-o")
+        .arg(simulator_path)
+        .arg(simulator_src)
         .output()?;
 
     if !go_build_output.status.success() {

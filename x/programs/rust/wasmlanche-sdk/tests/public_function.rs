@@ -104,10 +104,10 @@ impl TestCrate {
             .expect("failed to find `alloc` function");
 
         let always_true_func = instance
-            .get_typed_func(&mut store, "always_true_guest")
+            .get_typed_func(&mut store, "always_true")
             .expect("failed to find `always_true` function");
         let combine_last_bit_of_each_id_byte_func = instance
-            .get_typed_func(&mut store, "combine_last_bit_of_each_id_byte_guest")
+            .get_typed_func(&mut store, "combine_last_bit_of_each_id_byte")
             .expect("combine_last_bit_of_each_id_byte should be a function");
 
         Self {
