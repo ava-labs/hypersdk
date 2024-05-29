@@ -386,7 +386,7 @@ mod tests {
 
         assert_eq!(output_json, expected_json);
 
-        let output_param: Param = serde_json::from_value(dbg!(expected_json)).unwrap();
+        let output_param: Param = serde_json::from_value(expected_json).unwrap();
 
         assert_eq!(output_param, expected_param);
     }

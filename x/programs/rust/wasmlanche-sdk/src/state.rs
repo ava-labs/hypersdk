@@ -1,4 +1,4 @@
-use crate::{memory::into_bytes, state::Error as StateError};
+use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap, hash::Hash, io::ErrorKind};
 
@@ -86,10 +86,16 @@ impl<'a, K: Key> State<'a, K> {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<V>(self, key: K) -> Result<V, Error>
+    pub fn get<V>(self, key: K) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "get"]
+            fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
+        }
+
         let mut cache = self.cache.borrow_mut();
 
         let val_bytes = if let Some(val) = cache.get(&key) {
@@ -101,14 +107,18 @@ impl<'a, K: Key> State<'a, K> {
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-            let ptr = host::get_bytes(&args_bytes)?;
+            let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
-            let bytes = into_bytes(ptr).ok_or(Error::InvalidPointer)?;
+            if ptr.is_null() {
+                return Ok(None);
+            }
 
-            cache.entry(key).or_insert(bytes)
+            cache.entry(key).or_insert(ptr.into())
         };
 
-        from_slice::<V>(val_bytes).map_err(|_| StateError::Deserialization)
+        from_slice::<V>(val_bytes)
+            .map_err(|_| StateError::Deserialization)
+            .map(Some)
     }
 
     /// Delete a value from the hosts's storage.
@@ -116,6 +126,12 @@ impl<'a, K: Key> State<'a, K> {
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
     pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "delete"]
+            fn delete(ptr: *const u8, len: usize) -> HostPtr;
+        }
+
         // TODO:
         // we should actually cache deletes as well
         // to avoid cache misses after delete
@@ -127,11 +143,19 @@ impl<'a, K: Key> State<'a, K> {
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
-        host::delete_bytes(&args_bytes)
+        let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
+
+        from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
     fn flush(&self) -> Result<(), Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "put"]
+            fn put_bytes(ptr: *const u8, len: usize);
+        }
+
         let mut cache = self.cache.borrow_mut();
 
         let args_iter = cache.drain().map(|(key, value)| {
@@ -143,7 +167,8 @@ impl<'a, K: Key> State<'a, K> {
         });
 
         for args in args_iter {
-            host::put_bytes(&args?)?;
+            let args = args?;
+            unsafe { put_bytes(args.as_ptr(), args.len()) };
         }
 
         Ok(())
@@ -182,57 +207,4 @@ struct GetAndDeleteArgs<'a> {
 struct PutArgs<'a> {
     key: PrefixedBytes<'a>,
     value: Vec<u8>,
-}
-
-mod host {
-    use super::Error;
-    use crate::memory::from_host_ptr;
-    use borsh::BorshDeserialize;
-    use std::ptr::NonNull;
-
-    /// Persists the bytes at key on the host storage.
-    pub(super) fn put_bytes(bytes: &[u8]) -> Result<(), Error> {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "put"]
-            fn ffi(ptr: *const u8, len: usize) -> usize;
-        }
-
-        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
-
-        match result {
-            0 => Ok(()),
-            _ => Err(Error::Write),
-        }
-    }
-
-    /// Gets the bytes associated with the key from the host.
-    pub(super) fn get_bytes(bytes: &[u8]) -> Result<*const u8, Error> {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "get"]
-            fn ffi(ptr: *const u8, len: usize) -> *const u8;
-        }
-
-        let result = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
-
-        if result.is_null() {
-            Err(Error::Read)
-        } else {
-            Ok(result)
-        }
-    }
-
-    /// Deletes the bytes at key ptr from the host storage
-    pub(super) fn delete_bytes<T: BorshDeserialize>(bytes: &[u8]) -> Result<Option<T>, Error> {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "delete"]
-            fn ffi(ptr: *const u8, len: usize) -> NonNull<u8>;
-        }
-
-        let ptr = unsafe { ffi(bytes.as_ptr(), bytes.len()) };
-
-        from_host_ptr(ptr.as_ptr())
-    }
 }

@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys, types::Address};
 
-const INITIAL_SUPPLY: i64 = 123456789;
+const INITIAL_SUPPLY: u64 = 123456789;
 
 /// The program state keys.
 #[state_keys]
@@ -43,17 +43,19 @@ pub fn init(context: Context<StateKeys>) {
 
 /// Returns the total supply of the token.
 #[public]
-pub fn get_total_supply(context: Context<StateKeys>) -> i64 {
+pub fn get_total_supply(context: Context<StateKeys>) -> u64 {
     let Context { program, .. } = context;
+
     program
         .state()
         .get(StateKeys::TotalSupply)
         .expect("failed to get total supply")
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: i64) -> bool {
+pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
     mint_to_internal(context, recipient, amount);
     true
 }
@@ -61,13 +63,14 @@ pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: i64) -> 
 fn mint_to_internal(
     context: Context<StateKeys>,
     recipient: Address,
-    amount: i64,
+    amount: u64,
 ) -> Context<StateKeys> {
     let program = &context.program;
 
     let balance = program
         .state()
-        .get::<i64>(StateKeys::Balance(recipient))
+        .get::<u64>(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default();
 
     program
@@ -80,11 +83,11 @@ fn mint_to_internal(
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(context: Context<StateKeys>, recipient: Address) -> i64 {
+pub fn burn_from(context: Context<StateKeys>, recipient: Address) -> u64 {
     let Context { program, .. } = context;
     program
         .state()
-        .delete::<i64>(StateKeys::Balance(recipient))
+        .delete::<u64>(StateKeys::Balance(recipient))
         .expect("failed to burn recipient tokens")
         .expect("recipient balance not found")
 }
@@ -95,7 +98,7 @@ pub fn transfer(
     context: Context<StateKeys>,
     sender: Address,
     recipient: Address,
-    amount: i64,
+    amount: u64,
 ) -> bool {
     let Context { program, .. } = context;
     assert_ne!(sender, recipient, "sender and recipient must be different");
@@ -103,14 +106,16 @@ pub fn transfer(
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<i64>(StateKeys::Balance(sender))
-        .expect("failed to update balance");
+        .get::<u64>(StateKeys::Balance(sender))
+        .expect("state corrupt")
+        .unwrap_or_default();
 
-    assert!(amount >= 0 && sender_balance >= amount, "invalid input");
+    assert!(sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
-        .get::<i64>(StateKeys::Balance(recipient))
+        .get::<u64>(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default();
 
     // update balances
@@ -130,14 +135,14 @@ pub fn transfer(
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Minter {
     to: Address,
-    amount: i32,
+    amount: u64,
 }
 
 /// Mints tokens to multiple recipients.
 #[public]
 pub fn mint_to_many(context: Context<StateKeys>, minters: Vec<Minter>) -> bool {
     minters.into_iter().fold(context, |context, minter| {
-        mint_to_internal(context, minter.to, minter.amount as i64)
+        mint_to_internal(context, minter.to, minter.amount)
     });
     true
 }
@@ -149,6 +154,7 @@ pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
     program
         .state()
         .get(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default()
 }
 
@@ -217,7 +223,7 @@ mod tests {
             max_units: 0,
             params: vec![program_id.into()],
             require: Some(Require {
-                result: ResultAssertion::NumericEq(INITIAL_SUPPLY as u64),
+                result: ResultAssertion::NumericEq(INITIAL_SUPPLY),
             }),
         });
 
@@ -386,7 +392,7 @@ mod tests {
             max_units: 0,
             params: vec![program_id.into()],
             require: Some(Require {
-                result: ResultAssertion::NumericEq(INITIAL_SUPPLY as u64),
+                result: ResultAssertion::NumericEq(INITIAL_SUPPLY),
             }),
         });
 

@@ -6,30 +6,11 @@ pub enum StateKeys {
     Counter(Address),
 }
 
-/// Initializes the program address a count of 0.
-#[public]
-pub fn initialize_address(context: Context<StateKeys>, address: Address) -> bool {
-    let Context { program, .. } = context;
-
-    if program
-        .state()
-        .get::<i64>(StateKeys::Counter(address))
-        .is_ok()
-    {
-        panic!("counter already initialized for address")
-    }
-
-    program
-        .state()
-        .store(StateKeys::Counter(address), &0_i64)
-        .expect("failed to store counter");
-
-    true
-}
+type Count = u64;
 
 /// Increments the count at the address by the amount.
 #[public]
-pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
+pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     let counter = amount + get_value_internal(&context, to);
     let Context { program, .. } = context;
 
@@ -43,7 +24,13 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: i64) -> bool {
 
 /// Increments the count at the address by the amount for an external program.
 #[public]
-pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, amount: i64) -> bool {
+pub fn inc_external(
+    _: Context,
+    target: Program,
+    max_units: i64,
+    of: Address,
+    amount: Count,
+) -> bool {
     target
         .call_function("inc", (of, amount), max_units)
         .unwrap()
@@ -51,21 +38,22 @@ pub fn inc_external(_: Context, target: Program, max_units: i64, of: Address, am
 
 /// Gets the count at the address.
 #[public]
-pub fn get_value(context: Context<StateKeys>, of: Address) -> i64 {
+pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
     get_value_internal(&context, of)
 }
 
-fn get_value_internal(context: &Context<StateKeys>, of: Address) -> i64 {
+fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
     context
         .program
         .state()
         .get(StateKeys::Counter(of))
-        .expect("failed to get counter")
+        .expect("state corrupt")
+        .unwrap_or_default()
 }
 
 /// Gets the count at the address for an external program.
 #[public]
-pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> i64 {
+pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> Count {
     target.call_function("get_value", of, max_units).unwrap()
 }
 
@@ -94,19 +82,11 @@ mod tests {
             require: None,
         });
 
-        let counter1_id = plan.add_step(Step {
+        plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter1_id.into(), alice_key.clone()],
             require: None,
         });
 
@@ -147,13 +127,6 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-            require: None,
-        });
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter_id.into(), bob_key.clone()],
             require: None,
         });
 

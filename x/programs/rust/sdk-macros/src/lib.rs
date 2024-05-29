@@ -156,9 +156,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             #[no_mangle]
-            unsafe extern "C" fn #name(args: *const u8) {
+            unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
                 let args: Args = unsafe {
-                    wasmlanche_sdk::from_host_ptr(args).expect("error fetching serialized args")
+                    borsh::from_slice(&args).expect("error fetching serialized args")
                 };
 
                 let result = super::#name(#(#converted_params),*);
