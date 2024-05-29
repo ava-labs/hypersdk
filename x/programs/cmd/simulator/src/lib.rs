@@ -174,7 +174,7 @@ pub struct PlanResult {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BaseResultTyped<T>
+pub struct PlanResultTyped<T>
 where
     T: BorshDeserialize,
 {
@@ -204,7 +204,7 @@ where
     #[serde(flatten)]
     pub base: BaseResponse,
     /// The result of the plan.
-    pub result: BaseResultTyped<T>,
+    pub result: PlanResultTyped<T>,
 }
 
 impl<T> TryInto<PlanResponseTyped<T>> for PlanResponse
@@ -227,7 +227,7 @@ where
 
         Ok(PlanResponseTyped {
             base: BaseResponse { id: resp_id, error },
-            result: BaseResultTyped {
+            result: PlanResultTyped {
                 id,
                 msg,
                 timestamp,
