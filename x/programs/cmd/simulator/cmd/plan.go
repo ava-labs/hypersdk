@@ -40,10 +40,10 @@ type runCmd struct {
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
-	programIDStrMap map[string]string
+	programIDStrMap map[string]ids.ID
 }
 
-func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]ids.ID, lastStep *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
 	c.file = c.cmd.String("", "file", &argparse.Options{
@@ -176,7 +176,11 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	// map all transactions to their step_N identifier
 	txID, found := resp.getTxID()
 	if found {
-		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
+		id, err := ids.FromString(txID)
+		if err != nil {
+			return nil, err
+		}
+		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = id
 	}
 
 	lastStep := index + 1
@@ -264,27 +268,22 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	for _, param := range params {
 		switch param.Type {
 		case String, ID:
-			stepIDStr, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
+			stepIDStr := string(param.Value)
 			if strings.HasPrefix(stepIDStr, "step_") {
-				programIDStr, ok := c.programIDStrMap[stepIDStr]
+				programID, ok := c.programIDStrMap[stepIDStr]
 				if !ok {
 					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
 				}
-				programID, err := ids.FromString(programIDStr)
-				if err != nil {
-					return nil, err
-				}
-				cp = append(cp, Parameter{Value: programID, Type: param.Type})
+				cp = append(cp, Parameter{Value: programID[:], Type: param.Type})
 			} else {
-				programID, err := ids.FromString(stepIDStr)
+				// programID, err := ids.FromString(stepIDStr)
+				programID, err := ids.ToID(param.Value)
 				if err == nil {
-					cp = append(cp, Parameter{Value: programID, Type: param.Type})
+					cp = append(cp, Parameter{Value: programID[:], Type: param.Type})
 				} else {
 					// this is a path to the wasm program
-					cp = append(cp, Parameter{Value: stepIDStr, Type: param.Type})
+					// TODO check validity of the path upfront ?
+					cp = append(cp, Parameter{Value: param.Value, Type: param.Type})
 				}
 			}
 		case Bool:

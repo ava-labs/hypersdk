@@ -156,27 +156,11 @@ func programExecuteFunc(
 	return programTxID, resp, balance, err
 }
 
+// TODO rename
 func SerializeParams(p []Parameter) ([]byte, error) {
 	var bytes []byte
 	for _, param := range p {
-		switch v := param.Value.(type) {
-		case []byte:
-			bytes = append(bytes, v...)
-		case ids.ID:
-			bytes = append(bytes, v[:]...)
-		case string:
-			bytes = append(bytes, []byte(v)...)
-		case uint64:
-			bs := make([]byte, 8)
-			binary.LittleEndian.PutUint64(bs, v)
-			bytes = append(bytes, bs...)
-		case uint32:
-			bs := make([]byte, 4)
-			binary.LittleEndian.PutUint32(bs, v)
-			bytes = append(bytes, bs...)
-		default:
-			return nil, errors.New("unsupported data type")
-		}
+		bytes = append(bytes, param.Value...)
 	}
 	return bytes, nil
 }

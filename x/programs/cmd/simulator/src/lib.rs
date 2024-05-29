@@ -102,6 +102,16 @@ pub enum Param {
     Key(Key),
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+pub enum SerializedParam {
+    U64(Vec<u8>),
+    String(Vec<u8>),
+    Id(Vec<u8>),
+    #[serde(untagged)]
+    Key(Vec<u8>),
+}
+
 impl Into<SerializedParam> for Param {
     fn into(self) -> SerializedParam {
         match self {
@@ -114,16 +124,6 @@ impl Into<SerializedParam> for Param {
             }),
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase", tag = "type", content = "value")]
-pub enum SerializedParam {
-    U64(Vec<u8>),
-    String(Vec<u8>),
-    Id(Vec<u8>),
-    #[serde(untagged)]
-    Key(Vec<u8>),
 }
 
 impl From<u64> for Param {
