@@ -186,7 +186,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		zap.Any("params", step.Params),
 	)
 
-	params, err := c.createCallParams(ctx, db, step.Params)
+	params, err := c.createCallParams(ctx, db, step.Params, step.Endpoint)
 	if err != nil {
 		c.log.Error("simulation call", zap.Error(err))
 		return newResponse(0), err
@@ -297,7 +297,7 @@ func runStepFunc(
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter) ([]Parameter, error) {
+func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter, endpoint Endpoint) ([]Parameter, error) {
 	cp := make([]Parameter, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
@@ -336,15 +336,19 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 			key := val
 			// get named public key from db
 			pk, ok, err := storage.GetPublicKey(ctx, db, val)
+			if err != nil {
+				return nil, err
+			}
+			if !ok && endpoint != EndpointKey {
+				// using not stored named public key in other context than key creation
+				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, val)
+			}
 			if ok {
 				// otherwise use the public key address
 				address := make([]byte, codec.AddressLen)
 				address[0] = 0 // prefix
 				copy(address[1:], pk[:])
 				key = string(address)
-			}
-			if err != nil {
-				return nil, err
 			}
 			cp = append(cp, Parameter{Value: key, Type: param.Type})
 		case Uint64:
