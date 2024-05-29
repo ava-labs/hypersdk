@@ -127,7 +127,7 @@ func (f FunctionNoOutput) convert(callInfo *CallInfo) func(*wasmtime.Caller, []w
 func getInput(caller *wasmtime.Caller, vals []wasmtime.Val) []byte {
 	offset := vals[0].I32()
 	length := vals[1].I32()
-	if offset == 0 && length == 0 {
+	if offset == 0 || length == 0 {
 		return nil
 	}
 	return caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length]
