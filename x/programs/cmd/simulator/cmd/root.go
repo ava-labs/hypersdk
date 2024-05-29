@@ -140,21 +140,7 @@ func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
 	s.programIDStrMap = make(map[string]string)
 
-	defer func() {
-		// ensure vm and databases are properly closed on simulator exit
-		if s.vm != nil {
-			err := s.vm.Shutdown(ctx)
-			if err != nil {
-				s.log.Error("simulator vm closed with error",
-					zap.Error(err),
-				)
-			}
-		}
-
-		if *s.cleanup {
-			s.cleanupFn()
-		}
-	}()
+	defer s.manageCleanup(ctx)
 
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
@@ -163,6 +149,22 @@ func (s *Simulator) Execute(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Simulator) manageCleanup(ctx context.Context) {
+	// ensure vm and databases are properly closed on simulator exit
+	if s.vm != nil {
+		err := s.vm.Shutdown(ctx)
+		if err != nil {
+			s.log.Error("simulator vm closed with error",
+				zap.Error(err),
+			)
+		}
+	}
+
+	if *s.cleanup {
+		s.cleanupFn()
+	}
 }
 
 func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
