@@ -1,6 +1,5 @@
 #![deny(clippy::pedantic)]
 
-pub mod params;
 pub mod state;
 pub mod types;
 
@@ -10,8 +9,7 @@ mod program;
 
 pub use self::{
     logging::log,
-    memory::from_host_ptr,
-    params::{serialize_param, Params},
+    memory::deref_bytes,
     program::{Program, PROGRAM_ID_LEN},
 };
 
