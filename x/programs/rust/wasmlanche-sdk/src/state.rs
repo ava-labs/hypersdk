@@ -154,13 +154,12 @@ impl<'a, K: Key> State<'a, K> {
 
         let mut cache = self.cache.borrow_mut();
 
-        let entries:Vec<_> = cache.drain().collect();
-        
-        let args = entries.iter().map(|(key, value)| {
-            PutArgs {
-                key: key.as_prefixed(),
-                value,
-            }});
+        let entries: Vec<_> = cache.drain().collect();
+
+        let args = entries.iter().map(|(key, value)| PutArgs {
+            key: key.as_prefixed(),
+            value,
+        });
         let args = args.collect::<Vec<PutArgs>>();
         let serialized_args = borsh::to_vec(&args).expect("failure");
         unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
@@ -194,5 +193,5 @@ impl BorshSerialize for PrefixedBytes<'_> {
 #[derive(BorshSerialize)]
 struct PutArgs<'a> {
     key: PrefixedBytes<'a>,
-    value: &'a[u8],
+    value: &'a [u8],
 }
