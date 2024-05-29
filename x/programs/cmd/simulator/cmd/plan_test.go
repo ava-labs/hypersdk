@@ -16,12 +16,12 @@ func TestCreateCallParams(t *testing.T) {
 	ctx := context.Background()
 	newSimulator := func() *Simulator {
 		logLevel := "error"
-		disableWriterDisplaying := false
+		enableWriterDisplaying := true
 		cleanup := true
 		return &Simulator{
-			logLevel:                &logLevel,
-			disableWriterDisplaying: &disableWriterDisplaying,
-			cleanup:                 &cleanup,
+			logLevel:               &logLevel,
+			enableWriterDisplaying: &enableWriterDisplaying,
+			cleanup:                &cleanup,
 		}
 	}
 	s := newSimulator()
