@@ -14,14 +14,15 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/config"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -38,11 +39,13 @@ type Controller struct {
 	snowCtx      *snow.Context
 	genesis      *genesis.Genesis
 	config       *config.Config
-	stateManager *storage.StateManager
+	stateManager *StateManager
 
 	metrics *metrics
 
 	metaDB database.Database
+
+	orderBook *orderbook.OrderBook
 }
 
 func New() *vm.VM {
@@ -71,7 +74,7 @@ func (c *Controller) Initialize(
 ) {
 	c.inner = inner
 	c.snowCtx = snowCtx
-	c.stateManager = &storage.StateManager{}
+	c.stateManager = &StateManager{}
 
 	// Instantiate metrics
 	var err error
@@ -130,11 +133,19 @@ func (c *Controller) Initialize(
 	} else {
 		build = builder.NewTime(inner)
 		gcfg := gossiper.DefaultProposerConfig()
+		gcfg.GossipMaxSize = c.config.GossipMaxSize
+		gcfg.GossipProposerDiff = c.config.GossipProposerDiff
+		gcfg.GossipProposerDepth = c.config.GossipProposerDepth
+		gcfg.NoGossipBuilderDiff = c.config.NoGossipBuilderDiff
+		gcfg.VerifyTimeout = c.config.VerifyTimeout
 		gossip, err = gossiper.NewProposer(inner, gcfg)
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
+
+	// Initialize order book used to track all open orders
+	c.orderBook = orderbook.New(c, c.config.TrackedPairs, c.config.MaxOrdersPerPair)
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
@@ -169,10 +180,37 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 			}
 		}
 		if result.Success {
-			for _, action := range tx.Actions {
-				switch action.(type) { //nolint:gocritic
+			for i, act := range tx.Actions {
+				switch action := act.(type) {
+				case *actions.CreateAsset:
+					c.metrics.createAsset.Inc()
+				case *actions.MintAsset:
+					c.metrics.mintAsset.Inc()
+				case *actions.BurnAsset:
+					c.metrics.burnAsset.Inc()
 				case *actions.Transfer:
 					c.metrics.transfer.Inc()
+				case *actions.CreateOrder:
+					c.metrics.createOrder.Inc()
+					c.orderBook.Add(chain.CreateActionID(tx.ID(), uint8(i)), tx.Auth.Actor(), action)
+				case *actions.FillOrder:
+					c.metrics.fillOrder.Inc()
+					outputs := result.Outputs[i]
+					for _, output := range outputs {
+						orderResult, err := actions.UnmarshalOrderResult(output)
+						if err != nil {
+							// This should never happen
+							return err
+						}
+						if orderResult.Remaining == 0 {
+							c.orderBook.Remove(action.Order)
+							continue
+						}
+						c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
+					}
+				case *actions.CloseOrder:
+					c.metrics.closeOrder.Inc()
+					c.orderBook.Remove(action.Order)
 				}
 			}
 		}

@@ -15,8 +15,9 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/config"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
+	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -27,6 +28,7 @@ const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
 	defaultStoreTransactions           = true
+	defaultMaxOrdersPerPair            = 1024
 )
 
 type Config struct {
@@ -37,6 +39,13 @@ type Config struct {
 	RootGenerationCores       int `json:"rootGenerationCores"`
 	TransactionExecutionCores int `json:"transactionExecutionCores"`
 	StateFetchConcurrency     int `json:"stateFetchConcurrency"`
+
+	// Gossip
+	GossipMaxSize       int   `json:"gossipMaxSize"`
+	GossipProposerDiff  int   `json:"gossipProposerDiff"`
+	GossipProposerDepth int   `json:"gossipProposerDepth"`
+	NoGossipBuilderDiff int   `json:"noGossipBuilderDiff"`
+	VerifyTimeout       int64 `json:"verifyTimeout"`
 
 	// Tracing
 	TraceEnabled    bool    `json:"traceEnabled"`
@@ -52,6 +61,12 @@ type Config struct {
 	MempoolSize           int      `json:"mempoolSize"`
 	MempoolSponsorSize    int      `json:"mempoolSponsorSize"`
 	MempoolExemptSponsors []string `json:"mempoolExemptSponsors"`
+
+	// Order Book
+	//
+	// This is denoted as <asset 1>-<asset 2>
+	MaxOrdersPerPair int      `json:"maxOrdersPerPair"`
+	TrackedPairs     []string `json:"trackedPairs"` // which asset ID pairs we care about
 
 	// Misc
 	VerifyAuth        bool          `json:"verifyAuth"`
@@ -92,6 +107,12 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 
 func (c *Config) setDefault() {
 	c.LogLevel = c.Config.GetLogLevel()
+	gcfg := gossiper.DefaultProposerConfig()
+	c.GossipMaxSize = gcfg.GossipMaxSize
+	c.GossipProposerDiff = gcfg.GossipProposerDiff
+	c.GossipProposerDepth = gcfg.GossipProposerDepth
+	c.NoGossipBuilderDiff = gcfg.NoGossipBuilderDiff
+	c.VerifyTimeout = gcfg.VerifyTimeout
 	c.AuthVerificationCores = c.Config.GetAuthVerificationCores()
 	c.RootGenerationCores = c.Config.GetRootGenerationCores()
 	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
@@ -102,6 +123,7 @@ func (c *Config) setDefault() {
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
 	c.VerifyAuth = c.Config.GetVerifyAuth()
 	c.StoreTransactions = defaultStoreTransactions
+	c.MaxOrdersPerPair = defaultMaxOrdersPerPair
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
@@ -129,7 +151,7 @@ func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 		return &profiler.Config{Enabled: false}
 	}
 	// Replace all instances of "*" with nodeID. This is useful when
-	// running multiple instances of morpheusvm on the same machine.
+	// running multiple instances of tokenvm on the same machine.
 	c.ContinuousProfilerDir = strings.ReplaceAll(c.ContinuousProfilerDir, "*", c.nodeID.String())
 	return &profiler.Config{
 		Enabled:     true,

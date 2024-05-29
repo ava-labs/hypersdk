@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
@@ -116,19 +117,28 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		addr, err := codec.ParseAddressBech32(consts.HRP, alloc.Address)
+		pk, err := codec.ParseAddressBech32(consts.HRP, alloc.Address)
 		if err != nil {
-			return fmt.Errorf("%w: %s", err, alloc.Address)
+			return err
 		}
 		supply, err = smath.Add64(supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
-		if err := storage.SetBalance(ctx, mu, addr, alloc.Balance); err != nil {
+		if err := storage.SetBalance(ctx, mu, pk, ids.Empty, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
-	return nil
+	return storage.SetAsset(
+		ctx,
+		mu,
+		ids.Empty,
+		[]byte(consts.Symbol),
+		consts.Decimals,
+		[]byte(consts.Name),
+		supply,
+		codec.EmptyAddress,
+	)
 }
 
 func (g *Genesis) GetStateBranchFactor() merkledb.BranchFactor {

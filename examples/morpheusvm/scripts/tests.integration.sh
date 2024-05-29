@@ -32,7 +32,8 @@ run \
 -coverpkg=github.com/ava-labs/hypersdk/... \
 -coverprofile=integration.coverage.out \
 ./tests/integration \
---vms 3
+--vms 3 \
+--min-price 1
 
 # output generate coverage html
 go tool cover -html=integration.coverage.out -o=integration.coverage.html

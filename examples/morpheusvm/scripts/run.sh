@@ -27,7 +27,7 @@ STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
-ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
+ADDRESS=${ADDRESS:-token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s}
 if [[ ${MODE} != "run" ]]; then
   LOG_LEVEL=DEBUG
   AGO_LOG_DISPLAY_LEVEL=INFO
@@ -96,18 +96,18 @@ fi
 ############################
 
 ############################
-echo "building morpheusvm"
+echo "building tokenvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/morpheusvm
+-o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8 \
+./cmd/tokenvm
 
-echo "building morpheus-cli"
-go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
+echo "building token-cli"
+go build -v -o "${TMPDIR}"/token-cli ./cmd/token-cli
 
 # log everything in the avalanchego directory
 find "${TMPDIR}"/avalanchego-"${VERSION}"
@@ -117,36 +117,41 @@ find "${TMPDIR}"/avalanchego-"${VERSION}"
 ############################
 
 # Always create allocations (linter doesn't like tab)
+#
+# Make sure to replace this address with your own address
+# if you are starting your own devnet (otherwise anyone can access
+# funds using the included demo.pk)
 echo "creating allocations file"
 cat <<EOF > "${TMPDIR}"/allocations.json
-[
-  {"address":"${ADDRESS}", "balance":10000000000000000000}
-]
+[{"address":"${ADDRESS}", "balance":10000000000000000000}]
 EOF
 
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f "${TMPDIR}"/morpheusvm.genesis
-  "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+  rm -f "${TMPDIR}"/tokenvm.genesis
+  "${TMPDIR}"/token-cli genesis generate "${TMPDIR}"/allocations.json \
   --window-target-units "${WINDOW_TARGET_UNITS}" \
   --max-block-units "${MAX_BLOCK_UNITS}" \
   --min-block-gap "${MIN_BLOCK_GAP}" \
-  --genesis-file "${TMPDIR}"/morpheusvm.genesis
+  --genesis-file "${TMPDIR}"/tokenvm.genesis
 else
   echo "copying custom genesis file"
-  rm -f "${TMPDIR}"/morpheusvm.genesis
-  cp "${GENESIS_PATH}" "${TMPDIR}"/morpheusvm.genesis
+  rm -f "${TMPDIR}"/tokenvm.genesis
+  cp "${GENESIS_PATH}" "${TMPDIR}"/tokenvm.genesis
 fi
 
 ############################
 
 ############################
 
+# When running a validator, the [trackedPairs] should be empty/limited or
+# else malicious entities can attempt to stuff memory with dust orders to cause
+# an OOM.
 echo "creating vm config"
-rm -f "${TMPDIR}"/morpheusvm.config
-rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
-cat <<EOF > "${TMPDIR}"/morpheusvm.config
+rm -f "${TMPDIR}"/tokenvm.config
+rm -rf "${TMPDIR}"/tokenvm-e2e-profiles
+cat <<EOF > "${TMPDIR}"/tokenvm.config
 {
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
@@ -154,23 +159,24 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "authVerificationCores": 2,
   "rootGenerationCores": 2,
   "transactionExecutionCores": 2,
-  "verifyAuth":true,
+  "verifyAuth": true,
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
+  "trackedPairs":["*"],
   "logLevel": "${LOG_LEVEL}",
-  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
+  "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p "${TMPDIR}"/morpheusvm-e2e-profiles
+mkdir -p "${TMPDIR}"/tokenvm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f "${TMPDIR}"/morpheusvm.subnet
-cat <<EOF > "${TMPDIR}"/morpheusvm.subnet
+rm -f "${TMPDIR}"/tokenvm.subnet
+cat <<EOF > "${TMPDIR}"/tokenvm.subnet
 {
   "proposerMinBlockDelay": 0,
   "proposerNumHistoricalBlocks": 50000
@@ -218,7 +224,7 @@ killall avalanche-network-runner || true
 
 echo "launch avalanche-network-runner in the background"
 $BIN server \
---log-level=verbo \
+--log-level verbo \
 --port=":12352" \
 --grpc-gateway-port=":12353" &
 
@@ -254,9 +260,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
 --avalanchego-plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \
---vm-genesis-path="${TMPDIR}"/morpheusvm.genesis \
---vm-config-path="${TMPDIR}"/morpheusvm.config \
---subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
+--vm-genesis-path="${TMPDIR}"/tokenvm.genesis \
+--vm-config-path="${TMPDIR}"/tokenvm.config \
+--subnet-config-path="${TMPDIR}"/tokenvm.subnet \
 --output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
 --mode="${MODE}"
 

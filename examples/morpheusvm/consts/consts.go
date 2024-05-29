@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	HRP      = "morpheus"
-	Name     = "morpheusvm"
-	Symbol   = "RED"
+	HRP      = "token"
+	Name     = "tokenvm"
+	Symbol   = "TKN"
 	Decimals = 9
 )
 

@@ -3,4 +3,8 @@
 
 package rpc
 
-const JSONRPCEndpoint = "/morpheusapi"
+const (
+	JSONRPCEndpoint = "/tokenapi"
+
+	ordersToSend = 128
+)

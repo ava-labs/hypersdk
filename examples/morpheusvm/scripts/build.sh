@@ -13,7 +13,7 @@ set -o pipefail
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
 # Root directory
-MORPHEUSVM_PATH=$(
+TOKENVM_PATH=$(
     cd "$(dirname "${BASH_SOURCE[0]}")"
     cd .. && pwd
 )
@@ -24,20 +24,30 @@ if [[ $# -eq 1 ]]; then
     BINARY_PATH=$BINARY_DIR/$BINARY_FNAME
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
-    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
-    BINARY_PATH=$MORPHEUSVM_PATH/build/$name
+    name="tHBYNu8ikqo4MWMHehC9iKB9mR5tB3DWzbkYmTfe9buWQ5GZ8"
+    BINARY_PATH=$TOKENVM_PATH/build/$name
 else
-    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
+    echo "Invalid arguments to build tokenvm. Requires zero (default location) or one argument to specify binary location."
     exit 1
 fi
 
-cd "$MORPHEUSVM_PATH"
+cd "$TOKENVM_PATH"
 
-echo "Building morpheusvm in $BINARY_PATH"
+echo "Building tokenvm in $BINARY_PATH"
 mkdir -p "$(dirname "$BINARY_PATH")"
-go build -o "$BINARY_PATH" ./cmd/morpheusvm
+go build -o "$BINARY_PATH" ./cmd/tokenvm
 
-CLI_PATH=$MORPHEUSVM_PATH/build/morpheus-cli
-echo "Building morpheus-cli in $CLI_PATH"
+CLI_PATH=$TOKENVM_PATH/build/token-cli
+echo "Building token-cli in $CLI_PATH"
 mkdir -p "$(dirname "$CLI_PATH")"
-go build -o "$CLI_PATH" ./cmd/morpheus-cli
+go build -o "$CLI_PATH" ./cmd/token-cli
+
+FAUCET_PATH=$TOKENVM_PATH/build/token-faucet
+echo "Building token-faucet in $FAUCET_PATH"
+mkdir -p "$(dirname "$FAUCET_PATH")"
+go build -o "$FAUCET_PATH" ./cmd/token-faucet
+
+FEED_PATH=$TOKENVM_PATH/build/token-feed
+echo "Building token-feed in $FEED_PATH"
+mkdir -p "$(dirname "$FEED_PATH")"
+go build -o "$FEED_PATH" ./cmd/token-feed
