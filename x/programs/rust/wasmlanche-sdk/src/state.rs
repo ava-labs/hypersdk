@@ -50,7 +50,7 @@ impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {
         if !self.cache.borrow().is_empty() {
             // force flush
-            self.flush().unwrap();
+            self.flush();
         }
     }
 }
@@ -145,7 +145,7 @@ impl<'a, K: Key> State<'a, K> {
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    fn flush(&self) -> Result<(), Error> {
+    fn flush(&self) {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put_many"]
@@ -163,7 +163,6 @@ impl<'a, K: Key> State<'a, K> {
         let args = args.collect::<Vec<PutArgs>>();
         let serialized_args = borsh::to_vec(&args).expect("failure");
         unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
-        Ok(())
     }
 }
 
