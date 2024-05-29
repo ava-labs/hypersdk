@@ -207,13 +207,13 @@ where
     pub result: PlanResultTyped<T>,
 }
 
-impl<T> TryInto<PlanResponseTyped<T>> for PlanResponse
+impl<T> TryFrom<PlanResponse> for PlanResponseTyped<T>
 where
     T: BorshDeserialize,
 {
     type Error = borsh::io::Error;
 
-    fn try_into(self) -> Result<PlanResponseTyped<T>, Self::Error> {
+    fn try_from(value: PlanResponse) -> Result<Self, Self::Error> {
         let PlanResponse {
             base: BaseResponse { id: resp_id, error },
             result:
@@ -223,7 +223,7 @@ where
                     timestamp,
                     response,
                 },
-        } = self;
+        } = value;
 
         Ok(PlanResponseTyped {
             base: BaseResponse { id: resp_id, error },
@@ -243,12 +243,20 @@ pub enum ClientError {
     Read(#[from] std::io::Error),
     #[error("Deserialization error: {0}")]
     Deserialization(#[from] serde_json::Error),
-    #[error("Borsh deserialization error")]
-    BorshDeserialization,
     #[error("EOF")]
     Eof,
     #[error("Missing handle")]
     StdIo,
+}
+
+#[derive(Error, Debug)]
+pub enum StepError {
+    #[error("Client error {0}")]
+    Client(#[from] ClientError),
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
+    #[error("Borsh deserialization error: {0}")]
+    Deserialization(#[from] borsh::io::Error),
 }
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
@@ -256,6 +264,8 @@ pub struct Client<W, R> {
     writer: W,
     responses: R,
 }
+
+type StepResult = Result<PlanResponse, StepError>;
 
 pub struct ClientBuilder<'a> {
     path: &'a str,
@@ -281,10 +291,7 @@ impl ClientBuilder<'_> {
 
     pub fn try_build(
         self,
-    ) -> Result<
-        Client<impl Write, impl Iterator<Item = Result<PlanResponse, ClientError>>>,
-        ClientError,
-    > {
+    ) -> Result<Client<impl Write, impl Iterator<Item = StepResult>>, ClientError> {
         let Child { stdin, stdout, .. } = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
@@ -308,43 +315,45 @@ impl ClientBuilder<'_> {
 impl<W, R> Client<W, R>
 where
     W: Write,
-    R: Iterator<Item = Result<PlanResponse, ClientError>>,
+    R: Iterator<Item = StepResult>,
 {
     /// Runs a [Plan] against the simulator and returns vec of result.
     /// # Errors
     ///
     /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(&mut self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
+    pub fn run_plan(&mut self, plan: Plan) -> Result<Vec<PlanResponse>, StepError> {
         plan.steps
             .iter()
             .map(|step| self._run_step(plan.caller_key, step))
             .collect()
     }
 
-    fn _run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
+    fn _run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, StepError> {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        let input = serde_json::to_vec(&step)?;
+        let input = serde_json::to_vec(&step).map_err(StepError::Serialization)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
 
-        self.responses.next().ok_or(ClientError::Eof)?
+        self.responses
+            .next()
+            .ok_or(StepError::Client(ClientError::Eof))?
     }
 
     pub fn run_step<T>(
         &mut self,
         caller_key: &str,
         step: &Step,
-    ) -> Result<PlanResponseTyped<T>, ClientError>
+    ) -> Result<PlanResponseTyped<T>, StepError>
     where
         T: BorshDeserialize,
     {
         self._run_step(caller_key, step)?
             .try_into()
-            .map_err(|_| ClientError::BorshDeserialization)
+            .map_err(StepError::Deserialization)
     }
 }
 
