@@ -12,6 +12,6 @@ quote = "1.0.36"
 syn = { version = "2.0.63", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
-borsh = { workpsace = true }
+borsh = { workspace = true }
 trybuild = "1.0.96"
 wasmlanche-sdk = { workspace = true }

@@ -108,13 +108,13 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 		}
 
 		if err := callInfo.ConsumeFuel(hf.FuelCost); err != nil {
-			return nil, wasmtime.NewTrap(err.Error())
+			return nil, convertToTrap(err)
 		}
 		switch f := hf.Function.(type) {
 		case FunctionWithOutput:
 			results, err := f(callInfo, inputBytes)
 			if err != nil {
-				return nilResult, wasmtime.NewTrap(err.Error())
+				return nilResult, convertToTrap(err)
 			}
 			if results == nil {
 				return nilResult, nil
@@ -123,7 +123,7 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 			allocExport := caller.GetExport(AllocName)
 			offsetIntf, err := allocExport.Func().Call(caller, resultLength)
 			if err != nil {
-				return nilResult, wasmtime.NewTrap(err.Error())
+				return nilResult, convertToTrap(err)
 			}
 			offset := offsetIntf.(int32)
 			copy(memExport.Memory().UnsafeData(caller)[offset:], results)
@@ -131,7 +131,7 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 		case FunctionNoOutput:
 			err := f(callInfo, inputBytes)
 			if err != nil {
-				return []wasmtime.Val{}, wasmtime.NewTrap(err.Error())
+				return []wasmtime.Val{}, convertToTrap(err)
 			}
 
 			return []wasmtime.Val{}, nil
