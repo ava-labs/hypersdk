@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key = String::from("owner");
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn init_token() {
-        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key_id = String::from("owner");
         let owner_key = Key::Ed25519(owner_key_id.clone());
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn mint() {
-        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key_id = String::from("owner");
         let [alice_key] = ["alice"]
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn mint_and_transfer() {
-        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key_id = String::from("owner");
         let [alice_key, bob_key] = ["alice", "bob"]

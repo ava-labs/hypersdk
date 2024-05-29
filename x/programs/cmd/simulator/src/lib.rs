@@ -188,7 +188,6 @@ where
     pub response: T,
 }
 
-#[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct PlanResponse {
     #[serde(flatten)]
@@ -280,7 +279,7 @@ impl ClientBuilder<'_> {
         Self { path }
     }
 
-    pub fn build(
+    pub fn try_build(
         self,
     ) -> Result<
         Client<impl Write, impl Iterator<Item = Result<PlanResponse, ClientError>>>,
