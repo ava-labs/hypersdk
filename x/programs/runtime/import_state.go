@@ -17,6 +17,8 @@ const (
 	readCost   = 10000
 	writeCost  = 10000
 	deleteCost = 10000
+
+	writeManyCost = 10000
 )
 
 type keyValueInput struct {
@@ -61,6 +63,20 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
+			})},
+			"put_many": {FuelCost: writeManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+				var parsedInput []keyValueInput
+				if err := borsh.Deserialize(&parsedInput, input); err != nil {
+					return err
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				for _, entry := range parsedInput {
+					if err := callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, entry.Key), entry.Value); err != nil {
+						return err
+					}
+				}
+				return nil
 			})},
 			"delete": {FuelCost: deleteCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte

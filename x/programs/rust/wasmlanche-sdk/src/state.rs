@@ -153,25 +153,22 @@ impl<'a, K: Key> State<'a, K> {
     fn flush(&self) -> Result<(), Error> {
         #[link(wasm_import_module = "state")]
         extern "C" {
-            #[link_name = "put"]
-            fn put_bytes(ptr: *const u8, len: usize);
+            #[link_name = "put_many"]
+            fn put_many_bytes(ptr: *const u8, len: usize);
         }
 
         let mut cache = self.cache.borrow_mut();
 
-        let args_iter = cache.drain().map(|(key, value)| {
-            borsh::to_vec(&PutArgs {
+        let entries:Vec<_> = cache.drain().collect();
+        
+        let args = entries.iter().map(|(key, value)| {
+            PutArgs {
                 key: key.as_prefixed(),
                 value,
-            })
-            .map_err(|_| StateError::Serialization)
-        });
-
-        for args in args_iter {
-            let args = args?;
-            unsafe { put_bytes(args.as_ptr(), args.len()) };
-        }
-
+            }});
+        let args = args.collect::<Vec<PutArgs>>();
+        let serialized_args = borsh::to_vec(&args).expect("failure");
+        unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
         Ok(())
     }
 }
@@ -202,5 +199,5 @@ impl BorshSerialize for PrefixedBytes<'_> {
 #[derive(BorshSerialize)]
 struct PutArgs<'a> {
     key: PrefixedBytes<'a>,
-    value: Vec<u8>,
+    value: &'a[u8],
 }
