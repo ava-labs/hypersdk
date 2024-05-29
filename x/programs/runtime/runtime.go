@@ -84,7 +84,9 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		return nil, err
 	}
 	callInfo.inst = inst
-	r.callerInfo[convert(inst.store)] = callInfo
+	key := convert(inst.store)
+	r.callerInfo[key] = callInfo
+	defer delete(r.callerInfo, key)
 	return inst.call(ctx, callInfo)
 }
 
