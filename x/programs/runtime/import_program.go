@@ -14,6 +14,7 @@ import (
 const (
 	callProgramCost = 10000
 	setResultCost   = 10000
+	getFuelCost     = 10000
 )
 
 type callProgramInput struct {
@@ -63,7 +64,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				callInfo.inst.result = input
 				return nil
 			})},
-			"remaining_fuel": {FuelCost: setResultCost, Function: FunctionNoInput(func(callInfo *CallInfo) ([]byte, error) {
+			"remaining_fuel": {FuelCost: getFuelCost, Function: FunctionNoInput(func(callInfo *CallInfo) ([]byte, error) {
 				return borsh.Serialize(callInfo.RemainingFuel())
 			})},
 		},
