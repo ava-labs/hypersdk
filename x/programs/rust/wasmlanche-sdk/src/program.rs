@@ -80,14 +80,10 @@ impl<K> Program<K> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "remaining_fuel"]
-            fn get_remaining_fuel() -> *const u8;
+            fn get_remaining_fuel() -> HostPtr;
         }
 
-        let bytes = {
-            let ptr = unsafe { get_remaining_fuel() };
-
-            deref_bytes(ptr)
-        };
+        let bytes = unsafe { get_remaining_fuel() };
 
         borsh::from_slice::<u64>(&bytes).map_err(|_| StateError::Deserialization)
     }
