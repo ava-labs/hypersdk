@@ -108,7 +108,7 @@ func convertFunction(r *WasmRuntime, hf HostFunction) func(*wasmtime.Caller, []w
 		if offset > 0 && length > 0 {
 			inputBytes = memExport.Memory().UnsafeData(caller)[offset : offset+length]
 		}
-		callInfo := r.callerInfo[convert(caller)]
+		callInfo := r.callerInfo[toMapKey(caller)]
 		if err := callInfo.ConsumeFuel(hf.FuelCost); err != nil {
 			return nil, convertToTrap(err)
 		}

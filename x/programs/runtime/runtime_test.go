@@ -36,9 +36,7 @@ func BenchmarkRuntimeCallProgramSimple(b *testing.B) {
 				FunctionName: "get_value",
 				Params:       nil,
 				Fuel:         10000000})
-		if err != nil {
-			require.NoError(err)
-		}
+		require.NoError(err)
 	}
 }
 

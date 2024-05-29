@@ -84,7 +84,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		return nil, err
 	}
 	callInfo.inst = inst
-	key := convert(inst.store)
+	key := toMapKey(inst.store)
 	r.callerInfo[key] = callInfo
 	defer delete(r.callerInfo, key)
 	return inst.call(ctx, callInfo)
@@ -100,6 +100,6 @@ func (r *WasmRuntime) getInstance(program *Program) (*ProgramInstance, error) {
 	return &ProgramInstance{inst: inst, store: store}, nil
 }
 
-func convert(storelike wasmtime.Storelike) *C.wasmtime_context_t {
+func toMapKey(storelike wasmtime.Storelike) *C.wasmtime_context_t {
 	return (*C.wasmtime_context_t)(unsafe.Pointer(reflect.ValueOf(storelike.Context()).Pointer()))
 }
