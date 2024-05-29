@@ -183,7 +183,7 @@ func SerializeParams(p []Parameter) ([]byte, error) {
 
 func multilineOutput(resp [][]byte) (response string) {
 	for _, res := range resp {
-		response += string(res) + "\n"
+		response += string(res) // + "\n"
 	}
 	return response
 }

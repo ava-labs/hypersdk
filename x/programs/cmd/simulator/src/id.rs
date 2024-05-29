@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Id(usize);
+pub struct Id(pub usize); // TODO better stuff
 
 impl From<usize> for Id {
     fn from(id: usize) -> Self {

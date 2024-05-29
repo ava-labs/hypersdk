@@ -102,6 +102,30 @@ pub enum Param {
     Key(Key),
 }
 
+impl Into<SerializedParam> for Param {
+    fn into(self) -> SerializedParam {
+        match self {
+            Param::U64(val) => SerializedParam::U64(val.to_le_bytes().to_vec()), // TODO avoid a new allocation
+            Param::String(val) => SerializedParam::String(val.into_bytes()),
+            Param::Id(id) => SerializedParam::Id(id.0.to_le_bytes().to_vec()), // TODO avoid a new allocation
+            Param::Key(key) => SerializedParam::Key(match key {
+                Key::Ed25519(val) => val.into_bytes(),
+                Key::Secp256r1(val) => val.into_bytes(),
+            }),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+pub enum SerializedParam {
+    U64(Vec<u8>),
+    String(Vec<u8>),
+    Id(Vec<u8>),
+    #[serde(untagged)]
+    Key(Vec<u8>),
+}
+
 impl From<u64> for Param {
     fn from(val: u64) -> Self {
         Param::U64(val)
