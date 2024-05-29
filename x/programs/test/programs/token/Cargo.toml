@@ -1,5 +1,5 @@
 [package]
-name = "token"
+name = "erc20_token"
 version = "0.1.0"
 edition = "2021"
 
