@@ -99,7 +99,13 @@ var nilResult = []wasmtime.Val{wasmtime.ValI32(0)}
 func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		memExport := caller.GetExport(MemoryName)
-		inputBytes := memExport.Memory().UnsafeData(caller)[vals[0].I32() : vals[0].I32()+vals[1].I32()]
+		var inputBytes []byte
+		offset := vals[0].I32()
+		length := vals[1].I32()
+
+		if offset > 0 && length > 0 {
+			inputBytes = memExport.Memory().UnsafeData(caller)[offset : offset+length]
+		}
 
 		if err := callInfo.ConsumeFuel(hf.FuelCost); err != nil {
 			return nil, convertToTrap(err)

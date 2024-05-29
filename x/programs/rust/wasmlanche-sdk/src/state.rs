@@ -101,9 +101,7 @@ impl<'a, K: Key> State<'a, K> {
         let val_bytes = if let Some(val) = cache.get(&key) {
             val
         } else {
-            let args = GetAndDeleteArgs {
-                key: key.as_prefixed(),
-            };
+            let args = key.as_prefixed();
 
             let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
@@ -137,9 +135,7 @@ impl<'a, K: Key> State<'a, K> {
         // to avoid cache misses after delete
         self.cache.borrow_mut().remove(&key);
 
-        let args = GetAndDeleteArgs {
-            key: key.as_prefixed(),
-        };
+        let args = key.as_prefixed();
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
@@ -196,11 +192,6 @@ impl BorshSerialize for PrefixedBytes<'_> {
 
         Ok(())
     }
-}
-
-#[derive(BorshSerialize)]
-struct GetAndDeleteArgs<'a> {
-    key: PrefixedBytes<'a>,
 }
 
 #[derive(BorshSerialize)]
