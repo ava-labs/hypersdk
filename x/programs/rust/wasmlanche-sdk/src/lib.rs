@@ -9,7 +9,7 @@ mod program;
 
 pub use self::{
     logging::log,
-    memory::deref_bytes,
+    memory::HostPtr,
     program::{Program, PROGRAM_ID_LEN},
 };
 
