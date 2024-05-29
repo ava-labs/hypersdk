@@ -38,7 +38,7 @@ func TestImportStatePutGet(t *testing.T) {
 
 	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
-	require.Equal(valueBytes, result)
+	require.Equal(append([]byte{1}, valueBytes...), result)
 }
 
 func TestImportStateRemove(t *testing.T) {
@@ -68,7 +68,7 @@ func TestImportStateRemove(t *testing.T) {
 
 	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
-	require.Equal(nil, result)
+	require.Equal([]byte{0}, result)
 }
 
 func TestImportStateDeleteMissingKey(t *testing.T) {
