@@ -258,13 +258,13 @@ pub struct Client<W, R> {
     responses: R,
 }
 
-pub struct ClientBuilder;
+pub struct ClientBuilder<'a> {
+    path: &'a str,
+}
 
-impl ClientBuilder {
-    pub fn create() -> Result<
-        Client<impl Write, impl Iterator<Item = Result<PlanResponse, ClientError>>>,
-        ClientError,
-    > {
+impl ClientBuilder<'_> {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         let path = env!("SIMULATOR_PATH");
 
         if !Path::new(path).exists() {
@@ -277,22 +277,30 @@ impl ClientBuilder {
             panic!("Simulator binary not found, must rebuild simulator");
         }
 
-        let Child { stdin, stdout, .. } = Command::new(path)
+        Self { path }
+    }
+
+    pub fn build(
+        self,
+    ) -> Result<
+        Client<impl Write, impl Iterator<Item = Result<PlanResponse, ClientError>>>,
+        ClientError,
+    > {
+        let Child { stdin, stdout, .. } = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
             .arg("error")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn()
-            .expect("failed to run the simulator in interpreter mode");
+            .spawn()?;
 
-        let writer = stdin.expect("stdin has been captured");
-        let reader = stdout.expect("stdout has been captured");
+        let writer = stdin.ok_or(ClientError::StdIo)?;
+        let reader = stdout.ok_or(ClientError::StdIo)?;
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| serde_json::from_str(&dbg!(line)?).map_err(Into::into));
+            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
 
         Ok(Client { writer, responses })
     }

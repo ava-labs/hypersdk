@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn init_program() {
-        let mut simulator = simulator::ClientBuilder::create().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
 
         let owner_key = String::from("owner");
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn increment() {
-        let mut simulator = simulator::ClientBuilder::create().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     #[ignore = "need to fix params macro"]
     fn external_call() {
-        let mut simulator = simulator::ClientBuilder::create().unwrap();
+        let mut simulator = simulator::ClientBuilder::new().build().unwrap();
 
         let owner_key = String::from("owner");
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
