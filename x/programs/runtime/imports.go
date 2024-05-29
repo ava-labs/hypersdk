@@ -3,6 +3,8 @@
 
 package runtime
 
+// #include "shims.h"
+import "C"
 import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"golang.org/x/exp/maps"
@@ -72,11 +74,11 @@ func (i *Imports) Clone() *Imports {
 	}
 }
 
-func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmtime.Linker, error) {
-	linker := wasmtime.NewLinker(engine)
+func (i *Imports) createLinker(r *WasmRuntime) (*wasmtime.Linker, error) {
+	linker := wasmtime.NewLinker(r.engine)
 	for moduleName, module := range i.Modules {
 		for funcName, hostFunction := range module.HostFunctions {
-			if err := linker.FuncNew(moduleName, funcName, getFunctType(hostFunction), convertFunction(info, hostFunction)); err != nil {
+			if err := linker.FuncNew(moduleName, funcName, getFunctType(hostFunction), convertFunction(r, hostFunction)); err != nil {
 				return nil, err
 			}
 		}
@@ -96,7 +98,7 @@ func getFunctType(hf HostFunction) *wasmtime.FuncType {
 
 var nilResult = []wasmtime.Val{wasmtime.ValI32(0)}
 
-func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+func convertFunction(r *WasmRuntime, hf HostFunction) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		memExport := caller.GetExport(MemoryName)
 		var inputBytes []byte
@@ -106,7 +108,7 @@ func convertFunction(callInfo *CallInfo, hf HostFunction) func(*wasmtime.Caller,
 		if offset > 0 && length > 0 {
 			inputBytes = memExport.Memory().UnsafeData(caller)[offset : offset+length]
 		}
-
+		callInfo := r.callerInfo[convert(caller)]
 		if err := callInfo.ConsumeFuel(hf.FuelCost); err != nil {
 			return nil, convertToTrap(err)
 		}

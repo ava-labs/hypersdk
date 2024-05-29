@@ -15,17 +15,68 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
+func BenchmarkRuntimeCallProgramSimple(b *testing.B) {
+	require := require.New(b)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime, err := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.Loader{ProgramName: "simple"})
+	require.NoError(err)
+
+	for i := 0; i < b.N; i++ {
+		_, err := runtime.CallProgram(
+			ctx,
+			&CallInfo{
+				ProgramID:    ids.Empty,
+				State:        nil,
+				FunctionName: "get_value",
+				Params:       nil,
+				Fuel:         10000000})
+		if err != nil {
+			require.NoError(err)
+		}
+	}
+}
+
+func BenchmarkRuntimeCallProgramComplex(b *testing.B) {
+	require := require.New(b)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime, err := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.Loader{ProgramName: "return_complex_type"})
+	require.NoError(err)
+	for i := 0; i < b.N; i++ {
+		_, err := runtime.CallProgram(
+			ctx,
+			&CallInfo{
+				ProgramID:    ids.Empty,
+				State:        nil,
+				FunctionName: "get_value",
+				Params:       nil,
+				Fuel:         10000000})
+		require.NoError(err)
+	}
+}
+
 func TestRuntimeCallProgramBasic(t *testing.T) {
 	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "simple"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
@@ -46,11 +97,11 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "return_complex_type"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})

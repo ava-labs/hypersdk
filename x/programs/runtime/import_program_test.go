@@ -21,11 +21,11 @@ func TestImportProgramCallProgram(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "call_program"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "simple_call", Params: nil, Fuel: 10000000})
@@ -54,11 +54,11 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "call_program"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
@@ -91,11 +91,11 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "call_program"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 

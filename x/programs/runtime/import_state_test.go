@@ -21,11 +21,11 @@ func TestImportStatePutGet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "state_access"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
@@ -47,11 +47,11 @@ func TestImportStateRemove(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "state_access"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
@@ -77,11 +77,11 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "state_access"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
@@ -96,11 +96,11 @@ func TestImportStateGetMissingKey(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime := NewRuntime(
+	runtime, err := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 		test.Loader{ProgramName: "state_access"})
-
+	require.NoError(err)
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 

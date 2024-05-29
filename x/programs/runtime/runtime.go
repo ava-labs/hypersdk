@@ -3,8 +3,12 @@
 
 package runtime
 
+// #include "shims.h"
+import "C"
 import (
 	"context"
+	"reflect"
+	"unsafe"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -17,7 +21,9 @@ type WasmRuntime struct {
 	hostImports   *Imports
 	cfg           *Config
 	programs      map[ids.ID]*Program
+	callerInfo    map[*C.wasmtime_context_t]*CallInfo
 	programLoader ProgramLoader
+	linker        *wasmtime.Linker
 }
 
 type ProgramLoader interface {
@@ -28,7 +34,7 @@ func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
 	loader ProgramLoader,
-) *WasmRuntime {
+) (*WasmRuntime, error) {
 	runtime := &WasmRuntime{
 		log:           log,
 		cfg:           cfg,
@@ -36,13 +42,15 @@ func NewRuntime(
 		hostImports:   NewImports(),
 		programs:      map[ids.ID]*Program{},
 		programLoader: loader,
+		callerInfo:    map[*C.wasmtime_context_t]*CallInfo{},
 	}
 
 	runtime.AddImportModule(NewLogModule())
 	runtime.AddImportModule(NewStateAccessModule())
 	runtime.AddImportModule(NewProgramModule(runtime))
-
-	return runtime
+	linker, err := runtime.hostImports.createLinker(runtime)
+	runtime.linker = linker
+	return runtime, err
 }
 
 func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
@@ -71,24 +79,25 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		}
 		r.programs[callInfo.ProgramID] = program
 	}
-	inst, err := r.getInstance(callInfo, program, r.hostImports)
+	inst, err := r.getInstance(program)
 	if err != nil {
 		return nil, err
 	}
 	callInfo.inst = inst
+	r.callerInfo[convert(inst.store)] = callInfo
 	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) getInstance(callInfo *CallInfo, program *Program, imports *Imports) (*ProgramInstance, error) {
-	linker, err := imports.createLinker(r.engine, callInfo)
-	if err != nil {
-		return nil, err
-	}
+func (r *WasmRuntime) getInstance(program *Program) (*ProgramInstance, error) {
 	store := wasmtime.NewStore(r.engine)
 	store.SetEpochDeadline(1)
-	inst, err := linker.Instantiate(store, program.module)
+	inst, err := r.linker.Instantiate(store, program.module)
 	if err != nil {
 		return nil, err
 	}
 	return &ProgramInstance{inst: inst, store: store}, nil
+}
+
+func convert(storelike wasmtime.Storelike) *C.wasmtime_context_t {
+	return (*C.wasmtime_context_t)(unsafe.Pointer(reflect.ValueOf(storelike.Context()).Pointer()))
 }
