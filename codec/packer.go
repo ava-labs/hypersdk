@@ -173,13 +173,12 @@ func (p *Packer) UnpackVarInt(required bool) int64 {
 }
 
 func ZeroOut(buf []byte) []byte {
-	for i := len(buf)-1; i >= 0; i-- {
+	for i := len(buf) - 1; i >= 0; i-- {
 		bit := buf[i]
-		if bit == 0 {
-			buf = buf[:i]
-		} else {
+		if bit > 0 {
 			break
 		}
+		buf = buf[:i]
 	}
 	return buf
 }
