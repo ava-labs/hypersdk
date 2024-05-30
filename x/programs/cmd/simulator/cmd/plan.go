@@ -230,7 +230,9 @@ func runStepFunc(
 			return errors.New("multi response not supported")
 		}
 		res := response[0]
-		resp.setResponse(res)
+		if res != nil {
+			resp.setResponse(res)
+		}
 		resp.setTxID(id.String())
 		resp.setBalance(balance)
 
@@ -246,7 +248,9 @@ func runStepFunc(
 			return errors.New("multi response not supported")
 		}
 		res := response[0]
-		resp.setResponse(res)
+		if res != nil {
+			resp.setResponse(res)
+		}
 
 		return nil
 	default:
