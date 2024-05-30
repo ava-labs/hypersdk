@@ -1,22 +1,24 @@
 #![deny(clippy::pedantic)]
 
-pub mod params;
 pub mod state;
 pub mod types;
 
+mod logging;
 mod memory;
 mod program;
 
 pub use self::{
-    memory::{from_host_ptr, CPointer},
-    params::{serialize_param, Params},
-    program::Program,
+    logging::log,
+    memory::HostPtr,
+    program::{Program, PROGRAM_ID_LEN},
 };
 
 #[cfg(feature = "build")]
 pub mod build;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
+use types::Address;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -26,7 +28,25 @@ pub enum Error {
     Param(#[from] std::io::Error),
 }
 
-#[derive(Clone, Copy, borsh::BorshSerialize, borsh::BorshDeserialize)]
-pub struct Context {
-    pub program: program::Program,
+#[derive(Clone, Debug)]
+pub struct Context<K = ()> {
+    pub program: Program<K>,
+    pub actor: Address,
+}
+
+impl<K> BorshSerialize for Context<K> {
+    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let Self { program, actor } = self;
+        BorshSerialize::serialize(program, writer)?;
+        BorshSerialize::serialize(actor, writer)?;
+        Ok(())
+    }
+}
+
+impl<K> BorshDeserialize for Context<K> {
+    fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let program: Program<K> = BorshDeserialize::deserialize_reader(reader)?;
+        let actor: Address = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self { program, actor })
+    }
 }

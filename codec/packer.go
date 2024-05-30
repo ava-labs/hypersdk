@@ -9,7 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/window"
 )
 
@@ -52,7 +51,7 @@ func (p *Packer) PackID(src ids.ID) {
 // UnpackID unpacks an avalanchego ID into [dest]. If [required] is true,
 // and the unpacked bytes are empty, Packer will add an ErrFieldNotPopulated error.
 func (p *Packer) UnpackID(required bool, dest *ids.ID) {
-	copy((*dest)[:], p.p.UnpackFixedBytes(consts.IDLen))
+	copy((*dest)[:], p.p.UnpackFixedBytes(ids.IDLen))
 	if required && *dest == ids.Empty {
 		p.addErr(fmt.Errorf("%w: ID field is not populated", ErrFieldNotPopulated))
 	}

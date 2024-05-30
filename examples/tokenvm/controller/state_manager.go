@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -58,14 +59,4 @@ func (*StateManager) Deduct(
 	amount uint64,
 ) error {
 	return storage.SubBalance(ctx, mu, addr, ids.Empty, amount)
-}
-
-func (*StateManager) Refund(
-	ctx context.Context,
-	addr codec.Address,
-	mu state.Mutable,
-	amount uint64,
-) error {
-	// Don't create account if it doesn't exist (may have sent all funds).
-	return storage.AddBalance(ctx, mu, addr, ids.Empty, amount, false)
 }

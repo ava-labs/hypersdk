@@ -56,6 +56,19 @@ func (b *StatelessBlock) Execute(
 			return nil, nil, err
 		}
 
+		// Ensure we don't consume too many units
+		units, err := tx.Units(sm, r)
+		if err != nil {
+			f.Stop()
+			e.Stop()
+			return nil, nil, err
+		}
+		if ok, d := feeManager.Consume(units, r.GetMaxBlockUnits()); !ok {
+			f.Stop()
+			e.Stop()
+			return nil, nil, fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
+		}
+
 		// Prefetch state keys from disk
 		txID := tx.ID()
 		if err := f.Fetch(ctx, txID, stateKeys); err != nil {
@@ -63,7 +76,7 @@ func (b *StatelessBlock) Execute(
 		}
 		e.Run(stateKeys, func() error {
 			// Wait for stateKeys to be read from disk
-			reads, storage, err := f.Get(txID)
+			storage, err := f.Get(txID)
 			if err != nil {
 				return err
 			}
@@ -79,17 +92,11 @@ func (b *StatelessBlock) Execute(
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, reads, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}
 			results[i] = result
-
-			// Update block metadata with units actually consumed (if more is consumed than block allows, we will non-deterministically
-			// exit with an error based on which tx over the limit is processed first)
-			if ok, d := feeManager.Consume(result.Consumed, r.GetMaxBlockUnits()); !ok {
-				return fmt.Errorf("%w: %d too large", ErrInvalidUnitsConsumed, d)
-			}
 
 			// Commit results to parent [TState]
 			tsv.Commit()

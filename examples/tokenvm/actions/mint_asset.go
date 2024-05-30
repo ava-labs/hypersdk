@@ -7,14 +7,14 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	smath "github.com/ava-labs/avalanchego/utils/math"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ chain.Action = (*MintAsset)(nil)
@@ -23,11 +23,14 @@ type MintAsset struct {
 	// To is the recipient of the [Value].
 	To codec.Address `json:"to"`
 
-	// Asset is the [TxID] that created the asset.
+	// Asset is the [ActionID] that created the asset.
 	Asset ids.ID `json:"asset"`
 
 	// Number of assets to mint to [To].
 	Value uint64 `json:"value"`
+
+	// TODO: add boolean to indicate whether sender will
+	// create recipient account
 }
 
 func (*MintAsset) GetTypeID() uint8 {
@@ -52,42 +55,42 @@ func (m *MintAsset) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (bool, uint64, []byte, error) {
+) ([][]byte, error) {
 	if m.Asset == ids.Empty {
-		return false, MintAssetComputeUnits, OutputAssetIsNative, nil
+		return nil, ErrOutputAssetIsNative
 	}
 	if m.Value == 0 {
-		return false, MintAssetComputeUnits, OutputValueZero, nil
+		return nil, ErrOutputValueZero
 	}
 	exists, symbol, decimals, metadata, supply, owner, err := storage.GetAsset(ctx, mu, m.Asset)
 	if err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return nil, err
 	}
 	if !exists {
-		return false, MintAssetComputeUnits, OutputAssetMissing, nil
+		return nil, ErrOutputAssetMissing
 	}
 	if owner != actor {
-		return false, MintAssetComputeUnits, OutputWrongOwner, nil
+		return nil, ErrOutputWrongOwner
 	}
 	newSupply, err := smath.Add64(supply, m.Value)
 	if err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return nil, err
 	}
 	if err := storage.SetAsset(ctx, mu, m.Asset, symbol, decimals, metadata, newSupply, actor); err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return nil, err
 	}
 	if err := storage.AddBalance(ctx, mu, m.To, m.Asset, m.Value, true); err != nil {
-		return false, MintAssetComputeUnits, utils.ErrBytes(err), nil
+		return nil, err
 	}
-	return true, MintAssetComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*MintAsset) MaxComputeUnits(chain.Rules) uint64 {
+func (*MintAsset) ComputeUnits(chain.Rules) uint64 {
 	return MintAssetComputeUnits
 }
 
 func (*MintAsset) Size() int {
-	return codec.AddressLen + consts.IDLen + consts.Uint64Len
+	return codec.AddressLen + ids.IDLen + consts.Uint64Len
 }
 
 func (m *MintAsset) Marshal(p *codec.Packer) {

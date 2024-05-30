@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,11 +18,11 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
+
+	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 func getFactory(priv *cli.PrivateKey) (chain.AuthFactory, error) {
@@ -94,11 +96,11 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return bclient.Parser(ctx)
 			},
-			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
-				return &actions.Transfer{
+			func(addr codec.Address, amount uint64) []chain.Action { // getTransfer
+				return []chain.Action{&actions.Transfer{
 					To:    addr,
 					Value: amount,
-				}
+				}}
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
 				return func(ictx context.Context, count uint64) error {
@@ -106,10 +108,10 @@ var runSpamCmd = &cobra.Command{
 					if err != nil {
 						return err
 					}
-					_, _, err = sendAndWait(ictx, &actions.Transfer{
+					_, _, err = sendAndWait(ictx, []chain.Action{&actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}, cli, bclient, wclient, factory, false)
+					}}, cli, bclient, wclient, factory, false)
 					return err
 				}
 			},

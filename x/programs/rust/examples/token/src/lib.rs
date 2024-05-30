@@ -2,11 +2,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys, types::Address};
 
-const INITIAL_SUPPLY: i64 = 123456789;
+const INITIAL_SUPPLY: u64 = 123456789;
 
 /// The program state keys.
 #[state_keys]
-enum StateKey {
+pub enum StateKeys {
     /// The total supply of the token. Key prefix 0x0.
     TotalSupply,
     /// The name of the token. Key prefix 0x1.
@@ -19,96 +19,114 @@ enum StateKey {
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(context: Context) -> bool {
-    let Context { program } = context;
+pub fn init(context: Context<StateKeys>) {
+    let Context { program, .. } = context;
 
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply, &INITIAL_SUPPLY)
+        .store(StateKeys::TotalSupply, &INITIAL_SUPPLY)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKey::Name, b"WasmCoin")
+        .store(StateKeys::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKey::Symbol, b"WACK")
+        .store(StateKeys::Symbol, b"WACK")
         .expect("failed to store symbol");
-
-    true
 }
 
 /// Returns the total supply of the token.
 #[public]
-pub fn get_total_supply(context: Context) -> i64 {
-    let Context { program } = context;
+pub fn get_total_supply(context: Context<StateKeys>) -> u64 {
+    let Context { program, .. } = context;
+
     program
         .state()
-        .get(StateKey::TotalSupply)
+        .get(StateKeys::TotalSupply)
         .expect("failed to get total supply")
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(context: Context, recipient: Address, amount: i64) -> bool {
-    let Context { program } = context;
+pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
+    mint_to_internal(context, recipient, amount);
+    true
+}
+
+fn mint_to_internal(
+    context: Context<StateKeys>,
+    recipient: Address,
+    amount: u64,
+) -> Context<StateKeys> {
+    let program = &context.program;
+
     let balance = program
         .state()
-        .get::<i64>(StateKey::Balance(recipient))
+        .get::<u64>(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default();
 
     program
         .state()
-        .store(StateKey::Balance(recipient), &(balance + amount))
+        .store(StateKeys::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
-    true
+    context
 }
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(context: Context, recipient: Address) -> bool {
-    let Context { program } = context;
+pub fn burn_from(context: Context<StateKeys>, recipient: Address) -> u64 {
+    let Context { program, .. } = context;
     program
         .state()
-        .delete(StateKey::Balance(recipient))
-        .expect("failed to burn recipient tokens");
-    true
+        .delete::<u64>(StateKeys::Balance(recipient))
+        .expect("failed to burn recipient tokens")
+        .expect("recipient balance not found")
 }
 
-/// Transfers balance from the sender to the the recipient.
+/// Transfers balance from the sender to the recipient.
 #[public]
-pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i64) -> bool {
-    let Context { program } = context;
+pub fn transfer(
+    context: Context<StateKeys>,
+    sender: Address,
+    recipient: Address,
+    amount: u64,
+) -> bool {
+    let Context { program, .. } = context;
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<i64>(StateKey::Balance(sender))
-        .expect("failed to update balance");
+        .get::<u64>(StateKeys::Balance(sender))
+        .expect("state corrupt")
+        .unwrap_or_default();
 
-    assert!(amount >= 0 && sender_balance >= amount, "invalid input");
+    assert!(sender_balance >= amount, "invalid input");
 
     let recipient_balance = program
         .state()
-        .get::<i64>(StateKey::Balance(recipient))
+        .get::<u64>(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default();
 
     // update balances
     program
         .state()
-        .store(StateKey::Balance(sender), &(sender_balance - amount))
+        .store(StateKeys::Balance(sender), &(sender_balance - amount))
         .expect("failed to store balance");
 
     program
         .state()
-        .store(StateKey::Balance(recipient), &(recipient_balance + amount))
+        .store(StateKeys::Balance(recipient), &(recipient_balance + amount))
         .expect("failed to store balance");
 
     true
@@ -117,26 +135,26 @@ pub fn transfer(context: Context, sender: Address, recipient: Address, amount: i
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Minter {
     to: Address,
-    amount: i32,
+    amount: u64,
 }
 
 /// Mints tokens to multiple recipients.
 #[public]
-pub fn mint_to_many(context: Context, minters: Vec<Minter>) -> bool {
-    for minter in minters.iter() {
-        mint_to(context, minter.to, minter.amount as i64);
-    }
-
+pub fn mint_to_many(context: Context<StateKeys>, minters: Vec<Minter>) -> bool {
+    minters.into_iter().fold(context, |context, minter| {
+        mint_to_internal(context, minter.to, minter.amount)
+    });
     true
 }
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn get_balance(context: Context, recipient: Address) -> i64 {
-    let Context { program } = context;
+pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
+    let Context { program, .. } = context;
     program
         .state()
-        .get(StateKey::Balance(recipient))
+        .get(StateKeys::Balance(recipient))
+        .expect("state corrupt")
         .unwrap_or_default()
 }
 
@@ -160,9 +178,130 @@ mod tests {
         plan.add_step(Step::create_program(PROGRAM_PATH));
 
         // run plan
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         // ensure no errors
+        assert!(
+            plan_responses.iter().all(|resp| resp.error.is_none()),
+            "error: {:?}",
+            plan_responses
+                .iter()
+                .filter_map(|resp| resp.error.as_ref())
+                .next()
+        );
+    }
+
+    #[test]
+    fn init_token() {
+        let simulator = simulator::Client::new();
+
+        let owner_key_id = String::from("owner");
+        let owner_key = Key::Ed25519(owner_key_id.clone());
+
+        let mut plan = Plan::new(owner_key_id);
+
+        plan.add_step(Step::create_key(owner_key.clone()));
+        let program_id = plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::String(PROGRAM_PATH.into())],
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "init".into(),
+            params: vec![program_id.into()],
+            max_units: 1000000,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::ReadOnly,
+            method: "get_total_supply".into(),
+            max_units: 0,
+            params: vec![program_id.into()],
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(INITIAL_SUPPLY),
+            }),
+        });
+
+        let plan_responses = simulator.run_plan(plan).unwrap();
+
+        assert!(
+            plan_responses.iter().all(|resp| resp.error.is_none()),
+            "error: {:?}",
+            plan_responses
+                .iter()
+                .filter_map(|resp| resp.error.as_ref())
+                .next()
+        );
+    }
+
+    #[test]
+    fn mint() {
+        let simulator = simulator::Client::new();
+
+        let owner_key_id = String::from("owner");
+        let [alice_key] = ["alice"]
+            .map(String::from)
+            .map(Key::Ed25519)
+            .map(Param::Key);
+        let alice_initial_balance = 1000;
+
+        let mut plan = Plan::new(owner_key_id.clone());
+
+        plan.add_step(Step::create_key(Key::Ed25519(owner_key_id)));
+
+        let program_id = plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::String(PROGRAM_PATH.into())],
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Key,
+            method: "key_create".into(),
+            params: vec![alice_key.clone()],
+            max_units: 0,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "init".into(),
+            params: vec![program_id.into()],
+            max_units: 1000000,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::Execute,
+            method: "mint_to".into(),
+            params: vec![
+                program_id.into(),
+                alice_key.clone(),
+                Param::U64(alice_initial_balance),
+            ],
+            max_units: 1000000,
+            require: None,
+        });
+
+        plan.add_step(Step {
+            endpoint: Endpoint::ReadOnly,
+            method: "get_balance".into(),
+            max_units: 0,
+            params: vec![program_id.into(), alice_key],
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(alice_initial_balance),
+            }),
+        });
+
+        let plan_responses = simulator.run_plan(plan).unwrap();
+
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),
             "error: {:?}",
@@ -184,6 +323,7 @@ mod tests {
             .map(Param::Key);
         let alice_initial_balance = 1000;
         let transfer_amount = 100;
+        let post_transfer_balance = alice_initial_balance - transfer_amount;
 
         let mut plan = Plan::new(owner_key_id.clone());
 
@@ -252,7 +392,7 @@ mod tests {
             max_units: 0,
             params: vec![program_id.into()],
             require: Some(Require {
-                result: ResultAssertion::NumericEq(INITIAL_SUPPLY as u64),
+                result: ResultAssertion::NumericEq(INITIAL_SUPPLY),
             }),
         });
 
@@ -262,7 +402,7 @@ mod tests {
             max_units: 0,
             params: vec![program_id.into(), alice_key.clone()],
             require: Some(Require {
-                result: ResultAssertion::NumericEq(alice_initial_balance - transfer_amount),
+                result: ResultAssertion::NumericEq(post_transfer_balance),
             }),
         });
 
@@ -281,7 +421,9 @@ mod tests {
             method: "burn_from".into(),
             params: vec![program_id.into(), alice_key.clone()],
             max_units: 1000000,
-            require: None,
+            require: Some(Require {
+                result: ResultAssertion::NumericEq(post_transfer_balance),
+            }),
         });
 
         plan.add_step(Step {
@@ -294,7 +436,7 @@ mod tests {
             }),
         });
 
-        let plan_responses = simulator.run_plan(&plan).unwrap();
+        let plan_responses = simulator.run_plan(plan).unwrap();
 
         assert!(
             plan_responses.iter().all(|resp| resp.error.is_none()),

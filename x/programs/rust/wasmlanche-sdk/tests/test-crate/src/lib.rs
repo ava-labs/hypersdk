@@ -1,14 +1,17 @@
 #![no_std]
 
-use wasmlanche_sdk::{public, Context};
+use wasmlanche_sdk::{public, state_keys, Context};
+
+#[state_keys]
+pub enum StateKeys {}
 
 #[public]
-pub fn always_true(_: Context) -> i32 {
-    true as i32
+pub fn always_true(_: Context<StateKeys>) -> bool {
+    true
 }
 
 #[public]
-pub fn combine_last_bit_of_each_id_byte(context: Context) -> u32 {
+pub fn combine_last_bit_of_each_id_byte(context: Context<StateKeys>) -> u32 {
     context
         .program
         .id()

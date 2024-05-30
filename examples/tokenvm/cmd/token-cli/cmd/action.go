@@ -8,13 +8,16 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
+	"github.com/ava-labs/hypersdk/utils"
+
 	frpc "github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-faucet/rpc"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
 )
 
 var actionCmd = &cobra.Command{
@@ -69,14 +72,14 @@ var fundFaucetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err = sendAndWait(ctx, &actions.Transfer{
+		if _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
-		}, cli, scli, tcli, factory, true); err != nil {
+		}}, cli, scli, tcli, factory, true); err != nil {
 			return err
 		}
-		hutils.Outf("{{green}}funded faucet:{{/}} %s\n", faucetAddress)
+		utils.Outf("{{green}}funded faucet:{{/}} %s\n", faucetAddress)
 		return nil
 	},
 }
@@ -119,11 +122,11 @@ var transferCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.Transfer{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -162,12 +165,19 @@ var createAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.CreateAsset{
+		txID, err := sendAndWait(ctx, []chain.Action{&actions.CreateAsset{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
-		}, cli, scli, tcli, factory, true)
-		return err
+		}}, cli, scli, tcli, factory, true)
+		if err != nil {
+			return err
+		}
+
+		// Print assetID
+		assetID := chain.CreateActionID(txID, 0)
+		utils.Outf("{{green}}assetID:{{/}} %s\n", assetID)
+		return nil
 	},
 }
 
@@ -190,17 +200,17 @@ var mintAssetCmd = &cobra.Command{
 			return err
 		}
 		if !exists {
-			hutils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
-			hutils.Outf("{{red}}exiting...{{/}}\n")
+			utils.Outf("{{red}}%s does not exist{{/}}\n", assetID)
+			utils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
 		}
 		if owner != codec.MustAddressBech32(tconsts.HRP, priv.Address) {
-			hutils.Outf("{{red}}%s is the owner of %s, you are not{{/}}\n", owner, assetID)
-			hutils.Outf("{{red}}exiting...{{/}}\n")
+			utils.Outf("{{red}}%s is the owner of %s, you are not{{/}}\n", owner, assetID)
+			utils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
 		}
-		hutils.Outf(
-			"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %s {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
+		utils.Outf(
+			"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
 			string(symbol),
 			decimals,
 			string(metadata),
@@ -226,11 +236,11 @@ var mintAssetCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.MintAsset{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.MintAsset{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -263,10 +273,10 @@ var closeOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.CloseOrder{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }
@@ -291,11 +301,11 @@ var createOrderCmd = &cobra.Command{
 		}
 		if inAssetID != ids.Empty {
 			if !exists {
-				hutils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
-				hutils.Outf("{{red}}exiting...{{/}}\n")
+				utils.Outf("{{red}}%s does not exist{{/}}\n", inAssetID)
+				utils.Outf("{{red}}exiting...{{/}}\n")
 				return nil
 			}
-			hutils.Outf(
+			utils.Outf(
 				"{{yellow}}symbol:{{/}} %s {{yellow}}decimals:{{/}} %d {{yellow}}metadata:{{/}} %s {{yellow}}supply:{{/}} %d\n",
 				string(symbol),
 				decimals,
@@ -349,14 +359,21 @@ var createOrderCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		err = sendAndWait(ctx, &actions.CreateOrder{
+		txID, err := sendAndWait(ctx, []chain.Action{&actions.CreateOrder{
 			In:      inAssetID,
 			InTick:  inTick,
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}, cli, scli, tcli, factory, true)
-		return err
+		}}, cli, scli, tcli, factory, true)
+		if err != nil {
+			return err
+		}
+
+		// Print orderID
+		orderID := chain.CreateActionID(txID, 0)
+		utils.Outf("{{green}}orderID:{{/}} %s\n", orderID)
+		return nil
 	},
 }
 
@@ -395,26 +412,26 @@ var fillOrderCmd = &cobra.Command{
 			return err
 		}
 		if len(orders) == 0 {
-			hutils.Outf("{{red}}no available orders{{/}}\n")
-			hutils.Outf("{{red}}exiting...{{/}}\n")
+			utils.Outf("{{red}}no available orders{{/}}\n")
+			utils.Outf("{{red}}exiting...{{/}}\n")
 			return nil
 		}
-		hutils.Outf("{{cyan}}available orders:{{/}} %d\n", len(orders))
+		utils.Outf("{{cyan}}available orders:{{/}} %d\n", len(orders))
 		max := 20
 		if len(orders) < max {
 			max = len(orders)
 		}
 		for i := 0; i < max; i++ {
 			order := orders[i]
-			hutils.Outf(
+			utils.Outf(
 				"%d) {{cyan}}Rate(in/out):{{/}} %.4f {{cyan}}InTick:{{/}} %s %s {{cyan}}OutTick:{{/}} %s %s {{cyan}}Remaining:{{/}} %s %s\n", //nolint:lll
 				i,
 				float64(order.InTick)/float64(order.OutTick),
-				hutils.FormatBalance(order.InTick, inDecimals),
+				utils.FormatBalance(order.InTick, inDecimals),
 				inSymbol,
-				hutils.FormatBalance(order.OutTick, outDecimals),
+				utils.FormatBalance(order.OutTick, outDecimals),
 				outSymbol,
-				hutils.FormatBalance(order.Remaining, outDecimals),
+				utils.FormatBalance(order.Remaining, outDecimals),
 				outSymbol,
 			)
 		}
@@ -448,11 +465,11 @@ var fillOrderCmd = &cobra.Command{
 		}
 		multiples := value / order.InTick
 		outAmount := multiples * order.OutTick
-		hutils.Outf(
+		utils.Outf(
 			"{{orange}}in:{{/}} %s %s {{orange}}out:{{/}} %s %s\n",
-			hutils.FormatBalance(value, inDecimals),
+			utils.FormatBalance(value, inDecimals),
 			inSymbol,
-			hutils.FormatBalance(outAmount, outDecimals),
+			utils.FormatBalance(outAmount, outDecimals),
 			outSymbol,
 		)
 
@@ -466,13 +483,13 @@ var fillOrderCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		err = sendAndWait(ctx, &actions.FillOrder{
+		_, err = sendAndWait(ctx, []chain.Action{&actions.FillOrder{
 			Order: order.ID,
 			Owner: owner,
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory, true)
 		return err
 	},
 }

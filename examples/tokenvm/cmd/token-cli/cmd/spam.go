@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/spf13/cobra"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -14,11 +16,11 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/spf13/cobra"
+
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 )
 
 var spamCmd = &cobra.Command{
@@ -78,19 +80,20 @@ var runSpamCmd = &cobra.Command{
 			func(ctx context.Context, chainID ids.ID) (chain.Parser, error) { // getParser
 				return tclient.Parser(ctx)
 			},
-			func(addr codec.Address, amount uint64) chain.Action { // getTransfer
-				return &actions.Transfer{
+			func(addr codec.Address, amount uint64) []chain.Action { // getTransfer
+				return []chain.Action{&actions.Transfer{
 					To:    addr,
 					Asset: ids.Empty,
 					Value: amount,
-				}
+				}}
 			},
 			func(cli *rpc.JSONRPCClient, priv *cli.PrivateKey) func(context.Context, uint64) error { // submitDummy
 				return func(ictx context.Context, count uint64) error {
-					return sendAndWait(ictx, &actions.Transfer{
+					_, err := sendAndWait(ictx, []chain.Action{&actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}, cli, sclient, tclient, auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), false)
+					}}, cli, sclient, tclient, auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), false)
+					return err
 				}
 			},
 		)

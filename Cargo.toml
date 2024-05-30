@@ -1,11 +1,12 @@
 [workspace]
 members = [
     "x/programs/cmd/simulator",
-    "x/programs/rust/sdk_macros",
+    "x/programs/rust/sdk-macros",
     "x/programs/rust/wasmlanche-sdk",
     "x/programs/rust/examples/token",
     "x/programs/rust/examples/counter",
     "x/programs/rust/wasmlanche-sdk/tests/test-crate",
+    "x/programs/test/programs/*",
 ]
 resolver = "2"
 
@@ -16,3 +17,11 @@ codegen-units = 1
 overflow-checks = true
 panic = 'abort'
 strip = true
+
+[workspace.dependencies]
+sdk-macros = { path = "x/programs/rust/sdk-macros" }
+simulator = { path = "x/programs/cmd/simulator" }
+wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
+
+borsh = { version = "1.5.0", features = ["derive"] }
+thiserror = "1.0.60"

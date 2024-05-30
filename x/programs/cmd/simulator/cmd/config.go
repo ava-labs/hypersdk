@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"gopkg.in/yaml.v2"
+	"github.com/near/borsh-go"
 )
 
 const (
@@ -16,24 +16,19 @@ const (
 	ProgramExecute = "execute"
 )
 
-type Plan struct {
-	// The key of the caller used in each step of the plan.
-	CallerKey string `yaml:"caller_key" json:"callerKey"`
-	// Steps to performed during simulation.
-	Steps []Step `json,yaml:"steps"`
-}
-
 type Step struct {
+	// The key of the caller used.
+	CallerKey string `json:"callerKey"`
 	// The API endpoint to call. (required)
-	Endpoint Endpoint `json:"endpoint" yaml:"endpoint"`
+	Endpoint Endpoint `json:"endpoint"`
 	// The method to call on the endpoint.
-	Method string `json:"method" yaml:"method"`
+	Method string `json:"method"`
 	// The maximum number of units to consume for this step.
-	MaxUnits uint64 `json:"maxUnits" yaml:"max_units"`
+	MaxUnits uint64 `json:"maxUnits"`
 	// The parameters to pass to the method.
-	Params []Parameter `json:"params" yaml:"params"`
+	Params []Parameter `json:"params"`
 	// Define required assertions against this step.
-	Require *Require `json:"require,omitempty" yaml:"require,omitempty"`
+	Require *Require `json:"require,omitempty"`
 }
 
 type Endpoint string
@@ -58,17 +53,17 @@ func newResponse(id int) *Response {
 
 type Response struct {
 	// The index of the step that generated this response.
-	ID int `json:"id" yaml:"id"`
+	ID int `json:"id"`
 	// The result of the step.
-	Result *Result `json:"result,omitempty" yaml:"result,omitempty"`
+	Result *Result `json:"result,omitempty"`
 	// The error message if available.
-	Error string `json:"error,omitempty" yaml:"error,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 func (r *Response) Print() error {
 	jsonBytes, err := json.Marshal(r)
 	if err != nil {
-		return fmt.Errorf("failed to marshal response: %s", err)
+		return fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	fmt.Println(string(jsonBytes))
@@ -94,7 +89,7 @@ func (r *Response) setBalance(balance uint64) {
 	r.Result.Balance = balance
 }
 
-func (r *Response) setResponse(response []int64) {
+func (r *Response) setResponse(response []byte) {
 	r.Result.Response = response
 }
 
@@ -108,27 +103,27 @@ func (r *Response) setTimestamp(timestamp int64) {
 
 type Result struct {
 	// The tx id of the transaction that was created.
-	ID string `json:"id,omitempty" yaml:"id,omitempty"`
+	ID string `json:"id,omitempty"`
 	// The balance after the step has completed.
-	Balance uint64 `json:"balance,omitempty" yaml:"balance,omitempty"`
+	Balance uint64 `json:"balance,omitempty"`
 	// The response from the call.
-	Response []int64 `json:"response,omitempty" yaml:"response,omitempty"`
+	Response []byte `json:"response"`
 	// An optional message.
-	Msg string `json:"msg,omitempty" yaml:"msg,omitempty"`
+	Msg string `json:"msg,omitempty"`
 	// Timestamp of the response.
-	Timestamp uint64 `json:"timestamp,omitempty" yaml:"timestamp,omitempty"`
+	Timestamp uint64 `json:"timestamp,omitempty"`
 }
 
 type Require struct {
 	// Assertions against the result of the step.
-	Result ResultAssertion `json,yaml:"result,omitempty"`
+	Result ResultAssertion `json:"result,omitempty"`
 }
 
 type ResultAssertion struct {
 	// The operator to use for the assertion.
-	Operator string `json,yaml:"operator"`
+	Operator string `json:"operator"`
 	// The value to compare against.
-	Value string `json,yaml:"value"`
+	Value string `json:"value"`
 }
 
 type Operator string
@@ -145,9 +140,9 @@ const (
 
 type Parameter struct {
 	// The type of the parameter. (required)
-	Type Type `json,yaml:"type"`
+	Type Type `json:"type"`
 	// The value of the parameter. (required)
-	Value interface{} `json,yaml:"value"`
+	Value interface{} `json:"value"`
 }
 
 type Type string
@@ -162,9 +157,14 @@ const (
 )
 
 // validateAssertion validates the assertion against the actual value.
-func validateAssertion(actual int64, require *Require) (bool, error) {
+func validateAssertion(bytes []byte, require *Require) (bool, error) {
 	if require == nil {
 		return true, nil
+	}
+
+	actual := int64(0)
+	if err := borsh.Deserialize(&actual, bytes); err != nil {
+		return false, err
 	}
 
 	assertion := require.Result
@@ -206,37 +206,11 @@ func validateAssertion(actual int64, require *Require) (bool, error) {
 	return false, nil
 }
 
-func unmarshalPlan(bytes []byte) (*Plan, error) {
-	var p Plan
-	switch {
-	case isJSON(string(bytes)):
-		if err := json.Unmarshal(bytes, &p); err != nil {
-			return nil, err
-		}
-	case isYAML(string(bytes)):
-		if err := yaml.Unmarshal(bytes, &p); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, ErrInvalidConfigFormat
+func unmarshalStep(bytes []byte) (*Step, error) {
+	var s Step
+	if err := json.Unmarshal(bytes, &s); err != nil {
+		return nil, err
 	}
 
-	return &p, nil
-}
-
-func boolToUint64(b bool) uint64 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func isJSON(s string) bool {
-	var js map[string]interface{}
-	return json.Unmarshal([]byte(s), &js) == nil
-}
-
-func isYAML(s string) bool {
-	var y map[string]interface{}
-	return yaml.Unmarshal([]byte(s), &y) == nil
+	return &s, nil
 }

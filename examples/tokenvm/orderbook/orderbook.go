@@ -7,11 +7,12 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/heap"
-	"go.uber.org/zap"
 )
 
 const allPairs = "*"
@@ -65,10 +66,10 @@ func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	}
 }
 
-func (o *OrderBook) Add(txID ids.ID, actor codec.Address, action *actions.CreateOrder) {
+func (o *OrderBook) Add(actionID ids.ID, actor codec.Address, action *actions.CreateOrder) {
 	pair := actions.PairID(action.In, action.Out)
 	order := &Order{
-		txID,
+		actionID,
 		codec.MustAddressBech32(consts.HRP, actor),
 		action.In,
 		action.InTick,

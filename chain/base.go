@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-const BaseSize = consts.Uint64Len*2 + consts.IDLen
+const BaseSize = consts.Uint64Len*2 + ids.IDLen
 
 type Base struct {
 	// Timestamp is the expiry of the transaction (inclusive). Once this time passes and the

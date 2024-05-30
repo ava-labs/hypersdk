@@ -11,22 +11,25 @@ import (
 	"testing"
 	"time"
 
-	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/fatih/color"
+	"github.com/onsi/gomega"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/auth"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
-	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
+
+	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
+	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	"github.com/fatih/color"
 	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 const (
@@ -44,10 +47,11 @@ func TestE2e(t *testing.T) {
 var (
 	requestTimeout time.Duration
 
-	networkRunnerLogLevel string
-	avalanchegoLogLevel   string
-	gRPCEp                string
-	gRPCGatewayEp         string
+	networkRunnerLogLevel      string
+	avalanchegoLogLevel        string
+	avalanchegoLogDisplayLevel string
+	gRPCEp                     string
+	gRPCGatewayEp              string
 
 	execPath  string
 	pluginDir string
@@ -62,8 +66,7 @@ var (
 
 	logsDir string
 
-	blockchainIDA string
-	blockchainIDB string
+	blockchainID string
 
 	trackSubnetsOpt runner_sdk.OpOption
 
@@ -90,6 +93,13 @@ func init() {
 		"avalanchego-log-level",
 		"info",
 		"log level for avalanchego",
+	)
+
+	flag.StringVar(
+		&avalanchegoLogDisplayLevel,
+		"avalanchego-log-display-level",
+		"error",
+		"log display level for avalanchego",
 	)
 
 	flag.StringVar(
@@ -163,10 +173,9 @@ func init() {
 }
 
 const (
-	modeTest      = "test"
-	modeFullTest  = "full-test" // runs state sync
-	modeRun       = "run"
-	modeRunSingle = "run-single"
+	modeTest     = "test"
+	modeFullTest = "full-test" // runs state sync
+	modeRun      = "run"
 )
 
 var anrCli runner_sdk.Client
@@ -176,7 +185,6 @@ var _ = ginkgo.BeforeSuite(func() {
 		gomega.Equal(modeTest),
 		gomega.Equal(modeFullTest),
 		gomega.Equal(modeRun),
-		gomega.Equal(modeRunSingle),
 	))
 	gomega.Expect(numValidators).Should(gomega.BeNumerically(">", 0))
 	logLevel, err := logging.ToLevel(networkRunnerLogLevel)
@@ -215,23 +223,23 @@ var _ = ginkgo.BeforeSuite(func() {
 		ctx,
 		execPath,
 		runner_sdk.WithPluginDir(pluginDir),
-		// We don't disable PUT gossip here because the E2E test adds multiple
-		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(fmt.Sprintf(`{
 				"log-level":"%s",
 				"log-display-level":"%s",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",
-				"throttler-inbound-node-max-processing-msgs":"100000",
+				"throttler-inbound-node-max-at-large-bytes":"10737418240",
+				"throttler-inbound-node-max-processing-msgs":"1000000",
 				"throttler-inbound-bandwidth-refill-rate":"1073741824",
 				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
 				"throttler-inbound-cpu-validator-alloc":"100000",
+				"throttler-inbound-cpu-max-non-validator-usage":"100000",
+				"throttler-inbound-cpu-max-non-validator-node-usage":"100000",
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
 				"throttler-outbound-validator-alloc-size":"10737418240",
 				"throttler-outbound-at-large-alloc-size":"10737418240",
-				"consensus-on-accept-gossip-validator-size":"10",
-				"consensus-on-accept-gossip-peer-size":"10",
+				"throttler-outbound-node-max-at-large-bytes": "10737418240",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"512",
 				"profile-continuous-enabled":true,
@@ -241,7 +249,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"http-allowed-hosts": "*"
 			}`,
 			avalanchegoLogLevel,
-			avalanchegoLogLevel,
+			avalanchegoLogDisplayLevel,
 		)),
 	)
 	cancel()
@@ -253,16 +261,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 10 new validators (which should have BLS key registered)
-	subnetA := []string{}
-	subnetB := []string{}
-	for i := 1; i <= int(numValidators)*2; i++ {
-		n := fmt.Sprintf("node%d-bls", i)
-		if i <= int(numValidators) {
-			subnetA = append(subnetA, n)
-		} else {
-			subnetB = append(subnetB, n)
-		}
+	// Add 5 validators (already have BLS key registered)
+	subnet := []string{}
+	for i := 1; i <= int(numValidators); i++ {
+		n := fmt.Sprintf("node%d", i)
+		subnet = append(subnet, n)
 	}
 	specs := []*rpcpb.BlockchainSpec{
 		{
@@ -271,24 +274,12 @@ var _ = ginkgo.BeforeSuite(func() {
 			ChainConfig: vmConfigPath,
 			SubnetSpec: &rpcpb.SubnetSpec{
 				SubnetConfig: subnetConfigPath,
-				Participants: subnetA,
+				Participants: subnet,
 			},
 		},
-		{
-			VmName:      consts.Name,
-			Genesis:     vmGenesisPath,
-			ChainConfig: vmConfigPath,
-			SubnetSpec: &rpcpb.SubnetSpec{
-				SubnetConfig: subnetConfigPath,
-				Participants: subnetB,
-			},
-		},
-	}
-	if mode == modeRunSingle {
-		specs = specs[0:1]
 	}
 
-	// Create 2 subnets
+	// Create subnet
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
 	sresp, err := anrCli.CreateBlockchains(
 		ctx,
@@ -297,40 +288,20 @@ var _ = ginkgo.BeforeSuite(func() {
 	cancel()
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	blockchainIDA = sresp.ChainIds[0]
-	subnetIDA := sresp.ClusterInfo.CustomChains[blockchainIDA].SubnetId
+	blockchainID = sresp.ChainIds[0]
+	subnetID := sresp.ClusterInfo.CustomChains[blockchainID].SubnetId
 	hutils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
-		blockchainIDA,
-		subnetIDA,
-		subnetA,
+		blockchainID,
+		subnetID,
+		subnet,
 	)
+	trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf(`{"%s":"%s"}`,
+		config.TrackSubnetsKey,
+		subnetID,
+	))
 
-	if mode == modeRunSingle {
-		trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf(`{"%s":"%s"}`,
-			config.TrackSubnetsKey,
-			subnetIDA,
-		))
-	} else {
-		blockchainIDB = sresp.ChainIds[1]
-		subnetIDB := sresp.ClusterInfo.CustomChains[blockchainIDB].SubnetId
-		hutils.Outf(
-			"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
-			blockchainIDB,
-			subnetIDB,
-			subnetB,
-		)
-		trackSubnetsOpt = runner_sdk.WithGlobalNodeConfig(fmt.Sprintf(`{"%s":"%s,%s"}`,
-			config.TrackSubnetsKey,
-			subnetIDA,
-			subnetIDB,
-		))
-	}
-
-	gomega.Expect(blockchainIDA).Should(gomega.Not(gomega.BeEmpty()))
-	if mode != modeRunSingle {
-		gomega.Expect(blockchainIDB).Should(gomega.Not(gomega.BeEmpty()))
-	}
+	gomega.Expect(blockchainID).Should(gomega.Not(gomega.BeEmpty()))
 	gomega.Expect(logsDir).Should(gomega.Not(gomega.BeEmpty()))
 
 	cctx, ccancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -339,11 +310,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).Should(gomega.BeNil())
 	nodeInfos := status.GetClusterInfo().GetNodeInfos()
 
-	instancesA = []instance{}
-	for _, nodeName := range subnetA {
+	instances = []instance{}
+	for _, nodeName := range subnet {
 		info := nodeInfos[nodeName]
-		u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainIDA)
-		bid, err := ids.FromString(blockchainIDA)
+		u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainID)
+		bid, err := ids.FromString(blockchainID)
 		gomega.Expect(err).Should(gomega.BeNil())
 		nodeID, err := ids.NodeIDFromString(info.GetId())
 		gomega.Expect(err).Should(gomega.BeNil())
@@ -362,45 +333,12 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 		gomega.Expect(err).Should(gomega.BeNil())
 
-		instancesA = append(instancesA, instance{
+		instances = append(instances, instance{
 			nodeID: nodeID,
 			uri:    u,
 			cli:    cli,
 			tcli:   trpc.NewJSONRPCClient(u, networkID, bid),
 		})
-	}
-
-	if mode != modeRunSingle {
-		instancesB = []instance{}
-		for _, nodeName := range subnetB {
-			info := nodeInfos[nodeName]
-			u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainIDB)
-			bid, err := ids.FromString(blockchainIDB)
-			gomega.Expect(err).Should(gomega.BeNil())
-			nodeID, err := ids.NodeIDFromString(info.GetId())
-			gomega.Expect(err).Should(gomega.BeNil())
-			cli := rpc.NewJSONRPCClient(u)
-
-			// After returning healthy, the node may not respond right away
-			//
-			// TODO: figure out why
-			var networkID uint32
-			for i := 0; i < 10; i++ {
-				networkID, _, _, err = cli.Network(context.TODO())
-				if err != nil {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-			}
-			gomega.Expect(err).Should(gomega.BeNil())
-
-			instancesB = append(instancesB, instance{
-				nodeID: nodeID,
-				uri:    u,
-				cli:    cli,
-				tcli:   trpc.NewJSONRPCClient(u, networkID, bid),
-			})
-		}
 	}
 
 	// Load default pk
@@ -422,8 +360,7 @@ var (
 	rsender codec.Address
 	sender  string
 
-	instancesA []instance
-	instancesB []instance
+	instances []instance
 )
 
 type instance struct {
@@ -444,19 +381,8 @@ var _ = ginkgo.AfterSuite(func() {
 
 	case modeRun:
 		hutils.Outf("{{yellow}}skipping cluster shutdown{{/}}\n\n")
-		hutils.Outf("{{cyan}}Blockchain A:{{/}} %s\n", blockchainIDA)
-		for _, member := range instancesA {
-			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
-		}
-		hutils.Outf("\n{{cyan}}Blockchain B:{{/}} %s\n", blockchainIDB)
-		for _, member := range instancesB {
-			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
-		}
-
-	case modeRunSingle:
-		hutils.Outf("{{yellow}}skipping cluster shutdown{{/}}\n\n")
-		hutils.Outf("{{cyan}}Blockchain:{{/}} %s\n", blockchainIDA)
-		for _, member := range instancesA {
+		hutils.Outf("{{cyan}}Blockchain:{{/}} %s\n", blockchainID)
+		for _, member := range instances {
 			hutils.Outf("%s URI: %s\n", member.nodeID, member.uri)
 		}
 	}
@@ -464,17 +390,8 @@ var _ = ginkgo.AfterSuite(func() {
 })
 
 var _ = ginkgo.Describe("[Ping]", func() {
-	ginkgo.It("can ping A", func() {
-		for _, inst := range instancesA {
-			cli := inst.cli
-			ok, err := cli.Ping(context.Background())
-			gomega.Ω(ok).Should(gomega.BeTrue())
-			gomega.Ω(err).Should(gomega.BeNil())
-		}
-	})
-
-	ginkgo.It("can ping B", func() {
-		for _, inst := range instancesB {
+	ginkgo.It("can ping", func() {
+		for _, inst := range instances {
 			cli := inst.cli
 			ok, err := cli.Ping(context.Background())
 			gomega.Ω(ok).Should(gomega.BeTrue())
@@ -484,17 +401,8 @@ var _ = ginkgo.Describe("[Ping]", func() {
 })
 
 var _ = ginkgo.Describe("[Network]", func() {
-	ginkgo.It("can get network A", func() {
-		for _, inst := range instancesA {
-			cli := inst.cli
-			_, _, chainID, err := cli.Network(context.Background())
-			gomega.Ω(chainID).ShouldNot(gomega.Equal(ids.Empty))
-			gomega.Ω(err).Should(gomega.BeNil())
-		}
-	})
-
-	ginkgo.It("can get network B", func() {
-		for _, inst := range instancesB {
+	ginkgo.It("can get network", func() {
+		for _, inst := range instances {
 			cli := inst.cli
 			_, _, chainID, err := cli.Network(context.Background())
 			gomega.Ω(chainID).ShouldNot(gomega.Equal(ids.Empty))
@@ -505,13 +413,13 @@ var _ = ginkgo.Describe("[Network]", func() {
 
 var _ = ginkgo.Describe("[Test]", func() {
 	switch mode {
-	case modeRun, modeRunSingle:
+	case modeRun:
 		hutils.Outf("{{yellow}}skipping tests{{/}}\n")
 		return
 	}
 
 	ginkgo.It("transfer in a single node (raw)", func() {
-		nativeBalance, err := instancesA[0].tcli.Balance(context.TODO(), sender, ids.Empty)
+		nativeBalance, err := instances[0].tcli.Balance(context.TODO(), sender, ids.Empty)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(nativeBalance).Should(gomega.Equal(startAmount))
 
@@ -521,15 +429,15 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 		ginkgo.By("issue Transfer to the first node", func() {
 			// Generate transaction
-			parser, err := instancesA[0].tcli.Parser(context.TODO())
+			parser, err := instances[0].tcli.Parser(context.TODO())
 			gomega.Ω(err).Should(gomega.BeNil())
-			submit, tx, maxFee, err := instancesA[0].cli.GenerateTransaction(
+			submit, tx, maxFee, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    aother,
 					Value: sendAmount,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -539,14 +447,14 @@ var _ = ginkgo.Describe("[Test]", func() {
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
 			hutils.Outf("{{yellow}}submitted transaction{{/}}\n")
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, fee, err := instancesA[0].tcli.WaitForTransaction(ctx, tx.ID())
+			success, fee, err := instances[0].tcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(success).Should(gomega.BeTrue())
 			hutils.Outf("{{yellow}}found transaction{{/}}\n")
 
 			// Check sender balance
-			balance, err := instancesA[0].tcli.Balance(context.Background(), sender, ids.Empty)
+			balance, err := instances[0].tcli.Balance(context.Background(), sender, ids.Empty)
 			gomega.Ω(err).Should(gomega.BeNil())
 			hutils.Outf(
 				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
@@ -560,7 +468,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		})
 
 		ginkgo.By("check if Transfer has been accepted from all nodes", func() {
-			for _, inst := range instancesA {
+			for _, inst := range instances {
 				color.Blue("checking %q", inst.uri)
 
 				// Ensure all blocks processed
@@ -594,7 +502,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	// Create blocks before bootstrapping starts
 	count := 0
 	ginkgo.It("supports issuance of 128 blocks", func() {
-		count += generateBlocks(context.Background(), count, 128, instancesA, true)
+		count += generateBlocks(context.Background(), count, 128, instances, true)
 	})
 
 	// Ensure bootstrapping works
@@ -607,15 +515,15 @@ var _ = ginkgo.Describe("[Test]", func() {
 			execPath,
 			trackSubnetsOpt,
 			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainIDA: vmConfig,
+				blockchainID: vmConfig,
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainIDA)
-		bid, err := ids.FromString(blockchainIDA)
+		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		bid, err := ids.FromString(blockchainID)
 		gomega.Expect(err).To(gomega.BeNil())
 		hutils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
 		c := rpc.NewJSONRPCClient(uri)
@@ -624,7 +532,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		gomega.Expect(err).Should(gomega.BeNil())
 		tc := trpc.NewJSONRPCClient(uri, networkID, bid)
 		tsyncClient = tc
-		instancesA = append(instancesA, instance{
+		instances = append(instances, instance{
 			uri:  uri,
 			cli:  c,
 			tcli: tc,
@@ -640,7 +548,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	//
 	// We do 1024 so that there are a number of ranges of data to fetch.
 	ginkgo.It("supports issuance of at least 1024 more blocks", func() {
-		count += generateBlocks(context.Background(), count, 1024, instancesA, true)
+		count += generateBlocks(context.Background(), count, 1024, instances, true)
 		// TODO: verify all roots are equal
 	})
 
@@ -651,7 +559,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			execPath,
 			trackSubnetsOpt,
 			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainIDA: vmConfig,
+				blockchainID: vmConfig,
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
@@ -659,8 +567,8 @@ var _ = ginkgo.Describe("[Test]", func() {
 		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainIDA)
-		bid, err := ids.FromString(blockchainIDA)
+		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		bid, err := ids.FromString(blockchainID)
 		gomega.Expect(err).To(gomega.BeNil())
 		hutils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 		syncClient = rpc.NewJSONRPCClient(uri)
@@ -689,7 +597,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	})
 
 	ginkgo.It("supports issuance of 256 more blocks", func() {
-		count += generateBlocks(context.Background(), count, 256, instancesA, true)
+		count += generateBlocks(context.Background(), count, 256, instances, true)
 		// TODO: verify all roots are equal
 	})
 
@@ -713,7 +621,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			// Recover failure if exits
 			defer ginkgo.GinkgoRecover()
 
-			count += generateBlocks(ctx, count, 0, instancesA, false)
+			count += generateBlocks(ctx, count, 0, instances, false)
 		}()
 
 		// Give time for transactions to start processing
@@ -726,15 +634,15 @@ var _ = ginkgo.Describe("[Test]", func() {
 			execPath,
 			trackSubnetsOpt,
 			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainIDA: vmConfig,
+				blockchainID: vmConfig,
 			}),
 		)
 		gomega.Expect(err).To(gomega.BeNil())
 		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainIDA)
-		bid, err := ids.FromString(blockchainIDA)
+		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		bid, err := ids.FromString(blockchainID)
 		gomega.Expect(err).To(gomega.BeNil())
 		hutils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 		syncClient = rpc.NewJSONRPCClient(uri)
@@ -791,10 +699,10 @@ func generateBlocks(
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 1,
-			},
+			}},
 			factory,
 		)
 		if failOnError {
@@ -858,10 +766,10 @@ func acceptTransaction(cli *rpc.JSONRPCClient, tcli *trpc.JSONRPCClient) {
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: sendAmount,
-			},
+			}},
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())

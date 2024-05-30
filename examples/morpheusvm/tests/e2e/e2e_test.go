@@ -11,22 +11,25 @@ import (
 	"testing"
 	"time"
 
-	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/fatih/color"
+	"github.com/onsi/gomega"
+
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/fatih/color"
+
+	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 )
 
 const (
@@ -44,10 +47,11 @@ func TestE2e(t *testing.T) {
 var (
 	requestTimeout time.Duration
 
-	networkRunnerLogLevel string
-	avalanchegoLogLevel   string
-	gRPCEp                string
-	gRPCGatewayEp         string
+	networkRunnerLogLevel      string
+	avalanchegoLogLevel        string
+	avalanchegoLogDisplayLevel string
+	gRPCEp                     string
+	gRPCGatewayEp              string
 
 	execPath  string
 	pluginDir string
@@ -89,6 +93,13 @@ func init() {
 		"avalanchego-log-level",
 		"info",
 		"log level for avalanchego",
+	)
+
+	flag.StringVar(
+		&avalanchegoLogDisplayLevel,
+		"avalanchego-log-display-level",
+		"error",
+		"log display level for avalanchego",
 	)
 
 	flag.StringVar(
@@ -224,23 +235,23 @@ var _ = ginkgo.BeforeSuite(func() {
 		ctx,
 		execPath,
 		runner_sdk.WithPluginDir(pluginDir),
-		// We don't disable PUT gossip here because the E2E test adds multiple
-		// non-validating nodes (which will fall behind).
 		runner_sdk.WithGlobalNodeConfig(fmt.Sprintf(`{
 				"log-level":"%s",
 				"log-display-level":"%s",
 				"proposervm-use-current-height":true,
 				"throttler-inbound-validator-alloc-size":"10737418240",
 				"throttler-inbound-at-large-alloc-size":"10737418240",
-				"throttler-inbound-node-max-processing-msgs":"100000",
+				"throttler-inbound-node-max-at-large-bytes":"10737418240",
+				"throttler-inbound-node-max-processing-msgs":"1000000",
 				"throttler-inbound-bandwidth-refill-rate":"1073741824",
 				"throttler-inbound-bandwidth-max-burst-size":"1073741824",
 				"throttler-inbound-cpu-validator-alloc":"100000",
+				"throttler-inbound-cpu-max-non-validator-usage":"100000",
+				"throttler-inbound-cpu-max-non-validator-node-usage":"100000",
 				"throttler-inbound-disk-validator-alloc":"10737418240000",
 				"throttler-outbound-validator-alloc-size":"10737418240",
 				"throttler-outbound-at-large-alloc-size":"10737418240",
-				"consensus-on-accept-gossip-validator-size":"10",
-				"consensus-on-accept-gossip-peer-size":"10",
+				"throttler-outbound-node-max-at-large-bytes": "10737418240",
 				"network-compression-type":"zstd",
 				"consensus-app-concurrency":"512",
 				"profile-continuous-enabled":true,
@@ -250,7 +261,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				"http-allowed-hosts": "*"
 			}`,
 			avalanchegoLogLevel,
-			avalanchegoLogLevel,
+			avalanchegoLogDisplayLevel,
 		)),
 	)
 	cancel()
@@ -262,10 +273,10 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	logsDir = resp.GetClusterInfo().GetRootDataDir()
 
-	// Name 5 new validators (which should have BLS key registered)
+	// Add 5 validators (already have BLS key registered)
 	subnet := []string{}
 	for i := 1; i <= int(numValidators); i++ {
-		n := fmt.Sprintf("node%d-bls", i)
+		n := fmt.Sprintf("node%d", i)
 		subnet = append(subnet, n)
 	}
 	specs := []*rpcpb.BlockchainSpec{
@@ -424,10 +435,10 @@ var _ = ginkgo.Describe("[Test]", func() {
 			submit, tx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
-				&actions.Transfer{
+				[]chain.Action{&actions.Transfer{
 					To:    aother,
 					Value: sendAmount,
-				},
+				}},
 				factory,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -716,10 +727,10 @@ func generateBlocks(
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    aother,
 				Value: 1,
-			},
+			}},
 			factory,
 		)
 		if failOnError {
@@ -784,10 +795,10 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 		submit, tx, maxFee, err := cli.GenerateTransaction(
 			context.Background(),
 			parser,
-			&actions.Transfer{
+			[]chain.Action{&actions.Transfer{
 				To:    aother,
 				Value: 1,
-			},
+			}},
 			factory,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())

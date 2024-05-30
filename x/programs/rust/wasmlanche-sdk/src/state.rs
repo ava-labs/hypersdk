@@ -1,6 +1,6 @@
-use crate::{memory::into_bytes, program::Program, state::Error as StateError};
+use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::{collections::HashMap, hash::Hash, ops::Deref};
+use std::{cell::RefCell, collections::HashMap, hash::Hash, io::ErrorKind};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -38,36 +38,27 @@ pub enum Error {
     Delete,
 }
 
-pub struct State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
-    program: Program,
-    cache: HashMap<K, Vec<u8>>,
+pub struct State<'a, K: Key> {
+    cache: &'a RefCell<HashMap<K, Vec<u8>>>,
 }
 
-impl<K> Drop for State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
+pub trait Key: Copy + PartialEq + Eq + Hash {
+    fn as_prefixed(&self) -> PrefixedBytes<'_>;
+}
+
+impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {
-        if !self.cache.is_empty() {
+        if !self.cache.borrow().is_empty() {
             // force flush
-            self.flush().unwrap();
+            self.flush();
         }
     }
 }
 
-impl<K> State<K>
-where
-    K: Into<Key> + Hash + PartialEq + Eq + Clone,
-{
+impl<'a, K: Key> State<'a, K> {
     #[must_use]
-    pub fn new(program: Program) -> Self {
-        Self {
-            program,
-            cache: HashMap::new(),
-        }
+    pub fn new(cache: &'a RefCell<HashMap<K, Vec<u8>>>) -> Self {
+        Self { cache }
     }
 
     /// Store a key and value to the host storage. If the key already exists,
@@ -75,12 +66,12 @@ where
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<V>(&mut self, key: K, value: &V) -> Result<(), Error>
+    pub fn store<V>(self, key: K, value: &V) -> Result<(), Error>
     where
         V: BorshSerialize,
     {
         let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
-        self.cache.insert(key, serialized);
+        self.cache.borrow_mut().insert(key, serialized);
 
         Ok(())
     }
@@ -95,153 +86,111 @@ where
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<V>(&mut self, key: K) -> Result<V, Error>
+    pub fn get<V>(self, key: K) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
-        let val_bytes = if let Some(val) = self.cache.get(&key) {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "get"]
+            fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
+        }
+
+        let mut cache = self.cache.borrow_mut();
+
+        let val_bytes = if let Some(val) = cache.get(&key) {
             val
         } else {
-            let val = unsafe { host::get_bytes(&self.program, &key.clone().into())? };
-            let val_ptr = val as *const u8;
-            // TODO write a test for that
-            if val_ptr.is_null() {
-                return Err(Error::Read);
+            let args = key.as_prefixed();
+
+            let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+            let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
+
+            if ptr.is_null() {
+                return Ok(None);
             }
 
-            // TODO Wrap in OK for now, change from_raw_ptr to return Result
-            let bytes = into_bytes(val_ptr).ok_or(Error::InvalidPointer)?;
-            self.cache.entry(key).or_insert(bytes)
+            cache.entry(key).or_insert(ptr.into())
         };
 
-        from_slice::<V>(val_bytes).map_err(|_| StateError::Deserialization)
+        from_slice::<V>(val_bytes)
+            .map_err(|_| StateError::Deserialization)
+            .map(Some)
     }
 
     /// Delete a value from the hosts's storage.
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete(&mut self, key: K) -> Result<(), Error> {
-        self.cache.remove(&key);
+    pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "delete"]
+            fn delete(ptr: *const u8, len: usize) -> HostPtr;
+        }
 
-        unsafe { host::delete_bytes(&self.program, &key.into()) }
+        // TODO:
+        // we should actually cache deletes as well
+        // to avoid cache misses after delete
+        self.cache.borrow_mut().remove(&key);
+
+        let args = key.as_prefixed();
+
+        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+
+        let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
+
+        from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    fn flush(&mut self) -> Result<(), Error> {
-        for (key, value) in self.cache.drain() {
-            unsafe {
-                host::put_bytes(&self.program, &key.into(), &value)?;
-            }
+    fn flush(&self) {
+        #[link(wasm_import_module = "state")]
+        extern "C" {
+            #[link_name = "put_many"]
+            fn put_many_bytes(ptr: *const u8, len: usize);
         }
+
+        let mut cache = self.cache.borrow_mut();
+
+        let entries: Vec<_> = cache.drain().collect();
+
+        let args = entries.iter().map(|(key, value)| PutArgs {
+            key: key.as_prefixed(),
+            value,
+        });
+        let args = args.collect::<Vec<PutArgs>>();
+        let serialized_args = borsh::to_vec(&args).expect("failure");
+        unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
+    }
+}
+
+pub struct PrefixedBytes<'a>(u8, &'a [u8]);
+
+impl<'a> PrefixedBytes<'a> {
+    #[must_use]
+    pub fn new(prefix: u8, bytes: &'a [u8]) -> Self {
+        Self(prefix, bytes)
+    }
+}
+
+impl BorshSerialize for PrefixedBytes<'_> {
+    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let Self(prefix, bytes) = self;
+        let len = 1 + u32::try_from(bytes.len()).map_err(|_| ErrorKind::InvalidData)?;
+
+        // TODO: just use bytemuck with the enum
+        writer.write_all(&len.to_le_bytes())?;
+        writer.write_all(&[*prefix])?;
+        writer.write_all(bytes)?;
 
         Ok(())
     }
 }
 
-/// Key is a wrapper around a `Vec<u8>` that represents a key in the host storage.
-#[derive(Debug, Default, Clone)]
-pub struct Key(Vec<u8>);
-
-impl Deref for Key {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Key {
-    /// Returns a new Key from the bytes.
-    #[must_use]
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Self(bytes)
-    }
-}
-
-macro_rules! ffi_linker {
-    ($mod:literal, $link:literal, $caller:ident, $key:ident) => {
-        #[link(wasm_import_module = $mod)]
-        extern "C" {
-            #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer) -> i32;
-        }
-
-        let $caller = to_ffi_ptr($caller.id())?;
-        let $key = to_ffi_ptr($key)?;
-    };
-    ($mod:literal, $link:literal, $caller:ident, $key:ident, $value:ident) => {
-        #[link(wasm_import_module = $mod)]
-        extern "C" {
-            #[link_name = $link]
-            fn ffi(caller: CPointer, key: CPointer, value: CPointer) -> i32;
-        }
-
-        let $caller = to_ffi_ptr($caller.id())?;
-        let $key = to_ffi_ptr($key)?;
-        let $value = to_ffi_ptr($value)?;
-    };
-}
-
-macro_rules! call_host_fn {
-    (
-        wasm_import_module = $mod:literal
-        link_name = $link:literal
-        args = ($caller:ident, $key:ident)
-    ) => {{
-        ffi_linker!($mod, $link, $caller, $key);
-
-        unsafe { ffi($caller, $key) }
-    }};
-
-    (
-        wasm_import_module = $mod:literal
-        link_name = $link:literal
-        args = ($caller:ident, $key:ident, $value:ident)
-    ) => {{
-        ffi_linker!($mod, $link, $caller, $key, $value);
-
-        unsafe { ffi($caller, $key, $value) }
-    }};
-}
-
-mod host {
-    use super::{Key, Program};
-    use crate::{
-        memory::{to_ffi_ptr, CPointer},
-        state::Error,
-    };
-
-    /// Persists the bytes at key on the host storage.
-    pub(super) unsafe fn put_bytes(caller: &Program, key: &Key, bytes: &[u8]) -> Result<(), Error> {
-        match call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "put"
-            args = (caller, key, bytes)
-        } {
-            0 => Ok(()),
-            _ => Err(Error::Write),
-        }
-    }
-
-    /// Gets the bytes associated with the key from the host.
-    pub(super) unsafe fn get_bytes(caller: &Program, key: &Key) -> Result<i32, Error> {
-        Ok(call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "get"
-            args = (caller, key)
-        })
-    }
-
-    /// Deletes the bytes at key ptr from the host storage
-    pub(super) unsafe fn delete_bytes(caller: &Program, key: &Key) -> Result<(), Error> {
-        match call_host_fn! {
-            wasm_import_module = "state"
-            link_name = "delete"
-            args = (caller, key)
-        } {
-            0 => Ok(()),
-            _ => Err(Error::Delete),
-        }
-    }
+#[derive(BorshSerialize)]
+struct PutArgs<'a> {
+    key: PrefixedBytes<'a>,
+    value: &'a [u8],
 }

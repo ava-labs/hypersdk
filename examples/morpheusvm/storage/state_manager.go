@@ -57,13 +57,3 @@ func (*StateManager) Deduct(
 ) error {
 	return SubBalance(ctx, mu, addr, amount)
 }
-
-func (*StateManager) Refund(
-	ctx context.Context,
-	addr codec.Address,
-	mu state.Mutable,
-	amount uint64,
-) error {
-	// Don't create account if it doesn't exist (may have sent all funds).
-	return AddBalance(ctx, mu, addr, amount, false)
-}

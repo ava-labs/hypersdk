@@ -7,12 +7,12 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 var _ chain.Action = (*Transfer)(nil)
@@ -29,6 +29,9 @@ type Transfer struct {
 
 	// Optional message to accompany transaction.
 	Memo []byte `json:"memo"`
+
+	// TODO: add boolean to indicate whether sender will
+	// create recipient account
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -53,29 +56,29 @@ func (t *Transfer) Execute(
 	_ int64,
 	actor codec.Address,
 	_ ids.ID,
-) (bool, uint64, []byte, error) {
+) ([][]byte, error) {
 	if t.Value == 0 {
-		return false, TransferComputeUnits, OutputValueZero, nil
+		return nil, ErrOutputValueZero
 	}
 	if len(t.Memo) > MaxMemoSize {
-		return false, CreateAssetComputeUnits, OutputMemoTooLarge, nil
+		return nil, ErrOutputMemoTooLarge
 	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Asset, t.Value); err != nil {
-		return false, TransferComputeUnits, utils.ErrBytes(err), nil
+		return nil, err
 	}
 	// TODO: allow sender to configure whether they will pay to create
 	if err := storage.AddBalance(ctx, mu, t.To, t.Asset, t.Value, true); err != nil {
-		return false, TransferComputeUnits, utils.ErrBytes(err), nil
+		return nil, err
 	}
-	return true, TransferComputeUnits, nil, nil
+	return nil, nil
 }
 
-func (*Transfer) MaxComputeUnits(chain.Rules) uint64 {
+func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
 func (t *Transfer) Size() int {
-	return codec.AddressLen + consts.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
+	return codec.AddressLen + ids.IDLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {

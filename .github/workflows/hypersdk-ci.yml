@@ -36,6 +36,8 @@ jobs:
         working-directory: ./examples/tokenvm
         run: go mod tidy
       - shell: bash
+        run: git diff
+      - shell: bash
         run: scripts/tests.clean.sh
 
   hypersdk-lint:
@@ -60,6 +62,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Go
         uses: ./.github/actions/install-go
+      - name: Install Rust
+        uses: ./.github/actions/install-rust
+        with:
+          targets: wasm32-unknown-unknown
+          cache: false
       - name: Run unit tests
         shell: bash
         run: scripts/tests.unit.sh
@@ -132,29 +139,8 @@ jobs:
         env:
           MODE: 'test'
 
-  tokenvm-load-tests:
-    needs: [tokenvm-unit-tests]
-    strategy:
-      matrix:
-        level: [v1, v2, v3] # v4 is not supported
-    runs-on: ubuntu-20.04-32
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-        with:
-          cache-dependency-path: |
-            go.sum
-            examples/tokenvm/go.sum
-      - name: Run load tests
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
-
   tokenvm-sync-tests:
-    needs: [tokenvm-unit-tests]
+    needs: [tokenvm-lint, tokenvm-unit-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
@@ -174,7 +160,7 @@ jobs:
           MODE: 'full-test'
 
   token-wallet-release:
-    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    needs: [tokenvm-sync-tests]
     runs-on: macos-latest-xl
     steps:
       - name: Checkout
@@ -182,7 +168,7 @@ jobs:
       - uses: ./.github/actions/token-wallet-release
 
   tokenvm-release:
-    needs: [tokenvm-load-tests, tokenvm-sync-tests]
+    needs: [tokenvm-sync-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     steps:
@@ -254,29 +240,8 @@ jobs:
         env:
           MODE: 'test'
 
-  morpheusvm-load-tests:
-    needs: [morpheusvm-unit-tests]
-    strategy:
-      matrix:
-        level: [v1, v2, v3] # v4 is not supported
-    runs-on: ubuntu-20.04-32
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-        with:
-          cache-dependency-path: |
-            go.sum
-            examples/morpheusvm/go.sum
-      - name: Run load tests
-        working-directory: ./examples/morpheusvm
-        shell: bash
-        run: GOAMD64=${{ matrix.level }} scripts/tests.load.sh
-
   morpheusvm-sync-tests:
-    needs: [morpheusvm-unit-tests]
+    needs: [morpheusvm-lint, morpheusvm-unit-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
@@ -296,7 +261,7 @@ jobs:
           MODE: 'full-test'
 
   morpheusvm-release:
-    needs: [morpheusvm-load-tests, morpheusvm-sync-tests]
+    needs: [morpheusvm-sync-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     steps:

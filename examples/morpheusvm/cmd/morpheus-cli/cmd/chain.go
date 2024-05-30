@@ -7,8 +7,9 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/chain"
 
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )

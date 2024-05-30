@@ -11,20 +11,38 @@ import (
 
 type Result struct {
 	Success bool
-	Output  []byte
+	Error   []byte
 
-	Consumed fees.Dimensions
-	Fee      uint64
+	Outputs [][][]byte
+
+	// Computing [Units] requires access to [StateManager], so it is returned
+	// to make life easier for indexers.
+	Units fees.Dimensions
+	Fee   uint64
 }
 
 func (r *Result) Size() int {
-	return consts.BoolLen + codec.BytesLen(r.Output) + fees.DimensionsLen + consts.Uint64Len
+	outputSize := consts.Uint8Len // actions
+	for _, action := range r.Outputs {
+		outputSize += consts.Uint8Len
+		for _, output := range action {
+			outputSize += codec.BytesLen(output)
+		}
+	}
+	return consts.BoolLen + codec.BytesLen(r.Error) + outputSize + fees.DimensionsLen + consts.Uint64Len
 }
 
 func (r *Result) Marshal(p *codec.Packer) error {
 	p.PackBool(r.Success)
-	p.PackBytes(r.Output)
-	p.PackFixedBytes(r.Consumed.Bytes())
+	p.PackBytes(r.Error)
+	p.PackByte(uint8(len(r.Outputs)))
+	for _, outputs := range r.Outputs {
+		p.PackByte(uint8(len(outputs)))
+		for _, output := range outputs {
+			p.PackBytes(output)
+		}
+	}
+	p.PackFixedBytes(r.Units.Bytes())
 	p.PackUint64(r.Fee)
 	return nil
 }
@@ -45,22 +63,29 @@ func UnmarshalResult(p *codec.Packer) (*Result, error) {
 	result := &Result{
 		Success: p.UnpackBool(),
 	}
-	p.UnpackBytes(consts.MaxInt, false, &result.Output)
-	if len(result.Output) == 0 {
-		// Enforce object standardization
-		result.Output = nil
+	p.UnpackBytes(consts.MaxInt, false, &result.Error)
+	outputs := [][][]byte{}
+	numActions := p.UnpackByte()
+	for i := uint8(0); i < numActions; i++ {
+		numOutputs := p.UnpackByte()
+		actionOutputs := [][]byte{}
+		for j := uint8(0); j < numOutputs; j++ {
+			var output []byte
+			p.UnpackBytes(consts.MaxInt, false, &output)
+			actionOutputs = append(actionOutputs, output)
+		}
+		outputs = append(outputs, actionOutputs)
 	}
+	result.Outputs = outputs
 	consumedRaw := make([]byte, fees.DimensionsLen)
 	p.UnpackFixedBytes(fees.DimensionsLen, &consumedRaw)
-	consumed, err := fees.UnpackDimensions(consumedRaw)
+	units, err := fees.UnpackDimensions(consumedRaw)
 	if err != nil {
 		return nil, err
 	}
-	result.Consumed = consumed
+	result.Units = units
 	result.Fee = p.UnpackUint64(false)
-	if !p.Empty() {
-		return nil, p.Err()
-	}
+	// Wait to check if empty until after all results are unpacked.
 	return result, p.Err()
 }
 

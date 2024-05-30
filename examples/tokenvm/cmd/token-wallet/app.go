@@ -7,10 +7,10 @@ import (
 	"context"
 	"runtime/debug"
 
-	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-wallet/backend"
-
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/token-wallet/backend"
 )
 
 type App struct {
@@ -155,7 +155,7 @@ func (a *App) OpenLink(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
 }
 
-func (a *App) GetCommitHash() string {
+func (*App) GetCommitHash() string {
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {

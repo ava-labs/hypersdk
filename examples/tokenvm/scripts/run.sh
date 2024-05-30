@@ -17,18 +17,20 @@ if ! [[ "$0" =~ scripts/run.sh ]]; then
   exit 255
 fi
 
-VERSION=v1.10.18
+VERSION=v1.11.6
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
-AGO_LOGLEVEL=${AGO_LOGLEVEL:-info}
-LOGLEVEL=${LOGLEVEL:-info}
+LOG_LEVEL=${LOG_LEVEL:-INFO}
+AGO_LOG_LEVEL=${AGO_LOG_LEVEL:-INFO}
+AGO_LOG_DISPLAY_LEVEL=${AGO_LOG_DISPLAY_LEVEL:-INFO}
 STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
 ADDRESS=${ADDRESS:-token1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s}
-if [[ ${MODE} != "run" && ${MODE} != "run-single" ]]; then
-  LOGLEVEL=debug
+if [[ ${MODE} != "run" ]]; then
+  LOG_LEVEL=DEBUG
+  AGO_LOG_DISPLAY_LEVEL=INFO
   STATESYNC_DELAY=100000000 # 100ms
   MIN_BLOCK_GAP=250 #ms
   STORE_TXS=true
@@ -44,8 +46,9 @@ if ${UNLIMITED_USAGE}; then
 fi
 
 echo "Running with:"
-echo AGO_LOGLEVEL: "${AGO_LOGLEVEL}"
-echo LOGLEVEL: "${LOGLEVEL}"
+echo LOG_LEVEL: "${LOG_LEVEL}"
+echo AGO_LOG_LEVEL: "${AGO_LOG_LEVEL}"
+echo AGO_LOG_DISPLAY_LEVEL: "${AGO_LOG_DISPLAY_LEVEL}"
 echo VERSION: "${VERSION}"
 echo MODE: "${MODE}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
@@ -160,7 +163,7 @@ cat <<EOF > "${TMPDIR}"/tokenvm.config
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "trackedPairs":["*"],
-  "logLevel": "${LOGLEVEL}",
+  "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/tokenvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
@@ -202,7 +205,7 @@ ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 # download avalanche-network-runner
 # https://github.com/ava-labs/avalanche-network-runner
 ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
-ANR_VERSION=90aa9ae77845665b7638404a2a5e6a4dcce6d489
+ANR_VERSION=v1.8.0
 # version set
 go install -v "${ANR_REPO_PATH}"@"${ANR_VERSION}"
 
@@ -251,7 +254,8 @@ echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
 --network-runner-log-level verbo \
---avalanchego-log-level "${AGO_LOGLEVEL}" \
+--avalanchego-log-level "${AGO_LOG_LEVEL}" \
+--avalanchego-log-display-level "${AGO_LOG_DISPLAY_LEVEL}" \
 --network-runner-grpc-endpoint="0.0.0.0:12352" \
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
@@ -263,7 +267,7 @@ echo "running e2e tests"
 --mode="${MODE}"
 
 ############################
-if [[ ${MODE} == "run" || ${MODE} == "run-single" ]]; then
+if [[ ${MODE} == "run" ]]; then
   echo "cluster is ready!"
   # We made it past initialization and should avoid shutting down the network
   KEEPALIVE=true
