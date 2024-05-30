@@ -8,9 +8,9 @@ require (
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
-	github.com/onsi/gomega v1.29.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.7.0
+	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 )
 
@@ -58,7 +58,6 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20230406165453-00490a63f317 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -114,7 +113,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
 	github.com/status-im/keycard-go v0.2.0 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
