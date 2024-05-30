@@ -42,7 +42,9 @@ pub struct State<'a, K: Key> {
     cache: &'a RefCell<HashMap<K, Vec<u8>>>,
 }
 
-pub trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
+pub trait Key: Copy + PartialEq + Eq + Hash {
+    fn as_prefixed(&self) -> PrefixedBytes<'_>;
+}
 
 impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {
@@ -99,7 +101,9 @@ impl<'a, K: Key> State<'a, K> {
         let val_bytes = if let Some(val) = cache.get(&key) {
             val
         } else {
-            let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
+            let args = key.as_prefixed();
+
+            let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
             let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
@@ -131,7 +135,9 @@ impl<'a, K: Key> State<'a, K> {
         // to avoid cache misses after delete
         self.cache.borrow_mut().remove(&key);
 
-        let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
+        let args = key.as_prefixed();
+
+        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
         let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
 
@@ -148,11 +154,14 @@ impl<'a, K: Key> State<'a, K> {
 
         let mut cache = self.cache.borrow_mut();
 
-        let args: Vec<_> = cache
-            .drain()
-            .map(|(key, value)| PutArgs { key, value })
-            .collect();
-        let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
+        let entries: Vec<_> = cache.drain().collect();
+
+        let args = entries.iter().map(|(key, value)| PutArgs {
+            key: key.as_prefixed(),
+            value,
+        });
+        let args = args.collect::<Vec<PutArgs>>();
+        let serialized_args = borsh::to_vec(&args).expect("failure");
         unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
     }
 }
@@ -181,7 +190,7 @@ impl BorshSerialize for PrefixedBytes<'_> {
 }
 
 #[derive(BorshSerialize)]
-struct PutArgs<Key> {
-    key: Key,
-    value: Vec<u8>,
+struct PutArgs<'a> {
+    key: PrefixedBytes<'a>,
+    value: &'a [u8],
 }
