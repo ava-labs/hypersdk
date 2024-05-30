@@ -6,10 +6,10 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/snow"
 	"go.uber.org/zap"
 
