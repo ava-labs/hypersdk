@@ -10,8 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 // Generate merkle root for a set of items
@@ -19,9 +17,8 @@ func GenerateMerkleRoot(ctx context.Context, config merkledb.Config, merkleItems
 	batchOps := make([]database.BatchOp, 0, len(merkleItems))
 
 	for _, item := range merkleItems {
-		key := utils.ToID(item)
 		batchOps = append(batchOps, database.BatchOp{
-			Key:   key[:],
+			Key:   item,
 			Value: item,
 		})
 	}
