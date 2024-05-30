@@ -149,16 +149,12 @@ pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> boo
 #[public]
 pub fn transfer(context: Context<StateKey>, recipient: Address, amount: u64) -> bool {
     let Context { program, actor } = context;
-    return inner_transfer(&program, actor, recipient, amount)
-}
-
-pub fn inner_transfer(program:&Program<StateKey>, sender:Address, recipient: Address, amount: u64) -> bool {
-    assert_ne!(sender, recipient, "sender and recipient must be different");
+    assert_ne!(actor, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<u64>(StateKey::Balance(sender))
+        .get::<u64>(StateKey::Balance(actor))
         .expect("failed to get sender balance")
         .unwrap_or_default();
 
@@ -173,7 +169,7 @@ pub fn inner_transfer(program:&Program<StateKey>, sender:Address, recipient: Add
     // update balances
     program
         .state()
-        .store(StateKey::Balance(sender), &(sender_balance - amount))
+        .store(StateKey::Balance(actor), &(sender_balance - amount))
         .expect("failed to store sender balance");
 
     program
@@ -191,13 +187,13 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context { program, actor } = context;
-    let total_allowance = inner_allowance(&program, sender, actor);
+    let Context {program, actor } = context;
+    let total_allowance = allowance(context, sender, actor);
     assert!(total_allowance>amount);
     program
         .state()
         .store(StateKey::Allowance(sender, actor), &(total_allowance - amount))
         .expect("failed to store allowance");
-    inner_transfer(&program, actor, recipient, amount)
+    transfer(context, recipient, amount)
 }
 
