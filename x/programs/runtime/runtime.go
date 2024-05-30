@@ -8,6 +8,7 @@ import (
 	"context"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/hypersdk/x/programs/runtime/collections"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"reflect"
 )
@@ -18,7 +19,7 @@ type WasmRuntime struct {
 	hostImports   *Imports
 	cfg           *Config
 	programs      map[ids.ID]*ProgramInstance
-	callerInfo    map[uintptr]*CallInfo
+	callerInfo    map[uintptr]*collections.Stack[*CallInfo]
 	programLoader ProgramLoader
 	linker        *wasmtime.Linker
 }
@@ -39,7 +40,7 @@ func NewRuntime(
 		hostImports:   NewImports(),
 		programs:      map[ids.ID]*ProgramInstance{},
 		programLoader: loader,
-		callerInfo:    map[uintptr]*CallInfo{},
+		callerInfo:    map[uintptr]*collections.Stack[*CallInfo]{},
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -83,11 +84,13 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 			return nil, err
 		}
 		r.programs[callInfo.ProgramID] = program
+		key := toMapKey(program.store)
+		callstack := make(collections.Stack[*CallInfo], 0, 2)
+		r.callerInfo[key] = &callstack
 	}
 	callInfo.inst = program
-	key := toMapKey(program.store)
-	r.callerInfo[key] = callInfo
-	defer delete(r.callerInfo, key)
+	r.setCallInfo(program.store, callInfo)
+	defer r.deleteCallInfo(program.store)
 	return program.call(ctx, callInfo)
 }
 
@@ -103,4 +106,16 @@ func (r *WasmRuntime) getInstance(program *Program) (*ProgramInstance, error) {
 
 func toMapKey(storelike wasmtime.Storelike) uintptr {
 	return reflect.ValueOf(storelike.Context()).Pointer()
+}
+
+func (r *WasmRuntime) setCallInfo(storelike wasmtime.Storelike, info *CallInfo) {
+	r.callerInfo[toMapKey(storelike)].Push(info)
+}
+
+func (r *WasmRuntime) getCallInfo(storelike wasmtime.Storelike) *CallInfo {
+	return r.callerInfo[toMapKey(storelike)].Peek()
+}
+
+func (r *WasmRuntime) deleteCallInfo(storelike wasmtime.Storelike) {
+	r.callerInfo[toMapKey(storelike)].Pop()
 }

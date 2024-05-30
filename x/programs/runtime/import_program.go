@@ -56,8 +56,6 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				if err := callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel); err != nil {
 					return nil, err
 				}
-				r.callerInfo[toMapKey(callInfo.inst.store)] = callInfo
-
 				return result, nil
 			})},
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
