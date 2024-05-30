@@ -114,33 +114,7 @@ func (c *runCmd) Verify() error {
 	}
 
 	// verify endpoint requirements
-	err := verifyEndpoint(*c.lastStep, step)
-	if err != nil {
-		return err
-	}
-
-	// verify assertions
-	if step.Require != nil {
-		err = verifyAssertion(*c.lastStep, step.Require)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func verifyAssertion(i int, require *Require) error {
-	if require == nil {
-		return nil
-	}
-	if require.Result.Operator == "" {
-		return fmt.Errorf("%w %d: missing assertion operator", ErrInvalidStep, i)
-	}
-	if require.Result.Value == "" {
-		return fmt.Errorf("%w %d: missing assertion value", ErrInvalidStep, i)
-	}
-	return nil
+	return verifyEndpoint(*c.lastStep, step)
 }
 
 func verifyEndpoint(i int, step *Step) error {
@@ -193,7 +167,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
 	if err != nil {
 		c.log.Error("simulation step err", zap.Error(err))
 		resp.setError(err)
@@ -219,7 +193,6 @@ func runStepFunc(
 	maxUnits uint64,
 	method string,
 	params []Parameter,
-	require *Require,
 	resp *Response,
 ) error {
 	defer resp.setTimestamp(time.Now().Unix())
@@ -257,13 +230,8 @@ func runStepFunc(
 			return errors.New("multi response not supported")
 		}
 		res := response[0]
-		resp.setResponse(res)
-		ok, err := validateAssertion(res, require)
-		if !ok {
-			return fmt.Errorf("%w", ErrResultAssertionFailed)
-		}
-		if err != nil {
-			return err
+		if res != nil {
+			resp.setResponse(res)
 		}
 		resp.setTxID(id.String())
 		resp.setBalance(balance)
@@ -280,14 +248,8 @@ func runStepFunc(
 			return errors.New("multi response not supported")
 		}
 		res := response[0]
-		resp.setResponse(res)
-		ok, err := validateAssertion(res, require)
-
-		if !ok {
-			return fmt.Errorf("%w", ErrResultAssertionFailed)
-		}
-		if err != nil {
-			return err
+		if res != nil {
+			resp.setResponse(res)
 		}
 
 		return nil

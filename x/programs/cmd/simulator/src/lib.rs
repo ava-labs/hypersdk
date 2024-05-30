@@ -3,8 +3,9 @@
 //! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
+use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{base64::Base64, serde_as, DisplayFromStr};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -17,7 +18,7 @@ mod id;
 pub use id::Id;
 
 /// The endpoint to call for a [Step].
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
     /// Perform an operation against the key api.
@@ -31,7 +32,7 @@ pub enum Endpoint {
 }
 
 /// A [Plan] is made up of [Step]s. Each step is a call to the API and can include verification.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
     /// The API endpoint to call.
@@ -42,9 +43,6 @@ pub struct Step {
     pub max_units: u64,
     /// The parameters to pass to the method.
     pub params: Vec<Param>,
-    /// If defined the result of the step must match this assertion.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub require: Option<Require>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -65,7 +63,6 @@ impl Step {
             method: "create_key".into(),
             max_units: 0,
             params: vec![Param::Key(key)],
-            require: None,
         }
     }
 
@@ -79,7 +76,6 @@ impl Step {
             method: "program_create".into(),
             max_units: 0,
             params: vec![Param::String(path.into())],
-            require: None,
         }
     }
 }
@@ -130,42 +126,18 @@ impl From<Key> for Param {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct Require {
-    /// If defined the result of the step must match this assertion.
-    pub result: ResultAssertion,
-}
-
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(tag = "operator", content = "value")]
-pub enum ResultAssertion {
-    #[serde(rename = "==")]
-    NumericEq(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = "!=")]
-    NumericNe(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = ">")]
-    NumericGt(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = "<")]
-    NumericLt(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = ">=")]
-    NumericGe(#[serde_as(as = "DisplayFromStr")] u64),
-    #[serde(rename = "<=")]
-    NumericLe(#[serde_as(as = "DisplayFromStr")] u64),
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Plan {
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Plan<'a> {
     /// The key of the caller used in each step of the plan.
-    pub caller_key: String,
+    pub caller_key: &'a str,
     /// The steps to perform in the plan.
     pub steps: Vec<Step>,
 }
 
-impl Plan {
+impl<'a> Plan<'a> {
     /// Pass in the `caller_key` to be used in each step of the plan.
     #[must_use]
-    pub fn new(caller_key: String) -> Self {
+    pub fn new(caller_key: &'a str) -> Self {
         Self {
             caller_key,
             steps: vec![],
@@ -179,17 +151,16 @@ impl Plan {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PlanResponse {
+#[derive(Debug, Deserialize)]
+pub struct BaseResponse {
     /// The numeric id of the step.
     pub id: u32,
-    /// The result of the plan.
-    pub result: PlanResult,
     /// An optional error message.
     pub error: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[serde_as]
+#[derive(Debug, Deserialize)]
 pub struct PlanResult {
     /// The ID created from the program execution.
     pub id: Option<String>,
@@ -198,28 +169,108 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    pub response: Option<String>,
+    #[serde_as(as = "Base64")]
+    pub response: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlanResultTyped<T>
+where
+    T: BorshDeserialize,
+{
+    /// The ID created from the program execution.
+    pub id: Option<String>,
+    /// An optional message.
+    pub msg: Option<String>,
+    /// The timestamp of the function call response.
+    pub timestamp: u64,
+    /// The result of the function call.
+    pub response: T,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlanResponse {
+    #[serde(flatten)]
+    pub base: BaseResponse,
+    /// The result of the plan.
+    pub result: PlanResult,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlanResponseTyped<T>
+where
+    T: BorshDeserialize,
+{
+    #[serde(flatten)]
+    pub base: BaseResponse,
+    /// The result of the plan.
+    pub result: PlanResultTyped<T>,
+}
+
+impl<T> TryFrom<PlanResponse> for PlanResponseTyped<T>
+where
+    T: BorshDeserialize,
+{
+    type Error = borsh::io::Error;
+
+    fn try_from(value: PlanResponse) -> Result<Self, Self::Error> {
+        let PlanResponse {
+            base: BaseResponse { id: resp_id, error },
+            result:
+                PlanResult {
+                    id,
+                    msg,
+                    timestamp,
+                    response,
+                },
+        } = value;
+
+        Ok(PlanResponseTyped {
+            base: BaseResponse { id: resp_id, error },
+            result: PlanResultTyped {
+                id,
+                msg,
+                timestamp,
+                response: borsh::from_slice(&response)?,
+            },
+        })
+    }
 }
 
 #[derive(Error, Debug)]
 pub enum ClientError {
     #[error("Read error: {0}")]
     Read(#[from] std::io::Error),
-    #[error("Deserialization error: {0}")]
-    Deserialization(#[from] serde_json::Error),
     #[error("EOF")]
     Eof,
     #[error("Missing handle")]
     StdIo,
 }
 
-/// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
-pub struct Client {
-    /// Path to the simulator binary
-    path: &'static str,
+#[derive(Error, Debug)]
+pub enum StepError {
+    #[error("Client error {0}")]
+    Client(#[from] ClientError),
+    #[error("Serialization / Deserialization error: {0}")]
+    Serde(#[from] serde_json::Error),
+    #[error("Borsh deserialization error: {0}")]
+    BorshDeserialization(#[from] borsh::io::Error),
 }
 
-impl Client {
+/// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
+pub struct Client<W, R> {
+    writer: W,
+    responses: R,
+}
+
+type StepResult = Result<PlanResponse, StepError>;
+
+pub struct ClientBuilder<'a> {
+    path: &'a str,
+}
+
+impl ClientBuilder<'_> {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let path = env!("SIMULATOR_PATH");
 
@@ -236,16 +287,10 @@ impl Client {
         Self { path }
     }
 
-    /// Runs a [Plan] against the simulator and returns vec of result.
-    /// # Errors
-    ///
-    /// Returns an error if the serialization or plan fails.
-    pub fn run_plan(self, plan: Plan) -> Result<Vec<PlanResponse>, ClientError> {
-        let Child {
-            mut stdin,
-            mut stdout,
-            ..
-        } = Command::new(self.path)
+    pub fn try_build(
+        self,
+    ) -> Result<Client<impl Write, impl Iterator<Item = StepResult>>, ClientError> {
+        let Child { stdin, stdout, .. } = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
@@ -254,51 +299,59 @@ impl Client {
             .stdout(Stdio::piped())
             .spawn()?;
 
-        let writer = stdin.as_mut().ok_or(ClientError::StdIo)?;
-        let reader = stdout.as_mut().ok_or(ClientError::StdIo)?;
+        let writer = stdin.ok_or(ClientError::StdIo)?;
+        let reader = stdout.ok_or(ClientError::StdIo)?;
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
+            .map(|line| serde_json::from_str(&line?).map_err(StepError::Serde));
 
-        let mut child = SimulatorChild { writer, responses };
-
-        plan.steps
-            .iter()
-            .map(|step| child.run_step(&plan.caller_key, step))
-            .collect()
+        Ok(Client { writer, responses })
     }
 }
 
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-struct SimulatorChild<W, R> {
-    writer: W,
-    responses: R,
-}
-
-impl<W, R> SimulatorChild<W, R>
+impl<W, R> Client<W, R>
 where
     W: Write,
-    R: Iterator<Item = Result<PlanResponse, ClientError>>,
+    R: Iterator<Item = StepResult>,
 {
-    fn run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, ClientError> {
+    /// Runs a [Plan] against the simulator and returns vec of result.
+    /// # Errors
+    ///
+    /// Returns an error if the serialization or plan fails.
+    pub fn run_plan(&mut self, plan: Plan) -> Result<Vec<PlanResponse>, StepError> {
+        plan.steps
+            .iter()
+            .map(|step| self._run_step(plan.caller_key, step))
+            .collect()
+    }
+
+    fn _run_step(&mut self, caller_key: &str, step: &Step) -> Result<PlanResponse, StepError> {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        let input = serde_json::to_vec(&step)?;
+        let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
 
-        let resp = self.responses.next().ok_or(ClientError::Eof)??;
+        self.responses
+            .next()
+            .ok_or(StepError::Client(ClientError::Eof))?
+    }
 
-        Ok(resp)
+    pub fn run_step<T>(
+        &mut self,
+        caller_key: &str,
+        step: &Step,
+    ) -> Result<PlanResponseTyped<T>, StepError>
+    where
+        T: BorshDeserialize,
+    {
+        self._run_step(caller_key, step)?
+            .try_into()
+            .map_err(StepError::BorshDeserialization)
     }
 }
 
