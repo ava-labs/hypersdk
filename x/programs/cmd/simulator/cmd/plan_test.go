@@ -28,10 +28,10 @@ func TestCreateCallParams(t *testing.T) {
 	require.NoError(t, s.Init())
 	defer s.manageCleanup(ctx)
 	cmd := &runCmd{}
-	_, err := cmd.createCallParams(ctx, s.db, []Parameter{{Type: KeyEd25519, Value: "alice"}}, EndpointExecute)
+	_, err := cmd.createCallParams(ctx, s.db, []Parameter{{Type: KeyEd25519, Value: []byte("alice")}}, EndpointExecute)
 	require.ErrorIs(t, err, ErrNamedKeyNotFound)
 	_, err = keyCreateFunc(ctx, s.db, "alice")
 	require.NoError(t, err)
-	_, err = cmd.createCallParams(ctx, s.db, []Parameter{{Type: KeyEd25519, Value: "alice"}}, EndpointExecute)
+	_, err = cmd.createCallParams(ctx, s.db, []Parameter{{Type: KeyEd25519, Value: []byte("alice")}}, EndpointExecute)
 	require.NoError(t, err)
 }
