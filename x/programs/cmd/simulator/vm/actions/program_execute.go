@@ -75,7 +75,10 @@ func (t *ProgramExecute) Execute(
 	store := &ProgramStore{
 		Mutable: mu,
 	}
-	rt := runtime.NewRuntime(cfg, t.Log, store)
+	rt, err := runtime.NewRuntime(cfg, t.Log, store)
+	if err != nil {
+		return nil, err
+	}
 	callInfo := &runtime.CallInfo{
 		State:        mu,
 		Actor:        actor,
