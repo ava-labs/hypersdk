@@ -241,8 +241,6 @@ where
 pub enum ClientError {
     #[error("Read error: {0}")]
     Read(#[from] std::io::Error),
-    #[error("Deserialization error: {0}")]
-    Deserialization(#[from] serde_json::Error),
     #[error("EOF")]
     Eof,
     #[error("Missing handle")]
@@ -253,10 +251,10 @@ pub enum ClientError {
 pub enum StepError {
     #[error("Client error {0}")]
     Client(#[from] ClientError),
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
+    #[error("Serialization / Deserialization error: {0}")]
+    Serde(#[from] serde_json::Error),
     #[error("Borsh deserialization error: {0}")]
-    Deserialization(#[from] borsh::io::Error),
+    BorshDeserialization(#[from] borsh::io::Error),
 }
 
 /// A [Client] is required to pass a [Plan] to the simulator, then to [run](Self::run_plan) the actual simulation.
@@ -306,7 +304,7 @@ impl ClientBuilder<'_> {
 
         let responses = BufReader::new(reader)
             .lines()
-            .map(|line| serde_json::from_str(&line?).map_err(Into::into));
+            .map(|line| serde_json::from_str(&line?).map_err(StepError::Serde));
 
         Ok(Client { writer, responses })
     }
@@ -333,7 +331,7 @@ where
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        let input = serde_json::to_vec(&step).map_err(StepError::Serialization)?;
+        let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
@@ -353,7 +351,7 @@ where
     {
         self._run_step(caller_key, step)?
             .try_into()
-            .map_err(StepError::Deserialization)
+            .map_err(StepError::BorshDeserialization)
     }
 }
 
