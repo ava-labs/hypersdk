@@ -20,7 +20,7 @@ type WasmRuntime struct {
 	hostImports   *Imports
 	cfg           *Config
 	programs      map[ids.ID]*ProgramInstance
-	callerInfo    map[uintptr]*collections.Stack[*CallInfo]
+	callerInfo    map[uintptr]*collections.FixedSizeStack[*CallInfo]
 	programLoader ProgramLoader
 	linker        *wasmtime.Linker
 }
@@ -41,7 +41,7 @@ func NewRuntime(
 		hostImports:   NewImports(),
 		programs:      map[ids.ID]*ProgramInstance{},
 		programLoader: loader,
-		callerInfo:    map[uintptr]*collections.Stack[*CallInfo]{},
+		callerInfo:    map[uintptr]*collections.FixedSizeStack[*CallInfo]{},
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -86,11 +86,12 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		}
 		r.programs[callInfo.ProgramID] = program
 		key := toMapKey(program.store)
-		callstack := make(collections.Stack[*CallInfo], 0, 2)
-		r.callerInfo[key] = &callstack
+		r.callerInfo[key] = collections.NewFixedSizeStack[*CallInfo](100)
 	}
 	callInfo.inst = program
-	r.setCallInfo(program.store, callInfo)
+	if err := r.setCallInfo(program.store, callInfo); err != nil {
+		return nil, err
+	}
 	defer r.deleteCallInfo(program.store)
 	return program.call(ctx, callInfo)
 }
@@ -109,8 +110,8 @@ func toMapKey(storelike wasmtime.Storelike) uintptr {
 	return reflect.ValueOf(storelike.Context()).Pointer()
 }
 
-func (r *WasmRuntime) setCallInfo(storelike wasmtime.Storelike, info *CallInfo) {
-	r.callerInfo[toMapKey(storelike)].Push(info)
+func (r *WasmRuntime) setCallInfo(storelike wasmtime.Storelike, info *CallInfo) error {
+	return r.callerInfo[toMapKey(storelike)].Push(info)
 }
 
 func (r *WasmRuntime) getCallInfo(storelike wasmtime.Storelike) *CallInfo {
