@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	readCost   = 10000
-	writeCost  = 10000
+	getCost    = 10000
+	putCost    = 10000
 	deleteCost = 10000
+
+	putManyCost = 10000
 )
 
 type keyValueInput struct {
@@ -37,7 +39,7 @@ func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
-			"get": {FuelCost: readCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"get": {FuelCost: getCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
@@ -53,7 +55,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return val, nil
 			})},
-			"put": {FuelCost: writeCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"put": {FuelCost: putCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				parsedInput := &keyValueInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return err
@@ -62,7 +64,21 @@ func NewStateAccessModule() *ImportModule {
 				defer cancel()
 				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
 			})},
-			"delete": {FuelCost: deleteCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+				var parsedInput []keyValueInput
+				if err := borsh.Deserialize(&parsedInput, input); err != nil {
+					return err
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				for _, entry := range parsedInput {
+					if err := callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, entry.Key), entry.Value); err != nil {
+						return err
+					}
+				}
+				return nil
+			})},
+			"delete": {FuelCost: deleteCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
