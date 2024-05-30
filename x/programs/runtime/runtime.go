@@ -3,16 +3,13 @@
 
 package runtime
 
-// #include "shims.h"
 import "C"
 import (
 	"context"
-	"reflect"
-	"unsafe"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"reflect"
 )
 
 type WasmRuntime struct {
@@ -20,8 +17,8 @@ type WasmRuntime struct {
 	engine        *wasmtime.Engine
 	hostImports   *Imports
 	cfg           *Config
-	programs      map[ids.ID]*Program
-	callerInfo    map[*C.wasmtime_context_t]*CallInfo
+	programs      map[ids.ID]*ProgramInstance
+	callerInfo    map[uintptr]*CallInfo
 	programLoader ProgramLoader
 	linker        *wasmtime.Linker
 }
@@ -40,9 +37,9 @@ func NewRuntime(
 		cfg:           cfg,
 		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:   NewImports(),
-		programs:      map[ids.ID]*Program{},
+		programs:      map[ids.ID]*ProgramInstance{},
 		programLoader: loader,
-		callerInfo:    map[*C.wasmtime_context_t]*CallInfo{},
+		callerInfo:    map[uintptr]*CallInfo{},
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -62,7 +59,11 @@ func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
 	if err != nil {
 		return err
 	}
-	r.programs[programID] = programModule
+	program, err := r.getInstance(programModule)
+	if err != nil {
+		return err
+	}
+	r.programs[programID] = program
 	return nil
 }
 
@@ -73,21 +74,21 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		if err != nil {
 			return nil, err
 		}
-		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
+		programMod, err := newProgram(r.engine, callInfo.ProgramID, bytes)
+		if err != nil {
+			return nil, err
+		}
+		program, err = r.getInstance(programMod)
 		if err != nil {
 			return nil, err
 		}
 		r.programs[callInfo.ProgramID] = program
 	}
-	inst, err := r.getInstance(program)
-	if err != nil {
-		return nil, err
-	}
-	callInfo.inst = inst
-	key := toMapKey(inst.store)
+	callInfo.inst = program
+	key := toMapKey(program.store)
 	r.callerInfo[key] = callInfo
 	defer delete(r.callerInfo, key)
-	return inst.call(ctx, callInfo)
+	return program.call(ctx, callInfo)
 }
 
 func (r *WasmRuntime) getInstance(program *Program) (*ProgramInstance, error) {
@@ -100,6 +101,6 @@ func (r *WasmRuntime) getInstance(program *Program) (*ProgramInstance, error) {
 	return &ProgramInstance{inst: inst, store: store}, nil
 }
 
-func toMapKey(storelike wasmtime.Storelike) *C.wasmtime_context_t {
-	return (*C.wasmtime_context_t)(unsafe.Pointer(reflect.ValueOf(storelike.Context()).Pointer()))
+func toMapKey(storelike wasmtime.Storelike) uintptr {
+	return reflect.ValueOf(storelike.Context()).Pointer()
 }
