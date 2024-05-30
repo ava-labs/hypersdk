@@ -10,6 +10,9 @@ import (
 )
 
 func convertToTrap(err error) *wasmtime.Trap {
+	if err == nil {
+		return nil
+	}
 	var t *wasmtime.Trap
 	switch {
 	case errors.As(err, &t):

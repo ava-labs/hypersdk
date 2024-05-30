@@ -72,6 +72,21 @@ impl<K> Program<K> {
 
         borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
     }
+
+    /// Gets the remaining fuel available to this program
+    /// # Panics
+    /// Panics if there was an issue deserializing the remaining fuel
+    pub fn remaining_fuel(&self) -> u64 {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "remaining_fuel"]
+            fn get_remaining_fuel() -> HostPtr;
+        }
+
+        let bytes = unsafe { get_remaining_fuel() };
+
+        borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
+    }
 }
 
 impl<K: Key> Program<K> {

@@ -131,3 +131,25 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	require.NoError(err)
 	require.Equal(expected, result)
 }
+
+func TestImportGetRemainingFuel(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.Loader{ProgramName: "fuel"})
+
+	state := test.NewTestDB()
+	programID := ids.GenerateTestID()
+
+	startFuel := uint64(100000)
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_fuel", Params: nil, Fuel: startFuel})
+	require.NoError(err)
+	remaining := uint64(0)
+	require.NoError(borsh.Deserialize(&remaining, result))
+	require.LessOrEqual(remaining, startFuel)
+}
