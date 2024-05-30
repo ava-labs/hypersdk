@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -137,6 +138,50 @@ func (p *Packer) UnpackInt(required bool) int {
 		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
 	return int(v)
+}
+
+func (p *Packer) PackUvarInt(v uint64) {
+	buf := make([]byte, binary.MaxVarintLen64)
+	binary.PutUvarint(buf, v)
+	buf = ZeroOut(buf)
+	p.PackBytes(buf)
+}
+
+func (p *Packer) UnpackUvarInt(required bool) uint64 {
+	bytes := p.p.UnpackBytes()
+	val, n := binary.Uvarint(bytes)
+	if required && n <= 0 {
+		p.addErr(fmt.Errorf("%w: UvarInt field is not populated", ErrFieldNotPopulated))
+	}
+	return val
+}
+
+func (p *Packer) PackVarInt(v int64) {
+	buf := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(buf, v)
+	buf = ZeroOut(buf)
+	p.PackBytes(buf)
+}
+
+func (p *Packer) UnpackVarInt(required bool) int64 {
+	bytes := p.p.UnpackBytes()
+	val, n := binary.Varint(bytes)
+	if required && n <= 0 {
+		p.addErr(fmt.Errorf("%w: VarInt field is not populated", ErrFieldNotPopulated))
+	}
+	return val
+}
+
+func ZeroOut(buf []byte) []byte {
+	for i := len(buf)-1; i >= 0; i-- {
+		bit := buf[i]
+		if bit == 0 {
+			buf = buf[:i]
+		} else {
+			break
+		}
+	}
+	return buf
 }
 
 func (p *Packer) PackWindow(w window.Window) {

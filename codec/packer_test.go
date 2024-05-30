@@ -135,3 +135,20 @@ func TestNewReader(t *testing.T) {
 	require.Zero(rp.UnpackUint64(true), "Reader unpacked correctly.")
 	require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
 }
+
+func TestVarInt(t *testing.T) {
+	require := require.New(t)
+	varUint := uint64(900)
+	wp1 := NewWriter(10, 10)
+	wp1.PackUvarInt(varUint)
+	rp1 := NewReader(wp1.Bytes(), 10)
+	require.Equal(varUint, rp1.UnpackUvarInt(true), "Reader unpacked incorrectly")
+	require.NoError(rp1.Err())
+
+	varInt := int64(-900)
+	wp2 := NewWriter(10, 10)
+	wp2.PackVarInt(varInt)
+	rp2 := NewReader(wp2.Bytes(), 10)
+	require.Equal(varInt, rp2.UnpackVarInt(true), "Reader unpacked incorrectly")
+	require.NoError(rp2.Err())
+}
