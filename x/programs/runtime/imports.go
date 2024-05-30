@@ -3,8 +3,6 @@
 
 package runtime
 
-// #include "shims.h"
-import "C"
 import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"golang.org/x/exp/maps"
