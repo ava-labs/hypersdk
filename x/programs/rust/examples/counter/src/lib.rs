@@ -11,6 +11,9 @@ type Count = u64;
 /// Increments the count at the address by the amount.
 #[public]
 pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
+    wasmlanche_sdk::panic::register_panic();
+    panic!();
+
     let counter = amount + get_value_internal(&context, to);
     let Context { program, .. } = context;
 

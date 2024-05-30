@@ -5,6 +5,7 @@ pub mod types;
 
 mod logging;
 mod memory;
+pub mod panic;
 mod program;
 
 pub use self::{
