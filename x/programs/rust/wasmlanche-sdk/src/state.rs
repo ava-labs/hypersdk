@@ -1,6 +1,6 @@
 use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap, hash::Hash, io::ErrorKind};
+use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -42,9 +42,7 @@ pub struct State<'a, K: Key> {
     cache: &'a RefCell<HashMap<K, Vec<u8>>>,
 }
 
-pub trait Key: Copy + PartialEq + Eq + Hash {
-    fn as_prefixed(&self) -> PrefixedBytes<'_>;
-}
+pub trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
 impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {
@@ -101,9 +99,7 @@ impl<'a, K: Key> State<'a, K> {
         let val_bytes = if let Some(val) = cache.get(&key) {
             val
         } else {
-            let args = key.as_prefixed();
-
-            let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+            let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
 
             let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
@@ -135,9 +131,7 @@ impl<'a, K: Key> State<'a, K> {
         // to avoid cache misses after delete
         self.cache.borrow_mut().remove(&key);
 
-        let args = key.as_prefixed();
-
-        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
 
         let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
 
@@ -152,45 +146,19 @@ impl<'a, K: Key> State<'a, K> {
             fn put_many_bytes(ptr: *const u8, len: usize);
         }
 
+        #[derive(BorshSerialize)]
+        struct PutArgs<Key> {
+            key: Key,
+            value: Vec<u8>,
+        }
+
         let mut cache = self.cache.borrow_mut();
 
-        let entries: Vec<_> = cache.drain().collect();
-
-        let args = entries.iter().map(|(key, value)| PutArgs {
-            key: key.as_prefixed(),
-            value,
-        });
-        let args = args.collect::<Vec<PutArgs>>();
-        let serialized_args = borsh::to_vec(&args).expect("failure");
+        let args: Vec<_> = cache
+            .drain()
+            .map(|(key, value)| PutArgs { key, value })
+            .collect();
+        let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
         unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
     }
-}
-
-pub struct PrefixedBytes<'a>(u8, &'a [u8]);
-
-impl<'a> PrefixedBytes<'a> {
-    #[must_use]
-    pub fn new(prefix: u8, bytes: &'a [u8]) -> Self {
-        Self(prefix, bytes)
-    }
-}
-
-impl BorshSerialize for PrefixedBytes<'_> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self(prefix, bytes) = self;
-        let len = 1 + u32::try_from(bytes.len()).map_err(|_| ErrorKind::InvalidData)?;
-
-        // TODO: just use bytemuck with the enum
-        writer.write_all(&len.to_le_bytes())?;
-        writer.write_all(&[*prefix])?;
-        writer.write_all(bytes)?;
-
-        Ok(())
-    }
-}
-
-#[derive(BorshSerialize)]
-struct PutArgs<'a> {
-    key: PrefixedBytes<'a>,
-    value: &'a [u8],
 }
