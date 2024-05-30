@@ -35,7 +35,8 @@ func BenchmarkRuntimeCallProgramSimple(b *testing.B) {
 				State:        nil,
 				FunctionName: "get_value",
 				Params:       nil,
-				Fuel:         10000000})
+				Fuel:         10000000,
+			})
 		require.NoError(err)
 	}
 }
@@ -59,7 +60,8 @@ func BenchmarkRuntimeCallProgramComplex(b *testing.B) {
 				State:        nil,
 				FunctionName: "get_value",
 				Params:       nil,
-				Fuel:         10000000})
+				Fuel:         10000000,
+			})
 		require.NoError(err)
 	}
 }

@@ -5,11 +5,13 @@ package runtime
 
 import (
 	"context"
+	"reflect"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/x/programs/runtime/collections"
 	"github.com/bytecodealliance/wasmtime-go/v14"
-	"reflect"
+
+	"github.com/ava-labs/hypersdk/x/programs/runtime/collections"
 )
 
 type WasmRuntime struct {
