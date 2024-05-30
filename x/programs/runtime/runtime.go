@@ -3,7 +3,6 @@
 
 package runtime
 
-import "C"
 import (
 	"context"
 	"github.com/ava-labs/avalanchego/ids"
