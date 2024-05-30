@@ -20,7 +20,6 @@ pub enum StateKey {
     Owner,
 }
 
-
 pub fn get_owner(program: &Program<StateKey>) -> Option<Address> {
     program
         .state()
@@ -32,7 +31,7 @@ pub fn owner_check(program: &Program<StateKey>, actor: Address) {
     assert!(
         match get_owner(program) {
             None => true,
-            Some(owner) => owner == actor
+            Some(owner) => owner == actor,
         },
         "caller is required to be owner"
     )
@@ -126,7 +125,7 @@ pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address) -
     inner_allowance(&program, owner, spender)
 }
 
-pub fn inner_allowance(program:&Program<StateKey>, owner: Address, spender: Address) -> u64 {
+pub fn inner_allowance(program: &Program<StateKey>, owner: Address, spender: Address) -> u64 {
     program
         .state()
         .get::<u64>(StateKey::Allowance(owner, spender))
@@ -140,7 +139,7 @@ pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> boo
     assert_ne!(actor, spender, "actor and spender must be different");
     program
         .state()
-        .store(StateKey::Allowance(actor,spender), &amount)
+        .store(StateKey::Allowance(actor, spender), &amount)
         .expect("failed to store allowance");
     true
 }
@@ -187,13 +186,15 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context {program, actor } = context;
-    let total_allowance = allowance(context, sender, actor);
-    assert!(total_allowance>amount);
+    let Context { ref program, actor } = context;
+    let total_allowance = inner_allowance(program, sender, actor);
+    assert!(total_allowance > amount);
     program
         .state()
-        .store(StateKey::Allowance(sender, actor), &(total_allowance - amount))
+        .store(
+            StateKey::Allowance(sender, actor),
+            &(total_allowance - amount),
+        )
         .expect("failed to store allowance");
     transfer(context, recipient, amount)
 }
-
