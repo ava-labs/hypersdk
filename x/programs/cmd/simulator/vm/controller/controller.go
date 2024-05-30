@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/snow"
 	"go.uber.org/zap"
 
@@ -25,7 +26,6 @@ import (
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
-	hstorage "github.com/ava-labs/hypersdk/storage"
 )
 
 var _ vm.Controller = (*Controller)(nil)
@@ -95,12 +95,7 @@ func (c *Controller) Initialize(
 	}
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	// Create DBs
-	blockDB, stateDB, metaDB, err := hstorage.New(snowCtx.ChainDataDir, gatherer)
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
-	}
-	c.metaDB = metaDB
+	c.metaDB = memdb.New()
 
 	// Create handlers
 	//
@@ -133,7 +128,7 @@ func (c *Controller) Initialize(
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, nil, nil
+	return c.config, c.genesis, build, gossip, memdb.New(), memdb.New(), apis, consts.ActionRegistry, consts.AuthRegistry, nil, nil
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {

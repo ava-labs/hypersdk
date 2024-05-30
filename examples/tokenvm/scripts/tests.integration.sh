@@ -20,7 +20,7 @@ rm -f integration.coverage.out
 rm -f integration.coverage.html
 
 # to install the ginkgo binary (required for test build and run)
-go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.0.0-rc2 || true
+go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.13.1 || true
 
 # run with 3 embedded VMs
 ACK_GINKGO_RC=true ginkgo \
