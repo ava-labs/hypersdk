@@ -5,7 +5,7 @@
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
-use serde::{ser::SerializeStruct, Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -85,8 +85,17 @@ impl Step {
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type", content = "value")]
 pub enum Key {
+    #[serde(serialize_with = "b64_encode")]
     Ed25519(String),
+    #[serde(serialize_with = "b64_encode")]
     Secp256r1(String),
+}
+
+fn b64_encode<S>(text: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&b64.encode(text))
 }
 
 // TODO:
@@ -99,37 +108,33 @@ pub enum Param {
     Key(Key),
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+enum StringParam {
+    U64(String),
+    String(String),
+    Id(String),
+}
+
 impl Serialize for Param {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let mut val = serializer.serialize_struct("param", 2)?;
         match self {
             Param::U64(num) => {
-                val.serialize_field("type", "u64")?;
-                val.serialize_field("value", &b64.encode(num.to_le_bytes()))?;
+                Serialize::serialize(&StringParam::U64(b64.encode(num.to_le_bytes())), serializer)
             }
             Param::String(text) => {
-                val.serialize_field("type", "string")?;
-                val.serialize_field("value", &b64.encode(text))?;
+                Serialize::serialize(&StringParam::String(b64.encode(text)), serializer)
             }
             Param::Id(id) => {
-                val.serialize_field("type", "id")?;
                 let id = serde_json::to_vec(&id).map_err(serde::ser::Error::custom)?;
                 let id = &id[1..id.len() - 1]; // remove quotes
-                val.serialize_field("value", &b64.encode(id))?;
+                Serialize::serialize(&StringParam::Id(b64.encode(id)), serializer)
             }
-            Param::Key(key) => {
-                let (key, algo) = match key {
-                    Key::Ed25519(key) => (key, "ed25519"),
-                    Key::Secp256r1(key) => (key, "secp256r1"),
-                };
-                val.serialize_field("type", algo)?;
-                val.serialize_field("value", &b64.encode(key))?;
-            }
+            Param::Key(key) => Serialize::serialize(key, serializer),
         }
-        val.end()
     }
 }
 

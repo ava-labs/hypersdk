@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,10 +40,10 @@ type runCmd struct {
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
-	programIDStrMap map[string]ids.ID
+	programIDStrMap map[int]ids.ID
 }
 
-func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]ids.ID, lastStep *int, reader *bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]ids.ID, lastStep *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
 	c.file = c.cmd.String("", "file", &argparse.Options{
@@ -179,7 +180,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		if err != nil {
 			return nil, err
 		}
-		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = id
+		c.programIDStrMap[index] = id
 	}
 
 	lastStep := index + 1
@@ -276,8 +277,13 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 		switch param.Type {
 		case String, ID:
 			stepIDStr := string(param.Value)
-			if strings.HasPrefix(stepIDStr, "step_") {
-				programID, ok := c.programIDStrMap[stepIDStr]
+			id_string, found := strings.CutPrefix(stepIDStr, "step_")
+			if found {
+				id, err := strconv.ParseInt(id_string, 10, 32)
+				if err != nil {
+					return nil, err
+				}
+				programID, ok := c.programIDStrMap[int(id)]
 				if !ok {
 					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
 				}
