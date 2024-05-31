@@ -5,7 +5,7 @@
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
-use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -89,13 +89,6 @@ pub enum Key {
     Ed25519(String),
     #[serde(serialize_with = "b64_encode")]
     Secp256r1(String),
-}
-
-fn b64_encode<S>(text: &String, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&b64.encode(text))
 }
 
 // TODO:
@@ -212,7 +205,25 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    pub response: Option<Vec<u8>>,
+    #[serde(deserialize_with = "b64_decode")]
+    pub response: Vec<u8>,
+}
+
+fn b64_encode<S>(text: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&b64.encode(text))
+}
+
+pub fn b64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    <std::string::String as Deserialize>::deserialize(deserializer).and_then(|string| {
+        b64.decode(string)
+            .map_err(|err| serde::de::Error::custom(err.to_string()))
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -227,7 +238,7 @@ where
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    pub response: Option<T>,
+    pub response: T,
 }
 
 #[derive(Debug, Deserialize)]
