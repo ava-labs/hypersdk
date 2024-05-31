@@ -49,11 +49,11 @@ type Cmd interface {
 type Simulator struct {
 	log logging.Logger
 
-	logLevel                *string
-	cleanup                 *bool
+	logLevel               *string
+	cleanup                *bool
 	enableWriterDisplaying *bool
-	lastStep                int
-	programIDStrMap         map[int]ids.ID
+	lastStep               int
+	programIDStrMap        map[int]ids.ID
 
 	vm      *vm.VM
 	db      *state.SimpleMutable
