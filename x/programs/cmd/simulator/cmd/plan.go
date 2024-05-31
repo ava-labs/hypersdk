@@ -277,9 +277,9 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 		switch param.Type {
 		case String, ID:
 			stepIDStr := string(param.Value)
-			id_string, found := strings.CutPrefix(stepIDStr, "step_")
+			idString, found := strings.CutPrefix(stepIDStr, "step_")
 			if found {
-				id, err := strconv.ParseInt(id_string, 10, 32)
+				id, err := strconv.ParseInt(idString, 10, 32)
 				if err != nil {
 					return nil, err
 				}
