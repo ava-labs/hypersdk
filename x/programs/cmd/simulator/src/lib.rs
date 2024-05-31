@@ -85,9 +85,9 @@ impl Step {
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type", content = "value")]
 pub enum Key {
-    #[serde(serialize_with = "b64_encode")]
+    #[serde(serialize_with = "base64_encode")]
     Ed25519(String),
-    #[serde(serialize_with = "b64_encode")]
+    #[serde(serialize_with = "base64_encode")]
     Secp256r1(String),
 }
 
@@ -122,8 +122,8 @@ impl Serialize for Param {
                 Serialize::serialize(&StringParam::String(b64.encode(text)), serializer)
             }
             Param::Id(id) => {
-                let id = serde_json::to_vec(&id).map_err(serde::ser::Error::custom)?;
-                let id = &id[1..id.len() - 1]; // remove quotes
+                let num: &usize = id.into();
+                let id = format!("step_{}", num);
                 Serialize::serialize(&StringParam::Id(b64.encode(id)), serializer)
             }
             Param::Key(key) => Serialize::serialize(key, serializer),
@@ -205,22 +205,22 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    #[serde(deserialize_with = "b64_decode")]
+    #[serde(deserialize_with = "base64_decode")]
     pub response: Vec<u8>,
 }
 
-fn b64_encode<S>(text: &String, serializer: S) -> Result<S::Ok, S::Error>
+fn base64_encode<S>(text: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     serializer.serialize_str(&b64.encode(text))
 }
 
-fn b64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    <std::string::String as Deserialize>::deserialize(deserializer).and_then(|string| {
+    <&str>::deserialize(deserializer).and_then(|string| {
         b64.decode(string)
             .map_err(|err| serde::de::Error::custom(err.to_string()))
     })
