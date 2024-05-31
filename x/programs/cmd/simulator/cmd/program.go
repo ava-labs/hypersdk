@@ -136,7 +136,12 @@ func programExecuteFunc(
 	resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 	if err != nil {
 		response := multilineOutput(resp)
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
+		if len(response) > 0 {
+			err = fmt.Errorf("program execution failed: %s, err: %w", response, err)
+		} else {
+			err = fmt.Errorf("program execution failed, err: %w", err)
+		}
+		return ids.Empty, nil, 0, err
 	}
 
 	// store program to disk only on success

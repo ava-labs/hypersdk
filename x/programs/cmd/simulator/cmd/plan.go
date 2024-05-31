@@ -162,14 +162,14 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 
 	params, err := c.createCallParams(ctx, db, step.Params, step.Endpoint)
 	if err != nil {
-		c.log.Error("simulation call", zap.Error(err))
+		c.log.Error(fmt.Sprintf("simulation call: %s", err))
 		return newResponse(0), err
 	}
 
 	resp := newResponse(index)
 	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
 	if err != nil {
-		c.log.Error("simulation step err", zap.Error(err))
+		c.log.Error(fmt.Sprintf("simulation step err: %s", err))
 		resp.setError(err)
 	}
 
