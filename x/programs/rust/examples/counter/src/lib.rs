@@ -13,7 +13,6 @@ type Count = u64;
 pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     let counter = amount + get_value_internal(&context, to);
     let Context { program, .. } = context;
-    wasmlanche_sdk::panic::register_panic();
 
     program
         .state()

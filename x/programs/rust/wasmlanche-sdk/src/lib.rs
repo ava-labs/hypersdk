@@ -5,11 +5,10 @@ pub mod types;
 
 mod logging;
 mod memory;
-pub mod panic;
 mod program;
 
 pub use self::{
-    logging::log,
+    logging::{log, register_panic},
     memory::HostPtr,
     program::{Program, PROGRAM_ID_LEN},
 };

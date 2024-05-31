@@ -31,6 +31,21 @@ macro_rules! dbg {
     };
 }
 
+pub fn register_panic() {
+    #[cfg(debug_assertions)]
+    {
+        use std::panic;
+        use std::sync::Once;
+
+        static START: Once = Once::new();
+        START.call_once(|| {
+            panic::set_hook(Box::new(|info| {
+                log(&format!("program {info}"));
+            }));
+        });
+    }
+}
+
 /// # Panics
 /// Panics if there was an issue regarding memory allocation on the host
 pub fn log(text: &str) {
