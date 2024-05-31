@@ -1,20 +1,12 @@
 pub fn register_panic() {
-    std::panic::set_hook(Box::new(|info| {
-        let payload = info.payload();
-        let payload = if let Some(s) = payload.downcast_ref::<&str>() {
-            s
-        } else if let Some(s) = payload.downcast_ref::<String>() {
-            s
-        } else {
-            "uncaught payload"
-        };
+    use crate::log;
+    use std::panic;
+    use std::sync::Once;
 
-        let (file, line, column) = info
-            .location()
-            .map(|loc| (loc.file(), loc.line().to_string(), loc.column().to_string()))
-            .unwrap_or(("???", "???".into(), "???".into()));
-
-        let as_string = format!("[{}:{}:{}] {:#?}", file, line, column, payload);
-        crate::log(as_string.as_str());
-    }));
+    static START: Once = Once::new();
+    START.call_once(|| {
+        panic::set_hook(Box::new(|info| {
+            log(&format!("program {}", info));
+        }));
+    });
 }
