@@ -188,11 +188,11 @@ pub struct BaseResponse {
     pub error: Option<PlanError>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PlanError(String);
-impl core::fmt::Debug for PlanError {
+impl std::fmt::Display for PlanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        self.0.fmt(f)
     }
 }
 
