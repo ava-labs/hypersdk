@@ -216,7 +216,7 @@ where
     serializer.serialize_str(&b64.encode(text))
 }
 
-pub fn b64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+fn b64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
