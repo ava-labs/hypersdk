@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -202,7 +201,7 @@ func runStepFunc(
 	defer resp.setTimestamp(time.Now().Unix())
 	switch endpoint {
 	case EndpointKey:
-		keyName := params[0].Value.(string)
+		keyName := string(params[0].Value)
 		key, err := keyCreateFunc(ctx, db, keyName)
 		if errors.Is(err, ErrDuplicateKeyName) {
 			log.Debug("key already exists")
@@ -215,7 +214,7 @@ func runStepFunc(
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
 		if method == ProgramCreate {
 			// get program path from params
-			programPath := params[0].Value.(string)
+			programPath := string(params[0].Value)
 			id, err := programCreateFunc(ctx, db, programPath)
 			if err != nil {
 				return err
@@ -225,7 +224,11 @@ func runStepFunc(
 
 			return nil
 		}
-		id, response, balance, err := programExecuteFunc(ctx, log, db, params[0].Value.(ids.ID), params[1:], method, maxUnits)
+		id, err := ids.ToID(params[0].Value)
+		if err != nil {
+			return err
+		}
+		id, response, balance, err := programExecuteFunc(ctx, log, db, id, params[1:], method, maxUnits)
 		if err != nil {
 			return err
 		}
@@ -242,8 +245,12 @@ func runStepFunc(
 
 		return nil
 	case EndpointReadOnly:
+		id, err := ids.ToID(params[0].Value)
+		if err != nil {
+			return err
+		}
 		// TODO: implement readonly for now just don't charge for gas
-		_, response, _, err := programExecuteFunc(ctx, log, db, params[0].Value.(ids.ID), params[1:], method, math.MaxUint64)
+		_, response, _, err := programExecuteFunc(ctx, log, db, id, params[1:], method, math.MaxUint64)
 		if err != nil {
 			return err
 		}
@@ -276,33 +283,27 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				}
 				cp = append(cp, Parameter{Value: programID[:], Type: param.Type})
 			} else {
-				// programID, err := ids.FromString(stepIDStr)
 				programID, err := ids.ToID(param.Value)
 				if err == nil {
 					cp = append(cp, Parameter{Value: programID[:], Type: param.Type})
 				} else {
-					// this is a path to the wasm program
-					// TODO check validity of the path upfront ?
-					cp = append(cp, Parameter{Value: param.Value, Type: param.Type})
+					path := string(param.Value)
+					if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+						return nil, errors.New("this path does not exists")
+					}
+					cp = append(cp, param)
 				}
 			}
-		case Bool:
-			cp = append(cp, param)
 		case KeyEd25519: // TODO: support secp256k1
-			val, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-
-			key := val
+			key := string(param.Value)
 			// get named public key from db
-			pk, ok, err := storage.GetPublicKey(ctx, db, val)
+			pk, ok, err := storage.GetPublicKey(ctx, db, key)
 			if err != nil {
 				return nil, err
 			}
 			if !ok && endpoint != EndpointKey {
 				// using not stored named public key in other context than key creation
-				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, val)
+				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
 			}
 			if ok {
 				// otherwise use the public key address
@@ -311,26 +312,12 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				copy(address[1:], pk[:])
 				key = string(address)
 			}
-			cp = append(cp, Parameter{Value: key, Type: param.Type})
-		case Uint64:
-			switch v := param.Value.(type) {
-			case float64:
-				// json unmarshal converts to float64
-				cp = append(cp, Parameter{Value: uint64(v), Type: param.Type})
-			case int:
-				if v < 0 {
-					return nil, fmt.Errorf("%w: %s", errors.New("negative value"), param.Type)
-				}
-				cp = append(cp, Parameter{Value: uint64(v), Type: param.Type})
-			case string:
-				number, err := strconv.ParseUint(v, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-				}
-				cp = append(cp, Parameter{Value: number, Type: param.Type})
-			default:
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			if err != nil {
+				return nil, err
 			}
+			cp = append(cp, Parameter{Value: []byte(key), Type: param.Type})
+		case Uint64, Bool:
+			cp = append(cp, param)
 		default:
 			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
 		}

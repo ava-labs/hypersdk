@@ -49,11 +49,11 @@ type Cmd interface {
 type Simulator struct {
 	log logging.Logger
 
-	logLevel               *string
-	cleanup                *bool
+	logLevel                *string
+	cleanup                 *bool
 	enableWriterDisplaying *bool
-	lastStep               int
-	programIDStrMap        map[string]string
+	lastStep                int
+	programIDStrMap         map[string]ids.ID
 
 	vm      *vm.VM
 	db      *state.SimpleMutable
@@ -138,7 +138,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
-	s.programIDStrMap = make(map[string]string)
+	s.programIDStrMap = make(map[string]ids.ID)
 
 	defer s.manageCleanup(ctx)
 

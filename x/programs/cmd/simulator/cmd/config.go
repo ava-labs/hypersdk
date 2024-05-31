@@ -115,7 +115,6 @@ type Parameter struct {
 	// The type of the parameter. (required)
 	Type Type `json:"type"`
 	// The value of the parameter. (required)
-	// Value interface{} `json:"value"`
 	Value []byte `json:"value"`
 }
 

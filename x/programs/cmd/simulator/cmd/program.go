@@ -5,8 +5,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -120,7 +118,10 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
-	bytes, err := SerializeParams(callParams)
+	var bytes []byte
+	for _, param := range callParams {
+		bytes = append(bytes, param.Value...)
+	}
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
@@ -136,12 +137,7 @@ func programExecuteFunc(
 	resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
 	if err != nil {
 		response := multilineOutput(resp)
-		if len(response) > 0 {
-			err = fmt.Errorf("program execution failed: %s, err: %w", response, err)
-		} else {
-			err = fmt.Errorf("program execution failed, err: %w", err)
-		}
-		return ids.Empty, nil, 0, err
+		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
 	// store program to disk only on success
@@ -156,18 +152,9 @@ func programExecuteFunc(
 	return programTxID, resp, balance, err
 }
 
-// TODO rename
-func SerializeParams(p []Parameter) ([]byte, error) {
-	var bytes []byte
-	for _, param := range p {
-		bytes = append(bytes, param.Value...)
-	}
-	return bytes, nil
-}
-
 func multilineOutput(resp [][]byte) (response string) {
 	for _, res := range resp {
-		response += string(res) // + "\n"
+		response += string(res) + "\n"
 	}
 	return response
 }
