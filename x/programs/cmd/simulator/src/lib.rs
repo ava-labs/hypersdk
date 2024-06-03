@@ -3,9 +3,9 @@
 //! Alternatively the `Plan` can be written in JSON and passed to the
 //! Simulator binary directly.
 
+use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
-use serde::{Deserialize, Serialize};
-use serde_with::{base64::Base64, serde_as, DisplayFromStr};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -85,21 +85,50 @@ impl Step {
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type", content = "value")]
 pub enum Key {
+    #[serde(serialize_with = "base64_encode")]
     Ed25519(String),
+    #[serde(serialize_with = "base64_encode")]
     Secp256r1(String),
 }
 
 // TODO:
 // add `Cow` types for borrowing
-#[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Param {
-    U64(#[serde_as(as = "DisplayFromStr")] u64),
+    U64(u64),
     String(String),
     Id(Id),
-    #[serde(untagged)]
     Key(Key),
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+enum StringParam {
+    U64(String),
+    String(String),
+    Id(String),
+}
+
+impl Serialize for Param {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Param::U64(num) => {
+                Serialize::serialize(&StringParam::U64(b64.encode(num.to_le_bytes())), serializer)
+            }
+            Param::String(text) => {
+                Serialize::serialize(&StringParam::String(b64.encode(text)), serializer)
+            }
+            Param::Id(id) => {
+                let num: &usize = id.into();
+                let id = format!("step_{}", num);
+                Serialize::serialize(&StringParam::Id(b64.encode(id)), serializer)
+            }
+            Param::Key(key) => Serialize::serialize(key, serializer),
+        }
+    }
 }
 
 impl From<u64> for Param {
@@ -167,7 +196,6 @@ impl core::fmt::Debug for PlanError {
     }
 }
 
-#[serde_as]
 #[derive(Debug, Deserialize)]
 pub struct PlanResult {
     /// The ID created from the program execution.
@@ -177,8 +205,25 @@ pub struct PlanResult {
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    #[serde_as(as = "Base64")]
+    #[serde(deserialize_with = "base64_decode")]
     pub response: Vec<u8>,
+}
+
+fn base64_encode<S>(text: &str, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&b64.encode(text))
+}
+
+fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    <&str>::deserialize(deserializer).and_then(|string| {
+        b64.decode(string)
+            .map_err(|err| serde::de::Error::custom(err.to_string()))
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -366,17 +411,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::{engine::general_purpose::STANDARD as b64, Engine};
     use serde_json::json;
 
     #[test]
     fn convert_u64_param() {
         let value = 42u64;
         let expected_param_type = "u64";
-        let expected_value = value.to_string();
+        let expected_value = value.to_le_bytes();
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &expected_value,
+            "value": &b64.encode(expected_value),
         });
 
         let param = Param::from(value);
@@ -387,10 +433,6 @@ mod tests {
         let output_json = serde_json::to_value(&param).unwrap();
 
         assert_eq!(output_json, expected_json);
-
-        let output_param: Param = serde_json::from_value(expected_json).unwrap();
-
-        assert_eq!(output_param, expected_param);
     }
 
     #[test]
@@ -401,7 +443,7 @@ mod tests {
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &expected_value,
+            "value": &b64.encode(expected_value),
         });
 
         let param = Param::from(value.clone());
@@ -412,10 +454,6 @@ mod tests {
         let output_json = serde_json::to_value(&param).unwrap();
 
         assert_eq!(output_json, expected_json);
-
-        let output_param: Param = serde_json::from_value(expected_json).unwrap();
-
-        assert_eq!(output_param, expected_param);
     }
 
     #[test]
@@ -426,7 +464,7 @@ mod tests {
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &expected_value,
+            "value": &b64.encode(expected_value),
         });
 
         let id = Id::from(value);
@@ -438,23 +476,19 @@ mod tests {
         let output_json = serde_json::to_value(&param).unwrap();
 
         assert_eq!(output_json, expected_json);
-
-        let output_param: Param = serde_json::from_value(expected_json).unwrap();
-
-        assert_eq!(output_param, expected_param);
     }
 
     #[test]
     fn convert_key_param() {
         let expected_param_type = "ed25519";
-        let expected_value = "id".into();
+        let expected_value = "id";
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &expected_value,
+            "value": &b64.encode(expected_value),
         });
 
-        let key = Key::Ed25519(expected_value);
+        let key = Key::Ed25519(expected_value.to_string());
         let param = Param::from(key.clone());
         let expected_param = Param::Key(key);
 
@@ -463,9 +497,5 @@ mod tests {
         let output_json = serde_json::to_value(&param).unwrap();
 
         assert_eq!(output_json, expected_json);
-
-        let output_param: Param = serde_json::from_value(expected_json).unwrap();
-
-        assert_eq!(output_param, expected_param);
     }
 }
