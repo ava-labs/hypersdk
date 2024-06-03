@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, types::Address};
+use wasmlanche_sdk::{public, state_keys, types::Address, Context};
 
 const INITIAL_SUPPLY: u64 = 123456789;
 

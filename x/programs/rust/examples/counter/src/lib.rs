@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{public, state_keys, types::Address, Context, Program};
+use wasmlanche_sdk::{public, state_keys, types::Address, Context, Gas, Program};
 
 #[state_keys]
 pub enum StateKeys {
@@ -27,7 +27,7 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
 pub fn inc_external(
     _: Context,
     target: Program,
-    max_units: i64,
+    max_units: Gas,
     of: Address,
     amount: Count,
 ) -> bool {
@@ -53,7 +53,7 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
 
 /// Gets the count at the address for an external program.
 #[public]
-pub fn get_value_external(_: Context, target: Program, max_units: i64, of: Address) -> Count {
+pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Address) -> Count {
     target.call_function("get_value", of, max_units).unwrap()
 }
 
