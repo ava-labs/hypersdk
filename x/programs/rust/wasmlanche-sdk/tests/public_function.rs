@@ -124,8 +124,13 @@ impl TestCrate {
         // this is a hack to create a program since the constructor is private
         let program: Program<()> =
             borsh::from_slice(&program_id).expect("the program should deserialize");
+        let account = Address::default();
         let actor = Address::default();
-        let context = Context { program, actor };
+        let context = Context {
+            program,
+            account,
+            actor,
+        };
         let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
 
         self.allocate(serialized_context)
