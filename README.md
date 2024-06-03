@@ -88,7 +88,7 @@ and to help new nodes sync the current state (not execute historical state trans
 If the `hypersdk` did not limit block storage growth, the disk requirements for validators
 would grow at an alarming rate each day (making running any `hypervm` impractical).
 Consider the simple example where we process 25k transactions per second (assume each
-transaction is ~400 bytes); this would would require the `hypersdk` to store 10MB per
+transaction is ~400 bytes); this would require the `hypersdk` to store 10MB per
 second (not including any overhead in the database for doing so). **This works out to
 864GB per day or 315.4TB per year.**
 
@@ -96,7 +96,7 @@ When `MinimumBlockGap=250ms` (minimum time between blocks), the `hypersdk` must 
 least ~240 blocks to allow for the entire `ValidityWindow` to be backfilled (otherwise
 a fully-synced, restarting `hypervm` will not become "ready" until it accepts a block at
 least `ValidityWindow` after the last accepted block). To provide some room for error during
-disaster recovery (network outage), however, it is recommend to configure the `hypersdk` to
+disaster recovery (network outage), however, it is recommended to configure the `hypersdk` to
 store the last >= ~50,000 accepted blocks (~3.5 hours of activity with a 250ms `MinimumBlockGap`).
 This allows archival nodes that become disconnected from the network (due to a data center outage or bug)
 to ensure they can persist all historical blocks (which would otherwise be deleted by all participants and
@@ -204,21 +204,21 @@ type StatefulBlock struct {
 ```
 
 Most blockchains that store a state root in the block use the root of a merkle tree
-of state post-exectution, however, this requires waiting for state merklization to complete
+of state post-execution, however, this requires waiting for state merklization to complete
 before block verification can finish. If merklization was fast, this wouldn't be an
 issue, however, this process is typically the most time consuming aspect of block
 verification.
 
 `hypersdk` blocks instead include the merkle root of the post-execution state of a block's
 parent rather than a merkle root of their own post-execution state. This design enables the
-`hypersdk` to generate the merkle root of a block's post-execution state anchronously
+`hypersdk` to generate the merkle root of a block's post-execution state asynchronously
 while the consensus engine is working on other tasks that typically are network-bound rather
 than CPU-bound, like merklization, making better use of all available resources.
 
 #### [Optional] Parallel Signature Verification
 The `Auth` interface (detailed below) exposes a function called `AsyncVerify` that
 the `hypersdk` may call concurrently (may invoke on other transactions in the same
-block) at any time prior/during block execution. Most `hypervms` perform signature
+block) at any time prior to/during block execution. Most `hypervms` perform signature
 verification in this function and save any state lookups for the full `Auth.Verify`
 (which has access to state, unlike `AsyncVerify`). The generic support for performing certain
 stateless activities during execution can greatly reduce the e2e verification
@@ -226,7 +226,7 @@ time of a block when running on powerful hardware.
 
 #### [Optional] Batch Signature Verification
 Some public-key signature systems, like [Ed25519](https://ed25519.cr.yp.to/), provide
-support for verifying batches of signatures (which can be more much efficient than
+support for verifying batches of signatures (which can be much more efficient than
 verifying each signature individually). The `hypersdk` generically supports this
 capability for any `Auth` module that implements the `AuthBatchVerifier` interface,
 even parallelizing batch computation for systems that only use a single-thread to
@@ -320,7 +320,7 @@ of units that will be used by each resource without simulating the
 transaction).
 
 It is important to note that the resource precomputation can be quite
-pessimistic (i.e. assumes the worse) and can lead to the maximum fee
+pessimistic (i.e. assumes the worst) and can lead to the maximum fee
 for a transaction being ~2x as large as the fee it uses on-chain (depending
 on the usage of cold/warm storage, as discussed later). In practice,
 this means that accounts may need a larger balance than they otherwise
@@ -803,7 +803,6 @@ _This is a collection of posts from the community about the `hypersdk` and how t
 * [HyperSDK - Chorus One](https://twitter.com/ChorusOne/status/1628404359381024775)
 * [Building blockchains in days w/ HyperSDK](https://0xronin.substack.com/p/building-blockchains-in-days-w-hypersdk?r=1qbgyb&utm_campaign=post&utm_medium=web)
 * [An Analysis of the Developing State of Avalanche’s Technology](https://www.thetie.io/insights/research/an-analysis-of-the-developing-state-of-avalanches-technology/)
-* [Launching Custom Tokens With HyperSDK By Avalanche](https://pythontony.hashnode.dev/launching-custom-tokens-with-hypersdk-by-avalanche)
 * [Avalanche VMs deep-dive #1: HyperSDK/tokenvm](https://ashavax.hashnode.dev/avalanche-vms-deep-dive-1-hypersdktokenvm)
 * [Avalanche – Building High Performance VMs With HyperSDK](https://epicenter.tv/episodes/506/)
 * [Avalanche’s HyperSDK blockchain upgrade hits 143K TPS on testnet](https://cointelegraph.com/news/avalanche-hyper-sdk-blockchain-upgrade-hits-143000-tps-on-testnet)
