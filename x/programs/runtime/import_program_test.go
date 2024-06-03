@@ -146,7 +146,7 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
-	startFuel := uint64(100000)
+	startFuel := uint64(150000)
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_fuel", Params: nil, Fuel: startFuel})
 	require.NoError(err)
 	remaining := uint64(0)
