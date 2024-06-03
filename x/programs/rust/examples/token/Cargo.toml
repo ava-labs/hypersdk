@@ -16,6 +16,9 @@ simulator = { workspace = true }
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
 
+[features]
+bindings = []
+
 # when creating a new project, you can uncomment the following lines to enable optimizations
 # [profile.release]
 # opt-level = 3

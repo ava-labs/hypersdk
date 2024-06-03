@@ -1,5 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use wasmlanche_sdk::{public, state_keys, types::Address, Context};
+#[cfg(not(feature = "bindings"))]
+use wasmlanche_sdk::Context;
+use wasmlanche_sdk::{public, state_keys, types::Address};
 
 const INITIAL_SUPPLY: u64 = 123456789;
 
@@ -59,6 +61,7 @@ pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: u64) -> 
     true
 }
 
+#[cfg(not(feature = "bindings"))]
 fn mint_to_internal(
     context: Context<StateKeys>,
     recipient: Address,
