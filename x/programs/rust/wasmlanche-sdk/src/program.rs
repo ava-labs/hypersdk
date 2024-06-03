@@ -1,6 +1,7 @@
 use crate::{
     memory::HostPtr,
     state::{Error as StateError, Key, State},
+    Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
@@ -49,7 +50,7 @@ impl<K> Program<K> {
         &self,
         function_name: &str,
         args: ArgType,
-        max_units: i64,
+        max_units: Gas,
     ) -> Result<T, StateError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -102,7 +103,7 @@ struct CallProgramArgs<'a, K> {
     target_id: &'a Program<K>,
     function: &'a [u8],
     args_ptr: &'a [u8],
-    max_units: i64,
+    max_units: Gas,
 }
 
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {

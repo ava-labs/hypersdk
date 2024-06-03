@@ -9,6 +9,12 @@ impl From<usize> for Id {
     }
 }
 
+impl<'a> From<&'a Id> for &'a usize {
+    fn from(val: &'a Id) -> Self {
+        &val.0
+    }
+}
+
 impl Serialize for Id {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

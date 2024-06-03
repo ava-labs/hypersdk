@@ -74,7 +74,7 @@ func (c *Config) EnableCraneliftFlag(flag string) {
 	c.wasmConfig.EnableCraneliftFlag(flag)
 }
 
-// SetConsumFuel configures whether fuel is enabled.
+// SetConsumeFuel configures whether fuel is enabled.
 func (c *Config) SetConsumeFuel(enabled bool) {
 	c.wasmConfig.SetConsumeFuel(enabled)
 }
