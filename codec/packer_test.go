@@ -138,17 +138,37 @@ func TestNewReader(t *testing.T) {
 
 func TestVarInt(t *testing.T) {
 	require := require.New(t)
-	varUint := uint64(900)
-	wp1 := NewWriter(10, 10)
-	wp1.PackUvarInt(varUint)
-	rp1 := NewReader(wp1.Bytes(), 10)
-	require.Equal(varUint, rp1.UnpackUvarInt(true), "Reader unpacked incorrectly")
-	require.NoError(rp1.Err())
+	wp := NewWriter(20, 20)
 
-	varInt := int64(-900)
-	wp2 := NewWriter(10, 10)
-	wp2.PackVarInt(varInt)
-	rp2 := NewReader(wp2.Bytes(), 10)
-	require.Equal(varInt, rp2.UnpackVarInt(true), "Reader unpacked incorrectly")
-	require.NoError(rp2.Err())
+	wp.PackUvarInt(900)
+	wp.PackUvarInt(905)
+	rp := NewReader(wp.Bytes(), 20)
+	require.NoError(rp.Err())
+	require.Equal(uint64(900), rp.UnpackUvarInt(true), "Reader unpacked incorrectly")
+	require.NoError(rp.Err())
+	require.Equal(uint64(905), rp.UnpackUvarInt(true), "Reader unpacked incorrectly")
+	require.NoError(rp.Err())
+}
+
+func FuzzVarInt(f *testing.F) {
+	maxSize := 10
+	f.Fuzz(func(t *testing.T, varUint uint64, varInt int64) {
+		require := require.New(t)
+
+		wp1 := NewWriter(maxSize, maxSize)
+		wp1.PackUvarInt(varUint)
+		rp1 := NewReader(wp1.Bytes(), maxSize)
+		resUint := rp1.UnpackUvarInt(true)
+		require.NoError(rp1.Err())
+		require.Equal(varUint, resUint, "Reader unpacked incorrectly")
+		require.LessOrEqual(len(rp1.Bytes()), maxSize)
+
+		wp2 := NewWriter(maxSize, maxSize)
+		wp2.PackVarInt(varInt)
+		rp2 := NewReader(wp2.Bytes(), maxSize)
+		resInt := rp2.UnpackVarInt(true)
+		require.NoError(rp2.Err())
+		require.Equal(varInt, resInt, "Reader unpacked incorrectly")
+		require.LessOrEqual(len(rp2.Bytes()), maxSize)
+	})
 }

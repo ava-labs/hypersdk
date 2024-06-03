@@ -141,46 +141,29 @@ func (p *Packer) UnpackInt(required bool) int {
 }
 
 func (p *Packer) PackUvarInt(v uint64) {
-	buf := make([]byte, binary.MaxVarintLen64)
-	binary.PutUvarint(buf, v)
-	buf = ZeroOut(buf)
-	p.PackBytes(buf)
+	p.p.Bytes = binary.AppendUvarint(p.p.Bytes, v)
 }
 
 func (p *Packer) UnpackUvarInt(required bool) uint64 {
-	bytes := p.p.UnpackBytes()
-	val, n := binary.Uvarint(bytes)
-	if required && n <= 0 {
+	val, bytesRead := binary.Uvarint(p.Bytes())
+	if required && bytesRead <= 0 {
 		p.addErr(fmt.Errorf("%w: UvarInt field is not populated", ErrFieldNotPopulated))
 	}
+	p.p.Bytes = p.p.Bytes[bytesRead:]
 	return val
 }
 
 func (p *Packer) PackVarInt(v int64) {
-	buf := make([]byte, binary.MaxVarintLen64)
-	binary.PutVarint(buf, v)
-	buf = ZeroOut(buf)
-	p.PackBytes(buf)
+	p.p.Bytes = binary.AppendVarint(p.p.Bytes, v)
 }
 
 func (p *Packer) UnpackVarInt(required bool) int64 {
-	bytes := p.p.UnpackBytes()
-	val, n := binary.Varint(bytes)
-	if required && n <= 0 {
+	val, bytesRead := binary.Varint(p.Bytes())
+	if required && bytesRead <= 0 {
 		p.addErr(fmt.Errorf("%w: VarInt field is not populated", ErrFieldNotPopulated))
 	}
+	p.p.Bytes = p.p.Bytes[bytesRead:]
 	return val
-}
-
-func ZeroOut(buf []byte) []byte {
-	for i := len(buf) - 1; i >= 0; i-- {
-		bit := buf[i]
-		if bit > 0 {
-			break
-		}
-		buf = buf[:i]
-	}
-	return buf
 }
 
 func (p *Packer) PackWindow(w window.Window) {
