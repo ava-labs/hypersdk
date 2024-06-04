@@ -40,7 +40,7 @@ pub fn owner_check(program: &Program<StateKey>, actor: Address) {
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
 pub fn init(context: Context<StateKey>, name: String, symbol: String) {
-    let Context { program, actor } = context;
+    let Context { program, actor, .. } = context;
 
     program
         .state()
@@ -70,17 +70,21 @@ pub fn init(context: Context<StateKey>, name: String, symbol: String) {
 #[public]
 pub fn total_supply(context: Context<StateKey>) -> u64 {
     let Context { program, .. } = context;
+    _total_supply(&program)
+}
+
+fn _total_supply(program: &Program<StateKey>) -> u64{
     program
-        .state()
-        .get(StateKey::TotalSupply)
-        .expect("failure")
-        .unwrap_or_default()
+    .state()
+    .get(StateKey::TotalSupply)
+    .expect("failure")
+    .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
 pub fn mint(context: Context<StateKey>, recipient: Address, amount: u64) -> bool {
-    let Context { program, actor } = context;
+    let Context { program, actor , ..} = context;
     owner_check(&program, actor);
     let balance = program
         .state()
@@ -98,20 +102,30 @@ pub fn mint(context: Context<StateKey>, recipient: Address, amount: u64) -> bool
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn(context: Context<StateKey>, recipient: Address) -> u64 {
-    let Context { program, actor } = context;
+pub fn burn(context: Context<StateKey>, recipient: Address, value: u64) -> u64 {
+    let Context { program, actor, ..} = context;
     owner_check(&program, actor);
+    let total = _balance_of(&program, recipient);
+
+    assert!(value < total, "address doesn't have enough tokens to burn");
+    let new_amount = total - value;
+
     program
         .state()
-        .delete::<u64>(StateKey::Balance(recipient))
-        .expect("failed to burn recipient tokens")
-        .expect("recipient balance not found")
+        .store::<u64>(StateKey::Balance(recipient), &new_amount)
+        .expect("failed to burn recipient tokens");
+
+    new_amount
 }
 
 /// Gets the balance of the recipient.
 #[public]
 pub fn balance_of(context: Context<StateKey>, account: Address) -> u64 {
     let Context { program, .. } = context;
+    _balance_of(&program, account)
+}
+
+fn _balance_of(program:&Program<StateKey>, account: Address) -> u64 {
     program
         .state()
         .get(StateKey::Balance(account))
@@ -122,10 +136,10 @@ pub fn balance_of(context: Context<StateKey>, account: Address) -> u64 {
 #[public]
 pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address) -> u64 {
     let Context { program, .. } = context;
-    inner_allowance(&program, owner, spender)
+    _allowance(&program, owner, spender)
 }
 
-pub fn inner_allowance(program: &Program<StateKey>, owner: Address, spender: Address) -> u64 {
+pub fn _allowance(program: &Program<StateKey>, owner: Address, spender: Address) -> u64 {
     program
         .state()
         .get::<u64>(StateKey::Allowance(owner, spender))
@@ -135,7 +149,7 @@ pub fn inner_allowance(program: &Program<StateKey>, owner: Address, spender: Add
 
 #[public]
 pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> bool {
-    let Context { program, actor } = context;
+    let Context { program, actor, ..} = context;
     assert_ne!(actor, spender, "actor and spender must be different");
     program
         .state()
@@ -147,13 +161,18 @@ pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> boo
 /// Transfers balance from the sender to the the recipient.
 #[public]
 pub fn transfer(context: Context<StateKey>, recipient: Address, amount: u64) -> bool {
-    let Context { program, actor } = context;
-    assert_ne!(actor, recipient, "sender and recipient must be different");
+    let Context { program, actor, .. } = context;
+    _transfer(&program, actor, recipient, amount)
+}
+
+
+fn _transfer(program: &Program<StateKey>, sender:Address, recipient: Address, amount: u64) -> bool {
+    assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
     let sender_balance = program
         .state()
-        .get::<u64>(StateKey::Balance(actor))
+        .get::<u64>(StateKey::Balance(sender))
         .expect("failed to get sender balance")
         .unwrap_or_default();
 
@@ -168,7 +187,7 @@ pub fn transfer(context: Context<StateKey>, recipient: Address, amount: u64) -> 
     // update balances
     program
         .state()
-        .store(StateKey::Balance(actor), &(sender_balance - amount))
+        .store(StateKey::Balance(sender), &(sender_balance - amount))
         .expect("failed to store sender balance");
 
     program
@@ -186,9 +205,9 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context { ref program, actor } = context;
-    let total_allowance = inner_allowance(program, sender, actor);
-    assert!(total_allowance > amount);
+    let Context { ref program, actor, ..} = context;
+    let total_allowance = _allowance(program, sender, actor);
+    assert!(total_allowance >= amount);
     program
         .state()
         .store(
@@ -196,5 +215,5 @@ pub fn transfer_from(
             &(total_allowance - amount),
         )
         .expect("failed to store allowance");
-    transfer(context, recipient, amount)
+    _transfer(&program, sender, recipient, amount)
 }

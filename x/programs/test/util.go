@@ -6,6 +6,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -33,12 +34,28 @@ type Loader struct {
 }
 
 func (t Loader) GetProgramBytes(_ context.Context, _ ids.ID) ([]byte, error) {
-	if err := CompileTest(t.ProgramName); err != nil {
+	return load(t.ProgramName)
+}
+
+type MapLoader struct {
+	programs map[ids.ID]string
+}
+
+func (t MapLoader) GetProgramBytes(_ context.Context, id ids.ID) ([]byte, error) {
+	programName, ok := t.programs[id]
+	if !ok {
+		return nil, errors.New("program not found")
+	}
+	return load(programName)
+}
+
+func load(programName string) ([]byte, error) {
+	if err := CompileTest(programName); err != nil {
 		return nil, err
 	}
 	dir, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 }
