@@ -214,7 +214,7 @@ func (s *Simulator) Init() error {
 	loggingConfig.LogLevel = typedLogLevel
 	loggingConfig.Directory = path.Join(basePath, "logs-"+nodeID.String())
 	loggingConfig.LogFormat = logging.JSON
-	loggingConfig.DisableWriterDisplaying = !*s.enableWriterDisplaying
+	loggingConfig.DisableWriterDisplaying = *s.enableWriterDisplaying
 
 	sk, err := bls.NewSecretKey()
 	if err != nil {
