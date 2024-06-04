@@ -42,7 +42,7 @@ pub fn build_wasm_on_test() {
         let target_dir = Path::new(&target_dir)
             .join(WASM_TARGET)
             .join(profile)
-            .join(format!("{package_name}.wasm"));
+            .join(format!("{}.wasm", package_name.replace('-', "_")));
 
         let target_dir = match target_dir.canonicalize() {
             Ok(target_dir) => target_dir,
