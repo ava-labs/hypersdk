@@ -120,7 +120,7 @@ impl TestCrate {
     }
 
     fn write_context(&mut self) -> AllocReturn {
-        let program_id: [u8; PROGRAM_ID_LEN] = std::array::from_fn(|_| 1);
+        let program_id: [u8; PROGRAM_ID_LEN+Address::LEN] = std::array::from_fn(|_| 1);
         // this is a hack to create a program since the constructor is private
         let program: Program<()> =
             borsh::from_slice(&program_id).expect("the program should deserialize");
