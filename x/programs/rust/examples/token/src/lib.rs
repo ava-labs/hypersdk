@@ -174,13 +174,13 @@ mod tests {
         let owner_key = String::from("owner");
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
         simulator
-            .run_step::<()>(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
             .unwrap();
     }
 
@@ -191,13 +191,13 @@ mod tests {
         let owner_key = String::from("owner");
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
         let program_id = simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -210,7 +210,7 @@ mod tests {
             .id;
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -222,7 +222,7 @@ mod tests {
             .unwrap();
 
         let supply = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -233,7 +233,8 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
 
         assert_eq!(supply, INITIAL_SUPPLY);
     }
@@ -247,14 +248,14 @@ mod tests {
         let alice_initial_balance = 1000;
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
 
         let program_id = simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -267,7 +268,7 @@ mod tests {
             .id;
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Key,
@@ -279,7 +280,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -291,7 +292,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<bool>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -307,7 +308,7 @@ mod tests {
             .unwrap();
 
         let balance = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -318,7 +319,8 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
 
         assert_eq!(balance, alice_initial_balance);
     }
@@ -337,14 +339,14 @@ mod tests {
         let post_transfer_balance = alice_initial_balance - transfer_amount;
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
 
         let program_id = simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -357,7 +359,7 @@ mod tests {
             .id;
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Key,
@@ -369,7 +371,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Key,
@@ -381,7 +383,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -393,7 +395,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<bool>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -409,7 +411,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<bool>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -426,7 +428,7 @@ mod tests {
             .unwrap();
 
         let supply = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -437,11 +439,12 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(supply, INITIAL_SUPPLY);
 
         let balance = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -452,11 +455,12 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(balance, post_transfer_balance);
 
         let balance = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -467,11 +471,12 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(balance, transfer_amount);
 
         let balance = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -482,11 +487,12 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(balance, post_transfer_balance);
 
         let balance = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -497,7 +503,8 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(balance, 0);
     }
 }

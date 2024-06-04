@@ -85,6 +85,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 	for _, cmd := range subcommands {
 		if cmd.Happened() {
+			s.log.Debug("simulator args")
 			resp, err := cmd.Run(ctx, s.log, s.db, args)
 			if err != nil {
 				return err

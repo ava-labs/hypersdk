@@ -1,6 +1,6 @@
 //! A client and types for the VM simulator. This crate allows for Rust
 //! developers to construct tests for their programs completely in Rust.
-//! Alternatively the `Step`s can be written in JSON and passed to the
+//! Alternatively the [Step]s can be written in JSON and passed to the
 //! Simulator binary directly.
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
@@ -13,7 +13,6 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::Gas;
 
 mod id;
 
@@ -98,7 +97,7 @@ pub enum Key {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     U64(u64),
-    Gas(Gas),
+    I64(i64),
     String(String),
     Id(Id),
     Key(Key),
@@ -108,10 +107,25 @@ pub enum Param {
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 enum StringParam {
     U64(String),
-    #[serde(rename = "i64")]
-    Gas(String),
+    I64(String),
     String(String),
     Id(String),
+}
+
+impl From<&Param> for StringParam {
+    fn from(value: &Param) -> Self {
+        match value {
+            Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
+            Param::I64(num) => StringParam::I64(b64.encode(num.to_le_bytes())),
+            Param::String(text) => StringParam::String(b64.encode(text.clone())),
+            Param::Id(id) => {
+                let num: &usize = id.into();
+                let id = format!("step_{}", num);
+                StringParam::Id(b64.encode(id))
+            }
+            Param::Key(_) => unreachable!(),
+        }
+    }
 }
 
 impl Serialize for Param {
@@ -120,21 +134,8 @@ impl Serialize for Param {
         S: serde::Serializer,
     {
         match self {
-            Param::U64(num) => {
-                Serialize::serialize(&StringParam::U64(b64.encode(num.to_le_bytes())), serializer)
-            }
-            Param::Gas(num) => {
-                Serialize::serialize(&StringParam::Gas(b64.encode(num.to_le_bytes())), serializer)
-            }
-            Param::String(text) => {
-                Serialize::serialize(&StringParam::String(b64.encode(text)), serializer)
-            }
-            Param::Id(id) => {
-                let num: &usize = id.into();
-                let id = format!("step_{}", num);
-                Serialize::serialize(&StringParam::Id(b64.encode(id)), serializer)
-            }
             Param::Key(key) => Serialize::serialize(key, serializer),
+            _ => StringParam::from(self).serialize(serializer),
         }
     }
 }
@@ -145,9 +146,9 @@ impl From<u64> for Param {
     }
 }
 
-impl From<Gas> for Param {
-    fn from(val: Gas) -> Self {
-        Param::Gas(val)
+impl From<i64> for Param {
+    fn from(val: i64) -> Self {
+        Param::I64(val)
     }
 }
 
@@ -172,14 +173,23 @@ impl From<Key> for Param {
 #[derive(Debug, Deserialize)]
 pub struct StepResult {
     /// The ID created from the program execution.
-    pub tx_id: Option<String>,
+    pub action_id: Option<String>,
     /// An optional message.
     pub msg: Option<String>,
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
     #[serde(deserialize_with = "base64_decode")]
-    pub response: Vec<u8>,
+    response: Vec<u8>,
+}
+
+impl StepResult {
+    pub fn response<T>(&self) -> Result<T, borsh::io::Error>
+    where
+        T: BorshDeserialize,
+    {
+        borsh::from_slice(&self.response)
+    }
 }
 
 fn base64_encode<S>(text: &str, serializer: S) -> Result<S::Ok, S::Error>
@@ -200,69 +210,20 @@ where
 }
 
 #[derive(Debug, Deserialize)]
-pub struct StepResultTyped<T>
-where
-    T: BorshDeserialize,
-{
-    /// The ID created from the program execution.
-    pub tx_id: Option<String>,
-    /// An optional message.
-    pub msg: Option<String>,
-    /// The timestamp of the function call response.
-    pub timestamp: u64,
-    /// The result of the function call.
-    pub response: T,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct StepResponse {
     /// The numeric id of the step.
-    pub id: i32,
+    #[serde(deserialize_with = "id_from_usize")]
+    pub id: Id, // TODO override of the Id Deserialize before removing the prefix
     /// An optional error message.
     pub error: Option<String>,
     pub result: StepResult,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct StepResponseTyped<T>
+fn id_from_usize<'de, D>(deserializer: D) -> Result<Id, D::Error>
 where
-    T: BorshDeserialize,
+    D: Deserializer<'de>,
 {
-    /// The numeric id of the step.
-    pub id: Id,
-    pub result: StepResultTyped<T>,
-}
-
-impl<T> TryFrom<StepResponse> for StepResponseTyped<T>
-where
-    T: BorshDeserialize,
-{
-    type Error = StepError;
-
-    fn try_from(value: StepResponse) -> Result<Self, Self::Error> {
-        let StepResponse {
-            id,
-            result:
-                StepResult {
-                    tx_id,
-                    msg,
-                    timestamp,
-                    response,
-                },
-            ..
-        } = value;
-
-        let id: usize = id.try_into().map_err(StepError::TryFromInt)?;
-        Ok(StepResponseTyped {
-            id: id.into(),
-            result: StepResultTyped {
-                tx_id,
-                msg,
-                timestamp,
-                response: borsh::from_slice(&response).map_err(StepError::BorshDeserialization)?,
-            },
-        })
-    }
+    <usize as Deserialize>::deserialize(deserializer).map(Id::from)
 }
 
 #[derive(Error, Debug)]
@@ -289,14 +250,13 @@ pub enum StepError {
     TryFromInt(#[from] TryFromIntError),
 }
 
-/// A [Client] is required to run [Step]s to the simulator, by calling [run](Self::run_step).
+/// A [Client] is required to pass [Step]s to the simulator by calling [run](Self::run_step).
 pub struct Client<W, R> {
     writer: W,
     responses: R,
 }
 
 type StepResultItem = Result<StepResponse, StepError>;
-type StepResultTypedItem<T> = Result<StepResponseTyped<T>, StepError>;
 
 pub struct ClientBuilder<'a> {
     path: &'a str,
@@ -348,15 +308,12 @@ where
     W: Write,
     R: Iterator<Item = StepResultItem>,
 {
-    pub fn run_step<T>(&mut self, caller_key: &str, step: &Step) -> StepResultTypedItem<T>
-    where
-        T: BorshDeserialize,
-    {
+    pub fn run_step(&mut self, caller_key: &str, step: &Step) -> StepResultItem {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
+        let input = serde_json::to_vec(&dbg!(step)).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
@@ -370,8 +327,7 @@ where
                 } else {
                     Ok(step)
                 }
-            })?
-            .try_into()
+            })
     }
 }
 

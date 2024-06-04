@@ -75,14 +75,14 @@ mod tests {
         let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Key,
@@ -94,7 +94,7 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -114,14 +114,14 @@ mod tests {
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Key,
@@ -133,7 +133,7 @@ mod tests {
             .unwrap();
 
         let counter_id = simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -146,7 +146,7 @@ mod tests {
             .id;
 
         simulator
-            .run_step::<bool>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -158,7 +158,7 @@ mod tests {
             .unwrap();
 
         let value = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -169,7 +169,8 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(value, 10);
     }
 
@@ -181,14 +182,14 @@ mod tests {
         let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step::create_key(Key::Ed25519(owner_key.clone())),
             )
             .unwrap();
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Key,
@@ -200,7 +201,7 @@ mod tests {
             .unwrap();
 
         let counter1_id = simulator
-            .run_step::<u32>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -213,7 +214,7 @@ mod tests {
             .id;
 
         let counter2_id = simulator
-            .run_step::<u32>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -225,7 +226,7 @@ mod tests {
             .unwrap()
             .id;
         simulator
-            .run_step::<u32>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -237,7 +238,7 @@ mod tests {
             .unwrap();
 
         let value = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -248,11 +249,12 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(value, 0);
 
         simulator
-            .run_step::<bool>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -270,7 +272,7 @@ mod tests {
             .unwrap();
 
         let value = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -286,7 +288,8 @@ mod tests {
             )
             .unwrap()
             .result
-            .response;
+            .response::<u64>()
+            .unwrap();
         assert_eq!(value, 10);
     }
 }
