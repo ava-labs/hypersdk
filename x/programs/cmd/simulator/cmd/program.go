@@ -5,8 +5,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -120,7 +118,10 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, err
 	}
 
-	bytes, err := SerializeParams(callParams)
+	var bytes []byte
+	for _, param := range callParams {
+		bytes = append(bytes, param.Value...)
+	}
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
@@ -149,31 +150,6 @@ func programExecuteFunc(
 	balance, err := programExecuteAction.GetBalance()
 
 	return programTxID, resp, balance, err
-}
-
-func SerializeParams(p []Parameter) ([]byte, error) {
-	var bytes []byte
-	for _, param := range p {
-		switch v := param.Value.(type) {
-		case []byte:
-			bytes = append(bytes, v...)
-		case ids.ID:
-			bytes = append(bytes, v[:]...)
-		case string:
-			bytes = append(bytes, []byte(v)...)
-		case uint64:
-			bs := make([]byte, 8)
-			binary.LittleEndian.PutUint64(bs, v)
-			bytes = append(bytes, bs...)
-		case uint32:
-			bs := make([]byte, 4)
-			binary.LittleEndian.PutUint32(bs, v)
-			bytes = append(bytes, bs...)
-		default:
-			return nil, errors.New("unsupported data type")
-		}
-	}
-	return bytes, nil
 }
 
 func multilineOutput(resp [][]byte) (response string) {

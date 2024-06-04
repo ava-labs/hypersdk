@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{public, Context, Program};
+use wasmlanche_sdk::{public, Context, Gas, Program};
 
 #[public]
 pub fn simple_call(_: Context) -> i64 {
@@ -6,7 +6,7 @@ pub fn simple_call(_: Context) -> i64 {
 }
 
 #[public]
-pub fn simple_call_external(_: Context, target: Program, max_units: i64) -> i64 {
+pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 {
     target.call_function("simple_call", (), max_units).unwrap()
 }
 
@@ -16,7 +16,7 @@ pub fn call_with_param(_: Context, value: i64) -> i64 {
 }
 
 #[public]
-pub fn call_with_param_external(_: Context, target: Program, max_units: i64, value: i64) -> i64 {
+pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, value: i64) -> i64 {
     target
         .call_function("call_with_param", value, max_units)
         .unwrap()
@@ -31,7 +31,7 @@ pub fn call_with_two_params(_: Context, value1: i64, value2: i64) -> i64 {
 pub fn call_with_two_params_external(
     _: Context,
     target: Program,
-    max_units: i64,
+    max_units: Gas,
     value1: i64,
     value2: i64,
 ) -> i64 {

@@ -35,10 +35,10 @@ const (
 )
 
 const (
-	LogDisableDisplayLogsKey = "log-disable-display-plugin-logs"
-	LogLevelKey              = "log-level"
-	CleanupKey               = "cleanup"
-	InterpreterKey           = "interpreter"
+	LogDisplayLogsKey = "enable-stdout-logs"
+	LogLevelKey       = "log-level"
+	CleanupKey        = "cleanup"
+	InterpreterKey    = "interpreter"
 )
 
 type Cmd interface {
@@ -49,11 +49,11 @@ type Cmd interface {
 type Simulator struct {
 	log logging.Logger
 
-	logLevel                *string
-	cleanup                 *bool
-	disableWriterDisplaying *bool
-	lastStep                int
-	programIDStrMap         map[string]string
+	logLevel               *string
+	cleanup                *bool
+	enableWriterDisplaying *bool
+	lastStep               int
+	programIDStrMap        map[int]ids.ID
 
 	vm      *vm.VM
 	db      *state.SimpleMutable
@@ -138,7 +138,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
-	s.programIDStrMap = make(map[string]string)
+	s.programIDStrMap = make(map[int]ids.ID)
 
 	defer s.manageCleanup(ctx)
 
@@ -171,8 +171,7 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	parser := argparse.NewParser("simulator", "HyperSDK program VM simulator")
 	s.cleanup = parser.Flag("", CleanupKey, &argparse.Options{Help: "remove simulator directory on exit", Default: true})
 	s.logLevel = parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
-	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
-
+	s.enableWriterDisplaying = parser.Flag("", LogDisplayLogsKey, &argparse.Options{Help: "enable displaying logs in stdout", Default: false})
 	stdin := os.Stdin
 	s.reader = bufio.NewReader(stdin)
 
@@ -215,7 +214,7 @@ func (s *Simulator) Init() error {
 	loggingConfig.LogLevel = typedLogLevel
 	loggingConfig.Directory = path.Join(basePath, "logs-"+nodeID.String())
 	loggingConfig.LogFormat = logging.JSON
-	loggingConfig.DisableWriterDisplaying = *s.disableWriterDisplaying
+	loggingConfig.DisableWriterDisplaying = !*s.enableWriterDisplaying
 
 	sk, err := bls.NewSecretKey()
 	if err != nil {
