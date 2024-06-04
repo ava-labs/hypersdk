@@ -8,7 +8,7 @@ mod memory;
 mod program;
 
 pub use self::{
-    logging::log,
+    logging::{log, register_panic},
     memory::HostPtr,
     program::{Program, PROGRAM_ID_LEN},
 };
