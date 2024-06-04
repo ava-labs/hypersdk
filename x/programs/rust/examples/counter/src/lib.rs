@@ -160,7 +160,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "need to fix params macro"]
     fn external_call() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
@@ -190,12 +189,6 @@ mod tests {
             method: "program_create".into(),
             max_units: 1000000,
             params: vec![Param::String(PROGRAM_PATH.into())],
-        });
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "initialize_address".into(),
-            max_units: 1000000,
-            params: vec![counter2_id.into(), bob_key.clone()],
         });
 
         let plan_responses = simulator.run_plan(plan).unwrap();
