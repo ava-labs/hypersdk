@@ -359,9 +359,11 @@ where
             .next()
             .ok_or(StepError::Client(ClientError::Eof))?
             .and_then(|step| {
-                step.error
-                    .clone()
-                    .map_or(Ok(step), |err| Err(StepError::Program(err)))
+                if let Some(err) = step.error {
+                    Err(StepError::Program(err))
+                } else {
+                    Ok(step)
+                }
             })?
             .try_into()
             .map_err(StepError::BorshDeserialization)
