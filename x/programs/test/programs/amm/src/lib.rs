@@ -158,24 +158,26 @@ pub fn add_liquidity(context: Context<StateKey>,  supplied_token1:u64, supplied_
     let token1 = get_token1(&program);
     let token2 = get_token2(&program);
     
-    let balance_token1 = token1.balance_of(account, 1000000);
-    let balance_token2 = token2.balance_of(account, 1000000);
+    let balance_token1 = token1.balance_of(account, 10000000);
+    let balance_token2 = token2.balance_of(account, 10000000);
 
     assert!(supplied_token1 * balance_token2 == supplied_token2 * balance_token1, "Invalid ratio");
 
-    token1.transfer_from(actor, account, supplied_token1, 2000000);
-    token2.transfer_from(actor, account, supplied_token2, 2000000);
+    token1.transfer_from(actor, account, supplied_token1, 20000000);
+    /* 
+    token2.transfer_from(actor, account, supplied_token2, 20000000);
 
     // Mint LP tokens based on the amount of liquidity provided
     let liquidity = calculate_liquidity_amount(supplied_token1, supplied_token2);
     _mint(&program, actor, liquidity);
 
     // Reward the liquidity provider with governance tokens
-   // governanceToken.transfer(msg.sender, liquidity);
+    _transfer(&program, account, actor, liquidity);
     let reserve1 = supplied_token1 + get_reserve1(&program);
     program.state().store(StateKey::Reserve1, &reserve1).expect("failed to store reserve 1");
     let reserve2 = supplied_token2 + get_reserve2(&program);
     program.state().store(StateKey::Reserve2, &reserve2).expect("failed to store reserve 2");
+    */
 }
 
 fn get_reserve1(program: &Program<StateKey>) -> u64 {

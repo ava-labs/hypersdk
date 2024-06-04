@@ -22,14 +22,14 @@ func TestTokenAMM(t *testing.T) {
 	token1ID := ids.GenerateTestID()
 	token1Address := codec.CreateAddress(1, token1ID)
 	token2ID := ids.GenerateTestID()
-	token2Address := codec.CreateAddress(1, token2ID)
+	token2Address := codec.CreateAddress(2, token2ID)
 	ammID := ids.GenerateTestID()
-	ammAddress := codec.CreateAddress(1, ammID)
+	ammAddress := codec.CreateAddress(3, ammID)
 
-	token1Owner := codec.CreateAddress(2, ids.GenerateTestID())
-	token2Owner := codec.CreateAddress(2, ids.GenerateTestID())
-	ammOwner := codec.CreateAddress(2, ids.GenerateTestID())
-	randomActor := codec.CreateAddress(2, ids.GenerateTestID())
+	token1Owner := codec.CreateAddress(5, ids.GenerateTestID())
+	token2Owner := codec.CreateAddress(6, ids.GenerateTestID())
+	ammOwner := codec.CreateAddress(7, ids.GenerateTestID())
+	randomActor := codec.CreateAddress(8, ids.GenerateTestID())
 	r := runtime.NewRuntime(
 		runtime.NewConfig(),
 		logging.NoLog{},
@@ -147,6 +147,14 @@ func TestTokenAMM(t *testing.T) {
 		Fuel:         aLottaFuel})
 	require.NoError(err)
 
+	paramBytes, err = borsh.Serialize(struct {
+		Spender codec.Address
+		Amount  uint64
+	}{
+		Spender: ammAddress,
+		Amount:  11,
+	})
+
 	_, err = r.CallProgram(ctx, &runtime.CallInfo{
 		ProgramID:    token2ID,
 		Actor:        randomActor,
@@ -157,49 +165,41 @@ func TestTokenAMM(t *testing.T) {
 		Fuel:         aLottaFuel})
 	require.NoError(err)
 
-	/*
-		// test approval
-		paramBytes, err = borsh.Serialize(struct {
-			Spender   codec.Address
-			Recipient codec.Address
-			Amount    uint64
-		}{
-			Spender:   randomActor,
-			Recipient: ammAddress,
-			Amount:    5,
-		})
+	paramBytes, err = borsh.Serialize(struct {
+		Owner   codec.Address
+		Spender codec.Address
+	}{
+		Owner:   randomActor,
+		Spender: ammAddress,
+	})
+	require.NoError(err)
 
-		_, err = r.CallProgram(ctx, &runtime.CallInfo{
-			ProgramID:    token1ID,
-			Actor:        ammAddress,
-			Account:      token1Address,
-			State:        state,
-			FunctionName: "transfer_from",
-			Params:       paramBytes,
-			Fuel:         aLottaFuel})
-		require.NoError(err)
+	result, err := r.CallProgram(ctx, &runtime.CallInfo{
+		ProgramID:    token1ID,
+		Actor:        token1Owner,
+		Account:      token1Address,
+		State:        state,
+		FunctionName: "allowance",
+		Params:       paramBytes,
+		Fuel:         aLottaFuel})
+	require.NoError(err)
+	var amountOfAllowance uint64
 
-		// test approval
-		paramBytes, err = borsh.Serialize(struct {
-			Spender codec.Address
-		}{
-			Spender: ammAddress,
-		})
+	err = borsh.Deserialize(&amountOfAllowance, result)
+	require.Equal(uint64(10), amountOfAllowance)
 
-		result, err := r.CallProgram(ctx, &runtime.CallInfo{
-			ProgramID:    token1ID,
-			Actor:        ammAddress,
-			Account:      token1Address,
-			State:        state,
-			FunctionName: "balance_of",
-			Params:       paramBytes,
-			Fuel:         aLottaFuel})
-		require.NoError(err)
-		var amountOfToken1 uint64
+	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+		ProgramID:    token2ID,
+		Actor:        token2Owner,
+		Account:      token2Address,
+		State:        state,
+		FunctionName: "allowance",
+		Params:       paramBytes,
+		Fuel:         aLottaFuel})
+	require.NoError(err)
 
-		err = borsh.Deserialize(&amountOfToken1, result)
-		require.Equal(uint64(5), amountOfToken1)
-	*/
+	err = borsh.Deserialize(&amountOfAllowance, result)
+	require.Equal(uint64(11), amountOfAllowance)
 
 	// add liquidity
 	paramBytes, err = borsh.Serialize(struct {
@@ -227,7 +227,7 @@ func TestTokenAMM(t *testing.T) {
 		Address: randomActor,
 	})
 
-	result, err := r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &runtime.CallInfo{
 		ProgramID:    ammID,
 		Actor:        randomActor,
 		Account:      ammAddress,
