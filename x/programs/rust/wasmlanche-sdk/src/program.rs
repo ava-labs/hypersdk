@@ -49,6 +49,10 @@ impl<K> Program<K> {
         &self.id
     }
 
+    pub fn account(&self) -> Address {
+        self.account
+    }
+
     /// Attempts to call a function `name` with `args` on the given program. This method
     /// is used to call functions on external programs.
     /// # Errors
