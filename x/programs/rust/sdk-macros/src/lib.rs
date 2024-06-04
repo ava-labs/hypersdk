@@ -208,6 +208,17 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let name = &item_enum.ident;
     let variants = &item_enum.variants;
 
+    const MAX_VARIANTS: usize = u8::MAX as usize + 1;
+
+    if variants.len() > MAX_VARIANTS {
+        return Error::new(
+            variants[MAX_VARIANTS].span(),
+            "Cannot exceed `u8::MAX` variants",
+        )
+        .into_compile_error()
+        .into();
+    }
+
     let match_arms: Result<Vec<_>, _> = variants
         .iter()
         .enumerate()
