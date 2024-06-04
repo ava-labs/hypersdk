@@ -92,11 +92,12 @@ mod tests {
 
         assert!(
             plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {:?}",
+            "error: {}",
             plan_responses
                 .iter()
                 .filter_map(|resp| resp.base.error.as_ref())
                 .next()
+                .unwrap()
         );
     }
 
@@ -136,11 +137,12 @@ mod tests {
 
         assert!(
             plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {:?}",
+            "error: {}",
             plan_responses
                 .iter()
                 .filter_map(|resp| resp.base.error.as_ref())
                 .next()
+                .unwrap()
         );
 
         let value = simulator
@@ -195,11 +197,12 @@ mod tests {
 
         assert!(
             plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {:?}",
+            "error: {}",
             plan_responses
                 .iter()
                 .filter_map(|resp| resp.base.error.as_ref())
                 .next()
+                .unwrap()
         );
 
         let value = simulator
