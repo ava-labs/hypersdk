@@ -4,7 +4,8 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
-    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, Signature, Token, Type, Visibility,
+    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, ReturnType, Signature, Token, Type,
+    Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -190,10 +191,15 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     });
     let name = name.to_string();
 
+    let return_type = match &input.sig.output {
+        ReturnType::Type(_, ty) => ty.as_ref().clone(),
+        ReturnType::Default => parse_quote!(()),
+    };
+
     let block = Box::new(parse_quote! {{
         param_0
             .program()
-            .call_function(#name, (#(#args),*), param_0.max_units())
+            .call_function::<#return_type, _>(#name, (#(#args),*), param_0.max_units())
             .expect("calling the external program failed")
     }});
 

@@ -1,4 +1,6 @@
-use wasmlanche_sdk::{public, state_keys, types::Address, Context, Gas, Program};
+#[cfg(not(feature = "bindings"))]
+use wasmlanche_sdk::Context;
+use wasmlanche_sdk::{public, state_keys, types::Address, Gas, Program};
 
 #[state_keys]
 pub enum StateKeys {
@@ -42,6 +44,7 @@ pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
     get_value_internal(&context, of)
 }
 
+#[cfg(not(feature = "bindings"))]
 fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
     context
         .program
@@ -84,7 +87,7 @@ mod tests {
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
-            max_units: 1000000,
+            max_units: 1_000_000,
             params: vec![Param::String(PROGRAM_PATH.into())],
         });
 
@@ -122,14 +125,14 @@ mod tests {
         let counter_id = plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
-            max_units: 1000000,
+            max_units: 1_000_000,
             params: vec![Param::String(PROGRAM_PATH.into())],
         });
 
         plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "inc".into(),
-            max_units: 1000000,
+            max_units: 1_000_000,
             params: vec![counter_id.into(), bob_key.clone(), 10.into()],
         });
 
@@ -182,14 +185,14 @@ mod tests {
         let counter1_id = plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
-            max_units: 1000000,
+            max_units: 1_000_000,
             params: vec![Param::String(PROGRAM_PATH.into())],
         });
 
         let counter2_id = plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
-            max_units: 1000000,
+            max_units: 1_000_000,
             params: vec![Param::String(PROGRAM_PATH.into())],
         });
 
@@ -226,11 +229,11 @@ mod tests {
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "inc_external".into(),
-                    max_units: 100000000,
+                    max_units: 100_000_000,
                     params: vec![
                         counter1_id.into(),
                         counter2_id.into(),
-                        1000000.into(),
+                        1_000_000.into(),
                         bob_key.clone(),
                         10.into(),
                     ],
@@ -248,7 +251,7 @@ mod tests {
                     params: vec![
                         counter1_id.into(),
                         counter2_id.into(),
-                        1000000.into(),
+                        1_000_000.into(),
                         bob_key.clone(),
                     ],
                 },
