@@ -17,12 +17,14 @@ import (
 
 func Into[T any](data []byte) T {
 	result := new(T)
-	borsh.Deserialize(result, data)
+	if err := borsh.Deserialize(result, data); err != nil {
+		panic(err.Error())
+	}
 	return *result
 }
 
 func SerializeParams(params ...interface{}) []byte {
-	if params == nil || len(params) == 0 {
+	if len(params) == 0 {
 		return nil
 	}
 	results := make([][]byte, len(params))
