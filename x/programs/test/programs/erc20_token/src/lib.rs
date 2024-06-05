@@ -135,14 +135,11 @@ fn _balance_of(program:&Program<StateKey>, account: Address) -> u64 {
 
 #[public]
 pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address) -> u64 {
-    let Context { program, account, .. } = context;
-    dbg!(account.as_bytes()[0]);
+    let Context { program, .. } = context;
     _allowance(&program, owner, spender)
 }
 
 pub fn _allowance(program: &Program<StateKey>, owner: Address, spender: Address) -> u64 {
-    dbg!(owner.as_bytes()[0]);
-    dbg!(spender.as_bytes()[0]);
     program
         .state()
         .get::<u64>(StateKey::Allowance(owner, spender))
@@ -208,10 +205,8 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context { ref program, actor, account} = context;
-    dbg!(account.as_bytes()[0]);
+    let Context { ref program, actor} = context;
     let total_allowance = _allowance(program, sender, actor);
-    dbg!(total_allowance);
     assert!(total_allowance >= amount);
     program
         .state()

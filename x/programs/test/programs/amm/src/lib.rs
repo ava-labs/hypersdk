@@ -135,7 +135,7 @@ pub fn init(context: Context<StateKey>, token1: Program, token2:Program) {
     // set total supply
     program
         .state()
-        .store(StateKey::TotalSupply, &0)
+        .store::<u64>(StateKey::TotalSupply, &0)
         .expect("failed to store total supply");
 
     // set token name
@@ -154,30 +154,27 @@ pub fn init(context: Context<StateKey>, token1: Program, token2:Program) {
 
 #[public]
 pub fn add_liquidity(context: Context<StateKey>,  supplied_token1:u64, supplied_token2:u64) {
-    let Context { program, account, actor } = context;
+    let Context { program, actor } = context;
     let token1 = get_token1(&program);
     let token2 = get_token2(&program);
     
-    let balance_token1 = token1.balance_of(account, 10000000);
-    let balance_token2 = token2.balance_of(account, 10000000);
+    let balance_token1 = token1.balance_of(program.account(), 10000000);
+    let balance_token2 = token2.balance_of(program.account(), 10000000);
 
     assert!(supplied_token1 * balance_token2 == supplied_token2 * balance_token1, "Invalid ratio");
 
-    token1.transfer_from(actor, account, supplied_token1, 20000000);
-    /* 
-    token2.transfer_from(actor, account, supplied_token2, 20000000);
+    token1.transfer_from(actor, program.account(), supplied_token1, 20000000);
+    token2.transfer_from(actor, program.account(), supplied_token2, 20000000);
 
     // Mint LP tokens based on the amount of liquidity provided
     let liquidity = calculate_liquidity_amount(supplied_token1, supplied_token2);
     _mint(&program, actor, liquidity);
 
     // Reward the liquidity provider with governance tokens
-    _transfer(&program, account, actor, liquidity);
     let reserve1 = supplied_token1 + get_reserve1(&program);
     program.state().store(StateKey::Reserve1, &reserve1).expect("failed to store reserve 1");
     let reserve2 = supplied_token2 + get_reserve2(&program);
     program.state().store(StateKey::Reserve2, &reserve2).expect("failed to store reserve 2");
-    */
 }
 
 fn get_reserve1(program: &Program<StateKey>) -> u64 {
@@ -199,14 +196,12 @@ pub fn remove_liquidity(context: Context<StateKey>,  amount:u64) -> (u64, u64) {
 
         let reserve1 = get_reserve1(&program);
         let reserve2 = get_reserve2(&program);
-
         let amount_token1 = amount * reserve1 / total_liquidity;
         let amount_token2 = amount * reserve2 / total_liquidity;
-
         _burn(&program, actor, amount);
 
-        token1.transfer(actor, amount_token1, 20000);
-        token2.transfer(actor, amount_token2, 20000);
+        token1.transfer(actor, amount_token1, 2000000);
+        token2.transfer(actor, amount_token2, 2000000);
 
         let reserve1 = reserve1 - amount_token1;
         program.state().store(StateKey::Reserve1, &reserve1).expect("failed to store reserve1");
@@ -254,6 +249,12 @@ fn _mint(program:&Program<StateKey>, recipient: Address, amount: u64) -> bool {
         .store(StateKey::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
+    let total = _total_supply(&program);
+    program
+        .state()
+        .store(StateKey::TotalSupply, &(total+amount))
+        .expect("failed to store total supply");
+
     true
 }
 
@@ -267,10 +268,8 @@ pub fn burn(context: Context<StateKey>, recipient: Address, amount: u64) -> u64 
 
 fn _burn(program:&Program<StateKey>, recipient: Address, amount: u64) -> u64 {
     let user_total = _balance_of(program, recipient);
-
-    assert!(amount < user_total, "address doesn't have enough tokens to burn");
+    assert!(amount <= user_total, "address doesn't have enough tokens to burn");
     let new_amount = user_total - amount;
-
     program
         .state()
         .store::<u64>(StateKey::Balance(recipient), &new_amount)
@@ -279,7 +278,7 @@ fn _burn(program:&Program<StateKey>, recipient: Address, amount: u64) -> u64 {
     let total = _total_supply(program);
     program
         .state()
-        .store::<u64>(StateKey::Balance(recipient), &(total-amount))
+        .store::<u64>(StateKey::TotalSupply, &(total-amount))
         .expect("failed to reduce tokens total");
 
     new_amount
