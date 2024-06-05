@@ -7,8 +7,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
@@ -82,4 +84,36 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	result, err := program.Call("get_fuel")
 	require.NoError(err)
 	require.LessOrEqual(test.Into[uint64](result), program.Runtime.DefaultGas)
+}
+
+func TestImportProgramCallProgramActor(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "call_program")
+	actor := codec.CreateAddress(1, ids.GenerateTestID())
+
+	result, err := program.CallWithActor(actor, "actor_check")
+	require.NoError(err)
+	require.Equal(actor, test.Into[codec.Address](result))
+}
+
+func TestImportProgramCallProgramActorChange(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "call_program")
+	actor := codec.CreateAddress(1, ids.GenerateTestID())
+
+	// the actor changes to the calling program's account
+	result, err := program.CallWithActor(
+		actor,
+		"actor_check_external",
+		program.Info, uint64(200000))
+	require.NoError(err)
+	require.Equal(program.Info.Account, test.Into[codec.Address](result))
 }

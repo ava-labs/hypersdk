@@ -20,7 +20,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
 use types::Address;
 
-pub type Gas = i64;
+pub type Gas = u64;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
