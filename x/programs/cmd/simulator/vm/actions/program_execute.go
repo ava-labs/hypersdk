@@ -79,7 +79,8 @@ func (t *ProgramExecute) Execute(
 	callInfo := &runtime.CallInfo{
 		State:        mu,
 		Actor:        actor,
-		Program:      runtime.ProgramInfo{Account: codec.EmptyAddress, ID: t.ProgramID},
+		Account:      codec.EmptyAddress,
+		ProgramID:    t.ProgramID,
 		Fuel:         t.MaxUnits,
 		FunctionName: t.Function,
 		Params:       t.Params,

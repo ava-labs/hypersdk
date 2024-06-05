@@ -28,7 +28,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(0)
 	require.NoError(err)
@@ -36,7 +36,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 }
 
 type ComplexReturn struct {
-	Program  ProgramInfo
+	Program  ids.ID
 	MaxUnits uint64
 }
 
@@ -53,9 +53,9 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
-	expected, err := borsh.Serialize(ComplexReturn{Program: ProgramInfo{ID: programID}, MaxUnits: 1000})
+	expected, err := borsh.Serialize(ComplexReturn{Program: programID, MaxUnits: 1000})
 	require.NoError(err)
 	require.Equal(expected, result)
 }
