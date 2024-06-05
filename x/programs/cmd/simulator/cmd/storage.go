@@ -37,7 +37,7 @@ type prefixedStateMutable struct {
 func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
 	k = make([]byte, len(s.prefix)+len(key))
 	copy(k, s.prefix)
-	copy(k[len(s.prefix):], key[:])
+	copy(k[len(s.prefix):], key)
 	return
 }
 
@@ -64,7 +64,7 @@ func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) sta
 func programStateKey(key []byte) (k []byte) {
 	k = make([]byte, 1+len(key))
 	k[0] = programStatePrefix
-	copy(k[1:], key[:])
+	copy(k[1:], key)
 	return
 }
 
