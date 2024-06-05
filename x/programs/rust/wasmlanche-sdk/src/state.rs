@@ -42,7 +42,9 @@ pub struct State<'a, K: Key> {
     cache: &'a RefCell<HashMap<K, Vec<u8>>>,
 }
 
-pub trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
+/// # Safety
+/// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
+pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
 impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {

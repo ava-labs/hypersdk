@@ -344,7 +344,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 Ok(())
             }
         }
-        impl wasmlanche_sdk::state::Key for #name {}
+        unsafe impl wasmlanche_sdk::state::Key for #name {}
     }
     .into()
 }
