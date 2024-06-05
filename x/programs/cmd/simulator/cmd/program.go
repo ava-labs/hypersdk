@@ -139,7 +139,7 @@ func programExecuteFunc(
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
-	return programTxID, output, 0, err
+	return programTxID, output, callInfo.RemainingFuel(), err
 }
 
 func multilineOutput(resp [][]byte) (response string) {
