@@ -38,7 +38,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				if callInfo.RemainingFuel() < parsedInput.Fuel {
 					return nil, errors.New("remaining fuel is less than requested fuel")
 				}
-				
+
 				newInfo.Actor = callInfo.Program.Account
 				newInfo.Program = parsedInput.Program
 				newInfo.FunctionName = parsedInput.FunctionName
