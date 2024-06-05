@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
 
@@ -23,16 +22,8 @@ const (
 )
 
 type Context struct {
-	Program ProgramInfo   `json:"program"`
+	Program codec.Address `json:"program"`
 	Actor   codec.Address `json:"actor"`
-}
-
-type ProgramInfo struct {
-	// the identifier of what state space the program is being run within
-	Account codec.Address `json:"account"`
-
-	// the identifier of what program is being called
-	ID ids.ID `json:"id"`
 }
 
 type CallInfo struct {
@@ -45,7 +36,7 @@ type CallInfo struct {
 	// the name of the function within the program that is being called
 	FunctionName string
 
-	Program ProgramInfo
+	Program codec.Address
 
 	// the serialized parameters that will be passed to the called function
 	Params []byte
@@ -71,8 +62,7 @@ func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 }
 
 type Program struct {
-	module    *wasmtime.Module
-	programID ids.ID
+	module *wasmtime.Module
 }
 
 type ProgramInstance struct {
@@ -81,12 +71,12 @@ type ProgramInstance struct {
 	result []byte
 }
 
-func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) (*Program, error) {
+func newProgram(engine *wasmtime.Engine, programBytes []byte) (*Program, error) {
 	module, err := wasmtime.NewModule(engine, programBytes)
 	if err != nil {
 		return nil, err
 	}
-	return &Program{module: module, programID: programID}, nil
+	return &Program{module: module}, nil
 }
 
 func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {

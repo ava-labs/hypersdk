@@ -6,9 +6,10 @@ package runtime
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 type WasmRuntime struct {
@@ -16,12 +17,12 @@ type WasmRuntime struct {
 	engine        *wasmtime.Engine
 	hostImports   *Imports
 	cfg           *Config
-	programs      map[ids.ID]*Program
+	programs      map[codec.Address]*Program
 	programLoader ProgramLoader
 }
 
 type ProgramLoader interface {
-	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	GetProgramBytes(ctx context.Context, program codec.Address) ([]byte, error)
 }
 
 func NewRuntime(
@@ -34,7 +35,7 @@ func NewRuntime(
 		cfg:           cfg,
 		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:   NewImports(),
-		programs:      map[ids.ID]*Program{},
+		programs:      map[codec.Address]*Program{},
 		programLoader: loader,
 	}
 
@@ -49,27 +50,27 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 }
 
-func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
-	programModule, err := newProgram(r.engine, programID, bytes)
+func (r *WasmRuntime) AddProgram(program codec.Address, bytes []byte) error {
+	programModule, err := newProgram(r.engine, bytes)
 	if err != nil {
 		return err
 	}
-	r.programs[programID] = programModule
+	r.programs[program] = programModule
 	return nil
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	program, ok := r.programs[callInfo.Program.ID]
+	program, ok := r.programs[callInfo.Program]
 	if !ok {
-		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.Program.ID)
+		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.Program)
 		if err != nil {
 			return nil, err
 		}
-		program, err = newProgram(r.engine, callInfo.Program.ID, bytes)
+		program, err = newProgram(r.engine, bytes)
 		if err != nil {
 			return nil, err
 		}
-		r.programs[callInfo.Program.ID] = program
+		r.programs[callInfo.Program] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {

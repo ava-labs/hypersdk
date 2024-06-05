@@ -46,7 +46,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetValue(ctx, prependAccountToKey(callInfo.Program.Account, parsedInput))
+				val, err := callInfo.State.GetValue(ctx, prependAccountToKey(callInfo.Program, parsedInput))
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -62,7 +62,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Program.Account, parsedInput.Key), parsedInput.Value)
+				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Program, parsedInput.Key), parsedInput.Value)
 			})},
 			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				var parsedInput []keyValueInput
@@ -72,7 +72,7 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				for _, entry := range parsedInput {
-					if err := callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Program.Account, entry.Key), entry.Value); err != nil {
+					if err := callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Program, entry.Key), entry.Value); err != nil {
 						return err
 					}
 				}
@@ -87,7 +87,7 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
-				key := prependAccountToKey(callInfo.Program.Account, parsedInput)
+				key := prependAccountToKey(callInfo.Program, parsedInput)
 				bytes, err := callInfo.State.GetValue(ctx, key)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {

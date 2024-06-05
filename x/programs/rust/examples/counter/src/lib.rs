@@ -60,6 +60,7 @@ pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Addre
 #[cfg(test)]
 mod tests {
     use simulator::{Endpoint, Key, Param, Plan, Step};
+    use wasmlanche_sdk::types::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -119,6 +120,7 @@ mod tests {
             max_units: 0,
         });
 
+        
         let counter_id = plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
@@ -162,7 +164,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "simulator can't pass other program params currently"]
     fn external_call() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 

@@ -7,36 +7,25 @@ use crate::{
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
 
-pub const PROGRAM_ID_LEN: usize = 32;
-type Id = [u8; PROGRAM_ID_LEN];
-
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
 #[derive(Clone, Debug)]
 pub struct Program<K = ()> {
-    account: Address,
-    id: Id,
+    id: Address,
     state_cache: RefCell<HashMap<K, Vec<u8>>>,
 }
 
 impl<K> BorshSerialize for Program<K> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            account,
-            id,
-            state_cache: _,
-        } = self;
-        BorshSerialize::serialize(account, writer)?;
+        let Self { id, state_cache: _ } = self;
         BorshSerialize::serialize(id, writer)
     }
 }
 
 impl<K> BorshDeserialize for Program<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let account: Address = BorshDeserialize::deserialize_reader(reader)?;
-        let id: Id = BorshDeserialize::deserialize_reader(reader)?;
+        let id: Address = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
-            account,
             id,
             state_cache: RefCell::default(),
         })
@@ -45,12 +34,8 @@ impl<K> BorshDeserialize for Program<K> {
 
 impl<K> Program<K> {
     #[must_use]
-    pub fn id(&self) -> &[u8; PROGRAM_ID_LEN] {
+    pub fn id(&self) -> &Address {
         &self.id
-    }
-
-    pub fn account(&self) -> Address {
-        self.account
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method

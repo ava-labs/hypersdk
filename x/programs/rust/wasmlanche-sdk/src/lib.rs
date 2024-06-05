@@ -10,7 +10,7 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{Program, PROGRAM_ID_LEN},
+    program::Program,
 };
 
 #[cfg(feature = "build")]
