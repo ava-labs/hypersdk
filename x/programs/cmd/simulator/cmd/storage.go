@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -20,24 +21,40 @@ const (
 	addressStoragePrefix = 0x2
 )
 
-type stateMutable struct {
+type programStateLoader struct {
 	inner state.Mutable
 }
 
-func (s *stateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
-	return s.inner.GetValue(ctx, programStateKey(key))
+func (p programStateLoader) GetProgramState(account codec.Address) state.Mutable {
+	return newAccountPrefixedMutable(account, p.inner)
 }
 
-func (s *stateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
-	return s.inner.Insert(ctx, programStateKey(key), value)
+type prefixedStateMutable struct {
+	inner  state.Mutable
+	prefix []byte
 }
 
-func (s *stateMutable) Remove(ctx context.Context, key []byte) error {
-	return s.inner.Remove(ctx, programStateKey(key))
+func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
+	k = make([]byte, 1+len(s.prefix))
+	copy(k, s.prefix)
+	copy(k[len(s.prefix):], key[:])
+	return
 }
 
-func stateView(mutable state.Mutable) state.Mutable {
-	return &stateMutable{inner: mutable}
+func (s *prefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	return s.inner.GetValue(ctx, s.prefixKey(key))
+}
+
+func (s *prefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
+	return s.inner.Insert(ctx, s.prefixKey(key), value)
+}
+
+func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
+	return s.inner.Remove(ctx, s.prefixKey(key))
+}
+
+func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
+	return &prefixedStateMutable{inner: mutable, prefix: programStateKey(account[:])}
 }
 
 //

@@ -127,7 +127,7 @@ func programExecuteFunc(
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
 	callInfo := &runtime.CallInfo{
-		State:        stateView(db),
+		state:        programStateLoader{inner: db},
 		Actor:        codec.EmptyAddress,
 		Account:      codec.EmptyAddress,
 		ProgramID:    programID,
