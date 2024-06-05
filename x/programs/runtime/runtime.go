@@ -21,7 +21,6 @@ type WasmRuntime struct {
 	cfg           *Config
 	programs      map[ids.ID]*Program
 	programLoader ProgramLoader
-	stateLoader   StateLoader
 }
 
 type StateLoader interface {

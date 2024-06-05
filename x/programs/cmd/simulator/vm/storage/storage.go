@@ -48,7 +48,7 @@ const ProgramChunks uint16 = 1
 func ProgramStateKey(key []byte) (k []byte) {
 	k = make([]byte, 1+len(key))
 	k[0] = programStatePrefix
-	copy(k[1:], key[:])
+	copy(k[1:], key)
 	return
 }
 
