@@ -52,3 +52,22 @@ impl<K> BorshDeserialize for Context<K> {
         Ok(Self { program, actor })
     }
 }
+
+pub struct ExternalCallContext {
+    program: Program,
+    max_units: Gas,
+}
+
+impl ExternalCallContext {
+    pub fn new(program: Program, max_units: Gas) -> Self {
+        Self { program, max_units }
+    }
+
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    pub fn max_units(&self) -> Gas {
+        self.max_units
+    }
+}

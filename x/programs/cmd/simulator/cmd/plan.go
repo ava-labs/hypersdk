@@ -17,13 +17,13 @@ import (
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -169,7 +169,6 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	resp := newResponse(index)
 	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
 	if err != nil {
-		c.log.Error(fmt.Sprintf("simulation step err: %s", err))
 		resp.setError(err)
 	}
 
@@ -209,7 +208,7 @@ func runStepFunc(
 		} else if err != nil {
 			return err
 		}
-		resp.setMsg("created named key with address " + utils.Address(key))
+		resp.setMsg("created named key with address " + AddressToString(key))
 
 		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
@@ -231,6 +230,9 @@ func runStepFunc(
 		}
 		id, response, balance, err := programExecuteFunc(ctx, log, db, id, params[1:], method, maxUnits)
 		if err != nil {
+			return err
+		}
+		if err := db.Commit(ctx); err != nil {
 			return err
 		}
 
@@ -255,6 +257,9 @@ func runStepFunc(
 		if err != nil {
 			return err
 		}
+		if err := db.Commit(ctx); err != nil {
+			return err
+		}
 
 		if len(response) > 1 {
 			return errors.New("multi response not supported")
@@ -268,6 +273,11 @@ func runStepFunc(
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, endpoint)
 	}
+}
+
+func AddressToString(pk ed25519.PublicKey) string {
+	addrString, _ := address.FormatBech32("matrix", pk[:])
+	return addrString
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
@@ -303,7 +313,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 		case KeyEd25519: // TODO: support secp256k1
 			key := string(param.Value)
 			// get named public key from db
-			pk, ok, err := storage.GetPublicKey(ctx, db, key)
+			pk, ok, err := GetPublicKey(ctx, db, key)
 			if err != nil {
 				return nil, err
 			}

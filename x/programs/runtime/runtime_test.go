@@ -12,7 +12,6 @@ import (
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
@@ -25,11 +24,11 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "simple"})
+		test.ProgramLoader{ProgramName: "simple"})
 
-	state := test.NewTestDB()
-	programID := codec.CreateAddress(0, ids.GenerateTestID())
-	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := ids.GenerateTestID()
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(0)
 	require.NoError(err)
@@ -37,7 +36,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 }
 
 type ComplexReturn struct {
-	Program  codec.Address
+	Program  ids.ID
 	MaxUnits uint64
 }
 
@@ -50,11 +49,11 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "return_complex_type"})
+		test.ProgramLoader{ProgramName: "return_complex_type"})
 
-	state := test.NewTestDB()
-	programID := codec.CreateAddress(0, ids.GenerateTestID())
-	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := ids.GenerateTestID()
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(ComplexReturn{Program: programID, MaxUnits: 1000})
 	require.NoError(err)
