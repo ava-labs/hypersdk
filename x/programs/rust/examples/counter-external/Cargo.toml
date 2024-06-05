@@ -1,0 +1,18 @@
+[package]
+name = "counter-external"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasmlanche-sdk = { workspace = true }
+borsh = { workspace = true }
+counter = { path = "../counter", features = ["bindings"] }
+
+[dev-dependencies]
+simulator = { workspace = true }
+
+[build-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["build"] }
