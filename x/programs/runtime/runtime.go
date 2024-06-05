@@ -9,6 +9,9 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type WasmRuntime struct {
@@ -18,6 +21,11 @@ type WasmRuntime struct {
 	cfg           *Config
 	programs      map[ids.ID]*Program
 	programLoader ProgramLoader
+	stateLoader   StateLoader
+}
+
+type StateLoader interface {
+	GetProgramState(address codec.Address) state.Mutable
 }
 
 type ProgramLoader interface {
@@ -27,7 +35,7 @@ type ProgramLoader interface {
 func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
-	loader ProgramLoader,
+	programLoader ProgramLoader,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
 		log:           log,
@@ -35,7 +43,7 @@ func NewRuntime(
 		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:   NewImports(),
 		programs:      map[ids.ID]*Program{},
-		programLoader: loader,
+		programLoader: programLoader,
 	}
 
 	runtime.AddImportModule(NewLogModule())

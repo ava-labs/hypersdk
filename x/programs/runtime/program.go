@@ -14,7 +14,6 @@ import (
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
 )
 
 const (
@@ -30,7 +29,7 @@ type Context struct {
 
 type CallInfo struct {
 	// the state that the program will run against
-	State state.Mutable
+	State StateLoader
 
 	// the address that originated the initial program call
 	Actor codec.Address

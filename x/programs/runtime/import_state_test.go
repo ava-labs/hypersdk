@@ -24,9 +24,9 @@ func TestImportStatePutGet(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "state_access"})
+		test.ProgramLoader{ProgramName: "state_access"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	valueBytes, err := borsh.Serialize(int64(10))
@@ -50,11 +50,9 @@ func TestImportStateRemove(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "state_access"})
-
-	state := test.NewTestDB()
+		test.ProgramLoader{ProgramName: "state_access"})
 	programID := ids.GenerateTestID()
-
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	valueBytes, err := borsh.Serialize(int64(10))
 	require.NoError(err)
 
@@ -80,12 +78,11 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "state_access"})
+		test.ProgramLoader{ProgramName: "state_access"})
 
-	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "delete", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: test.StateLoader{Mu: test.NewTestDB()}, FunctionName: "delete", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }
@@ -99,12 +96,11 @@ func TestImportStateGetMissingKey(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "state_access"})
+		test.ProgramLoader{ProgramName: "state_access"})
 
-	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: test.StateLoader{Mu: test.NewTestDB()}, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }

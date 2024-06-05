@@ -24,9 +24,9 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "simple"})
+		test.ProgramLoader{ProgramName: "simple"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
@@ -49,9 +49,9 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "return_complex_type"})
+		test.ProgramLoader{ProgramName: "return_complex_type"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)

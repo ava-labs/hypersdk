@@ -24,9 +24,9 @@ func TestImportProgramCallProgram(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "simple_call", Params: nil, Fuel: 10000000})
 	require.NoError(err)
@@ -57,9 +57,9 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	expected, err := borsh.Serialize(uint64(1))
@@ -94,9 +94,9 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	expected, err := borsh.Serialize(int64(3))
@@ -141,9 +141,9 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "fuel"})
+		test.ProgramLoader{ProgramName: "fuel"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	startFuel := uint64(150000)
