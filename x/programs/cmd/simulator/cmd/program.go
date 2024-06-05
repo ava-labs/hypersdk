@@ -100,7 +100,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
-	db state.CommitMutable,
+	db state.Mutable,
 	programID ids.ID,
 	callParams []Parameter,
 	function string,
@@ -126,9 +126,8 @@ func programExecuteFunc(
 	}
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
-	state := stateView(db)
 	callInfo := &runtime.CallInfo{
-		State:        state,
+		State:        stateView(db),
 		Actor:        codec.EmptyAddress,
 		Account:      codec.EmptyAddress,
 		ProgramID:    programID,
@@ -141,12 +140,6 @@ func programExecuteFunc(
 	if err != nil {
 		response := multilineOutput(output)
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
-	}
-
-	// store program to disk only on success
-	err = state.Commit(ctx)
-	if err != nil {
-		return ids.Empty, nil, 0, err
 	}
 
 	return programTxID, output, 0, err

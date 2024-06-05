@@ -20,10 +20,8 @@ const (
 	addressStoragePrefix = 0x2
 )
 
-var _ state.CommitMutable = (*stateMutable)(nil)
-
 type stateMutable struct {
-	inner state.CommitMutable
+	inner state.Mutable
 }
 
 func (s *stateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
@@ -38,11 +36,7 @@ func (s *stateMutable) Remove(ctx context.Context, key []byte) error {
 	return s.inner.Remove(ctx, ProgramStateKey(key))
 }
 
-func (s *stateMutable) Commit(ctx context.Context) error {
-	return s.inner.Commit(ctx)
-}
-
-func stateView(mutable state.CommitMutable) state.CommitMutable {
+func stateView(mutable state.Mutable) state.Mutable {
 	return &stateMutable{inner: mutable}
 }
 

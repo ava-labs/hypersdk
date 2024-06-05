@@ -11,8 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 )
 
-var _ CommitMutable = (*SimpleMutable)(nil)
-
 type SimpleMutable struct {
 	v View
 

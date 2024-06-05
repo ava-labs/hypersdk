@@ -233,6 +233,9 @@ func runStepFunc(
 		if err != nil {
 			return err
 		}
+		if err := db.Commit(ctx); err != nil {
+			return err
+		}
 
 		if len(response) > 1 {
 			return errors.New("multi response not supported")
