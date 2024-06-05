@@ -48,7 +48,7 @@ impl<K> Program<K> {
     pub fn id(&self) -> &[u8; PROGRAM_ID_LEN] {
         &self.id
     }
-    
+
     pub fn account(&self) -> Address {
         self.account
     }
