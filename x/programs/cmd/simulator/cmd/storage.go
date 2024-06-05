@@ -25,15 +25,15 @@ type stateMutable struct {
 }
 
 func (s *stateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
-	return s.inner.GetValue(ctx, ProgramStateKey(key))
+	return s.inner.GetValue(ctx, programStateKey(key))
 }
 
 func (s *stateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
-	return s.inner.Insert(ctx, ProgramStateKey(key), value)
+	return s.inner.Insert(ctx, programStateKey(key), value)
 }
 
 func (s *stateMutable) Remove(ctx context.Context, key []byte) error {
-	return s.inner.Remove(ctx, ProgramStateKey(key))
+	return s.inner.Remove(ctx, programStateKey(key))
 }
 
 func stateView(mutable state.Mutable) state.Mutable {
@@ -44,14 +44,14 @@ func stateView(mutable state.Mutable) state.Mutable {
 // Program
 //
 
-func ProgramStateKey(key []byte) (k []byte) {
+func programStateKey(key []byte) (k []byte) {
 	k = make([]byte, 1+len(key))
 	k[0] = programStatePrefix
 	copy(k[1:], key[:])
 	return
 }
 
-func ProgramKey(id ids.ID) (k []byte) {
+func programKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+ids.IDLen)
 	k[0] = programPrefix
 	copy(k[1:], id[:])
@@ -68,7 +68,7 @@ func GetProgram(
 	bool, // exists
 	error,
 ) {
-	k := ProgramKey(programID)
+	k := programKey(programID)
 	v, err := db.GetValue(ctx, k)
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
@@ -86,7 +86,7 @@ func SetProgram(
 	programID ids.ID,
 	program []byte,
 ) error {
-	return mu.Insert(ctx, ProgramKey(programID), program)
+	return mu.Insert(ctx, programKey(programID), program)
 }
 
 // gets the public key mapped to the given name.
