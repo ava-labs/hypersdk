@@ -35,15 +35,7 @@ mod tests {
         let owner_key = Param::Key(owner_key);
 
         let counter_external = simulator
-            .run_step::<()>(
-                &owner,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1_000_000,
-                    params: vec![Param::String(PROGRAM_PATH.to_string())],
-                },
-            )?
+            .run_step::<()>(&owner, &Step::create_program(PROGRAM_PATH))?
             .base
             .id;
         let counter_external = Param::Id(counter_external.into());
