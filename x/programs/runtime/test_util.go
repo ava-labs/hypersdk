@@ -2,9 +2,9 @@ package runtime
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/test"
