@@ -75,11 +75,11 @@ func (t Loader) GetProgramBytes(_ context.Context, _ ids.ID) ([]byte, error) {
 }
 
 type MapLoader struct {
-	programs map[ids.ID]string
+	Programs map[ids.ID]string
 }
 
 func (t MapLoader) GetProgramBytes(_ context.Context, id ids.ID) ([]byte, error) {
-	programName, ok := t.programs[id]
+	programName, ok := t.Programs[id]
 	if !ok {
 		return nil, errors.New("program not found")
 	}

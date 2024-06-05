@@ -1,7 +1,8 @@
-package test
+package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 const aLottaFuel = uint64(99999999999)
@@ -21,24 +21,25 @@ func TestTokenAMM(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stateDB := NewTestDB()
+
+	stateDB := test.NewTestDB()
 
 	token1ID := ids.GenerateTestID()
-	token1 := runtime.ProgramInfo{ID: token1ID, Account: codec.CreateAddress(1, token1ID)}
+	token1 := ProgramInfo{ID: token1ID, Account: codec.CreateAddress(1, token1ID)}
 	token1Owner := codec.CreateAddress(1, ids.GenerateTestID())
 
 	token2ID := ids.GenerateTestID()
-	token2 := runtime.ProgramInfo{ID: token2ID, Account: codec.CreateAddress(2, token2ID)}
+	token2 := ProgramInfo{ID: token2ID, Account: codec.CreateAddress(2, token2ID)}
 	token2Owner := codec.CreateAddress(2, ids.GenerateTestID())
 
 	ammID := ids.GenerateTestID()
-	amm := runtime.ProgramInfo{ID: ammID, Account: codec.CreateAddress(3, ammID)}
+	amm := ProgramInfo{ID: ammID, Account: codec.CreateAddress(3, ammID)}
 	ammOwner := codec.CreateAddress(3, ids.GenerateTestID())
 
-	r := runtime.NewRuntime(
-		runtime.NewConfig(),
+	r := NewRuntime(
+		NewConfig(),
 		logging.NoLog{},
-		MapLoader{programs: map[ids.ID]string{token1ID: "erc20_token", token2ID: "erc20_token", ammID: "amm"}},
+		test.MapLoader{Programs: map[ids.ID]string{token1ID: "erc20_token", token2ID: "erc20_token", ammID: "amm"}},
 	)
 
 	// init token 1
@@ -50,7 +51,7 @@ func TestTokenAMM(t *testing.T) {
 		Symbol: "TKN1",
 	})
 	require.NoError(err)
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token1,
 		Actor:        token1Owner,
 		State:        stateDB,
@@ -69,7 +70,7 @@ func TestTokenAMM(t *testing.T) {
 		Symbol: "TKN2",
 	})
 	require.NoError(err)
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token2,
 		Actor:        token2Owner,
 		State:        stateDB,
@@ -81,13 +82,13 @@ func TestTokenAMM(t *testing.T) {
 
 	// init amm
 	paramBytes, err = borsh.Serialize(struct {
-		Token1 runtime.ProgramInfo
-		Token2 runtime.ProgramInfo
+		Token1 ProgramInfo
+		Token2 ProgramInfo
 	}{
 		Token1: token1,
 		Token2: token2,
 	})
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        ammOwner,
 		State:        stateDB,
@@ -102,7 +103,7 @@ func TestTokenAMM(t *testing.T) {
 	setupUser(ctx, require, r, stateDB, token2, token2Owner, user1, amm.Account, 5)
 	AddLiquitityToUser(ctx, require, r, stateDB, user1, token1, token2, amm, 5)
 
-	result, err := r.CallProgram(ctx, &runtime.CallInfo{
+	result, err := r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        user1,
 		State:        stateDB,
@@ -120,7 +121,7 @@ func TestTokenAMM(t *testing.T) {
 	setupUser(ctx, require, r, stateDB, token2, token2Owner, user2, amm.Account, 6)
 	AddLiquitityToUser(ctx, require, r, stateDB, user2, token1, token2, amm, 6)
 
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        user1,
 		State:        stateDB,
@@ -133,7 +134,7 @@ func TestTokenAMM(t *testing.T) {
 	require.Equal(uint64(22), amountOfLiquidity)
 
 	RemoveLiquidityFromUser(ctx, require, r, stateDB, user1, token1, token2, amm, 10)
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        user1,
 		State:        stateDB,
@@ -147,7 +148,7 @@ func TestTokenAMM(t *testing.T) {
 
 	RemoveLiquidityFromUser(ctx, require, r, stateDB, user2, token1, token2, amm, 12)
 
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        user1,
 		State:        stateDB,
@@ -160,14 +161,14 @@ func TestTokenAMM(t *testing.T) {
 	require.Equal(uint64(0), amountOfLiquidity)
 }
 
-func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r *runtime.WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 runtime.ProgramInfo, token2 runtime.ProgramInfo, amm runtime.ProgramInfo, amount uint64) {
+func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r *WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 ProgramInfo, token2 ProgramInfo, amm ProgramInfo, amount uint64) {
 	paramBytes, err := borsh.Serialize(struct {
 		Amount uint64
 	}{
 		Amount: amount,
 	})
 
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        actor,
 		State:        stateDB,
@@ -184,7 +185,7 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 	})
 	require.NoError(err)
 
-	result, err := r.CallProgram(ctx, &runtime.CallInfo{
+	result, err := r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        actor,
 		State:        stateDB,
@@ -198,7 +199,7 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 	require.Equal(uint64(0), amountOfLiquidity)
 
 	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token1,
 		Actor:        actor,
 		State:        stateDB,
@@ -212,7 +213,7 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 	require.Equal(amount/2, amountOftoken1)
 
 	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token2,
 		Actor:        actor,
 		State:        stateDB,
@@ -226,7 +227,7 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 	require.Equal(amount/2, amountOftoken2)
 }
 
-func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *runtime.WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 runtime.ProgramInfo, token2 runtime.ProgramInfo, amm runtime.ProgramInfo, amount uint64) {
+func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 ProgramInfo, token2 ProgramInfo, amm ProgramInfo, amount uint64) {
 	paramBytes, err := borsh.Serialize(struct {
 		Amount1 uint64
 		Amount2 uint64
@@ -235,7 +236,7 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 		Amount2: amount,
 	})
 
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        actor,
 		State:        stateDB,
@@ -252,7 +253,7 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 		Address: actor,
 	})
 
-	result, err := r.CallProgram(ctx, &runtime.CallInfo{
+	result, err := r.CallProgram(ctx, &CallInfo{
 		Program:      amm,
 		Actor:        actor,
 		State:        stateDB,
@@ -266,7 +267,7 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 	require.Equal(amount*2, amountOfLiquidity)
 
 	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token1,
 		Actor:        actor,
 		State:        stateDB,
@@ -280,7 +281,7 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 	require.Equal(uint64(0), amountOftoken1)
 
 	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &runtime.CallInfo{
+	result, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token2,
 		Actor:        actor,
 		State:        stateDB,
@@ -294,7 +295,7 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 	require.Equal(uint64(0), amountOftoken2)
 }
 
-func setupUser(ctx context.Context, require *require.Assertions, r *runtime.WasmRuntime, state state.Mutable, token runtime.ProgramInfo, owner codec.Address, actor codec.Address, ammAddress codec.Address, amount uint64) {
+func setupUser(ctx context.Context, require *require.Assertions, r *WasmRuntime, state state.Mutable, token ProgramInfo, owner codec.Address, actor codec.Address, ammAddress codec.Address, amount uint64) {
 	paramBytes, err := borsh.Serialize(struct {
 		Recipient codec.Address
 		Amount    uint64
@@ -302,7 +303,7 @@ func setupUser(ctx context.Context, require *require.Assertions, r *runtime.Wasm
 		Recipient: actor,
 		Amount:    amount,
 	})
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token,
 		Actor:        owner,
 		State:        state,
@@ -321,7 +322,7 @@ func setupUser(ctx context.Context, require *require.Assertions, r *runtime.Wasm
 		Amount:  amount,
 	})
 
-	_, err = r.CallProgram(ctx, &runtime.CallInfo{
+	_, err = r.CallProgram(ctx, &CallInfo{
 		Program:      token,
 		Actor:        actor,
 		State:        state,
@@ -340,7 +341,7 @@ func setupUser(ctx context.Context, require *require.Assertions, r *runtime.Wasm
 	})
 	require.NoError(err)
 
-	result, err := r.CallProgram(ctx, &runtime.CallInfo{
+	result, err := r.CallProgram(ctx, &CallInfo{
 		Program:      token,
 		Actor:        actor,
 		State:        state,

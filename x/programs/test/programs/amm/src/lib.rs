@@ -1,49 +1,49 @@
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, types::Address, Program};
+use wasmlanche_sdk::{Gas, public, state_keys, types::Address, Program};
 
 pub struct Token(Program);
 
 trait ExternalToken {
-    fn transfer(&self, to: Address, amount: u64, fuel: i64) -> bool;
-    fn balance_of(&self, account: Address, fuel: i64) -> u64;
-    fn allowance(&self, owner: Address, spender: Address, fuel: i64) -> u64;
-    fn approve(&self, spender: Address, amount: u64, fuel: i64) -> bool;
-    fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: i64) -> bool;
-    fn total_supply(&self, fuel: i64) -> u64;
+    fn transfer(&self, to: Address, amount: u64, fuel: Gas) -> bool;
+    fn balance_of(&self, account: Address, fuel: Gas) -> u64;
+    fn allowance(&self, owner: Address, spender: Address, fuel: Gas) -> u64;
+    fn approve(&self, spender: Address, amount: u64, fuel: Gas) -> bool;
+    fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: Gas) -> bool;
+    fn total_supply(&self, fuel: Gas) -> u64;
 }
 
 impl ExternalToken for Token {
-    fn allowance(&self, owner: Address, spender: Address, fuel: i64) -> u64 {
+    fn allowance(&self, owner: Address, spender: Address, fuel: Gas) -> u64 {
         self.0
             .call_function("allowance", (owner, spender), fuel)
             .expect("call to allowance failed")
     }
 
-    fn transfer(&self, to: Address, amount: u64, fuel: i64) -> bool {
+    fn transfer(&self, to: Address, amount: u64, fuel: Gas) -> bool {
         self.0
             .call_function("transfer", (to, amount), fuel)
             .expect("call to transfer failed")
     }
 
-    fn balance_of(&self, account: Address, fuel: i64) -> u64 {
+    fn balance_of(&self, account: Address, fuel: Gas) -> u64 {
         self.0
             .call_function("balance_of", account, fuel)
             .expect("call to account failed")
     }
 
-    fn approve(&self, spender: Address, amount: u64, fuel: i64) -> bool {
+    fn approve(&self, spender: Address, amount: u64, fuel: Gas) -> bool {
         self.0
             .call_function("approve", (spender, amount), fuel)
             .expect("call to approve failed")
     }
 
-    fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: i64) -> bool {
+    fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: Gas) -> bool {
         self.0
             .call_function("transfer_from", (sender, recipient, amount), fuel)
             .expect("call to transfer_from failed")
     }
 
-    fn total_supply(&self, fuel: i64) -> u64 {
+    fn total_supply(&self, fuel: Gas) -> u64 {
         self.0
             .call_function("total_supply", (), fuel)
             .expect("call to total_supply failed")
@@ -174,6 +174,7 @@ pub fn add_liquidity(context: Context<StateKey>, supplied_token1: u64, supplied_
         .state()
         .store(StateKey::Reserve1, &reserve1)
         .expect("failed to store reserve 1");
+
     let reserve2 = supplied_token2 + get_reserve2(&program);
     program
         .state()
