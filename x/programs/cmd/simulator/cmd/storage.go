@@ -35,7 +35,7 @@ type prefixedStateMutable struct {
 }
 
 func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
-	k = make([]byte, 1+len(s.prefix))
+	k = make([]byte, len(s.prefix)+len(key))
 	copy(k, s.prefix)
 	copy(k[len(s.prefix):], key[:])
 	return

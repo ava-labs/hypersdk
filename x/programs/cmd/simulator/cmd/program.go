@@ -100,12 +100,17 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
-	db state.Mutable,
+	db *state.SimpleMutable,
 	programID ids.ID,
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
 ) (ids.ID, [][]byte, uint64, error) {
+	// execute the action
+	if len(function) == 0 {
+		return ids.Empty, nil, 0, errors.New("no function called")
+	}
+
 	// simulate create program transaction
 	programTxID, err := generateRandomID()
 	if err != nil {
@@ -115,14 +120,6 @@ func programExecuteFunc(
 	var bytes []byte
 	for _, param := range callParams {
 		bytes = append(bytes, param.Value...)
-	}
-	if err != nil {
-		return ids.Empty, nil, 0, err
-	}
-
-	// execute the action
-	if len(function) == 0 {
-		return ids.Empty, nil, 0, errors.New("no function called")
 	}
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
