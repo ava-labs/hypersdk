@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Program<K = ()> {
     account: Address,
     state_cache: RefCell<HashMap<K, Vec<u8>>>,
