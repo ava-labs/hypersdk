@@ -9,8 +9,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/utils/formatting/address"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"math"
 	"os"
 	"strconv"
@@ -19,10 +17,12 @@ import (
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -255,6 +255,9 @@ func runStepFunc(
 		// TODO: implement readonly for now just don't charge for gas
 		_, response, _, err := programExecuteFunc(ctx, log, db, id, params[1:], method, math.MaxUint64)
 		if err != nil {
+			return err
+		}
+		if err := db.Commit(ctx); err != nil {
 			return err
 		}
 

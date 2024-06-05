@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"os"
 	"time"
 
@@ -19,6 +17,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*programCreateCmd)(nil)
@@ -127,9 +127,9 @@ func programExecuteFunc(
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
 	callInfo := &runtime.CallInfo{
-		state:        programStateLoader{inner: db},
+		State:        programStateLoader{inner: db},
 		Actor:        codec.EmptyAddress,
-		Account:      codec.EmptyAddress,
+		Account:      codec.CreateAddress(programPrefix, programID),
 		ProgramID:    programID,
 		Fuel:         maxUnits,
 		FunctionName: function,
