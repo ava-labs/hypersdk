@@ -32,11 +32,11 @@ func TestImportStatePutGet(t *testing.T) {
 	valueBytes, err := borsh.Serialize(int64(10))
 	require.NoError(err)
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "put", Params: valueBytes, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "put", Params: valueBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Nil(result)
 
-	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(append([]byte{1}, valueBytes...), result)
 }
@@ -58,15 +58,15 @@ func TestImportStateRemove(t *testing.T) {
 	valueBytes, err := borsh.Serialize(int64(10))
 	require.NoError(err)
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "put", Params: valueBytes, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "put", Params: valueBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Nil(result)
 
-	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "delete", Params: nil, Fuel: 10000000})
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "delete", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(append([]byte{1}, valueBytes...), result)
 
-	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }
@@ -85,7 +85,7 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "delete", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "delete", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }
@@ -104,7 +104,7 @@ func TestImportStateGetMissingKey(t *testing.T) {
 	state := test.NewTestDB()
 	programID := ids.GenerateTestID()
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: ProgramInfo{ID: programID}, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }

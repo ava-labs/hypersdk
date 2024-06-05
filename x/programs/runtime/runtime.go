@@ -59,17 +59,17 @@ func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	program, ok := r.programs[callInfo.ProgramID]
+	program, ok := r.programs[callInfo.Program.ID]
 	if !ok {
-		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.ProgramID)
+		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.Program.ID)
 		if err != nil {
 			return nil, err
 		}
-		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
+		program, err = newProgram(r.engine, callInfo.Program.ID, bytes)
 		if err != nil {
 			return nil, err
 		}
-		r.programs[callInfo.ProgramID] = program
+		r.programs[callInfo.Program.ID] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
