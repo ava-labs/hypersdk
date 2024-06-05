@@ -2,14 +2,16 @@ package test
 
 import (
 	"context"
+	"testing"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/near/borsh-go"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/near/borsh-go"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 const aLottaFuel = uint64(99999999999)
@@ -54,7 +56,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "init",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	// init token 2
@@ -72,7 +75,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "init",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	// init amm
@@ -89,7 +93,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "init",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	user1 := codec.CreateAddress(8, ids.GenerateTestID())
@@ -103,7 +108,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "total_supply",
 		Params:       nil,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOfLiquidity uint64
 	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
@@ -120,7 +126,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "total_supply",
 		Params:       nil,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
 	require.Equal(uint64(22), amountOfLiquidity)
@@ -132,7 +139,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "total_supply",
 		Params:       nil,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
 	require.Equal(uint64(12), amountOfLiquidity)
@@ -145,7 +153,8 @@ func TestTokenAMM(t *testing.T) {
 		State:        stateDB,
 		FunctionName: "total_supply",
 		Params:       nil,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
 	require.Equal(uint64(0), amountOfLiquidity)
@@ -164,7 +173,8 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 		State:        stateDB,
 		FunctionName: "remove_liquidity",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	paramBytes, err = borsh.Serialize(struct {
@@ -180,7 +190,8 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 		State:        stateDB,
 		FunctionName: "balance_of",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOfLiquidity uint64
 	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
@@ -193,7 +204,8 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 		State:        stateDB,
 		FunctionName: "balance_of",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOftoken1 uint64
 	require.NoError(borsh.Deserialize(&amountOftoken1, result))
@@ -206,12 +218,12 @@ func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r
 		State:        stateDB,
 		FunctionName: "balance_of",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOftoken2 uint64
 	require.NoError(borsh.Deserialize(&amountOftoken2, result))
 	require.Equal(amount/2, amountOftoken2)
-
 }
 
 func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *runtime.WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 runtime.ProgramInfo, token2 runtime.ProgramInfo, amm runtime.ProgramInfo, amount uint64) {
@@ -229,7 +241,8 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 		State:        stateDB,
 		FunctionName: "add_liquidity",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	// confirm liquidity
@@ -245,7 +258,8 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 		State:        stateDB,
 		FunctionName: "balance_of",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOfLiquidity uint64
 	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
@@ -258,7 +272,8 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 		State:        stateDB,
 		FunctionName: "balance_of",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOftoken1 uint64
 	require.NoError(borsh.Deserialize(&amountOftoken1, result))
@@ -271,7 +286,8 @@ func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *run
 		State:        stateDB,
 		FunctionName: "balance_of",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOftoken2 uint64
 	require.NoError(borsh.Deserialize(&amountOftoken2, result))
@@ -292,7 +308,8 @@ func setupUser(ctx context.Context, require *require.Assertions, r *runtime.Wasm
 		State:        state,
 		FunctionName: "mint",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	// approve token transfers
@@ -310,7 +327,8 @@ func setupUser(ctx context.Context, require *require.Assertions, r *runtime.Wasm
 		State:        state,
 		FunctionName: "approve",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 
 	paramBytes, err = borsh.Serialize(struct {
@@ -328,7 +346,8 @@ func setupUser(ctx context.Context, require *require.Assertions, r *runtime.Wasm
 		State:        state,
 		FunctionName: "allowance",
 		Params:       paramBytes,
-		Fuel:         aLottaFuel})
+		Fuel:         aLottaFuel,
+	})
 	require.NoError(err)
 	var amountOfAllowance uint64
 

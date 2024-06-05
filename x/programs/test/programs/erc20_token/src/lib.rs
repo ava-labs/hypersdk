@@ -1,5 +1,5 @@
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{dbg, public, state_keys, types::Address, Program};
+use wasmlanche_sdk::{public, state_keys, types::Address, Program};
 
 const INITIAL_SUPPLY: u64 = 123456789;
 
@@ -73,18 +73,18 @@ pub fn total_supply(context: Context<StateKey>) -> u64 {
     _total_supply(&program)
 }
 
-fn _total_supply(program: &Program<StateKey>) -> u64{
+fn _total_supply(program: &Program<StateKey>) -> u64 {
     program
-    .state()
-    .get(StateKey::TotalSupply)
-    .expect("failure")
-    .unwrap_or_default()
+        .state()
+        .get(StateKey::TotalSupply)
+        .expect("failure")
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
 pub fn mint(context: Context<StateKey>, recipient: Address, amount: u64) -> bool {
-    let Context { program, actor , ..} = context;
+    let Context { program, actor, .. } = context;
     owner_check(&program, actor);
     let balance = program
         .state()
@@ -103,7 +103,7 @@ pub fn mint(context: Context<StateKey>, recipient: Address, amount: u64) -> bool
 /// Burn the token from the recipient.
 #[public]
 pub fn burn(context: Context<StateKey>, recipient: Address, value: u64) -> u64 {
-    let Context { program, actor, ..} = context;
+    let Context { program, actor, .. } = context;
     owner_check(&program, actor);
     let total = _balance_of(&program, recipient);
 
@@ -125,7 +125,7 @@ pub fn balance_of(context: Context<StateKey>, account: Address) -> u64 {
     _balance_of(&program, account)
 }
 
-fn _balance_of(program:&Program<StateKey>, account: Address) -> u64 {
+fn _balance_of(program: &Program<StateKey>, account: Address) -> u64 {
     program
         .state()
         .get(StateKey::Balance(account))
@@ -149,7 +149,7 @@ pub fn _allowance(program: &Program<StateKey>, owner: Address, spender: Address)
 
 #[public]
 pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> bool {
-    let Context { program, actor, ..} = context;
+    let Context { program, actor, .. } = context;
     assert_ne!(actor, spender, "actor and spender must be different");
     program
         .state()
@@ -165,8 +165,12 @@ pub fn transfer(context: Context<StateKey>, recipient: Address, amount: u64) -> 
     _transfer(&program, actor, recipient, amount)
 }
 
-
-fn _transfer(program: &Program<StateKey>, sender:Address, recipient: Address, amount: u64) -> bool {
+fn _transfer(
+    program: &Program<StateKey>,
+    sender: Address,
+    recipient: Address,
+    amount: u64,
+) -> bool {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
@@ -205,7 +209,9 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context { ref program, actor} = context;
+    let Context {
+        ref program, actor, ..
+    } = context;
     let total_allowance = _allowance(program, sender, actor);
     assert!(total_allowance >= amount);
     program
@@ -215,5 +221,5 @@ pub fn transfer_from(
             &(total_allowance - amount),
         )
         .expect("failed to store allowance");
-    _transfer(&program, sender, recipient, amount)
+    _transfer(program, sender, recipient, amount)
 }

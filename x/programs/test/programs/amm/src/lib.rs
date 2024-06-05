@@ -14,45 +14,39 @@ trait ExternalToken {
 
 impl ExternalToken for Token {
     fn allowance(&self, owner: Address, spender: Address, fuel: i64) -> u64 {
-        return self
-            .0
+        self.0
             .call_function("allowance", (owner, spender), fuel)
-            .expect("call to allowance failed");
+            .expect("call to allowance failed")
     }
 
     fn transfer(&self, to: Address, amount: u64, fuel: i64) -> bool {
-        return self
-            .0
+        self.0
             .call_function("transfer", (to, amount), fuel)
-            .expect("call to transfer failed");
+            .expect("call to transfer failed")
     }
 
     fn balance_of(&self, account: Address, fuel: i64) -> u64 {
-        return self
-            .0
+        self.0
             .call_function("balance_of", account, fuel)
-            .expect("call to account failed");
+            .expect("call to account failed")
     }
 
     fn approve(&self, spender: Address, amount: u64, fuel: i64) -> bool {
-        return self
-            .0
+        self.0
             .call_function("approve", (spender, amount), fuel)
-            .expect("call to approve failed");
+            .expect("call to approve failed")
     }
 
     fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: i64) -> bool {
-        return self
-            .0
+        self.0
             .call_function("transfer_from", (sender, recipient, amount), fuel)
-            .expect("call to transfer_from failed");
+            .expect("call to transfer_from failed")
     }
 
     fn total_supply(&self, fuel: i64) -> u64 {
-        return self
-            .0
+        self.0
             .call_function("total_supply", (), fuel)
-            .expect("call to total_supply failed");
+            .expect("call to total_supply failed")
     }
 }
 
@@ -89,28 +83,30 @@ pub fn owner_check(program: &Program<StateKey>, actor: Address) {
     )
 }
 
-
 pub fn get_token1(program: &Program<StateKey>) -> Token {
-    Token(program
+    Token(
+        program
             .state()
             .get::<Program>(StateKey::Token1)
             .expect("failed to load token 1")
-            .expect("token 1 doesn't exist"))
+            .expect("token 1 doesn't exist"),
+    )
 }
 
 pub fn get_token2(program: &Program<StateKey>) -> Token {
-    Token(program
+    Token(
+        program
             .state()
             .get::<Program>(StateKey::Token2)
             .expect("failed to load token 2")
-            .expect("token 2 doesn't exist"))
+            .expect("token 2 doesn't exist"),
+    )
 }
-
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(context: Context<StateKey>, token1: Program, token2:Program) {
-    let Context { program, actor , ..} = context;
+pub fn init(context: Context<StateKey>, token1: Program, token2: Program) {
+    let Context { program, actor, .. } = context;
 
     program
         .state()
@@ -151,17 +147,19 @@ pub fn init(context: Context<StateKey>, token1: Program, token2:Program) {
         .expect("failed to store symbol");
 }
 
-
 #[public]
-pub fn add_liquidity(context: Context<StateKey>,  supplied_token1:u64, supplied_token2:u64) {
+pub fn add_liquidity(context: Context<StateKey>, supplied_token1: u64, supplied_token2: u64) {
     let Context { program, actor } = context;
     let token1 = get_token1(&program);
     let token2 = get_token2(&program);
-    
+
     let balance_token1 = token1.balance_of(program.account(), 10000000);
     let balance_token2 = token2.balance_of(program.account(), 10000000);
 
-    assert!(supplied_token1 * balance_token2 == supplied_token2 * balance_token1, "Invalid ratio");
+    assert!(
+        supplied_token1 * balance_token2 == supplied_token2 * balance_token1,
+        "Invalid ratio"
+    );
 
     token1.transfer_from(actor, program.account(), supplied_token1, 20000000);
     token2.transfer_from(actor, program.account(), supplied_token2, 20000000);
@@ -172,46 +170,66 @@ pub fn add_liquidity(context: Context<StateKey>,  supplied_token1:u64, supplied_
 
     // Reward the liquidity provider with governance tokens
     let reserve1 = supplied_token1 + get_reserve1(&program);
-    program.state().store(StateKey::Reserve1, &reserve1).expect("failed to store reserve 1");
+    program
+        .state()
+        .store(StateKey::Reserve1, &reserve1)
+        .expect("failed to store reserve 1");
     let reserve2 = supplied_token2 + get_reserve2(&program);
-    program.state().store(StateKey::Reserve2, &reserve2).expect("failed to store reserve 2");
+    program
+        .state()
+        .store(StateKey::Reserve2, &reserve2)
+        .expect("failed to store reserve 2");
 }
 
 fn get_reserve1(program: &Program<StateKey>) -> u64 {
-    program.state().get(StateKey::Reserve1).expect("failure").unwrap_or_default()
+    program
+        .state()
+        .get(StateKey::Reserve1)
+        .expect("failure")
+        .unwrap_or_default()
 }
 
 fn get_reserve2(program: &Program<StateKey>) -> u64 {
-    program.state().get(StateKey::Reserve2).expect("failure").unwrap_or_default()
+    program
+        .state()
+        .get(StateKey::Reserve2)
+        .expect("failure")
+        .unwrap_or_default()
 }
 
 #[public]
-pub fn remove_liquidity(context: Context<StateKey>,  amount:u64) -> (u64, u64) {
-        let Context { program, actor, ..} = context;
-        let total_liquidity = _total_supply(&program);
-        assert!(amount <= total_liquidity, "Invalid amount");
+pub fn remove_liquidity(context: Context<StateKey>, amount: u64) -> (u64, u64) {
+    let Context { program, actor, .. } = context;
+    let total_liquidity = _total_supply(&program);
+    assert!(amount <= total_liquidity, "Invalid amount");
 
-        let token1 = get_token1(&program);
-        let token2 = get_token2(&program);
+    let token1 = get_token1(&program);
+    let token2 = get_token2(&program);
 
-        let reserve1 = get_reserve1(&program);
-        let reserve2 = get_reserve2(&program);
-        let amount_token1 = amount * reserve1 / total_liquidity;
-        let amount_token2 = amount * reserve2 / total_liquidity;
-        _burn(&program, actor, amount);
+    let reserve1 = get_reserve1(&program);
+    let reserve2 = get_reserve2(&program);
+    let amount_token1 = amount * reserve1 / total_liquidity;
+    let amount_token2 = amount * reserve2 / total_liquidity;
+    _burn(&program, actor, amount);
 
-        token1.transfer(actor, amount_token1, 2000000);
-        token2.transfer(actor, amount_token2, 2000000);
+    token1.transfer(actor, amount_token1, 2000000);
+    token2.transfer(actor, amount_token2, 2000000);
 
-        let reserve1 = reserve1 - amount_token1;
-        program.state().store(StateKey::Reserve1, &reserve1).expect("failed to store reserve1");
-        let reserve2 = reserve2 - amount_token2;
-        program.state().store(StateKey::Reserve2, &reserve2).expect("failed to store reserve2");
+    let reserve1 = reserve1 - amount_token1;
+    program
+        .state()
+        .store(StateKey::Reserve1, &reserve1)
+        .expect("failed to store reserve1");
+    let reserve2 = reserve2 - amount_token2;
+    program
+        .state()
+        .store(StateKey::Reserve2, &reserve2)
+        .expect("failed to store reserve2");
 
-        return (amount_token1, amount_token2);
-    }
+    (amount_token1, amount_token2)
+}
 
-fn calculate_liquidity_amount(amount1: u64,  amount2:u64) ->u64 {
+fn calculate_liquidity_amount(amount1: u64, amount2: u64) -> u64 {
     amount1 + amount2
 }
 
@@ -221,12 +239,12 @@ pub fn total_supply(context: Context<StateKey>) -> u64 {
     _total_supply(&program)
 }
 
-fn _total_supply(program: &Program<StateKey>) -> u64{
+fn _total_supply(program: &Program<StateKey>) -> u64 {
     program
-    .state()
-    .get(StateKey::TotalSupply)
-    .expect("failure")
-    .unwrap_or_default()
+        .state()
+        .get(StateKey::TotalSupply)
+        .expect("failure")
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
@@ -237,7 +255,7 @@ pub fn mint(context: Context<StateKey>, recipient: Address, amount: u64) -> bool
     _mint(&program, recipient, amount)
 }
 
-fn _mint(program:&Program<StateKey>, recipient: Address, amount: u64) -> bool {
+fn _mint(program: &Program<StateKey>, recipient: Address, amount: u64) -> bool {
     let balance = program
         .state()
         .get::<u64>(StateKey::Balance(recipient))
@@ -249,10 +267,10 @@ fn _mint(program:&Program<StateKey>, recipient: Address, amount: u64) -> bool {
         .store(StateKey::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
-    let total = _total_supply(&program);
+    let total = _total_supply(program);
     program
         .state()
-        .store(StateKey::TotalSupply, &(total+amount))
+        .store(StateKey::TotalSupply, &(total + amount))
         .expect("failed to store total supply");
 
     true
@@ -261,14 +279,17 @@ fn _mint(program:&Program<StateKey>, recipient: Address, amount: u64) -> bool {
 /// Burn the token from the recipient.
 #[public]
 pub fn burn(context: Context<StateKey>, recipient: Address, amount: u64) -> u64 {
-    let Context { program, actor, ..} = context;
+    let Context { program, actor, .. } = context;
     owner_check(&program, actor);
     _burn(&program, recipient, amount)
 }
 
-fn _burn(program:&Program<StateKey>, recipient: Address, amount: u64) -> u64 {
+fn _burn(program: &Program<StateKey>, recipient: Address, amount: u64) -> u64 {
     let user_total = _balance_of(program, recipient);
-    assert!(amount <= user_total, "address doesn't have enough tokens to burn");
+    assert!(
+        amount <= user_total,
+        "address doesn't have enough tokens to burn"
+    );
     let new_amount = user_total - amount;
     program
         .state()
@@ -278,7 +299,7 @@ fn _burn(program:&Program<StateKey>, recipient: Address, amount: u64) -> u64 {
     let total = _total_supply(program);
     program
         .state()
-        .store::<u64>(StateKey::TotalSupply, &(total-amount))
+        .store::<u64>(StateKey::TotalSupply, &(total - amount))
         .expect("failed to reduce tokens total");
 
     new_amount
@@ -291,14 +312,13 @@ pub fn balance_of(context: Context<StateKey>, account: Address) -> u64 {
     _balance_of(&program, account)
 }
 
-fn _balance_of(program:&Program<StateKey>, account: Address) -> u64 {
+fn _balance_of(program: &Program<StateKey>, account: Address) -> u64 {
     program
         .state()
         .get(StateKey::Balance(account))
         .expect("failure")
         .unwrap_or_default()
 }
-
 
 #[public]
 pub fn allowance(context: Context<StateKey>, owner: Address, spender: Address) -> u64 {
@@ -332,8 +352,12 @@ pub fn transfer(context: Context<StateKey>, recipient: Address, amount: u64) -> 
     _transfer(&program, actor, recipient, amount)
 }
 
-
-fn _transfer(program: &Program<StateKey>, sender:Address, recipient: Address, amount: u64) -> bool {
+fn _transfer(
+    program: &Program<StateKey>,
+    sender: Address,
+    recipient: Address,
+    amount: u64,
+) -> bool {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
@@ -365,7 +389,6 @@ fn _transfer(program: &Program<StateKey>, sender:Address, recipient: Address, am
     true
 }
 
-
 #[public]
 pub fn transfer_from(
     context: Context<StateKey>,
@@ -373,7 +396,9 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context { ref program, actor, ..} = context;
+    let Context {
+        ref program, actor, ..
+    } = context;
     let total_allowance = _allowance(program, sender, actor);
     assert!(total_allowance > amount);
     program
@@ -383,5 +408,5 @@ pub fn transfer_from(
             &(total_allowance - amount),
         )
         .expect("failed to store allowance");
-    _transfer(&program, sender, recipient, amount)
+    _transfer(program, sender, recipient, amount)
 }
