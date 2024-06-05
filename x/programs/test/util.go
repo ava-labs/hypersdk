@@ -12,7 +12,42 @@ import (
 	"path/filepath"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/near/borsh-go"
 )
+
+func Into[T any](data []byte) T {
+	result := new(T)
+	borsh.Deserialize(result, data)
+	return *result
+}
+
+func SerializeParams(params ...interface{}) []byte {
+	if params == nil || len(params) == 0 {
+		return nil
+	}
+	results := make([][]byte, len(params))
+	var err error
+	for i, param := range params {
+		results[i], err = borsh.Serialize(param)
+		if err != nil {
+			return nil
+		}
+	}
+	return Flatten[byte](results...)
+}
+
+func Flatten[T any](slices ...[]T) []T {
+	var size int
+	for _, slice := range slices {
+		size += len(slice)
+	}
+
+	result := make([]T, 0, size)
+	for _, slice := range slices {
+		result = append(result, slice...)
+	}
+	return result
+}
 
 func CompileTest(programName string) error {
 	cmd := exec.Command("cargo", "build", "-p", programName, "--target", "wasm32-unknown-unknown", "--target-dir", "./")
