@@ -41,5 +41,5 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	program := newTestProgram(ctx, "return_complex_type")
 	result, err := program.Call("get_value")
 	require.NoError(err)
-	require.Equal(test.SerializeParams(ComplexReturn{Program: program.Info, MaxUnits: 1000}), result)
+	require.Equal(ComplexReturn{Program: program.Info, MaxUnits: 1000}, test.Into[ComplexReturn](result))
 }
