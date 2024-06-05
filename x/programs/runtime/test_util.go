@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -20,11 +21,11 @@ type testRuntime struct {
 	DefaultGas uint64
 }
 
-func (t *testRuntime) CallProgram(programID ids.ID, function string, params ...interface{}) ([]byte, error) {
+func (t *testRuntime) CallProgram(program ProgramInfo, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
 		t.Context,
 		&CallInfo{
-			ProgramID:    programID,
+			Program:      program,
 			State:        t.StateDB,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
@@ -33,6 +34,8 @@ func (t *testRuntime) CallProgram(programID ids.ID, function string, params ...i
 }
 
 func newTestProgram(ctx context.Context, program string) *testProgram {
+	id := ids.GenerateTestID()
+	account := codec.CreateAddress(0, id)
 	return &testProgram{
 		Runtime: &testRuntime{
 			Context: ctx,
@@ -43,18 +46,18 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			StateDB:    test.NewTestDB(),
 			DefaultGas: 10000000,
 		},
-		ProgramID: ids.GenerateTestID(),
+		Info: ProgramInfo{ID: id, Account: account},
 	}
 }
 
 type testProgram struct {
-	Runtime   *testRuntime
-	ProgramID ids.ID
+	Runtime *testRuntime
+	Info    ProgramInfo
 }
 
 func (t *testProgram) Call(function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.ProgramID,
+		t.Info,
 		function,
 		params...)
 }

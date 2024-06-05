@@ -25,7 +25,7 @@ func TestImportProgramCallProgram(t *testing.T) {
 
 	result, err = program.Call(
 		"simple_call_external",
-		program.ProgramID, uint64(1000000))
+		program.Info, uint64(1000000))
 	require.NoError(err)
 	require.Equal(uint64(0), test.Into[uint64](result))
 }
@@ -45,7 +45,7 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 
 	result, err = program.Call(
 		"call_with_param_external",
-		program.ProgramID, uint64(1000000), uint64(1))
+		program.Info, uint64(1000000), uint64(1))
 	require.NoError(err)
 	require.Equal(uint64(1), test.Into[uint64](result))
 }
@@ -66,7 +66,7 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 
 	result, err = program.Call(
 		"call_with_two_params_external",
-		program.ProgramID, 1000000, 1, 2)
+		program.Info, 1000000, 1, 2)
 	require.NoError(err)
 	require.Equal(uint64(3), test.Into[uint64](result))
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +28,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 }
 
 type ComplexReturn struct {
-	Program  ids.ID
+	Program  ProgramInfo
 	MaxUnits uint64
 }
 
@@ -42,5 +41,5 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	program := newTestProgram(ctx, "return_complex_type")
 	result, err := program.Call("get_value")
 	require.NoError(err)
-	require.Equal(test.SerializeParams(ComplexReturn{Program: program.ProgramID, MaxUnits: 1000}), result)
+	require.Equal(test.SerializeParams(ComplexReturn{Program: program.Info, MaxUnits: 1000}), result)
 }
