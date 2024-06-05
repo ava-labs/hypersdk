@@ -14,6 +14,11 @@ type Immutable interface {
 	GetValue(ctx context.Context, key []byte) (value []byte, err error)
 }
 
+type CommitMutable interface {
+	Mutable
+	Commit(ctx context.Context) error
+}
+
 type Mutable interface {
 	Immutable
 

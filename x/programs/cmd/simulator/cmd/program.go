@@ -5,7 +5,10 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"os"
 	"time"
 
@@ -16,7 +19,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
 )
 
 var _ Cmd = (*programCreateCmd)(nil)
@@ -80,17 +82,9 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		return ids.Empty, err
 	}
 
-	programCreateAction := actions.ProgramCreate{
-		Program: programBytes,
-	}
-
-	// execute the action
-	output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
-	if output != nil {
-		response := multilineOutput(output)
+	if err := SetProgram(ctx, db, programID, programBytes); err != nil {
+		response := multilineOutput([][]byte{utils.ErrBytes(err)})
 		fmt.Println(response)
-	}
-	if err != nil {
 		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
 	}
 
@@ -106,7 +100,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
-	db *state.SimpleMutable,
+	db state.CommitMutable,
 	programID ids.ID,
 	callParams []Parameter,
 	function string,
@@ -125,31 +119,37 @@ func programExecuteFunc(
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
-	programExecuteAction := actions.ProgramExecute{
-		ProgramID: programID,
-		Function:  function,
-		Params:    bytes,
-		MaxUnits:  maxUnits,
-		Log:       log,
-	}
 
 	// execute the action
-	resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
+	if len(function) == 0 {
+		return ids.Empty, nil, 0, errors.New("no function called")
+	}
+
+	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
+	state := stateView(db)
+	callInfo := &runtime.CallInfo{
+		State:        state,
+		Actor:        codec.EmptyAddress,
+		Account:      codec.EmptyAddress,
+		ProgramID:    programID,
+		Fuel:         maxUnits,
+		FunctionName: function,
+		Params:       bytes,
+	}
+	programOutput, err := rt.CallProgram(ctx, callInfo)
+	output := [][]byte{programOutput}
 	if err != nil {
-		response := multilineOutput(resp)
+		response := multilineOutput(output)
 		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
 	// store program to disk only on success
-	err = db.Commit(ctx)
+	err = state.Commit(ctx)
 	if err != nil {
 		return ids.Empty, nil, 0, err
 	}
 
-	// get remaining balance from runtime meter
-	balance, err := programExecuteAction.GetBalance()
-
-	return programTxID, resp, balance, err
+	return programTxID, output, 0, err
 }
 
 func multilineOutput(resp [][]byte) (response string) {
@@ -157,4 +157,21 @@ func multilineOutput(resp [][]byte) (response string) {
 		response += string(res) + "\n"
 	}
 	return response
+}
+
+type ProgramStore struct {
+	state.Mutable
+}
+
+func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+	// TODO: take fee out of balance?
+	programBytes, exists, err := GetProgram(ctx, s, programID)
+	if err != nil {
+		return []byte{}, err
+	}
+	if !exists {
+		return []byte{}, errors.New("unknown program")
+	}
+
+	return programBytes, nil
 }

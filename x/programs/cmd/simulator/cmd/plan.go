@@ -9,6 +9,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"math"
 	"os"
 	"strconv"
@@ -22,8 +24,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -209,7 +209,7 @@ func runStepFunc(
 		} else if err != nil {
 			return err
 		}
-		resp.setMsg("created named key with address " + utils.Address(key))
+		resp.setMsg("created named key with address " + AddressToString(key))
 
 		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
@@ -270,6 +270,11 @@ func runStepFunc(
 	}
 }
 
+func AddressToString(pk ed25519.PublicKey) string {
+	addrString, _ := address.FormatBech32("matrix", pk[:])
+	return addrString
+}
+
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
 func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter, endpoint Endpoint) ([]Parameter, error) {
 	cp := make([]Parameter, 0, len(params))
@@ -303,7 +308,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 		case KeyEd25519: // TODO: support secp256k1
 			key := string(param.Value)
 			// get named public key from db
-			pk, ok, err := storage.GetPublicKey(ctx, db, key)
+			pk, ok, err := GetPublicKey(ctx, db, key)
 			if err != nil {
 				return nil, err
 			}
