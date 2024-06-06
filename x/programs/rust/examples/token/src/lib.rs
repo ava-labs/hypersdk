@@ -163,7 +163,7 @@ pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
 #[cfg(test)]
 mod tests {
     use crate::INITIAL_SUPPLY;
-    use simulator::{Endpoint, Key, Param, Plan, Step};
+    use simulator::{Endpoint, Key, Param, Step};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -173,63 +173,57 @@ mod tests {
 
         let owner_key = String::from("owner");
 
-        let mut plan = Plan::new(&owner_key);
-
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key.clone())));
-        plan.add_step(Step::create_program(PROGRAM_PATH));
-
-        let plan_responses = simulator.run_plan(plan).unwrap();
-
-        assert!(
-            plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {}",
-            plan_responses
-                .iter()
-                .filter_map(|resp| resp.base.error.as_ref())
-                .next()
-                .unwrap()
-        );
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step::create_key(Key::Ed25519(owner_key.clone())),
+            )
+            .unwrap();
+        simulator
+            .run_step::<()>(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .unwrap();
     }
 
     #[test]
     fn init_token() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key_id = String::from("owner");
-        let owner_key = Key::Ed25519(owner_key_id.clone());
+        let owner_key = String::from("owner");
 
-        let mut plan = Plan::new(&owner_key_id);
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step::create_key(Key::Ed25519(owner_key.clone())),
+            )
+            .unwrap();
+        let program_id = simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "program_create".into(),
+                    max_units: 0,
+                    params: vec![Param::String(PROGRAM_PATH.into())],
+                },
+            )
+            .unwrap()
+            .id;
 
-        plan.add_step(Step::create_key(owner_key.clone()));
-        let program_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "init".into(),
-            params: vec![program_id.into()],
-            max_units: 1000000,
-        });
-
-        let plan_responses = simulator.run_plan(plan).unwrap();
-
-        assert!(
-            plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {}",
-            plan_responses
-                .iter()
-                .filter_map(|resp| resp.base.error.as_ref())
-                .next()
-                .unwrap()
-        );
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "init".into(),
+                    params: vec![program_id.into()],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap();
 
         let supply = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_total_supply".into(),
@@ -248,64 +242,73 @@ mod tests {
     fn mint() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key_id = String::from("owner");
-        let [alice_key] = ["alice"]
-            .map(String::from)
-            .map(Key::Ed25519)
-            .map(Param::Key);
+        let owner_key = String::from("owner");
+        let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
         let alice_initial_balance = 1000;
 
-        let mut plan = Plan::new(&owner_key_id);
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step::create_key(Key::Ed25519(owner_key.clone())),
+            )
+            .unwrap();
 
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key_id.clone())));
+        let program_id = simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "program_create".into(),
+                    max_units: 0,
+                    params: vec![Param::String(PROGRAM_PATH.into())],
+                },
+            )
+            .unwrap()
+            .id;
 
-        let program_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Key,
+                    method: "key_create".into(),
+                    params: vec![alice_key.clone()],
+                    max_units: 0,
+                },
+            )
+            .unwrap();
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![alice_key.clone()],
-            max_units: 0,
-        });
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "init".into(),
+                    params: vec![program_id.into()],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap();
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "init".into(),
-            params: vec![program_id.into()],
-            max_units: 1000000,
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "mint_to".into(),
-            params: vec![
-                program_id.into(),
-                alice_key.clone(),
-                Param::U64(alice_initial_balance),
-            ],
-            max_units: 1000000,
-        });
-
-        let plan_responses = simulator.run_plan(plan).unwrap();
-
-        assert!(
-            plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {}",
-            plan_responses
-                .iter()
-                .filter_map(|resp| resp.base.error.as_ref())
-                .next()
-                .unwrap()
-        );
+        simulator
+            .run_step::<bool>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "mint_to".into(),
+                    params: vec![
+                        program_id.into(),
+                        alice_key.clone(),
+                        Param::U64(alice_initial_balance),
+                    ],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap();
 
         let balance = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
@@ -324,7 +327,7 @@ mod tests {
     fn mint_and_transfer() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key_id = String::from("owner");
+        let owner_key = String::from("owner");
         let [alice_key, bob_key] = ["alice", "bob"]
             .map(String::from)
             .map(Key::Ed25519)
@@ -333,76 +336,98 @@ mod tests {
         let transfer_amount = 100;
         let post_transfer_balance = alice_initial_balance - transfer_amount;
 
-        let mut plan = Plan::new(&owner_key_id);
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step::create_key(Key::Ed25519(owner_key.clone())),
+            )
+            .unwrap();
 
-        plan.add_step(Step::create_key(Key::Ed25519(owner_key_id.clone())));
+        let program_id = simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "program_create".into(),
+                    max_units: 0,
+                    params: vec![Param::String(PROGRAM_PATH.into())],
+                },
+            )
+            .unwrap()
+            .id;
 
-        let program_id = plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::String(PROGRAM_PATH.into())],
-        });
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Key,
+                    method: "key_create".into(),
+                    params: vec![alice_key.clone()],
+                    max_units: 0,
+                },
+            )
+            .unwrap();
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![alice_key.clone()],
-            max_units: 0,
-        });
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Key,
+                    method: "key_create".into(),
+                    params: vec![bob_key.clone()],
+                    max_units: 0,
+                },
+            )
+            .unwrap();
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            params: vec![bob_key.clone()],
-            max_units: 0,
-        });
+        simulator
+            .run_step::<()>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "init".into(),
+                    params: vec![program_id.into()],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap();
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "init".into(),
-            params: vec![program_id.into()],
-            max_units: 1000000,
-        });
+        simulator
+            .run_step::<bool>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "mint_to".into(),
+                    params: vec![
+                        program_id.into(),
+                        alice_key.clone(),
+                        Param::U64(alice_initial_balance),
+                    ],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap();
 
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "mint_to".into(),
-            params: vec![
-                program_id.into(),
-                alice_key.clone(),
-                Param::U64(alice_initial_balance),
-            ],
-            max_units: 1000000,
-        });
-
-        plan.add_step(Step {
-            endpoint: Endpoint::Execute,
-            method: "transfer".into(),
-            params: vec![
-                program_id.into(),
-                alice_key.clone(),
-                bob_key.clone(),
-                Param::U64(transfer_amount),
-            ],
-            max_units: 1000000,
-        });
-
-        let plan_responses = simulator.run_plan(plan).unwrap();
-
-        assert!(
-            plan_responses.iter().all(|resp| resp.base.error.is_none()),
-            "error: {}",
-            plan_responses
-                .iter()
-                .filter_map(|resp| resp.base.error.as_ref())
-                .next()
-                .unwrap()
-        );
+        simulator
+            .run_step::<bool>(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "transfer".into(),
+                    params: vec![
+                        program_id.into(),
+                        alice_key.clone(),
+                        bob_key.clone(),
+                        Param::U64(transfer_amount),
+                    ],
+                    max_units: 1000000,
+                },
+            )
+            .unwrap();
 
         let supply = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_total_supply".into(),
@@ -417,7 +442,7 @@ mod tests {
 
         let balance = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
@@ -432,7 +457,7 @@ mod tests {
 
         let balance = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
@@ -447,7 +472,7 @@ mod tests {
 
         let balance = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "burn_from".into(),
@@ -462,7 +487,7 @@ mod tests {
 
         let balance = simulator
             .run_step::<u64>(
-                &owner_key_id,
+                &owner_key,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),

@@ -15,6 +15,12 @@ impl<'a> From<&'a Id> for &'a usize {
     }
 }
 
+impl From<i32> for Id {
+    fn from(value: i32) -> Self {
+        Id(value.try_into().expect("negative number"))
+    }
+}
+
 impl Serialize for Id {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
