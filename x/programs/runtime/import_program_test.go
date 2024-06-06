@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,74 +18,35 @@ import (
 
 func TestImportProgramCallProgram(t *testing.T) {
 	require := require.New(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	program := newTestProgram(ctx, "call_program")
-
-	result, err := program.Call("simple_call")
-	require.NoError(err)
-	require.Equal(int64(0), test.Into[int64](result))
-
-	result, err = program.Call(
-		"simple_call_external",
-		program.Info, uint64(1000000))
-	require.NoError(err)
-	require.Equal(uint64(0), test.Into[uint64](result))
-}
-
-func TestImportProgramCallProgramWithParam(t *testing.T) {
-	require := require.New(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	program := newTestProgram(ctx, "call_program")
-
-	result, err := program.Call(
-		"call_with_param",
-		uint64(1))
-	require.NoError(err)
-	require.Equal(uint64(1), test.Into[uint64](result))
-
-	result, err = program.Call(
-		"call_with_param_external",
-		program.Info, uint64(1000000), uint64(1))
-	require.NoError(err)
-	require.Equal(uint64(1), test.Into[uint64](result))
-}
-
-func TestImportProgramCallProgramWithParams(t *testing.T) {
-	require := require.New(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "call_program")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	result, err := program.Call(
-		"call_with_two_params",
-		1, 2)
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "simple_call", Params: nil, Fuel: 10000000})
 	require.NoError(err)
-	require.Equal(uint64(3), test.Into[uint64](result))
-
-	result, err = program.Call(
-		"call_with_two_params_external",
-		program.Info, 1000000, 1, 2)
+	expected, err := borsh.Serialize(0)
 	require.NoError(err)
-	require.Equal(uint64(3), test.Into[uint64](result))
-}
+	require.Equal(expected, result)
 
-func TestImportGetRemainingFuel(t *testing.T) {
-	require := require.New(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	program := newTestProgram(ctx, "fuel")
-
-	result, err := program.Call("get_fuel")
+	params := struct {
+		Program  codec.Address
+		MaxUnits int64
+	}{
+		Program:  programID,
+		MaxUnits: 1000000,
+	}
+	paramBytes, err := borsh.Serialize(params)
 	require.NoError(err)
-	require.LessOrEqual(test.Into[uint64](result), program.Runtime.DefaultGas)
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "simple_call_external", Params: paramBytes, Fuel: 10000000})
+	require.NoError(err)
+	require.Equal(expected, result)
 }
 
 func TestImportProgramCallProgramActor(t *testing.T) {
@@ -92,12 +55,20 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "call_program")
-	actor := codec.CreateAddress(1, ids.GenerateTestID())
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	result, err := program.CallWithActor(actor, "actor_check")
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	actor := codec.CreateAddress(1, ids.GenerateTestID())
+	programAccount := codec.CreateAddress(2, ids.GenerateTestID())
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programAccount, Actor: actor, State: state, FunctionName: "actor_check", Params: nil, Fuel: 10000000})
 	require.NoError(err)
-	require.Equal(actor, test.Into[codec.Address](result))
+	expected, err := borsh.Serialize(actor)
+	require.NoError(err)
+	require.Equal(expected, result)
 }
 
 func TestImportProgramCallProgramActorChange(t *testing.T) {
@@ -106,14 +77,141 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "call_program")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
+	programAccount := codec.CreateAddress(2, ids.GenerateTestID())
 
 	// the actor changes to the calling program's account
-	result, err := program.CallWithActor(
-		actor,
-		"actor_check_external",
-		program.Info, uint64(200000))
+	params := struct {
+		Program  codec.Address
+		MaxUnits int64
+	}{
+		Program:  programAccount,
+		MaxUnits: 10000000,
+	}
+	paramBytes, err := borsh.Serialize(params)
 	require.NoError(err)
-	require.Equal(program.Info.Account, test.Into[codec.Address](result))
+	result, err := runtime.CallProgram(ctx, &CallInfo{
+		Program:      programAccount,
+		Actor:        actor,
+		State:        state,
+		FunctionName: "actor_check_external",
+		Params:       paramBytes,
+		Fuel:         100000000,
+	})
+	require.NoError(err)
+	expected, err := borsh.Serialize(programAccount)
+	require.NoError(err)
+	require.Equal(expected, result)
+}
+
+func TestImportProgramCallProgramWithParam(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+
+	expected, err := borsh.Serialize(uint64(1))
+	require.NoError(err)
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_param", Params: expected, Fuel: 10000000})
+	require.NoError(err)
+	require.Equal(expected, result)
+
+	params := struct {
+		Program  codec.Address
+		MaxUnits uint64
+		Value    uint64
+	}{
+		Program:  programID,
+		MaxUnits: 1000000,
+		Value:    1,
+	}
+	paramBytes, err := borsh.Serialize(params)
+	require.NoError(err)
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_param_external", Params: paramBytes, Fuel: 10000000})
+	require.NoError(err)
+	require.Equal(expected, result)
+}
+
+func TestImportProgramCallProgramWithParams(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+
+	expected, err := borsh.Serialize(int64(3))
+	require.NoError(err)
+
+	paramBytes, err := borsh.Serialize(struct {
+		Value1 int64
+		Value2 int64
+	}{
+		Value1: 1,
+		Value2: 2,
+	})
+	require.NoError(err)
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_two_params", Params: paramBytes, Fuel: 10000000})
+	require.NoError(err)
+	require.Equal(expected, result)
+
+	paramBytes, err = borsh.Serialize(struct {
+		Program  codec.Address
+		MaxUnits uint64
+		Value1   int64
+		Value2   int64
+	}{
+		Program:  programID,
+		MaxUnits: 1000000,
+		Value1:   1,
+		Value2:   2,
+	})
+	require.NoError(err)
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_two_params_external", Params: paramBytes, Fuel: 10000000})
+	require.NoError(err)
+	require.Equal(expected, result)
+}
+
+func TestImportGetRemainingFuel(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "fuel"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+
+	startFuel := uint64(150000)
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_fuel", Params: nil, Fuel: startFuel})
+	require.NoError(err)
+	remaining := uint64(0)
+	require.NoError(borsh.Deserialize(&remaining, result))
+	require.LessOrEqual(remaining, startFuel)
 }

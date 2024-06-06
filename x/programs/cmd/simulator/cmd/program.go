@@ -5,18 +5,19 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/akamensky/argparse"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*programCreateCmd)(nil)
@@ -51,12 +52,12 @@ func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *stat
 		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, *c.keyName)
 	}
 
-	id, err := programCreateFunc(ctx, db, *c.path)
+	programAddress, err := programCreateFunc(ctx, db, *c.path)
 	if err != nil {
 		return newResponse(0), err
 	}
 
-	c.log.Debug("create program transaction successful", zap.String("id", id.String()))
+	c.log.Debug("create program transaction successful", zap.String("id", codec.ToHex(programAddress[:])))
 
 	resp := newResponse(0)
 	resp.setTimestamp(time.Now().Unix())
@@ -68,88 +69,70 @@ func (c *programCreateCmd) Happened() bool {
 }
 
 // createProgram simulates a create program transaction and stores the program to disk.
-func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (ids.ID, error) {
+func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (codec.Address, error) {
 	programBytes, err := os.ReadFile(path)
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 
 	// simulate create program transaction
 	programID, err := generateRandomID()
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 
-	programCreateAction := actions.ProgramCreate{
-		Program: programBytes,
-	}
-
-	// execute the action
-	output, err := programCreateAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programID)
-	if output != nil {
-		response := multilineOutput(output)
-		fmt.Println(response)
-	}
+	address, err := SetProgram(ctx, db, programID, programBytes)
 	if err != nil {
-		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
+		response := multilineOutput([][]byte{utils.ErrBytes(err)})
+		fmt.Println(response)
+		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
 	}
 
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 
-	return programID, nil
+	return address, nil
 }
 
 func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	programID ids.ID,
+	program codec.Address,
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) (ids.ID, [][]byte, uint64, error) {
-	// simulate create program transaction
-	programTxID, err := generateRandomID()
-	if err != nil {
-		return ids.Empty, nil, 0, err
+) ([][]byte, uint64, error) {
+	// execute the action
+	if len(function) == 0 {
+		return nil, 0, errors.New("no function called")
 	}
 
 	var bytes []byte
 	for _, param := range callParams {
 		bytes = append(bytes, param.Value...)
 	}
+
+	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
+	callInfo := &runtime.CallInfo{
+		State:        programStateLoader{inner: db},
+		Actor:        codec.EmptyAddress,
+		Program:      program,
+		Fuel:         maxUnits,
+		FunctionName: function,
+		Params:       bytes,
+	}
+	programOutput, err := rt.CallProgram(ctx, callInfo)
+	output := [][]byte{programOutput}
 	if err != nil {
-		return ids.Empty, nil, 0, err
-	}
-	programExecuteAction := actions.ProgramExecute{
-		ProgramID: programID,
-		Function:  function,
-		Params:    bytes,
-		MaxUnits:  maxUnits,
-		Log:       log,
+		response := multilineOutput(output)
+		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
-	// execute the action
-	resp, err := programExecuteAction.Execute(ctx, nil, db, 0, codec.EmptyAddress, programTxID)
-	if err != nil {
-		response := multilineOutput(resp)
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
-	}
-
-	// store program to disk only on success
-	err = db.Commit(ctx)
-	if err != nil {
-		return ids.Empty, nil, 0, err
-	}
-
-	// get remaining balance from runtime meter
-	balance, err := programExecuteAction.GetBalance()
-
-	return programTxID, resp, balance, err
+	return output, callInfo.RemainingFuel(), err
 }
 
 func multilineOutput(resp [][]byte) (response string) {
@@ -157,4 +140,21 @@ func multilineOutput(resp [][]byte) (response string) {
 		response += string(res) + "\n"
 	}
 	return response
+}
+
+type ProgramStore struct {
+	state.Mutable
+}
+
+func (s *ProgramStore) GetProgramBytes(ctx context.Context, program codec.Address) ([]byte, error) {
+	// TODO: take fee out of balance?
+	programBytes, exists, err := GetProgram(ctx, s, program)
+	if err != nil {
+		return []byte{}, err
+	}
+	if !exists {
+		return []byte{}, errors.New("unknown program")
+	}
+
+	return programBytes, nil
 }

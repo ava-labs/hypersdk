@@ -10,7 +10,7 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{Program, PROGRAM_ID_LEN},
+    program::Program,
 };
 
 #[cfg(feature = "build")]
@@ -50,5 +50,24 @@ impl<K> BorshDeserialize for Context<K> {
         let program: Program<K> = BorshDeserialize::deserialize_reader(reader)?;
         let actor: Address = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self { program, actor })
+    }
+}
+
+pub struct ExternalCallContext {
+    program: Program,
+    max_units: Gas,
+}
+
+impl ExternalCallContext {
+    pub fn new(program: Program, max_units: Gas) -> Self {
+        Self { program, max_units }
+    }
+
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    pub fn max_units(&self) -> Gas {
+        self.max_units
     }
 }

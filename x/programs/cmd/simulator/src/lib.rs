@@ -183,7 +183,7 @@ impl<'a> Plan<'a> {
 #[derive(Debug, Deserialize)]
 pub struct BaseResponse {
     /// The numeric id of the step.
-    pub id: u32,
+    pub id: usize,
     /// An optional error message.
     pub error: Option<PlanError>,
 }
@@ -220,8 +220,8 @@ fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    <&str>::deserialize(deserializer).and_then(|string| {
-        b64.decode(string)
+    <&str>::deserialize(deserializer).and_then(|s| {
+        b64.decode(s)
             .map_err(|err| serde::de::Error::custom(err.to_string()))
     })
 }

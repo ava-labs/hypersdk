@@ -7,9 +7,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
@@ -19,8 +22,14 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "simple")
-	result, err := program.Call("get_value")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "simple"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(0)
 	require.NoError(err)
@@ -28,7 +37,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 }
 
 type ComplexReturn struct {
-	Program  ProgramInfo
+	Program  codec.Address
 	MaxUnits uint64
 }
 
@@ -38,8 +47,16 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "return_complex_type")
-	result, err := program.Call("get_value")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "return_complex_type"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
-	require.Equal(ComplexReturn{Program: program.Info, MaxUnits: 1000}, test.Into[ComplexReturn](result))
+	expected, err := borsh.Serialize(ComplexReturn{Program: programID, MaxUnits: 1000})
+	require.NoError(err)
+	require.Equal(expected, result)
 }

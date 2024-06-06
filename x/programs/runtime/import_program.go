@@ -8,6 +8,8 @@ import (
 	"errors"
 
 	"github.com/near/borsh-go"
+
+	"github.com/ava-labs/hypersdk/codec"
 )
 
 const (
@@ -17,7 +19,7 @@ const (
 )
 
 type callProgramInput struct {
-	Program      ProgramInfo
+	Program      codec.Address
 	FunctionName string
 	Params       []byte
 	Fuel         uint64
@@ -39,7 +41,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					return nil, errors.New("remaining fuel is less than requested fuel")
 				}
 
-				newInfo.Actor = callInfo.Program.Account
+				newInfo.Actor = callInfo.Program
 				newInfo.Program = parsedInput.Program
 				newInfo.FunctionName = parsedInput.FunctionName
 				newInfo.Params = parsedInput.Params
