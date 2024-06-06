@@ -17,6 +17,13 @@ const (
 	getFuelCost     = 10000
 )
 
+var (
+	executionOk        = []byte{0}
+	deserializationErr = []byte{1}
+	outOfFuelErr       = []byte{2}
+	executionErr       = []byte{3}
+)
+
 type callProgramInput struct {
 	ProgramID    ids.ID
 	FunctionName string
@@ -32,12 +39,12 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return []byte{1}, err
+					return deserializationErr, err
 				}
 
 				// make sure there is enough fuel in current store to give to the new call
 				if callInfo.RemainingFuel() < parsedInput.Fuel {
-					return []byte{2}, errors.New("remaining fuel is less than requested fuel")
+					return outOfFuelErr, errors.New("remaining fuel is less than requested fuel")
 				}
 
 				newInfo.ProgramID = parsedInput.ProgramID
@@ -49,16 +56,16 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					context.Background(),
 					&newInfo)
 				if err != nil {
-					return []byte{3}, err
+					return executionErr, err
 				}
 
 				// subtract the fuel used during this call from the calling program
 				remainingFuel := newInfo.RemainingFuel()
 				if err := callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel); err != nil {
-					return []byte{2}, err
+					return outOfFuelErr, err
 				}
 
-				result = append([]byte{0}, result...)
+				result = append(executionOk, result...)
 				return result, nil
 			})},
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
