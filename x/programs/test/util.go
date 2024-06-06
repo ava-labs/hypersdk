@@ -6,6 +6,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -116,4 +117,27 @@ func Flatten[T any](slices ...[]T) []T {
 		result = append(result, slice...)
 	}
 	return result
+}
+
+type MapLoader struct {
+	Programs map[codec.Address]string
+}
+
+func (t MapLoader) GetProgramBytes(_ context.Context, address codec.Address) ([]byte, error) {
+	programName, ok := t.Programs[address]
+	if !ok {
+		return nil, errors.New("program not found")
+	}
+	return load(programName)
+}
+
+func load(programName string) ([]byte, error) {
+	if err := CompileTest(programName); err != nil {
+		return nil, err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 }
