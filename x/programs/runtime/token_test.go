@@ -7,14 +7,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
 )
-
-const aLottaFuel = uint64(99999999999)
 
 func TestTokenAMM(t *testing.T) {
 	require := require.New(t)
@@ -22,336 +18,152 @@ func TestTokenAMM(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stateDB := test.NewTestDB()
+	token1Account := codec.CreateAddress(1, ids.GenerateTestID())
+	token2Account := codec.CreateAddress(2, ids.GenerateTestID())
+	ammAccount := codec.CreateAddress(3, ids.GenerateTestID())
 
-	token1ID := ids.GenerateTestID()
-	token1 := ProgramInfo{ID: token1ID, Account: codec.CreateAddress(1, token1ID)}
+	r := &testRuntime{
+		Context: ctx,
+		Runtime: NewRuntime(
+			NewConfig(),
+			logging.NoLog{},
+			test.MapLoader{Programs: map[codec.Address]string{token1Account: "erc20_token", token2Account: "erc20_token", ammAccount: "amm"}}),
+		StateDB:    test.StateLoader{Mu: test.NewTestDB()},
+		DefaultGas: 900000000,
+	}
+
+	token1 := testProgram{Runtime: r, Address: token1Account}
+	token2 := testProgram{Runtime: r, Address: token2Account}
+	amm := testProgram{Runtime: r, Address: ammAccount}
+
 	token1Owner := codec.CreateAddress(1, ids.GenerateTestID())
-
-	token2ID := ids.GenerateTestID()
-	token2 := ProgramInfo{ID: token2ID, Account: codec.CreateAddress(2, token2ID)}
 	token2Owner := codec.CreateAddress(2, ids.GenerateTestID())
-
-	ammID := ids.GenerateTestID()
-	amm := ProgramInfo{ID: ammID, Account: codec.CreateAddress(3, ammID)}
 	ammOwner := codec.CreateAddress(3, ids.GenerateTestID())
 
-	r := NewRuntime(
-		NewConfig(),
-		logging.NoLog{},
-		test.MapLoader{Programs: map[ids.ID]string{token1ID: "erc20_token", token2ID: "erc20_token", ammID: "amm"}},
-	)
-
 	// init token 1
-	paramBytes, err := borsh.Serialize(struct {
-		Name   string
-		Symbol string
-	}{
-		Name:   "Token 1",
-		Symbol: "TKN1",
-	})
-	require.NoError(err)
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token1,
-		Actor:        token1Owner,
-		State:        stateDB,
-		FunctionName: "init",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	_, err := token1.CallWithActor(
+		token1Owner,
+		"init",
+		"Token 1", "TKN1")
 	require.NoError(err)
 
 	// init token 2
-	paramBytes, err = borsh.Serialize(struct {
-		Name   string
-		Symbol string
-	}{
-		Name:   "Token 2",
-		Symbol: "TKN2",
-	})
-	require.NoError(err)
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token2,
-		Actor:        token2Owner,
-		State:        stateDB,
-		FunctionName: "init",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	_, err = token1.CallWithActor(
+		token2Owner,
+		"init",
+		"Token 2", "TKN2")
 	require.NoError(err)
 
 	// init amm
-	paramBytes, err = borsh.Serialize(struct {
-		Token1 ProgramInfo
-		Token2 ProgramInfo
-	}{
-		Token1: token1,
-		Token2: token2,
-	})
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        ammOwner,
-		State:        stateDB,
-		FunctionName: "init",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+
+	_, err = amm.CallWithActor(
+		ammOwner,
+		"init",
+		token1, token2)
 	require.NoError(err)
 
 	user1 := codec.CreateAddress(8, ids.GenerateTestID())
-	setupUser(ctx, require, r, stateDB, token1, token1Owner, user1, amm.Account, 5)
-	setupUser(ctx, require, r, stateDB, token2, token2Owner, user1, amm.Account, 5)
-	AddLiquitityToUser(ctx, require, r, stateDB, user1, token1, token2, amm, 5)
+	setupUser(require, token1, token1Owner, user1, ammAccount, 5)
+	setupUser(require, token2, token2Owner, user1, ammAccount, 5)
+	AddLiquitityToUser(require, user1, token1, token2, amm, 5)
 
-	result, err := r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        user1,
-		State:        stateDB,
-		FunctionName: "total_supply",
-		Params:       nil,
-		Fuel:         aLottaFuel,
-	})
+	result, err := amm.Call("total_supply")
 	require.NoError(err)
-	var amountOfLiquidity uint64
-	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
-	require.Equal(uint64(10), amountOfLiquidity)
+	require.Equal(uint64(10), test.Into[uint64](result))
 
 	user2 := codec.CreateAddress(9, ids.GenerateTestID())
-	setupUser(ctx, require, r, stateDB, token1, token1Owner, user2, amm.Account, 6)
-	setupUser(ctx, require, r, stateDB, token2, token2Owner, user2, amm.Account, 6)
-	AddLiquitityToUser(ctx, require, r, stateDB, user2, token1, token2, amm, 6)
+	setupUser(require, token1, token1Owner, user2, ammAccount, 6)
+	setupUser(require, token2, token2Owner, user2, ammAccount, 6)
+	AddLiquitityToUser(require, user2, token1, token2, amm, 6)
 
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        user1,
-		State:        stateDB,
-		FunctionName: "total_supply",
-		Params:       nil,
-		Fuel:         aLottaFuel,
-	})
+	result, err = amm.Call("total_supply")
 	require.NoError(err)
-	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
-	require.Equal(uint64(22), amountOfLiquidity)
+	require.Equal(uint64(22), test.Into[uint64](result))
 
-	RemoveLiquidityFromUser(ctx, require, r, stateDB, user1, token1, token2, amm, 10)
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        user1,
-		State:        stateDB,
-		FunctionName: "total_supply",
-		Params:       nil,
-		Fuel:         aLottaFuel,
-	})
+	RemoveLiquidityFromUser(require, user1, token1, token2, amm, 10)
+	result, err = amm.Call("total_supply")
 	require.NoError(err)
-	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
-	require.Equal(uint64(12), amountOfLiquidity)
+	require.Equal(uint64(12), test.Into[uint64](result))
 
-	RemoveLiquidityFromUser(ctx, require, r, stateDB, user2, token1, token2, amm, 12)
-
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        user1,
-		State:        stateDB,
-		FunctionName: "total_supply",
-		Params:       nil,
-		Fuel:         aLottaFuel,
-	})
+	RemoveLiquidityFromUser(require, user2, token1, token2, amm, 12)
+	result, err = amm.Call("total_supply")
 	require.NoError(err)
-	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
-	require.Equal(uint64(0), amountOfLiquidity)
+	require.Equal(uint64(0), test.Into[uint64](result))
 }
 
-func RemoveLiquidityFromUser(ctx context.Context, require *require.Assertions, r *WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 ProgramInfo, token2 ProgramInfo, amm ProgramInfo, amount uint64) {
-	paramBytes, err := borsh.Serialize(struct {
-		Amount uint64
-	}{
-		Amount: amount,
-	})
-
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "remove_liquidity",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+func RemoveLiquidityFromUser(require *require.Assertions, actor codec.Address, token1 testProgram, token2 testProgram, amm testProgram, amount uint64) {
+	_, err := amm.CallWithActor(
+		actor,
+		"remove_liquidity",
+		amount)
 	require.NoError(err)
 
-	paramBytes, err = borsh.Serialize(struct {
-		Address codec.Address
-	}{
-		Address: actor,
-	})
+	result, err := amm.Call(
+		"balance_of",
+		actor)
 	require.NoError(err)
+	require.Equal(uint64(0), test.Into[uint64](result))
 
-	result, err := r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "balance_of",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	// confirm balance change for user in token 1
+	result, err = token1.Call(
+		"balance_of",
+		actor)
 	require.NoError(err)
-	var amountOfLiquidity uint64
-	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
-	require.Equal(uint64(0), amountOfLiquidity)
+	require.Equal(amount/2, test.Into[uint64](result))
 
-	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token1,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "balance_of",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	// confirm balance change for user in token 2
+	result, err = token2.Call(
+		"balance_of",
+		actor)
 	require.NoError(err)
-	var amountOftoken1 uint64
-	require.NoError(borsh.Deserialize(&amountOftoken1, result))
-	require.Equal(amount/2, amountOftoken1)
-
-	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token2,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "balance_of",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
-	require.NoError(err)
-	var amountOftoken2 uint64
-	require.NoError(borsh.Deserialize(&amountOftoken2, result))
-	require.Equal(amount/2, amountOftoken2)
+	require.Equal(amount/2, test.Into[uint64](result))
 }
 
-func AddLiquitityToUser(ctx context.Context, require *require.Assertions, r *WasmRuntime, stateDB state.Mutable, actor codec.Address, token1 ProgramInfo, token2 ProgramInfo, amm ProgramInfo, amount uint64) {
-	paramBytes, err := borsh.Serialize(struct {
-		Amount1 uint64
-		Amount2 uint64
-	}{
-		Amount1: amount,
-		Amount2: amount,
-	})
-
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "add_liquidity",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+func AddLiquitityToUser(require *require.Assertions, actor codec.Address, token1 testProgram, token2 testProgram, amm testProgram, amount uint64) {
+	_, err := amm.CallWithActor(
+		actor,
+		"add_liquidity",
+		amount, amount)
 	require.NoError(err)
 
 	// confirm liquidity
-	paramBytes, err = borsh.Serialize(struct {
-		Address codec.Address
-	}{
-		Address: actor,
-	})
-
-	result, err := r.CallProgram(ctx, &CallInfo{
-		Program:      amm,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "balance_of",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	result, err := amm.Call(
+		"balance_of",
+		actor)
 	require.NoError(err)
-	var amountOfLiquidity uint64
-	require.NoError(borsh.Deserialize(&amountOfLiquidity, result))
-	require.Equal(amount*2, amountOfLiquidity)
+	require.Equal(amount*2, test.Into[uint64](result))
 
-	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token1,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "balance_of",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	// confirm balance change for user in token 1
+	result, err = token1.Call(
+		"balance_of",
+		actor)
 	require.NoError(err)
-	var amountOftoken1 uint64
-	require.NoError(borsh.Deserialize(&amountOftoken1, result))
-	require.Equal(uint64(0), amountOftoken1)
+	require.Equal(uint64(0), test.Into[uint64](result))
 
-	// confirm balance change for user1 in token 1
-	result, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token2,
-		Actor:        actor,
-		State:        stateDB,
-		FunctionName: "balance_of",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	// confirm balance change for user in token 2
+	result, err = token2.Call(
+		"balance_of",
+		actor)
 	require.NoError(err)
-	var amountOftoken2 uint64
-	require.NoError(borsh.Deserialize(&amountOftoken2, result))
-	require.Equal(uint64(0), amountOftoken2)
+	require.Equal(uint64(0), test.Into[uint64](result))
 }
 
-func setupUser(ctx context.Context, require *require.Assertions, r *WasmRuntime, state state.Mutable, token ProgramInfo, owner codec.Address, actor codec.Address, ammAddress codec.Address, amount uint64) {
-	paramBytes, err := borsh.Serialize(struct {
-		Recipient codec.Address
-		Amount    uint64
-	}{
-		Recipient: actor,
-		Amount:    amount,
-	})
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token,
-		Actor:        owner,
-		State:        state,
-		FunctionName: "mint",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+func setupUser(require *require.Assertions, token testProgram, owner codec.Address, actor codec.Address, ammAddress codec.Address, amount uint64) {
+	_, err := token.CallWithActor(
+		owner,
+		"mint",
+		actor, amount)
 	require.NoError(err)
 
-	// approve token transfers
-	paramBytes, err = borsh.Serialize(struct {
-		Spender codec.Address
-		Amount  uint64
-	}{
-		Spender: ammAddress,
-		Amount:  amount,
-	})
-
-	_, err = r.CallProgram(ctx, &CallInfo{
-		Program:      token,
-		Actor:        actor,
-		State:        state,
-		FunctionName: "approve",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
+	_, err = token.CallWithActor(
+		actor,
+		"approve",
+		ammAddress, amount)
 	require.NoError(err)
 
-	paramBytes, err = borsh.Serialize(struct {
-		Owner   codec.Address
-		Spender codec.Address
-	}{
-		Owner:   actor,
-		Spender: ammAddress,
-	})
+	result, err := token.Call(
+		"allowance",
+		actor, ammAddress)
 	require.NoError(err)
-
-	result, err := r.CallProgram(ctx, &CallInfo{
-		Program:      token,
-		Actor:        actor,
-		State:        state,
-		FunctionName: "allowance",
-		Params:       paramBytes,
-		Fuel:         aLottaFuel,
-	})
-	require.NoError(err)
-	var amountOfAllowance uint64
-
-	err = borsh.Deserialize(&amountOfAllowance, result)
-	require.Equal(uint64(amount), amountOfAllowance)
+	require.Equal(amount, test.Into[uint64](result))
 }

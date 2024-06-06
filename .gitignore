@@ -73,3 +73,7 @@ x/programs/cmd/simulator/simulator
 x/programs/runtime/debug
 x/programs/runtime/wasm32-unknown-unknown
 x/programs/runtime/.rustc_info.json
+
+x/programs/test/debug
+x/programs/test/wasm32-unknown-unknown
+x/programs/test/.rustc_info.json
