@@ -11,22 +11,25 @@ use std::{cell::RefCell, collections::HashMap};
 /// program that is being invoked.
 #[derive(Clone, Debug)]
 pub struct Program<K = ()> {
-    id: Address,
+    account: Address,
     state_cache: RefCell<HashMap<K, Vec<u8>>>,
 }
 
 impl<K> BorshSerialize for Program<K> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self { id, state_cache: _ } = self;
-        BorshSerialize::serialize(id, writer)
+        let Self {
+            account,
+            state_cache: _,
+        } = self;
+        BorshSerialize::serialize(account, writer)
     }
 }
 
 impl<K> BorshDeserialize for Program<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let id: Address = BorshDeserialize::deserialize_reader(reader)?;
+        let account: Address = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
-            id,
+            account,
             state_cache: RefCell::default(),
         })
     }
@@ -34,8 +37,8 @@ impl<K> BorshDeserialize for Program<K> {
 
 impl<K> Program<K> {
     #[must_use]
-    pub fn id(&self) -> &Address {
-        &self.id
+    pub fn account(&self) -> &Address {
+        &self.account
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method
