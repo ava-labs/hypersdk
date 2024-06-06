@@ -56,13 +56,13 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 }
 
-func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
+func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) (*Program, error) {
 	programModule, err := newProgram(r.engine, programID, bytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	r.programs[programID] = programModule
-	return nil
+	return programModule, nil
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
@@ -72,11 +72,10 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		if err != nil {
 			return nil, err
 		}
-		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
+		program, err = r.AddProgram(callInfo.ProgramID, bytes)
 		if err != nil {
 			return nil, err
 		}
-		r.programs[callInfo.ProgramID] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
