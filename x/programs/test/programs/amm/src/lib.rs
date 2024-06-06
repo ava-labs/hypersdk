@@ -153,16 +153,16 @@ pub fn add_liquidity(context: Context<StateKey>, supplied_token1: u64, supplied_
     let token1 = get_token1(&program);
     let token2 = get_token2(&program);
 
-    let balance_token1 = token1.balance_of(program.id(), 10000000);
-    let balance_token2 = token2.balance_of(program.id(), 10000000);
+    let balance_token1 = token1.balance_of(*program.account(), 10000000);
+    let balance_token2 = token2.balance_of(*program.account(), 10000000);
 
     assert!(
         supplied_token1 * balance_token2 == supplied_token2 * balance_token1,
         "Invalid ratio"
     );
 
-    token1.transfer_from(actor, program, supplied_token1, 20000000);
-    token2.transfer_from(actor, program, supplied_token2, 20000000);
+    token1.transfer_from(actor, *program.account(), supplied_token1, 20000000);
+    token2.transfer_from(actor, *program.account(), supplied_token2, 20000000);
 
     // Mint LP tokens based on the amount of liquidity provided
     let liquidity = calculate_liquidity_amount(supplied_token1, supplied_token2);

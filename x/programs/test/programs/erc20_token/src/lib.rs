@@ -45,7 +45,7 @@ pub fn init(context: Context<StateKey>, name: String, symbol: String) {
     program
         .state()
         .store(StateKey::Owner, &actor)
-        .expect("failed to store total supply");
+        .expect("failed to store owner");
 
     // set total supply
     program

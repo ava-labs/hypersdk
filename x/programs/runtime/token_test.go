@@ -48,7 +48,7 @@ func TestTokenAMM(t *testing.T) {
 	require.NoError(err)
 
 	// init token 2
-	_, err = token1.CallWithActor(
+	_, err = token2.CallWithActor(
 		token2Owner,
 		"init",
 		"Token 2", "TKN2")
@@ -59,7 +59,7 @@ func TestTokenAMM(t *testing.T) {
 	_, err = amm.CallWithActor(
 		ammOwner,
 		"init",
-		token1, token2)
+		token1Account, token2Account)
 	require.NoError(err)
 
 	user1 := codec.CreateAddress(8, ids.GenerateTestID())
