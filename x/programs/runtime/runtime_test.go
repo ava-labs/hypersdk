@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/near/borsh-go"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,50 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
+
+func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
+	require := require.New(b)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "simple")
+
+	for i := 0; i < b.N; i++ {
+		result, err := program.Call("get_value")
+		require.NoError(err)
+		require.Equal(uint64(0), test.Into[uint64](result))
+	}
+}
+
+func TestRuntimeMemorySafety(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "memory_safety")
+
+	result, err := program.Call("get_value")
+	require.NoError(err)
+
+	existingPtr := test.Into[uint64](result)
+
+	inst := program.Runtime.Runtime.programs[program.Address]
+	store := inst.store
+	expected, err := borsh.Serialize(int32(5))
+	require.NoError(err)
+	copy(inst.inst.GetExport(store, MemoryName).Memory().UnsafeData(store)[existingPtr:], expected)
+
+	result, err = program.Call("get_ptr", existingPtr)
+	require.NoError(err)
+	require.Equal(expected, result)
+
+	result, err = program.Call("get_ptr", existingPtr)
+	require.NoError(err)
+
+	require.Equal(expected, result)
+}
 
 func TestRuntimeCallProgramBasic(t *testing.T) {
 	require := require.New(t)

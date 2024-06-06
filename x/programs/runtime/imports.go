@@ -51,11 +51,11 @@ func (i *Imports) Clone() *Imports {
 	}
 }
 
-func (i *Imports) createLinker(engine *wasmtime.Engine, info *CallInfo) (*wasmtime.Linker, error) {
-	linker := wasmtime.NewLinker(engine)
+func (i *Imports) createLinker(r *WasmRuntime) (*wasmtime.Linker, error) {
+	linker := wasmtime.NewLinker(r.engine)
 	for moduleName, module := range i.Modules {
 		for funcName, hostFunction := range module.HostFunctions {
-			if err := linker.FuncNew(moduleName, funcName, hostFunction.Function.wasmType(), hostFunction.convert(info)); err != nil {
+			if err := linker.FuncNew(moduleName, funcName, hostFunction.Function.wasmType(), hostFunction.convert(r)); err != nil {
 				return nil, err
 			}
 		}
@@ -68,10 +68,10 @@ type HostFunction struct {
 	FuelCost uint64
 }
 
-func (f HostFunction) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-	convertedFunction := f.Function.convert(callInfo)
+func (f HostFunction) convert(r *WasmRuntime) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+	convertedFunction := f.Function.convert(r)
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		if err := callInfo.ConsumeFuel(f.FuelCost); err != nil {
+		if err := r.getCallInfo(caller).ConsumeFuel(f.FuelCost); err != nil {
 			return nil, convertToTrap(err)
 		}
 		return convertedFunction(caller, vals)
@@ -80,7 +80,7 @@ func (f HostFunction) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmt
 
 type HostFunctionType interface {
 	wasmType() *wasmtime.FuncType
-	convert(*CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap)
+	convert(r *WasmRuntime) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap)
 }
 
 var typeI32 = wasmtime.NewValType(wasmtime.KindI32)
@@ -91,9 +91,9 @@ func (Function) wasmType() *wasmtime.FuncType {
 	return wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
 }
 
-func (f Function) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+func (f Function) convert(r *WasmRuntime) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		results, err := f(callInfo, getInput(caller, vals))
+		results, err := f(r.getCallInfo(caller), getInput(caller, vals))
 		return getOutput(caller, results, err)
 	}
 }
@@ -104,9 +104,9 @@ func (FunctionNoInput) wasmType() *wasmtime.FuncType {
 	return wasmtime.NewFuncType([]*wasmtime.ValType{}, []*wasmtime.ValType{typeI32})
 }
 
-func (f FunctionNoInput) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+func (f FunctionNoInput) convert(r *WasmRuntime) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		results, err := f(callInfo)
+		results, err := f(r.getCallInfo(caller))
 		return getOutput(caller, results, err)
 	}
 }
@@ -117,9 +117,9 @@ func (FunctionNoOutput) wasmType() *wasmtime.FuncType {
 	return wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{})
 }
 
-func (f FunctionNoOutput) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+func (f FunctionNoOutput) convert(r *WasmRuntime) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		err := f(callInfo, getInput(caller, vals))
+		err := f(r.getCallInfo(caller), getInput(caller, vals))
 		return []wasmtime.Val{}, convertToTrap(err)
 	}
 }

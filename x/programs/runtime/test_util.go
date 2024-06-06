@@ -36,13 +36,14 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 func newTestProgram(ctx context.Context, program string) *testProgram {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
+	r, _ := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: program})
 	return &testProgram{
 		Runtime: &testRuntime{
-			Context: ctx,
-			Runtime: NewRuntime(
-				NewConfig(),
-				logging.NoLog{},
-				test.ProgramLoader{ProgramName: program}),
+			Context:    ctx,
+			Runtime:    r,
 			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
 			DefaultGas: 10000000,
 		},

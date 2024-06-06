@@ -65,9 +65,10 @@ type Program struct {
 }
 
 type ProgramInstance struct {
-	inst   *wasmtime.Instance
-	store  *wasmtime.Store
-	result []byte
+	inst       *wasmtime.Instance
+	store      *wasmtime.Store
+	result     []byte
+	resetStore []byte
 }
 
 func newProgram(engine *wasmtime.Engine, programBytes []byte) (*Program, error) {
@@ -82,6 +83,8 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
 		return nil, err
 	}
+
+	defer p.clear()
 
 	// create the program context
 	programCtx := Context{Program: callInfo.Program, Actor: callInfo.Actor}
@@ -113,8 +116,19 @@ func (p *ProgramInstance) setParams(data []byte) (int32, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	dataOffsetIntf, err = allocFn.Call(p.store, int32(len(data)))
 	dataOffset := dataOffsetIntf.(int32)
 	linearMem := programMemory.UnsafeData(p.store)
 	copy(linearMem[dataOffset:], data)
 	return dataOffset, nil
+}
+
+func (p *ProgramInstance) clear() {
+	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
+	linearMem := programMemory.UnsafeData(p.store)
+	copy(linearMem, p.resetStore)
+	for i := len(p.resetStore); i < len(linearMem); i++ {
+		linearMem[i] = 0
+	}
 }
