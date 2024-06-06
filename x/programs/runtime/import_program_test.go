@@ -12,6 +12,7 @@ import (
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
@@ -24,9 +25,9 @@ func TestImportProgramCallProgram(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "simple_call", Params: nil, Fuel: 10000000})
 	require.NoError(err)
@@ -48,6 +49,70 @@ func TestImportProgramCallProgram(t *testing.T) {
 	require.Equal(expected, result)
 }
 
+func TestImportProgramCallProgramActor(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := ids.GenerateTestID()
+	actor := codec.CreateAddress(1, ids.GenerateTestID())
+	programAccount := codec.CreateAddress(2, ids.GenerateTestID())
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, Account: programAccount, Actor: actor, State: state, FunctionName: "actor_check", Params: nil, Fuel: 10000000})
+	require.NoError(err)
+	expected, err := borsh.Serialize(actor)
+	require.NoError(err)
+	require.Equal(expected, result)
+}
+
+func TestImportProgramCallProgramActorChange(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := ids.GenerateTestID()
+	actor := codec.CreateAddress(1, ids.GenerateTestID())
+	programAccount := codec.CreateAddress(2, ids.GenerateTestID())
+
+	// the actor changes to the calling program's account
+	params := struct {
+		Program  ids.ID
+		MaxUnits int64
+	}{
+		Program:  programID,
+		MaxUnits: 10000000,
+	}
+	paramBytes, err := borsh.Serialize(params)
+	require.NoError(err)
+	result, err := runtime.CallProgram(ctx, &CallInfo{
+		ProgramID:    programID,
+		Account:      programAccount,
+		Actor:        actor,
+		State:        state,
+		FunctionName: "actor_check_external",
+		Params:       paramBytes,
+		Fuel:         100000000,
+	})
+	require.NoError(err)
+	expected, err := borsh.Serialize(programAccount)
+	require.NoError(err)
+	require.Equal(expected, result)
+}
+
 func TestImportProgramCallProgramWithParam(t *testing.T) {
 	require := require.New(t)
 
@@ -57,9 +122,9 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	expected, err := borsh.Serialize(uint64(1))
@@ -94,9 +159,9 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "call_program"})
+		test.ProgramLoader{ProgramName: "call_program"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	expected, err := borsh.Serialize(int64(3))
@@ -141,9 +206,9 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "fuel"})
+		test.ProgramLoader{ProgramName: "fuel"})
 
-	state := test.NewTestDB()
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	programID := ids.GenerateTestID()
 
 	startFuel := uint64(150000)

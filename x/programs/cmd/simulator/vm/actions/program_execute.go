@@ -47,6 +47,40 @@ func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([
 	return programBytes, nil
 }
 
+type StateLoader struct {
+	Mu state.Mutable
+}
+
+func (t StateLoader) GetProgramState(address codec.Address) state.Mutable {
+	return &prefixedState{address: address, inner: t.Mu}
+}
+
+type prefixedState struct {
+	address codec.Address
+	inner   state.Mutable
+}
+
+func (p *prefixedState) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	return p.inner.GetValue(ctx, prependAccountToKey(p.address, key))
+}
+
+func (p *prefixedState) Insert(ctx context.Context, key []byte, value []byte) error {
+	return p.inner.Insert(ctx, prependAccountToKey(p.address, key), value)
+}
+
+func (p *prefixedState) Remove(ctx context.Context, key []byte) error {
+	return p.inner.Remove(ctx, prependAccountToKey(p.address, key))
+}
+
+// prependAccountToKey makes the key relative to the account
+func prependAccountToKey(account codec.Address, key []byte) []byte {
+	result := make([]byte, len(account)+len(key)+1)
+	copy(result, account[:])
+	copy(result[len(account):], "/")
+	copy(result[len(account)+1:], key)
+	return storage.ProgramStateKey(result)
+}
+
 func (*ProgramExecute) GetTypeID() uint8 {
 	return programExecuteID
 }
@@ -77,7 +111,7 @@ func (t *ProgramExecute) Execute(
 	}
 	rt := runtime.NewRuntime(cfg, t.Log, store)
 	callInfo := &runtime.CallInfo{
-		State:        mu,
+		State:        StateLoader{Mu: mu},
 		Actor:        actor,
 		Account:      codec.EmptyAddress,
 		ProgramID:    t.ProgramID,
