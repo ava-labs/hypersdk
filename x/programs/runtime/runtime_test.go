@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -27,8 +28,8 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 		test.ProgramLoader{ProgramName: "simple"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(0)
 	require.NoError(err)
@@ -36,7 +37,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 }
 
 type ComplexReturn struct {
-	Program  ids.ID
+	Program  codec.Address
 	MaxUnits uint64
 }
 
@@ -52,8 +53,8 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 		test.ProgramLoader{ProgramName: "return_complex_type"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(ComplexReturn{Program: programID, MaxUnits: 1000})
 	require.NoError(err)

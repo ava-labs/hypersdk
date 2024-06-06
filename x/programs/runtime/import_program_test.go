@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -27,15 +28,15 @@ func TestImportProgramCallProgram(t *testing.T) {
 		test.ProgramLoader{ProgramName: "call_program"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "simple_call", Params: nil, Fuel: 10000000})
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "simple_call", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(0)
 	require.NoError(err)
 	require.Equal(expected, result)
 
 	params := struct {
-		Program  ids.ID
+		Program  codec.Address
 		MaxUnits int64
 	}{
 		Program:  programID,
@@ -43,7 +44,7 @@ func TestImportProgramCallProgram(t *testing.T) {
 	}
 	paramBytes, err := borsh.Serialize(params)
 	require.NoError(err)
-	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "simple_call_external", Params: paramBytes, Fuel: 10000000})
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "simple_call_external", Params: paramBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -60,17 +61,17 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 		test.ProgramLoader{ProgramName: "call_program"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
 
 	expected, err := borsh.Serialize(uint64(1))
 	require.NoError(err)
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "call_with_param", Params: expected, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_param", Params: expected, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(expected, result)
 
 	params := struct {
-		Program  ids.ID
+		Program  codec.Address
 		MaxUnits uint64
 		Value    uint64
 	}{
@@ -80,7 +81,7 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	}
 	paramBytes, err := borsh.Serialize(params)
 	require.NoError(err)
-	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "call_with_param_external", Params: paramBytes, Fuel: 10000000})
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_param_external", Params: paramBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -97,7 +98,7 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 		test.ProgramLoader{ProgramName: "call_program"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
 
 	expected, err := borsh.Serialize(int64(3))
 	require.NoError(err)
@@ -111,12 +112,12 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 	})
 	require.NoError(err)
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "call_with_two_params", Params: paramBytes, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_two_params", Params: paramBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(expected, result)
 
 	paramBytes, err = borsh.Serialize(struct {
-		Program  ids.ID
+		Program  codec.Address
 		MaxUnits uint64
 		Value1   int64
 		Value2   int64
@@ -127,7 +128,7 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 		Value2:   2,
 	})
 	require.NoError(err)
-	result, err = runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "call_with_two_params_external", Params: paramBytes, Fuel: 10000000})
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "call_with_two_params_external", Params: paramBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -144,10 +145,10 @@ func TestImportGetRemainingFuel(t *testing.T) {
 		test.ProgramLoader{ProgramName: "fuel"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
 
 	startFuel := uint64(150000)
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_fuel", Params: nil, Fuel: startFuel})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_fuel", Params: nil, Fuel: startFuel})
 	require.NoError(err)
 	remaining := uint64(0)
 	require.NoError(borsh.Deserialize(&remaining, result))

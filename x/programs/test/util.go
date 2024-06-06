@@ -11,8 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -35,7 +33,7 @@ type ProgramLoader struct {
 	ProgramName string
 }
 
-func (t ProgramLoader) GetProgramBytes(_ context.Context, _ ids.ID) ([]byte, error) {
+func (t ProgramLoader) GetProgramBytes(_ context.Context, _ codec.Address) ([]byte, error) {
 	if err := CompileTest(t.ProgramName); err != nil {
 		return nil, err
 	}
