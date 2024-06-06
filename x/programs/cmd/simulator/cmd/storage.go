@@ -94,9 +94,9 @@ func SetProgram(
 	mu state.Mutable,
 	programID ids.ID,
 	program []byte,
-) error {
+) (codec.Address, error) {
 	address := codec.CreateAddress(programPrefix, programID)
-	return mu.Insert(ctx, address[:], program)
+	return address, mu.Insert(ctx, address[:], program)
 }
 
 // gets the public key mapped to the given name.

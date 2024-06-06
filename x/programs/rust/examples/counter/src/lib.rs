@@ -165,7 +165,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn external_call() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 

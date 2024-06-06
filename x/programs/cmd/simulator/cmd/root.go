@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/ava-labs/hypersdk/codec"
 	"io"
 	"os"
 	"path"
@@ -50,7 +51,7 @@ type Simulator struct {
 	cleanup                *bool
 	enableWriterDisplaying *bool
 	lastStep               int
-	programIDStrMap        map[int]ids.ID
+	programIDStrMap        map[int]codec.Address
 
 	db *state.SimpleMutable
 
@@ -133,7 +134,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
-	s.programIDStrMap = make(map[int]ids.ID)
+	s.programIDStrMap = make(map[int]codec.Address)
 
 	defer s.manageCleanup(ctx)
 

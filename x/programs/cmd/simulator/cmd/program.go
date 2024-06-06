@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
@@ -53,12 +52,12 @@ func (c *programCreateCmd) Run(ctx context.Context, log logging.Logger, db *stat
 		return newResponse(0), fmt.Errorf("%w: %s", ErrNamedKeyNotFound, *c.keyName)
 	}
 
-	id, err := programCreateFunc(ctx, db, *c.path)
+	programAddress, err := programCreateFunc(ctx, db, *c.path)
 	if err != nil {
 		return newResponse(0), err
 	}
 
-	c.log.Debug("create program transaction successful", zap.String("id", id.String()))
+	c.log.Debug("create program transaction successful", zap.String("id", codec.ToHex(programAddress[:])))
 
 	resp := newResponse(0)
 	resp.setTimestamp(time.Now().Unix())
@@ -70,51 +69,46 @@ func (c *programCreateCmd) Happened() bool {
 }
 
 // createProgram simulates a create program transaction and stores the program to disk.
-func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (ids.ID, error) {
+func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string) (codec.Address, error) {
 	programBytes, err := os.ReadFile(path)
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 
 	// simulate create program transaction
 	programID, err := generateRandomID()
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 
-	if err := SetProgram(ctx, db, programID, programBytes); err != nil {
+	address, err := SetProgram(ctx, db, programID, programBytes)
+	if err != nil {
 		response := multilineOutput([][]byte{utils.ErrBytes(err)})
 		fmt.Println(response)
-		return ids.Empty, fmt.Errorf("program creation failed: %w", err)
+		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
 	}
 
 	// store program to disk only on success
 	err = db.Commit(ctx)
 	if err != nil {
-		return ids.Empty, err
+		return codec.EmptyAddress, err
 	}
 
-	return programID, nil
+	return address, nil
 }
 
 func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	programID ids.ID,
+	program codec.Address,
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) (ids.ID, [][]byte, uint64, error) {
+) ([][]byte, uint64, error) {
 	// execute the action
 	if len(function) == 0 {
-		return ids.Empty, nil, 0, errors.New("no function called")
-	}
-
-	// simulate create program transaction
-	programTxID, err := generateRandomID()
-	if err != nil {
-		return ids.Empty, nil, 0, err
+		return nil, 0, errors.New("no function called")
 	}
 
 	var bytes []byte
@@ -126,7 +120,7 @@ func programExecuteFunc(
 	callInfo := &runtime.CallInfo{
 		State:        programStateLoader{inner: db},
 		Actor:        codec.EmptyAddress,
-		Program:      codec.CreateAddress(programPrefix, programID),
+		Program:      program,
 		Fuel:         maxUnits,
 		FunctionName: function,
 		Params:       bytes,
@@ -135,10 +129,10 @@ func programExecuteFunc(
 	output := [][]byte{programOutput}
 	if err != nil {
 		response := multilineOutput(output)
-		return ids.Empty, nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
+		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
-	return programTxID, output, callInfo.RemainingFuel(), err
+	return output, callInfo.RemainingFuel(), err
 }
 
 func multilineOutput(resp [][]byte) (response string) {

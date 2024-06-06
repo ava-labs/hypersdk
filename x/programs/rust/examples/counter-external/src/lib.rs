@@ -19,7 +19,6 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
-    #[ignore]
     fn inc_and_get_value() {
         let mut simulator = ClientBuilder::new().try_build().unwrap();
 
