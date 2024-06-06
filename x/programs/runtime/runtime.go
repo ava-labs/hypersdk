@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"reflect"
+	"slices"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -95,7 +96,8 @@ func (r *WasmRuntime) getInstance(program *Program) (*ProgramInstance, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ProgramInstance{inst: inst, store: store}, nil
+
+	return &ProgramInstance{inst: inst, store: store, resetStore: slices.Clone(inst.GetExport(store, MemoryName).Memory().UnsafeData(store))}, nil
 }
 
 func toMapKey(storelike wasmtime.Storelike) uintptr {
