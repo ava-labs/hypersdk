@@ -275,12 +275,12 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 		switch param.Type {
 		case ID:
 			if len(param.Value) != 8 {
-				return nil, fmt.Errorf("invalid length %s for id", len(param.Value))
+				return nil, fmt.Errorf("invalid length %d for id", len(param.Value))
 			}
 			id := binary.LittleEndian.Uint64(param.Value)
 			programAddress, ok := c.programIDStrMap[int(id)]
 			if !ok {
-				return nil, fmt.Errorf("failed to map to id: %s", id)
+				return nil, fmt.Errorf("failed to map to id: %d", id)
 			}
 			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 		case String:
