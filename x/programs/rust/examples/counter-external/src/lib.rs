@@ -30,28 +30,26 @@ mod tests {
         let owner_key = Key::Ed25519(owner.clone());
 
         simulator
-            .run_step::<()>(&owner, &Step::create_key(owner_key.clone()))
+            .run_step(&owner, &Step::create_key(owner_key.clone()))
             .unwrap();
         let owner_key = Param::Key(owner_key);
 
         let counter_external = simulator
-            .run_step::<()>(&owner, &Step::create_program(PROGRAM_PATH))
+            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
             .expect("should be able to create this program")
-            .base
             .id;
-        let counter_external = Param::Id(counter_external.into());
+        let counter_external = Param::Id(counter_external);
 
         let counter = simulator
-            .run_step::<()>(&owner, &Step::create_program(counter_path))
+            .run_step(&owner, &Step::create_program(counter_path))
             .expect("should be able to create the counter")
-            .base
             .id;
-        let counter = Param::Id(counter.into());
+        let counter = Param::Id(counter);
 
         let params = vec![counter_external, counter.clone(), owner_key.clone()];
 
         simulator
-            .run_step::<()>(
+            .run_step(
                 &owner,
                 &Step {
                     endpoint: Endpoint::Execute,
@@ -63,7 +61,7 @@ mod tests {
             .expect("call inc");
 
         let response = simulator
-            .run_step::<u64>(
+            .run_step(
                 &owner,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
@@ -72,8 +70,11 @@ mod tests {
                     params,
                 },
             )
-            .expect("call get_value");
+            .expect("call get_value")
+            .result
+            .response::<u64>()
+            .unwrap();
 
-        assert_eq!(response.result.response, 1u64);
+        assert_eq!(response, 1u64);
     }
 }

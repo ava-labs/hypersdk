@@ -106,11 +106,11 @@ func (c *runCmd) Init() (err error) {
 func (c *runCmd) Verify() error {
 	step := c.step
 	if step == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidPlan, "no steps found")
+		return fmt.Errorf("%w: %s", ErrInvalidStep, "no steps found")
 	}
 
 	if step.Params == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidStep, "no params found")
+		return fmt.Errorf("%w: %s", ErrInvalidParams, "no params found")
 	}
 
 	// verify endpoint requirements
