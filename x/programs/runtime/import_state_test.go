@@ -7,8 +7,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestImportStatePutGet(t *testing.T) {
@@ -17,15 +22,22 @@ func TestImportStatePutGet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "state_access"})
 
-	result, err := program.Call("put", int64(10))
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+
+	valueBytes, err := borsh.Serialize(int64(10))
+	require.NoError(err)
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "put", Params: valueBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Nil(result)
 
-	result, err = program.Call("get")
-	require.NoError(err)
-	valueBytes, err := borsh.Serialize(int64(10))
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(append([]byte{1}, valueBytes...), result)
 }
@@ -36,20 +48,24 @@ func TestImportStateRemove(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
-
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "state_access"})
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	state := test.StateLoader{Mu: test.NewTestDB()}
 	valueBytes, err := borsh.Serialize(int64(10))
 	require.NoError(err)
 
-	result, err := program.Call("put", int64(10))
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "put", Params: valueBytes, Fuel: 10000000})
 	require.NoError(err)
 	require.Nil(result)
 
-	result, err = program.Call("delete")
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "delete", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal(append([]byte{1}, valueBytes...), result)
 
-	result, err = program.Call("get")
+	result, err = runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }
@@ -60,9 +76,14 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "state_access"})
 
-	result, err := program.Call("delete")
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: test.StateLoader{Mu: test.NewTestDB()}, FunctionName: "delete", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }
@@ -73,9 +94,14 @@ func TestImportStateGetMissingKey(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	program := newTestProgram(ctx, "state_access")
+	runtime := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "state_access"})
 
-	result, err := program.Call("get")
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: test.StateLoader{Mu: test.NewTestDB()}, FunctionName: "get", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	require.Equal([]byte{0}, result)
 }

@@ -18,9 +18,7 @@ pub fn actor_check(context: Context) -> Address {
 
 #[public]
 pub fn actor_check_external(_: Context, target: Program, max_units: Gas) -> Address {
-    target
-        .call_function("actor_check", (), max_units)
-        .expect("failure")
+    target.call_function("actor_check", (), max_units).unwrap()
 }
 
 #[public]
