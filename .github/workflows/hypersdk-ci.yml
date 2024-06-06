@@ -85,11 +85,10 @@ jobs:
           fetch-depth: 0
       - name: Check changes
         id: check_changes
-        # DO NOT MERGE
         run: |
           diff=$(git diff --name-only HEAD origin/main)
           echo "diff:\n$diff\n"
-          output=$(echo $diff | grep -v '^x/programs/' | grep -v '^.github/' || true)
+          output=$(echo $diff | grep -v '^x/programs/' || true)
           if [ -n "$diff" ] && [ -z "$output" ]; then
             echo "only x/programs changed, will skip unafected tests"
             echo "only_programs_changed=true" >> $GITHUB_OUTPUT
