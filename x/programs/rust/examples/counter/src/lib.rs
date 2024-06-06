@@ -122,7 +122,6 @@ mod tests {
             max_units: 0,
         });
 
-        
         let counter_id = plan.add_step(Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
