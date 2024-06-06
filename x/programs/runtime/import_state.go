@@ -35,7 +35,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetProgramState(callInfo.Account).GetValue(ctx, parsedInput)
+				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, parsedInput)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -51,7 +51,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return callInfo.State.GetProgramState(callInfo.Account).Insert(ctx, parsedInput.Key, parsedInput.Value)
+				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, parsedInput.Key, parsedInput.Value)
 			})},
 			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				var parsedInput []keyValueInput
@@ -61,7 +61,7 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				for _, entry := range parsedInput {
-					if err := callInfo.State.GetProgramState(callInfo.Account).Insert(ctx, entry.Key, entry.Value); err != nil {
+					if err := callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, entry.Key, entry.Value); err != nil {
 						return err
 					}
 				}
@@ -75,7 +75,7 @@ func NewStateAccessModule() *ImportModule {
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				programState := callInfo.State.GetProgramState(callInfo.Account)
+				programState := callInfo.State.GetProgramState(callInfo.Program)
 				bytes, err := programState.GetValue(ctx, parsedInput)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {

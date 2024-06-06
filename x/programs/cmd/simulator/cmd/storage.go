@@ -68,25 +68,17 @@ func programStateKey(key []byte) (k []byte) {
 	return
 }
 
-func programKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+ids.IDLen)
-	k[0] = programPrefix
-	copy(k[1:], id[:])
-	return
-}
-
 // [programID] -> [programBytes]
 func GetProgram(
 	ctx context.Context,
 	db state.Immutable,
-	programID ids.ID,
+	programID codec.Address,
 ) (
 	[]byte, // program bytes
 	bool, // exists
 	error,
 ) {
-	k := programKey(programID)
-	v, err := db.GetValue(ctx, k)
+	v, err := db.GetValue(ctx, programID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}
@@ -102,8 +94,9 @@ func SetProgram(
 	mu state.Mutable,
 	programID ids.ID,
 	program []byte,
-) error {
-	return mu.Insert(ctx, programKey(programID), program)
+) (codec.Address, error) {
+	address := codec.CreateAddress(programPrefix, programID)
+	return address, mu.Insert(ctx, address[:], program)
 }
 
 // gets the public key mapped to the given name.
