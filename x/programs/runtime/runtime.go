@@ -55,6 +55,15 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 }
 
+func (r *WasmRuntime) AddProgram(program codec.Address, bytes []byte) (*Program, error) {
+	programModule, err := newProgram(r.engine, bytes)
+	if err != nil {
+		return nil, err
+	}
+	r.programs[program] = programModule
+	return programModule, nil
+}
+
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
 	program, ok := r.programs[callInfo.Program]
 	if !ok {
@@ -62,11 +71,10 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		if err != nil {
 			return nil, err
 		}
-		program, err = newProgram(r.engine, bytes)
+		program, err = r.AddProgram(callInfo.Program, bytes)
 		if err != nil {
 			return nil, err
 		}
-		r.programs[callInfo.Program] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
