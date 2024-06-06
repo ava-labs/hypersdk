@@ -2,7 +2,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{types::Address, Context, Program, PROGRAM_ID_LEN};
+use wasmlanche_sdk::{types::Address, Context, Program};
 use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -120,17 +120,12 @@ impl TestCrate {
     }
 
     fn write_context(&mut self) -> AllocReturn {
-        let program_id: [u8; PROGRAM_ID_LEN] = std::array::from_fn(|_| 1);
+        let program_id: [u8; Address::LEN] = std::array::from_fn(|_| 1);
         // this is a hack to create a program since the constructor is private
         let program: Program<()> =
             borsh::from_slice(&program_id).expect("the program should deserialize");
-        let account = Address::default();
         let actor = Address::default();
-        let context = Context {
-            program,
-            account,
-            actor,
-        };
+        let context = Context { program, actor };
         let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
 
         self.allocate(serialized_context)

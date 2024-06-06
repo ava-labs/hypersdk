@@ -71,17 +71,6 @@ func (r *Response) setError(err error) {
 	r.Error = err.Error()
 }
 
-func (r *Response) setTxID(id string) {
-	r.Result.ID = id
-}
-
-func (r *Response) getTxID() (string, bool) {
-	if r.Result.ID == "" {
-		return "", false
-	}
-	return r.Result.ID, true
-}
-
 func (r *Response) setBalance(balance uint64) {
 	r.Result.Balance = balance
 }
