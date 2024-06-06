@@ -1,54 +1,5 @@
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{Gas, public, state_keys, types::Address, Program};
-
-pub struct Token(Program);
-
-trait ExternalToken {
-    fn transfer(&self, to: Address, amount: u64, fuel: Gas) -> bool;
-    fn balance_of(&self, account: Address, fuel: Gas) -> u64;
-    fn allowance(&self, owner: Address, spender: Address, fuel: Gas) -> u64;
-    fn approve(&self, spender: Address, amount: u64, fuel: Gas) -> bool;
-    fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: Gas) -> bool;
-    fn total_supply(&self, fuel: Gas) -> u64;
-}
-
-impl ExternalToken for Token {
-    fn allowance(&self, owner: Address, spender: Address, fuel: Gas) -> u64 {
-        self.0
-            .call_function("allowance", (owner, spender), fuel)
-            .expect("call to allowance failed")
-    }
-
-    fn transfer(&self, to: Address, amount: u64, fuel: Gas) -> bool {
-        self.0
-            .call_function("transfer", (to, amount), fuel)
-            .expect("call to transfer failed")
-    }
-
-    fn balance_of(&self, account: Address, fuel: Gas) -> u64 {
-        self.0
-            .call_function("balance_of", account, fuel)
-            .expect("call to account failed")
-    }
-
-    fn approve(&self, spender: Address, amount: u64, fuel: Gas) -> bool {
-        self.0
-            .call_function("approve", (spender, amount), fuel)
-            .expect("call to approve failed")
-    }
-
-    fn transfer_from(&self, sender: Address, recipient: Address, amount: u64, fuel: Gas) -> bool {
-        self.0
-            .call_function("transfer_from", (sender, recipient, amount), fuel)
-            .expect("call to transfer_from failed")
-    }
-
-    fn total_supply(&self, fuel: Gas) -> u64 {
-        self.0
-            .call_function("total_supply", (), fuel)
-            .expect("call to total_supply failed")
-    }
-}
+use wasmlanche_sdk::{Gas, public, state_keys, types::Address, Program, ExternalCallContext};
 
 /// The program state keys.
 #[state_keys]
@@ -83,24 +34,24 @@ pub fn owner_check(program: &Program<StateKey>, actor: Address) {
     )
 }
 
-pub fn get_token1(program: &Program<StateKey>) -> Token {
-    Token(
+pub fn get_token1(program: &Program<StateKey>, max_units: Gas) -> ExternalCallContext {
+    ExternalCallContext::new(
         program
             .state()
             .get::<Program>(StateKey::Token1)
             .expect("failed to load token 1")
             .expect("token 1 doesn't exist"),
-    )
+            max_units)
 }
 
-pub fn get_token2(program: &Program<StateKey>) -> Token {
-    Token(
+pub fn get_token2(program: &Program<StateKey>, max_units: Gas) -> ExternalCallContext {
+    ExternalCallContext::new(
         program
             .state()
             .get::<Program>(StateKey::Token2)
             .expect("failed to load token 2")
             .expect("token 2 doesn't exist"),
-    )
+            max_units)
 }
 
 /// Initializes the program with a name, symbol, and total supply.
@@ -150,19 +101,17 @@ pub fn init(context: Context<StateKey>, token1: Program, token2: Program) {
 #[public]
 pub fn add_liquidity(context: Context<StateKey>, supplied_token1: u64, supplied_token2: u64) {
     let Context { program, actor } = context;
-    let token1 = get_token1(&program);
-    let token2 = get_token2(&program);
 
-    let balance_token1 = token1.balance_of(*program.account(), 10000000);
-    let balance_token2 = token2.balance_of(*program.account(), 10000000);
+    let balance_token1 = erc20_token::balance_of(get_token1(&program, 10000000), *program.account());
+    let balance_token2 = erc20_token::balance_of(get_token2(&program, 10000000), *program.account());
 
     assert!(
         supplied_token1 * balance_token2 == supplied_token2 * balance_token1,
         "Invalid ratio"
     );
 
-    token1.transfer_from(actor, *program.account(), supplied_token1, 20000000);
-    token2.transfer_from(actor, *program.account(), supplied_token2, 20000000);
+    erc20_token::transfer_from(get_token1(&program, 20000000), actor, *program.account(), supplied_token1);
+    erc20_token::transfer_from(get_token2(&program, 20000000), actor, *program.account(), supplied_token2);
 
     // Mint LP tokens based on the amount of liquidity provided
     let liquidity = calculate_liquidity_amount(supplied_token1, supplied_token2);
@@ -204,17 +153,14 @@ pub fn remove_liquidity(context: Context<StateKey>, amount: u64) -> (u64, u64) {
     let total_liquidity = _total_supply(&program);
     assert!(amount <= total_liquidity, "Invalid amount");
 
-    let token1 = get_token1(&program);
-    let token2 = get_token2(&program);
-
     let reserve1 = get_reserve1(&program);
     let reserve2 = get_reserve2(&program);
     let amount_token1 = amount * reserve1 / total_liquidity;
     let amount_token2 = amount * reserve2 / total_liquidity;
     _burn(&program, actor, amount);
 
-    token1.transfer(actor, amount_token1, 2000000);
-    token2.transfer(actor, amount_token2, 2000000);
+    erc20_token::transfer(get_token1(&program,2000000), actor, amount_token1);
+    erc20_token::transfer(get_token2(&program,2000000), actor, amount_token2);
 
     let reserve1 = reserve1 - amount_token1;
     program

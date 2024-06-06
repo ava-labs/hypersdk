@@ -1,6 +1,8 @@
+#[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys, types::Address, Program};
 
+#[cfg(not(feature = "bindings"))]
 const INITIAL_SUPPLY: u64 = 123456789;
 
 /// The program state keys.
