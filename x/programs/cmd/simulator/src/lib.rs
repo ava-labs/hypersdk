@@ -13,6 +13,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
+use wasmlanche_sdk::Gas;
 
 mod id;
 
@@ -96,8 +97,8 @@ pub enum Key {
 // add `Cow` types for borrowing
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
-    U32(u32),
     U64(u64),
+    Gas(Gas),
     String(String),
     Id(Id),
     Key(Key),
@@ -106,8 +107,9 @@ pub enum Param {
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 enum StringParam {
-    U32(String),
     U64(String),
+    #[serde(rename = "i64")]
+    Gas(String),
     String(String),
     Id(String),
 }
@@ -118,11 +120,11 @@ impl Serialize for Param {
         S: serde::Serializer,
     {
         match self {
-            Param::U32(num) => {
-                Serialize::serialize(&StringParam::U32(b64.encode(num.to_le_bytes())), serializer)
-            }
             Param::U64(num) => {
                 Serialize::serialize(&StringParam::U64(b64.encode(num.to_le_bytes())), serializer)
+            }
+            Param::Gas(num) => {
+                Serialize::serialize(&StringParam::Gas(b64.encode(num.to_le_bytes())), serializer)
             }
             Param::String(text) => {
                 Serialize::serialize(&StringParam::String(b64.encode(text)), serializer)
@@ -137,21 +139,15 @@ impl Serialize for Param {
     }
 }
 
-impl From<u32> for Param {
-    fn from(val: u32) -> Self {
-        Param::U32(val)
-    }
-}
-
 impl From<u64> for Param {
     fn from(val: u64) -> Self {
         Param::U64(val)
     }
 }
 
-impl From<i64> for Param {
-    fn from(val: i64) -> Self {
-        Param::I64(val)
+impl From<Gas> for Param {
+    fn from(val: Gas) -> Self {
+        Param::Gas(val)
     }
 }
 
