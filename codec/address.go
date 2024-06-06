@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -32,6 +33,15 @@ func CreateAddress(typeID uint8, id ids.ID) Address {
 	a[0] = typeID
 	copy(a[1:], id[:])
 	return Address(a)
+}
+
+func ToAddress(bytes []byte) (Address, error) {
+	var result Address
+	if len(bytes) != AddressLen {
+		return result, errors.New("bytes are not an address")
+	}
+	copy(result[:], bytes)
+	return result, nil
 }
 
 // AddressBech32 returns a Bech32 address from [hrp] and [p].

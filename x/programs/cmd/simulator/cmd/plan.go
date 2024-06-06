@@ -40,10 +40,10 @@ type runCmd struct {
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
-	programIDStrMap map[int]ids.ID
+	programIDStrMap map[int]codec.Address
 }
 
-func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]ids.ID, lastStep *int, reader *bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]codec.Address, lastStep *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
 	c.file = c.cmd.String("", "file", &argparse.Options{
@@ -167,19 +167,9 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
+	err = c.runStepFunc(ctx, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
 	if err != nil {
 		resp.setError(err)
-	}
-
-	// map all transactions to their step_N identifier
-	txID, found := resp.getTxID()
-	if found {
-		id, err := ids.FromString(txID)
-		if err != nil {
-			return nil, err
-		}
-		c.programIDStrMap[index] = id
 	}
 
 	lastStep := index + 1
@@ -188,9 +178,8 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	return resp, nil
 }
 
-func runStepFunc(
+func (c *runCmd) runStepFunc(
 	ctx context.Context,
-	log logging.Logger,
 	db *state.SimpleMutable,
 	endpoint Endpoint,
 	maxUnits uint64,
@@ -204,7 +193,7 @@ func runStepFunc(
 		keyName := string(params[0].Value)
 		key, err := keyCreateFunc(ctx, db, keyName)
 		if errors.Is(err, ErrDuplicateKeyName) {
-			log.Debug("key already exists")
+			c.log.Debug("key already exists")
 		} else if err != nil {
 			return err
 		}
@@ -215,20 +204,21 @@ func runStepFunc(
 		if method == ProgramCreate {
 			// get program path from params
 			programPath := string(params[0].Value)
-			id, err := programCreateFunc(ctx, db, programPath)
+			programAddress, err := programCreateFunc(ctx, db, programPath)
 			if err != nil {
 				return err
 			}
-			resp.setTxID(id.String())
+			c.programIDStrMap[*c.lastStep] = programAddress
 			resp.setTimestamp(time.Now().Unix())
 
 			return nil
 		}
-		id, err := ids.ToID(params[0].Value)
+
+		programAddress, err := codec.ToAddress(params[0].Value)
 		if err != nil {
 			return err
 		}
-		id, response, balance, err := programExecuteFunc(ctx, log, db, id, params[1:], method, maxUnits)
+		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
 		if err != nil {
 			return err
 		}
@@ -243,17 +233,16 @@ func runStepFunc(
 		if res != nil {
 			resp.setResponse(res)
 		}
-		resp.setTxID(id.String())
 		resp.setBalance(balance)
 
 		return nil
 	case EndpointReadOnly:
-		id, err := ids.ToID(params[0].Value)
+		programAddress, err := codec.ToAddress(params[0].Value)
 		if err != nil {
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		_, response, _, err := programExecuteFunc(ctx, log, db, id, params[1:], method, math.MaxUint64)
+		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
 		if err != nil {
 			return err
 		}
@@ -293,15 +282,15 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				if err != nil {
 					return nil, err
 				}
-				programID, ok := c.programIDStrMap[int(id)]
+				programAddress, ok := c.programIDStrMap[int(id)]
 				if !ok {
 					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
 				}
-				cp = append(cp, Parameter{Value: programID[:], Type: param.Type})
+				cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 			} else {
-				programID, err := ids.ToID(param.Value)
+				programAddress, err := codec.ToAddress(param.Value)
 				if err == nil {
-					cp = append(cp, Parameter{Value: programID[:], Type: param.Type})
+					cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 				} else {
 					path := string(param.Value)
 					if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
