@@ -74,13 +74,33 @@ jobs:
   hypersdk-tests:
     runs-on: ubuntu-latest
     needs: [mock-gen, go-mod-tidy, hypersdk-lint, hypersdk-unit-tests]
+    outputs:
+      only_programs_changed: ${{ steps.check_changes.outputs.only_programs_changed }}
     steps:
       - name: Finished HyperSDK tests
         run: echo "Finished HyperSDK tests"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check changes
+        id: check_changes
+        run: |
+          diff=$(git diff --name-only HEAD origin/main)
+          echo "diff:\n$diff\n"
+          output=$(echo $diff | grep -v '^x/programs/' || true)
+          if [ -n "$diff" ] && [ -z "$output" ]; then
+            echo "only x/programs changed, will skip unafected tests"
+            echo "only_programs_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "cannot skip tests"
+            echo "only_programs_changed=false" >> $GITHUB_OUTPUT
+          fi
 
   # TokenVM
   tokenvm-lint:
     needs: [hypersdk-tests]
+    if: ${{ needs.hypersdk-tests.outputs.only_programs_changed != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -103,6 +123,7 @@ jobs:
 
   tokenvm-unit-tests:
     needs: [hypersdk-tests]
+    if: ${{ needs.hypersdk-tests.outputs.only_programs_changed != 'true' }}
     runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
@@ -182,6 +203,7 @@ jobs:
   # MorpheusVM
   morpheusvm-lint:
     needs: [hypersdk-tests]
+    if: ${{ needs.hypersdk-tests.outputs.only_programs_changed != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -204,6 +226,7 @@ jobs:
 
   morpheusvm-unit-tests:
     needs: [hypersdk-tests]
+    if: ${{ needs.hypersdk-tests.outputs.only_programs_changed != 'true' }}
     runs-on: ubuntu-20.04-32
     timeout-minutes: 10
     steps:
