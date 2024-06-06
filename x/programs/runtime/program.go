@@ -9,12 +9,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
 )
 
 const (
@@ -23,26 +21,21 @@ const (
 )
 
 type Context struct {
-	ProgramID ids.ID        `json:"program"`
-	Account   codec.Address `json:"account"`
-	Actor     codec.Address `json:"actor"`
+	Program codec.Address `json:"program"`
+	Actor   codec.Address `json:"actor"`
 }
 
 type CallInfo struct {
 	// the state that the program will run against
-	State state.Mutable
+	State StateLoader
 
 	// the address that originated the initial program call
 	Actor codec.Address
 
-	// the identifier of what state space the program is being run within
-	Account codec.Address
-
-	// the identifier of what program is being called
-	ProgramID ids.ID
-
 	// the name of the function within the program that is being called
 	FunctionName string
+
+	Program codec.Address
 
 	// the serialized parameters that will be passed to the called function
 	Params []byte
@@ -68,8 +61,7 @@ func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 }
 
 type Program struct {
-	module    *wasmtime.Module
-	programID ids.ID
+	module *wasmtime.Module
 }
 
 type ProgramInstance struct {
@@ -78,12 +70,12 @@ type ProgramInstance struct {
 	result []byte
 }
 
-func newProgram(engine *wasmtime.Engine, programID ids.ID, programBytes []byte) (*Program, error) {
+func newProgram(engine *wasmtime.Engine, programBytes []byte) (*Program, error) {
 	module, err := wasmtime.NewModule(engine, programBytes)
 	if err != nil {
 		return nil, err
 	}
-	return &Program{module: module, programID: programID}, nil
+	return &Program{module: module}, nil
 }
 
 func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
@@ -92,7 +84,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	}
 
 	// create the program context
-	programCtx := Context{ProgramID: callInfo.ProgramID, Account: callInfo.Account, Actor: callInfo.Actor}
+	programCtx := Context{Program: callInfo.Program, Actor: callInfo.Actor}
 	paramsBytes, err := borsh.Serialize(programCtx)
 	if err != nil {
 		return nil, err

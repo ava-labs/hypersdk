@@ -6,9 +6,11 @@ package runtime
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
+
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 type WasmRuntime struct {
@@ -16,26 +18,30 @@ type WasmRuntime struct {
 	engine        *wasmtime.Engine
 	hostImports   *Imports
 	cfg           *Config
-	programs      map[ids.ID]*Program
+	programs      map[codec.Address]*Program
 	programLoader ProgramLoader
 }
 
+type StateLoader interface {
+	GetProgramState(address codec.Address) state.Mutable
+}
+
 type ProgramLoader interface {
-	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	GetProgramBytes(ctx context.Context, address codec.Address) ([]byte, error)
 }
 
 func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
-	loader ProgramLoader,
+	programLoader ProgramLoader,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
 		log:           log,
 		cfg:           cfg,
 		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:   NewImports(),
-		programs:      map[ids.ID]*Program{},
-		programLoader: loader,
+		programs:      map[codec.Address]*Program{},
+		programLoader: programLoader,
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -49,27 +55,18 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 }
 
-func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
-	programModule, err := newProgram(r.engine, programID, bytes)
-	if err != nil {
-		return err
-	}
-	r.programs[programID] = programModule
-	return nil
-}
-
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	program, ok := r.programs[callInfo.ProgramID]
+	program, ok := r.programs[callInfo.Program]
 	if !ok {
-		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.ProgramID)
+		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.Program)
 		if err != nil {
 			return nil, err
 		}
-		program, err = newProgram(r.engine, callInfo.ProgramID, bytes)
+		program, err = newProgram(r.engine, bytes)
 		if err != nil {
 			return nil, err
 		}
-		r.programs[callInfo.ProgramID] = program
+		r.programs[callInfo.Program] = program
 	}
 	inst, err := r.getInstance(callInfo, program, r.hostImports)
 	if err != nil {
