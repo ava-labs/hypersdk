@@ -224,17 +224,6 @@ mod tests {
             )
             .unwrap()
             .id;
-        simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "initialize_address".into(),
-                    max_units: 1000000,
-                    params: vec![counter2_id.into(), bob_key.clone()],
-                },
-            )
-            .unwrap();
 
         let value = simulator
             .run_step(
