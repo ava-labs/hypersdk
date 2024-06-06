@@ -10,18 +10,17 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 type testRuntime struct {
 	Context    context.Context
 	Runtime    *WasmRuntime
-	StateDB    state.Mutable
+	StateDB    StateLoader
 	DefaultGas uint64
 }
 
-func (t *testRuntime) CallProgram(program ProgramInfo, actor codec.Address, function string, params ...interface{}) ([]byte, error) {
+func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
 		t.Context,
 		&CallInfo{
@@ -43,22 +42,22 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Runtime: NewRuntime(
 				NewConfig(),
 				logging.NoLog{},
-				test.Loader{ProgramName: program}),
-			StateDB:    test.NewTestDB(),
+				test.ProgramLoader{ProgramName: program}),
+			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
 			DefaultGas: 10000000,
 		},
-		Info: ProgramInfo{ID: id, Account: account},
+		Address: account,
 	}
 }
 
 type testProgram struct {
 	Runtime *testRuntime
-	Info    ProgramInfo
+	Address codec.Address
 }
 
 func (t *testProgram) Call(function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.Info,
+		t.Address,
 		codec.CreateAddress(0, ids.GenerateTestID()),
 		function,
 		params...)
@@ -66,7 +65,7 @@ func (t *testProgram) Call(function string, params ...interface{}) ([]byte, erro
 
 func (t *testProgram) CallWithActor(actor codec.Address, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.Info,
+		t.Address,
 		actor,
 		function,
 		params...)
