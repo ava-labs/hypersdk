@@ -8,7 +8,6 @@ use borsh::BorshDeserialize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
-    num::TryFromIntError,
     path::Path,
     process::{Child, Command, Stdio},
 };
@@ -97,7 +96,6 @@ pub enum Key {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     U64(u64),
-    I64(i64),
     String(String),
     Id(Id),
     Key(Key),
@@ -107,7 +105,6 @@ pub enum Param {
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 enum StringParam {
     U64(String),
-    I64(String),
     String(String),
     Id(String),
 }
@@ -116,7 +113,6 @@ impl From<&Param> for StringParam {
     fn from(value: &Param) -> Self {
         match value {
             Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
-            Param::I64(num) => StringParam::I64(b64.encode(num.to_le_bytes())),
             Param::String(text) => StringParam::String(b64.encode(text.clone())),
             Param::Id(id) => {
                 let num: &usize = id.into();
@@ -143,12 +139,6 @@ impl Serialize for Param {
 impl From<u64> for Param {
     fn from(val: u64) -> Self {
         Param::U64(val)
-    }
-}
-
-impl From<i64> for Param {
-    fn from(val: i64) -> Self {
-        Param::I64(val)
     }
 }
 
@@ -246,8 +236,6 @@ pub enum StepError {
     BorshDeserialization(#[from] borsh::io::Error),
     #[error("Program error: {0}")]
     Program(String),
-    #[error("Int conversion error: {0}")]
-    TryFromInt(#[from] TryFromIntError),
 }
 
 /// A [Client] is required to pass [Step]s to the simulator by calling [run](Self::run_step).
@@ -313,7 +301,7 @@ where
         self.writer.write_all(run_command)?;
 
         let step = SimulatorStep { caller_key, step };
-        let input = serde_json::to_vec(&dbg!(step)).map_err(StepError::Serde)?;
+        let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
