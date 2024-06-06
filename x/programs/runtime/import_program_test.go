@@ -13,7 +13,6 @@ import (
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
@@ -62,11 +61,10 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 		test.ProgramLoader{ProgramName: "call_program"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 	programAccount := codec.CreateAddress(2, ids.GenerateTestID())
 
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, Account: programAccount, Actor: actor, State: state, FunctionName: "actor_check", Params: nil, Fuel: 10000000})
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programAccount, Actor: actor, State: state, FunctionName: "actor_check", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(actor)
 	require.NoError(err)
@@ -85,23 +83,21 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 		test.ProgramLoader{ProgramName: "call_program"})
 
 	state := test.StateLoader{Mu: test.NewTestDB()}
-	programID := ids.GenerateTestID()
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 	programAccount := codec.CreateAddress(2, ids.GenerateTestID())
 
 	// the actor changes to the calling program's account
 	params := struct {
-		Program  ids.ID
+		Program  codec.Address
 		MaxUnits int64
 	}{
-		Program:  programID,
+		Program:  programAccount,
 		MaxUnits: 10000000,
 	}
 	paramBytes, err := borsh.Serialize(params)
 	require.NoError(err)
 	result, err := runtime.CallProgram(ctx, &CallInfo{
-		ProgramID:    programID,
-		Account:      programAccount,
+		Program:      programAccount,
 		Actor:        actor,
 		State:        state,
 		FunctionName: "actor_check_external",
