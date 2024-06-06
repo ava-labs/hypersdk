@@ -17,13 +17,13 @@ import (
 
 	"github.com/akamensky/argparse"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -40,10 +40,10 @@ type runCmd struct {
 	reader *bufio.Reader
 
 	// tracks program IDs created during this simulation
-	programIDStrMap map[string]string
+	programIDStrMap map[int]codec.Address
 }
 
-func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[string]string, lastStep *int, reader *bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]codec.Address, lastStep *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
 	c.file = c.cmd.String("", "file", &argparse.Options{
@@ -114,33 +114,7 @@ func (c *runCmd) Verify() error {
 	}
 
 	// verify endpoint requirements
-	err := verifyEndpoint(*c.lastStep, step)
-	if err != nil {
-		return err
-	}
-
-	// verify assertions
-	if step.Require != nil {
-		err = verifyAssertion(*c.lastStep, step.Require)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func verifyAssertion(i int, require *Require) error {
-	if require == nil {
-		return nil
-	}
-	if require.Result.Operator == "" {
-		return fmt.Errorf("%w %d: missing assertion operator", ErrInvalidStep, i)
-	}
-	if require.Result.Value == "" {
-		return fmt.Errorf("%w %d: missing assertion value", ErrInvalidStep, i)
-	}
-	return nil
+	return verifyEndpoint(*c.lastStep, step)
 }
 
 func verifyEndpoint(i int, step *Step) error {
@@ -188,21 +162,14 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 
 	params, err := c.createCallParams(ctx, db, step.Params, step.Endpoint)
 	if err != nil {
-		c.log.Error("simulation call", zap.Error(err))
+		c.log.Error(fmt.Sprintf("simulation call: %s", err))
 		return newResponse(0), err
 	}
 
 	resp := newResponse(index)
-	err = runStepFunc(ctx, c.log, db, step.Endpoint, step.MaxUnits, step.Method, params, step.Require, resp)
+	err = c.runStepFunc(ctx, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
 	if err != nil {
-		c.log.Error("simulation step err", zap.Error(err))
 		resp.setError(err)
-	}
-
-	// map all transactions to their step_N identifier
-	txID, found := resp.getTxID()
-	if found {
-		c.programIDStrMap[fmt.Sprintf("step_%d", index)] = txID
 	}
 
 	lastStep := index + 1
@@ -211,45 +178,51 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	return resp, nil
 }
 
-func runStepFunc(
+func (c *runCmd) runStepFunc(
 	ctx context.Context,
-	log logging.Logger,
 	db *state.SimpleMutable,
 	endpoint Endpoint,
 	maxUnits uint64,
 	method string,
 	params []Parameter,
-	require *Require,
 	resp *Response,
 ) error {
 	defer resp.setTimestamp(time.Now().Unix())
 	switch endpoint {
 	case EndpointKey:
-		keyName := params[0].Value.(string)
+		keyName := string(params[0].Value)
 		key, err := keyCreateFunc(ctx, db, keyName)
 		if errors.Is(err, ErrDuplicateKeyName) {
-			log.Debug("key already exists")
+			c.log.Debug("key already exists")
 		} else if err != nil {
 			return err
 		}
-		resp.setMsg("created named key with address " + utils.Address(key))
+		resp.setMsg("created named key with address " + AddressToString(key))
 
 		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
 		if method == ProgramCreate {
 			// get program path from params
-			programPath := params[0].Value.(string)
-			id, err := programCreateFunc(ctx, db, programPath)
+			programPath := string(params[0].Value)
+			programAddress, err := programCreateFunc(ctx, db, programPath)
 			if err != nil {
 				return err
 			}
-			resp.setTxID(id.String())
+			c.programIDStrMap[*c.lastStep] = programAddress
 			resp.setTimestamp(time.Now().Unix())
 
 			return nil
 		}
-		id, response, balance, err := programExecuteFunc(ctx, log, db, params[0].Value.(ids.ID), params[1:], method, maxUnits)
+
+		programAddress, err := codec.ToAddress(params[0].Value)
 		if err != nil {
+			return err
+		}
+		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		if err != nil {
+			return err
+		}
+		if err := db.Commit(ctx); err != nil {
 			return err
 		}
 
@@ -257,22 +230,23 @@ func runStepFunc(
 			return errors.New("multi response not supported")
 		}
 		res := response[0]
-		resp.setResponse(res)
-		ok, err := validateAssertion(res, require)
-		if !ok {
-			return fmt.Errorf("%w", ErrResultAssertionFailed)
+		if res != nil {
+			resp.setResponse(res)
 		}
-		if err != nil {
-			return err
-		}
-		resp.setTxID(id.String())
 		resp.setBalance(balance)
 
 		return nil
 	case EndpointReadOnly:
-		// TODO: implement readonly for now just don't charge for gas
-		_, response, _, err := programExecuteFunc(ctx, log, db, params[0].Value.(ids.ID), params[1:], method, math.MaxUint64)
+		programAddress, err := codec.ToAddress(params[0].Value)
 		if err != nil {
+			return err
+		}
+		// TODO: implement readonly for now just don't charge for gas
+		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		if err != nil {
+			return err
+		}
+		if err := db.Commit(ctx); err != nil {
 			return err
 		}
 
@@ -280,14 +254,8 @@ func runStepFunc(
 			return errors.New("multi response not supported")
 		}
 		res := response[0]
-		resp.setResponse(res)
-		ok, err := validateAssertion(res, require)
-
-		if !ok {
-			return fmt.Errorf("%w", ErrResultAssertionFailed)
-		}
-		if err != nil {
-			return err
+		if res != nil {
+			resp.setResponse(res)
 		}
 
 		return nil
@@ -296,52 +264,51 @@ func runStepFunc(
 	}
 }
 
+func AddressToString(pk ed25519.PublicKey) string {
+	addrString, _ := address.FormatBech32("matrix", pk[:])
+	return addrString
+}
+
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
 func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter, endpoint Endpoint) ([]Parameter, error) {
 	cp := make([]Parameter, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
 		case String, ID:
-			stepIDStr, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-			if strings.HasPrefix(stepIDStr, "step_") {
-				programIDStr, ok := c.programIDStrMap[stepIDStr]
-				if !ok {
-					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
-				}
-				programID, err := ids.FromString(programIDStr)
+			stepIDStr := string(param.Value)
+			idString, found := strings.CutPrefix(stepIDStr, "step_")
+			if found {
+				id, err := strconv.ParseInt(idString, 10, 32)
 				if err != nil {
 					return nil, err
 				}
-				cp = append(cp, Parameter{Value: programID, Type: param.Type})
+				programAddress, ok := c.programIDStrMap[int(id)]
+				if !ok {
+					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
+				}
+				cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 			} else {
-				programID, err := ids.FromString(stepIDStr)
+				programAddress, err := codec.ToAddress(param.Value)
 				if err == nil {
-					cp = append(cp, Parameter{Value: programID, Type: param.Type})
+					cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 				} else {
-					// this is a path to the wasm program
-					cp = append(cp, Parameter{Value: stepIDStr, Type: param.Type})
+					path := string(param.Value)
+					if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+						return nil, errors.New("this path does not exists")
+					}
+					cp = append(cp, param)
 				}
 			}
-		case Bool:
-			cp = append(cp, param)
 		case KeyEd25519: // TODO: support secp256k1
-			val, ok := param.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-			}
-
-			key := val
+			key := string(param.Value)
 			// get named public key from db
-			pk, ok, err := storage.GetPublicKey(ctx, db, val)
+			pk, ok, err := GetPublicKey(ctx, db, key)
 			if err != nil {
 				return nil, err
 			}
 			if !ok && endpoint != EndpointKey {
 				// using not stored named public key in other context than key creation
-				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, val)
+				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
 			}
 			if ok {
 				// otherwise use the public key address
@@ -350,26 +317,12 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				copy(address[1:], pk[:])
 				key = string(address)
 			}
-			cp = append(cp, Parameter{Value: key, Type: param.Type})
-		case Uint64:
-			switch v := param.Value.(type) {
-			case float64:
-				// json unmarshal converts to float64
-				cp = append(cp, Parameter{Value: uint64(v), Type: param.Type})
-			case int:
-				if v < 0 {
-					return nil, fmt.Errorf("%w: %s", errors.New("negative value"), param.Type)
-				}
-				cp = append(cp, Parameter{Value: uint64(v), Type: param.Type})
-			case string:
-				number, err := strconv.ParseUint(v, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
-				}
-				cp = append(cp, Parameter{Value: number, Type: param.Type})
-			default:
-				return nil, fmt.Errorf("%w: %s", ErrFailedParamTypeCast, param.Type)
+			if err != nil {
+				return nil, err
 			}
+			cp = append(cp, Parameter{Value: []byte(key), Type: param.Type})
+		case Uint64, Bool:
+			cp = append(cp, param)
 		default:
 			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
 		}

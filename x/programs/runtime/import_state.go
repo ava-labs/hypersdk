@@ -9,16 +9,14 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/near/borsh-go"
-
-	"github.com/ava-labs/hypersdk/codec"
 )
 
 const (
-	readCost   = 10000
-	writeCost  = 10000
+	getCost    = 10000
+	putCost    = 10000
 	deleteCost = 10000
 
-	writeManyCost = 10000
+	putManyCost = 10000
 )
 
 type keyValueInput struct {
@@ -26,27 +24,18 @@ type keyValueInput struct {
 	Value []byte
 }
 
-// prependAccountToKey makes the key relative to the account
-func prependAccountToKey(account codec.Address, key []byte) []byte {
-	result := make([]byte, len(account)+len(key)+1)
-	copy(result, account[:])
-	copy(result[len(account):], "/")
-	copy(result[len(account)+1:], key)
-	return result
-}
-
 func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
-			"get": {FuelCost: readCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"get": {FuelCost: getCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetValue(ctx, prependAccountToKey(callInfo.Account, parsedInput))
+				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, parsedInput)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -55,16 +44,16 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return val, nil
 			})},
-			"put": {FuelCost: writeCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"put": {FuelCost: putCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				parsedInput := &keyValueInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return err
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, parsedInput.Key), parsedInput.Value)
+				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, parsedInput.Key, parsedInput.Value)
 			})},
-			"put_many": {FuelCost: writeManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				var parsedInput []keyValueInput
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return err
@@ -72,13 +61,13 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				for _, entry := range parsedInput {
-					if err := callInfo.State.Insert(ctx, prependAccountToKey(callInfo.Account, entry.Key), entry.Value); err != nil {
+					if err := callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, entry.Key, entry.Value); err != nil {
 						return err
 					}
 				}
 				return nil
 			})},
-			"delete": {FuelCost: deleteCost, Function: FunctionWithOutput(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"delete": {FuelCost: deleteCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
@@ -86,9 +75,8 @@ func NewStateAccessModule() *ImportModule {
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-
-				key := prependAccountToKey(callInfo.Account, parsedInput)
-				bytes, err := callInfo.State.GetValue(ctx, key)
+				programState := callInfo.State.GetProgramState(callInfo.Program)
+				bytes, err := programState.GetValue(ctx, parsedInput)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						// [0] represents `None`
@@ -100,7 +88,7 @@ func NewStateAccessModule() *ImportModule {
 
 				bytes = append([]byte{1}, bytes...)
 
-				err = callInfo.State.Remove(ctx, key)
+				err = programState.Remove(ctx, parsedInput)
 				if err != nil {
 					return nil, err
 				}

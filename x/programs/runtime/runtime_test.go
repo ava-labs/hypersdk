@@ -12,59 +12,9 @@ import (
 	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/x/programs/test"
 )
-
-func BenchmarkRuntimeCallProgramSimple(b *testing.B) {
-	require := require.New(b)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	runtime, err := NewRuntime(
-		NewConfig(),
-		logging.NoLog{},
-		test.Loader{ProgramName: "simple"})
-	require.NoError(err)
-
-	for i := 0; i < b.N; i++ {
-		_, err := runtime.CallProgram(
-			ctx,
-			&CallInfo{
-				ProgramID:    ids.Empty,
-				State:        nil,
-				FunctionName: "get_value",
-				Params:       nil,
-				Fuel:         10000000,
-			})
-		require.NoError(err)
-	}
-}
-
-func BenchmarkRuntimeCallProgramComplex(b *testing.B) {
-	require := require.New(b)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	runtime, err := NewRuntime(
-		NewConfig(),
-		logging.NoLog{},
-		test.Loader{ProgramName: "return_complex_type"})
-	require.NoError(err)
-	for i := 0; i < b.N; i++ {
-		_, err := runtime.CallProgram(
-			ctx,
-			&CallInfo{
-				ProgramID:    ids.Empty,
-				State:        nil,
-				FunctionName: "get_value",
-				Params:       nil,
-				Fuel:         10000000,
-			})
-		require.NoError(err)
-	}
-}
 
 func TestRuntimeCallProgramBasic(t *testing.T) {
 	require := require.New(t)
@@ -72,14 +22,14 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime, err := NewRuntime(
+	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "simple"})
-	require.NoError(err)
-	state := test.NewTestDB()
-	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+		test.ProgramLoader{ProgramName: "simple"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(0)
 	require.NoError(err)
@@ -87,7 +37,7 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 }
 
 type ComplexReturn struct {
-	Program  ids.ID
+	Program  codec.Address
 	MaxUnits uint64
 }
 
@@ -97,14 +47,14 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runtime, err := NewRuntime(
+	runtime := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.Loader{ProgramName: "return_complex_type"})
-	require.NoError(err)
-	state := test.NewTestDB()
-	programID := ids.GenerateTestID()
-	result, err := runtime.CallProgram(ctx, &CallInfo{ProgramID: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
+		test.ProgramLoader{ProgramName: "return_complex_type"})
+
+	state := test.StateLoader{Mu: test.NewTestDB()}
+	programID := codec.CreateAddress(0, ids.GenerateTestID())
+	result, err := runtime.CallProgram(ctx, &CallInfo{Program: programID, State: state, FunctionName: "get_value", Params: nil, Fuel: 10000000})
 	require.NoError(err)
 	expected, err := borsh.Serialize(ComplexReturn{Program: programID, MaxUnits: 1000})
 	require.NoError(err)

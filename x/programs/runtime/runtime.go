@@ -7,10 +7,11 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime/collections"
 )
 
@@ -19,29 +20,33 @@ type WasmRuntime struct {
 	engine        *wasmtime.Engine
 	hostImports   *Imports
 	cfg           *Config
-	programs      map[ids.ID]*ProgramInstance
 	callerInfo    map[uintptr]*collections.FixedSizeStack[*CallInfo]
+	programs      map[codec.Address]*ProgramInstance
 	programLoader ProgramLoader
 	linker        *wasmtime.Linker
 }
 
+type StateLoader interface {
+	GetProgramState(address codec.Address) state.Mutable
+}
+
 type ProgramLoader interface {
-	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	GetProgramBytes(ctx context.Context, address codec.Address) ([]byte, error)
 }
 
 func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
-	loader ProgramLoader,
+	programLoader ProgramLoader,
 ) (*WasmRuntime, error) {
 	runtime := &WasmRuntime{
 		log:           log,
 		cfg:           cfg,
 		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:   NewImports(),
-		programs:      map[ids.ID]*ProgramInstance{},
-		programLoader: loader,
 		callerInfo:    map[uintptr]*collections.FixedSizeStack[*CallInfo]{},
+		programs:      map[codec.Address]*ProgramInstance{},
+		programLoader: programLoader,
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -56,27 +61,14 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 }
 
-func (r *WasmRuntime) AddProgram(programID ids.ID, bytes []byte) error {
-	programModule, err := newProgram(r.engine, programID, bytes)
-	if err != nil {
-		return err
-	}
-	program, err := r.getInstance(programModule)
-	if err != nil {
-		return err
-	}
-	r.programs[programID] = program
-	return nil
-}
-
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	program, ok := r.programs[callInfo.ProgramID]
+	program, ok := r.programs[callInfo.Program]
 	if !ok {
-		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.ProgramID)
+		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.Program)
 		if err != nil {
 			return nil, err
 		}
-		programMod, err := newProgram(r.engine, callInfo.ProgramID, bytes)
+		programMod, err := newProgram(r.engine, bytes)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +76,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 		if err != nil {
 			return nil, err
 		}
-		r.programs[callInfo.ProgramID] = program
+		r.programs[callInfo.Program] = program
 		key := toMapKey(program.store)
 		r.callerInfo[key] = collections.NewFixedSizeStack[*CallInfo](100)
 	}

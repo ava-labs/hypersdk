@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,19 +14,18 @@ import (
 	"path"
 
 	"github.com/akamensky/argparse"
-	"github.com/ava-labs/avalanchego/api/metrics"
+	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/mattn/go-shellwords"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/controller"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
 )
 
 const (
@@ -35,10 +33,10 @@ const (
 )
 
 const (
-	LogDisableDisplayLogsKey = "log-disable-display-plugin-logs"
-	LogLevelKey              = "log-level"
-	CleanupKey               = "cleanup"
-	InterpreterKey           = "interpreter"
+	LogDisplayLogsKey = "enable-stdout-logs"
+	LogLevelKey       = "log-level"
+	CleanupKey        = "cleanup"
+	InterpreterKey    = "interpreter"
 )
 
 type Cmd interface {
@@ -49,15 +47,13 @@ type Cmd interface {
 type Simulator struct {
 	log logging.Logger
 
-	logLevel                *string
-	cleanup                 *bool
-	disableWriterDisplaying *bool
-	lastStep                int
-	programIDStrMap         map[string]string
+	logLevel               *string
+	cleanup                *bool
+	enableWriterDisplaying *bool
+	lastStep               int
+	programIDStrMap        map[int]codec.Address
 
-	vm      *vm.VM
-	db      *state.SimpleMutable
-	genesis *genesis.Genesis
+	db *state.SimpleMutable
 
 	cleanupFn func()
 
@@ -138,7 +134,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
-	s.programIDStrMap = make(map[string]string)
+	s.programIDStrMap = make(map[int]codec.Address)
 
 	defer s.manageCleanup(ctx)
 
@@ -151,17 +147,7 @@ func (s *Simulator) Execute(ctx context.Context) error {
 	return nil
 }
 
-func (s *Simulator) manageCleanup(ctx context.Context) {
-	// ensure vm and databases are properly closed on simulator exit
-	if s.vm != nil {
-		err := s.vm.Shutdown(ctx)
-		if err != nil {
-			s.log.Error("simulator vm closed with error",
-				zap.Error(err),
-			)
-		}
-	}
-
+func (s *Simulator) manageCleanup(_ context.Context) {
 	if *s.cleanup {
 		s.cleanupFn()
 	}
@@ -171,8 +157,7 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	parser := argparse.NewParser("simulator", "HyperSDK program VM simulator")
 	s.cleanup = parser.Flag("", CleanupKey, &argparse.Options{Help: "remove simulator directory on exit", Default: true})
 	s.logLevel = parser.String("", LogLevelKey, &argparse.Options{Help: "log level", Default: "info"})
-	s.disableWriterDisplaying = parser.Flag("", LogDisableDisplayLogsKey, &argparse.Options{Help: "disable displaying logs in stdout", Default: false})
-
+	s.enableWriterDisplaying = parser.Flag("", LogDisplayLogsKey, &argparse.Options{Help: "enable displaying logs in stdout", Default: false})
 	stdin := os.Stdin
 	s.reader = bufio.NewReader(stdin)
 
@@ -200,9 +185,6 @@ func (s *Simulator) Init() error {
 
 	// TODO: allow for user defined ids.
 	nodeID := ids.BuildTestNodeID(b)
-	networkID := uint32(1)
-	subnetID := ids.GenerateTestID()
-	chainID := ids.GenerateTestID()
 
 	basePath := path.Join(homeDir, simulatorFolder)
 	dbPath := path.Join(basePath, "db-"+nodeID.String())
@@ -215,58 +197,23 @@ func (s *Simulator) Init() error {
 	loggingConfig.LogLevel = typedLogLevel
 	loggingConfig.Directory = path.Join(basePath, "logs-"+nodeID.String())
 	loggingConfig.LogFormat = logging.JSON
-	loggingConfig.DisableWriterDisplaying = *s.disableWriterDisplaying
+	loggingConfig.DisableWriterDisplaying = !*s.enableWriterDisplaying
 
-	sk, err := bls.NewSecretKey()
-	if err != nil {
-		return err
-	}
-
-	genesisBytes, err := json.Marshal(genesis.Default())
-	if err != nil {
-		return err
-	}
-
-	snowCtx := &snow.Context{
-		NetworkID:    networkID,
-		SubnetID:     subnetID,
-		ChainID:      chainID,
-		NodeID:       nodeID,
-		Log:          logging.NoLog{}, // TODO: use real logger
-		ChainDataDir: dbPath,
-		Metrics:      metrics.NewOptionalGatherer(),
-		PublicKey:    bls.PublicFromSecretKey(sk),
-	}
-
-	toEngine := make(chan common.Message, 1)
-
-	// initialize the simulator VM
-	vm := controller.New()
-
-	err = vm.Initialize(
-		context.TODO(),
-		snowCtx,
-		nil,
-		genesisBytes,
-		nil,
-		nil,
-		toEngine,
-		nil,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-	s.vm = vm
-	// force the vm to be ready because it has no peers.
-	s.vm.ForceReady()
-
-	stateDB, err := s.vm.State()
+	stateDB, err := merkledb.New(context.Background(), memdb.New(), merkledb.Config{
+		BranchFactor:                merkledb.BranchFactor16,
+		HistoryLength:               uint(300),
+		ValueNodeCacheSize:          uint(10 * units.MiB),
+		IntermediateNodeCacheSize:   uint(10 * units.MiB),
+		IntermediateWriteBufferSize: uint(10 * units.MiB),
+		IntermediateWriteBatchSize:  uint(10 * units.MiB),
+		Reg:                         prometheus.NewRegistry(),
+		TraceLevel:                  merkledb.InfoTrace,
+		Tracer:                      trace.Noop,
+	})
 	if err != nil {
 		return err
 	}
 	s.db = state.NewSimpleMutable(stateDB)
-	s.genesis = genesis.Default()
 
 	s.cleanupFn = func() {
 		if err := os.RemoveAll(dbPath); err != nil {

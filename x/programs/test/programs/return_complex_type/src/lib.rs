@@ -1,10 +1,10 @@
 use borsh::BorshSerialize;
-use wasmlanche_sdk::{public, Context, Program};
+use wasmlanche_sdk::{public, Context, Gas, Program};
 
 #[derive(BorshSerialize)]
 pub struct ComplexReturn {
     program: Program,
-    max_units: i64,
+    max_units: Gas,
 }
 
 #[public]

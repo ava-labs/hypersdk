@@ -14,7 +14,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
 var _ Cmd = (*keyCreateCmd)(nil)
@@ -61,7 +60,7 @@ func keyCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) (e
 	if err != nil {
 		return ed25519.EmptyPublicKey, err
 	}
-	err = storage.SetKey(ctx, db, priv, name)
+	err = SetKey(ctx, db, priv, name)
 	if err != nil {
 		return ed25519.EmptyPublicKey, err
 	}
@@ -75,6 +74,6 @@ func keyCreateFunc(ctx context.Context, db *state.SimpleMutable, name string) (e
 }
 
 func hasKey(ctx context.Context, db state.Immutable, name string) (bool, error) {
-	_, ok, err := storage.GetPublicKey(ctx, db, name)
+	_, ok, err := GetPublicKey(ctx, db, name)
 	return ok, err
 }

@@ -13,5 +13,6 @@ syn = { version = "2.0.63", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
 borsh = { workspace = true }
+seq-macro = "0.3.5"
 trybuild = "1.0.96"
 wasmlanche-sdk = { workspace = true }
