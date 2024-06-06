@@ -32,12 +32,12 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return nil, err
+					return []byte{1}, err
 				}
 
 				// make sure there is enough fuel in current store to give to the new call
 				if callInfo.RemainingFuel() < parsedInput.Fuel {
-					return nil, errors.New("remaining fuel is less than requested fuel")
+					return []byte{2}, errors.New("remaining fuel is less than requested fuel")
 				}
 
 				newInfo.ProgramID = parsedInput.ProgramID
@@ -49,15 +49,16 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					context.Background(),
 					&newInfo)
 				if err != nil {
-					return nil, err
+					return []byte{3}, err
 				}
 
 				// subtract the fuel used during this call from the calling program
 				remainingFuel := newInfo.RemainingFuel()
 				if err := callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel); err != nil {
-					return nil, err
+					return []byte{2}, err
 				}
 
+				result = append([]byte{0}, result...)
 				return result, nil
 			})},
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {

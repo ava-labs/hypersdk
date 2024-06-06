@@ -22,14 +22,6 @@ use types::Address;
 
 pub type Gas = i64;
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("State error: {0}")]
-    State(#[from] state::Error),
-    #[error("Param error: {0}")]
-    Param(#[from] std::io::Error),
-}
-
 #[derive(Clone, Debug)]
 pub struct Context<K = ()> {
     pub program: Program<K>,

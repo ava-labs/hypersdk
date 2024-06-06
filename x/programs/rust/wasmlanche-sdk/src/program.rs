@@ -1,6 +1,6 @@
 use crate::{
     memory::HostPtr,
-    state::{Error as StateError, Key, State},
+    state::{Error as StateError, ExecutionError, Key, State},
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -68,10 +68,17 @@ impl<K> Program<K> {
         };
 
         let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        let result = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
+        let res_bytes = &*result;
 
-        let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
-
-        borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
+        match res_bytes.first().ok_or(StateError::InvalidBytes)? {
+            0 => {
+                let data =
+                    borsh::from_slice(&res_bytes[1..]).map_err(|_| StateError::Deserialization)?;
+                Ok(data)
+            }
+            err_code => Err(StateError::Execution(ExecutionError::from(*err_code))),
+        }
     }
 
     /// Gets the remaining fuel available to this program

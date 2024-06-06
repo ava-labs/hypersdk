@@ -36,6 +36,29 @@ pub enum Error {
 
     #[error("failed to delete from host storage")]
     Delete,
+
+    #[error("error during execution: {0:?}")]
+    Execution(ExecutionError),
+}
+
+#[derive(Debug, Clone)]
+pub enum ExecutionError {
+    Deserialization,
+    OutOfFuel,
+    Execution,
+    Invalid(u8),
+}
+
+impl From<u8> for ExecutionError {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => panic!("this is not an error"),
+            1 => Self::Deserialization,
+            2 => Self::OutOfFuel,
+            3 => Self::Execution,
+            code => Self::Invalid(code),
+        }
+    }
 }
 
 pub struct State<'a, K: Key> {
