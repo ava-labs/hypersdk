@@ -8,6 +8,7 @@ use borsh::BorshDeserialize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
+    num::TryFromIntError,
     path::Path,
     process::{Child, Command, Stdio},
 };
@@ -148,6 +149,12 @@ impl From<u64> for Param {
     }
 }
 
+impl From<i64> for Param {
+    fn from(val: i64) -> Self {
+        Param::I64(val)
+    }
+}
+
 impl From<String> for Param {
     fn from(val: String) -> Self {
         Param::String(val)
@@ -234,7 +241,7 @@ impl<T> TryFrom<StepResponse> for StepResponseTyped<T>
 where
     T: BorshDeserialize,
 {
-    type Error = borsh::io::Error;
+    type Error = StepError;
 
     fn try_from(value: StepResponse) -> Result<Self, Self::Error> {
         let StepResponse {
@@ -249,13 +256,14 @@ where
             ..
         } = value;
 
+        let id: usize = id.try_into().map_err(StepError::TryFromInt)?;
         Ok(StepResponseTyped {
             id: id.into(),
             result: StepResultTyped {
                 tx_id,
                 msg,
                 timestamp,
-                response: borsh::from_slice(&response)?,
+                response: borsh::from_slice(&response).map_err(StepError::BorshDeserialization)?,
             },
         })
     }
@@ -281,6 +289,8 @@ pub enum StepError {
     BorshDeserialization(#[from] borsh::io::Error),
     #[error("Program error: {0}")]
     Program(String),
+    #[error("Int conversion error: {0}")]
+    TryFromInt(#[from] TryFromIntError),
 }
 
 /// A [Client] is required to run [Step]s to the simulator, by calling [run](Self::run_step).
@@ -366,7 +376,6 @@ where
                 }
             })?
             .try_into()
-            .map_err(StepError::BorshDeserialization)
     }
 }
 
