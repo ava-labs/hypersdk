@@ -3,8 +3,9 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_quote, parse_str, spanned::Spanned, Error, Fields, FnArg, Ident,
-    ItemEnum, ItemFn, Pat, PatType, Path, Type, Visibility,
+    parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
+    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, ReturnType, Signature, Token, Type,
+    Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -133,6 +134,19 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Err(errors) => return errors.to_compile_error().into(),
     };
 
+    let binding_args_props = args_props.iter().cloned().map({
+        let mut first = true;
+
+        move |mut arg| {
+            if first {
+                first = false;
+                arg.ty = Box::new(parse_quote!(wasmlanche_sdk::ExternalCallContext));
+            }
+
+            FnArg::Typed(arg)
+        }
+    });
+
     let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
         quote! {
            args.#name
@@ -170,14 +184,55 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    let inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
+    let args = inputs.iter().skip(1).map(|arg| match arg {
+        FnArg::Typed(PatType { pat, .. }) => pat,
+        _ => unreachable!(),
+    });
+    let name = name.to_string();
+
+    let return_type = match &input.sig.output {
+        ReturnType::Type(_, ty) => ty.as_ref().clone(),
+        ReturnType::Default => parse_quote!(()),
+    };
+
+    let block = Box::new(parse_quote! {{
+        param_0
+            .program()
+            .call_function::<#return_type, _>(#name, (#(#args),*), param_0.max_units())
+            .expect("calling the external program failed")
+    }});
+
+    let sig = Signature {
+        inputs,
+        ..input.sig.clone()
+    };
+
+    let mut binding = ItemFn {
+        sig,
+        block,
+        ..input.clone()
+    };
+
     let mut input = input;
+
+    let feature_name = "bindings";
+    input
+        .attrs
+        .push(parse_quote! { #[cfg(not(feature = #feature_name))] });
+    binding
+        .attrs
+        .push(parse_quote! { #[cfg(feature = #feature_name)] });
 
     input
         .block
         .stmts
         .insert(0, syn::parse2(external_call).unwrap());
 
-    TokenStream::from(quote! { #input })
+    TokenStream::from(quote! {
+        #binding
+        #input
+    })
 }
 
 /// This macro assists in defining the schema for a program's state.  A user can

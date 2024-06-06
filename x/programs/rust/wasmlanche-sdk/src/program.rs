@@ -1,7 +1,6 @@
 use crate::{
     memory::HostPtr,
     state::{Error as StateError, Key, State},
-    types::Address,
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -14,29 +13,21 @@ type Id = [u8; PROGRAM_ID_LEN];
 /// program that is being invoked.
 #[derive(Clone, Debug)]
 pub struct Program<K = ()> {
-    account: Address,
     id: Id,
     state_cache: RefCell<HashMap<K, Vec<u8>>>,
 }
 
 impl<K> BorshSerialize for Program<K> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            account,
-            id,
-            state_cache: _,
-        } = self;
-        BorshSerialize::serialize(account, writer)?;
+        let Self { id, state_cache: _ } = self;
         BorshSerialize::serialize(id, writer)
     }
 }
 
 impl<K> BorshDeserialize for Program<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let account: Address = BorshDeserialize::deserialize_reader(reader)?;
         let id: Id = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
-            account,
             id,
             state_cache: RefCell::default(),
         })
@@ -47,10 +38,6 @@ impl<K> Program<K> {
     #[must_use]
     pub fn id(&self) -> &[u8; PROGRAM_ID_LEN] {
         &self.id
-    }
-
-    pub fn account(&self) -> Address {
-        self.account
     }
 
     /// Attempts to call a function `name` with `args` on the given program. This method
@@ -74,7 +61,7 @@ impl<K> Program<K> {
         let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
 
         let args = CallProgramArgs {
-            target: self,
+            target_id: self,
             function: function_name.as_bytes(),
             args_ptr: &args_ptr,
             max_units,
@@ -113,7 +100,7 @@ impl<K: Key> Program<K> {
 }
 
 struct CallProgramArgs<'a, K> {
-    target: &'a Program<K>,
+    target_id: &'a Program<K>,
     function: &'a [u8],
     args_ptr: &'a [u8],
     max_units: Gas,
@@ -122,12 +109,12 @@ struct CallProgramArgs<'a, K> {
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self {
-            target,
+            target_id,
             function,
             args_ptr,
             max_units,
         } = self;
-        BorshSerialize::serialize(target, writer)?;
+        BorshSerialize::serialize(target_id, writer)?;
         BorshSerialize::serialize(function, writer)?;
         BorshSerialize::serialize(args_ptr, writer)?;
         BorshSerialize::serialize(max_units, writer)?;

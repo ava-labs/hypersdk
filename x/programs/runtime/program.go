@@ -23,16 +23,9 @@ const (
 )
 
 type Context struct {
-	Program ProgramInfo   `json:"program"`
-	Actor   codec.Address `json:"actor"`
-}
-
-type ProgramInfo struct {
-	// the identifier of what state space the program is being run within
-	Account codec.Address `json:"account"`
-
-	// the identifier of what program is being called
-	ID ids.ID `json:"id"`
+	ProgramID ids.ID        `json:"program"`
+	Account   codec.Address `json:"account"`
+	Actor     codec.Address `json:"actor"`
 }
 
 type CallInfo struct {
@@ -42,10 +35,14 @@ type CallInfo struct {
 	// the address that originated the initial program call
 	Actor codec.Address
 
+	// the identifier of what state space the program is being run within
+	Account codec.Address
+
+	// the identifier of what program is being called
+	ProgramID ids.ID
+
 	// the name of the function within the program that is being called
 	FunctionName string
-
-	Program ProgramInfo
 
 	// the serialized parameters that will be passed to the called function
 	Params []byte
@@ -95,7 +92,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	}
 
 	// create the program context
-	programCtx := Context{Program: callInfo.Program, Actor: callInfo.Actor}
+	programCtx := Context{ProgramID: callInfo.ProgramID, Account: callInfo.Account, Actor: callInfo.Actor}
 	paramsBytes, err := borsh.Serialize(programCtx)
 	if err != nil {
 		return nil, err
