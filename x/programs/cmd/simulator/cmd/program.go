@@ -126,8 +126,7 @@ func programExecuteFunc(
 	callInfo := &runtime.CallInfo{
 		State:        programStateLoader{inner: db},
 		Actor:        codec.EmptyAddress,
-		Account:      codec.CreateAddress(programPrefix, programID),
-		ProgramID:    programID,
+		Program:      codec.CreateAddress(programPrefix, programID),
 		Fuel:         maxUnits,
 		FunctionName: function,
 		Params:       bytes,
@@ -153,9 +152,9 @@ type ProgramStore struct {
 	state.Mutable
 }
 
-func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+func (s *ProgramStore) GetProgramBytes(ctx context.Context, program codec.Address) ([]byte, error) {
 	// TODO: take fee out of balance?
-	programBytes, exists, err := GetProgram(ctx, s, programID)
+	programBytes, exists, err := GetProgram(ctx, s, program)
 	if err != nil {
 		return []byte{}, err
 	}
