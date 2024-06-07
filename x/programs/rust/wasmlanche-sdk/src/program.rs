@@ -1,18 +1,18 @@
 use crate::{
     memory::HostPtr,
-    state::{Error as StateError, Key, State},
+    state::{Cache, Error as StateError, Key, State},
     types::Address,
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap};
+use std::cell::RefCell;
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
 #[derive(Debug)]
 pub struct Program<K = ()> {
     account: Address,
-    state_cache: RefCell<HashMap<K, Vec<u8>>>,
+    state_cache: RefCell<Cache<K>>,
 }
 
 impl<K> BorshSerialize for Program<K> {
@@ -30,7 +30,7 @@ impl<K> BorshDeserialize for Program<K> {
         let account: Address = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
             account,
-            state_cache: RefCell::default(),
+            state_cache: RefCell::new(Cache::new()),
         })
     }
 }

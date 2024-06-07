@@ -33,8 +33,10 @@ func NewStateAccessModule() *ImportModule {
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
 				}
+
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+
 				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, parsedInput)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
@@ -42,6 +44,7 @@ func NewStateAccessModule() *ImportModule {
 					}
 					return nil, err
 				}
+
 				return val, nil
 			})},
 			"put": {FuelCost: putCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
@@ -49,8 +52,10 @@ func NewStateAccessModule() *ImportModule {
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return err
 				}
+
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+
 				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, parsedInput.Key, parsedInput.Value)
 			})},
 			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
@@ -58,13 +63,16 @@ func NewStateAccessModule() *ImportModule {
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return err
 				}
+
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+
 				for _, entry := range parsedInput {
 					if err := callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, entry.Key, entry.Value); err != nil {
 						return err
 					}
 				}
+
 				return nil
 			})},
 			"delete": {FuelCost: deleteCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
@@ -75,6 +83,7 @@ func NewStateAccessModule() *ImportModule {
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+
 				programState := callInfo.State.GetProgramState(callInfo.Program)
 				bytes, err := programState.GetValue(ctx, parsedInput)
 				if err != nil {
@@ -94,6 +103,22 @@ func NewStateAccessModule() *ImportModule {
 				}
 
 				return bytes, nil
+			})},
+			"delete_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+				var parsedInput [][]byte
+				if err := borsh.Deserialize(&parsedInput, input); err != nil {
+					return err
+				}
+
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
+				for _, entry := range parsedInput {
+					if err := callInfo.State.GetProgramState(callInfo.Program).Remove(ctx, entry); err != nil {
+						return err
+					}
+				}
+				return nil
 			})},
 		},
 	}
