@@ -30,7 +30,7 @@ pub enum Error {
     Param(#[from] std::io::Error),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Context<K = ()> {
     pub program: Program<K>,
     pub actor: Address,
