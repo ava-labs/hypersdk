@@ -24,14 +24,14 @@ steps:
     params:
       - name: program_id
         type: id
-        value: step_2
+        value: 2
   - endpoint: execute # mint 10000 tokens to bob
     method: mint_to
     max_units: 10000
     params:
       - name: program_id
         type: id
-        value: step_2
+        value: 2
       - type: ed25519
         value: bob_key
       - name: amount
@@ -43,6 +43,6 @@ steps:
     params:
       - name: program_id
         type: id
-        value: step_2
+        value: 2
       - type: ed25519
         value: bob_key
