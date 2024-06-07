@@ -116,8 +116,7 @@ impl From<&Param> for StringParam {
             Param::String(text) => StringParam::String(b64.encode(text.clone())),
             Param::Id(id) => {
                 let num: &usize = id.into();
-                let id = format!("step_{}", num);
-                StringParam::Id(b64.encode(id))
+                StringParam::Id(b64.encode(num.to_le_bytes()))
             }
             Param::Key(_) => unreachable!(),
         }
@@ -369,13 +368,13 @@ mod tests {
 
     #[test]
     fn convert_id_param() {
-        let value = 42;
+        let value: usize = 42;
         let expected_param_type = "id";
-        let expected_value = format!("step_{value}");
+        let expected_value = value.to_le_bytes();
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &b64.encode(expected_value),
+            "value": &b64.encode(expected_value)
         });
 
         let id = Id::from(value);

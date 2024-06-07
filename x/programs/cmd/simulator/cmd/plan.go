@@ -7,12 +7,11 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/akamensky/argparse"
@@ -274,30 +273,26 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 	cp := make([]Parameter, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
-		case String, ID:
-			stepIDStr := string(param.Value)
-			idString, found := strings.CutPrefix(stepIDStr, "step_")
-			if found {
-				id, err := strconv.ParseInt(idString, 10, 32)
-				if err != nil {
-					return nil, err
-				}
-				programAddress, ok := c.programIDStrMap[int(id)]
-				if !ok {
-					return nil, fmt.Errorf("failed to map to id: %s", stepIDStr)
-				}
+		case ID:
+			if len(param.Value) != 8 {
+				return nil, fmt.Errorf("invalid length %d for id", len(param.Value))
+			}
+			id := binary.LittleEndian.Uint64(param.Value)
+			programAddress, ok := c.programIDStrMap[int(id)]
+			if !ok {
+				return nil, fmt.Errorf("failed to map to id: %d", id)
+			}
+			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
+		case String:
+			programAddress, err := codec.ToAddress(param.Value)
+			if err == nil {
 				cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 			} else {
-				programAddress, err := codec.ToAddress(param.Value)
-				if err == nil {
-					cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-				} else {
-					path := string(param.Value)
-					if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-						return nil, errors.New("this path does not exists")
-					}
-					cp = append(cp, param)
+				path := string(param.Value)
+				if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+					return nil, errors.New("this path does not exists")
 				}
+				cp = append(cp, param)
 			}
 		case KeyEd25519: // TODO: support secp256k1
 			key := string(param.Value)
