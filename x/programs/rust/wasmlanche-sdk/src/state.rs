@@ -1,9 +1,10 @@
 use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::cell::RefMut;
-use std::collections::hash_map::Entry;
-use std::collections::HashSet;
-use std::{cell::RefCell, collections::HashMap, hash::Hash};
+use std::{
+    cell::{RefCell, RefMut},
+    collections::{hash_map::Entry, HashMap, HashSet},
+    hash::Hash,
+};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -47,8 +48,8 @@ pub struct Cache<K = ()> {
     deletes: HashSet<K>,
 }
 
-impl<K> Cache<K> {
-    pub fn new() -> Self {
+impl<K> Default for Cache<K> {
+    fn default() -> Self {
         Cache {
             puts: HashMap::new(),
             deletes: HashSet::new(),
@@ -56,16 +57,26 @@ impl<K> Cache<K> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum CachedData<'a> {
+    Data(&'a Vec<u8>),
+    Deleted,
+    Unknown,
+}
+
 impl<K: Key> Cache<K> {
     fn is_empty(&self) -> bool {
         self.puts.is_empty() && self.deletes.is_empty()
     }
 
-    fn get(&mut self, k: &K) -> Option<Option<&Vec<u8>>> {
-        self.puts
-            .get(k)
-            .map(|data| Some(data))
-            .or_else(|| self.deletes.get(k).map_or(None, |_| Some(None)))
+    fn get(&mut self, k: &K) -> CachedData {
+        match self.puts.get(k) {
+            Some(data) => CachedData::Data(data),
+            None => match self.deletes.get(k) {
+                Some(_) => CachedData::Deleted,
+                None => CachedData::Unknown,
+            },
+        }
     }
 
     fn put(&mut self, k: K, v: Vec<u8>) {
@@ -126,22 +137,6 @@ impl<'a, K: Key> State<'a, K> {
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
-        let mut cache = self.cache.borrow_mut();
-
-        if let Some(bytes) = if let Some(cached_bytes) = &cache.delete(key) {
-            Some(cached_bytes)
-        } else {
-            Self::get_from_host::<K>(&mut cache, key)?
-        } {
-            Ok(Some(
-                from_slice(bytes).map_err(|_| StateError::Deserialization)?,
-            ))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Get a value from the host's storage.
     ///
     /// Note: The pointer passed to the host are only valid for the duration of this
@@ -150,17 +145,15 @@ impl<'a, K: Key> State<'a, K> {
     /// # Errors
     /// Returns an [Error] if the key cannot be serialized or if
     /// the host fails to read the key and value.
-    /// # Panics
-    /// Panics if the value cannot be converted from i32 to usize.
     pub fn get<V>(self, key: K) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
         let mut cache = self.cache.borrow_mut();
         let val_bytes = match cache.get(&key) {
-            Some(Some(val)) => val,
-            Some(None) => return Ok(None),
-            None => match Self::get_from_host::<K>(&mut cache, key)? {
+            CachedData::Data(data) => data,
+            CachedData::Deleted => return Ok(None),
+            CachedData::Unknown => match Self::get_from_host(&mut cache, key)? {
                 Some(bytes) => bytes,
                 None => return Ok(None),
             },
@@ -171,7 +164,27 @@ impl<'a, K: Key> State<'a, K> {
             .map(Some)
     }
 
-    pub fn get_from_host<'b, V>(
+    /// # Errors
+    /// Returns an [Error] if the key cannot be serialized,
+    /// if the host fails to handle the operation,
+    /// or if the bytes cannot be borsh deserialized.
+    pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
+        let mut cache = self.cache.borrow_mut();
+
+        if let Some(bytes) = if let Some(cached_bytes) = &cache.delete(key) {
+            Some(cached_bytes)
+        } else {
+            Self::get_from_host(&mut cache, key)?
+        } {
+            Ok(Some(
+                from_slice(bytes).map_err(|_| StateError::Deserialization)?,
+            ))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_from_host<'b>(
         cache: &'b mut RefMut<Cache<K>>,
         key: K,
     ) -> Result<Option<&'b Vec<u8>>, Error> {
@@ -227,18 +240,24 @@ impl<'a, K: Key> State<'a, K> {
 
 #[cfg(test)]
 mod tests {
+    use crate::state::CachedData;
+
     use super::{Cache, Key};
 
     impl Key for usize {}
 
     #[test]
     fn cache_operations() {
-        let mut cache = Cache::new();
+        let mut cache = Cache::default();
+        let (key, value) = (0, vec![1]);
+
         assert!(cache.is_empty());
-        assert!(cache.get(&0).is_none());
-        assert!(cache.delete(0).is_none());
-        assert_eq!(cache.get(&0), Some(None));
-        cache.put(0, vec![1]);
-        assert_eq!(cache.get(&0), Some(Some(&vec![1])));
+        assert_eq!(cache.get(&key), CachedData::Unknown);
+        assert!(cache.delete(key).is_none());
+        assert_eq!(cache.get(&key), CachedData::Deleted);
+        cache.put(key, value.clone());
+        assert_eq!(cache.get(&key), CachedData::Data(&value));
+        assert_eq!(cache.delete(key), Some(value));
+        assert_eq!(cache.get(&key), CachedData::Deleted);
     }
 }

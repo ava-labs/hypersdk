@@ -30,7 +30,7 @@ impl<K> BorshDeserialize for Program<K> {
         let account: Address = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
             account,
-            state_cache: RefCell::new(Cache::new()),
+            state_cache: RefCell::default(),
         })
     }
 }
