@@ -105,7 +105,7 @@ func (FunctionNoInput) wasmType() *wasmtime.FuncType {
 }
 
 func (f FunctionNoInput) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-	return func(caller *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+	return func(_ *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		results, err := f(callInfo)
 		return writeOutputToMemory(callInfo, results, err)
 	}
