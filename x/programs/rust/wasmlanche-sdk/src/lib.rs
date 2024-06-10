@@ -30,7 +30,7 @@ pub enum Error {
     Param(#[from] std::io::Error),
 }
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context<K = ()> {
     pub program: Program<K>,
     pub actor: Address,
