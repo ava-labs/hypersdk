@@ -92,7 +92,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	paramsBytes = append(paramsBytes, callInfo.Params...)
 
 	// copy params into store linear memory
-	paramsOffset, err := p.setParams(paramsBytes)
+	paramsOffset, err := p.writeToMemory(paramsBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	return p.result, err
 }
 
-func (p *ProgramInstance) setParams(data []byte) (int32, error) {
+func (p *ProgramInstance) writeToMemory(data []byte) (int32, error) {
 	allocFn := p.inst.GetExport(p.store, AllocName).Func()
 	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))
