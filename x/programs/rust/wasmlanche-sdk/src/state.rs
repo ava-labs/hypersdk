@@ -1,8 +1,8 @@
 use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
 use std::{
-    cell::{RefCell, RefMut},
-    collections::{hash_map::Entry, HashMap, HashSet},
+    cell::RefCell,
+    collections::{hash_map::Entry, HashMap},
     hash::Hash,
 };
 
@@ -106,18 +106,20 @@ impl<'a, K: Key> State<'a, K> {
                 CachedData::Data(data) => from_slice::<V>(data)
                     .map_err(|_| StateError::Deserialization)
                     .map(Some),
-                CachedData::ToDelete | CachedData::Deleted => return Ok(None),
+                CachedData::ToDelete | CachedData::Deleted => Ok(None),
             },
-            Entry::Vacant(entry) => match Self::get_from_host(key)? {
-                Some(bytes) => {
+            Entry::Vacant(entry) => {
+                if let Some(bytes) = Self::get_from_host(key)? {
                     let value = from_slice::<V>(&bytes)
                         .map_err(|_| StateError::Deserialization)
                         .map(Some);
                     entry.insert(CachedData::Data(bytes));
                     value
+                } else {
+                    entry.insert(CachedData::Deleted);
+                    Ok(None)
                 }
-                None => return Ok(None),
-            },
+            }
         }
     }
 
@@ -140,15 +142,17 @@ impl<'a, K: Key> State<'a, K> {
                 }
                 CachedData::Deleted | CachedData::ToDelete => Ok(None),
             },
-            Entry::Vacant(entry) => match Self::get_from_host(key)? {
-                Some(data) => {
+            Entry::Vacant(entry) => {
+                if let Some(data) = Self::get_from_host(key)? {
                     entry.insert(CachedData::ToDelete);
                     from_slice::<V>(&data)
                         .map_err(|_| StateError::Deserialization)
                         .map(Some)
+                } else {
+                    entry.insert(CachedData::Deleted);
+                    Ok(None)
                 }
-                None => Ok(None),
-            },
+            }
         }
     }
 
@@ -179,9 +183,6 @@ impl<'a, K: Key> State<'a, K> {
 
             #[link_name = "delete_many"]
             fn delete_many_bytes(ptr: *const u8, len: usize);
-
-            #[link_name = "delete"]
-            fn delete_bytes(ptr: *const u8, len: usize) -> HostPtr;
         }
 
         #[derive(BorshSerialize)]
@@ -190,13 +191,18 @@ impl<'a, K: Key> State<'a, K> {
             value: Vec<u8>,
         }
 
+        #[derive(BorshSerialize)]
+        struct DeleteArgs<Key> {
+            key: Key,
+        }
+
         let (mut puts, mut deletes) = (Vec::new(), Vec::new());
         self.cache
             .borrow_mut()
             .drain()
             .for_each(|(key, value)| match value {
                 CachedData::Data(value) => puts.push(PutArgs { key, value }),
-                CachedData::ToDelete => deletes.push(key),
+                CachedData::ToDelete => deletes.push(DeleteArgs { key }),
                 CachedData::Deleted => (),
             });
 
@@ -206,34 +212,8 @@ impl<'a, K: Key> State<'a, K> {
         }
 
         if !deletes.is_empty() {
-            // let serialized_args = borsh::to_vec(&deletes).expect("failed to serialize");
-            // unsafe { delete_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
-            for delete in deletes {
-                let serialized_args = borsh::to_vec(&delete).expect("failed to serialize");
-                unsafe { delete_bytes(serialized_args.as_ptr(), serialized_args.len()) };
-            }
+            let serialized_args = borsh::to_vec(&deletes).expect("failed to serialize");
+            unsafe { delete_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
         }
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::{CachedData, Key, State};
-
-//     impl Key for usize {}
-
-//     #[test]
-//     fn cache_operations() {
-//         let mut cache = State::default();
-//         let (key, value) = (0, vec![1]);
-
-//         assert!(cache.is_empty());
-//         assert_eq!(cache.get(&key), CachedData::Unknown);
-//         assert!(cache.delete(key).is_none());
-//         assert_eq!(cache.get(&key), CachedData::Deleted);
-//         cache.put(key, value.clone());
-//         assert_eq!(cache.get(&key), CachedData::Data(&value));
-//         assert_eq!(cache.delete(key), Some(value));
-//         assert_eq!(cache.get(&key), CachedData::Deleted);
-//     }
-// }

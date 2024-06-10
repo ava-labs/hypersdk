@@ -257,7 +257,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // add default attributes
     item_enum.attrs.push(parse_quote! {
-         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     });
 
     let name = &item_enum.ident;
@@ -272,6 +272,12 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
         )
         .into_compile_error()
         .into();
+    }
+
+    if !variants.is_empty() {
+        item_enum.attrs.push(parse_quote! {
+            #[repr(u8)] // suppress the null-pointer optimization https://doc.rust-lang.org/nomicon/other-reprs.html#repru-repri
+        });
     }
 
     let match_arms: Result<Vec<_>, _> = variants
