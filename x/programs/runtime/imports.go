@@ -93,8 +93,8 @@ func (Function) wasmType() *wasmtime.FuncType {
 
 func (f Function) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		results, err := f(callInfo, getInput(caller, vals))
-		return getOutput(caller, results, err)
+		results, err := f(callInfo, getInputFromMemory(caller, vals))
+		return writeOutputToMemory(callInfo, results, err)
 	}
 }
 
@@ -105,9 +105,9 @@ func (FunctionNoInput) wasmType() *wasmtime.FuncType {
 }
 
 func (f FunctionNoInput) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-	return func(caller *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+	return func(_ *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 		results, err := f(callInfo)
-		return getOutput(caller, results, err)
+		return writeOutputToMemory(callInfo, results, err)
 	}
 }
 
@@ -119,12 +119,12 @@ func (FunctionNoOutput) wasmType() *wasmtime.FuncType {
 
 func (f FunctionNoOutput) convert(callInfo *CallInfo) func(*wasmtime.Caller, []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	return func(caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-		err := f(callInfo, getInput(caller, vals))
+		err := f(callInfo, getInputFromMemory(caller, vals))
 		return []wasmtime.Val{}, convertToTrap(err)
 	}
 }
 
-func getInput(caller *wasmtime.Caller, vals []wasmtime.Val) []byte {
+func getInputFromMemory(caller *wasmtime.Caller, vals []wasmtime.Val) []byte {
 	offset := vals[0].I32()
 	length := vals[1].I32()
 	if offset == 0 || length == 0 {
@@ -133,17 +133,13 @@ func getInput(caller *wasmtime.Caller, vals []wasmtime.Val) []byte {
 	return caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length]
 }
 
-func getOutput(caller *wasmtime.Caller, results []byte, err error) ([]wasmtime.Val, *wasmtime.Trap) {
+func writeOutputToMemory(callInfo *CallInfo, results []byte, err error) ([]wasmtime.Val, *wasmtime.Trap) {
 	if results == nil || err != nil {
 		return nilResult, convertToTrap(err)
 	}
-	resultLength := int32(len(results))
-	allocExport := caller.GetExport(AllocName)
-	offsetIntf, err := allocExport.Func().Call(caller, resultLength)
+	offset, err := callInfo.inst.writeToMemory(results)
 	if err != nil {
 		return nilResult, convertToTrap(err)
 	}
-	offset := offsetIntf.(int32)
-	copy(caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset:], results)
 	return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
 }
