@@ -191,18 +191,13 @@ impl<'a, K: Key> State<'a, K> {
             value: Vec<u8>,
         }
 
-        #[derive(BorshSerialize)]
-        struct DeleteArgs<Key> {
-            key: Key,
-        }
-
         let (mut puts, mut deletes) = (Vec::new(), Vec::new());
         self.cache
             .borrow_mut()
             .drain()
             .for_each(|(key, value)| match value {
                 CachedData::Data(value) => puts.push(PutArgs { key, value }),
-                CachedData::ToDelete => deletes.push(DeleteArgs { key }),
+                CachedData::ToDelete => deletes.push(key),
                 CachedData::Deleted => (),
             });
 

@@ -24,10 +24,6 @@ type keyValueInput struct {
 	Value []byte
 }
 
-type keyInput struct {
-	Key []byte
-}
-
 func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
@@ -100,7 +96,7 @@ func NewStateAccessModule() *ImportModule {
 				return bytes, nil
 			})},
 			"delete_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
-				var parsedInput []keyInput
+				var parsedInput [][]byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return err
 				}
@@ -109,7 +105,7 @@ func NewStateAccessModule() *ImportModule {
 				defer cancel()
 
 				for _, entry := range parsedInput {
-					if err := callInfo.State.GetProgramState(callInfo.Program).Remove(ctx, entry.Key); err != nil {
+					if err := callInfo.State.GetProgramState(callInfo.Program).Remove(ctx, entry); err != nil {
 						return err
 					}
 				}
