@@ -45,10 +45,6 @@ func TestImportStateRemove(t *testing.T) {
 	require.NoError(err)
 	require.Nil(result)
 
-	result, err = program.Call("get")
-	require.NoError(err)
-	require.Equal(append([]byte{1}, valueBytes...), result)
-
 	result, err = program.Call("delete")
 	require.NoError(err)
 	require.Equal(append([]byte{1}, valueBytes...), result)

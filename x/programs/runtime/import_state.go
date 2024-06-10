@@ -6,8 +6,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/near/borsh-go"
@@ -104,17 +102,14 @@ func NewStateAccessModule() *ImportModule {
 			"delete_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				var parsedInput []keyInput
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
-					fmt.Fprintln(os.Stderr, err)
 					return err
 				}
-				fmt.Fprintln(os.Stderr, "OK")
 
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 
 				for _, entry := range parsedInput {
 					if err := callInfo.State.GetProgramState(callInfo.Program).Remove(ctx, entry.Key); err != nil {
-						fmt.Fprintln(os.Stderr, err)
 						return err
 					}
 				}
