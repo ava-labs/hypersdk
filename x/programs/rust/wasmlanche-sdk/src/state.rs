@@ -207,7 +207,7 @@ impl<'a, K: Key> State<'a, K> {
         }
 
         if !deletes.is_empty() {
-            let serialized_args = borsh::to_vec(&deletes).expect("failed to serialize");
+            let serialized_args = borsh::to_vec(&deletes.as_slice()).expect("failed to serialize");
             unsafe { delete_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
         }
     }

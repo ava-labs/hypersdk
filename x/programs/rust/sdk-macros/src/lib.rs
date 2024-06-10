@@ -274,12 +274,6 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .into();
     }
 
-    if !variants.is_empty() {
-        item_enum.attrs.push(parse_quote! {
-            #[repr(u8)] // suppress the null-pointer optimization https://doc.rust-lang.org/nomicon/other-reprs.html#repru-repri
-        });
-    }
-
     let match_arms: Result<Vec<_>, _> = variants
         .iter()
         .enumerate()
