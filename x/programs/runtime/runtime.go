@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
@@ -20,6 +21,10 @@ type WasmRuntime struct {
 	cfg           *Config
 	programs      map[codec.Address]*Program
 	programLoader ProgramLoader
+
+	callerInfo                map[uintptr]*CallInfo
+	linker                    *wasmtime.Linker
+	linkerNeedsInitialization bool
 }
 
 type StateLoader interface {
@@ -36,12 +41,14 @@ func NewRuntime(
 	programLoader ProgramLoader,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
-		log:           log,
-		cfg:           cfg,
-		engine:        wasmtime.NewEngineWithConfig(cfg.wasmConfig),
-		hostImports:   NewImports(),
-		programs:      map[codec.Address]*Program{},
-		programLoader: programLoader,
+		log:                       log,
+		cfg:                       cfg,
+		engine:                    wasmtime.NewEngineWithConfig(cfg.wasmConfig),
+		hostImports:               NewImports(),
+		programs:                  map[codec.Address]*Program{},
+		programLoader:             programLoader,
+		callerInfo:                map[uintptr]*CallInfo{},
+		linkerNeedsInitialization: true,
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -53,6 +60,7 @@ func NewRuntime(
 
 func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
+	r.linkerNeedsInitialization = true
 }
 
 func (r *WasmRuntime) AddProgram(program codec.Address, bytes []byte) (*Program, error) {
@@ -76,24 +84,49 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 			return nil, err
 		}
 	}
-	inst, err := r.getInstance(callInfo, program, r.hostImports)
+	inst, err := r.getInstance(program, r.hostImports)
 	if err != nil {
 		return nil, err
 	}
 	callInfo.inst = inst
+
+	r.setCallInfo(inst.store, callInfo)
+	defer r.deleteCallInfo(inst.store)
+
 	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) getInstance(callInfo *CallInfo, program *Program, imports *Imports) (*ProgramInstance, error) {
-	linker, err := imports.createLinker(r.engine, callInfo)
-	if err != nil {
-		return nil, err
+func (r *WasmRuntime) getInstance(program *Program, imports *Imports) (*ProgramInstance, error) {
+	if r.linkerNeedsInitialization {
+		linker, err := imports.createLinker(r)
+		if err != nil {
+			return nil, err
+		}
+		r.linker = linker
+		r.linkerNeedsInitialization = false
 	}
+
 	store := wasmtime.NewStore(r.engine)
 	store.SetEpochDeadline(1)
-	inst, err := linker.Instantiate(store, program.module)
+	inst, err := r.linker.Instantiate(store, program.module)
 	if err != nil {
 		return nil, err
 	}
 	return &ProgramInstance{inst: inst, store: store}, nil
+}
+
+func toMapKey(storeLike wasmtime.Storelike) uintptr {
+	return reflect.ValueOf(storeLike.Context()).Pointer()
+}
+
+func (r *WasmRuntime) setCallInfo(storeLike wasmtime.Storelike, info *CallInfo) {
+	r.callerInfo[toMapKey(storeLike)] = info
+}
+
+func (r *WasmRuntime) getCallInfo(storeLike wasmtime.Storelike) *CallInfo {
+	return r.callerInfo[toMapKey(storeLike)]
+}
+
+func (r *WasmRuntime) deleteCallInfo(storeLike wasmtime.Storelike) {
+	delete(r.callerInfo, toMapKey(storeLike))
 }
