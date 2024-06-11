@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/near/borsh-go"
 
@@ -61,9 +62,10 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				return result, nil
-			})},
+			})}
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
-				callInfo.inst.result = input
+				// needs to clone because this points into the current store's linear memory which may be gone when this is read
+				callInfo.inst.result = slices.Clone(input)
 				return nil
 			})},
 			"remaining_fuel": {FuelCost: getFuelCost, Function: FunctionNoInput(func(callInfo *CallInfo) ([]byte, error) {
