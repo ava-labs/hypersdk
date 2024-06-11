@@ -8,8 +8,6 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/near/borsh-go"
-
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -30,23 +28,19 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {FuelCost: callProgramCost, Function: Function[[]byte, []byte](func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, []byte](func(callInfo *CallInfo, input callProgramInput) ([]byte, error) {
 				newInfo := *callInfo
-				parsedInput := &callProgramInput{}
-				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return nil, err
-				}
 
 				// make sure there is enough fuel in current store to give to the new call
-				if callInfo.RemainingFuel() < parsedInput.Fuel {
+				if callInfo.RemainingFuel() < input.Fuel {
 					return nil, errors.New("remaining fuel is less than requested fuel")
 				}
 
 				newInfo.Actor = callInfo.Program
-				newInfo.Program = parsedInput.Program
-				newInfo.FunctionName = parsedInput.FunctionName
-				newInfo.Params = parsedInput.Params
-				newInfo.Fuel = parsedInput.Fuel
+				newInfo.Program = input.Program
+				newInfo.FunctionName = input.FunctionName
+				newInfo.Params = input.Params
+				newInfo.Fuel = input.Fuel
 
 				result, err := r.CallProgram(
 					context.Background(),
@@ -57,7 +51,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 
 				// subtract the fuel used during this call from the calling program
 				remainingFuel := newInfo.RemainingFuel()
-				if err := callInfo.ConsumeFuel(parsedInput.Fuel - remainingFuel); err != nil {
+				if err := callInfo.ConsumeFuel(input.Fuel - remainingFuel); err != nil {
 					return nil, err
 				}
 
