@@ -30,7 +30,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {FuelCost: callProgramCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"call_program": {FuelCost: callProgramCost, Function: Function[[]byte, []byte](func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				newInfo := *callInfo
 				parsedInput := &callProgramInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
@@ -63,13 +63,13 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 
 				return result, nil
 			})},
-			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput[[]byte](func(callInfo *CallInfo, input []byte) error {
 				// needs to clone because this points into the current store's linear memory which may be gone when this is read
 				callInfo.inst.result = slices.Clone(input)
 				return nil
 			})},
-			"remaining_fuel": {FuelCost: getFuelCost, Function: FunctionNoInput(func(callInfo *CallInfo) ([]byte, error) {
-				return borsh.Serialize(callInfo.RemainingFuel())
+			"remaining_fuel": {FuelCost: getFuelCost, Function: FunctionNoInput[uint64](func(callInfo *CallInfo) (uint64, error) {
+				return callInfo.RemainingFuel(), nil
 			})},
 		},
 	}

@@ -5,7 +5,9 @@ package runtime
 
 import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
+	"github.com/near/borsh-go"
 	"golang.org/x/exp/maps"
+	"reflect"
 )
 
 var nilResult = []wasmtime.Val{wasmtime.ValI32(0)}
@@ -85,55 +87,96 @@ type HostFunctionType interface {
 
 var typeI32 = wasmtime.NewValType(wasmtime.KindI32)
 
-type Function func(*CallInfo, []byte) ([]byte, error)
+type Function[T any, U any] func(*CallInfo, T) (U, error)
 
-func (Function) wasmType() *wasmtime.FuncType {
+func (Function[T, U]) wasmType() *wasmtime.FuncType {
 	return wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
 }
 
-func (f Function) call(callInfo *CallInfo, caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-	results, err := f(callInfo, getInputFromMemory(caller, vals))
+func (f Function[T, U]) call(callInfo *CallInfo, caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+	input, err := getInputFromMemory[T](caller, vals)
+	if err != nil {
+		return writeOutputToMemory[interface{}](callInfo, nil, err)
+	}
+	results, err := f(callInfo, *input)
 	return writeOutputToMemory(callInfo, results, err)
 }
 
-type FunctionNoInput func(*CallInfo) ([]byte, error)
+type FunctionNoInput[T any] func(*CallInfo) (T, error)
 
-func (FunctionNoInput) wasmType() *wasmtime.FuncType {
+func (FunctionNoInput[T]) wasmType() *wasmtime.FuncType {
 	return wasmtime.NewFuncType([]*wasmtime.ValType{}, []*wasmtime.ValType{typeI32})
 }
 
-func (f FunctionNoInput) call(callInfo *CallInfo, _ *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+func (f FunctionNoInput[T]) call(callInfo *CallInfo, _ *wasmtime.Caller, _ []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
 	results, err := f(callInfo)
-	return writeOutputToMemory(callInfo, results, err)
+	return writeOutputToMemory[T](callInfo, results, err)
 }
 
-type FunctionNoOutput func(*CallInfo, []byte) error
+type FunctionNoOutput[T any] func(*CallInfo, T) error
 
-func (FunctionNoOutput) wasmType() *wasmtime.FuncType {
+func (FunctionNoOutput[T]) wasmType() *wasmtime.FuncType {
 	return wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{})
 }
 
-func (f FunctionNoOutput) call(callInfo *CallInfo, caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-	err := f(callInfo, getInputFromMemory(caller, vals))
+func (f FunctionNoOutput[T]) call(callInfo *CallInfo, caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
+	input, err := getInputFromMemory[T](caller, vals)
+	if err != nil {
+		return []wasmtime.Val{}, convertToTrap(err)
+	}
+	err = f(callInfo, *input)
 	return []wasmtime.Val{}, convertToTrap(err)
 }
 
-func getInputFromMemory(caller *wasmtime.Caller, vals []wasmtime.Val) []byte {
+func getInputFromMemory[T any](caller *wasmtime.Caller, vals []wasmtime.Val) (*T, error) {
+	result := new(T)
 	offset := vals[0].I32()
 	length := vals[1].I32()
+
 	if offset == 0 || length == 0 {
-		return nil
+		return new(T), nil
 	}
-	return caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length]
+	var err error
+	bytes := caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length]
+	switch t := any(result).(type) {
+	case *[]byte:
+		*t = bytes
+	default:
+		err = borsh.Deserialize(result, bytes)
+	}
+	return result, err
 }
 
-func writeOutputToMemory(callInfo *CallInfo, results []byte, err error) ([]wasmtime.Val, *wasmtime.Trap) {
-	if results == nil || err != nil {
+func writeOutputToMemory[T any](callInfo *CallInfo, results T, err error) ([]wasmtime.Val, *wasmtime.Trap) {
+	if isNil(results) || err != nil {
 		return nilResult, convertToTrap(err)
 	}
-	offset, err := callInfo.inst.writeToMemory(results)
+	var data []byte
+	switch t := any(results).(type) {
+	case []byte:
+		data = t
+	default:
+		data, err = borsh.Serialize(results)
+		if err != nil {
+			return nilResult, convertToTrap(err)
+		}
+	}
+	offset, err := callInfo.inst.writeToMemory(data)
 	if err != nil {
 		return nilResult, convertToTrap(err)
 	}
 	return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
+}
+
+func isNil[T any](t T) bool {
+	v := reflect.ValueOf(t)
+	kind := v.Kind()
+	// Must be one of these types to be nillable
+	return (kind == reflect.Ptr ||
+		kind == reflect.Interface ||
+		kind == reflect.Slice ||
+		kind == reflect.Map ||
+		kind == reflect.Chan ||
+		kind == reflect.Func) &&
+		v.IsNil()
 }

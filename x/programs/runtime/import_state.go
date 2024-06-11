@@ -28,7 +28,7 @@ func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
-			"get": {FuelCost: getCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"get": {FuelCost: getCost, Function: Function[[]byte, []byte](func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
@@ -44,7 +44,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return val, nil
 			})},
-			"put": {FuelCost: putCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"put": {FuelCost: putCost, Function: FunctionNoOutput[[]byte](func(callInfo *CallInfo, input []byte) error {
 				parsedInput := &keyValueInput{}
 				if err := borsh.Deserialize(parsedInput, input); err != nil {
 					return err
@@ -53,7 +53,7 @@ func NewStateAccessModule() *ImportModule {
 				defer cancel()
 				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, parsedInput.Key, parsedInput.Value)
 			})},
-			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
+			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput[[]byte](func(callInfo *CallInfo, input []byte) error {
 				var parsedInput []keyValueInput
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return err
@@ -67,7 +67,7 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return nil
 			})},
-			"delete": {FuelCost: deleteCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
+			"delete": {FuelCost: deleteCost, Function: Function[[]byte, []byte](func(callInfo *CallInfo, input []byte) ([]byte, error) {
 				var parsedInput []byte
 				if err := borsh.Deserialize(&parsedInput, input); err != nil {
 					return nil, err
