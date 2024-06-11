@@ -79,14 +79,11 @@ func NewStateAccessModule() *ImportModule {
 				bytes, err := programState.GetValue(ctx, parsedInput)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
-						// [0] represents `None`
-						return []byte{0}, nil
+						return nil, nil
 					}
 
 					return nil, err
 				}
-
-				bytes = append([]byte{1}, bytes...)
 
 				err = programState.Remove(ctx, parsedInput)
 				if err != nil {
