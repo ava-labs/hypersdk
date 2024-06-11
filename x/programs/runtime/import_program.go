@@ -62,7 +62,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				return result, nil
-			})}
+			})},
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
 				// needs to clone because this points into the current store's linear memory which may be gone when this is read
 				callInfo.inst.result = slices.Clone(input)
