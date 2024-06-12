@@ -16,7 +16,7 @@ func NewLogModule() *ImportModule {
 	return &ImportModule{
 		Name: "log",
 		HostFunctions: map[string]HostFunction{
-			"write": {FuelCost: logCost, Function: FunctionNoOutput(func(_ *CallInfo, input []byte) error {
+			"write": {FuelCost: logCost, Function: FunctionNoOutput[RawBytes](func(_ *CallInfo, input RawBytes) error {
 				_, err := fmt.Fprintf(os.Stderr, "%s\n", input)
 				return err
 			})},

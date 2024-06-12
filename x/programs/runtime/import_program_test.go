@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/near/borsh-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -23,7 +22,7 @@ func TestImportProgramCallProgram(t *testing.T) {
 
 	program := newTestProgram(ctx, "call_program")
 
-	expected, err := borsh.Serialize(0)
+	expected, err := serialize(0)
 	require.NoError(err)
 
 	result, err := program.Call("simple_call")
@@ -48,7 +47,7 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 
 	result, err := program.CallWithActor(actor, "actor_check")
 	require.NoError(err)
-	expected, err := borsh.Serialize(actor)
+	expected, err := serialize(actor)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -67,7 +66,7 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 		"actor_check_external",
 		program.Address, uint64(100000))
 	require.NoError(err)
-	expected, err := borsh.Serialize(program.Address)
+	expected, err := serialize(program.Address)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -80,7 +79,7 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 
 	program := newTestProgram(ctx, "call_program")
 
-	expected, err := borsh.Serialize(uint64(1))
+	expected, err := serialize(uint64(1))
 	require.NoError(err)
 
 	result, err := program.Call(
@@ -104,7 +103,7 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 
 	program := newTestProgram(ctx, "call_program")
 
-	expected, err := borsh.Serialize(int64(3))
+	expected, err := serialize(int64(3))
 	require.NoError(err)
 	result, err := program.Call(
 		"call_with_two_params",
