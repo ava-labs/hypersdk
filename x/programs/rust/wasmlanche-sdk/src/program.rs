@@ -72,11 +72,6 @@ impl<K> Program<K> {
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        crate::dbg!({
-            let bytes: &[u8] = &bytes;
-            bytes
-        });
-
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
