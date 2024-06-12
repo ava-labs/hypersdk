@@ -4,10 +4,7 @@
 package runtime
 
 import (
-	"reflect"
-
 	"github.com/bytecodealliance/wasmtime-go/v14"
-	"github.com/near/borsh-go"
 	"golang.org/x/exp/maps"
 )
 
@@ -130,54 +127,26 @@ func (f FunctionNoOutput[T]) call(callInfo *CallInfo, caller *wasmtime.Caller, v
 }
 
 func getInputFromMemory[T any](caller *wasmtime.Caller, vals []wasmtime.Val) (*T, error) {
-	result := new(T)
 	offset := vals[0].I32()
 	length := vals[1].I32()
 
 	if offset == 0 || length == 0 {
 		return new(T), nil
 	}
-	var err error
-	bytes := caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length]
-	switch t := any(result).(type) {
-	case *[]byte:
-		*t = bytes
-	default:
-		err = borsh.Deserialize(result, bytes)
-	}
-	return result, err
+	return deserialize[T](caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length])
 }
 
 func writeOutputToMemory[T any](callInfo *CallInfo, results T, err error) ([]wasmtime.Val, *wasmtime.Trap) {
-	if isNil(results) || err != nil {
+	if err != nil {
 		return nilResult, convertToTrap(err)
 	}
-	var data []byte
-	switch t := any(results).(type) {
-	case []byte:
-		data = t
-	default:
-		data, err = borsh.Serialize(results)
-		if err != nil {
-			return nilResult, convertToTrap(err)
-		}
+	data, err := serialize(results)
+	if data == nil || err != nil {
+		return nilResult, convertToTrap(err)
 	}
 	offset, err := callInfo.inst.writeToMemory(data)
 	if err != nil {
 		return nilResult, convertToTrap(err)
 	}
 	return []wasmtime.Val{wasmtime.ValI32(offset)}, nil
-}
-
-func isNil[T any](t T) bool {
-	v := reflect.ValueOf(t)
-	kind := v.Kind()
-	// Must be one of these types to be nillable
-	return (kind == reflect.Ptr ||
-		kind == reflect.Interface ||
-		kind == reflect.Slice ||
-		kind == reflect.Map ||
-		kind == reflect.Chan ||
-		kind == reflect.Func) &&
-		v.IsNil()
 }
