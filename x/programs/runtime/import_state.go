@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/near/borsh-go"
 )
 
 const (
@@ -28,14 +27,10 @@ func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
-			"get": {FuelCost: getCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
-				var parsedInput []byte
-				if err := borsh.Deserialize(&parsedInput, input); err != nil {
-					return nil, err
-				}
+			"get": {FuelCost: getCost, Function: Function[[]byte, RawBytes](func(callInfo *CallInfo, input []byte) (RawBytes, error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, parsedInput)
+				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, input)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -44,51 +39,35 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return val, nil
 			})},
-			"put": {FuelCost: putCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
-				parsedInput := &keyValueInput{}
-				if err := borsh.Deserialize(parsedInput, input); err != nil {
-					return err
-				}
+			"put": {FuelCost: putCost, Function: FunctionNoOutput[keyValueInput](func(callInfo *CallInfo, input keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, parsedInput.Key, parsedInput.Value)
+				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, input.Key, input.Value)
 			})},
-			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput(func(callInfo *CallInfo, input []byte) error {
-				var parsedInput []keyValueInput
-				if err := borsh.Deserialize(&parsedInput, input); err != nil {
-					return err
-				}
+			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				for _, entry := range parsedInput {
+				for _, entry := range input {
 					if err := callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, entry.Key, entry.Value); err != nil {
 						return err
 					}
 				}
 				return nil
 			})},
-			"delete": {FuelCost: deleteCost, Function: Function(func(callInfo *CallInfo, input []byte) ([]byte, error) {
-				var parsedInput []byte
-				if err := borsh.Deserialize(&parsedInput, input); err != nil {
-					return nil, err
-				}
-
+			"delete": {FuelCost: deleteCost, Function: Function[[]byte, RawBytes](func(callInfo *CallInfo, input []byte) (RawBytes, error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				programState := callInfo.State.GetProgramState(callInfo.Program)
-				bytes, err := programState.GetValue(ctx, parsedInput)
+				bytes, err := programState.GetValue(ctx, input)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
-						// [0] represents `None`
-						return []byte{0}, nil
+						return nil, nil
 					}
 
 					return nil, err
 				}
 
-				bytes = append([]byte{1}, bytes...)
-
-				err = programState.Remove(ctx, parsedInput)
+				err = programState.Remove(ctx, input)
 				if err != nil {
 					return nil, err
 				}

@@ -42,7 +42,9 @@ pub struct State<'a, K: Key> {
     cache: &'a RefCell<HashMap<K, Vec<u8>>>,
 }
 
-pub trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
+/// # Safety
+/// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
+pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
 impl<'a, K: Key> Drop for State<'a, K> {
     fn drop(&mut self) {
@@ -135,7 +137,13 @@ impl<'a, K: Key> State<'a, K> {
 
         let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
 
-        from_slice(&bytes).map_err(|_| StateError::Deserialization)
+        if bytes.is_null() {
+            return Ok(None);
+        }
+
+        from_slice::<T>(&bytes)
+            .map_err(|_| StateError::Deserialization)
+            .map(Some)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
