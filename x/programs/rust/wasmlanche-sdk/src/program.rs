@@ -52,14 +52,14 @@ impl<K> Program<K> {
         function_name: &str,
         args: ArgType,
         max_units: Gas,
-    ) -> Result<Result<T,u8>, StateError> {
+    ) -> Result<T, u8> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
             fn call_program(ptr: *const u8, len: usize) -> HostPtr;
         }
 
-        let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        let args_ptr = borsh::to_vec(&args).expect("failed to serialize args");
 
         let args = CallProgramArgs {
             target: self,
@@ -68,11 +68,16 @@ impl<K> Program<K> {
             max_units,
         };
 
-        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
+        crate::dbg!({
+            let bytes: &[u8] = &bytes;
+            bytes
+        });
+
+        borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
     /// Gets the remaining fuel available to this program

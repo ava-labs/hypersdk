@@ -7,7 +7,7 @@ pub fn simple_call(_: Context) -> i64 {
 
 #[public]
 pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 {
-    target.call_function("simple_call", (), max_units).expect("failure").expect("failure2")
+    target.call_function("simple_call", (), max_units).unwrap()
 }
 
 #[public]
@@ -21,7 +21,6 @@ pub fn actor_check_external(_: Context, target: Program, max_units: Gas) -> Addr
     target
         .call_function("actor_check", (), max_units)
         .expect("failure")
-        .expect("failure")
 }
 
 #[public]
@@ -33,7 +32,6 @@ pub fn call_with_param(_: Context, value: i64) -> i64 {
 pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, value: i64) -> i64 {
     target
         .call_function("call_with_param", value, max_units)
-        .unwrap()
         .unwrap()
 }
 
@@ -52,6 +50,5 @@ pub fn call_with_two_params_external(
 ) -> i64 {
     target
         .call_function("call_with_two_params", (value1, value2), max_units)
-        .unwrap()
         .unwrap()
 }
