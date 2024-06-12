@@ -28,12 +28,12 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[[]byte, uint8]](func(callInfo *CallInfo, input callProgramInput) (Result[[]byte, uint8], error) {
+			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, uint8]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, uint8], error) {
 				newInfo := *callInfo
 
 				// make sure there is enough fuel in current store to give to the new call
 				if callInfo.RemainingFuel() < input.Fuel {
-					return Err[[]byte, uint8](0), errors.New("remaining fuel is less than requested fuel")
+					return Err[RawBytes, uint8](0), errors.New("remaining fuel is less than requested fuel")
 				}
 
 				newInfo.Actor = callInfo.Program
@@ -46,16 +46,16 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					context.Background(),
 					&newInfo)
 				if err != nil {
-					return Err[[]byte, uint8](0), err
+					return Err[RawBytes, uint8](0), err
 				}
 
 				// subtract the fuel used during this call from the calling program
 				remainingFuel := newInfo.RemainingFuel()
 				if err := callInfo.ConsumeFuel(input.Fuel - remainingFuel); err != nil {
-					return Err[[]byte, uint8](0), err
+					return Err[RawBytes, uint8](0), err
 				}
 
-				return Ok[[]byte, uint8](result), nil
+				return Ok[RawBytes, uint8](result), nil
 			})},
 			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput[RawBytes](func(callInfo *CallInfo, input RawBytes) error {
 				// needs to clone because this points into the current store's linear memory which may be gone when this is read
