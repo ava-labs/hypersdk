@@ -5,21 +5,13 @@
 
 package runtime
 
-import (
-	"fmt"
-	"os"
-)
-
 const logCost = 1000
 
 func NewLogModule() *ImportModule {
 	return &ImportModule{
 		Name: "log",
 		HostFunctions: map[string]HostFunction{
-			"write": {FuelCost: logCost, Function: FunctionNoOutput[RawBytes](func(_ *CallInfo, input RawBytes) error {
-				_, err := fmt.Fprintf(os.Stderr, "%s\n", input)
-				return err
-			})},
+			"write": {FuelCost: logCost, Function: FunctionNoOutput(func(*CallInfo, []byte) error { return nil })},
 		},
 	}
 }
