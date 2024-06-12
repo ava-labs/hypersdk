@@ -33,9 +33,8 @@ pub fn inc_external(
     of: Address,
     amount: Count,
 ) -> bool {
-    target
-        .call_function("inc", (of, amount), max_units)
-        .unwrap()
+    let args = borsh::to_vec(&(of, amount)).unwrap();
+    target.call_function("inc", &args, max_units).unwrap()
 }
 
 /// Gets the count at the address.
@@ -57,7 +56,8 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
 /// Gets the count at the address for an external program.
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Address) -> Count {
-    target.call_function("get_value", of, max_units).unwrap()
+    let args = borsh::to_vec(&of).unwrap();
+    target.call_function("get_value", &args, max_units).unwrap()
 }
 
 #[cfg(test)]
