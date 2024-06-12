@@ -52,7 +52,7 @@ impl<K> Program<K> {
         function_name: &str,
         args: ArgType,
         max_units: Gas,
-    ) -> Result<T, StateError> {
+    ) -> Result<Result<T,u8>, StateError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]

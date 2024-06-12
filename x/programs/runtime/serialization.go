@@ -9,20 +9,14 @@ import (
 	"github.com/near/borsh-go"
 )
 
-type customSerialize interface {
-	customSerialize() ([]byte, error)
-}
-
-type customDeserialize[T any] interface {
-	customDeserialize([]byte) (*T, error)
-}
+type RawBytes []byte
 
 func deserialize[T any](data []byte) (*T, error) {
 	result := new(T)
 	var err error
-	switch t := any(*result).(type) {
-	case customDeserialize[T]:
-		return t.customDeserialize(data)
+	switch t := any(result).(type) {
+	case *RawBytes:
+		*t = data
 	default:
 		err = borsh.Deserialize(result, data)
 	}
@@ -34,8 +28,8 @@ func serialize[T any](value T) ([]byte, error) {
 		return nil, nil
 	}
 	switch t := any(value).(type) {
-	case customSerialize:
-		return t.customSerialize()
+	case RawBytes:
+		return t, nil
 	default:
 		return borsh.Serialize(value)
 	}
@@ -54,110 +48,45 @@ func isNil[T any](t T) bool {
 		v.IsNil()
 }
 
-/// Contains some common types that cross the host/guest boundary
-
-type RawBytes []byte
-
-func (r RawBytes) customSerialize() ([]byte, error) {
-	return r, nil
-}
-
-func (r RawBytes) customDeserialize(data []byte) (*RawBytes, error) {
-	rawData := RawBytes(data)
-	return &rawData, nil
-}
-
 type ProgramErrors interface {
-	error
 }
 
-type DeserializationError struct{}
-
-func (DeserializationError) Error() string {
-	return "failed to deserialize"
-}
-
-type SerializationError struct{}
-type OutOfFuelError struct{}
-
-func (OutOfFuelError) Error() string {
-	return "out of fuel"
-}
+type resultType uint8
 
 const (
-	resultOkPrefix  = byte(1)
-	resultErrPrefix = byte(0)
+	resultOk  resultType = 1
+	resultErr resultType = 0
 )
 
+type wrappedVal[T any] struct {
+	val T
+}
 type Result[T any, E ProgramErrors] struct {
-	hasError bool
-	value    T
-	e        E
+	resultType resultType `borsh_enum:"true"`
+	e          wrappedVal[E]
+	v          wrappedVal[T]
 }
 
 func Ok[T any, E ProgramErrors](val T) Result[T, E] {
-	return Result[T, E]{value: val}
+	return Result[T, E]{resultType: resultOk, v: wrappedVal[T]{val: val}}
 }
 
 func Err[T any, E ProgramErrors](e E) Result[T, E] {
-	return Result[T, E]{e: e, hasError: true}
+	return Result[T, E]{resultType: resultErr, e: wrappedVal[E]{val: e}}
 }
 
 func (r Result[T, E]) isOk() bool {
-	return !r.hasError
+	return r.resultType == resultOk
 }
 
 func (r Result[T, E]) isErr() bool {
-	return r.hasError
-}
-
-func (r Result[T, E]) customSerialize() ([]byte, error) {
-	var prefix []byte
-	var val any
-	if r.isOk() {
-		prefix = []byte{resultOkPrefix}
-		val = r.value
-	} else {
-		prefix = []byte{resultErrPrefix}
-		val = r.e
-	}
-	bytes, err := serialize(val)
-	if err != nil {
-		return nil, err
-	}
-	return append(prefix, bytes...), nil
-}
-
-func (r Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
-	if len(data) < 1 {
-		return nil, DeserializationError{}
-	}
-	switch data[0] {
-	case resultOkPrefix:
-		{
-			val, err := deserialize[T](data[1:])
-			if err != nil {
-				return nil, DeserializationError{}
-			}
-			return &Result[T, E]{value: *val}, nil
-		}
-	case resultErrPrefix:
-		{
-			val, err := deserialize[E](data[1:])
-			if err != nil {
-				return nil, DeserializationError{}
-			}
-			return &Result[T, E]{e: *val, hasError: true}, nil
-		}
-	default:
-		return &Result[T, E]{}, DeserializationError{}
-	}
+	return r.resultType == resultErr
 }
 
 func (r Result[T, E]) Ok() (T, bool) {
-	return r.value, r.isOk()
+	return r.v.val, r.isOk()
 }
 
 func (r Result[T, E]) Err() (E, bool) {
-	return r.e, r.isErr()
+	return r.e.val, r.isErr()
 }
