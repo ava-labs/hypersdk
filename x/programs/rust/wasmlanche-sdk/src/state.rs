@@ -175,8 +175,8 @@ impl<'a, K: Key> State<'a, K> {
         }
 
         #[derive(BorshSerialize)]
-        struct PutArgs<Key> {
-            key: Key,
+        struct PutArgs<K> {
+            key: K,
             value: Vec<u8>,
         }
 
