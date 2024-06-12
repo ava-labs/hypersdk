@@ -7,9 +7,9 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-wasmlanche-sdk = { workspace = true }
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
 borsh = { workspace = true }
 erc20_token = { path = "../erc20_token", features = ["bindings"] }
 
 [build-dependencies]
-wasmlanche-sdk = { workspace = true, features = ["build"] }
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
