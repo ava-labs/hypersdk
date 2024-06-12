@@ -2,7 +2,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, BorshSerialize, BorshDeserialize, Hash)]
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 pub struct Address([u8; Self::LEN]);
 
 impl Address {
