@@ -4,10 +4,11 @@
 package runtime
 
 import (
+	"reflect"
+
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/near/borsh-go"
 	"golang.org/x/exp/maps"
-	"reflect"
 )
 
 var nilResult = []wasmtime.Val{wasmtime.ValI32(0)}
