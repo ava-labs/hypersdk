@@ -63,7 +63,7 @@ func (r RawBytes) customSerialize() ([]byte, error) {
 	return r, nil
 }
 
-func (r RawBytes) customDeserialize(data []byte) (*RawBytes, error) {
+func (RawBytes) customDeserialize(data []byte) (*RawBytes, error) {
 	rawData := RawBytes(data)
 	return &rawData, nil
 }
@@ -112,7 +112,7 @@ func (r Result[T, E]) customSerialize() ([]byte, error) {
 	return append(prefix, bytes...), nil
 }
 
-func (r Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
+func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
 	if len(data) < 1 {
 		return nil, errors.New("deserialization")
 	}
