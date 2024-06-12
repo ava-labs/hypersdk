@@ -137,7 +137,13 @@ impl<'a, K: Key> State<'a, K> {
 
         let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
 
-        from_slice(&bytes).map_err(|_| StateError::Deserialization)
+        if bytes.is_null() {
+            return Ok(None);
+        }
+
+        from_slice::<T>(&bytes)
+            .map_err(|_| StateError::Deserialization)
+            .map(Some)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
