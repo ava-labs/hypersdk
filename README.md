@@ -786,7 +786,7 @@ case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
 
 You can view what the import `Action` associated with the above examples looks like
-[here](./examples/tokenvm/actions/import_asset.go)
+[here](./examples/tokenvm/actions/create_asset.go)
 
 _As mentioned above, it is up to the `hypervm` to implement a message format
 that it can understand (so that it can parse inbound AWM messages). In the
