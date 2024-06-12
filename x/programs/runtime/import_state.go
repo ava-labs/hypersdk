@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/near/borsh-go"
 )
 
 const (
@@ -28,14 +27,10 @@ func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
 		HostFunctions: map[string]HostFunction{
-			"get": {FuelCost: getCost, Function: Function[[]byte, []byte](func(callInfo *CallInfo, input []byte) ([]byte, error) {
-				var parsedInput []byte
-				if err := borsh.Deserialize(&parsedInput, input); err != nil {
-					return nil, err
-				}
+			"get": {FuelCost: getCost, Function: Function[[]byte, RawBytes](func(callInfo *CallInfo, input []byte) (RawBytes, error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, parsedInput)
+				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, input)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -59,16 +54,11 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return nil
 			})},
-			"delete": {FuelCost: deleteCost, Function: Function[[]byte, []byte](func(callInfo *CallInfo, input []byte) ([]byte, error) {
-				var parsedInput []byte
-				if err := borsh.Deserialize(&parsedInput, input); err != nil {
-					return nil, err
-				}
-
+			"delete": {FuelCost: deleteCost, Function: Function[[]byte, RawBytes](func(callInfo *CallInfo, input []byte) (RawBytes, error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				programState := callInfo.State.GetProgramState(callInfo.Program)
-				bytes, err := programState.GetValue(ctx, parsedInput)
+				bytes, err := programState.GetValue(ctx, input)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -77,7 +67,7 @@ func NewStateAccessModule() *ImportModule {
 					return nil, err
 				}
 
-				err = programState.Remove(ctx, parsedInput)
+				err = programState.Remove(ctx, input)
 				if err != nil {
 					return nil, err
 				}

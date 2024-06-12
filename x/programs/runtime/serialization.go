@@ -9,11 +9,13 @@ import (
 	"github.com/near/borsh-go"
 )
 
+type RawBytes []byte
+
 func deserialize[T any](data []byte) (*T, error) {
 	result := new(T)
 	var err error
 	switch t := any(result).(type) {
-	case *[]byte:
+	case *RawBytes:
 		*t = data
 	default:
 		err = borsh.Deserialize(result, data)
@@ -26,7 +28,7 @@ func serialize[T any](value T) ([]byte, error) {
 		return nil, nil
 	}
 	switch t := any(value).(type) {
-	case []byte:
+	case RawBytes:
 		return t, nil
 	default:
 		return borsh.Serialize(value)

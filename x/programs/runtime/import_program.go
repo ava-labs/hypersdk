@@ -28,7 +28,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, []byte](func(callInfo *CallInfo, input callProgramInput) ([]byte, error) {
+			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, RawBytes](func(callInfo *CallInfo, input callProgramInput) (RawBytes, error) {
 				newInfo := *callInfo
 
 				// make sure there is enough fuel in current store to give to the new call
@@ -57,7 +57,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 
 				return result, nil
 			})},
-			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput[[]byte](func(callInfo *CallInfo, input []byte) error {
+			"set_call_result": {FuelCost: setResultCost, Function: FunctionNoOutput[RawBytes](func(callInfo *CallInfo, input RawBytes) error {
 				// needs to clone because this points into the current store's linear memory which may be gone when this is read
 				callInfo.inst.result = slices.Clone(input)
 				return nil
