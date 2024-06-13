@@ -99,7 +99,11 @@ impl<'a, K: Key> State<'a, K> {
         let mut cache = self.cache.borrow_mut();
 
         let val_bytes = if let Some(val) = cache.get(&key) {
-            val
+            if val.is_empty() {
+                return Ok(None);
+            } else {
+                val
+            }
         } else {
             let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
 
@@ -124,33 +128,40 @@ impl<'a, K: Key> State<'a, K> {
     pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
         #[link(wasm_import_module = "state")]
         extern "C" {
-            #[link_name = "delete"]
-            fn delete(ptr: *const u8, len: usize) -> HostPtr;
+            #[link_name = "put"]
+            fn put_many_bytes(ptr: *const u8, len: usize);
+        }
+
+        let value = self.get(key)?;
+        if value.is_none() {
+            return Ok(None);
+        }
+
+        #[derive(BorshSerialize)]
+        struct PutArgs<Key> {
+            key: Key,
+            value: Vec<u8>,
         }
 
         // TODO:
         // we should actually cache deletes as well
         // to avoid cache misses after delete
-        self.cache.borrow_mut().remove(&key);
+        let args = PutArgs {
+            key,
+            value: Vec::new(),
+        };
+        let args_bytes = borsh::to_vec(&vec![args]).map_err(|_| StateError::Serialization)?;
 
-        let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
+        unsafe { put_many_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
-        let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
-
-        if bytes.is_null() {
-            return Ok(None);
-        }
-
-        from_slice::<T>(&bytes)
-            .map_err(|_| StateError::Deserialization)
-            .map(Some)
+        Ok(value)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
     fn flush(&self) {
         #[link(wasm_import_module = "state")]
         extern "C" {
-            #[link_name = "put_many"]
+            #[link_name = "put"]
             fn put_many_bytes(ptr: *const u8, len: usize);
         }
 
