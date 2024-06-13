@@ -99,9 +99,14 @@ impl<'a, K: Key> State<'a, K> {
         V: BorshDeserialize,
     {
         let mut cache = self.cache.borrow_mut();
-
         let val_bytes = match cache.get(&key) {
-            Some(Some(val)) => val,
+            Some(Some(val)) => {
+                if val.is_empty() {
+                    return Ok(None);
+                }
+
+                val
+            }
             Some(None) => return Ok(None),
             None => {
                 if let Some(val) = Self::get_host(key)? {
@@ -146,6 +151,7 @@ impl<'a, K: Key> State<'a, K> {
         let val_bytes = match cache.get(&key) {
             Some(Some(val)) => {
                 if val.is_empty() {
+                    cache.entry(key).or_insert(None);
                     return Ok(None);
                 }
 
@@ -187,7 +193,10 @@ impl<'a, K: Key> State<'a, K> {
             .drain()
             .filter_map(|(key, val)| val.map(|value| PutArgs { key, value }))
             .collect();
-        let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-        unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
+
+        if !args.is_empty() {
+            let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
+            unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
+        }
     }
 }
