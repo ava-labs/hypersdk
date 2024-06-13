@@ -2,68 +2,84 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"reflect"
+
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+var errCannotOverwrite = errors.New("trying to overwrite set field")
+
 type CallContext struct {
-	r            *WasmRuntime
-	state        StateLoader
-	actor        *codec.Address
-	functionName *string
-	program      *codec.Address
-	params       []byte
-	fuel         *uint64
+	r               *WasmRuntime
+	defaultCallInfo CallInfo
+}
+
+func (c CallContext) createCallInfo(callInfo *CallInfo) (*CallInfo, error) {
+	newCallInfo := *callInfo
+	resultInfo := reflect.ValueOf(&newCallInfo)
+	callInfoTypeInfo := reflect.TypeOf(CallInfo{})
+	defaults := reflect.ValueOf(c.defaultCallInfo)
+	for i := 0; i < defaults.NumField(); i++ {
+		defaultField := defaults.Field(i)
+		if !defaultField.IsZero() {
+			resultField := resultInfo.Elem().Field(i)
+			if !resultField.IsZero() {
+				return nil, fmt.Errorf("%w %s", errCannotOverwrite, callInfoTypeInfo.Field(i).Name)
+			}
+			resultField.Set(defaultField)
+		}
+	}
+	return &newCallInfo, nil
 }
 
 func (c CallContext) CallProgram(ctx context.Context, info *CallInfo) ([]byte, error) {
-	if c.state != nil {
-		info.State = c.state
+	newInfo, err := c.createCallInfo(info)
+	if err != nil {
+		return nil, err
 	}
-	if c.actor != nil {
-		info.Actor = *c.actor
-	}
-	if c.functionName != nil {
-		info.FunctionName = *c.functionName
-	}
-	if c.program != nil {
-		info.Program = *c.program
-	}
-	if c.params != nil {
-		info.Params = c.params
-	}
-	if c.fuel != nil {
-		info.Fuel = *c.fuel
-	}
-	return c.r.CallProgram(ctx, info)
+	return c.r.CallProgram(ctx, newInfo)
 }
 
 func (c CallContext) WithStateLoader(loader StateLoader) CallContext {
-	c.state = loader
+	c.defaultCallInfo.State = loader
 	return c
 }
 
 func (c CallContext) WithActor(address codec.Address) CallContext {
-	c.actor = &address
+	c.defaultCallInfo.Actor = address
 	return c
 }
 
 func (c CallContext) WithFunction(s string) CallContext {
-	c.functionName = &s
+	c.defaultCallInfo.FunctionName = s
 	return c
 }
 
 func (c CallContext) WithProgram(address codec.Address) CallContext {
-	c.program = &address
+	c.defaultCallInfo.Program = address
 	return c
 }
 
 func (c CallContext) WithFuel(u uint64) CallContext {
-	c.fuel = &u
+	c.defaultCallInfo.Fuel = u
 	return c
 }
 
 func (c CallContext) WithParams(bytes []byte) CallContext {
-	c.params = bytes
+	c.defaultCallInfo.Params = bytes
+	return c
+}
+
+func (c CallContext) WithHeight(height uint64) CallContext {
+	c.defaultCallInfo.Height = height
+	return c
+}
+
+func (c CallContext) WithActionID(actionID ids.ID) CallContext {
+	c.defaultCallInfo.ActionID = actionID
 	return c
 }

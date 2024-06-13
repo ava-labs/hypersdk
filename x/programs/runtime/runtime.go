@@ -14,14 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-type StateLoader interface {
-	GetProgramState(address codec.Address) state.Mutable
-}
-
-type ProgramLoader interface {
-	GetProgramBytes(ctx context.Context, address codec.Address) ([]byte, error)
-}
-
 type WasmRuntime struct {
 	log           logging.Logger
 	engine        *wasmtime.Engine
@@ -33,6 +25,14 @@ type WasmRuntime struct {
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
 	linkerNeedsInitialization bool
+}
+
+type StateLoader interface {
+	GetProgramState(address codec.Address) state.Mutable
+}
+
+type ProgramLoader interface {
+	GetProgramBytes(ctx context.Context, address codec.Address) ([]byte, error)
 }
 
 func NewRuntime(
@@ -58,33 +58,22 @@ func NewRuntime(
 	return runtime
 }
 
-func (r *WasmRuntime) WithStateLoader(loader StateLoader) CallContext {
-	return CallContext{r: r}.WithStateLoader(loader)
-}
-
-func (r *WasmRuntime) WithActor(address codec.Address) CallContext {
-	return CallContext{r: r}.WithActor(address)
-}
-
-func (r *WasmRuntime) WithFunction(s string) CallContext {
-	return CallContext{r: r}.WithFunction(s)
-}
-
-func (r *WasmRuntime) WithProgram(address codec.Address) CallContext {
-	return CallContext{r: r}.WithProgram(address)
-}
-
-func (r *WasmRuntime) WithFuel(u uint64) CallContext {
-	return CallContext{r: r}.WithFuel(u)
-}
-
-func (r *WasmRuntime) WithParams(bytes []byte) CallContext {
-	return CallContext{r: r}.WithParams(bytes)
+func (r *WasmRuntime) WithDefaults(callInfo *CallInfo) CallContext {
+	return CallContext{r: r, defaultCallInfo: *callInfo}
 }
 
 func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 	r.linkerNeedsInitialization = true
+}
+
+func (r *WasmRuntime) AddProgram(program codec.Address, bytes []byte) (*Program, error) {
+	programModule, err := newProgram(r.engine, bytes)
+	if err != nil {
+		return nil, err
+	}
+	r.programs[program] = programModule
+	return programModule, nil
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {

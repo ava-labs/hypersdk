@@ -26,7 +26,11 @@ func TestCallContext(t *testing.T) {
 		NewConfig(),
 		logging.NoLog{},
 		test.ProgramLoader{ProgramName: "call_program"},
-	).WithProgram(codec.CreateAddress(0, ids.GenerateTestID())).WithFuel(1000000)
+	).WithDefaults(
+		&CallInfo{
+			Program: codec.CreateAddress(0, ids.GenerateTestID()),
+			Fuel:    1000000,
+		})
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
 	result, err := r.WithActor(actor).CallProgram(
@@ -51,5 +55,32 @@ func TestCallContext(t *testing.T) {
 			FunctionName: "actor_check",
 		})
 	require.Equal(wasmtime.OutOfFuel, *err.(*wasmtime.Trap).Code())
+	require.Nil(result)
+}
+
+func TestCallContextPreventOverwrite(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r := NewRuntime(
+		NewConfig(),
+		logging.NoLog{},
+		test.ProgramLoader{ProgramName: "call_program"},
+	).WithDefaults(
+		&CallInfo{
+			Program: codec.CreateAddress(0, ids.GenerateTestID()),
+			Fuel:    1000000,
+		})
+
+	// try to use a context that has a default program with a different program
+	result, err := r.CallProgram(
+		ctx,
+		&CallInfo{
+			Program:      codec.CreateAddress(1, ids.GenerateTestID()),
+			FunctionName: "actor_check",
+		})
+	require.ErrorIs(err, errCannotOverwrite)
 	require.Nil(result)
 }
