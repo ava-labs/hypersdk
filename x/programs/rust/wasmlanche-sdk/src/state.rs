@@ -130,9 +130,9 @@ impl<'a, K: Key> State<'a, K> {
         let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
         if ptr.is_null() {
-            return Ok(None);
+            Ok(None)
         } else {
-            return Ok(Some(ptr.into()));
+            Ok(Some(ptr.into()))
         }
     }
 
@@ -147,9 +147,9 @@ impl<'a, K: Key> State<'a, K> {
             Some(Some(val)) => {
                 if val.is_empty() {
                     return Ok(None);
-                } else {
-                    val
                 }
+
+                val
             }
             Some(None) => return Ok(None),
             None => {
