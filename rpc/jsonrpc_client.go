@@ -116,7 +116,7 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 }
 
 type Modifier interface {
-	Base(*chain.Base)
+	Base(*chain.Transaction)
 }
 
 func (cli *JSONRPCClient) GenerateTransaction(
@@ -157,20 +157,16 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	// Construct transaction
 	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
-	base := &chain.Base{
-		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
-		ChainID:   rules.ChainID(),
-		MaxFee:    maxFee,
-	}
+	timestamp := utils.UnixRMilli(now, rules.GetValidityWindow())
+	tx := chain.NewTx(timestamp, rules.ChainID(), maxFee, actions)
 
 	// Modify gathered data
 	for _, m := range modifiers {
-		m.Base(base)
+		m.Base(tx)
 	}
 
 	// Build transaction
 	actionRegistry, authRegistry := parser.Registry()
-	tx := chain.NewTx(base, actions)
 	tx, err := tx.Sign(authFactory, actionRegistry, authRegistry)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: failed to sign transaction", err)
