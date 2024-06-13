@@ -102,7 +102,7 @@ pub fn init(context: Context<StateKey>, token1: Program, token2: Program) {
 
 #[public]
 pub fn add_liquidity(context: Context<StateKey>, supplied_token1: u64, supplied_token2: u64) {
-    let Context { program, actor } = context;
+    let Context { program, actor, .. } = context;
 
     let balance_token1 =
         erc20_token::balance_of(get_token1(&program, 10000000), *program.account());
