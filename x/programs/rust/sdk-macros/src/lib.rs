@@ -297,12 +297,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                     Ok(quote! {
                         Self::#variant_ident(#(#fields),*) => {
-                            let as_bytes = borsh::to_vec(&(#(#fields_2),*))?;
-                            let len = 1 + as_bytes.len();
-                            let len = u32::try_from(len).map_err(|_| std::io::ErrorKind::InvalidData)?;
-                            writer.write_all(&len.to_le_bytes())?;
-                            writer.write_all(&[#idx])?;
-                            writer.write_all(&as_bytes)?;
+                            borsh::to_vec(&(#idx, #(#fields_2),*))?.serialize(writer);
                         }
                     })
                 }
