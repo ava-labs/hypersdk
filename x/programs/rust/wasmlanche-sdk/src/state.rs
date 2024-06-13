@@ -70,7 +70,15 @@ impl<'a, K: Key> State<'a, K> {
     where
         V: BorshSerialize,
     {
-        let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
+        let serialized = to_vec(&value)
+            .map_err(|_| StateError::Deserialization)
+            .and_then(|bytes| {
+                if bytes.is_empty() {
+                    Err(StateError::InvalidByteLength(0))
+                } else {
+                    Ok(bytes)
+                }
+            })?;
         self.cache.borrow_mut().insert(key, serialized);
 
         Ok(())
