@@ -297,7 +297,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                     Ok(quote! {
                         Self::#variant_ident(#(#fields),*) => {
-                            borsh::to_vec(&(#idx, #(#fields_2),*))?.serialize(writer);
+                            borsh::to_vec(&(#idx, #(#fields_2),*))?.serialize(writer)?;
                         }
                     })
                 }
