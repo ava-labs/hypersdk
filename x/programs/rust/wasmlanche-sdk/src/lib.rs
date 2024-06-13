@@ -7,8 +7,6 @@ mod logging;
 mod memory;
 mod program;
 
-use std::arch::aarch64::uint64x1_t;
-
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
@@ -22,6 +20,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
 use types::Address;
 
+pub const ID_LEN: usize = 32;
+pub type Id = [u8; ID_LEN];
 pub type Gas = u64;
 
 #[derive(Debug, thiserror::Error)]
@@ -31,9 +31,6 @@ pub enum Error {
     #[error("Param error: {0}")]
     Param(#[from] std::io::Error),
 }
-
-pub const ID_LEN: usize = 32;
-type Id = [u8; ID_LEN];
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context<K = ()> {

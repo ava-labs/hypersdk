@@ -8,8 +8,8 @@ import "C"
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -94,7 +94,8 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	// create the program context
 	programCtx := Context{
 		Program: callInfo.Program,
-		Actor:   callInfo.Actor}
+		Actor:   callInfo.Actor,
+	}
 	paramsBytes, err := serialize(programCtx)
 	if err != nil {
 		return nil, err
