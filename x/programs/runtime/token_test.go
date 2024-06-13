@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestTokenAMM(t *testing.T) {

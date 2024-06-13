@@ -1,5 +1,5 @@
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{Gas, public, state_keys, types::Address, Program, ExternalCallContext};
+use wasmlanche_sdk::{public, state_keys, types::Address, ExternalCallContext, Gas, Program};
 
 /// The program state keys.
 #[state_keys]
@@ -41,7 +41,8 @@ pub fn get_token1(program: &Program<StateKey>, max_units: Gas) -> ExternalCallCo
             .get::<Program>(StateKey::Token1)
             .expect("failed to load token 1")
             .expect("token 1 doesn't exist"),
-            max_units)
+        max_units,
+    )
 }
 
 pub fn get_token2(program: &Program<StateKey>, max_units: Gas) -> ExternalCallContext {
@@ -51,7 +52,8 @@ pub fn get_token2(program: &Program<StateKey>, max_units: Gas) -> ExternalCallCo
             .get::<Program>(StateKey::Token2)
             .expect("failed to load token 2")
             .expect("token 2 doesn't exist"),
-            max_units)
+        max_units,
+    )
 }
 
 /// Initializes the program with a name, symbol, and total supply.
@@ -102,16 +104,28 @@ pub fn init(context: Context<StateKey>, token1: Program, token2: Program) {
 pub fn add_liquidity(context: Context<StateKey>, supplied_token1: u64, supplied_token2: u64) {
     let Context { program, actor } = context;
 
-    let balance_token1 = erc20_token::balance_of(get_token1(&program, 10000000), *program.account());
-    let balance_token2 = erc20_token::balance_of(get_token2(&program, 10000000), *program.account());
+    let balance_token1 =
+        erc20_token::balance_of(get_token1(&program, 10000000), *program.account());
+    let balance_token2 =
+        erc20_token::balance_of(get_token2(&program, 10000000), *program.account());
 
     assert!(
         supplied_token1 * balance_token2 == supplied_token2 * balance_token1,
         "Invalid ratio"
     );
 
-    erc20_token::transfer_from(get_token1(&program, 20000000), actor, *program.account(), supplied_token1);
-    erc20_token::transfer_from(get_token2(&program, 20000000), actor, *program.account(), supplied_token2);
+    erc20_token::transfer_from(
+        get_token1(&program, 20000000),
+        actor,
+        *program.account(),
+        supplied_token1,
+    );
+    erc20_token::transfer_from(
+        get_token2(&program, 20000000),
+        actor,
+        *program.account(),
+        supplied_token2,
+    );
 
     // Mint LP tokens based on the amount of liquidity provided
     let liquidity = calculate_liquidity_amount(supplied_token1, supplied_token2);
@@ -159,8 +173,8 @@ pub fn remove_liquidity(context: Context<StateKey>, amount: u64) -> (u64, u64) {
     let amount_token2 = amount * reserve2 / total_liquidity;
     _burn(&program, actor, amount);
 
-    erc20_token::transfer(get_token1(&program,2000000), actor, amount_token1);
-    erc20_token::transfer(get_token2(&program,2000000), actor, amount_token2);
+    erc20_token::transfer(get_token1(&program, 2000000), actor, amount_token1);
+    erc20_token::transfer(get_token2(&program, 2000000), actor, amount_token2);
 
     let reserve1 = reserve1 - amount_token1;
     program
