@@ -137,18 +137,18 @@ impl<'a, K: Key> State<'a, K> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put"]
-            fn put_many_bytes(ptr: *const u8, len: usize);
-        }
-
-        let value = self.get(key)?;
-        if value.is_none() {
-            return Ok(None);
+            fn put(ptr: *const u8, len: usize);
         }
 
         #[derive(BorshSerialize)]
         struct PutArgs<Key> {
             key: Key,
             value: Vec<u8>,
+        }
+
+        let value = self.get(key)?;
+        if value.is_none() {
+            return Ok(None);
         }
 
         // TODO:
@@ -160,7 +160,7 @@ impl<'a, K: Key> State<'a, K> {
         };
         let args_bytes = borsh::to_vec(&vec![args]).map_err(|_| StateError::Serialization)?;
 
-        unsafe { put_many_bytes(args_bytes.as_ptr(), args_bytes.len()) };
+        unsafe { put(args_bytes.as_ptr(), args_bytes.len()) };
 
         Ok(value)
     }
@@ -170,7 +170,7 @@ impl<'a, K: Key> State<'a, K> {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put"]
-            fn put_many_bytes(ptr: *const u8, len: usize);
+            fn put(ptr: *const u8, len: usize);
         }
 
         #[derive(BorshSerialize)]
@@ -186,6 +186,6 @@ impl<'a, K: Key> State<'a, K> {
             .map(|(key, value)| PutArgs { key, value })
             .collect();
         let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-        unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
+        unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
     }
 }
