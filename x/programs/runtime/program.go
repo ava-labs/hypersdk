@@ -9,8 +9,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
-	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/codec"
 )
@@ -21,8 +21,10 @@ const (
 )
 
 type Context struct {
-	Program codec.Address `json:"program"`
-	Actor   codec.Address `json:"actor"`
+	Program  codec.Address
+	Actor    codec.Address
+	Height   uint64
+	ActionID ids.ID
 }
 
 type CallInfo struct {
@@ -42,6 +44,12 @@ type CallInfo struct {
 
 	// the amount of fuel allowed to be consumed by wasm for this call
 	Fuel uint64
+
+	// the height of the chain that this call was made from
+	Height uint64
+
+	// the action id that triggered this call
+	ActionID ids.ID
 
 	inst *ProgramInstance
 }
@@ -84,15 +92,18 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	}
 
 	// create the program context
-	programCtx := Context{Program: callInfo.Program, Actor: callInfo.Actor}
-	paramsBytes, err := borsh.Serialize(programCtx)
+	programCtx := Context{
+		Program: callInfo.Program,
+		Actor:   callInfo.Actor,
+	}
+	paramsBytes, err := serialize(programCtx)
 	if err != nil {
 		return nil, err
 	}
 	paramsBytes = append(paramsBytes, callInfo.Params...)
 
 	// copy params into store linear memory
-	paramsOffset, err := p.setParams(paramsBytes)
+	paramsOffset, err := p.writeToMemory(paramsBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +117,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	return p.result, err
 }
 
-func (p *ProgramInstance) setParams(data []byte) (int32, error) {
+func (p *ProgramInstance) writeToMemory(data []byte) (int32, error) {
 	allocFn := p.inst.GetExport(p.store, AllocName).Func()
 	programMemory := p.inst.GetExport(p.store, MemoryName).Memory()
 	dataOffsetIntf, err := allocFn.Call(p.store, int32(len(data)))

@@ -1,5 +1,5 @@
 error: The first paramter of a function with the `#[public]` attribute must be of type `wasmlanche_sdk::Context`
- --> tests/ui/first-param.rs:4:16
+ --> tests/ui/fail/receiver.rs:7:17
   |
-4 | pub fn test(a: u32) {}
-  |                ^^^
+7 |     pub fn test(&self) {}
+  |                 ^

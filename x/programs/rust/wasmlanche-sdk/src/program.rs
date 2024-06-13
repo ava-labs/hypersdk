@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap};
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Program<K = ()> {
     account: Address,
     state_cache: RefCell<HashMap<K, Vec<u8>>>,
@@ -21,7 +21,8 @@ impl<K> BorshSerialize for Program<K> {
             account,
             state_cache: _,
         } = self;
-        BorshSerialize::serialize(account, writer)
+
+        account.serialize(writer)
     }
 }
 
@@ -47,10 +48,10 @@ impl<K> Program<K> {
     /// Returns a [`StateError`] if the call fails.
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function<T: BorshDeserialize, ArgType: BorshSerialize>(
+    pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,
-        args: ArgType,
+        args: &[u8],
         max_units: Gas,
     ) -> Result<T, StateError> {
         #[link(wasm_import_module = "program")]
@@ -59,12 +60,10 @@ impl<K> Program<K> {
             fn call_program(ptr: *const u8, len: usize) -> HostPtr;
         }
 
-        let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
-
         let args = CallProgramArgs {
             target: self,
             function: function_name.as_bytes(),
-            args_ptr: &args_ptr,
+            args,
             max_units,
         };
 
@@ -103,7 +102,7 @@ impl<K: Key> Program<K> {
 struct CallProgramArgs<'a, K> {
     target: &'a Program<K>,
     function: &'a [u8],
-    args_ptr: &'a [u8],
+    args: &'a [u8],
     max_units: Gas,
 }
 
@@ -112,13 +111,15 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
         let Self {
             target,
             function,
-            args_ptr,
+            args,
             max_units,
         } = self;
-        BorshSerialize::serialize(target, writer)?;
-        BorshSerialize::serialize(function, writer)?;
-        BorshSerialize::serialize(args_ptr, writer)?;
-        BorshSerialize::serialize(max_units, writer)?;
+
+        target.serialize(writer)?;
+        function.serialize(writer)?;
+        args.serialize(writer)?;
+        max_units.serialize(writer)?;
+
         Ok(())
     }
 }

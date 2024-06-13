@@ -197,9 +197,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let block = Box::new(parse_quote! {{
+        let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         param_0
             .program()
-            .call_function::<#return_type, _>(#name, (#(#args),*), param_0.max_units())
+            .call_function::<#return_type>(#name, &args, param_0.max_units())
             .expect("calling the external program failed")
     }});
 

@@ -20,6 +20,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
 use types::Address;
 
+pub const ID_LEN: usize = 32;
+pub type Id = [u8; ID_LEN];
 pub type Gas = u64;
 
 #[derive(Debug, thiserror::Error)]
@@ -30,17 +32,26 @@ pub enum Error {
     Param(#[from] std::io::Error),
 }
 
-#[derive(Debug)]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context<K = ()> {
     pub program: Program<K>,
     pub actor: Address,
+    pub height: u64,
+    pub action_id: Id,
 }
 
 impl<K> BorshSerialize for Context<K> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self { program, actor } = self;
+        let Self {
+            program,
+            actor,
+            height,
+            action_id,
+        } = self;
         BorshSerialize::serialize(program, writer)?;
         BorshSerialize::serialize(actor, writer)?;
+        BorshSerialize::serialize(height, writer)?;
+        BorshSerialize::serialize(action_id, writer)?;
         Ok(())
     }
 }
@@ -49,7 +60,14 @@ impl<K> BorshDeserialize for Context<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
         let program: Program<K> = BorshDeserialize::deserialize_reader(reader)?;
         let actor: Address = BorshDeserialize::deserialize_reader(reader)?;
-        Ok(Self { program, actor })
+        let height: u64 = BorshDeserialize::deserialize_reader(reader)?;
+        let action_id: Id = BorshDeserialize::deserialize_reader(reader)?;
+        Ok(Self {
+            program,
+            actor,
+            height,
+            action_id,
+        })
     }
 }
 
