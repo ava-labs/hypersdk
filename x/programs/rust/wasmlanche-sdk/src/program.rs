@@ -62,8 +62,6 @@ impl<K> Program<K> {
     /// is used to call functions on external programs.
     /// # Errors
     /// Returns a [`ExternalCallError`] if the call fails.
-    /// # Panics
-    /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     /// # Examples

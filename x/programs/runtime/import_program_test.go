@@ -45,6 +45,7 @@ func TestImportProgramCallProgram(t *testing.T) {
 
 	expected, err := serialize(0)
 	require.NoError(err)
+	expected = append(Ok, expected...)
 
 	result, err := program.Call("simple_call")
 	require.NoError(err)
@@ -70,7 +71,7 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 	require.NoError(err)
 	expected, err := serialize(actor)
 	require.NoError(err)
-	require.Equal(expected, result)
+	require.Equal(append(Ok, expected...), result)
 }
 
 func TestImportProgramCallProgramActorChange(t *testing.T) {
@@ -89,7 +90,7 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 	require.NoError(err)
 	expected, err := serialize(program.Address)
 	require.NoError(err)
-	require.Equal(expected, result)
+	require.Equal(append(Ok, expected...), result)
 }
 
 func TestImportProgramCallProgramWithParam(t *testing.T) {
@@ -102,6 +103,7 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 
 	expected, err := serialize(uint64(1))
 	require.NoError(err)
+	expected = append(Ok, expected...)
 
 	result, err := program.Call(
 		"call_with_param",
@@ -126,6 +128,8 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 
 	expected, err := serialize(int64(3))
 	require.NoError(err)
+	expected = append(Ok, expected...)
+
 	result, err := program.Call(
 		"call_with_two_params",
 		uint64(1),
