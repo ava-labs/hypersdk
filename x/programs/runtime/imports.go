@@ -100,21 +100,6 @@ func (f Function[T, U]) call(callInfo *CallInfo, caller *wasmtime.Caller, vals [
 	return writeOutputToMemory(callInfo, results, err)
 }
 
-type InfaillibleFunction[T any] func(*CallInfo, T) RawBytes
-
-func (InfaillibleFunction[T]) wasmType() *wasmtime.FuncType {
-	return wasmtime.NewFuncType([]*wasmtime.ValType{typeI32, typeI32}, []*wasmtime.ValType{typeI32})
-}
-
-func (f InfaillibleFunction[T]) call(callInfo *CallInfo, caller *wasmtime.Caller, vals []wasmtime.Val) ([]wasmtime.Val, *wasmtime.Trap) {
-	input, err := getInputFromMemory[T](caller, vals)
-	if err != nil {
-		return writeOutputToMemory[interface{}](callInfo, nil, err)
-	}
-	results := f(callInfo, *input)
-	return writeOutputToMemory(callInfo, results, nil)
-}
-
 type FunctionNoInput[T any] func(*CallInfo) (T, error)
 
 func (FunctionNoInput[T]) wasmType() *wasmtime.FuncType {
