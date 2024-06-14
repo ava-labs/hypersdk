@@ -35,9 +35,15 @@ func TestRuntimeCallProgramBasic(t *testing.T) {
 
 	program := newTestProgram(ctx, "simple")
 
+<<<<<<< HEAD
 	result, err := program.Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
+=======
+	result := program.Call("get_value")
+	result = test.Unwrap(t, result)
+	require.Equal(uint64(0), test.Into[uint64](result))
+>>>>>>> 7f128f07 (apply review suggestions)
 }
 
 type ComplexReturn struct {
@@ -53,7 +59,13 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 
 	program := newTestProgram(ctx, "return_complex_type")
 
+<<<<<<< HEAD
 	result, err := program.Call("get_value")
 	require.NoError(err)
 	require.Equal(ComplexReturn{Program: program.Address, MaxUnits: 1000}, into[ComplexReturn](result))
+=======
+	result := program.Call("get_value")
+	result = test.Unwrap(t, result)
+	require.Equal(ComplexReturn{Program: program.Address, MaxUnits: 1000}, test.Into[ComplexReturn](result))
+>>>>>>> 7f128f07 (apply review suggestions)
 }

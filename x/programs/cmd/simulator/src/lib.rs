@@ -173,12 +173,21 @@ pub struct StepResult {
     response: Vec<u8>,
 }
 
+#[derive(Error, Debug)]
+pub enum StepResponseError {
+    #[error(transparent)]
+    Serialization(#[from] borsh::io::Error),
+    #[error(transparent)]
+    ExternalCall(#[from] ExternalCallError),
+}
+
 impl StepResult {
-    pub fn response<T>(&self) -> Result<Result<T, ExternalCallError>, borsh::io::Error>
+    pub fn response<T>(&self) -> Result<T, StepResponseError>
     where
         T: BorshDeserialize,
     {
-        borsh::from_slice(&self.response)
+        let res: Result<T, ExternalCallError> = borsh::from_slice(&self.response)?;
+        res.map_err(StepResponseError::ExternalCall)
     }
 }
 

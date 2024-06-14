@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
@@ -130,4 +131,11 @@ func Flatten[T any](slices ...[]T) []T {
 		result = append(result, slice...)
 	}
 	return result
+}
+
+func Unwrap(t *testing.T, data []byte) []byte {
+	if len(data) < 1 || data[0] == 0 {
+		t.Fatalf("error response")
+	}
+	return data[1:]
 }

@@ -75,6 +75,6 @@ mod tests {
             .response::<u64>()
             .unwrap();
 
-        assert_eq!(response, Ok(1));
+        assert_eq!(response, 1);
     }
 }

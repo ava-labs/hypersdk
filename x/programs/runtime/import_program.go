@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"

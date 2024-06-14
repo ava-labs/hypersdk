@@ -11,11 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	None = []byte{0}
-	Some = []byte{1}
-)
-
 func TestImportStatePutGet(t *testing.T) {
 	require := require.New(t)
 
@@ -26,7 +21,7 @@ func TestImportStatePutGet(t *testing.T) {
 
 	result, err := program.Call("put", int64(10))
 	require.NoError(err)
-	require.Equal(Ok, result)
+	require.Equal(Ok([]byte{}), result)
 
 	result, err = program.Call("get")
 	require.NoError(err)
@@ -48,7 +43,7 @@ func TestImportStateRemove(t *testing.T) {
 
 	result, err := program.Call("put", int64(10))
 	require.NoError(err)
-	require.Equal(Ok, result)
+	require.Equal(Ok([]byte{}), result)
 
 	result, err = program.Call("delete")
 	require.NoError(err)

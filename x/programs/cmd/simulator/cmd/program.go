@@ -125,10 +125,7 @@ func programExecuteFunc(
 		FunctionName: function,
 		Params:       bytes,
 	}
-	programOutput, err := rt.CallProgram(ctx, callInfo)
-	if err != nil {
-		return [][]byte{programOutput}, 0
-	}
+	programOutput := rt.CallProgram(ctx, callInfo)
 
 	return [][]byte{programOutput}, callInfo.RemainingFuel()
 }
