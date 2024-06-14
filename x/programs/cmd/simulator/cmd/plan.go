@@ -248,11 +248,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
-
 		response, err := runtime.Serialize(output)
 		if err != nil {
 			return err
