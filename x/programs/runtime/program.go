@@ -63,6 +63,11 @@ func (c *CallInfo) RemainingFuel() uint64 {
 	return remaining
 }
 
+func (c *CallInfo) AddFuel(fuel uint64) {
+	// only errors if fuel isn't enable, which it always will be
+	_ = c.inst.store.AddFuel(fuel)
+}
+
 func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 	_, err := c.inst.store.ConsumeFuel(fuel)
 	return err
