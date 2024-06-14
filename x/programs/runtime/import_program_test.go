@@ -126,7 +126,6 @@ func TestImportProgramCallProgramWithParams(t *testing.T) {
 
 	expected, err := serialize(int64(3))
 	require.NoError(err)
-	expected = Ok(expected)
 
 	result, err := program.Call(
 		"call_with_two_params",

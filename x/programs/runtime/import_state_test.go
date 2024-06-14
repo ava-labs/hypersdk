@@ -21,7 +21,7 @@ func TestImportStatePutGet(t *testing.T) {
 
 	result, err := program.Call("put", int64(10))
 	require.NoError(err)
-	require.Equal(Ok([]byte{}), result)
+	require.Nil(result)
 
 	result, err = program.Call("get")
 	require.NoError(err)
@@ -43,7 +43,7 @@ func TestImportStateRemove(t *testing.T) {
 
 	result, err := program.Call("put", int64(10))
 	require.NoError(err)
-	require.Equal(Ok([]byte{}), result)
+	require.Nil(result)
 
 	result, err = program.Call("delete")
 	require.NoError(err)
