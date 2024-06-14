@@ -82,14 +82,6 @@ func prependAccountToKey(account codec.Address, key []byte) []byte {
 	return result
 }
 
-func Into[T any](data []byte) T {
-	result := new(T)
-	if err := borsh.Deserialize(result, data); err != nil {
-		panic(err.Error())
-	}
-	return *result
-}
-
 func SerializeParams(params ...interface{}) []byte {
 	if len(params) == 0 {
 		return nil
