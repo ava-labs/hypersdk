@@ -49,3 +49,24 @@ func TestSerializationResult(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testResult, *deserialized)
 }
+
+func TestSerializationOption(t *testing.T) {
+	require := require.New(t)
+	testOption := Some[byte](1)
+
+	serializedBytes, err := serialize(testOption)
+	require.NoError(err)
+	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
+
+	serializedBytes, err = testOption.customSerialize()
+	require.NoError(err)
+	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
+
+	deserialized, err := Option[byte]{}.customDeserialize(serializedBytes)
+	require.NoError(err)
+	require.Equal(testOption, *deserialized)
+
+	deserialized, err = deserialize[Option[byte]](serializedBytes)
+	require.NoError(err)
+	require.Equal(testOption, *deserialized)
+}

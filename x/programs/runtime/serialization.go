@@ -87,23 +87,15 @@ func Err[T any, E any](e E) Result[T, E] {
 	return Result[T, E]{e: e, hasError: true}
 }
 
-func (r Result[T, E]) isOk() bool {
-	return !r.hasError
-}
-
-func (r Result[T, E]) isErr() bool {
-	return r.hasError
-}
-
 func (r Result[T, E]) customSerialize() ([]byte, error) {
 	var prefix []byte
 	var val any
-	if r.isOk() {
-		prefix = []byte{resultOkPrefix}
-		val = r.value
-	} else {
+	if r.hasError {
 		prefix = []byte{resultErrPrefix}
 		val = r.e
+	} else {
+		prefix = []byte{resultOkPrefix}
+		val = r.value
 	}
 	bytes, err := serialize(val)
 	if err != nil {
@@ -139,9 +131,70 @@ func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
 }
 
 func (r Result[T, E]) Ok() (T, bool) {
-	return r.value, r.isOk()
+	return r.value, !r.hasError
 }
 
 func (r Result[T, E]) Err() (E, bool) {
-	return r.e, r.isErr()
+	return r.e, r.hasError
+}
+
+const (
+	optionSomePrefix = byte(1)
+	optionNonePrefix = byte(0)
+)
+
+type Option[T any] struct {
+	isNone bool
+	value  T
+}
+
+func Some[T any](val T) Option[T] {
+	return Option[T]{value: val}
+}
+
+func None[T any]() Option[T] {
+	return Option[T]{isNone: true}
+}
+
+func (o Option[T]) customSerialize() ([]byte, error) {
+	var prefix []byte
+	if o.isNone {
+		return []byte{optionNonePrefix}, nil
+	}
+	prefix = []byte{optionSomePrefix}
+	bytes, err := serialize(o.value)
+	if err != nil {
+		return nil, err
+	}
+	return append(prefix, bytes...), nil
+}
+
+func (Option[T]) customDeserialize(data []byte) (*Option[T], error) {
+	if len(data) < 1 {
+		return nil, errors.New("deserialization")
+	}
+	switch data[0] {
+	case optionSomePrefix:
+		{
+			val, err := deserialize[T](data[1:])
+			if err != nil {
+				return nil, errors.New("deserialization")
+			}
+			return &Option[T]{value: *val}, nil
+		}
+	case optionNonePrefix:
+		{
+			return &Option[T]{isNone: true}, nil
+		}
+	default:
+		return &Option[T]{isNone: true}, errors.New("deserialization")
+	}
+}
+
+func (o Option[T]) Some() (T, bool) {
+	return o.value, !o.isNone
+}
+
+func (o Option[T]) None() bool {
+	return o.isNone
 }
