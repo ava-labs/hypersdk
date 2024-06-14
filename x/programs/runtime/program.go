@@ -21,7 +21,7 @@ const (
 )
 
 type Context struct {
-	Program  codec.Address
+	Account  codec.Address
 	Actor    codec.Address
 	Height   uint64
 	ActionID ids.ID
@@ -37,7 +37,7 @@ type CallInfo struct {
 	// the name of the function within the program that is being called
 	FunctionName string
 
-	Program codec.Address
+	Account codec.Address
 
 	// the serialized parameters that will be passed to the called function
 	Params []byte
@@ -73,22 +73,10 @@ func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 	return err
 }
 
-type Program struct {
-	module *wasmtime.Module
-}
-
 type ProgramInstance struct {
 	inst   *wasmtime.Instance
 	store  *wasmtime.Store
 	result []byte
-}
-
-func newProgram(engine *wasmtime.Engine, programBytes []byte) (*Program, error) {
-	module, err := wasmtime.NewModule(engine, programBytes)
-	if err != nil {
-		return nil, err
-	}
-	return &Program{module: module}, nil
 }
 
 func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
@@ -98,7 +86,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 
 	// create the program context
 	programCtx := Context{
-		Program: callInfo.Program,
+		Account: callInfo.Account,
 		Actor:   callInfo.Actor,
 	}
 	paramsBytes, err := serialize(programCtx)

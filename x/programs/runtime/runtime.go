@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/ids"
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -15,12 +16,13 @@ import (
 )
 
 type WasmRuntime struct {
-	log           logging.Logger
-	engine        *wasmtime.Engine
-	hostImports   *Imports
-	cfg           *Config
-	programs      map[codec.Address]*Program
-	programLoader ProgramLoader
+	log              logging.Logger
+	engine           *wasmtime.Engine
+	hostImports      *Imports
+	cfg              *Config
+	accountToProgram map[codec.Address]ids.ID
+	programToModule  map[ids.ID]*wasmtime.Module
+	programStore     ProgramStore
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
@@ -28,25 +30,29 @@ type WasmRuntime struct {
 }
 
 type StateLoader interface {
-	GetProgramState(address codec.Address) state.Mutable
+	GetAccountState(address codec.Address) state.Mutable
 }
 
-type ProgramLoader interface {
-	GetProgramBytes(ctx context.Context, address codec.Address) ([]byte, error)
+type ProgramStore interface {
+	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
+	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	NewAccountWithProgram(ctx context.Context, programID ids.ID, initInfo []byte) (codec.Address, error)
+	SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error
 }
 
 func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
-	programLoader ProgramLoader,
+	programStore ProgramStore,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
 		log:                       log,
 		cfg:                       cfg,
 		engine:                    wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:               NewImports(),
-		programs:                  map[codec.Address]*Program{},
-		programLoader:             programLoader,
+		accountToProgram:          map[codec.Address]ids.ID{},
+		programToModule:           map[ids.ID]*wasmtime.Module{},
+		programStore:              programStore,
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
 	}
@@ -63,28 +69,41 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.linkerNeedsInitialization = true
 }
 
-func (r *WasmRuntime) AddProgram(program codec.Address, bytes []byte) (*Program, error) {
-	programModule, err := newProgram(r.engine, bytes)
+func (r *WasmRuntime) AddProgram(id ids.ID, programBytes []byte) error {
+	_, err := r.addProgram(id, programBytes)
+	return err
+}
+
+func (r *WasmRuntime) addProgram(id ids.ID, programBytes []byte) (*wasmtime.Module, error) {
+	programModule, err := wasmtime.NewModule(r.engine, programBytes)
 	if err != nil {
 		return nil, err
 	}
-	r.programs[program] = programModule
+
+	r.programToModule[id] = programModule
 	return programModule, nil
 }
 
-func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	program, ok := r.programs[callInfo.Program]
+func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
+	programID, ok := r.accountToProgram[callInfo.Account]
 	if !ok {
-		bytes, err := r.programLoader.GetProgramBytes(ctx, callInfo.Program)
-		if err != nil {
+		if programID, err = r.programStore.GetAccountProgram(ctx, callInfo.Account); err != nil {
 			return nil, err
 		}
-		program, err = r.AddProgram(callInfo.Program, bytes)
-		if err != nil {
-			return nil, err
-		}
+		r.accountToProgram[callInfo.Account] = programID
 	}
-	inst, err := r.getInstance(program, r.hostImports)
+	programModule, ok := r.programToModule[programID]
+	if !ok {
+		programBytes, err := r.programStore.GetProgramBytes(ctx, programID)
+		if err != nil {
+			return nil, err
+		}
+		programModule, err = r.addProgram(programID, programBytes)
+	}
+	if err != nil {
+		return nil, err
+	}
+	inst, err := r.getInstance(programModule, r.hostImports)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +115,7 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) ([]by
 	return inst.call(ctx, callInfo)
 }
 
-func (r *WasmRuntime) getInstance(program *Program, imports *Imports) (*ProgramInstance, error) {
+func (r *WasmRuntime) getInstance(programModule *wasmtime.Module, imports *Imports) (*ProgramInstance, error) {
 	if r.linkerNeedsInitialization {
 		linker, err := imports.createLinker(r)
 		if err != nil {
@@ -108,7 +127,7 @@ func (r *WasmRuntime) getInstance(program *Program, imports *Imports) (*ProgramI
 
 	store := wasmtime.NewStore(r.engine)
 	store.SetEpochDeadline(1)
-	inst, err := r.linker.Instantiate(store, program.module)
+	inst, err := r.linker.Instantiate(store, programModule)
 	if err != nil {
 		return nil, err
 	}

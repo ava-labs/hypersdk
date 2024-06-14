@@ -24,7 +24,7 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 	return t.Runtime.CallProgram(
 		t.Context,
 		&CallInfo{
-			Program:      program,
+			Account:      program,
 			Actor:        actor,
 			State:        t.StateDB,
 			FunctionName: function,
@@ -42,7 +42,7 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Runtime: NewRuntime(
 				NewConfig(),
 				logging.NoLog{},
-				test.ProgramLoader{ProgramName: program}),
+				test.ProgramStore{ProgramName: program}),
 			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
 			DefaultGas: 10000000,
 		},

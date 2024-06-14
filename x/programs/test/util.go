@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/ava-labs/avalanchego/ids"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,11 +32,15 @@ func CompileTest(programName string) error {
 	return nil
 }
 
-type ProgramLoader struct {
+type ProgramStore struct {
 	ProgramName string
 }
 
-func (t ProgramLoader) GetProgramBytes(_ context.Context, _ codec.Address) ([]byte, error) {
+func (t ProgramStore) GetAccountProgram(_ context.Context, _ codec.Address) (ids.ID, error) {
+	return ids.GenerateTestID(), nil
+}
+
+func (t ProgramStore) GetProgramBytes(_ context.Context, _ ids.ID) ([]byte, error) {
 	if err := CompileTest(t.ProgramName); err != nil {
 		return nil, err
 	}
@@ -46,11 +51,19 @@ func (t ProgramLoader) GetProgramBytes(_ context.Context, _ codec.Address) ([]by
 	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
 }
 
+func (t ProgramStore) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
+	panic("implement me")
+}
+
+func (t ProgramStore) SetAccountProgram(_ context.Context, _ codec.Address, _ ids.ID) error {
+	panic("implement me")
+}
+
 type StateLoader struct {
 	Mu state.Mutable
 }
 
-func (t StateLoader) GetProgramState(address codec.Address) state.Mutable {
+func (t StateLoader) GetAccountState(address codec.Address) state.Mutable {
 	return &prefixedState{address: address, inner: t.Mu}
 }
 

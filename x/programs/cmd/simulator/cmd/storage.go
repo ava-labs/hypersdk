@@ -25,7 +25,7 @@ type programStateLoader struct {
 	inner state.Mutable
 }
 
-func (p programStateLoader) GetProgramState(account codec.Address) state.Mutable {
+func (p programStateLoader) GetAccountState(account codec.Address) state.Mutable {
 	return newAccountPrefixedMutable(account, p.inner)
 }
 
