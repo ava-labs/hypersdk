@@ -2,7 +2,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::collections::HashSet;
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
+use wasmlanche_sdk::ExternalCallError;
 use wasmlanche_sdk::{public, state_keys, types::Address, Program};
+
+const MIN_VOTES: u32 = 2;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct Proposal {
@@ -21,6 +24,7 @@ pub enum ProposalError {
     AlreadyVoted,
     InexistentProposal,
     QuorumNotReached,
+    ExecutionFailure(ExternalCallError),
 }
 
 #[state_keys]
@@ -79,7 +83,11 @@ pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), Propo
 }
 
 #[public]
-pub fn execute(context: Context<StateKeys>, proposal_id: u32) -> Result<(), ProposalError> {
+pub fn execute(
+    context: Context<StateKeys>,
+    proposal_id: u32,
+    max_units: u64,
+) -> Result<Vec<u8>, ProposalError> {
     let Context { program, .. } = context;
     let mut proposal =
         proposal_at(&program, proposal_id).ok_or(ProposalError::InexistentProposal)?;
@@ -93,9 +101,10 @@ pub fn execute(context: Context<StateKeys>, proposal_id: u32) -> Result<(), Prop
 
     proposal.executed = true;
 
-    // TODO call_raw
-
-    Ok(())
+    proposal
+        .to
+        .call_function_bytes(&proposal.method, &proposal.data, max_units)
+        .map_err(ProposalError::ExecutionFailure)
 }
 
 fn proposal_at(program: &Program<StateKeys>, proposal_id: u32) -> Option<Proposal> {
@@ -115,8 +124,7 @@ fn proposal_id(program: &Program<StateKeys>) -> u32 {
 }
 
 fn quorum_reached(proposal: &Proposal) -> bool {
-    // TODO add rules
-    true
+    proposal.yea + proposal.nay >= MIN_VOTES && proposal.yea > proposal.nay
 }
 
 #[cfg(test)]
