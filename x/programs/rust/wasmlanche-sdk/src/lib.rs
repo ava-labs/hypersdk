@@ -37,6 +37,7 @@ pub struct Context<K = ()> {
     pub program: Program<K>,
     pub actor: Address,
     pub height: u64,
+    pub timestamp: u64,
     pub action_id: Id,
 }
 
@@ -46,11 +47,13 @@ impl<K> BorshSerialize for Context<K> {
             program,
             actor,
             height,
+            timestamp,
             action_id,
         } = self;
         BorshSerialize::serialize(program, writer)?;
         BorshSerialize::serialize(actor, writer)?;
         BorshSerialize::serialize(height, writer)?;
+        BorshSerialize::serialize(timestamp, writer)?;
         BorshSerialize::serialize(action_id, writer)?;
         Ok(())
     }
@@ -58,14 +61,16 @@ impl<K> BorshSerialize for Context<K> {
 
 impl<K> BorshDeserialize for Context<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let program: Program<K> = BorshDeserialize::deserialize_reader(reader)?;
-        let actor: Address = BorshDeserialize::deserialize_reader(reader)?;
-        let height: u64 = BorshDeserialize::deserialize_reader(reader)?;
-        let action_id: Id = BorshDeserialize::deserialize_reader(reader)?;
+        let program = BorshDeserialize::deserialize_reader(reader)?;
+        let actor = BorshDeserialize::deserialize_reader(reader)?;
+        let height = BorshDeserialize::deserialize_reader(reader)?;
+        let timestamp = BorshDeserialize::deserialize_reader(reader)?;
+        let action_id = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
             program,
             actor,
             height,
+            timestamp,
             action_id,
         })
     }
