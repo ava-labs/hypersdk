@@ -14,7 +14,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -131,11 +130,4 @@ func Flatten[T any](slices ...[]T) []T {
 		result = append(result, slice...)
 	}
 	return result
-}
-
-func Unwrap(require *require.Assertions, data []byte) []byte {
-	if len(data) < 1 || data[0] == 0 {
-		require.Fail("error response")
-	}
-	return data[1:]
 }
