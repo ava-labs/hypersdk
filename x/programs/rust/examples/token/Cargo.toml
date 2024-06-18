@@ -18,6 +18,7 @@ wasmlanche-sdk = { workspace = true, features = ["build"] }
 
 [features]
 bindings = []
+test_bindings = []
 
 # when creating a new project, you can uncomment the following lines to enable optimizations
 # [profile.release]

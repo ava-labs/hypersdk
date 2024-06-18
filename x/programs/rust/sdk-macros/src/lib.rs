@@ -1,6 +1,7 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
@@ -129,12 +130,23 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-    let args_props = match arg_props_or_err {
+    let bindings_args_props = match arg_props_or_err {
         Ok(param_names) => param_names,
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let binding_args_props = args_props.iter().cloned().map({
+    let simulator_arg = PatType {
+        attrs: vec![],
+        pat: Box::new(Pat::Verbatim(
+            Ident::new("simulator", Span::call_site()).to_token_stream(),
+        )),
+        colon_token: parse_quote!(:),
+        ty: parse_quote!(simulator::Client<W: std::io::Write, R: Iterator<Item = Result<simulator::StepResponse, simulator::StepError>>>),
+    };
+    let mut test_bindings_args_props = bindings_args_props.clone();
+    test_bindings_args_props.insert(0, simulator_arg);
+
+    let binding_args_props = bindings_args_props.iter().cloned().map({
         let mut first = true;
 
         move |mut arg| {
@@ -147,7 +159,11 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-    let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
+    let test_binding_args_props = test_bindings_args_props
+        .into_iter()
+        .map(|arg| FnArg::Typed(arg));
+
+    let converted_params = bindings_args_props.iter().map(|PatType { pat: name, .. }| {
         quote! {
            args.#name
         }
@@ -160,7 +176,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             use super::*;
             #[derive(borsh::BorshDeserialize)]
             struct Args {
-                #(#args_props),*
+                #(#bindings_args_props),*
             }
 
             #[link(wasm_import_module = "program")]
@@ -184,8 +200,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
-    let args = inputs.iter().skip(1).map(|arg| match arg {
+    let test_bindings_inputs: Punctuated<FnArg, Token![,]> = test_binding_args_props.collect();
+    let bindings_inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
+    let args = bindings_inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),
     });
@@ -196,7 +213,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         ReturnType::Default => parse_quote!(()),
     };
 
-    let block = Box::new(parse_quote! {{
+    let binding_block = Box::new(parse_quote! {{
         let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         param_0
             .program()
@@ -204,26 +221,45 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             .expect("calling the external program failed")
     }});
 
-    let sig = Signature {
-        inputs,
+    let test_binding_block = Box::new(parse_quote! {{
+        todo!();
+    }});
+
+    let bindings_sig = Signature {
+        inputs: bindings_inputs,
         ..input.sig.clone()
     };
 
     let mut binding = ItemFn {
-        sig,
-        block,
+        sig: bindings_sig.clone(),
+        block: binding_block,
+        ..input.clone()
+    };
+
+    let test_bindings_sig = Signature {
+        inputs: test_bindings_inputs,
+        ..input.sig.clone()
+    };
+
+    let mut test_binding = ItemFn {
+        sig: test_bindings_sig,
+        block: test_binding_block,
         ..input.clone()
     };
 
     let mut input = input;
 
-    let feature_name = "bindings";
+    let bindings_feature_name = "bindings";
+    let test_bindings_feature_name = "test_bindings";
     input
         .attrs
-        .push(parse_quote! { #[cfg(not(feature = #feature_name))] });
+        .push(parse_quote! { #[cfg(all(not(feature = #bindings_feature_name), not(feature = #test_bindings_feature_name)))] });
     binding
         .attrs
-        .push(parse_quote! { #[cfg(feature = #feature_name)] });
+        .push(parse_quote! { #[cfg(feature = #bindings_feature_name)] });
+    test_binding
+        .attrs
+        .push(parse_quote! { #[cfg(feature = #test_bindings_feature_name)] });
 
     input
         .block
@@ -231,6 +267,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         .insert(0, syn::parse2(external_call).unwrap());
 
     TokenStream::from(quote! {
+        #test_binding
         #binding
         #input
     })
