@@ -27,7 +27,7 @@ func TestImportStatePutGet(t *testing.T) {
 	require.NoError(err)
 	valueBytes, err := serialize(int64(10))
 	require.NoError(err)
-	require.Equal(append([]byte{1}, valueBytes...), result)
+	require.Equal(Some[RawBytes](valueBytes), into[Option[RawBytes]](result))
 }
 
 func TestImportStateRemove(t *testing.T) {
@@ -47,11 +47,11 @@ func TestImportStateRemove(t *testing.T) {
 
 	result, err = program.Call("delete")
 	require.NoError(err)
-	require.Equal(append([]byte{1}, valueBytes...), result)
+	require.Equal(Some[RawBytes](valueBytes), into[Option[RawBytes]](result))
 
 	result, err = program.Call("get")
 	require.NoError(err)
-	require.Equal([]byte{0}, result)
+	require.Equal(None[RawBytes](), into[Option[RawBytes]](result))
 }
 
 func TestImportStateDeleteMissingKey(t *testing.T) {
@@ -64,7 +64,7 @@ func TestImportStateDeleteMissingKey(t *testing.T) {
 
 	result, err := program.Call("delete")
 	require.NoError(err)
-	require.Equal([]byte{0}, result)
+	require.Equal(None[RawBytes](), into[Option[RawBytes]](result))
 }
 
 func TestImportStateGetMissingKey(t *testing.T) {
@@ -77,5 +77,5 @@ func TestImportStateGetMissingKey(t *testing.T) {
 
 	result, err := program.Call("get")
 	require.NoError(err)
-	require.Equal([]byte{0}, result)
+	require.Equal(None[RawBytes](), into[Option[RawBytes]](result))
 }

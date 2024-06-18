@@ -1,11 +1,25 @@
 use crate::{
     memory::HostPtr,
-    state::{Error as StateError, Key, State},
+    state::{Key, State},
     types::Address,
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
+use thiserror::Error;
+
+#[derive(Error, Debug, BorshDeserialize)]
+#[repr(u8)]
+#[non_exhaustive]
+#[borsh(use_discriminant = true)]
+pub enum ExternalCallError {
+    #[error("an error happened during the execution")]
+    ExecutionFailure = 0,
+    #[error("the call panicked")]
+    CallPanicked = 1,
+    #[error("not enough fuel to cover the execution")]
+    OutOfFuel = 2,
+}
 
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
@@ -21,7 +35,8 @@ impl<K> BorshSerialize for Program<K> {
             account,
             state_cache: _,
         } = self;
-        BorshSerialize::serialize(account, writer)
+
+        account.serialize(writer)
     }
 }
 
@@ -44,35 +59,35 @@ impl<K> Program<K> {
     /// Attempts to call a function `name` with `args` on the given program. This method
     /// is used to call functions on external programs.
     /// # Errors
-    /// Returns a [`StateError`] if the call fails.
+    /// Returns a [`ExternalCallError`] if the call fails.
+    /// # Panics
+    /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function<T: BorshDeserialize, ArgType: BorshSerialize>(
+    pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,
-        args: ArgType,
+        args: &[u8],
         max_units: Gas,
-    ) -> Result<T, StateError> {
+    ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
             fn call_program(ptr: *const u8, len: usize) -> HostPtr;
         }
 
-        let args_ptr = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
-
         let args = CallProgramArgs {
             target: self,
             function: function_name.as_bytes(),
-            args_ptr: &args_ptr,
+            args,
             max_units,
         };
 
-        let args_bytes = borsh::to_vec(&args).map_err(|_| StateError::Serialization)?;
+        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        borsh::from_slice(&bytes).map_err(|_| StateError::Deserialization)
+        borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
     /// Gets the remaining fuel available to this program
@@ -103,7 +118,7 @@ impl<K: Key> Program<K> {
 struct CallProgramArgs<'a, K> {
     target: &'a Program<K>,
     function: &'a [u8],
-    args_ptr: &'a [u8],
+    args: &'a [u8],
     max_units: Gas,
 }
 
@@ -112,13 +127,15 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
         let Self {
             target,
             function,
-            args_ptr,
+            args,
             max_units,
         } = self;
-        BorshSerialize::serialize(target, writer)?;
-        BorshSerialize::serialize(function, writer)?;
-        BorshSerialize::serialize(args_ptr, writer)?;
-        BorshSerialize::serialize(max_units, writer)?;
+
+        target.serialize(writer)?;
+        function.serialize(writer)?;
+        args.serialize(writer)?;
+        max_units.serialize(writer)?;
+
         Ok(())
     }
 }

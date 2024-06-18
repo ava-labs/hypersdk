@@ -70,7 +70,15 @@ impl<'a, K: Key> State<'a, K> {
     where
         V: BorshSerialize,
     {
-        let serialized = to_vec(&value).map_err(|_| StateError::Deserialization)?;
+        let serialized = to_vec(&value)
+            .map_err(|_| StateError::Deserialization)
+            .and_then(|bytes| {
+                if bytes.is_empty() {
+                    Err(StateError::InvalidByteLength(0))
+                } else {
+                    Ok(bytes)
+                }
+            })?;
         self.cache.borrow_mut().insert(key, serialized);
 
         Ok(())
@@ -99,6 +107,10 @@ impl<'a, K: Key> State<'a, K> {
         let mut cache = self.cache.borrow_mut();
 
         let val_bytes = if let Some(val) = cache.get(&key) {
+            if val.is_empty() {
+                return Ok(None);
+            }
+
             val
         } else {
             let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
@@ -124,34 +136,42 @@ impl<'a, K: Key> State<'a, K> {
     pub fn delete<T: BorshDeserialize>(self, key: K) -> Result<Option<T>, Error> {
         #[link(wasm_import_module = "state")]
         extern "C" {
-            #[link_name = "delete"]
-            fn delete(ptr: *const u8, len: usize) -> HostPtr;
+            #[link_name = "put"]
+            fn put(ptr: *const u8, len: usize);
+        }
+
+        #[derive(BorshSerialize)]
+        struct PutArgs<Key> {
+            key: Key,
+            value: Vec<u8>,
+        }
+
+        let value = self.get(key)?;
+        if value.is_none() {
+            return Ok(None);
         }
 
         // TODO:
         // we should actually cache deletes as well
         // to avoid cache misses after delete
-        self.cache.borrow_mut().remove(&key);
+        let args = PutArgs {
+            key,
+            value: Vec::new(),
+        };
+        let args_bytes =
+            borsh::to_vec(&[args].as_slice()).map_err(|_| StateError::Serialization)?;
 
-        let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
+        unsafe { put(args_bytes.as_ptr(), args_bytes.len()) };
 
-        let bytes = unsafe { delete(args_bytes.as_ptr(), args_bytes.len()) };
-
-        if bytes.is_null() {
-            return Ok(None);
-        }
-
-        from_slice::<T>(&bytes)
-            .map_err(|_| StateError::Deserialization)
-            .map(Some)
+        Ok(value)
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
     fn flush(&self) {
         #[link(wasm_import_module = "state")]
         extern "C" {
-            #[link_name = "put_many"]
-            fn put_many_bytes(ptr: *const u8, len: usize);
+            #[link_name = "put"]
+            fn put(ptr: *const u8, len: usize);
         }
 
         #[derive(BorshSerialize)]
@@ -167,6 +187,6 @@ impl<'a, K: Key> State<'a, K> {
             .map(|(key, value)| PutArgs { key, value })
             .collect();
         let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
-        unsafe { put_many_bytes(serialized_args.as_ptr(), serialized_args.len()) };
+        unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
     }
 }

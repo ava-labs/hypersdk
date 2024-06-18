@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -20,8 +21,10 @@ const (
 )
 
 type Context struct {
-	Program codec.Address `json:"program"`
-	Actor   codec.Address `json:"actor"`
+	Program  codec.Address
+	Actor    codec.Address
+	Height   uint64
+	ActionID ids.ID
 }
 
 type CallInfo struct {
@@ -42,6 +45,12 @@ type CallInfo struct {
 	// the amount of fuel allowed to be consumed by wasm for this call
 	Fuel uint64
 
+	// the height of the chain that this call was made from
+	Height uint64
+
+	// the action id that triggered this call
+	ActionID ids.ID
+
 	inst *ProgramInstance
 }
 
@@ -52,6 +61,11 @@ func (c *CallInfo) RemainingFuel() uint64 {
 		remaining -= usedFuel
 	}
 	return remaining
+}
+
+func (c *CallInfo) AddFuel(fuel uint64) {
+	// only errors if fuel isn't enable, which it always will be
+	_ = c.inst.store.AddFuel(fuel)
 }
 
 func (c *CallInfo) ConsumeFuel(fuel uint64) error {
@@ -83,7 +97,10 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 	}
 
 	// create the program context
-	programCtx := Context{Program: callInfo.Program, Actor: callInfo.Actor}
+	programCtx := Context{
+		Program: callInfo.Program,
+		Actor:   callInfo.Actor,
+	}
 	paramsBytes, err := serialize(programCtx)
 	if err != nil {
 		return nil, err

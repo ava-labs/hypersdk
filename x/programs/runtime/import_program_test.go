@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestImportProgramCallProgram(t *testing.T) {
@@ -128,5 +127,5 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	program := newTestProgram(ctx, "fuel")
 	result, err := program.Call("get_fuel")
 	require.NoError(err)
-	require.LessOrEqual(test.Into[uint64](result), program.Runtime.DefaultGas)
+	require.LessOrEqual(into[uint64](result), program.Runtime.DefaultGas)
 }
