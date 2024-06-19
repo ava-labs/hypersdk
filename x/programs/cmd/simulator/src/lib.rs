@@ -5,13 +5,15 @@
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::ser::Error;
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
+use wasmlanche_sdk::types::Address;
 
 mod id;
 
@@ -32,29 +34,54 @@ pub enum Endpoint {
 }
 
 /// A [Step] is a call to the simulator
-#[derive(Debug, Serialize, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Step {
+#[derive(Debug, PartialEq, Clone)]
+pub struct Step<'a> {
     /// The API endpoint to call.
     pub endpoint: Endpoint,
     /// The method to call on the endpoint.
-    pub method: String,
+    pub method: &'a str,
     /// The maximum number of units the step can consume.
     pub max_units: u64,
     /// The parameters to pass to the method.
     pub params: Vec<Param>,
+    program_id: Option<Id>,
+    actor: Option<Id>,
+}
+
+impl Serialize for Step<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut serializer = serializer.serialize_struct("Step", 4)?;
+        serializer.serialize_field("endpoint", &self.endpoint)?;
+        serializer.serialize_field("method", &self.method)?;
+        serializer.serialize_field("maxUnits", &self.max_units)?;
+        let mut params = Vec::with_capacity(2 + self.params.len());
+        let program_id = self
+            .program_id
+            .ok_or(S::Error::custom("missing called program"))?;
+        params.push(Param::Id(program_id));
+        let actor = self.actor.map(Param::Id).unwrap_or(Param::String(
+            String::from_utf8_lossy([0; Address::LEN].as_slice()).to_string(),
+        ));
+        params.push(actor);
+        params.append(&mut self.params.clone());
+        serializer.serialize_field("params", &params)?;
+        serializer.end()
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SimulatorStep<'a> {
+pub struct SimulatorStep<'a, 'b> {
     /// The key of the caller used in each step of the plan.
     pub caller_key: &'a str,
     #[serde(flatten)]
-    pub step: &'a Step,
+    pub step: &'b Step<'a>,
 }
 
-impl Step {
+impl<'a> Step<'a> {
     /// Create a [Step] that creates a key.
     #[must_use]
     pub fn create_key(key: Key) -> Self {
@@ -63,6 +90,8 @@ impl Step {
             method: "create_key".into(),
             max_units: 0,
             params: vec![Param::Key(key)],
+            program_id: None,
+            actor: None,
         }
     }
 
@@ -76,7 +105,25 @@ impl Step {
             method: "program_create".into(),
             max_units: 0,
             params: vec![Param::String(path.into())],
+            program_id: None,
+            actor: None,
         }
+    }
+
+    pub fn execute(program_id: Id, method: &'a str, max_units: u64, params: Vec<Param>) -> Self {
+        Self {
+            endpoint: Endpoint::Execute,
+            method,
+            max_units,
+            params,
+            program_id: Some(program_id),
+            actor: None,
+        }
+    }
+
+    pub fn with_actor(mut self, actor: Id) -> Self {
+        self.actor = Some(actor);
+        self
     }
 }
 
