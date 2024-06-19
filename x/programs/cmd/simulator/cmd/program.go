@@ -101,6 +101,7 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
+	actor codec.Address,
 	program codec.Address,
 	callParams []Parameter,
 	function string,
@@ -119,7 +120,7 @@ func programExecuteFunc(
 	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
 	callInfo := &runtime.CallInfo{
 		State:        programStateLoader{inner: db},
-		Actor:        codec.EmptyAddress,
+		Actor:        actor,
 		Program:      program,
 		Fuel:         maxUnits,
 		FunctionName: function,

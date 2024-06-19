@@ -217,7 +217,11 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		actorAddress, err := codec.ToAddress(params[1].Value)
+		if err != nil {
+			return err
+		}
+		response, balance, err := programExecuteFunc(ctx, c.log, db, actorAddress, programAddress, params[1:], method, maxUnits)
 		if err != nil {
 			return err
 		}
@@ -240,8 +244,12 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
+		actorAddress, err := codec.ToAddress(params[1].Value)
+		if err != nil {
+			return err
+		}
 		// TODO: implement readonly for now just don't charge for gas
-		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		response, _, err := programExecuteFunc(ctx, c.log, db, actorAddress, programAddress, params[1:], method, math.MaxUint64)
 		if err != nil {
 			return err
 		}
