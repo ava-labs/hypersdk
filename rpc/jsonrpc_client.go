@@ -116,7 +116,7 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 }
 
 type Modifier interface {
-	Base(*chain.Transaction)
+	Tx(*chain.Transaction)
 }
 
 func (cli *JSONRPCClient) GenerateTransaction(
@@ -162,7 +162,7 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 
 	// Modify gathered data
 	for _, m := range modifiers {
-		m.Base(tx)
+		m.Tx(tx)
 	}
 
 	// Build transaction

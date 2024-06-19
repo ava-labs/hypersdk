@@ -376,11 +376,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		ginkgo.By("skip invalid time", func() {
 			tx := chain.NewTx(
-				&chain.Base{
-					ChainID:   instances[0].chainID,
-					Timestamp: 0,
-					MaxFee:    1000,
-				},
+				0,
+				instances[0].chainID,
+				1000,
 				[]chain.Action{&actions.Transfer{
 					To:    addr2,
 					Value: 110,
