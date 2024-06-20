@@ -144,7 +144,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		Client:                syncClient,
 		SimultaneousWorkLimit: s.vm.config.GetStateSyncParallelism(),
 		Log:                   s.vm.snowCtx.Log,
-		TargetRoot:            sb.StateRoot,
+		TargetRoot:            sb.StateRoot(),
 	})
 	if err != nil {
 		return block.StateSyncSkipped, err
@@ -258,7 +258,7 @@ func (s *stateSyncerClient) StateReady() bool {
 // UpdateSyncTarget returns a boolean indicating if the root was
 // updated and an error if one occurred while updating the root.
 func (s *stateSyncerClient) UpdateSyncTarget(b *chain.StatelessBlock) (bool, error) {
-	err := s.syncManager.UpdateSyncTarget(b.StateRoot)
+	err := s.syncManager.UpdateSyncTarget(b.StateRoot())
 	if errors.Is(err, avasync.ErrAlreadyClosed) {
 		<-s.done          // Wait for goroutine to exit for consistent return values with IsSyncing
 		return false, nil // Sync finished before update

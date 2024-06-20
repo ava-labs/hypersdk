@@ -344,7 +344,7 @@ func (vm *VM) Initialize(
 		vm.preferred, vm.lastAccepted = gBlkID, genesisBlk
 		snowCtx.Log.Info("initialized vm from genesis",
 			zap.Stringer("block", gBlkID),
-			zap.Stringer("pre-execution root", genesisBlk.StateRoot),
+			zap.Stringer("pre-execution root", genesisBlk.StateRoot()),
 			zap.Stringer("post-execution root", genesisRoot),
 		)
 	}

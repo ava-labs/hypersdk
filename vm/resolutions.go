@@ -116,7 +116,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 			zap.Int("txs", len(b.Txs)),
-			zap.Stringer("parent root", b.StateRoot),
+			zap.Stringer("parent root", b.StateRoot()),
 			zap.Bool("state ready", vm.StateReady()),
 			zap.Any("unit prices", fm.UnitPrices()),
 			zap.Any("units consumed", fm.UnitsConsumed()),
@@ -129,7 +129,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 			zap.Stringer("blkID", b.ID()),
 			zap.Uint64("height", b.Hght),
 			zap.Int("txs", len(b.Txs)),
-			zap.Stringer("parent root", b.StateRoot),
+			zap.Stringer("parent root", b.StateRoot()),
 			zap.Bool("state ready", vm.StateReady()),
 		)
 	}
@@ -285,7 +285,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		zap.Stringer("blkID", b.ID()),
 		zap.Uint64("height", b.Hght),
 		zap.Int("txs", len(b.Txs)),
-		zap.Stringer("parent root", b.StateRoot),
+		zap.Stringer("parent root", b.StateRoot()),
 		zap.Int("size", len(b.Bytes())),
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),

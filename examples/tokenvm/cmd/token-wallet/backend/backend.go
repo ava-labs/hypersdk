@@ -506,7 +506,7 @@ func (b *Backend) collectBlocks() {
 		bi.Size = fmt.Sprintf("%.2fKB", float64(blk.Size())/units.KiB)
 		bi.Consumed = hcli.ParseDimensions(consumed)
 		bi.Prices = hcli.ParseDimensions(prices)
-		bi.StateRoot = blk.StateRoot.String()
+		bi.StateRoot = blk.StateRoot().String()
 		bi.FailTxs = failTxs
 		bi.Txs = len(blk.Txs)
 
