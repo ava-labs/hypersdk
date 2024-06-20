@@ -471,7 +471,7 @@ type timeModifier struct {
 	Timestamp int64
 }
 
-func (t *timeModifier) Tx(b *chain.Transaction) {
+func (t *timeModifier) Base(b *chain.Transaction) {
 	b.Timestamp = t.Timestamp
 }
 
