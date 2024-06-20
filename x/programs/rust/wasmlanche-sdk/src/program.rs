@@ -64,12 +64,7 @@ impl<K> Program<K> {
     /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
-    pub fn call_function<T: BorshDeserialize>(
-        &self,
-        function_name: &str,
-        args: &[u8],
-        max_units: Gas,
-    ) -> Result<T, ExternalCallError> {
+    pub fn call_function(&self, function_name: &str, args: &[u8], max_units: Gas) -> Vec<u8> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
@@ -87,7 +82,7 @@ impl<K> Program<K> {
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        borsh::from_slice(&bytes).expect("failed to deserialize")
+        bytes.into()
     }
 
     /// Gets the remaining fuel available to this program

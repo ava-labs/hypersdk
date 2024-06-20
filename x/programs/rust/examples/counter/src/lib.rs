@@ -1,6 +1,6 @@
-#[cfg(not(feature = "bindings"))]
-use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys, types::Address, Gas, Program};
+#[cfg(not(feature = "bindings"))]
+use wasmlanche_sdk::{Context, ExternalCallError};
 
 #[state_keys]
 pub enum StateKeys {
@@ -34,7 +34,10 @@ pub fn inc_external(
     amount: Count,
 ) -> bool {
     let args = borsh::to_vec(&(of, amount)).unwrap();
-    target.call_function("inc", &args, max_units).unwrap()
+    let res = &target.call_function("inc", &args, max_units);
+    borsh::from_slice::<Result<bool, ExternalCallError>>(res)
+        .unwrap()
+        .unwrap()
 }
 
 /// Gets the count at the address.
@@ -57,7 +60,10 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Address) -> Count {
     let args = borsh::to_vec(&of).unwrap();
-    target.call_function("get_value", &args, max_units).unwrap()
+    let res = &target.call_function("get_value", &args, max_units);
+    borsh::from_slice::<Result<Count, ExternalCallError>>(res)
+        .unwrap()
+        .unwrap()
 }
 
 #[cfg(test)]
