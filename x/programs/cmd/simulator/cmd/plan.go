@@ -312,9 +312,6 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				copy(address[1:], pk[:])
 				key = string(address)
 			}
-			if err != nil {
-				return nil, err
-			}
 			cp = append(cp, Parameter{Value: []byte(key), Type: param.Type})
 		case Uint64, Bool:
 			cp = append(cp, param)
