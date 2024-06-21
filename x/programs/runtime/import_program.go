@@ -50,7 +50,7 @@ func extractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
 }
 
 type callProgramInput struct {
-	Account      codec.Address
+	Program      codec.Address
 	FunctionName string
 	Params       []byte
 	Fuel         uint64
@@ -65,51 +65,42 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"call_program": {
-				FuelCost: callProgramCost,
-				Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](
-					func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
-						newInfo := *callInfo
+			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
+				newInfo := *callInfo
 
-						if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
-							return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
-						}
+				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
+					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
+				}
 
-						newInfo.Actor = callInfo.Program
-						newInfo.Program = input.Account
-						newInfo.FunctionName = input.FunctionName
-						newInfo.Params = input.Params
-						newInfo.Fuel = input.Fuel
+				newInfo.Actor = callInfo.Program
+				newInfo.Program = input.Program
+				newInfo.FunctionName = input.FunctionName
+				newInfo.Params = input.Params
+				newInfo.Fuel = input.Fuel
 
-						result, err := r.CallProgram(
-							context.Background(),
-							&newInfo)
-						if err != nil {
-							if code, ok := extractProgramCallErrorCode(err); ok {
-								return Err[RawBytes, ProgramCallErrorCode](code), nil
-							}
-							return Err[RawBytes, ProgramCallErrorCode](ExecutionFailure), err
-						}
+				result, err := r.CallProgram(
+					context.Background(),
+					&newInfo)
+				if err != nil {
+					if code, ok := extractProgramCallErrorCode(err); ok {
+						return Err[RawBytes, ProgramCallErrorCode](code), nil
+					}
+					return Err[RawBytes, ProgramCallErrorCode](ExecutionFailure), err
+				}
 
-						// return any remaining fuel to the calling program
-						callInfo.AddFuel(newInfo.RemainingFuel())
+				// return any remaining fuel to the calling program
+				callInfo.AddFuel(newInfo.RemainingFuel())
 
-						return Ok[RawBytes, ProgramCallErrorCode](result), nil
-					})},
-			"set_call_result": {
-				FuelCost: setCallResultCost,
-				Function: FunctionNoOutput[RawBytes](
-					func(callInfo *CallInfo, input RawBytes) error {
-						// needs to clone because this points into the current store's linear memory which may be gone when this is read
-						callInfo.inst.result = slices.Clone(input)
-						return nil
-					})},
-			"remaining_fuel": {
-				FuelCost: remainingFuelCost,
-				Function: FunctionNoInput[uint64](
-					func(callInfo *CallInfo) (uint64, error) {
-						return callInfo.RemainingFuel(), nil
-					})},
+				return Ok[RawBytes, ProgramCallErrorCode](result), nil
+			})},
+			"set_call_result": {FuelCost: setCallResultCost, Function: FunctionNoOutput[RawBytes](func(callInfo *CallInfo, input RawBytes) error {
+				// needs to clone because this points into the current store's linear memory which may be gone when this is read
+				callInfo.inst.result = slices.Clone(input)
+				return nil
+			})},
+			"remaining_fuel": {FuelCost: remainingFuelCost, Function: FunctionNoInput[uint64](func(callInfo *CallInfo) (uint64, error) {
+				return callInfo.RemainingFuel(), nil
+			})},
 			"deploy": {
 				FuelCost: deployCost,
 				Function: Function[deployProgramInput, Result[codec.Address, DeployErrorCode]](
