@@ -18,10 +18,10 @@ type ProgramCallErrorCode byte
 type DeployErrorCode byte
 
 const (
-	callProgramCost = 10000
-	setResultCost   = 10000
-	getFuelCost     = 10000
-	deployFuelCost  = 10000
+	callProgramCost   = 10000
+	setCallResultCost = 10000
+	remainingFuelCost = 10000
+	deployCost        = 10000
 )
 
 const (
@@ -66,7 +66,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
 			"deploy": {
-				FuelCost: deployFuelCost,
+				FuelCost: deployCost,
 				Function: Function[deployProgramInput, Result[codec.Address, DeployErrorCode]](
 					func(callInfo *CallInfo, input deployProgramInput) (Result[codec.Address, DeployErrorCode], error) {
 						ctx, cancel := context.WithCancel(context.Background())
@@ -87,8 +87,8 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 							return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
 						}
 
-						newInfo.Actor = callInfo.Account
-						newInfo.Account = input.Account
+						newInfo.Actor = callInfo.Program
+						newInfo.Program = input.Account
 						newInfo.FunctionName = input.FunctionName
 						newInfo.Params = input.Params
 						newInfo.Fuel = input.Fuel
@@ -109,7 +109,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 						return Ok[RawBytes, ProgramCallErrorCode](result), nil
 					})},
 			"set_call_result": {
-				FuelCost: setResultCost,
+				FuelCost: setCallResultCost,
 				Function: FunctionNoOutput[RawBytes](
 					func(callInfo *CallInfo, input RawBytes) error {
 						// needs to clone because this points into the current store's linear memory which may be gone when this is read
@@ -117,7 +117,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 						return nil
 					})},
 			"remaining_fuel": {
-				FuelCost: getFuelCost,
+				FuelCost: remainingFuelCost,
 				Function: FunctionNoInput[uint64](
 					func(callInfo *CallInfo) (uint64, error) {
 						return callInfo.RemainingFuel(), nil

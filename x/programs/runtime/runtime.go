@@ -85,12 +85,12 @@ func (r *WasmRuntime) addProgram(id ids.ID, programBytes []byte) (*wasmtime.Modu
 }
 
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
-	programID, ok := r.accountToProgram[callInfo.Account]
+	programID, ok := r.accountToProgram[callInfo.Program]
 	if !ok {
-		if programID, err = r.programStore.GetAccountProgram(ctx, callInfo.Account); err != nil {
+		if programID, err = r.programStore.GetAccountProgram(ctx, callInfo.Program); err != nil {
 			return nil, err
 		}
-		r.accountToProgram[callInfo.Account] = programID
+		r.accountToProgram[callInfo.Program] = programID
 	}
 	programModule, ok := r.programToModule[programID]
 	if !ok {

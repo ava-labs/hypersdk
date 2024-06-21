@@ -24,7 +24,7 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 	return t.Runtime.CallProgram(
 		t.Context,
 		&CallInfo{
-			Account:      program,
+			Program:      program,
 			Actor:        actor,
 			State:        t.StateDB,
 			FunctionName: function,
