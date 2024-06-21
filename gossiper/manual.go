@@ -49,7 +49,7 @@ func (g *Manual) Force(ctx context.Context) error {
 		g.vm.GetTargetGossipDuration(),
 		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
-			if next.Timestamp < now {
+			if next.Expiry() < now {
 				return true, false, nil
 			}
 

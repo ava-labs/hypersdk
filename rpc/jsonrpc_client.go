@@ -116,7 +116,7 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 }
 
 type Modifier interface {
-	Base(*int64, *ids.ID, *uint64)
+	Base(timestamp *int64, chainID *ids.ID, maxFee *uint64)
 }
 
 func (cli *JSONRPCClient) GenerateTransaction(

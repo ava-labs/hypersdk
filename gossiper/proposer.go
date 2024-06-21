@@ -119,12 +119,12 @@ func (g *Proposer) Force(ctx context.Context) error {
 		g.vm.GetTargetGossipDuration(),
 		func(_ context.Context, next *chain.Transaction) (cont bool, rest bool, err error) {
 			// Remove txs that are expired
-			if next.Timestamp < now {
+			if next.Expiry() < now {
 				return true, false, nil
 			}
 
 			// Don't gossip txs that are about to expire
-			life := next.Timestamp - now
+			life := next.Expiry() - now
 			if life < g.cfg.GossipMinLife {
 				return true, true, nil
 			}

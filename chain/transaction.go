@@ -467,11 +467,7 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 
-	var tx Transaction
-	tx.Timestamp = timestamp
-	tx.ChainID = chainID
-	tx.MaximumFee = maxFee
-	tx.Actions = actions
+	tx := NewTx(timestamp, chainID, maxFee, actions)
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
@@ -481,7 +477,7 @@ func UnmarshalTx(
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
-	return &tx, nil
+	return tx, nil
 }
 
 func unmarshalActions(
