@@ -63,7 +63,7 @@ type StateLoader struct {
 	Mu state.Mutable
 }
 
-func (t StateLoader) GetAccountState(address codec.Address) state.Mutable {
+func (t StateLoader) GetProgramState(address codec.Address) state.Mutable {
 	return &prefixedState{address: address, inner: t.Mu}
 }
 

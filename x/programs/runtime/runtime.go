@@ -30,7 +30,7 @@ type WasmRuntime struct {
 }
 
 type StateLoader interface {
-	GetAccountState(address codec.Address) state.Mutable
+	GetProgramState(address codec.Address) state.Mutable
 }
 
 type ProgramStore interface {
