@@ -6,6 +6,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"os"
@@ -33,30 +34,47 @@ func CompileTest(programName string) error {
 }
 
 type ProgramStore struct {
-	ProgramName string
+	ProgramsMap map[ids.ID]string
+	AccountMap  map[codec.Address]ids.ID
 }
 
-func (t ProgramStore) GetAccountProgram(_ context.Context, _ codec.Address) (ids.ID, error) {
-	return ids.GenerateTestID(), nil
+func NewProgramStore() ProgramStore {
+	return ProgramStore{
+		ProgramsMap: make(map[ids.ID]string),
+		AccountMap:  make(map[codec.Address]ids.ID)}
 }
 
-func (t ProgramStore) GetProgramBytes(_ context.Context, _ ids.ID) ([]byte, error) {
-	if err := CompileTest(t.ProgramName); err != nil {
+func (t ProgramStore) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {
+	if programID, ok := t.AccountMap[account]; ok {
+		return programID, nil
+	}
+	return ids.Empty, nil
+}
+
+func (t ProgramStore) GetProgramBytes(_ context.Context, programID ids.ID) ([]byte, error) {
+	programName, ok := t.ProgramsMap[programID]
+	if !ok {
+		return nil, errors.New("couldn't find program")
+	}
+	if err := CompileTest(programName); err != nil {
 		return nil, err
 	}
 	dir, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 }
 
 func (t ProgramStore) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
-	panic("implement me")
+	account := codec.CreateAddress(0, programID)
+	t.AccountMap[account] = programID
+	return account, nil
 }
 
-func (t ProgramStore) SetAccountProgram(_ context.Context, _ codec.Address, _ ids.ID) error {
-	panic("implement me")
+func (t ProgramStore) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
+	t.AccountMap[account] = programID
+	return nil
 }
 
 type StateLoader struct {

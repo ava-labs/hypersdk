@@ -42,7 +42,7 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Runtime: NewRuntime(
 				NewConfig(),
 				logging.NoLog{},
-				test.ProgramStore{ProgramName: program}),
+				test.ProgramStore{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}}),
 			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
 			DefaultGas: 10000000,
 		},
