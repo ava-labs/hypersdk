@@ -48,7 +48,7 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
-	// Root is the root of the post-execution state
+	// StatRoot is the root of the post-execution state
 	// of [Prnt].
 	//
 	// This "deferred root" design allows for merklization
@@ -56,7 +56,7 @@ type StatefulBlock struct {
 	// or [Verify], which reduces the amount of time we are
 	// blocking the consensus engine from voting on the block,
 	// starting the verification of another block, etc.
-	Root ids.ID `json:"stateRoot"`
+	StatRoot ids.ID `json:"stateRoot"`
 
 	size int
 
@@ -82,7 +82,7 @@ func (b *StatefulBlock) Transactions() []*Transaction {
 }
 
 func (b *StatefulBlock) StateRoot() ids.ID {
-	return b.Root
+	return b.StatRoot
 }
 
 func (b *StatefulBlock) Size() int {
@@ -110,7 +110,7 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
 		// StateRoot should include all allocates made when loading the genesis file
-		Root: root,
+		StatRoot: root,
 	}
 }
 
@@ -133,26 +133,6 @@ type StatelessBlock struct {
 	view merkledb.View
 
 	sigJob workers.Job
-}
-
-func (b *StatelessBlock) Parent() ids.ID {
-	return b.StatefulBlock.Parent()
-}
-
-func (b *StatelessBlock) Timestamp() time.Time {
-	return b.StatefulBlock.Timestamp()
-}
-
-func (b *StatelessBlock) Height() uint64 {
-	return b.StatefulBlock.Height()
-}
-
-func (b *StatelessBlock) Transactions() []*Transaction {
-	return b.StatefulBlock.Transactions()
-}
-
-func (b *StatelessBlock) StateRoot() ids.ID {
-	return b.StatefulBlock.StateRoot()
 }
 
 func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
@@ -581,7 +561,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		if updated {
 			b.vm.Logger().Info("updated state sync target",
 				zap.Stringer("id", b.ID()),
-				zap.Stringer("root", b.Root),
+				zap.Stringer("root", b.StateRoot()),
 			)
 			return nil // the sync is still ongoing
 		}
@@ -641,21 +621,29 @@ func (b *StatelessBlock) Reject(ctx context.Context) error {
 // implements "snowman.Block.choices.Decidable"
 func (b *StatelessBlock) Status() choices.Status { return b.st }
 
-// // implements "snowman.Block"
-// func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Prnt }
+// implements "snowman.Block"
+func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Parent() }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Bytes() []byte { return b.bytes }
 
 // implements "snowman.Block"
-// func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
+func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Height() }
 
-// // implements "snowman.Block"
-// func (b *StatelessBlock) Timestamp() time.Time { return b.t }
+// implements "snowman.Block"
+func (b *StatelessBlock) Timestamp() time.Time { return b.StatefulBlock.Timestamp() }
 
 // Used to determine if should notify listeners and/or pass to controller
 func (b *StatelessBlock) Processed() bool {
 	return b.view != nil
+}
+
+func (b *StatelessBlock) Transactions() []*Transaction {
+	return b.StatefulBlock.Transactions()
+}
+
+func (b *StatelessBlock) StateRoot() ids.ID {
+	return b.StatefulBlock.StateRoot()
 }
 
 // View returns the [merkledb.TrieView] of the block (representing the state
@@ -901,7 +889,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
-	p.UnpackID(false, &b.Root)
+	p.UnpackID(false, &b.StatRoot)
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
