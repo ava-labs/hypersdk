@@ -70,38 +70,19 @@ mod tests {
     fn init_program() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-        let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
+        let owner = String::from("owner");
+        let alice = String::from("alice");
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![alice_key.clone()],
-                    max_units: 0,
-                },
-            )
+            .run_step(&owner, &Step::create_key(Key::Ed25519(alice)))
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1000000,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
             .unwrap();
     }
 
@@ -109,61 +90,43 @@ mod tests {
     fn increment() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-        let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
+        let owner = String::from("owner");
+        let bob_key = Key::Ed25519(String::from("bob"));
+        let bob_key_param = Param::Key(bob_key.clone());
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![bob_key.clone()],
-                    max_units: 0,
-                },
-            )
+            .run_step(&owner, &Step::create_key(bob_key))
             .unwrap();
 
         let counter_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1000000,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         simulator
             .run_step(
-                &owner_key,
+                &owner,
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "inc".into(),
                     max_units: 1000000,
-                    params: vec![counter_id.into(), bob_key.clone(), 10u64.into()],
+                    params: vec![counter_id.into(), bob_key_param.clone(), 10u64.into()],
                 },
             )
             .unwrap();
 
         let value = simulator
             .run_step(
-                &owner_key,
+                &owner,
                 &Step {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_value".into(),
                     max_units: 0,
-                    params: vec![counter_id.into(), bob_key.clone()],
+                    params: vec![counter_id.into(), bob_key_param],
                 },
             )
             .unwrap()
@@ -178,7 +141,8 @@ mod tests {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key = String::from("owner");
-        let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
+        let bob_key = Key::Ed25519(String::from("bob"));
+        let bob_key_param = Param::Key(bob_key.clone());
 
         simulator
             .run_step(
@@ -188,40 +152,16 @@ mod tests {
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![bob_key.clone()],
-                    max_units: 0,
-                },
-            )
+            .run_step(&owner_key, &Step::create_key(bob_key))
             .unwrap();
 
         let counter1_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1000000,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         let counter2_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1000000,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
@@ -232,7 +172,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_value".into(),
                     max_units: 0,
-                    params: vec![counter2_id.into(), bob_key.clone()],
+                    params: vec![counter2_id.into(), bob_key_param.clone()],
                 },
             )
             .unwrap()
@@ -252,7 +192,7 @@ mod tests {
                         counter1_id.into(),
                         counter2_id.into(),
                         1_000_000.into(),
-                        bob_key.clone(),
+                        bob_key_param.clone(),
                         10.into(),
                     ],
                 },
@@ -270,7 +210,7 @@ mod tests {
                         counter1_id.into(),
                         counter2_id.into(),
                         1_000_000.into(),
-                        bob_key.clone(),
+                        bob_key_param,
                     ],
                 },
             )
