@@ -61,9 +61,7 @@ func (t *Transaction) Digest() ([]byte, error) {
 		size += consts.ByteLen + action.Size()
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt64(t.Timestamp)
-	p.PackID(t.ChainID)
-	p.PackUint64(t.MaximumFee)
+	marshalBase(p, t.Timestamp, t.ChainID, t.MaximumFee)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
@@ -377,9 +375,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 }
 
 func (t *Transaction) marshalActions(p *codec.Packer) error {
-	p.PackInt64(t.Timestamp)
-	p.PackID(t.ChainID)
-	p.PackUint64(t.MaximumFee)
+	marshalBase(p, t.Timestamp, t.ChainID, t.MaximumFee)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
@@ -478,6 +474,12 @@ func UnmarshalTx(
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
 	return tx, nil
+}
+
+func marshalBase(p *codec.Packer, timestamp int64, chainID ids.ID, maximumFee uint64) {
+	p.PackInt64(timestamp)
+	p.PackID(chainID)
+	p.PackUint64(maximumFee)
 }
 
 func unmarshalActions(
