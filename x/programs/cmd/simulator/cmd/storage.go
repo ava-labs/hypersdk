@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -16,9 +17,13 @@ import (
 )
 
 const (
-	programPrefix        = 0x0
-	programStatePrefix   = 0x1
-	addressStoragePrefix = 0x2
+	programPrefix = 0x0
+
+	accountPrefix      = 0x1
+	accountDataPrefix  = 0x0
+	accountStatePrefix = 0x1
+
+	addressStoragePrefix = 0x3
 )
 
 type programStateLoader struct {
@@ -54,31 +59,76 @@ func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
 }
 
 func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
-	return &prefixedStateMutable{inner: mutable, prefix: programStateKey(account[:])}
+	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
 }
 
 //
 // Program
 //
 
-func programStateKey(key []byte) (k []byte) {
+func accountStateKey(key []byte) (k []byte) {
+	k = make([]byte, 2+len(key))
+	k[0] = accountPrefix
+	copy(k[1:], key)
+	k[len(key)-1] = accountStatePrefix
+	return
+}
+
+func accountDataKey(key []byte) (k []byte) {
+	k = make([]byte, 2+len(key))
+	k[0] = accountPrefix
+	copy(k[1:], key)
+	k[len(key)-1] = accountDataPrefix
+	return
+}
+
+func programKey(key []byte) (k []byte) {
 	k = make([]byte, 1+len(key))
-	k[0] = programStatePrefix
+	k[0] = programPrefix
 	copy(k[1:], key)
 	return
 }
 
 // [programID] -> [programBytes]
-func GetProgram(
+func getAccountProgram(
 	ctx context.Context,
 	db state.Immutable,
-	programID codec.Address,
+	account codec.Address,
+) (
+	ids.ID,
+	bool, // exists
+	error,
+) {
+	v, err := db.GetValue(ctx, accountDataKey(account[:]))
+	if errors.Is(err, database.ErrNotFound) {
+		return ids.Empty, false, nil
+	}
+	if err != nil {
+		return ids.Empty, false, err
+	}
+	return ids.ID(v[:32]), true, nil
+}
+
+func setAccountProgram(
+	ctx context.Context,
+	mu state.Mutable,
+	account codec.Address,
+	programID ids.ID,
+) error {
+	return mu.Insert(ctx, accountDataKey(account[:]), programID[:])
+}
+
+// [programID] -> [programBytes]
+func getProgram(
+	ctx context.Context,
+	db state.Immutable,
+	programID ids.ID,
 ) (
 	[]byte, // program bytes
 	bool, // exists
 	error,
 ) {
-	v, err := db.GetValue(ctx, programID[:])
+	v, err := db.GetValue(ctx, programKey(programID[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}
@@ -89,14 +139,24 @@ func GetProgram(
 }
 
 // setProgram stores [program] at [programID]
-func SetProgram(
+func setProgram(
 	ctx context.Context,
 	mu state.Mutable,
 	programID ids.ID,
 	program []byte,
+) error {
+	return mu.Insert(ctx, programKey(programID[:]), program)
+}
+
+func deployProgram(
+	ctx context.Context,
+	mu state.Mutable,
+	programID ids.ID,
+	accountCreationData []byte,
 ) (codec.Address, error) {
-	address := codec.CreateAddress(programPrefix, programID)
-	return address, mu.Insert(ctx, address[:], program)
+	newID := sha256.Sum256(append(programID[:], accountCreationData...))
+	newAccount := codec.CreateAddress(0, newID)
+	return newAccount, setAccountProgram(ctx, mu, newAccount, programID)
 }
 
 // gets the public key mapped to the given name.

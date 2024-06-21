@@ -6,16 +6,18 @@ package runtime
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/avalanchego/ids"
 	"slices"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-type ProgramCallErrorCode byte
-type DeployErrorCode byte
+type (
+	ProgramCallErrorCode byte
+	DeployErrorCode      byte
+)
 
 const (
 	callProgramCost   = 10000
@@ -57,8 +59,8 @@ type callProgramInput struct {
 }
 
 type deployProgramInput struct {
-	programID ids.ID
-	initInfo  []byte
+	ProgramID           ids.ID
+	AccountCreationData []byte
 }
 
 func NewProgramModule(r *WasmRuntime) *ImportModule {
@@ -104,15 +106,16 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			"deploy": {
 				FuelCost: deployCost,
 				Function: Function[deployProgramInput, Result[codec.Address, DeployErrorCode]](
-					func(callInfo *CallInfo, input deployProgramInput) (Result[codec.Address, DeployErrorCode], error) {
+					func(_ *CallInfo, input deployProgramInput) (Result[codec.Address, DeployErrorCode], error) {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						address, err := r.programStore.NewAccountWithProgram(ctx, input.programID, input.initInfo)
+						address, err := r.programStore.NewAccountWithProgram(ctx, input.ProgramID, input.AccountCreationData)
 						if err != nil {
 							return Err[codec.Address, DeployErrorCode](DeployFailed), nil
 						}
 						return Ok[codec.Address, DeployErrorCode](address), nil
-					})},
+					}),
+			},
 		},
 	}
 }

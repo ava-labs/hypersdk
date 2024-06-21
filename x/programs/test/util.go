@@ -8,11 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanchego/ids"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -41,7 +41,8 @@ type ProgramStore struct {
 func NewProgramStore() ProgramStore {
 	return ProgramStore{
 		ProgramsMap: make(map[ids.ID]string),
-		AccountMap:  make(map[codec.Address]ids.ID)}
+		AccountMap:  make(map[codec.Address]ids.ID),
+	}
 }
 
 func (t ProgramStore) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {

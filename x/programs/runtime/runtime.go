@@ -5,9 +5,9 @@ package runtime
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/ids"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
@@ -36,7 +36,7 @@ type StateLoader interface {
 type ProgramStore interface {
 	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
 	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
-	NewAccountWithProgram(ctx context.Context, programID ids.ID, initInfo []byte) (codec.Address, error)
+	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
 	SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error
 }
 
@@ -99,6 +99,9 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (resu
 			return nil, err
 		}
 		programModule, err = r.addProgram(programID, programBytes)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err != nil {
 		return nil, err
