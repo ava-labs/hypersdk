@@ -65,18 +65,6 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
 		HostFunctions: map[string]HostFunction{
-			"deploy": {
-				FuelCost: deployCost,
-				Function: Function[deployProgramInput, Result[codec.Address, DeployErrorCode]](
-					func(callInfo *CallInfo, input deployProgramInput) (Result[codec.Address, DeployErrorCode], error) {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
-						address, err := r.programStore.NewAccountWithProgram(ctx, input.programID, input.initInfo)
-						if err != nil {
-							return Err[codec.Address, DeployErrorCode](DeployFailed), nil
-						}
-						return Ok[codec.Address, DeployErrorCode](address), nil
-					})},
 			"call_program": {
 				FuelCost: callProgramCost,
 				Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](
@@ -121,6 +109,18 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				Function: FunctionNoInput[uint64](
 					func(callInfo *CallInfo) (uint64, error) {
 						return callInfo.RemainingFuel(), nil
+					})},
+			"deploy": {
+				FuelCost: deployCost,
+				Function: Function[deployProgramInput, Result[codec.Address, DeployErrorCode]](
+					func(callInfo *CallInfo, input deployProgramInput) (Result[codec.Address, DeployErrorCode], error) {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						address, err := r.programStore.NewAccountWithProgram(ctx, input.programID, input.initInfo)
+						if err != nil {
+							return Err[codec.Address, DeployErrorCode](DeployFailed), nil
+						}
+						return Ok[codec.Address, DeployErrorCode](address), nil
 					})},
 		},
 	}
