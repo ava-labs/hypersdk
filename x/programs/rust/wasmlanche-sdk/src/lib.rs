@@ -10,7 +10,7 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{ExternalCallError, Program},
+    program::{DeployError, ExternalCallError, Program},
 };
 
 #[cfg(feature = "build")]
