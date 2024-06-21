@@ -294,17 +294,10 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         .enumerate()
                         .map(|(i, field)| Ident::new(&format!("field_{i}"), field.span()));
                     let fields_2 = fields.clone();
-                    let fields_3 = fields.clone();
 
                     Ok(quote! {
                         Self::#variant_ident(#(#fields),*) => {
-                            let len = 1 + #(#fields_2.as_ref().len())+*;
-                            let len = u32::try_from(len).map_err(|_| std::io::ErrorKind::InvalidData)?;
-                            writer.write_all(&len.to_le_bytes())?;
-                            writer.write_all(&[#idx])?;
-                            #(
-                                writer.write_all(#fields_3.as_ref())?;
-                            )*
+                            borsh::to_vec(&(#idx, #(#fields_2),*))?.serialize(writer)?;
                         }
                     })
                 }

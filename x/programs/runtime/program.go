@@ -21,10 +21,11 @@ const (
 )
 
 type Context struct {
-	Account  codec.Address
-	Actor    codec.Address
-	Height   uint64
-	ActionID ids.ID
+	Program   codec.Address
+	Actor     codec.Address
+	Height    uint64
+	Timestamp uint64
+	ActionID  ids.ID
 }
 
 type CallInfo struct {
@@ -37,7 +38,7 @@ type CallInfo struct {
 	// the name of the function within the program that is being called
 	FunctionName string
 
-	Account codec.Address
+	Program codec.Address
 
 	// the serialized parameters that will be passed to the called function
 	Params []byte
@@ -47,6 +48,9 @@ type CallInfo struct {
 
 	// the height of the chain that this call was made from
 	Height uint64
+
+	// the timestamp of the chain at the time this call was made
+	Timestamp uint64
 
 	// the action id that triggered this call
 	ActionID ids.ID
@@ -86,7 +90,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 
 	// create the program context
 	programCtx := Context{
-		Account: callInfo.Account,
+		Program: callInfo.Program,
 		Actor:   callInfo.Actor,
 	}
 	paramsBytes, err := serialize(programCtx)

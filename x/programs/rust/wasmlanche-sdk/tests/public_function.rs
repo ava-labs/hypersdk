@@ -129,10 +129,12 @@ impl TestCrate {
         let action_id: Id = borsh::from_slice(&action).expect("the action_id should deserialize");
         let actor = Address::default();
         let height: u64 = 0;
+        let timestamp: u64 = 0;
         let context = Context {
             program,
             actor,
             height,
+            timestamp,
             action_id,
         };
         let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
