@@ -121,9 +121,13 @@ func verifyEndpoint(i int, step *Step) error {
 
 	switch step.Endpoint {
 	case EndpointKey:
-		// verify the first param is a string for key name
-		if firstParamType != KeyEd25519 && firstParamType != KeySecp256k1 {
-			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
+		if step.Method == KeyCreate {
+			// verify the first param is a string for key name
+			if firstParamType != KeyEd25519 && firstParamType != KeySecp256k1 {
+				return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
+			}
+		} else {
+			return fmt.Errorf("%w: %s", ErrInvalidMethod, step.Method)
 		}
 	case EndpointReadOnly:
 		// verify the first param is a program ID

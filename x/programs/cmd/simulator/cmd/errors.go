@@ -20,6 +20,7 @@ var (
 	// Steps
 	ErrInvalidStep              = errors.New("invalid step")
 	ErrInvalidEndpoint          = errors.New("invalid endpoint")
+	ErrInvalidMethod            = errors.New("invalid method")
 	ErrInvalidParams            = errors.New("invalid params")
 	ErrConfigMissingRequired    = errors.New("missing required field")
 	ErrFirstParamRequiredString = errors.New("first param must be a string")

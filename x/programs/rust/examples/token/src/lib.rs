@@ -197,15 +197,7 @@ mod tests {
             )
             .unwrap();
         let program_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 0,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
@@ -244,7 +236,8 @@ mod tests {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key = String::from("owner");
-        let alice_key = Param::Key(Key::Ed25519(String::from("alice")));
+        let alice_key = Key::Ed25519(String::from("alice"));
+        let alice_key_param = Param::Key(alice_key.clone());
         let alice_initial_balance = 1000;
 
         simulator
@@ -255,28 +248,12 @@ mod tests {
             .unwrap();
 
         let program_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 0,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![alice_key.clone()],
-                    max_units: 0,
-                },
-            )
+            .run_step(&owner_key, &Step::create_key(alice_key))
             .unwrap();
 
         simulator
@@ -299,7 +276,7 @@ mod tests {
                     method: "mint_to".into(),
                     params: vec![
                         program_id.into(),
-                        alice_key.clone(),
+                        alice_key_param.clone(),
                         Param::U64(alice_initial_balance),
                     ],
                     max_units: 1000000,
@@ -314,7 +291,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), alice_key],
+                    params: vec![program_id.into(), alice_key_param],
                 },
             )
             .unwrap()
@@ -330,10 +307,8 @@ mod tests {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key = String::from("owner");
-        let [alice_key, bob_key] = ["alice", "bob"]
-            .map(String::from)
-            .map(Key::Ed25519)
-            .map(Param::Key);
+        let [alice_key, bob_key] = ["alice", "bob"].map(String::from).map(Key::Ed25519);
+        let [alice_key_param, bob_key_param] = [alice_key.clone(), bob_key.clone()].map(Param::Key);
         let alice_initial_balance = 1000;
         let transfer_amount = 100;
         let post_transfer_balance = alice_initial_balance - transfer_amount;
@@ -346,40 +321,16 @@ mod tests {
             .unwrap();
 
         let program_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 0,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
+            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![alice_key.clone()],
-                    max_units: 0,
-                },
-            )
+            .run_step(&owner_key, &Step::create_key(alice_key.clone()))
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![bob_key.clone()],
-                    max_units: 0,
-                },
-            )
+            .run_step(&owner_key, &Step::create_key(bob_key.clone()))
             .unwrap();
 
         simulator
@@ -402,7 +353,7 @@ mod tests {
                     method: "mint_to".into(),
                     params: vec![
                         program_id.into(),
-                        alice_key.clone(),
+                        alice_key_param.clone(),
                         Param::U64(alice_initial_balance),
                     ],
                     max_units: 1000000,
@@ -418,8 +369,8 @@ mod tests {
                     method: "transfer".into(),
                     params: vec![
                         program_id.into(),
-                        alice_key.clone(),
-                        bob_key.clone(),
+                        alice_key_param.clone(),
+                        bob_key_param.clone(),
                         Param::U64(transfer_amount),
                     ],
                     max_units: 1000000,
@@ -450,7 +401,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), alice_key.clone()],
+                    params: vec![program_id.into(), alice_key_param.clone()],
                 },
             )
             .unwrap()
@@ -466,7 +417,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), bob_key],
+                    params: vec![program_id.into(), bob_key_param],
                 },
             )
             .unwrap()
@@ -481,7 +432,7 @@ mod tests {
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "burn_from".into(),
-                    params: vec![program_id.into(), alice_key.clone()],
+                    params: vec![program_id.into(), alice_key_param.clone()],
                     max_units: 1000000,
                 },
             )
@@ -498,7 +449,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), alice_key],
+                    params: vec![program_id.into(), alice_key_param],
                 },
             )
             .unwrap()
