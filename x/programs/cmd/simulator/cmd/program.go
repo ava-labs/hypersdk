@@ -109,7 +109,7 @@ func programExecuteFunc(
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) ([]byte, uint64, error) {
+) (runtime.Result[runtime.RawBytes, runtime.ErrorCode], uint64) {
 	// execute the action
 	var bytes []byte
 	for _, param := range callParams {
@@ -129,10 +129,10 @@ func programExecuteFunc(
 	remainingFuel := callInfo.RemainingFuel()
 	if err != nil {
 		if code, ok := runtime.ExtractErrorCode(err); ok {
-			return nil, remainingFuel, error(code)
+			return runtime.Err[runtime.RawBytes, runtime.ErrorCode](code), remainingFuel
 		}
-		return nil, remainingFuel, err
+		return runtime.Err[runtime.RawBytes, runtime.ErrorCode](runtime.ExecutionFailure), remainingFuel
 	}
 
-	return result, remainingFuel, nil
+	return runtime.Ok[runtime.RawBytes, runtime.ErrorCode](result), remainingFuel
 }
