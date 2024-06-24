@@ -24,6 +24,7 @@ pub fn actor_check_external(_: Context, target: Program, max_units: Gas) -> Addr
     target
         .call_function("actor_check", &[], max_units)
         .expect("failure")
+        .expect("failure")
 }
 
 #[public]
@@ -35,6 +36,7 @@ pub fn call_with_param(_: Context, value: i64) -> i64 {
 pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, value: i64) -> i64 {
     target
         .call_function("call_with_param", &value.to_le_bytes(), max_units)
+        .unwrap()
         .unwrap()
 }
 
@@ -58,5 +60,6 @@ pub fn call_with_two_params_external(
         .collect();
     target
         .call_function("call_with_two_params", &args, max_units)
+        .unwrap()
         .unwrap()
 }
