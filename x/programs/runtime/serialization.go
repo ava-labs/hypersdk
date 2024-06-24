@@ -4,14 +4,16 @@
 package runtime
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"reflect"
 
 	"github.com/near/borsh-go"
 )
 
 type customSerialize interface {
-	customSerialize() ([]byte, error)
+	customSerialize(b io.Writer) error
 }
 
 type customDeserialize[T any] interface {
@@ -31,14 +33,22 @@ func Deserialize[T any](data []byte) (*T, error) {
 }
 
 func Serialize[T any](value T) ([]byte, error) {
+	b := &bytes.Buffer{}
+	if err := bufferSerialize(value, b); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+func bufferSerialize[T any](value T, b io.Writer) error {
 	if isNil(value) {
-		return nil, nil
+		return nil
 	}
 	switch t := any(value).(type) {
 	case customSerialize:
-		return t.customSerialize()
+		return t.customSerialize(b)
 	default:
-		return borsh.Serialize(value)
+		return borsh.NewEncoder(b).Encode(value)
 	}
 }
 
@@ -59,8 +69,9 @@ func isNil[T any](t T) bool {
 
 type RawBytes []byte
 
-func (r RawBytes) customSerialize() ([]byte, error) {
-	return r, nil
+func (r RawBytes) customSerialize(b io.Writer) error {
+	_, err := b.Write(r)
+	return err
 }
 
 func (RawBytes) customDeserialize(data []byte) (*RawBytes, error) {
@@ -97,11 +108,10 @@ func (r Result[T, E]) customSerialize(b io.Writer) error {
 		prefix = []byte{resultOkPrefix}
 		val = r.value
 	}
-	bytes, err := Serialize(val)
-	if err != nil {
-		return nil, err
+	if _, err := b.Write(prefix); err != nil {
+		return err
 	}
-	return append(prefix, bytes...), nil
+	return bufferSerialize(val, b)
 }
 
 func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {

@@ -54,7 +54,7 @@ func TestSerializationOption(t *testing.T) {
 	require := require.New(t)
 	testOption := Some[byte](1)
 
-	serializedBytes, err := serialize(testOption)
+	serializedBytes, err := Serialize(testOption)
 	require.NoError(err)
 	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
 
@@ -66,7 +66,7 @@ func TestSerializationOption(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testOption, *deserialized)
 
-	deserialized, err = deserialize[Option[byte]](serializedBytes)
+	deserialized, err = Deserialize[Option[byte]](serializedBytes)
 	require.NoError(err)
 	require.Equal(testOption, *deserialized)
 }

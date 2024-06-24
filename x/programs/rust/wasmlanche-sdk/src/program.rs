@@ -62,6 +62,8 @@ impl<K> Program<K> {
     /// is used to call functions on external programs.
     /// # Errors
     /// Returns a [`ExternalCallError`] if the call fails.
+    /// # Panics
+    /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     /// # Examples
@@ -96,11 +98,11 @@ impl<K> Program<K> {
             max_units,
         };
 
-        let args_bytes = borsh::to_vec(&args).map_err(|_| ExternalCallError::ExecutionFailure)?;
+        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        borsh::from_slice(&bytes).map_err(|_| ExternalCallError::ExecutionFailure)?
+        borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
     /// Gets the remaining fuel available to this program
