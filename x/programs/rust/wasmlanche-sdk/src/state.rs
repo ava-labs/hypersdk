@@ -158,7 +158,7 @@ impl<'a, K: Key> State<'a, K> {
             key,
             value: Vec::new(),
         };
-        let args_bytes = borsh::to_vec(&[args]).map_err(|_| StateError::Serialization)?;
+        let args_bytes = borsh::to_vec(&vec![args]).map_err(|_| StateError::Serialization)?;
 
         unsafe { put(args_bytes.as_ptr(), args_bytes.len()) };
 
