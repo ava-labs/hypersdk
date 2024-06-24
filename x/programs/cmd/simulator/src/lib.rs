@@ -334,7 +334,7 @@ impl ClientBuilder<'_> {
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
-            .arg("debug")
+            .arg("error")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
