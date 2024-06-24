@@ -70,7 +70,7 @@ func accountStateKey(key []byte) (k []byte) {
 	k = make([]byte, 2+len(key))
 	k[0] = accountPrefix
 	copy(k[1:], key)
-	k[len(key)-1] = accountStatePrefix
+	k[len(k)-1] = accountStatePrefix
 	return
 }
 
@@ -78,7 +78,7 @@ func accountDataKey(key []byte) (k []byte) {
 	k = make([]byte, 2+len(key))
 	k[0] = accountPrefix
 	copy(k[1:], key)
-	k[len(key)-1] = accountDataPrefix
+	k[len(k)-1] = accountDataPrefix
 	return
 }
 
