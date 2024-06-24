@@ -11,6 +11,7 @@ thread_local! {
     static ALLOCATIONS: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
+/// A pointer where data points to the host.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[repr(transparent)]
 pub struct HostPtr(*const u8);
