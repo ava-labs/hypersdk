@@ -23,9 +23,9 @@ type customDeserialize[T any] interface {
 func deserialize[T any](data []byte) (*T, error) {
 	result := new(T)
 	var err error
-	switch t := any(result).(type) {
-	case *RawBytes:
-		*t = data
+	switch t := any(*result).(type) {
+	case customDeserialize[T]:
+		return t.customDeserialize(data)
 	default:
 		err = borsh.Deserialize(result, data)
 	}
@@ -80,8 +80,8 @@ func (RawBytes) customDeserialize(data []byte) (*RawBytes, error) {
 }
 
 const (
-	resultOk  resultType = 1
-	resultErr resultType = 0
+	resultOkPrefix  = byte(1)
+	resultErrPrefix = byte(0)
 )
 
 type Result[T any, E any] struct {
