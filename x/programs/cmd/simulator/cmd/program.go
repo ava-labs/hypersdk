@@ -167,6 +167,7 @@ func (s *ProgramStore) GetAccountProgram(ctx context.Context, account codec.Addr
 }
 
 func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+	// TODO: take fee out of balance?
 	programBytes, exists, err := getProgram(ctx, s, programID)
 	if err != nil {
 		return []byte{}, err
