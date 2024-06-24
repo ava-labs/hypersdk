@@ -66,7 +66,7 @@ pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Addre
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step};
+    use simulator::{Endpoint, Key, Param, Step, TestContext};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -118,7 +118,11 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "inc".into(),
                     max_units: 1000000,
-                    params: vec![counter_id.into(), bob_key_param.clone(), 10u64.into()],
+                    params: vec![
+                        TestContext::default().with_program_id(counter_id).into(),
+                        bob_key_param.clone(),
+                        10u64.into(),
+                    ],
                 },
             )
             .unwrap();
@@ -130,7 +134,10 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_value".into(),
                     max_units: 0,
-                    params: vec![counter_id.into(), bob_key_param],
+                    params: vec![
+                        TestContext::default().with_program_id(counter_id).into(),
+                        bob_key_param,
+                    ],
                 },
             )
             .unwrap()
