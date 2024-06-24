@@ -68,7 +68,7 @@ impl<K> Program<K> {
     /// # Examples
     /// ```no_run
     /// # use wasmlanche_sdk::{types::Address, Program};
-    ///
+    /// #
     /// # let program_id = [0; Address::LEN];
     /// # let target: Program<()> = borsh::from_slice(&program_id).expect("the program should deserialize");
     /// let increment = 10;
