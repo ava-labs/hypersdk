@@ -8,6 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
 use thiserror::Error;
 
+/// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshDeserialize)]
 #[repr(u8)]
 #[non_exhaustive]
@@ -73,6 +74,19 @@ impl<K> Program<K> {
     /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
+    /// # Examples
+    /// ```no_run
+    /// # use wasmlanche_sdk::{types::Address, Program};
+    /// #
+    /// # let program_id = [0; Address::LEN];
+    /// # let target: Program<()> = borsh::from_slice(&program_id).expect("the program should deserialize");
+    /// let increment = 10;
+    /// let params = borsh::to_vec(&increment).expect("failed to borsh serialize params");
+    /// let max_units = 1000000;
+    /// target
+    ///     .call_function("call_with_param", &params, max_units)
+    ///     .unwrap()
+    /// ```
     pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,

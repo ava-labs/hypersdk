@@ -1,6 +1,9 @@
 #![deny(clippy::pedantic)]
 
+/// State-related operations in programs.
 pub mod state;
+
+/// Program types.
 pub mod types;
 
 mod logging;
@@ -12,6 +15,7 @@ pub use self::{
     memory::HostPtr,
     program::{DeployError, ExternalCallError, Program},
 };
+use crate::types::{Gas, Id};
 
 #[cfg(feature = "build")]
 pub mod build;
@@ -20,18 +24,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
 use types::Address;
 
-pub const ID_LEN: usize = 32;
-pub type Id = [u8; ID_LEN];
-pub type Gas = u64;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("State error: {0}")]
-    State(#[from] state::Error),
-    #[error("Param error: {0}")]
-    Param(#[from] std::io::Error),
-}
-
+/// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context<K = ()> {
     pub program: Program<K>,
@@ -76,6 +69,7 @@ impl<K> BorshDeserialize for Context<K> {
     }
 }
 
+/// Special context that is passed to external programs.
 pub struct ExternalCallContext {
     program: Program,
     max_units: Gas,

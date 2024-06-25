@@ -4,44 +4,21 @@ use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
-    #[error("an unclassified error has occurred: {0}")]
-    Other(String),
-
-    #[error("invalid byte format")]
-    InvalidBytes,
-
     #[error("invalid byte length: {0}")]
     InvalidByteLength(usize),
-
-    #[error("invalid pointer offset")]
-    InvalidPointer,
-
-    #[error("invalid tag: {0}")]
-    InvalidTag(u8),
-
-    #[error("failed to write to host storage")]
-    Write,
-
-    #[error("failed to read from host storage")]
-    Read,
 
     #[error("failed to serialize bytes")]
     Serialization,
 
     #[error("failed to deserialize bytes")]
     Deserialization,
-
-    #[error("failed to convert integer")]
-    IntegerConversion,
-
-    #[error("failed to delete from host storage")]
-    Delete,
 }
 
 pub struct State<'a, K: Key> {
     cache: &'a RefCell<HashMap<K, Option<Vec<u8>>>>,
 }
 
+/// Key trait for program state keys
 /// # Safety
 /// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
 pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
