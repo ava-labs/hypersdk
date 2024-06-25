@@ -14,7 +14,11 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-var errCannotOverwrite = errors.New("trying to overwrite set field")
+var (
+	callInfoTypeInfo = reflect.TypeOf(CallInfo{})
+
+	errCannotOverwrite = errors.New("trying to overwrite set field")
+)
 
 type CallContext struct {
 	r               *WasmRuntime
@@ -24,7 +28,6 @@ type CallContext struct {
 func (c CallContext) createCallInfo(callInfo *CallInfo) (*CallInfo, error) {
 	newCallInfo := *callInfo
 	resultInfo := reflect.ValueOf(&newCallInfo)
-	callInfoTypeInfo := reflect.TypeOf(CallInfo{})
 	defaults := reflect.ValueOf(c.defaultCallInfo)
 	for i := 0; i < defaults.NumField(); i++ {
 		defaultField := defaults.Field(i)
