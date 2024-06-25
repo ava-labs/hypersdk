@@ -123,6 +123,32 @@ impl<K> Program<K> {
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
+    // TODO remove me
+    pub fn call_function_bytes(
+        &self,
+        function_name: &str,
+        args: &[u8],
+        max_units: Gas,
+    ) -> Result<Vec<u8>, ExternalCallError> {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "call_program"]
+            fn call_program(ptr: *const u8, len: usize) -> HostPtr;
+        }
+
+        let args = CallProgramArgs {
+            target: self,
+            function: function_name.as_bytes(),
+            args,
+            max_units,
+        };
+
+        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
+
+        let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
+        Ok(bytes.into())
+    }
+
     /// Gets the remaining fuel available to this program
     /// # Panics
     /// Panics if there was an issue deserializing the remaining fuel
