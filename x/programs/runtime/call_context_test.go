@@ -39,7 +39,7 @@ func TestCallContext(t *testing.T) {
 			FunctionName: "actor_check",
 		})
 	require.NoError(err)
-	require.Equal(actor, test.Into[codec.Address](result))
+	require.Equal(actor, into[codec.Address](result))
 
 	result, err = r.WithActor(codec.CreateAddress(2, ids.GenerateTestID())).CallProgram(
 		ctx,
@@ -47,7 +47,7 @@ func TestCallContext(t *testing.T) {
 			FunctionName: "actor_check",
 		})
 	require.NoError(err)
-	require.NotEqual(actor, test.Into[codec.Address](result))
+	require.NotEqual(actor, into[codec.Address](result))
 
 	result, err = r.WithFuel(0).CallProgram(
 		ctx,
