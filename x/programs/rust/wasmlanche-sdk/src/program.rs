@@ -2,7 +2,8 @@ use crate::{
     memory::HostPtr,
     state::{Key, State},
     types::Address,
-    Gas, Id,
+    types::Id,
+    Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
