@@ -472,7 +472,7 @@ type timeModifier struct {
 }
 
 func (t *timeModifier) Base(timestamp *int64, _ *ids.ID, _ *uint64) {
-	timestamp = &t.Timestamp
+	*timestamp = t.Timestamp
 }
 
 func startIssuer(cctx context.Context, issuer *txIssuer) {
