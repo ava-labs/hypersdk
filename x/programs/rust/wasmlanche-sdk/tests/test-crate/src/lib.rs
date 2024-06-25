@@ -13,7 +13,7 @@ pub fn always_true(_: Context<StateKeys>) -> bool {
 #[public]
 pub fn combine_last_bit_of_each_id_byte(context: Context<StateKeys>) -> u32 {
     context
-        .program
+        .program()
         .account()
         .into_iter()
         .map(|byte| byte as u32)
