@@ -6,7 +6,6 @@ use crate::{
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::Serialize;
 use std::{cell::RefCell, collections::HashMap};
 use thiserror::Error;
 
@@ -27,11 +26,10 @@ pub enum ExternalCallError {
 /// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, BorshSerialize, Serialize)]
+#[derive(BorshSerialize)]
 pub struct Program<K = ()> {
     account: Address,
     #[borsh(skip)]
-    #[serde(skip)]
     state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
 }
 

@@ -22,12 +22,11 @@ pub mod build;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
-use serde::Serialize;
 use types::Address;
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, BorshSerialize, Serialize)]
+#[derive(BorshSerialize)]
 pub struct Context<K = ()> {
     program: Program<K>,
     actor: Address,

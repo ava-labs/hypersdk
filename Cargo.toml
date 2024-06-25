@@ -23,6 +23,6 @@ strip = true
 sdk-macros = { path = "x/programs/rust/sdk-macros" }
 simulator = { path = "x/programs/cmd/simulator" }
 wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
-serde = { version = "1.0.203", features = ["derive"] }
+
 borsh = { version = "1.5.1", features = ["derive"] }
 thiserror = "1.0.61"

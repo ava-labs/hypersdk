@@ -232,11 +232,11 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		testContext := runtime.Context {
-				Program: program,
-				Actor: actor,
-				Timestamp: simulatorTestContext.Timestamp,
-				Height: simulatorTestContext.Height,
+		testContext := runtime.Context{
+			Program:   program,
+			Actor:     actor,
+			Timestamp: simulatorTestContext.Timestamp,
+			Height:    simulatorTestContext.Height,
 		}
 
 		result, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, maxUnits)
@@ -267,11 +267,11 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		testContext := runtime.Context {
-				Program: program,
-				Actor: actor,
-				Timestamp: simulatorTestContext.Timestamp,
-				Height: simulatorTestContext.Height,
+		testContext := runtime.Context{
+			Program:   program,
+			Actor:     actor,
+			Timestamp: simulatorTestContext.Timestamp,
+			Height:    simulatorTestContext.Height,
 		}
 
 		// TODO: implement readonly for now just don't charge for gas
@@ -304,35 +304,35 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
 
 type SimulatorTestContext struct {
-	ProgramId    uint64     `json:"programId"`
-	ActorKey     *Parameter `json:"actorKey"`
-	Height       uint64     `json:"height"`
-	Timestamp    uint64     `json:"timestamp"`
+	ProgramId uint64     `json:"programId"`
+	ActorKey  *Parameter `json:"actorKey"`
+	Height    uint64     `json:"height"`
+	Timestamp uint64     `json:"timestamp"`
 }
 
 func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
-		id := s.ProgramId
-		programAddress, ok := programIDStrMap[int(id)]
-		if !ok {
-			return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
-		}
-		return programAddress, nil
+	id := s.ProgramId
+	programAddress, ok := programIDStrMap[int(id)]
+	if !ok {
+		return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
+	}
+	return programAddress, nil
 }
 
 func (s *SimulatorTestContext) Actor(ctx context.Context, db *state.SimpleMutable) (codec.Address, error) {
 	actor := codec.EmptyAddress
 	if s.ActorKey != nil {
-		key := string(*&s.ActorKey.Value);
+		key := string(*&s.ActorKey.Value)
 		pk, ok, err := GetPublicKey(ctx, db, key)
 		if err != nil {
 			return codec.EmptyAddress, err
 		}
 		if !ok {
-			return codec.EmptyAddress,fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
+			return codec.EmptyAddress, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
 		}
 		id, err := ids.ToID(pk[:])
 		if err != nil {
-			return codec.EmptyAddress,err
+			return codec.EmptyAddress, err
 		}
 		actor = codec.CreateAddress(0, id)
 	}

@@ -24,5 +24,5 @@ var (
 	ErrInvalidParams             = errors.New("invalid params")
 	ErrConfigMissingRequired     = errors.New("missing required field")
 	ErrFirstParamRequiredString  = errors.New("first param must be a string")
-	ErrFirstParamRequiredContext = errors.New("first param must be a TestContext")
+	ErrFirstParamRequiredContext = errors.New("first param must be a testContext")
 )
