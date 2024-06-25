@@ -2,7 +2,10 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{types::Address, Context, Id, Program, ID_LEN};
+use wasmlanche_sdk::{
+    types::{Address, Id, ID_LEN},
+    Context, Program,
+};
 use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
