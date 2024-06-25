@@ -8,7 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
 use thiserror::Error;
 
-#[derive(Error, Debug, BorshDeserialize)]
+#[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
 #[non_exhaustive]
 #[borsh(use_discriminant = true)]
