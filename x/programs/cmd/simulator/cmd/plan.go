@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -23,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -217,11 +219,12 @@ func (c *runCmd) runStepFunc(
 			return nil
 		}
 
-		programAddress, err := codec.ToAddress(params[0].Value)
+		var testContext runtime.Context
+		err := json.Unmarshal(params[0].Value, &testContext)
 		if err != nil {
 			return err
 		}
-		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		response, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, maxUnits)
 		if err != nil {
 			return err
 		}
@@ -240,12 +243,13 @@ func (c *runCmd) runStepFunc(
 
 		return nil
 	case EndpointReadOnly:
-		programAddress, err := codec.ToAddress(params[0].Value)
+		var testContext runtime.Context
+		err := json.Unmarshal(params[0].Value, &testContext)
 		if err != nil {
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		response, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, math.MaxUint64)
 		if err != nil {
 			return err
 		}
@@ -317,7 +321,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				key = string(address)
 			}
 			cp = append(cp, Parameter{Value: []byte(key), Type: param.Type})
-		case Uint64, Bool:
+		case Uint64, Bool, TestContext:
 			cp = append(cp, param)
 		default:
 			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)

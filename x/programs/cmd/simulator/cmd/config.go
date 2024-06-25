@@ -117,6 +117,7 @@ const (
 	KeyEd25519   Type = "ed25519"
 	KeySecp256k1 Type = "secp256k1"
 	Uint64       Type = "u64"
+	TestContext  Type = "testContext"
 )
 
 func unmarshalStep(bytes []byte) (*Step, error) {
