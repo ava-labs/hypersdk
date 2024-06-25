@@ -9,7 +9,7 @@ pub type Gas = u64;
 
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 pub struct Address([u8; Self::LEN]);
 
 impl Address {

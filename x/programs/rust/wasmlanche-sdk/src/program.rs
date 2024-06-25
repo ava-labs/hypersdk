@@ -154,10 +154,10 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
             max_units,
         } = self;
 
-        BorshSerialize::serialize(target, writer)?;
-        BorshSerialize::serialize(function, writer)?;
-        BorshSerialize::serialize(args, writer)?;
-        BorshSerialize::serialize(max_units, writer)?;
+        target.serialize(writer)?;
+        function.serialize(writer)?;
+        args.serialize(writer)?;
+        max_units.serialize(writer)?;
 
         Ok(())
     }
