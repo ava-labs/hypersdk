@@ -90,8 +90,11 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 
 	// create the program context
 	programCtx := Context{
-		Program: callInfo.Program,
-		Actor:   callInfo.Actor,
+		Program:   callInfo.Program,
+		Actor:     callInfo.Actor,
+		Height:    callInfo.Height,
+		Timestamp: callInfo.Timestamp,
+		ActionID:  callInfo.ActionID,
 	}
 	paramsBytes, err := serialize(programCtx)
 	if err != nil {
