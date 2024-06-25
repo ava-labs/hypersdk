@@ -35,7 +35,7 @@ pub enum DeployError {
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Program<K = ()> {
     account: Address,
-    state_cache: RefCell<HashMap<K, Vec<u8>>>,
+    state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
 }
 
 impl<K> BorshSerialize for Program<K> {
