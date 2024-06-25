@@ -39,40 +39,22 @@ func NewStateAccessModule() *ImportModule {
 				}
 				return val, nil
 			})},
-			"put": {FuelCost: putCost, Function: FunctionNoOutput[keyValueInput](func(callInfo *CallInfo, input keyValueInput) error {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				return callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, input.Key, input.Value)
-			})},
-			"put_many": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				for _, entry := range input {
-					if err := callInfo.State.GetProgramState(callInfo.Program).Insert(ctx, entry.Key, entry.Value); err != nil {
-						return err
-					}
-				}
-				return nil
-			})},
-			"delete": {FuelCost: deleteCost, Function: Function[[]byte, RawBytes](func(callInfo *CallInfo, input []byte) (RawBytes, error) {
+			"put": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				programState := callInfo.State.GetProgramState(callInfo.Program)
-				bytes, err := programState.GetValue(ctx, input)
-				if err != nil {
-					if errors.Is(err, database.ErrNotFound) {
-						return nil, nil
+				for _, entry := range input {
+					if len(entry.Value) == 0 {
+						if err := programState.Remove(ctx, entry.Key); err != nil {
+							return err
+						}
+					} else {
+						if err := programState.Insert(ctx, entry.Key, entry.Value); err != nil {
+							return err
+						}
 					}
-
-					return nil, err
 				}
-
-				err = programState.Remove(ctx, input)
-				if err != nil {
-					return nil, err
-				}
-
-				return bytes, nil
+				return nil
 			})},
 		},
 	}

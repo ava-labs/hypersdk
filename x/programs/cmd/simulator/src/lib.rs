@@ -60,7 +60,7 @@ impl Step {
     pub fn create_key(key: Key) -> Self {
         Self {
             endpoint: Endpoint::Key,
-            method: "create_key".into(),
+            method: "key_create".into(),
             max_units: 0,
             params: vec![Param::Key(key)],
         }

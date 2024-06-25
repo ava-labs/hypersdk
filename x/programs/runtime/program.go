@@ -21,10 +21,11 @@ const (
 )
 
 type Context struct {
-	Program  codec.Address
-	Actor    codec.Address
-	Height   uint64
-	ActionID ids.ID
+	Program   codec.Address
+	Actor     codec.Address
+	Height    uint64
+	Timestamp uint64
+	ActionID  ids.ID
 }
 
 type CallInfo struct {
@@ -48,6 +49,9 @@ type CallInfo struct {
 	// the height of the chain that this call was made from
 	Height uint64
 
+	// the timestamp of the chain at the time this call was made
+	Timestamp uint64
+
 	// the action id that triggered this call
 	ActionID ids.ID
 
@@ -61,6 +65,11 @@ func (c *CallInfo) RemainingFuel() uint64 {
 		remaining -= usedFuel
 	}
 	return remaining
+}
+
+func (c *CallInfo) AddFuel(fuel uint64) {
+	// only errors if fuel isn't enable, which it always will be
+	_ = c.inst.store.AddFuel(fuel)
 }
 
 func (c *CallInfo) ConsumeFuel(fuel uint64) error {
