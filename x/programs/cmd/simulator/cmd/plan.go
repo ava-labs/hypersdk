@@ -304,14 +304,14 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
 
 type SimulatorTestContext struct {
-	ProgramId uint64     `json:"programId"`
+	ProgramID uint64     `json:"programId"`
 	ActorKey  *Parameter `json:"actorKey"`
 	Height    uint64     `json:"height"`
 	Timestamp uint64     `json:"timestamp"`
 }
 
 func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
-	id := s.ProgramId
+	id := s.ProgramID
 	programAddress, ok := programIDStrMap[int(id)]
 	if !ok {
 		return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
@@ -322,7 +322,7 @@ func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (c
 func (s *SimulatorTestContext) Actor(ctx context.Context, db *state.SimpleMutable) (codec.Address, error) {
 	actor := codec.EmptyAddress
 	if s.ActorKey != nil {
-		key := string(*&s.ActorKey.Value)
+		key := string(s.ActorKey.Value)
 		pk, ok, err := GetPublicKey(ctx, db, key)
 		if err != nil {
 			return codec.EmptyAddress, err
