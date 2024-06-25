@@ -10,6 +10,7 @@ import (
 
 const (
 	ProgramCreate  = "program_create"
+	KeyCreate      = "key_create"
 	ProgramExecute = "execute"
 )
 
