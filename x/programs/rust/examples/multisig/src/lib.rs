@@ -5,6 +5,8 @@ use wasmlanche_sdk::Context;
 use wasmlanche_sdk::ExternalCallError;
 use wasmlanche_sdk::{public, state_keys, types::Address, Program};
 
+const MIN_VOTES: u32 = 2;
+
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct Proposal {
     to: Program,
@@ -103,6 +105,7 @@ pub fn execute(
     //     .to
     //     .call_function(&proposal.method, &proposal.data, max_units)
     //     .map_err(ProposalError::ExecutionFailed)
+    todo!()
 }
 
 fn proposal_at(program: &Program<StateKeys>, proposal_id: u32) -> Option<Proposal> {
@@ -122,8 +125,7 @@ fn proposal_id(program: &Program<StateKeys>) -> u32 {
 }
 
 fn quorum_reached(proposal: &Proposal) -> bool {
-    // TODO add rules
-    true
+    proposal.yea + proposal.nay >= MIN_VOTES && proposal.yea > proposal.nay
 }
 
 #[cfg(test)]
