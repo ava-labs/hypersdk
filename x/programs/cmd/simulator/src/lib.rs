@@ -143,7 +143,7 @@ pub enum Param {
     Id(Id),
     Key(Key),
     #[allow(private_interfaces)]
-    TextContext(SimulatorTestContext),
+    TestContext(SimulatorTestContext),
 }
 
 #[derive(Serialize)]
@@ -163,7 +163,7 @@ impl From<&Param> for StringParam {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
             }
-            Param::Key(_) | Param::TextContext(_) => unreachable!(),
+            Param::Key(_) | Param::TestContext(_) => unreachable!(),
         }
     }
 }
@@ -175,7 +175,7 @@ impl Serialize for Param {
     {
         match self {
             Param::Key(key) => Serialize::serialize(key, serializer),
-            Param::TextContext(ctx) => Serialize::serialize(ctx, serializer),
+            Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
             _ => StringParam::from(self).serialize(serializer),
         }
     }
@@ -207,7 +207,7 @@ impl From<Key> for Param {
 
 impl From<TestContext> for Param {
     fn from(val: TestContext) -> Self {
-        Param::TextContext(SimulatorTestContext { value: val })
+        Param::TestContext(SimulatorTestContext { value: val })
     }
 }
 

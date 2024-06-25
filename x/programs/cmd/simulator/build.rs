@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let go_build_output = Command::new("go")
         .arg("build")
         .arg("-tags")
-        .arg("error")
+        .arg("debug")
         .arg("-o")
         .arg(simulator_path)
         .arg(simulator_src)
