@@ -16,8 +16,7 @@ pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 
 
 #[public]
 pub fn actor_check(context: Context) -> Address {
-    let Context { actor, .. } = context;
-    actor
+    context.actor()
 }
 
 #[public]

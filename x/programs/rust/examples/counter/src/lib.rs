@@ -18,9 +18,9 @@ type Count = u64;
 #[public]
 pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     let counter = amount + get_value_internal(&context, to);
-    let Context { program, .. } = context;
 
-    program
+    context
+        .program()
         .state()
         .store(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
@@ -50,7 +50,7 @@ pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
 #[cfg(not(feature = "bindings"))]
 fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
     context
-        .program
+        .program()
         .state()
         .get(StateKeys::Counter(of))
         .expect("state corrupt")
