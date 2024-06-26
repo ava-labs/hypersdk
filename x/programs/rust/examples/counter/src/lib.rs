@@ -38,7 +38,9 @@ pub fn inc_external(
     amount: Count,
 ) -> bool {
     let args = borsh::to_vec(&(of, amount)).unwrap();
-    target.call_function("inc", &args, max_units).unwrap()
+    target
+        .call_function("inc", &args, max_units)
+        .unwrap()
         .deserialize()
         .expect("deserialization failed")
 }
