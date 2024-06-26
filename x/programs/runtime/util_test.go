@@ -24,12 +24,14 @@ func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
 	t.Runtime.programStore.(test.ProgramStore).ProgramsMap[programID] = programName
 }
 
-func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, function string, params ...interface{}) ([]byte, error) {
+func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, height uint64, timestamp uint64, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
 		t.Context,
 		&CallInfo{
 			Program:      program,
 			Actor:        actor,
+			Height:       height,
+			Timestamp:    timestamp,
 			State:        t.StateDB,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
@@ -63,6 +65,8 @@ func (t *testProgram) Call(function string, params ...interface{}) ([]byte, erro
 	return t.Runtime.CallProgram(
 		t.Address,
 		codec.CreateAddress(0, ids.GenerateTestID()),
+		0,
+		0,
 		function,
 		params...)
 }
@@ -71,6 +75,28 @@ func (t *testProgram) CallWithActor(actor codec.Address, function string, params
 	return t.Runtime.CallProgram(
 		t.Address,
 		actor,
+		0,
+		0,
+		function,
+		params...)
+}
+
+func (t *testProgram) CallWithHeight(height uint64, function string, params ...interface{}) ([]byte, error) {
+	return t.Runtime.CallProgram(
+		t.Address,
+		codec.CreateAddress(0, ids.GenerateTestID()),
+		height,
+		0,
+		function,
+		params...)
+}
+
+func (t *testProgram) CallWithTimestamp(timestamp uint64, function string, params ...interface{}) ([]byte, error) {
+	return t.Runtime.CallProgram(
+		t.Address,
+		codec.CreateAddress(0, ids.GenerateTestID()),
+		0,
+		timestamp,
 		function,
 		params...)
 }
