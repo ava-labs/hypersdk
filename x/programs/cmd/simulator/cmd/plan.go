@@ -260,7 +260,7 @@ func (c *runCmd) runStepFunc(
 	}
 }
 
-func resultToOutput(result []byte, err error) (runtime.Result[runtime.RawBytes, runtime.ErrorCode]) {
+func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, runtime.ErrorCode] {
 	if err != nil {
 		if code, ok := runtime.ExtractErrorCode(err); ok {
 			return runtime.Err[runtime.RawBytes, runtime.ErrorCode](code)
