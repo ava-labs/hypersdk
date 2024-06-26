@@ -21,7 +21,7 @@ pub enum StateKeys {
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
 pub fn init(context: Context<StateKeys>) {
-    let Context { program, .. } = context;
+    let program = context.program();
 
     // set total supply
     program
@@ -45,9 +45,8 @@ pub fn init(context: Context<StateKeys>) {
 /// Returns the total supply of the token.
 #[public]
 pub fn get_total_supply(context: Context<StateKeys>) -> u64 {
-    let Context { program, .. } = context;
-
-    program
+    context
+        .program()
         .state()
         .get(StateKeys::TotalSupply)
         .expect("failed to get total supply")
@@ -67,7 +66,7 @@ fn mint_to_internal(
     recipient: Address,
     amount: u64,
 ) -> Context<StateKeys> {
-    let program = &context.program;
+    let program = context.program();
 
     let balance = program
         .state()
@@ -86,8 +85,8 @@ fn mint_to_internal(
 /// Burn the token from the recipient.
 #[public]
 pub fn burn_from(context: Context<StateKeys>, recipient: Address) -> u64 {
-    let Context { program, .. } = context;
-    program
+    context
+        .program()
         .state()
         .delete::<u64>(StateKeys::Balance(recipient))
         .expect("failed to burn recipient tokens")
@@ -102,8 +101,9 @@ pub fn transfer(
     recipient: Address,
     amount: u64,
 ) -> bool {
-    let Context { program, .. } = context;
     assert_ne!(sender, recipient, "sender and recipient must be different");
+
+    let program = context.program();
 
     // ensure the sender has adequate balance
     let sender_balance = program
@@ -152,8 +152,8 @@ pub fn mint_to_many(context: Context<StateKeys>, minters: Vec<Minter>) -> bool {
 /// Gets the balance of the recipient.
 #[public]
 pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
-    let Context { program, .. } = context;
-    program
+    context
+        .program()
         .state()
         .get(StateKeys::Balance(recipient))
         .expect("state corrupt")
