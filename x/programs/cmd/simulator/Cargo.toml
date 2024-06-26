@@ -14,3 +14,7 @@ wasmlanche-sdk = { workspace = true }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
+
+[[test]]
+name = "context_injection"
+path = "test/context_injection/src/lib.rs"
