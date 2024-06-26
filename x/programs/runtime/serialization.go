@@ -4,23 +4,21 @@
 package runtime
 
 import (
-	"bytes"
 	"errors"
-	"io"
 	"reflect"
 
 	"github.com/near/borsh-go"
 )
 
 type customSerialize interface {
-	customSerialize(b io.Writer) error
+	customSerialize() ([]byte, error)
 }
 
 type customDeserialize[T any] interface {
 	customDeserialize([]byte) (*T, error)
 }
 
-func deserialize[T any](data []byte) (*T, error) {
+func Deserialize[T any](data []byte) (*T, error) {
 	result := new(T)
 	var err error
 	switch t := any(*result).(type) {
@@ -32,23 +30,15 @@ func deserialize[T any](data []byte) (*T, error) {
 	return result, err
 }
 
-func serialize[T any](value T) ([]byte, error) {
-	b := &bytes.Buffer{}
-	if err := bufferSerialize(value, b); err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
-}
-
-func bufferSerialize[T any](value T, b io.Writer) error {
+func Serialize[T any](value T) ([]byte, error) {
 	if isNil(value) {
-		return nil
+		return nil, nil
 	}
 	switch t := any(value).(type) {
 	case customSerialize:
-		return t.customSerialize(b)
+		return t.customSerialize()
 	default:
-		return borsh.NewEncoder(b).Encode(value)
+		return borsh.Serialize(value)
 	}
 }
 
@@ -69,9 +59,8 @@ func isNil[T any](t T) bool {
 
 type RawBytes []byte
 
-func (r RawBytes) customSerialize(b io.Writer) error {
-	_, err := b.Write(r)
-	return err
+func (r RawBytes) customSerialize() ([]byte, error) {
+	return r, nil
 }
 
 func (RawBytes) customDeserialize(data []byte) (*RawBytes, error) {
@@ -108,10 +97,11 @@ func (r Result[T, E]) customSerialize(b io.Writer) error {
 		prefix = []byte{resultOkPrefix}
 		val = r.value
 	}
-	if _, err := b.Write(prefix); err != nil {
-		return err
+	bytes, err := Serialize(val)
+	if err != nil {
+		return nil, err
 	}
-	return bufferSerialize(val, b)
+	return append(prefix, bytes...), nil
 }
 
 func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
@@ -121,7 +111,7 @@ func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
 	switch data[0] {
 	case resultOkPrefix:
 		{
-			val, err := deserialize[T](data[1:])
+			val, err := Deserialize[T](data[1:])
 			if err != nil {
 				return nil, errors.New("deserialization")
 			}
@@ -129,7 +119,7 @@ func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
 		}
 	case resultErrPrefix:
 		{
-			val, err := deserialize[E](data[1:])
+			val, err := Deserialize[E](data[1:])
 			if err != nil {
 				return nil, errors.New("deserialization")
 			}

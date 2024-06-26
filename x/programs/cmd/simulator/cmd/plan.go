@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -221,18 +222,19 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		response, balance := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		output, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		if err != nil {
+			return err
+		}
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
+		response, err := runtime.Serialize(output)
+		if err != nil {
+			return err
+		}
 
-		if len(response) > 1 {
-			return errors.New("multi response not supported")
-		}
-		res := response[0]
-		if res != nil {
-			resp.setResponse(res)
-		}
+		resp.setResponse(response)
 		resp.setBalance(balance)
 
 		return nil
@@ -242,18 +244,21 @@ func (c *runCmd) runStepFunc(
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		response, _ := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		output, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		if err != nil {
+			return err
+		}
+
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
 
-		if len(response) > 1 {
-			return errors.New("multi response not supported")
+		response, err := runtime.Serialize(output)
+		if err != nil {
+			return err
 		}
-		res := response[0]
-		if res != nil {
-			resp.setResponse(res)
-		}
+
+		resp.setResponse(response)
 
 		return nil
 	default:
