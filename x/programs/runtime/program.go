@@ -30,7 +30,7 @@ type Context struct {
 
 type CallInfo struct {
 	// the state that the program will run against
-	State StateLoader
+	State StateManager
 
 	// the address that originated the initial program call
 	Actor codec.Address
