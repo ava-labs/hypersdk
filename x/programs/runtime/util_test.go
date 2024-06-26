@@ -16,7 +16,7 @@ import (
 type testRuntime struct {
 	Context    context.Context
 	Runtime    *WasmRuntime
-	StateDB    StateLoader
+	StateDB    StateManager
 	DefaultGas uint64
 }
 
@@ -33,7 +33,7 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 			State:        t.StateDB,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
-			Fuel:         t.DefaultGas,
+			MaxFuel:      t.DefaultGas,
 		})
 }
 
@@ -47,7 +47,7 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 				NewConfig(),
 				logging.NoLog{},
 				test.ProgramStore{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}}),
-			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
+			StateDB:    test.StateManager{Mu: test.NewTestDB()},
 			DefaultGas: 10000000,
 		},
 		Address: account,

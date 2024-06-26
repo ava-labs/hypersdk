@@ -27,6 +27,7 @@ const (
 	CallPanicked ProgramCallErrorCode = iota
 	ExecutionFailure
 	OutOfFuel
+	InsufficientBalance
 )
 
 func extractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
@@ -48,7 +49,8 @@ type callProgramInput struct {
 	Program      codec.Address
 	FunctionName string
 	Params       []byte
-	Fuel         uint64
+	MaxFuel      uint64
+	MaxValue     uint64
 }
 
 type deployProgramInput struct {
@@ -63,15 +65,21 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
 				newInfo := *callInfo
 
-				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
+				if err := callInfo.ConsumeFuel(input.MaxFuel); err != nil {
 					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
+				}
+
+				callInfo.Value -= input.MaxValue
+				if callInfo.Value < 0 {
+					return Err[RawBytes, ProgramCallErrorCode](InsufficientBalance), nil
 				}
 
 				newInfo.Actor = callInfo.Program
 				newInfo.Program = input.Program
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
-				newInfo.Fuel = input.Fuel
+				newInfo.MaxFuel = input.MaxFuel
+				newInfo.Value = input.MaxValue
 
 				result, err := r.CallProgram(
 					context.Background(),
@@ -85,6 +93,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 
 				// return any remaining fuel to the calling program
 				callInfo.AddFuel(newInfo.RemainingFuel())
+				callInfo.Value += newInfo.Value
 
 				return Ok[RawBytes, ProgramCallErrorCode](result), nil
 			})},

@@ -84,6 +84,7 @@ impl<K> Program<K> {
         function_name: &str,
         args: &[u8],
         max_units: Gas,
+        max_value: u64,
     ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -96,6 +97,7 @@ impl<K> Program<K> {
             function: function_name.as_bytes(),
             args,
             max_units,
+            max_value,
         };
 
         let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
@@ -152,6 +154,7 @@ struct CallProgramArgs<'a, K> {
     function: &'a [u8],
     args: &'a [u8],
     max_units: Gas,
+    max_value: u64,
 }
 
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {
@@ -161,13 +164,14 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
             function,
             args,
             max_units,
+            max_value,
         } = self;
 
         target.serialize(writer)?;
         function.serialize(writer)?;
         args.serialize(writer)?;
         max_units.serialize(writer)?;
-
+        max_value.serialize(writer)?;
         Ok(())
     }
 }

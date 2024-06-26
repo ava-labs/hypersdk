@@ -29,8 +29,10 @@ type WasmRuntime struct {
 	linkerNeedsInitialization bool
 }
 
-type StateLoader interface {
+type StateManager interface {
 	GetProgramState(address codec.Address) state.Mutable
+	GetBalance(ctx context.Context, address codec.Address) (uint64, error)
+	TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error
 }
 
 type ProgramStore interface {

@@ -36,6 +36,20 @@ func CompileTest(programName string) error {
 type ProgramStore struct {
 	ProgramsMap map[ids.ID]string
 	AccountMap  map[codec.Address]ids.ID
+	Balances    map[codec.Address]uint64
+}
+
+func (t ProgramStore) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
+	return t.Balances[address], nil
+}
+
+func (t ProgramStore) TransferBalance(_ context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	if t.Balances[from] < amount {
+		return errors.New("insufficient balance")
+	}
+	t.Balances[from] -= amount
+	t.Balances[to] += amount
+	return nil
 }
 
 func NewProgramStore() ProgramStore {
@@ -78,11 +92,25 @@ func (t ProgramStore) SetAccountProgram(_ context.Context, account codec.Address
 	return nil
 }
 
-type StateLoader struct {
-	Mu state.Mutable
+type StateManager struct {
+	Mu       state.Mutable
+	balances map[codec.Address]uint64
 }
 
-func (t StateLoader) GetProgramState(address codec.Address) state.Mutable {
+func (t StateManager) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
+	return t.balances[address], nil
+}
+
+func (t StateManager) TransferBalance(_ context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	if t.balances[from] < amount {
+		return errors.New("insufficient balance")
+	}
+	t.balances[from] -= amount
+	t.balances[to] += amount
+	return nil
+}
+
+func (t StateManager) GetProgramState(address codec.Address) state.Mutable {
 	return &prefixedState{address: address, inner: t.Mu}
 }
 
