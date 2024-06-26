@@ -20,6 +20,10 @@ type testRuntime struct {
 	DefaultGas uint64
 }
 
+func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
+	t.Runtime.programStore.(test.ProgramStore).ProgramsMap[programID] = programName
+}
+
 func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
 		t.Context,
@@ -42,7 +46,7 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Runtime: NewRuntime(
 				NewConfig(),
 				logging.NoLog{},
-				test.ProgramLoader{ProgramName: program}),
+				test.ProgramStore{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}}),
 			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
 			DefaultGas: 10000000,
 		},

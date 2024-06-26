@@ -13,6 +13,28 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
+func TestImportProgramDeployProgram(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "deploy_program")
+	otherProgramID := ids.GenerateTestID()
+	program.Runtime.AddProgram(otherProgramID, "call_program")
+
+	result, err := program.Call(
+		"deploy",
+		otherProgramID)
+	require.NoError(err)
+
+	newAccount := into[codec.Address](result)
+
+	result, err = program.Runtime.CallProgram(newAccount, codec.EmptyAddress, "simple_call")
+	require.NoError(err)
+	require.Equal(uint64(0), into[uint64](result))
+}
+
 func TestImportProgramCallProgram(t *testing.T) {
 	require := require.New(t)
 

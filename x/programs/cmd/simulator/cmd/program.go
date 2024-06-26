@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
@@ -81,7 +82,14 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		return codec.EmptyAddress, err
 	}
 
-	address, err := SetProgram(ctx, db, programID, programBytes)
+	err = setProgram(ctx, db, programID, programBytes)
+	if err != nil {
+		response := multilineOutput([][]byte{utils.ErrBytes(err)})
+		fmt.Println(response)
+		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
+	}
+
+	account, err := deployProgram(ctx, db, programID, []byte{})
 	if err != nil {
 		response := multilineOutput([][]byte{utils.ErrBytes(err)})
 		fmt.Println(response)
@@ -94,7 +102,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		return codec.EmptyAddress, err
 	}
 
-	return address, nil
+	return account, nil
 }
 
 func programExecuteFunc(
@@ -146,9 +154,21 @@ type ProgramStore struct {
 	state.Mutable
 }
 
-func (s *ProgramStore) GetProgramBytes(ctx context.Context, program codec.Address) ([]byte, error) {
+func (s *ProgramStore) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+	programID, exists, err := getAccountProgram(ctx, s, account)
+	if err != nil {
+		return ids.Empty, err
+	}
+	if !exists {
+		return ids.Empty, errors.New("unknown account")
+	}
+
+	return programID, nil
+}
+
+func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
 	// TODO: take fee out of balance?
-	programBytes, exists, err := GetProgram(ctx, s, program)
+	programBytes, exists, err := getProgram(ctx, s, programID)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -157,4 +177,12 @@ func (s *ProgramStore) GetProgramBytes(ctx context.Context, program codec.Addres
 	}
 
 	return programBytes, nil
+}
+
+func (s *ProgramStore) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
+	return deployProgram(ctx, s, programID, accountCreationData)
+}
+
+func (s *ProgramStore) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
+	return setAccountProgram(ctx, s, account, programID)
 }
