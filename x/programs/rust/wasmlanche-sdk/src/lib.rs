@@ -27,11 +27,33 @@ use types::Address;
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context<K = ()> {
-    pub program: Program<K>,
-    pub actor: Address,
-    pub height: u64,
-    pub timestamp: u64,
-    pub action_id: Id,
+    program: Program<K>,
+    actor: Address,
+    height: u64,
+    timestamp: u64,
+    action_id: Id,
+}
+
+impl<K> Context<K> {
+    pub fn program(&self) -> &Program<K> {
+        &self.program
+    }
+
+    pub fn actor(&self) -> Address {
+        self.actor
+    }
+
+    pub fn height(&self) -> u64 {
+        self.height
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    pub fn action_id(&self) -> Id {
+        self.action_id
+    }
 }
 
 impl<K> BorshSerialize for Context<K> {
