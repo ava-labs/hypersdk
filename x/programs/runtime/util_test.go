@@ -14,14 +14,14 @@ import (
 )
 
 type testRuntime struct {
-	Context    context.Context
-	Runtime    *WasmRuntime
-	StateDB    StateLoader
-	DefaultGas uint64
+	Context      context.Context
+	Runtime      *WasmRuntime
+	StateManager StateManager
+	DefaultGas   uint64
 }
 
 func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
-	t.Runtime.programStore.(test.ProgramStore).ProgramsMap[programID] = programName
+	t.StateManager.(test.StateManager).ProgramsMap[programID] = programName
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -30,7 +30,7 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 		&CallInfo{
 			Program:      program,
 			Actor:        actor,
-			State:        t.StateDB,
+			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
 			Fuel:         t.DefaultGas,
@@ -45,10 +45,9 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Context: ctx,
 			Runtime: NewRuntime(
 				NewConfig(),
-				logging.NoLog{},
-				test.ProgramStore{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}}),
-			StateDB:    test.StateLoader{Mu: test.NewTestDB()},
-			DefaultGas: 10000000,
+				logging.NoLog{}),
+			StateManager: test.StateManager{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}, Mu: test.NewTestDB()},
+			DefaultGas:   10000000,
 		},
 		Address: account,
 	}

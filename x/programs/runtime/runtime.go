@@ -22,15 +22,15 @@ type WasmRuntime struct {
 	cfg              *Config
 	accountToProgram map[codec.Address]ids.ID
 	programToModule  map[ids.ID]*wasmtime.Module
-	programStore     ProgramStore
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
 	linkerNeedsInitialization bool
 }
 
-type StateLoader interface {
+type StateManager interface {
 	GetProgramState(address codec.Address) state.Mutable
+	ProgramStore
 }
 
 type ProgramStore interface {
@@ -43,7 +43,6 @@ type ProgramStore interface {
 func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
-	programStore ProgramStore,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
 		log:                       log,
@@ -52,7 +51,6 @@ func NewRuntime(
 		hostImports:               NewImports(),
 		accountToProgram:          map[codec.Address]ids.ID{},
 		programToModule:           map[ids.ID]*wasmtime.Module{},
-		programStore:              programStore,
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
 	}
@@ -91,14 +89,14 @@ func (r *WasmRuntime) addProgram(id ids.ID, programBytes []byte) (*wasmtime.Modu
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
 	programID, ok := r.accountToProgram[callInfo.Program]
 	if !ok {
-		if programID, err = r.programStore.GetAccountProgram(ctx, callInfo.Program); err != nil {
+		if programID, err = callInfo.State.GetAccountProgram(ctx, callInfo.Program); err != nil {
 			return nil, err
 		}
 		r.accountToProgram[callInfo.Program] = programID
 	}
 	programModule, ok := r.programToModule[programID]
 	if !ok {
-		programBytes, err := r.programStore.GetProgramBytes(ctx, programID)
+		programBytes, err := callInfo.State.GetProgramBytes(ctx, programID)
 		if err != nil {
 			return nil, err
 		}

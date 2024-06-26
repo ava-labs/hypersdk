@@ -99,10 +99,10 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			"deploy": {
 				FuelCost: deployCost,
 				Function: Function[deployProgramInput, codec.Address](
-					func(_ *CallInfo, input deployProgramInput) (codec.Address, error) {
+					func(callInfo *CallInfo, input deployProgramInput) (codec.Address, error) {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						address, err := r.programStore.NewAccountWithProgram(ctx, input.ProgramID, input.AccountCreationData)
+						address, err := callInfo.State.NewAccountWithProgram(ctx, input.ProgramID, input.AccountCreationData)
 						if err != nil {
 							return codec.EmptyAddress, err
 						}
