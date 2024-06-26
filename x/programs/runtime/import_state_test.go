@@ -25,7 +25,7 @@ func TestImportStatePutGet(t *testing.T) {
 
 	result, err = program.Call("get")
 	require.NoError(err)
-	valueBytes, err := Serialize(int64(10))
+	valueBytes, err := serialize(int64(10))
 	require.NoError(err)
 	require.Equal(Some[RawBytes](valueBytes), into[Option[RawBytes]](result))
 }

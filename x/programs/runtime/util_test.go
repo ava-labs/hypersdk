@@ -75,7 +75,7 @@ func (t *testProgram) CallWithActor(actor codec.Address, function string, params
 }
 
 func into[T any](data []byte) T {
-	result, err := Deserialize[T](data)
+	result, err := deserialize[T](data)
 	if err != nil {
 		panic(err.Error())
 	}

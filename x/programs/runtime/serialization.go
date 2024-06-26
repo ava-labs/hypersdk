@@ -20,7 +20,7 @@ type customDeserialize[T any] interface {
 	customDeserialize([]byte) (*T, error)
 }
 
-func Deserialize[T any](data []byte) (*T, error) {
+func deserialize[T any](data []byte) (*T, error) {
 	result := new(T)
 	var err error
 	switch t := any(*result).(type) {
@@ -32,7 +32,7 @@ func Deserialize[T any](data []byte) (*T, error) {
 	return result, err
 }
 
-func Serialize[T any](value T) ([]byte, error) {
+func serialize[T any](value T) ([]byte, error) {
 	b := &bytes.Buffer{}
 	if err := bufferSerialize(value, b); err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
 	switch data[0] {
 	case resultOkPrefix:
 		{
-			val, err := Deserialize[T](data[1:])
+			val, err := deserialize[T](data[1:])
 			if err != nil {
 				return nil, errors.New("deserialization")
 			}
@@ -129,7 +129,7 @@ func (Result[T, E]) customDeserialize(data []byte) (*Result[T, E], error) {
 		}
 	case resultErrPrefix:
 		{
-			val, err := Deserialize[E](data[1:])
+			val, err := deserialize[E](data[1:])
 			if err != nil {
 				return nil, errors.New("deserialization")
 			}
@@ -184,7 +184,7 @@ func (Option[T]) customDeserialize(data []byte) (*Option[T], error) {
 	switch data[0] {
 	case optionSomePrefix:
 		{
-			val, err := Deserialize[T](data[1:])
+			val, err := deserialize[T](data[1:])
 			if err != nil {
 				return nil, errors.New("deserialization")
 			}

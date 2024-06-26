@@ -13,7 +13,7 @@ import (
 func TestSerializationRawBytes(t *testing.T) {
 	require := require.New(t)
 	testBytes := RawBytes([]byte{0, 1, 2, 3})
-	serializedBytes, err := Serialize(testBytes)
+	serializedBytes, err := serialize(testBytes)
 	require.NoError(err)
 	require.Equal(([]byte)(testBytes), serializedBytes)
 
@@ -26,7 +26,7 @@ func TestSerializationRawBytes(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testBytes, *deserialized)
 
-	deserialized, err = Deserialize[RawBytes](b.Bytes())
+	deserialized, err = deserialize[RawBytes](b.Bytes())
 	require.NoError(err)
 	require.Equal(testBytes, *deserialized)
 }
@@ -35,7 +35,7 @@ func TestSerializationResult(t *testing.T) {
 	require := require.New(t)
 	testResult := Ok[byte, byte](1)
 
-	serializedBytes, err := Serialize(testResult)
+	serializedBytes, err := serialize(testResult)
 	require.NoError(err)
 	require.Equal([]byte{1, 1}, serializedBytes)
 
@@ -48,7 +48,7 @@ func TestSerializationResult(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testResult, *deserialized)
 
-	deserialized, err = Deserialize[Result[byte, byte]](b.Bytes())
+	deserialized, err = deserialize[Result[byte, byte]](b.Bytes())
 	require.NoError(err)
 	require.Equal(testResult, *deserialized)
 }
@@ -57,7 +57,7 @@ func TestSerializationOption(t *testing.T) {
 	require := require.New(t)
 	testOption := Some[byte](1)
 
-	serializedBytes, err := Serialize(testOption)
+	serializedBytes, err := serialize(testOption)
 	require.NoError(err)
 	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
 
@@ -70,7 +70,7 @@ func TestSerializationOption(t *testing.T) {
 	require.NoError(err)
 	require.Equal(testOption, *deserialized)
 
-	deserialized, err = Deserialize[Option[byte]](b.Bytes())
+	deserialized, err = deserialize[Option[byte]](b.Bytes())
 	require.NoError(err)
 	require.Equal(testOption, *deserialized)
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -222,15 +221,11 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		output, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
 		if err != nil {
 			return err
 		}
 		if err := db.Commit(ctx); err != nil {
-			return err
-		}
-		response, err := runtime.Serialize(output)
-		if err != nil {
 			return err
 		}
 
@@ -244,15 +239,11 @@ func (c *runCmd) runStepFunc(
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		output, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
 		if err != nil {
 			return err
 		}
 		if err := db.Commit(ctx); err != nil {
-			return err
-		}
-		response, err := runtime.Serialize(output)
-		if err != nil {
 			return err
 		}
 
