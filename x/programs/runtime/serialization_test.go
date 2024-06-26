@@ -4,7 +4,6 @@
 package runtime
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,16 +16,15 @@ func TestSerializationRawBytes(t *testing.T) {
 	require.NoError(err)
 	require.Equal(([]byte)(testBytes), serializedBytes)
 
-	b := new(bytes.Buffer)
-	err = testBytes.customSerialize(b)
+	serializedBytes, err = testBytes.customSerialize()
 	require.NoError(err)
-	require.Equal(([]byte)(testBytes), b.Bytes())
+	require.Equal(([]byte)(testBytes), serializedBytes)
 
-	deserialized, err := RawBytes{}.customDeserialize(b.Bytes())
+	deserialized, err := RawBytes{}.customDeserialize(serializedBytes)
 	require.NoError(err)
 	require.Equal(testBytes, *deserialized)
 
-	deserialized, err = deserialize[RawBytes](b.Bytes())
+	deserialized, err = deserialize[RawBytes](serializedBytes)
 	require.NoError(err)
 	require.Equal(testBytes, *deserialized)
 }
@@ -39,16 +37,15 @@ func TestSerializationResult(t *testing.T) {
 	require.NoError(err)
 	require.Equal([]byte{1, 1}, serializedBytes)
 
-	b := new(bytes.Buffer)
-	err = testResult.customSerialize(b)
+	serializedBytes, err = testResult.customSerialize()
 	require.NoError(err)
-	require.Equal([]byte{1, 1}, b.Bytes())
+	require.Equal([]byte{1, 1}, serializedBytes)
 
-	deserialized, err := Result[byte, byte]{}.customDeserialize(b.Bytes())
+	deserialized, err := Result[byte, byte]{}.customDeserialize(serializedBytes)
 	require.NoError(err)
 	require.Equal(testResult, *deserialized)
 
-	deserialized, err = deserialize[Result[byte, byte]](b.Bytes())
+	deserialized, err = deserialize[Result[byte, byte]](serializedBytes)
 	require.NoError(err)
 	require.Equal(testResult, *deserialized)
 }
@@ -61,16 +58,15 @@ func TestSerializationOption(t *testing.T) {
 	require.NoError(err)
 	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
 
-	b := new(bytes.Buffer)
-	err = testOption.customSerialize(b)
+	serializedBytes, err = testOption.customSerialize()
 	require.NoError(err)
-	require.Equal([]byte{optionSomePrefix, 1}, b.Bytes())
+	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
 
-	deserialized, err := Option[byte]{}.customDeserialize(b.Bytes())
+	deserialized, err := Option[byte]{}.customDeserialize(serializedBytes)
 	require.NoError(err)
 	require.Equal(testOption, *deserialized)
 
-	deserialized, err = deserialize[Option[byte]](b.Bytes())
+	deserialized, err = deserialize[Option[byte]](serializedBytes)
 	require.NoError(err)
 	require.Equal(testOption, *deserialized)
 }

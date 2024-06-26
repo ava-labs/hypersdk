@@ -98,7 +98,11 @@ func Err[T any, E any](e E) Result[T, E] {
 	return Result[T, E]{e: e, hasError: true}
 }
 
+<<<<<<< HEAD
 func (r Result[T, E]) customSerialize(b io.Writer) error {
+=======
+func (r Result[T, E]) customSerialize() ([]byte, error) {
+>>>>>>> 6a4d15c1 (Get Option Wokring)
 	var prefix []byte
 	var val any
 	if r.hasError {
@@ -166,6 +170,7 @@ func None[T any]() Option[T] {
 	return Option[T]{isNone: true}
 }
 
+<<<<<<< HEAD
 func (o Option[T]) customSerialize(b io.Writer) error {
 	if o.isNone {
 		_, err := b.Write([]byte{optionNonePrefix})
@@ -175,6 +180,19 @@ func (o Option[T]) customSerialize(b io.Writer) error {
 		return err
 	}
 	return bufferSerialize(o.value, b)
+=======
+func (o Option[T]) customSerialize() ([]byte, error) {
+	var prefix []byte
+	if o.isNone {
+		return []byte{optionNonePrefix}, nil
+	}
+	prefix = []byte{optionSomePrefix}
+	bytes, err := serialize(o.value)
+	if err != nil {
+		return nil, err
+	}
+	return append(prefix, bytes...), nil
+>>>>>>> 6a4d15c1 (Get Option Wokring)
 }
 
 func (Option[T]) customDeserialize(data []byte) (*Option[T], error) {
