@@ -94,7 +94,7 @@ impl<K> Program<K> {
     /// # let program_id = [0; Address::LEN];
     /// # let target: Program<()> = borsh::from_slice(&program_id).unwrap();
     /// let increment = 10;
-    /// let params = borsh::to_vec(&increment).expect("serialization error");
+    /// let params = borsh::to_vec(&increment).unwrap();
     /// let max_units = 1000000;
     /// let has_incremented: bool = target.call_function("increment", &params, max_units)?;
     /// assert!(has_incremented);
