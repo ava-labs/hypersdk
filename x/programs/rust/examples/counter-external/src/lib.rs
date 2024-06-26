@@ -46,9 +46,7 @@ mod tests {
         let counter = Param::Id(counter);
 
         let params = vec![
-            TestContext::default()
-                .with_program_id(counter_external)
-                .into(),
+            TestContext::from(counter_external).into(),
             counter.clone(),
             owner_key.clone(),
         ];
