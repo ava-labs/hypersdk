@@ -62,6 +62,6 @@ pub fn call_with_two_params_external(
 pub fn call_deferred(_: Context, target: Program, max_units: Gas) -> i64 {
     let bytes = target
         .call_function::<DeferDeserialize>("simple_call", &[], max_units)
-        .unwrap()
+        .unwrap();
     bytes.deserialize()
 }
