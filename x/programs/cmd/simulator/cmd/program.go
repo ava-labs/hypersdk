@@ -125,7 +125,7 @@ func programExecuteFunc(
 		FunctionName: function,
 		Params:       bytes,
 	}
-	programOutput := rt.CallProgram(ctx, callInfo)
+	programOutput, _ := rt.CallProgram(ctx, callInfo)
 
 	return [][]byte{programOutput}, callInfo.RemainingFuel()
 }
