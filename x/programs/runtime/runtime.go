@@ -16,12 +16,10 @@ import (
 )
 
 type WasmRuntime struct {
-	log              logging.Logger
-	engine           *wasmtime.Engine
-	hostImports      *Imports
-	cfg              *Config
-	accountToProgram map[codec.Address]ids.ID
-	programToModule  map[ids.ID]*wasmtime.Module
+	log         logging.Logger
+	engine      *wasmtime.Engine
+	hostImports *Imports
+	cfg         *Config
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
@@ -49,8 +47,6 @@ func NewRuntime(
 		cfg:                       cfg,
 		engine:                    wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:               NewImports(),
-		accountToProgram:          map[codec.Address]ids.ID{},
-		programToModule:           map[ids.ID]*wasmtime.Module{},
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
 	}
@@ -71,40 +67,16 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.linkerNeedsInitialization = true
 }
 
-func (r *WasmRuntime) AddProgram(id ids.ID, programBytes []byte) error {
-	_, err := r.addProgram(id, programBytes)
-	return err
-}
-
-func (r *WasmRuntime) addProgram(id ids.ID, programBytes []byte) (*wasmtime.Module, error) {
-	programModule, err := wasmtime.NewModule(r.engine, programBytes)
+func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
+	programID, err := callInfo.State.GetAccountProgram(ctx, callInfo.Program)
 	if err != nil {
 		return nil, err
 	}
-
-	r.programToModule[id] = programModule
-	return programModule, nil
-}
-
-func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
-	programID, ok := r.accountToProgram[callInfo.Program]
-	if !ok {
-		if programID, err = callInfo.State.GetAccountProgram(ctx, callInfo.Program); err != nil {
-			return nil, err
-		}
-		r.accountToProgram[callInfo.Program] = programID
+	programBytes, err := callInfo.State.GetProgramBytes(ctx, programID)
+	if err != nil {
+		return nil, err
 	}
-	programModule, ok := r.programToModule[programID]
-	if !ok {
-		programBytes, err := callInfo.State.GetProgramBytes(ctx, programID)
-		if err != nil {
-			return nil, err
-		}
-		programModule, err = r.addProgram(programID, programBytes)
-		if err != nil {
-			return nil, err
-		}
-	}
+	programModule, err := wasmtime.NewModule(r.engine, programBytes)
 	if err != nil {
 		return nil, err
 	}
