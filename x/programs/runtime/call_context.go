@@ -50,8 +50,8 @@ func (c CallContext) CallProgram(ctx context.Context, info *CallInfo) ([]byte, e
 	return c.r.CallProgram(ctx, newInfo)
 }
 
-func (c CallContext) WithStateLoader(loader StateLoader) CallContext {
-	c.defaultCallInfo.State = loader
+func (c CallContext) WithStateManager(manager StateManager) CallContext {
+	c.defaultCallInfo.State = manager
 	return c
 }
 

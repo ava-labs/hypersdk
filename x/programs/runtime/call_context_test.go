@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -13,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestCallContext(t *testing.T) {
@@ -25,7 +25,6 @@ func TestCallContext(t *testing.T) {
 	r := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.ProgramLoader{ProgramName: "call_program"},
 	).WithDefaults(
 		&CallInfo{
 			Program: codec.CreateAddress(0, ids.GenerateTestID()),
@@ -64,13 +63,18 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	program0ID := ids.GenerateTestID()
+	program0Address := codec.CreateAddress(0, program0ID)
+	program1ID := ids.GenerateTestID()
+	program1Address := codec.CreateAddress(1, program1ID)
+
 	r := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
-		test.ProgramLoader{ProgramName: "call_program"},
 	).WithDefaults(
 		&CallInfo{
-			Program: codec.CreateAddress(0, ids.GenerateTestID()),
+			Program: program0Address,
+			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{program0ID: "call_program"}, AccountMap: map[codec.Address]ids.ID{program0Address: program0ID}},
 			Fuel:    1000000,
 		})
 
@@ -78,7 +82,8 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 	result, err := r.CallProgram(
 		ctx,
 		&CallInfo{
-			Program:      codec.CreateAddress(1, ids.GenerateTestID()),
+			Program:      program1Address,
+			State:        &test.StateManager{ProgramsMap: map[ids.ID]string{program1ID: "call_program"}, AccountMap: map[codec.Address]ids.ID{program1Address: program1ID}},
 			FunctionName: "actor_check",
 		})
 	require.ErrorIs(err, errCannotOverwrite)
