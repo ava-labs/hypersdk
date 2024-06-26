@@ -6,11 +6,13 @@ package test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -31,19 +33,49 @@ func CompileTest(programName string) error {
 	return nil
 }
 
-type ProgramLoader struct {
-	ProgramName string
+type ProgramStore struct {
+	ProgramsMap map[ids.ID]string
+	AccountMap  map[codec.Address]ids.ID
 }
 
-func (t ProgramLoader) GetProgramBytes(_ context.Context, _ codec.Address) ([]byte, error) {
-	if err := CompileTest(t.ProgramName); err != nil {
+func NewProgramStore() ProgramStore {
+	return ProgramStore{
+		ProgramsMap: make(map[ids.ID]string),
+		AccountMap:  make(map[codec.Address]ids.ID),
+	}
+}
+
+func (t ProgramStore) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {
+	if programID, ok := t.AccountMap[account]; ok {
+		return programID, nil
+	}
+	return ids.Empty, nil
+}
+
+func (t ProgramStore) GetProgramBytes(_ context.Context, programID ids.ID) ([]byte, error) {
+	programName, ok := t.ProgramsMap[programID]
+	if !ok {
+		return nil, errors.New("couldn't find program")
+	}
+	if err := CompileTest(programName); err != nil {
 		return nil, err
 	}
 	dir, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
+}
+
+func (t ProgramStore) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
+	account := codec.CreateAddress(0, programID)
+	t.AccountMap[account] = programID
+	return account, nil
+}
+
+func (t ProgramStore) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
+	t.AccountMap[account] = programID
+	return nil
 }
 
 type StateLoader struct {

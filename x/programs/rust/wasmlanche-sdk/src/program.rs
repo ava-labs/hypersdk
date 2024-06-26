@@ -2,6 +2,7 @@ use crate::{
     memory::HostPtr,
     state::{Key, State},
     types::Address,
+    types::Id,
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -117,6 +118,23 @@ impl<K> Program<K> {
         let bytes = unsafe { get_remaining_fuel() };
 
         borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
+    }
+
+    /// Deploy an instance of the specified program and returns the account of the new instance
+    /// # Panics
+    /// Panics if there was an issue deserializing the account
+    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "deploy"]
+            fn deploy(ptr: *const u8, len: usize) -> HostPtr;
+        }
+        let ptr =
+            borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
+
+        let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
+
+        borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
 }
 

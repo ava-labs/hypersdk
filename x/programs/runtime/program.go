@@ -77,22 +77,10 @@ func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 	return err
 }
 
-type Program struct {
-	module *wasmtime.Module
-}
-
 type ProgramInstance struct {
 	inst   *wasmtime.Instance
 	store  *wasmtime.Store
 	result []byte
-}
-
-func newProgram(engine *wasmtime.Engine, programBytes []byte) (*Program, error) {
-	module, err := wasmtime.NewModule(engine, programBytes)
-	if err != nil {
-		return nil, err
-	}
-	return &Program{module: module}, nil
 }
 
 func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
