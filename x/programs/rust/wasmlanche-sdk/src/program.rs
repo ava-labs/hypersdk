@@ -23,7 +23,7 @@ pub enum ExternalCallError {
     OutOfFuel = 2,
 }
 
-/// Represents the current Program in the context of the caller. Or an external
+/// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Program<K = ()> {
