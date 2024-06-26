@@ -201,7 +201,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         param_0
             .program()
             .call_function::<#return_type>(#name, &args, param_0.max_units())
-            .expect("deserialization failed")
+            .expect("calling the external program failed")
     }});
 
     let sig = Signature {

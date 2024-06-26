@@ -11,9 +11,7 @@ pub fn simple_call(_: Context) -> i64 {
 
 #[public]
 pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 {
-    target
-        .call_function("simple_call", &[], max_units)
-        .expect("deserialization failed")
+    target.call_function("simple_call", &[], max_units).unwrap()
 }
 
 #[public]
@@ -25,7 +23,7 @@ pub fn actor_check(context: Context) -> Address {
 pub fn actor_check_external(_: Context, target: Program, max_units: Gas) -> Address {
     target
         .call_function("actor_check", &[], max_units)
-        .expect("deserialization failed")
+        .expect("failure")
 }
 
 #[public]
@@ -38,7 +36,7 @@ pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, val
     let params = borsh::to_vec(&value).expect("serialization failed");
     target
         .call_function("call_with_param", &params, max_units)
-        .expect("deserialization failed")
+        .unwrap()
 }
 
 #[public]
@@ -57,13 +55,13 @@ pub fn call_with_two_params_external(
     let args: Vec<_> = borsh::to_vec(&(value1, value2)).expect("serialization failed");
     target
         .call_function("call_with_two_params", &args, max_units)
-        .expect("call failed")
+        .unwrap()
 }
 
 #[public]
 pub fn call_deferred(_: Context, target: Program, max_units: Gas) -> i64 {
     let bytes = target
         .call_function::<DeferDeserialize>("simple_call", &[], max_units)
-        .expect("deserialization failed");
+        .unwrap()
     bytes.deserialize()
 }
