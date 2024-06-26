@@ -228,7 +228,7 @@ mod tests {
             .response::<u64>()
             .unwrap();
 
-        assert_eq!(supply, INITIAL_SUPPLY);
+        assert_eq!(supply, Ok(INITIAL_SUPPLY));
     }
 
     #[test]
@@ -299,7 +299,7 @@ mod tests {
             .response::<u64>()
             .unwrap();
 
-        assert_eq!(balance, alice_initial_balance);
+        assert_eq!(balance, Ok(alice_initial_balance));
     }
 
     #[test]
@@ -392,7 +392,7 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(supply, INITIAL_SUPPLY);
+        assert_eq!(supply, Ok(INITIAL_SUPPLY));
 
         let balance = simulator
             .run_step(
@@ -408,7 +408,7 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(balance, post_transfer_balance);
+        assert_eq!(balance, Ok(post_transfer_balance));
 
         let balance = simulator
             .run_step(
@@ -424,7 +424,7 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(balance, transfer_amount);
+        assert_eq!(balance, Ok(transfer_amount));
 
         let balance = simulator
             .run_step(
@@ -440,7 +440,7 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(balance, post_transfer_balance);
+        assert_eq!(balance, Ok(post_transfer_balance));
 
         let balance = simulator
             .run_step(
@@ -456,6 +456,6 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(balance, 0);
+        assert_eq!(balance, Ok(0));
     }
 }

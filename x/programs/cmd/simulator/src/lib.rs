@@ -12,6 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
+use wasmlanche_sdk::ExternalCallError;
 
 mod id;
 
@@ -173,7 +174,7 @@ pub struct StepResult {
 }
 
 impl StepResult {
-    pub fn response<T>(&self) -> Result<T, borsh::io::Error>
+    pub fn response<T>(&self) -> Result<Result<T, ExternalCallError>, borsh::io::Error>
     where
         T: BorshDeserialize,
     {

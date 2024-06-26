@@ -67,6 +67,7 @@ pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Addre
 #[cfg(test)]
 mod tests {
     use simulator::{Endpoint, Key, Param, Step};
+    use wasmlanche_sdk::ExternalCallError;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -137,7 +138,7 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(value, 10);
+        assert_eq!(value, Ok(10));
     }
 
     #[test]
@@ -183,7 +184,7 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(value, 0);
+        assert_eq!(value, Ok(0));
 
         simulator
             .run_step(
@@ -222,6 +223,28 @@ mod tests {
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(value, 10);
+        assert_eq!(value, Ok(10));
+
+        let res = simulator
+            .run_step(
+                &owner_key,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "inc_external".into(),
+                    max_units: 100_000_000,
+                    params: vec![
+                        counter1_id.into(),
+                        counter2_id.into(),
+                        100.into(),
+                        bob_key.clone(),
+                        10.into(),
+                    ],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+        assert_eq!(res, Err(ExternalCallError::OutOfFuel));
     }
 }

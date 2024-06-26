@@ -221,10 +221,7 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
-		if err != nil {
-			return err
-		}
+		response, balance := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
@@ -245,10 +242,7 @@ func (c *runCmd) runStepFunc(
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
-		if err != nil {
-			return err
-		}
+		response, _ := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}

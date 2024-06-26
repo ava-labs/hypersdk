@@ -98,11 +98,14 @@ impl<K> Program<K> {
             max_units,
         };
 
-        let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
+        let args_bytes = borsh::to_vec(&args).map_err(|_| ExternalCallError::ExecutionFailure)?;
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        borsh::from_slice(&bytes).expect("failed to deserialize")
+        match borsh::from_slice(&bytes) {
+            Ok(res) => res,
+            Err(_) => Err(ExternalCallError::ExecutionFailure),
+        }
     }
 
     /// Gets the remaining fuel available to this program

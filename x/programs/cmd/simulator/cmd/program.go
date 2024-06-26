@@ -16,7 +16,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -90,8 +89,6 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 
 	account, err := deployProgram(ctx, db, programID, []byte{})
 	if err != nil {
-		response := multilineOutput([][]byte{utils.ErrBytes(err)})
-		fmt.Println(response)
 		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
 	}
 
@@ -112,12 +109,8 @@ func programExecuteFunc(
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) ([][]byte, uint64, error) {
+) ([][]byte, uint64) {
 	// execute the action
-	if len(function) == 0 {
-		return nil, 0, errors.New("no function called")
-	}
-
 	var bytes []byte
 	for _, param := range callParams {
 		bytes = append(bytes, param.Value...)
@@ -133,18 +126,9 @@ func programExecuteFunc(
 		Params:       bytes,
 	}
 	programOutput, err := rt.CallProgram(ctx, callInfo)
-	output := [][]byte{programOutput}
 	if err != nil {
-		response := multilineOutput(output)
-		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
+		return [][]byte{programOutput}, 0
 	}
 
-	return output, callInfo.RemainingFuel(), err
-}
-
-func multilineOutput(resp [][]byte) (response string) {
-	for _, res := range resp {
-		response += string(res) + "\n"
-	}
-	return response
+	return [][]byte{programOutput}, callInfo.RemainingFuel()
 }
