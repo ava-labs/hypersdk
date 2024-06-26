@@ -174,7 +174,7 @@ func (Option[T]) customDeserialize(data []byte) (*Option[T], error) {
 	switch data[0] {
 	case optionSomePrefix:
 		{
-			val, err := deserialize[T](data[1:])
+			val, err := Deserialize[T](data[1:])
 			if err != nil {
 				return nil, errors.New("deserialization")
 			}
