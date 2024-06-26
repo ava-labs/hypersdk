@@ -38,6 +38,8 @@ mod tests {
             .id;
 
         let timestamp = 100;
+        let mut test_context = TestContext::from(program_id);
+        test_context.timestamp = timestamp;
 
         let response = simulator
             .run_step(
@@ -46,9 +48,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "get_timestamp".into(),
                     max_units: 1000000,
-                    params: vec![TestContext::from(program_id)
-                        .with_timestamp(timestamp)
-                        .into()],
+                    params: vec![test_context.into()],
                 },
             )
             .unwrap()
@@ -75,6 +75,8 @@ mod tests {
             .id;
 
         let height = 1000;
+        let mut test_context = TestContext::from(program_id);
+        test_context.height = height;
 
         let response = simulator
             .run_step(
@@ -83,7 +85,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "get_height".into(),
                     max_units: 1000000,
-                    params: vec![TestContext::from(program_id).with_height(height).into()],
+                    params: vec![test_context.into()],
                 },
             )
             .unwrap()
@@ -115,6 +117,9 @@ mod tests {
             .run_step(&owner, &Step::create_key(actor_key.clone()))
             .unwrap();
 
+        let mut test_context = TestContext::from(program_id);
+        test_context.actor_key = Some(actor_key);
+
         let response = simulator
             .run_step(
                 &owner,
@@ -122,9 +127,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "get_actor".into(),
                     max_units: 1000000,
-                    params: vec![TestContext::from(program_id)
-                        .with_actor_key(actor_key)
-                        .into()],
+                    params: vec![test_context.into()],
                 },
             )
             .unwrap()

@@ -118,27 +118,6 @@ pub(crate) struct SimulatorTestContext {
     value: TestContext,
 }
 
-impl TestContext {
-    pub fn with_actor_key(mut self, key: Key) -> Self {
-        self.actor_key = Some(key);
-        self
-    }
-
-    pub fn clear_actor_key(&mut self) {
-        self.actor_key = None;
-    }
-
-    pub fn with_height(mut self, height: u64) -> Self {
-        self.height = height;
-        self
-    }
-
-    pub fn with_timestamp(mut self, timestamp: u64) -> Self {
-        self.timestamp = timestamp;
-        self
-    }
-}
-
 // TODO:
 // add `Cow` types for borrowing
 #[derive(Clone, Debug, PartialEq)]
