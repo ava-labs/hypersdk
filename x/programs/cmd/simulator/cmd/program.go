@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
@@ -124,9 +123,9 @@ func programExecuteFunc(
 		bytes = append(bytes, param.Value...)
 	}
 
-	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
+	rt := runtime.NewRuntime(runtime.NewConfig(), log)
 	callInfo := &runtime.CallInfo{
-		State:        programStateLoader{inner: db},
+		State:        &programStateManager{Mutable: db},
 		Actor:        codec.EmptyAddress,
 		Program:      program,
 		Fuel:         maxUnits,
@@ -148,41 +147,4 @@ func multilineOutput(resp [][]byte) (response string) {
 		response += string(res) + "\n"
 	}
 	return response
-}
-
-type ProgramStore struct {
-	state.Mutable
-}
-
-func (s *ProgramStore) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
-	programID, exists, err := getAccountProgram(ctx, s, account)
-	if err != nil {
-		return ids.Empty, err
-	}
-	if !exists {
-		return ids.Empty, errors.New("unknown account")
-	}
-
-	return programID, nil
-}
-
-func (s *ProgramStore) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
-	// TODO: take fee out of balance?
-	programBytes, exists, err := getProgram(ctx, s, programID)
-	if err != nil {
-		return []byte{}, err
-	}
-	if !exists {
-		return []byte{}, errors.New("unknown program")
-	}
-
-	return programBytes, nil
-}
-
-func (s *ProgramStore) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
-	return deployProgram(ctx, s, programID, accountCreationData)
-}
-
-func (s *ProgramStore) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
-	return setAccountProgram(ctx, s, account, programID)
 }
