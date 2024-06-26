@@ -222,7 +222,8 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		output, balance := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		result, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
@@ -241,7 +242,8 @@ func (c *runCmd) runStepFunc(
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		output, _ := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		result, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
@@ -256,6 +258,17 @@ func (c *runCmd) runStepFunc(
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, endpoint)
 	}
+}
+
+func resultToOutput(result []byte, err error) (runtime.Result[runtime.RawBytes, runtime.ErrorCode]) {
+	if err != nil {
+		if code, ok := runtime.ExtractErrorCode(err); ok {
+			return runtime.Err[runtime.RawBytes, runtime.ErrorCode](code)
+		}
+		return runtime.Err[runtime.RawBytes, runtime.ErrorCode](runtime.ExecutionFailure)
+	}
+
+	return runtime.Ok[runtime.RawBytes, runtime.ErrorCode](result)
 }
 
 func AddressToString(pk ed25519.PublicKey) string {

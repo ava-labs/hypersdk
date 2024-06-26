@@ -66,8 +66,7 @@ pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Addre
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step, StepResponseError};
-    use wasmlanche_sdk::ExternalCallError;
+    use simulator::{Endpoint, Key, Param, Step};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -224,83 +223,5 @@ mod tests {
             .response::<u64>()
             .unwrap();
         assert_eq!(value, 10);
-    }
-
-    #[test]
-    fn insufficient_gas() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
-
-        let owner_key = String::from("owner");
-        let bob_key = Param::Key(Key::Ed25519(String::from("bob")));
-
-        simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
-            .unwrap();
-
-        simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Key,
-                    method: "key_create".into(),
-                    params: vec![bob_key.clone()],
-                    max_units: 0,
-                },
-            )
-            .unwrap();
-
-        let counter1_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1000000,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
-            .unwrap()
-            .id;
-
-        let counter2_id = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "program_create".into(),
-                    max_units: 1000000,
-                    params: vec![Param::String(PROGRAM_PATH.into())],
-                },
-            )
-            .unwrap()
-            .id;
-
-        let res = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "inc_external".into(),
-                    max_units: 100,
-                    params: vec![
-                        counter1_id.into(),
-                        counter2_id.into(),
-                        1_000_000.into(),
-                        bob_key.clone(),
-                        10.into(),
-                    ],
-                },
-            )
-            .unwrap()
-            .result
-            .response::<u64>()
-            .unwrap_err();
-        assert!(matches!(
-            res,
-            StepResponseError::ExternalCall(ExternalCallError::OutOfFuel)
-        ));
     }
 }

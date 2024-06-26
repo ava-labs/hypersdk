@@ -152,3 +152,15 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	require.NoError(err)
 	require.LessOrEqual(into[uint64](result), program.Runtime.DefaultGas)
 }
+
+func TestImportOutOfFuel(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "fuel")
+	result, err := program.Call("out_of_fuel", program.Address)
+	require.NoError(err)
+	require.Equal([]byte{byte(OutOfFuel)}, result)
+}
