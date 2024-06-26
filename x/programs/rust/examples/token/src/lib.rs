@@ -163,7 +163,7 @@ pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
 #[cfg(test)]
 mod tests {
     use crate::INITIAL_SUPPLY;
-    use simulator::{Endpoint, Key, Param, Step};
+    use simulator::{Endpoint, Key, Param, Step, TestContext};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -201,13 +201,15 @@ mod tests {
             .unwrap()
             .id;
 
+        let test_context = TestContext::from(program_id);
+
         simulator
             .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "init".into(),
-                    params: vec![program_id.into()],
+                    params: vec![test_context.clone().into()],
                     max_units: 1000000,
                 },
             )
@@ -220,7 +222,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_total_supply".into(),
                     max_units: 0,
-                    params: vec![program_id.into()],
+                    params: vec![test_context.into()],
                 },
             )
             .unwrap()
@@ -256,13 +258,15 @@ mod tests {
             .run_step(&owner_key, &Step::create_key(alice_key))
             .unwrap();
 
+        let test_context = TestContext::from(program_id);
+
         simulator
             .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "init".into(),
-                    params: vec![program_id.into()],
+                    params: vec![test_context.clone().into()],
                     max_units: 1000000,
                 },
             )
@@ -275,7 +279,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "mint_to".into(),
                     params: vec![
-                        program_id.into(),
+                        test_context.clone().into(),
                         alice_key_param.clone(),
                         Param::U64(alice_initial_balance),
                     ],
@@ -291,7 +295,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), alice_key_param],
+                    params: vec![test_context.into(), alice_key_param],
                 },
             )
             .unwrap()
@@ -333,13 +337,15 @@ mod tests {
             .run_step(&owner_key, &Step::create_key(bob_key.clone()))
             .unwrap();
 
+        let test_context = TestContext::from(program_id);
+
         simulator
             .run_step(
                 &owner_key,
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "init".into(),
-                    params: vec![program_id.into()],
+                    params: vec![test_context.clone().into()],
                     max_units: 1000000,
                 },
             )
@@ -352,7 +358,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "mint_to".into(),
                     params: vec![
-                        program_id.into(),
+                        test_context.clone().into(),
                         alice_key_param.clone(),
                         Param::U64(alice_initial_balance),
                     ],
@@ -368,7 +374,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "transfer".into(),
                     params: vec![
-                        program_id.into(),
+                        test_context.clone().into(),
                         alice_key_param.clone(),
                         bob_key_param.clone(),
                         Param::U64(transfer_amount),
@@ -385,7 +391,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_total_supply".into(),
                     max_units: 0,
-                    params: vec![program_id.into()],
+                    params: vec![test_context.clone().into()],
                 },
             )
             .unwrap()
@@ -401,7 +407,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), alice_key_param.clone()],
+                    params: vec![test_context.clone().into(), alice_key_param.clone()],
                 },
             )
             .unwrap()
@@ -417,7 +423,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), bob_key_param],
+                    params: vec![test_context.clone().into(), bob_key_param],
                 },
             )
             .unwrap()
@@ -432,7 +438,7 @@ mod tests {
                 &Step {
                     endpoint: Endpoint::Execute,
                     method: "burn_from".into(),
-                    params: vec![program_id.into(), alice_key_param.clone()],
+                    params: vec![test_context.clone().into(), alice_key_param.clone()],
                     max_units: 1000000,
                 },
             )
@@ -449,7 +455,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_balance".into(),
                     max_units: 0,
-                    params: vec![program_id.into(), alice_key_param],
+                    params: vec![test_context.clone().into(), alice_key_param],
                 },
             )
             .unwrap()

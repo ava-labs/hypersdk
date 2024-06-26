@@ -109,7 +109,7 @@ func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	program codec.Address,
+	rctx runtime.Context,
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
@@ -127,9 +127,11 @@ func programExecuteFunc(
 	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
 	callInfo := &runtime.CallInfo{
 		State:        programStateLoader{inner: db},
-		Actor:        codec.EmptyAddress,
-		Program:      program,
+		Actor:        rctx.Actor,
+		Program:      rctx.Program,
 		Fuel:         maxUnits,
+		Height:       rctx.Height,
+		Timestamp:    rctx.Timestamp,
 		FunctionName: function,
 		Params:       bytes,
 	}

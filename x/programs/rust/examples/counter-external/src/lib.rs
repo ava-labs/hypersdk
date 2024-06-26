@@ -14,7 +14,7 @@ pub fn get_value(_: Context, external: Program, address: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{ClientBuilder, Endpoint, Key, Param, Step};
+    use simulator::{ClientBuilder, Endpoint, Key, Param, Step, TestContext};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -38,7 +38,6 @@ mod tests {
             .run_step(&owner, &Step::create_program(PROGRAM_PATH))
             .expect("should be able to create this program")
             .id;
-        let counter_external = Param::Id(counter_external);
 
         let counter = simulator
             .run_step(&owner, &Step::create_program(counter_path))
@@ -46,7 +45,11 @@ mod tests {
             .id;
         let counter = Param::Id(counter);
 
-        let params = vec![counter_external, counter.clone(), owner_key.clone()];
+        let params = vec![
+            TestContext::from(counter_external).into(),
+            counter.clone(),
+            owner_key.clone(),
+        ];
 
         simulator
             .run_step(

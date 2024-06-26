@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Default)]
 pub struct Id(usize);
 
 impl From<usize> for Id {
