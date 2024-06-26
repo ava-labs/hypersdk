@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/x/programs/test"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func TestCallContext(t *testing.T) {
@@ -21,13 +21,15 @@ func TestCallContext(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
+	programID := ids.GenerateTestID()
+	programAccount := codec.CreateAddress(0, programID)
 	r := NewRuntime(
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
 		&CallInfo{
-			Program: codec.CreateAddress(0, ids.GenerateTestID()),
+			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{programID: "call_program"}, AccountMap: map[codec.Address]ids.ID{programAccount: programID}},
+			Program: programAccount,
 			Fuel:    1000000,
 		})
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
