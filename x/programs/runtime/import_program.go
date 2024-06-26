@@ -14,10 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-type (
-	ProgramCallErrorCode byte
-	DeployErrorCode      byte
-)
+type ProgramCallErrorCode byte
 
 const (
 	callProgramCost   = 10000
@@ -30,10 +27,6 @@ const (
 	CallPanicked ProgramCallErrorCode = iota
 	ExecutionFailure
 	OutOfFuel
-)
-
-const (
-	DeployFailed DeployErrorCode = iota
 )
 
 func extractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
@@ -105,15 +98,15 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			})},
 			"deploy": {
 				FuelCost: deployCost,
-				Function: Function[deployProgramInput, Result[codec.Address, DeployErrorCode]](
-					func(_ *CallInfo, input deployProgramInput) (Result[codec.Address, DeployErrorCode], error) {
+				Function: Function[deployProgramInput, codec.Address](
+					func(_ *CallInfo, input deployProgramInput) (codec.Address, error) {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
 						address, err := r.programStore.NewAccountWithProgram(ctx, input.ProgramID, input.AccountCreationData)
 						if err != nil {
-							return Err[codec.Address, DeployErrorCode](DeployFailed), nil
+							return codec.EmptyAddress, err
 						}
-						return Ok[codec.Address, DeployErrorCode](address), nil
+						return address, nil
 					}),
 			},
 		},

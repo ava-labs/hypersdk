@@ -23,15 +23,6 @@ pub enum ExternalCallError {
     OutOfFuel = 2,
 }
 
-#[derive(Error, Debug, BorshDeserialize)]
-#[repr(u8)]
-#[non_exhaustive]
-#[borsh(use_discriminant = true)]
-pub enum DeployError {
-    #[error("an error happened during the deploy")]
-    DeployFailure = 0,
-}
-
 /// Represents the current Program in the context of the caller. Or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
@@ -130,15 +121,9 @@ impl<K> Program<K> {
     }
 
     /// Deploy an instance of the specified program and returns the account of the new instance
-    /// # Errors
-    /// Returns a [`DeployError`] if the call fails.
     /// # Panics
     /// Panics if there was an issue deserializing the account
-    pub fn deploy(
-        &self,
-        program_id: Id,
-        account_creation_data: &[u8],
-    ) -> Result<Address, DeployError> {
+    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "deploy"]
@@ -149,8 +134,7 @@ impl<K> Program<K> {
 
         let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
 
-        borsh::from_slice::<Result<Address, DeployError>>(&bytes)
-            .expect("failed to deserialize the account")
+        borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
 }
 

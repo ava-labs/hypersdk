@@ -13,7 +13,7 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{DeployError, ExternalCallError, Program},
+    program::{ExternalCallError, Program},
 };
 use crate::types::{Gas, Id};
 
