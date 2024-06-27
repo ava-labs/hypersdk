@@ -26,12 +26,45 @@ const (
 	addressStoragePrefix = 0x3
 )
 
-type programStateLoader struct {
-	inner state.Mutable
+type programStateManager struct {
+	state.Mutable
 }
 
-func (p programStateLoader) GetProgramState(account codec.Address) state.Mutable {
-	return newAccountPrefixedMutable(account, p.inner)
+func (s *programStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+	programID, exists, err := getAccountProgram(ctx, s, account)
+	if err != nil {
+		return ids.Empty, err
+	}
+	if !exists {
+		return ids.Empty, errors.New("unknown account")
+	}
+
+	return programID, nil
+}
+
+func (s *programStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+	// TODO: take fee out of balance?
+	programBytes, exists, err := getProgram(ctx, s, programID)
+	if err != nil {
+		return []byte{}, err
+	}
+	if !exists {
+		return []byte{}, errors.New("unknown program")
+	}
+
+	return programBytes, nil
+}
+
+func (s *programStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
+	return deployProgram(ctx, s, programID, accountCreationData)
+}
+
+func (s *programStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
+	return setAccountProgram(ctx, s, account, programID)
+}
+
+func (s *programStateManager) GetProgramState(account codec.Address) state.Mutable {
+	return newAccountPrefixedMutable(account, s)
 }
 
 type prefixedStateMutable struct {
