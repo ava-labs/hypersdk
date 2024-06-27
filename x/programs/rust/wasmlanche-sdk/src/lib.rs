@@ -10,6 +10,7 @@ mod logging;
 mod memory;
 mod program;
 
+use self::state::{Key, StateSchema};
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
@@ -26,7 +27,7 @@ use types::Address;
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
-pub struct Context<K = ()> {
+pub struct Context<K: Key + impl StateSchema> {
     program: Program<K>,
     actor: Address,
     height: u64,
@@ -34,7 +35,7 @@ pub struct Context<K = ()> {
     action_id: Id,
 }
 
-impl<K> Context<K> {
+impl<K: Key + StateSchema> Context<K> {
     pub fn program(&self) -> &Program<K> {
         &self.program
     }
@@ -56,7 +57,7 @@ impl<K> Context<K> {
     }
 }
 
-impl<K> BorshSerialize for Context<K> {
+impl<K: Key + StateSchema> BorshSerialize for Context<K> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self {
             program,
@@ -74,7 +75,7 @@ impl<K> BorshSerialize for Context<K> {
     }
 }
 
-impl<K> BorshDeserialize for Context<K> {
+impl<K: Key + StateSchema> BorshDeserialize for Context<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
         let program = BorshDeserialize::deserialize_reader(reader)?;
         let actor = BorshDeserialize::deserialize_reader(reader)?;

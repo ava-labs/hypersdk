@@ -14,7 +14,7 @@ pub enum Error {
     Deserialization,
 }
 
-pub struct State<'a, K: Key> {
+pub struct State<'a, K: Key + StateSchema> {
     cache: &'a RefCell<HashMap<K, Option<Vec<u8>>>>,
 }
 
@@ -23,7 +23,11 @@ pub struct State<'a, K: Key> {
 /// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
 pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
-impl<'a, K: Key> Drop for State<'a, K> {
+pub trait StateSchema {
+    type SchemaType: BorshSerialize + BorshDeserialize;
+}
+
+impl<'a, K: Key + StateSchema> Drop for State<'a, K> {
     fn drop(&mut self) {
         if !self.cache.borrow().is_empty() {
             // force flush
@@ -32,7 +36,7 @@ impl<'a, K: Key> Drop for State<'a, K> {
     }
 }
 
-impl<'a, K: Key> State<'a, K> {
+impl<'a, K: Key + StateSchema> State<'a, K> {
     #[must_use]
     pub fn new(cache: &'a RefCell<HashMap<K, Option<Vec<u8>>>>) -> Self {
         Self { cache }
@@ -43,10 +47,7 @@ impl<'a, K: Key> State<'a, K> {
     /// # Errors
     /// Returns an [Error] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<V>(self, key: K, value: &V) -> Result<(), Error>
-    where
-        V: BorshSerialize,
-    {
+    pub fn store(self, key: K, value: &K::SchemaType) -> Result<(), Error> {
         let serialized = to_vec(&value)
             .map_err(|_| StateError::Deserialization)
             .and_then(|bytes| {
@@ -71,10 +72,7 @@ impl<'a, K: Key> State<'a, K> {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<V>(self, key: K) -> Result<Option<V>, Error>
-    where
-        V: BorshDeserialize,
-    {
+    pub fn get(self, key: K) -> Result<Option<K::SchemaType>, Error> {
         let mut cache = self.cache.borrow_mut();
         let val_bytes = match cache.get(&key) {
             Some(Some(val)) => {
@@ -95,7 +93,7 @@ impl<'a, K: Key> State<'a, K> {
             }
         };
 
-        from_slice::<V>(val_bytes)
+        from_slice::<K::SchemaType>(val_bytes)
             .map_err(|_| StateError::Deserialization)
             .map(Some)
     }

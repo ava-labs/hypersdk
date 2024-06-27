@@ -1,8 +1,7 @@
 use crate::{
     memory::HostPtr,
-    state::{Key, State},
-    types::Address,
-    types::Id,
+    state::{Key, State, StateSchema},
+    types::{Address, Id},
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -138,7 +137,7 @@ impl<K> Program<K> {
     }
 }
 
-impl<K: Key> Program<K> {
+impl<K: Key + StateSchema> Program<K> {
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
