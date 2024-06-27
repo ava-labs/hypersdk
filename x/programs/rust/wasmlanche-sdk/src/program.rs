@@ -15,7 +15,7 @@ pub struct DeferDeserialize(Vec<u8>);
 
 impl DeferDeserialize {
     /// # Errors
-    /// Returns a [std::io::Error] if there was an issue deserializing the value
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
     #[allow(clippy::must_use_candidate)]
     pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
         let Self(bytes) = self;
