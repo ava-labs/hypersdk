@@ -5,17 +5,19 @@ package cmd
 
 import (
 	"context"
-	"errors"
+	// "errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/akamensky/argparse"
+	// "github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
@@ -89,6 +91,8 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 
 	account, err := deployProgram(ctx, db, programID, []byte{})
 	if err != nil {
+		response := multilineOutput([][]byte{utils.ErrBytes(err)})
+		fmt.Println(response)
 		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
 	}
 
@@ -127,5 +131,17 @@ func programExecuteFunc(
 	}
 	result, err := rt.CallProgram(ctx, callInfo)
 	remainingFuel := callInfo.RemainingFuel()
+	if err != nil {
+		response := string(result)
+		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
+	}
+
 	return result, remainingFuel, err
+}
+
+func multilineOutput(resp [][]byte) (response string) {
+	for _, res := range resp {
+		response += string(res) + "\n"
+	}
+	return response
 }

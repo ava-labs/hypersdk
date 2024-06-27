@@ -260,15 +260,15 @@ func (c *runCmd) runStepFunc(
 	}
 }
 
-func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, runtime.ErrorCode] {
+func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, runtime.ProgramCallErrorCode] {
 	if err != nil {
-		if code, ok := runtime.ExtractErrorCode(err); ok {
-			return runtime.Err[runtime.RawBytes, runtime.ErrorCode](code)
+		if code, ok := runtime.ExtractProgramCallErrorCode(err); ok {
+			return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](code)
 		}
-		return runtime.Err[runtime.RawBytes, runtime.ErrorCode](runtime.ExecutionFailure)
+		return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](runtime.ExecutionFailure)
 	}
 
-	return runtime.Ok[runtime.RawBytes, runtime.ErrorCode](result)
+	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
 }
 
 func AddressToString(pk ed25519.PublicKey) string {
