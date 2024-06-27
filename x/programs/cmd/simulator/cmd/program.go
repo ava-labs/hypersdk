@@ -5,13 +5,11 @@ package cmd
 
 import (
 	"context"
-	// "errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/akamensky/argparse"
-	// "github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
