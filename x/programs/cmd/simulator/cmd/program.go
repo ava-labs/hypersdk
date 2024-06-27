@@ -130,13 +130,12 @@ func programExecuteFunc(
 		Params:       bytes,
 	}
 	result, err := rt.CallProgram(ctx, callInfo)
-	remainingFuel := callInfo.RemainingFuel()
 	if err != nil {
 		response := string(result)
 		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
-	return result, remainingFuel, err
+	return result, callInfo.RemainingFuel(), err
 }
 
 func multilineOutput(resp [][]byte) (response string) {
