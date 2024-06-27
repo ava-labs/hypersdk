@@ -11,7 +11,9 @@ pub fn simple_call(_: Context) -> i64 {
 
 #[public]
 pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 {
-    target.call_function("simple_call", &[], max_units, 0).unwrap()
+    target
+        .call_function("simple_call", &[], max_units, 0)
+        .unwrap()
 }
 
 #[public]

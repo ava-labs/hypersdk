@@ -32,10 +32,8 @@ type StateManager interface {
 }
 
 type BalanceManager interface {
-	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
-	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
-	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
-	SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error
+	GetBalance(ctx context.Context, address codec.Address) (uint64, error)
+	TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error
 }
 
 type ProgramManager interface {

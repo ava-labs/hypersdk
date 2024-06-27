@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+
 	"github.com/ava-labs/hypersdk/codec"
 )
 

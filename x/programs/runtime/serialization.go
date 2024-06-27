@@ -33,11 +33,11 @@ func deserialize[T any](data []byte) (*T, error) {
 }
 
 func serialize[T any](value T) ([]byte, error) {
-	b := &bytes.Buffer{}
-	if err := bufferSerialize(value, b); err != nil {
+	buf := new(bytes.Buffer)
+	if err := bufferSerialize(value, buf); err != nil {
 		return nil, err
 	}
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 func bufferSerialize[T any](value T, b io.Writer) error {

@@ -76,7 +76,7 @@ impl<K> Program<K> {
     /// let params = borsh::to_vec(&increment).expect("failed to borsh serialize params");
     /// let max_units = 1000000;
     /// target
-    ///     .call_function("call_with_param", &params, max_units)
+    ///     .call_function("call_with_param", &params, max_units, 0)
     ///     .unwrap()
     /// ```
     pub fn call_function<T: BorshDeserialize>(

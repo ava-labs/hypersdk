@@ -85,9 +85,15 @@ type ProgramInstance struct {
 	result []byte
 }
 
-func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
+func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
 	if err := p.store.AddFuel(callInfo.MaxFuel); err != nil {
 		return nil, err
+	}
+
+	if callInfo.Value > 0 {
+		if err := callInfo.State.TransferBalance(ctx, callInfo.Actor, callInfo.Program, callInfo.Value); err != nil {
+			return nil, errors.New("insufficient balance")
+		}
 	}
 
 	// create the program context
@@ -98,6 +104,7 @@ func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, e
 		Timestamp: callInfo.Timestamp,
 		ActionID:  callInfo.ActionID,
 	}
+
 	paramsBytes, err := serialize(programCtx)
 	if err != nil {
 		return nil, err

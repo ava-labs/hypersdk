@@ -50,7 +50,7 @@ type callProgramInput struct {
 	FunctionName string
 	Params       []byte
 	MaxFuel      uint64
-	MaxValue     uint64
+	Value        uint64
 }
 
 type deployProgramInput struct {
@@ -69,17 +69,12 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
 				}
 
-				callInfo.Value -= input.MaxValue
-				if callInfo.Value < 0 {
-					return Err[RawBytes, ProgramCallErrorCode](InsufficientBalance), nil
-				}
-
 				newInfo.Actor = callInfo.Program
 				newInfo.Program = input.Program
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
 				newInfo.MaxFuel = input.MaxFuel
-				newInfo.Value = input.MaxValue
+				newInfo.Value = input.Value
 
 				result, err := r.CallProgram(
 					context.Background(),
