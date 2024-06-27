@@ -16,13 +16,10 @@ import (
 )
 
 type WasmRuntime struct {
-	log              logging.Logger
-	engine           *wasmtime.Engine
-	hostImports      *Imports
-	cfg              *Config
-	accountToProgram map[codec.Address]ids.ID
-	programToModule  map[ids.ID]*wasmtime.Module
-	programStore     ProgramStore
+	log         logging.Logger
+	engine      *wasmtime.Engine
+	hostImports *Imports
+	cfg         *Config
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
@@ -30,12 +27,19 @@ type WasmRuntime struct {
 }
 
 type StateManager interface {
-	GetProgramState(address codec.Address) state.Mutable
-	GetBalance(ctx context.Context, address codec.Address) (uint64, error)
-	TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error
+	BalanceManager
+	ProgramManager
 }
 
-type ProgramStore interface {
+type BalanceManager interface {
+	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
+	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
+	SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error
+}
+
+type ProgramManager interface {
+	GetProgramState(address codec.Address) state.Mutable
 	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
 	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
 	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
@@ -45,16 +49,12 @@ type ProgramStore interface {
 func NewRuntime(
 	cfg *Config,
 	log logging.Logger,
-	programStore ProgramStore,
 ) *WasmRuntime {
 	runtime := &WasmRuntime{
 		log:                       log,
 		cfg:                       cfg,
 		engine:                    wasmtime.NewEngineWithConfig(cfg.wasmConfig),
 		hostImports:               NewImports(),
-		accountToProgram:          map[codec.Address]ids.ID{},
-		programToModule:           map[ids.ID]*wasmtime.Module{},
-		programStore:              programStore,
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
 	}
@@ -71,40 +71,16 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.linkerNeedsInitialization = true
 }
 
-func (r *WasmRuntime) AddProgram(id ids.ID, programBytes []byte) error {
-	_, err := r.addProgram(id, programBytes)
-	return err
-}
-
-func (r *WasmRuntime) addProgram(id ids.ID, programBytes []byte) (*wasmtime.Module, error) {
-	programModule, err := wasmtime.NewModule(r.engine, programBytes)
+func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
+	programID, err := callInfo.State.GetAccountProgram(ctx, callInfo.Program)
 	if err != nil {
 		return nil, err
 	}
-
-	r.programToModule[id] = programModule
-	return programModule, nil
-}
-
-func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
-	programID, ok := r.accountToProgram[callInfo.Program]
-	if !ok {
-		if programID, err = r.programStore.GetAccountProgram(ctx, callInfo.Program); err != nil {
-			return nil, err
-		}
-		r.accountToProgram[callInfo.Program] = programID
+	programBytes, err := callInfo.State.GetProgramBytes(ctx, programID)
+	if err != nil {
+		return nil, err
 	}
-	programModule, ok := r.programToModule[programID]
-	if !ok {
-		programBytes, err := r.programStore.GetProgramBytes(ctx, programID)
-		if err != nil {
-			return nil, err
-		}
-		programModule, err = r.addProgram(programID, programBytes)
-		if err != nil {
-			return nil, err
-		}
-	}
+	programModule, err := wasmtime.NewModule(r.engine, programBytes)
 	if err != nil {
 		return nil, err
 	}

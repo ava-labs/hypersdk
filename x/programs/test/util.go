@@ -33,40 +33,21 @@ func CompileTest(programName string) error {
 	return nil
 }
 
-type ProgramStore struct {
+type StateManager struct {
 	ProgramsMap map[ids.ID]string
 	AccountMap  map[codec.Address]ids.ID
 	Balances    map[codec.Address]uint64
+	Mu          state.Mutable
 }
 
-func (t ProgramStore) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
-	return t.Balances[address], nil
-}
-
-func (t ProgramStore) TransferBalance(_ context.Context, from codec.Address, to codec.Address, amount uint64) error {
-	if t.Balances[from] < amount {
-		return errors.New("insufficient balance")
-	}
-	t.Balances[from] -= amount
-	t.Balances[to] += amount
-	return nil
-}
-
-func NewProgramStore() ProgramStore {
-	return ProgramStore{
-		ProgramsMap: make(map[ids.ID]string),
-		AccountMap:  make(map[codec.Address]ids.ID),
-	}
-}
-
-func (t ProgramStore) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {
+func (t StateManager) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {
 	if programID, ok := t.AccountMap[account]; ok {
 		return programID, nil
 	}
 	return ids.Empty, nil
 }
 
-func (t ProgramStore) GetProgramBytes(_ context.Context, programID ids.ID) ([]byte, error) {
+func (t StateManager) GetProgramBytes(_ context.Context, programID ids.ID) ([]byte, error) {
 	programName, ok := t.ProgramsMap[programID]
 	if !ok {
 		return nil, errors.New("couldn't find program")
@@ -81,32 +62,34 @@ func (t ProgramStore) GetProgramBytes(_ context.Context, programID ids.ID) ([]by
 	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 }
 
-func (t ProgramStore) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
+func (t StateManager) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
 	account := codec.CreateAddress(0, programID)
 	t.AccountMap[account] = programID
 	return account, nil
 }
 
-func (t ProgramStore) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
+func (t StateManager) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
 	t.AccountMap[account] = programID
 	return nil
 }
 
-type StateManager struct {
-	Mu       state.Mutable
-	balances map[codec.Address]uint64
-}
-
 func (t StateManager) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
-	return t.balances[address], nil
+	if balance, ok := t.Balances[address]; ok {
+		return balance, nil
+	}
+	return 0, nil
 }
 
-func (t StateManager) TransferBalance(_ context.Context, from codec.Address, to codec.Address, amount uint64) error {
-	if t.balances[from] < amount {
+func (t StateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	balance, err := t.GetBalance(ctx, from)
+	if err != nil {
+		return err
+	}
+	if balance < amount {
 		return errors.New("insufficient balance")
 	}
-	t.balances[from] -= amount
-	t.balances[to] += amount
+	t.Balances[from] -= amount
+	t.Balances[to] += amount
 	return nil
 }
 
