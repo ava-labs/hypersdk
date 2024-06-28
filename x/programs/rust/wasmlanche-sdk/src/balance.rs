@@ -1,8 +1,8 @@
 use crate::{memory::HostPtr, types::Address, ExternalCallError};
 
-/// Gets the remaining fuel available to this program
+/// Gets the balance for the specified address
 /// # Panics
-/// Panics if there was an issue deserializing the remaining fuel
+/// Panics if there was an issue deserializing the balance
 pub fn get_balance(account: Address) -> u64 {
     #[link(wasm_import_module = "balance")]
     extern "C" {
@@ -15,6 +15,9 @@ pub fn get_balance(account: Address) -> u64 {
     borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
+/// Transfer currency from the calling program to the passed address
+/// # Panics
+/// Panics if there was an issue deserializing the result
 pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
     #[link(wasm_import_module = "balance")]
     extern "C" {
@@ -25,5 +28,5 @@ pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
 
     let bytes = unsafe { send_value(ptr.as_ptr(), ptr.len()) };
 
-    borsh::from_slice(&bytes).expect("failed to deserialize the remaining fuel")
+    borsh::from_slice(&bytes).expect("failed to deserialize the result")
 }

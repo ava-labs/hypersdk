@@ -37,7 +37,7 @@ func TestImportBalanceSend(t *testing.T) {
 	program.Runtime.StateManager.(test.StateManager).Balances[program.Address] = 3
 	result, err := program.Call("send_balance", actor)
 	require.NoError(err)
-	require.Equal(true, into[bool](result))
+	require.True(into[bool](result))
 
 	result, err = program.CallWithActor(actor, "balance")
 	require.NoError(err)
