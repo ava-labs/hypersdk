@@ -5,12 +5,12 @@ package runtime
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/cache"
-	"github.com/ava-labs/avalanchego/utils/units"
 	"reflect"
 
+	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -96,6 +96,9 @@ func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (resu
 		return nil, err
 	}
 	programModule, err := r.getModule(ctx, callInfo, programID)
+	if err != nil {
+		return nil, err
+	}
 	inst, err := r.getInstance(programModule, r.hostImports)
 	if err != nil {
 		return nil, err
