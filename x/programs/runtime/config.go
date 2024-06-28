@@ -25,6 +25,7 @@ var (
 	DefaultProfilingStrategy    = wasmtime.ProfilingStrategyNone
 	DefaultMultiValue           = false
 
+	defaultProgramCacheSize             = 10 * units.MiB
 	defaultWasmThreads                  = false
 	defaultFuelMetering                 = true
 	defaultWasmMultiMemory              = false
@@ -40,7 +41,8 @@ var (
 // NewConfig creates a new engine config with default settings
 func NewConfig() *Config {
 	return &Config{
-		wasmConfig: DefaultWasmtimeConfig(),
+		wasmConfig:       DefaultWasmtimeConfig(),
+		ProgramCacheSize: defaultProgramCacheSize,
 	}
 }
 
@@ -50,6 +52,8 @@ type Config struct {
 
 	// CompileStrategy helps the engine to understand if the files has been precompiled.
 	CompileStrategy CompileStrategy `json:"compileStrategy,omitempty" yaml:"compile_strategy,omitempty"`
+
+	ProgramCacheSize int
 }
 
 // Get returns the underlying wasmtime config.

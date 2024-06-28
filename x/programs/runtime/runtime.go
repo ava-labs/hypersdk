@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -53,7 +52,7 @@ func NewRuntime(
 		hostImports:               NewImports(),
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
-		programCache: cache.NewSizedLRU(units.GiB, func(id ids.ID, mod *wasmtime.Module) int {
+		programCache: cache.NewSizedLRU(cfg.ProgramCacheSize, func(id ids.ID, mod *wasmtime.Module) int {
 			bytes, err := mod.Serialize()
 			if err != nil {
 				panic(err)
