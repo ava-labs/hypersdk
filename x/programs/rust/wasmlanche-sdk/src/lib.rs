@@ -6,6 +6,7 @@ pub mod state;
 /// Program types.
 pub mod types;
 
+pub mod balance;
 mod logging;
 mod memory;
 mod program;

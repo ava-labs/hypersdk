@@ -10,12 +10,11 @@ import (
 )
 
 const (
-	transferBalanceCost = 10000
-	getBalanceCost      = 10000
+	sendBalanceCost = 10000
+	getBalanceCost  = 10000
 )
 
 type transferBalanceInput struct {
-	From   codec.Address
 	To     codec.Address
 	Amount uint64
 }
@@ -29,10 +28,17 @@ func NewBalanceModule() *ImportModule {
 				defer cancel()
 				return callInfo.State.GetBalance(ctx, address)
 			})},
-			"transfer": {FuelCost: transferBalanceCost, Function: FunctionNoOutput[transferBalanceInput](func(callInfo *CallInfo, input transferBalanceInput) error {
+			"send": {FuelCost: sendBalanceCost, Function: Function[transferBalanceInput, Result[Unit, ProgramCallErrorCode]](func(callInfo *CallInfo, input transferBalanceInput) (Result[Unit, ProgramCallErrorCode], error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				return callInfo.State.TransferBalance(ctx, input.From, input.To, input.Amount)
+				err := callInfo.State.TransferBalance(ctx, callInfo.Program, input.To, input.Amount)
+				if err != nil {
+					if extractedError, ok := extractProgramCallErrorCode(err); ok {
+						return Err[Unit, ProgramCallErrorCode](extractedError), nil
+					}
+					return Err[Unit, ProgramCallErrorCode](ExecutionFailure), err
+				}
+				return Ok[Unit, ProgramCallErrorCode](Unit{}), nil
 			})},
 		},
 	}

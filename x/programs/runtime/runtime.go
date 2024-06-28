@@ -68,6 +68,7 @@ func NewRuntime(
 	}
 
 	runtime.AddImportModule(NewLogModule())
+	runtime.AddImportModule(NewBalanceModule())
 	runtime.AddImportModule(NewStateAccessModule())
 	runtime.AddImportModule(NewProgramModule(runtime))
 

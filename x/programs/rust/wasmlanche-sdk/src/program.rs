@@ -21,6 +21,8 @@ pub enum ExternalCallError {
     CallPanicked = 1,
     #[error("not enough fuel to cover the execution")]
     OutOfFuel = 2,
+    #[error("insufficient funds")]
+    InsufficientFunds = 3,
 }
 
 /// Represents the current Program in the context of the caller, or an external
