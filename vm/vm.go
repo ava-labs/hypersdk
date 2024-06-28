@@ -147,6 +147,7 @@ func (vm *VM) Initialize(
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
+	// TODO: cleanup metrics registration
 	gatherer := avametrics.NewPrefixGatherer()
 	if err := vm.snowCtx.Metrics.Register("", gatherer); err != nil {
 		return err
