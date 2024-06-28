@@ -40,7 +40,7 @@ update_avalanchego_mod_version() {
     (cd "$path" && go get "github.com/ava-labs/avalanchego@v$version")
 }
 
-# Funcion to update the version in the format "VERSION=vXX.XX.XX" in the provided file
+# Function to update the version in the format "VERSION=vXX.XX.XX" in the provided file
 # Intended to run on the given run.sh files for each example VM.
 update_avalanchego_run_version() {
     local file_path=$1
