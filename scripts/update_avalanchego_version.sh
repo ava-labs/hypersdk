@@ -37,7 +37,7 @@ update_avalanchego_mod_version() {
     local version=$2
 
     # Set the working directory to the provided path and update the AvalancheGo dependency
-    (cd "$path" && go get "github.com/ava-labs/avalanchego@v$version")
+    (cd "$path" && go get "github.com/ava-labs/avalanchego@v$version" && go mod tidy)
 }
 
 # Function to update the version in the format "VERSION=vXX.XX.XX" in the provided file
