@@ -5,6 +5,8 @@ package runtime
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/cache"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -20,6 +22,8 @@ type WasmRuntime struct {
 	engine      *wasmtime.Engine
 	hostImports *Imports
 	cfg         *Config
+
+	programCache cache.Cacher[ids.ID, *wasmtime.Module]
 
 	callerInfo                map[uintptr]*CallInfo
 	linker                    *wasmtime.Linker
@@ -49,6 +53,13 @@ func NewRuntime(
 		hostImports:               NewImports(),
 		callerInfo:                map[uintptr]*CallInfo{},
 		linkerNeedsInitialization: true,
+		programCache: cache.NewSizedLRU(units.GiB, func(id ids.ID, mod *wasmtime.Module) int {
+			bytes, err := mod.Serialize()
+			if err != nil {
+				panic(err)
+			}
+			return len(id) + len(bytes)
+		}),
 	}
 
 	runtime.AddImportModule(NewLogModule())
@@ -63,19 +74,28 @@ func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.linkerNeedsInitialization = true
 }
 
+func (r *WasmRuntime) getModule(ctx context.Context, callInfo *CallInfo, id ids.ID) (*wasmtime.Module, error) {
+	if mod, ok := r.programCache.Get(id); ok {
+		return mod, nil
+	}
+	programBytes, err := callInfo.State.GetProgramBytes(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	mod, err := wasmtime.NewModule(r.engine, programBytes)
+	if err != nil {
+		return nil, err
+	}
+	r.programCache.Put(id, mod)
+	return mod, nil
+}
+
 func (r *WasmRuntime) CallProgram(ctx context.Context, callInfo *CallInfo) (result []byte, err error) {
 	programID, err := callInfo.State.GetAccountProgram(ctx, callInfo.Program)
 	if err != nil {
 		return nil, err
 	}
-	programBytes, err := callInfo.State.GetProgramBytes(ctx, programID)
-	if err != nil {
-		return nil, err
-	}
-	programModule, err := wasmtime.NewModule(r.engine, programBytes)
-	if err != nil {
-		return nil, err
-	}
+	programModule, err := r.getModule(ctx, callInfo, programID)
 	inst, err := r.getInstance(programModule, r.hostImports)
 	if err != nil {
 		return nil, err
