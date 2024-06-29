@@ -36,8 +36,7 @@ type metrics struct {
 func newMetrics() (*prometheus.Registry, *metrics, error) {
 	r := prometheus.NewRegistry()
 	writeStall, err := metric.NewAverager(
-		"pebble",
-		"write_stall",
+		"pebble_write_stall",
 		"time spent waiting for disk write",
 		r,
 	)
@@ -45,8 +44,7 @@ func newMetrics() (*prometheus.Registry, *metrics, error) {
 		return nil, nil, err
 	}
 	getLatency, err := metric.NewAverager(
-		"pebble",
-		"read_latency",
+		"pebble_read_latency",
 		"time spent waiting for db get",
 		r,
 	)

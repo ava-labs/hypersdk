@@ -42,7 +42,7 @@ func TestBlockCache(t *testing.T) {
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
 	controller := NewMockController(ctrl)
 	vm := VM{
-		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewOptionalGatherer()},
+		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
 		config:  &config.Config{},
 
 		vmDB: memdb.New(),
@@ -59,12 +59,12 @@ func TestBlockCache(t *testing.T) {
 	}
 
 	// Init metrics (called in [Accepted])
-	gatherer := metrics.NewMultiGatherer()
+	gatherer := metrics.NewPrefixGatherer()
 	reg, m, err := newMetrics()
 	require.NoError(err)
 	vm.metrics = m
 	require.NoError(gatherer.Register("hypersdk", reg))
-	require.NoError(vm.snowCtx.Metrics.Register(gatherer))
+	require.NoError(vm.snowCtx.Metrics.Register("", gatherer))
 
 	// put the block into the cache "vm.blocks"
 	// and delete from "vm.verifiedBlocks"
