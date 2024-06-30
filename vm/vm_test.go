@@ -59,12 +59,10 @@ func TestBlockCache(t *testing.T) {
 	}
 
 	// Init metrics (called in [Accepted])
-	gatherer := metrics.NewPrefixGatherer()
 	reg, m, err := newMetrics()
 	require.NoError(err)
 	vm.metrics = m
-	require.NoError(gatherer.Register("hypersdk", reg))
-	require.NoError(vm.snowCtx.Metrics.Register("", gatherer))
+	require.NoError(vm.snowCtx.Metrics.Register("hypersdk", reg))
 
 	// put the block into the cache "vm.blocks"
 	// and delete from "vm.verifiedBlocks"
