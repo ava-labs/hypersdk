@@ -39,7 +39,6 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
 
-	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
@@ -148,15 +147,11 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	// TODO: cleanup metrics registration
-	gatherer := avametrics.NewPrefixGatherer()
-	if err := vm.snowCtx.Metrics.Register("", gatherer); err != nil {
-		return err
-	}
 	defaultRegistry, metrics, err := newMetrics()
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("hypersdk", defaultRegistry); err != nil {
+	if err := vm.snowCtx.Metrics.Register("hypersdk", defaultRegistry); err != nil {
 		return err
 	}
 	vm.metrics = metrics
@@ -170,7 +165,7 @@ func (vm *VM) Initialize(
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
-		gatherer,
+		vm.snowCtx.Metrics,
 		genesisBytes,
 		upgradeBytes,
 		configBytes,
@@ -212,7 +207,7 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("state", merkleRegistry); err != nil {
+	if err := vm.snowCtx.Metrics.Register("state", merkleRegistry); err != nil {
 		return err
 	}
 
@@ -366,10 +361,10 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if err := gatherer.Register("sync", syncRegistry); err != nil {
+	if err := vm.snowCtx.Metrics.Register("sync", syncRegistry); err != nil {
 		return err
 	}
-	vm.stateSyncClient = vm.NewStateSyncClient(gatherer)
+	vm.stateSyncClient = vm.NewStateSyncClient(vm.snowCtx.Metrics)
 	vm.stateSyncNetworkServer = avasync.NewNetworkServer(stateSyncSender, vm.stateDB, vm.Logger())
 	vm.networkManager.SetHandler(stateSyncHandler, NewStateSyncHandler(vm))
 
