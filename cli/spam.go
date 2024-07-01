@@ -6,6 +6,7 @@ package cli
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/zclconf/go-cty/cty/set"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -46,13 +48,12 @@ var (
 )
 
 func (h *Handler) Spam(
-	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64) []chain.Action, // TODO: add support for populating memo (prevents duplicate tx)?
+	getTransfer func(codec.Address, uint64, []byte) []chain.Action,
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
@@ -110,18 +111,38 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	actions := getTransfer(keys[0].Address, 0)
+	actions := getTransfer(keys[0].Address, 0, binary.BigEndian.AppendUint64(nil, 0))
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
 	}
 
-	// Distribute funds
+	// Collect parameters
 	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second", consts.MaxInt)
+	txsPerSecond, err := h.PromptInt("txs to try and issue per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	minTxsPerSecond, err := h.PromptInt("minimum txs to issue per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	txsPerSecondStep, err := h.PromptInt("txs to increase per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", 100)
+	if err != nil {
+		return err
+	}
+	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", 100)
+	if err != nil {
+		return err
+	}
+	maxTxBacklog, err := h.PromptInt("maximum txs to have inflight", consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -129,6 +150,18 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+
+	// Log Zipf participants
+	zipfSeed := rand.New(rand.NewSource(0))
+	z := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+	trials := txsPerSecond * 60 * 2 // sender/receiver
+	unique := set.NewSet[uint64](trials)
+	for i := 0; i < trials; i++ {
+		unique.Add(z.Uint64())
+	}
+	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
+
+	// Distribute funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -136,10 +169,6 @@ func (h *Handler) Spam(
 	feePerTx, err := fees.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return err
-	}
-	if maxFee != nil {
-		feePerTx = *maxFee
-		utils.Outf("{{cyan}}overriding max fee:{{/}} %d\n", feePerTx)
 	}
 	withholding := feePerTx * uint64(numAccounts)
 	if balance < withholding {
