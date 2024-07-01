@@ -33,6 +33,14 @@ var (
 	_ block.StateSummary = &SyncableBlock{}
 )
 
+type Block interface {
+	Parent() ids.ID
+	Timestamp() time.Time
+	Height() uint64
+	Transactions() []*Transaction
+	StateRoot() ids.ID
+}
+
 type StatefulBlock struct {
 	Prnt   ids.ID `json:"parent"`
 	Tmstmp int64  `json:"timestamp"`
@@ -40,7 +48,7 @@ type StatefulBlock struct {
 
 	Txs []*Transaction `json:"txs"`
 
-	// StateRoot is the root of the post-execution state
+	// StatRoot is the root of the post-execution state
 	// of [Prnt].
 	//
 	// This "deferred root" design allows for merklization
@@ -48,13 +56,33 @@ type StatefulBlock struct {
 	// or [Verify], which reduces the amount of time we are
 	// blocking the consensus engine from voting on the block,
 	// starting the verification of another block, etc.
-	StateRoot ids.ID `json:"stateRoot"`
+	StatRoot ids.ID `json:"stateRoot"`
 
 	size int
 
 	// authCounts can be used by batch signature verification
 	// to preallocate memory
 	authCounts map[uint8]int
+}
+
+func (b *StatefulBlock) Parent() ids.ID {
+	return b.Prnt
+}
+
+func (b *StatefulBlock) Timestamp() time.Time {
+	return time.Unix(b.Tmstmp, 0)
+}
+
+func (b *StatefulBlock) Height() uint64 {
+	return b.Hght
+}
+
+func (b *StatefulBlock) Transactions() []*Transaction {
+	return b.Txs
+}
+
+func (b *StatefulBlock) StateRoot() ids.ID {
+	return b.StatRoot
 }
 
 func (b *StatefulBlock) Size() int {
@@ -82,7 +110,7 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 		Tmstmp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC).UnixMilli(),
 
 		// StateRoot should include all allocates made when loading the genesis file
-		StateRoot: root,
+		StatRoot: root,
 	}
 }
 
@@ -213,7 +241,7 @@ func ParseStatefulBlock(
 	// If we are parsing an older block, it will not be re-executed and should
 	// not be tracked as a parsed block
 	lastAccepted := b.vm.LastAcceptedBlock()
-	if lastAccepted == nil || b.Hght <= lastAccepted.Hght { // nil when parsing genesis
+	if lastAccepted == nil || b.Hght <= lastAccepted.Height() { // nil when parsing genesis
 		return b, nil
 	}
 
@@ -464,12 +492,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 	b.vm.RecordWaitRoot(time.Since(start))
-	if b.StateRoot != computedRoot {
+	if b.StateRoot() != computedRoot {
 		return fmt.Errorf(
 			"%w: expected=%s found=%s",
 			ErrStateRootMismatch,
 			computedRoot,
-			b.StateRoot,
+			b.StateRoot(),
 		)
 	}
 
@@ -533,7 +561,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		if updated {
 			b.vm.Logger().Info("updated state sync target",
 				zap.Stringer("id", b.ID()),
-				zap.Stringer("root", b.StateRoot),
+				zap.Stringer("root", b.StateRoot()),
 			)
 			return nil // the sync is still ongoing
 		}
@@ -546,7 +574,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		// then we need to process it here.
 		b.vm.Logger().Info("verifying unprocessed block in accept",
 			zap.Stringer("id", b.ID()),
-			zap.Stringer("root", b.StateRoot),
+			zap.Stringer("root", b.StateRoot()),
 		)
 		vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 		if err != nil {
@@ -594,20 +622,28 @@ func (b *StatelessBlock) Reject(ctx context.Context) error {
 func (b *StatelessBlock) Status() choices.Status { return b.st }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Prnt }
+func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Parent() }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Bytes() []byte { return b.bytes }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
+func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Height() }
 
 // implements "snowman.Block"
-func (b *StatelessBlock) Timestamp() time.Time { return b.t }
+func (b *StatelessBlock) Timestamp() time.Time { return b.StatefulBlock.Timestamp() }
 
 // Used to determine if should notify listeners and/or pass to controller
 func (b *StatelessBlock) Processed() bool {
 	return b.view != nil
+}
+
+func (b *StatelessBlock) Transactions() []*Transaction {
+	return b.StatefulBlock.Transactions()
+}
+
+func (b *StatelessBlock) StateRoot() ids.ID {
+	return b.StatefulBlock.StateRoot()
 }
 
 // View returns the [merkledb.TrieView] of the block (representing the state
@@ -819,7 +855,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
-	p.PackID(b.StateRoot)
+	p.PackID(b.StateRoot())
 	bytes := p.Bytes()
 	if err := p.Err(); err != nil {
 		return nil, err
@@ -853,7 +889,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		b.authCounts[tx.Auth.GetTypeID()]++
 	}
 
-	p.UnpackID(false, &b.StateRoot)
+	p.UnpackID(false, &b.StatRoot)
 
 	// Ensure no leftover bytes
 	if !p.Empty() {
@@ -875,7 +911,7 @@ func NewSyncableBlock(sb *StatelessBlock) *SyncableBlock {
 }
 
 func (sb *SyncableBlock) String() string {
-	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot)
+	return fmt.Sprintf("%d:%s root=%s", sb.Height(), sb.ID(), sb.StateRoot())
 }
 
 // Testing
