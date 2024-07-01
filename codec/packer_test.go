@@ -135,3 +135,40 @@ func TestNewReader(t *testing.T) {
 	require.Zero(rp.UnpackUint64(true), "Reader unpacked correctly.")
 	require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
 }
+
+func TestVarInt(t *testing.T) {
+	require := require.New(t)
+	wp := NewWriter(20, 20)
+
+	wp.PackUvarInt(900)
+	wp.PackUvarInt(905)
+	rp := NewReader(wp.Bytes(), 20)
+	require.NoError(rp.Err())
+	require.Equal(uint64(900), rp.UnpackUvarInt(true), "Reader unpacked incorrectly")
+	require.NoError(rp.Err())
+	require.Equal(uint64(905), rp.UnpackUvarInt(true), "Reader unpacked incorrectly")
+	require.NoError(rp.Err())
+}
+
+func FuzzVarInt(f *testing.F) {
+	maxSize := 10
+	f.Fuzz(func(t *testing.T, varUint uint64, varInt int64) {
+		require := require.New(t)
+
+		wp1 := NewWriter(maxSize, maxSize)
+		wp1.PackUvarInt(varUint)
+		rp1 := NewReader(wp1.Bytes(), maxSize)
+		resUint := rp1.UnpackUvarInt(true)
+		require.NoError(rp1.Err())
+		require.Equal(varUint, resUint, "Reader unpacked incorrectly")
+		require.LessOrEqual(len(rp1.Bytes()), maxSize)
+
+		wp2 := NewWriter(maxSize, maxSize)
+		wp2.PackVarInt(varInt)
+		rp2 := NewReader(wp2.Bytes(), maxSize)
+		resInt := rp2.UnpackVarInt(true)
+		require.NoError(rp2.Err())
+		require.Equal(varInt, resInt, "Reader unpacked incorrectly")
+		require.LessOrEqual(len(rp2.Bytes()), maxSize)
+	})
+}

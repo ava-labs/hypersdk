@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -137,6 +138,32 @@ func (p *Packer) UnpackInt(required bool) int {
 		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
 	return int(v)
+}
+
+func (p *Packer) PackUvarInt(v uint64) {
+	p.p.Bytes = binary.AppendUvarint(p.p.Bytes, v)
+}
+
+func (p *Packer) UnpackUvarInt(required bool) uint64 {
+	val, bytesRead := binary.Uvarint(p.Bytes())
+	if required && bytesRead <= 0 {
+		p.addErr(fmt.Errorf("%w: UvarInt field is not populated", ErrFieldNotPopulated))
+	}
+	p.p.Bytes = p.p.Bytes[bytesRead:]
+	return val
+}
+
+func (p *Packer) PackVarInt(v int64) {
+	p.p.Bytes = binary.AppendVarint(p.p.Bytes, v)
+}
+
+func (p *Packer) UnpackVarInt(required bool) int64 {
+	val, bytesRead := binary.Varint(p.Bytes())
+	if required && bytesRead <= 0 {
+		p.addErr(fmt.Errorf("%w: VarInt field is not populated", ErrFieldNotPopulated))
+	}
+	p.p.Bytes = p.p.Bytes[bytesRead:]
+	return val
 }
 
 func (p *Packer) PackWindow(w window.Window) {
