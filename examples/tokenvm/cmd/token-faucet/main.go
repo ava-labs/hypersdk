@@ -119,7 +119,7 @@ func main() {
 		fatal(log, "cannot create handler", zap.Error(err))
 	}
 	if err := srv.AddRoute(handler, "faucet", ""); err != nil {
-		fatal(log, "cannot add facuet route", zap.Error(err))
+		fatal(log, "cannot add faucet route", zap.Error(err))
 	}
 
 	// Start server
