@@ -52,7 +52,7 @@ func (h *Handler) Spam(
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64) []chain.Action,
+	getTransfer func(codec.Address, uint64) []chain.Action, // TODO: add support for populating memo (prevents duplicate tx)?
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
@@ -141,11 +141,11 @@ func (h *Handler) Spam(
 		feePerTx = *maxFee
 		utils.Outf("{{cyan}}overriding max fee:{{/}} %d\n", feePerTx)
 	}
-	witholding := feePerTx * uint64(numAccounts)
-	if balance < witholding {
-		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, witholding)
+	withholding := feePerTx * uint64(numAccounts)
+	if balance < withholding {
+		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, withholding)
 	}
-	distAmount := (balance - witholding) / uint64(numAccounts)
+	distAmount := (balance - withholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
 		utils.FormatBalance(distAmount, h.c.Decimals()),
