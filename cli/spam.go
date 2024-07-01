@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	defaultRange          = 32
+	maxZipfValue          = 100
 	issuerShutdownTimeout = 60 * time.Second
 )
 
@@ -134,11 +134,11 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", 100)
+	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", maxZipfValue)
 	if err != nil {
 		return err
 	}
-	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", 100)
+	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", maxZipfValue)
 	if err != nil {
 		return err
 	}
