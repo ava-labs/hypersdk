@@ -226,7 +226,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			NodeID:         nodeID,
 			Log:            l,
 			ChainDataDir:   dname,
-			Metrics:        metrics.NewOptionalGatherer(),
+			Metrics:        metrics.NewPrefixGatherer(),
 			PublicKey:      bls.PublicFromSecretKey(sk),
 			ValidatorState: &validators.TestState{},
 		}

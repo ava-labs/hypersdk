@@ -1,12 +1,12 @@
 module github.com/ava-labs/hypersdk
 
-go 1.21.10
+go 1.21.11
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/akamensky/argparse v1.4.0
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
-	github.com/ava-labs/avalanchego v1.11.6
+	github.com/ava-labs/avalanchego v1.11.8
 	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
@@ -84,7 +84,6 @@ require (
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.17.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect
 	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect

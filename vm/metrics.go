@@ -66,8 +66,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
 	rootCalculated, err := metric.NewAverager(
-		"chain",
-		"root_calculated",
+		"chain_root_calculated",
 		"time spent calculating the state root in verify",
 		r,
 	)
@@ -75,8 +74,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitRoot, err := metric.NewAverager(
-		"chain",
-		"wait_root",
+		"chain_wait_root",
 		"time spent waiting for root calculation in verify",
 		r,
 	)
@@ -84,8 +82,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitSignatures, err := metric.NewAverager(
-		"chain",
-		"wait_signatures",
+		"chain_wait_signatures",
 		"time spent waiting for signature verification in verify",
 		r,
 	)
@@ -93,8 +90,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockBuild, err := metric.NewAverager(
-		"chain",
-		"block_build",
+		"chain_block_build",
 		"time spent building blocks",
 		r,
 	)
@@ -102,8 +98,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockParse, err := metric.NewAverager(
-		"chain",
-		"block_parse",
+		"chain_block_parse",
 		"time spent parsing blocks",
 		r,
 	)
@@ -111,8 +106,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockVerify, err := metric.NewAverager(
-		"chain",
-		"block_verify",
+		"chain_block_verify",
 		"time spent verifying blocks",
 		r,
 	)
@@ -120,8 +114,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockAccept, err := metric.NewAverager(
-		"chain",
-		"block_accept",
+		"chain_block_accept",
 		"time spent accepting blocks",
 		r,
 	)
@@ -129,8 +122,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockProcess, err := metric.NewAverager(
-		"chain",
-		"block_process",
+		"chain_block_process",
 		"time spent processing blocks",
 		r,
 	)
