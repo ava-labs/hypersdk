@@ -33,7 +33,7 @@ func NewBalanceModule() *ImportModule {
 				defer cancel()
 				err := callInfo.State.TransferBalance(ctx, callInfo.Program, input.To, input.Amount)
 				if err != nil {
-					if extractedError, ok := extractProgramCallErrorCode(err); ok {
+					if extractedError, ok := ExtractProgramCallErrorCode(err); ok {
 						return Err[Unit, ProgramCallErrorCode](extractedError), nil
 					}
 					return Err[Unit, ProgramCallErrorCode](ExecutionFailure), err

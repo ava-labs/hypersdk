@@ -37,7 +37,7 @@ func Serialize[T any](value T) ([]byte, error) {
 	if err := bufferSerialize(value, b); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	return b.Bytes(), nil
 }
 
 func bufferSerialize[T any](value T, b io.Writer) error {
