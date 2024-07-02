@@ -20,3 +20,9 @@ functionality of a HyperSDK VM without the need to change its code.
 - Execution - See the test examples defined in the `examples/` directory.
 
 - Building - Checkout the `rust/` directory examples of programs written in Rust.
+
+
+
+#### Assumptions
+
+A program ID maps uniquely and permanently to the same []byte.
