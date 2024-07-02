@@ -229,7 +229,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 			if err != nil {
 				return err
 			}
-			issuer := &issuer{i: len(issuers), cli: cli, ws: ws, parser: parser, uri: i}
+			issuer := &issuer{i: len(issuers), cli: cli, ws: ws, parser: parser, uri: uris[i]}
 			issuers = append(issuers, issuer)
 		}
 	}
@@ -393,7 +393,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	}
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var returnedBalance uint64
-	p := &pacer{cli: cli, ws: ws}
+	p = &pacer{cli: cli, ws: ws}
 	go p.Run(ctx, txsPerSecondStep)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
