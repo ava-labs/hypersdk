@@ -6,16 +6,27 @@ use crate::{
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, io::Read};
 use thiserror::Error;
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct DeferDeserialize(Vec<u8>);
 
 impl DeferDeserialize {
-    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+    /// # Panics
+    /// Panics if there was an issue deserializing the value
+    #[allow(clippy::must_use_candidate)]
+    pub fn deserialize<T: BorshDeserialize>(self) -> T {
         let Self(bytes) = self;
-        borsh::from_slice(&bytes)
+        borsh::from_slice(&bytes).expect("failed to deserialize")
+    }
+}
+
+impl BorshDeserialize for DeferDeserialize {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut inner = Vec::new();
+        reader.read_to_end(&mut inner)?;
+        Ok(Self(inner))
     }
 }
 
@@ -85,16 +96,16 @@ impl<K> Program<K> {
     /// let increment = 10;
     /// let params = borsh::to_vec(&increment).expect("serialization error");
     /// let max_units = 1000000;
-    /// let bytes = target.call_function("increment", &params, max_units)?;
-    /// let has_incremented: bool = bytes.deserialize().expect("deserialization error");
+    /// let has_incremented: bool = target.call_function("increment", &params, max_units)?;
+    /// assert!(has_incremented);
     /// # Ok::<(), wasmlanche_sdk::ExternalCallError>(())
     /// ```
-    pub fn call_function(
+    pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,
         args: &[u8],
         max_units: Gas,
-    ) -> Result<DeferDeserialize, ExternalCallError> {
+    ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
