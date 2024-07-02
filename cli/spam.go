@@ -62,7 +62,6 @@ type SpamHelper interface {
 	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
 }
 
-// TODO: make these functions an interface rather than functions
 func (h *Handler) Spam(sh SpamHelper) error {
 	ctx := context.Background()
 
