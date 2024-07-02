@@ -152,7 +152,6 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	require.NoError(err)
 	require.LessOrEqual(into[uint64](result), program.Runtime.DefaultGas)
 }
-<<<<<<< HEAD
 
 func TestImportOutOfFuel(t *testing.T) {
 	require := require.New(t)
@@ -165,5 +164,3 @@ func TestImportOutOfFuel(t *testing.T) {
 	require.NoError(err)
 	require.Equal([]byte{byte(OutOfFuel)}, result)
 }
-=======
->>>>>>> ef69c9a9 (write unit tests, write docs, faillible `deserialize`)
