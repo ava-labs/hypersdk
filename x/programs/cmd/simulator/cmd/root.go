@@ -140,7 +140,6 @@ func (s *Simulator) Execute(ctx context.Context) error {
 
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {
-		s.log.Error("error when parsing command args", zap.Error(err))
 		return err
 	}
 
