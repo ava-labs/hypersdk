@@ -307,6 +307,7 @@ func BuildBlock(
 						stop = true
 						return errBlockFull
 					}
+					return nil
 				}
 
 				// Update block with new transaction
