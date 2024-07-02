@@ -63,7 +63,7 @@ pub fn call_with_two_params_external(
 #[public]
 pub fn call_deferred(_: Context, target: Program, max_units: Gas) -> i64 {
     let bytes = target
-        .call_function::<DeferDeserialize>("actor_check", &[], max_units)
+        .call_function::<DeferDeserialize>("simple_call", &[], max_units)
         .expect("deserialization failed");
     bytes.deserialize()
 }
