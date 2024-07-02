@@ -1,7 +1,7 @@
 use wasmlanche_sdk::{
     public,
     types::{Address, Gas},
-    Context, Program,
+    Context, DeferDeserialize, Program,
 };
 
 #[public]
@@ -13,8 +13,6 @@ pub fn simple_call(_: Context) -> i64 {
 pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 {
     target
         .call_function("simple_call", &[], max_units)
-        .unwrap()
-        .deserialize()
         .expect("deserialization failed")
 }
 
@@ -27,8 +25,6 @@ pub fn actor_check(context: Context) -> Address {
 pub fn actor_check_external(_: Context, target: Program, max_units: Gas) -> Address {
     target
         .call_function("actor_check", &[], max_units)
-        .expect("failure")
-        .deserialize()
         .expect("deserialization failed")
 }
 
@@ -39,10 +35,9 @@ pub fn call_with_param(_: Context, value: i64) -> i64 {
 
 #[public]
 pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, value: i64) -> i64 {
+    let params = borsh::to_vec(&value).expect("serialization failed");
     target
-        .call_function("call_with_param", &value.to_le_bytes(), max_units)
-        .unwrap()
-        .deserialize()
+        .call_function("call_with_param", &params, max_units)
         .expect("deserialization failed")
 }
 
@@ -59,14 +54,16 @@ pub fn call_with_two_params_external(
     value1: i64,
     value2: i64,
 ) -> i64 {
-    let args: Vec<_> = value1
-        .to_le_bytes()
-        .into_iter()
-        .chain(value2.to_le_bytes())
-        .collect();
+    let args: Vec<_> = borsh::to_vec(&(value1, value2)).expect("serialization failed");
     target
         .call_function("call_with_two_params", &args, max_units)
-        .unwrap()
-        .deserialize()
-        .expect("deserialization failed")
+        .expect("call failed")
+}
+
+#[public]
+pub fn call_deferred(_: Context, target: Program, max_units: Gas) -> i64 {
+    let bytes = target
+        .call_function::<DeferDeserialize>("actor_check", &[], max_units)
+        .expect("deserialization failed");
+    bytes.deserialize()
 }

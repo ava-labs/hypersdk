@@ -200,9 +200,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         param_0
             .program()
-            .call_function(#name, &args, param_0.max_units())
-            .expect("calling the external program failed")
-            .deserialize::<#return_type>()
+            .call_function::<#return_type>(#name, &args, param_0.max_units())
             .expect("deserialization failed")
     }});
 
