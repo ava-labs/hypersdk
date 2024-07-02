@@ -191,7 +191,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
 	p := &pacer{cli: cli, ws: ws}
-	go p.Run(ctx, txsPerSecondStep)
+	go p.Run(ctx, minTxsPerSecond*pendingTargetMultiplier)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
@@ -394,7 +394,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var returnedBalance uint64
 	p = &pacer{cli: cli, ws: ws}
-	go p.Run(ctx, txsPerSecondStep)
+	go p.Run(ctx, minTxsPerSecond*pendingTargetMultiplier)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
@@ -543,6 +543,7 @@ func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain
 		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 		return fmt.Errorf("failed to generate tx: %w", err)
 	}
+	inflight.Add(1)
 	if err := i.ws.RegisterTx(tx); err != nil {
 		i.l.Lock()
 		if i.ws.Closed() {
