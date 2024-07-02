@@ -214,6 +214,11 @@ func (h *Handler) Spam(sh SpamHelper) error {
 			return fmt.Errorf("%w: failed to register tx", err)
 		}
 		funds[pk.Address] = distAmount
+
+		// Log progress
+		if i%250 == 0 && i > 0 {
+			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
+		}
 	}
 	if err := p.Wait(); err != nil {
 		return err
@@ -412,6 +417,10 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		if err := p.Add(tx); err != nil {
 			return err
 		}
+
+		if i%250 == 0 && i > 0 {
+			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
+		}
 	}
 	if err := p.Wait(); err != nil {
 		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
@@ -445,10 +454,12 @@ func (p *pacer) Run(ctx context.Context, max int) {
 		}
 		if wsErr != nil {
 			p.done <- wsErr
+			return
 		}
 		if !result.Success {
 			// Should never happen
 			p.done <- fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
+			return
 		}
 	}
 	p.done <- nil
