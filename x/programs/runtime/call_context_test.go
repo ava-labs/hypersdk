@@ -27,10 +27,10 @@ func TestCallContext(t *testing.T) {
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
-		&CallInfo{
+		CallInfo{
 			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{programID: "call_program"}, AccountMap: map[codec.Address]ids.ID{programAccount: programID}},
 			Program: programAccount,
-			Fuel:    1000000,
+			MaxFuel: 1000000,
 		})
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
@@ -74,10 +74,10 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
-		&CallInfo{
+		CallInfo{
 			Program: program0Address,
 			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{program0ID: "call_program"}, AccountMap: map[codec.Address]ids.ID{program0Address: program0ID}},
-			Fuel:    1000000,
+			MaxFuel: 1000000,
 		})
 
 	// try to use a context that has a default program with a different program

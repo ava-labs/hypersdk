@@ -71,7 +71,7 @@ func (c CallContext) WithProgram(address codec.Address) CallContext {
 }
 
 func (c CallContext) WithFuel(u uint64) CallContext {
-	c.defaultCallInfo.Fuel = u
+	c.defaultCallInfo.MaxFuel = u
 	return c
 }
 
