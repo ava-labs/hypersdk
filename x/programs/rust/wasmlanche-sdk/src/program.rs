@@ -10,7 +10,7 @@ use std::{cell::RefCell, collections::HashMap};
 use thiserror::Error;
 
 /// An error that is returned from call to public functions.
-#[derive(Error, Debug, BorshDeserialize)]
+#[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
 #[non_exhaustive]
 #[borsh(use_discriminant = true)]
