@@ -26,16 +26,16 @@ use types::Address;
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
-pub struct Context<K = ()> {
-    program: Program<K>,
+pub struct Context {
+    program: Program,
     actor: Address,
     height: u64,
     timestamp: u64,
     action_id: Id,
 }
 
-impl<K> Context<K> {
-    pub fn program(&self) -> &Program<K> {
+impl Context {
+    pub fn program(&self) -> &Program {
         &self.program
     }
 
@@ -56,7 +56,7 @@ impl<K> Context<K> {
     }
 }
 
-impl<K> BorshSerialize for Context<K> {
+impl BorshSerialize for Context {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self {
             program,
@@ -74,7 +74,7 @@ impl<K> BorshSerialize for Context<K> {
     }
 }
 
-impl<K> BorshDeserialize for Context<K> {
+impl BorshDeserialize for Context {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
         let program = BorshDeserialize::deserialize_reader(reader)?;
         let actor = BorshDeserialize::deserialize_reader(reader)?;

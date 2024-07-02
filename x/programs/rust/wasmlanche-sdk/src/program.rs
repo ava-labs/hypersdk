@@ -1,8 +1,7 @@
 use crate::{
     memory::HostPtr,
-    state::{Key, State},
-    types::Address,
-    types::Id,
+    state::{Cache, Key, State},
+    types::{Address, Id},
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -26,12 +25,12 @@ pub enum ExternalCallError {
 /// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
-pub struct Program<K = ()> {
+pub struct Program {
     account: Address,
-    state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
+    state_cache: Cache,
 }
 
-impl<K> BorshSerialize for Program<K> {
+impl BorshSerialize for Program {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self {
             account,
@@ -42,7 +41,7 @@ impl<K> BorshSerialize for Program<K> {
     }
 }
 
-impl<K> BorshDeserialize for Program<K> {
+impl BorshDeserialize for Program {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
         let account: Address = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
@@ -52,7 +51,7 @@ impl<K> BorshDeserialize for Program<K> {
     }
 }
 
-impl<K> Program<K> {
+impl Program {
     #[must_use]
     pub fn account(&self) -> &Address {
         &self.account
@@ -138,23 +137,23 @@ impl<K> Program<K> {
     }
 }
 
-impl<K: Key> Program<K> {
+impl Program {
     /// Returns a State object that can be used to interact with persistent
     /// storage exposed by the host.
     #[must_use]
-    pub fn state(&self) -> State<K> {
+    pub fn state(&self) -> State {
         State::new(&self.state_cache)
     }
 }
 
-struct CallProgramArgs<'a, K> {
-    target: &'a Program<K>,
+struct CallProgramArgs<'a> {
+    target: &'a Program,
     function: &'a [u8],
     args: &'a [u8],
     max_units: Gas,
 }
 
-impl<K> BorshSerialize for CallProgramArgs<'_, K> {
+impl BorshSerialize for CallProgramArgs<'_> {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let Self {
             target,
