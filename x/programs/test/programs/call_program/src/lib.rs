@@ -1,7 +1,7 @@
 use wasmlanche_sdk::{
     public,
     types::{Address, Gas},
-    Context, DeferDeserialize, Program,
+    Context, Program,
 };
 
 #[public]
@@ -56,12 +56,4 @@ pub fn call_with_two_params_external(
     target
         .call_function("call_with_two_params", &args, max_units)
         .unwrap()
-}
-
-#[public]
-pub fn call_deferred(_: Context, target: Program, max_units: Gas) -> i64 {
-    let bytes = target
-        .call_function::<DeferDeserialize>("simple_call", &[], max_units)
-        .unwrap();
-    bytes.deserialize()
 }
