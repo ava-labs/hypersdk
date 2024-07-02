@@ -149,11 +149,11 @@ func (h *Handler) Spam(
 
 	// Log Zipf participants
 	zipfSeed := rand.New(rand.NewSource(0))
-	z := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+	zz := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
 	trials := txsPerSecond * 60 * 2 // sender/receiver
 	unique := set.NewSet[uint64](trials)
 	for i := 0; i < trials; i++ {
-		unique.Add(z.Uint64())
+		unique.Add(zz.Uint64())
 	}
 	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
 
@@ -275,7 +275,16 @@ func (h *Handler) Spam(
 	}()
 
 	// broadcast txs
-	g, gctx := errgroup.WithContext(ctx)
+	var (
+		g, gctx = errgroup.WithContext(ctx)
+		z       = rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+
+		it                      = time.NewTimer(0)
+		currentTarget           = min(txsPerSecond, minTxsPerSecond)
+		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
+	)
+	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
 		g.Go(func() error {
@@ -391,7 +400,8 @@ func (h *Handler) Spam(
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return err
+		// We don't return here because we want to return funds
+		utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
 	}
 
 	// Wait for all issuers to finish
@@ -424,9 +434,6 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if maxFee != nil {
-		feePerTx = *maxFee
-	}
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var (
 		returnedBalance uint64
@@ -444,7 +451,7 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt, nil), f, feePerTx)
 		if err != nil {
 			return err
 		}
