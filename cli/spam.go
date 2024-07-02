@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/zclconf/go-cty/cty/set"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -70,6 +70,11 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+	cli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := cli.Network(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Select root key
 	keys, err := h.GetKeys()
@@ -109,7 +114,7 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	actions := getTransfer(keys[0].Address, 0, binary.BigEndian.AppendUint64(nil, 0))
+	actions := getTransfer(keys[0].Address, 0, uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -344,7 +349,7 @@ func (h *Handler) Spam(
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := getTransfer(recipient, 1, binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1))))
+					actions := getTransfer(recipient, 1, uniqueBytes())
 					_, tx, err := issuer.c.GenerateTransactionManual(parser, actions, factory, feePerTx)
 					if err != nil {
 						utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
@@ -446,18 +451,17 @@ func (h *Handler) Spam(
 		returnsSent     int
 	)
 	for i := 0; i < numAccounts; i++ {
+		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
 		returnsSent++
+
 		// Send funds
 		returnAmt := balance - feePerTx
-		f, err := getFactory(accounts[i])
-		if err != nil {
-			return err
-		}
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt, nil), f, feePerTx)
+		actions := getTransfer(key.Address, returnAmt, uniqueBytes())
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
 		}
@@ -577,4 +581,8 @@ func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys 
 func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
 	index := rand.Int() % len(issuers)
 	return index, issuers[index]
+}
+
+func uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1)))
 }
