@@ -53,6 +53,7 @@ var (
 	sent     atomic.Int64
 )
 
+// TODO: make these functions an interface rather than functions
 func (h *Handler) Spam(
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
