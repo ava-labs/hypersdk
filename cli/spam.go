@@ -76,15 +76,6 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if len(keys) == 0 {
-		return ErrNoKeys
-	}
-	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(ctx)
-	if err != nil {
-		return err
-	}
 	balances := make([]uint64, len(keys))
 	if err := createClient(uris[0], networkID, chainID); err != nil {
 		return err
@@ -128,6 +119,9 @@ func (h *Handler) Spam(
 	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
+	}
+	if numAccounts < 2 {
+		return fmt.Errorf("must have at least 2 accounts")
 	}
 	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
 	if err != nil {
@@ -319,18 +313,15 @@ func (h *Handler) Spam(
 					consecutiveAboveBacklog = 0
 				}
 				it.Reset(1 * time.Second)
-				continue
+				break
 			}
-			consecutiveAboveBacklog = 0
-			consecutiveUnderBacklog++
 
 			// Issue txs
-			g, gctx := errgroup.WithContext(ctx)
+			g := errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
 				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
 				sender := accounts[senderIndex]
-				issuerIndex, issuer := getRandomIssuer(clients)
 				if recipientIndex == senderIndex {
 					if recipientIndex == uint64(numAccounts-1) {
 						recipientIndex--
@@ -339,6 +330,7 @@ func (h *Handler) Spam(
 					}
 				}
 				recipient := accounts[recipientIndex].Address
+				issuerIndex, issuer := getRandomIssuer(clients)
 				g.Go(func() error {
 					factory := factories[senderIndex]
 					fundsL.Lock()
@@ -352,133 +344,70 @@ func (h *Handler) Spam(
 					fundsL.Unlock()
 
 					// Send transaction
-					action := getTransfer(recipient, 1, binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1))))
-					if err := issueTransfer(cctx, issuer, issuerIndex, feePerTx, factory, action); err != nil {
-						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
-						return err
+					actions := getTransfer(recipient, 1, binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1))))
+					_, tx, err := issuer.c.GenerateTransactionManual(parser, actions, factory, feePerTx)
+					if err != nil {
+						utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
+						return fmt.Errorf("failed to generate tx: %w", err)
+					}
+					if err := issuer.d.RegisterTx(tx); err != nil {
+						issuer.l.Lock()
+						if issuer.d.Closed() {
+							if issuer.abandoned != nil {
+								issuer.l.Unlock()
+								return issuer.abandoned
+							}
+							// recreate issuer
+							utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
+							dcli, err := rpc.NewWebSocketClient(uris[issuer.uri], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+							if err != nil {
+								issuer.abandoned = err
+								utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
+								issuer.l.Unlock()
+								return err
+							}
+							issuer.d = dcli
+							startIssuer(cctx, issuer)
+							issuer.l.Unlock()
+							utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
+						}
+
+						// If issuance fails during retry, we should fail
+						return issuer.d.RegisterTx(tx)
 					}
 					return nil
 				})
 			}
+
+			// Wait for txs to finish
+			if err := g.Wait(); err != nil {
+				// We don't return here because we want to return funds
+				utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
+				stop = true
+				break
+			}
+
+			// Determine how long to sleep
+			dur := time.Since(start)
+			sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
+			it.Reset(time.Duration(sleep) * time.Millisecond)
+
+			// Check to see if we should increase target
+			consecutiveAboveBacklog = 0
+			consecutiveUnderBacklog++
+			if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
+				currentTarget = min(currentTarget+txsPerSecondStep, txsPerSecond)
+				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
+				consecutiveUnderBacklog = 0
+			}
+		case <-cctx.Done():
+			stop = true
+			utils.Outf("{{yellow}}context canceled{{/}}\n")
+		case <-signals:
+			stop = true
+			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
+			cancel()
 		}
-	}
-	for ri := 0; ri < numAccounts; ri++ {
-		i := ri
-		g.Go(func() error {
-			t := time.NewTimer(0) // ensure no duplicates created
-			defer t.Stop()
-
-			issuerIndex, issuer := getRandomIssuer(clients)
-			factory, err := getFactory(accounts[i])
-			if err != nil {
-				return err
-			}
-			fundsL.Lock()
-			balance := funds[accounts[i].Address]
-			fundsL.Unlock()
-			defer func() {
-				fundsL.Lock()
-				funds[accounts[i].Address] = balance
-				fundsL.Unlock()
-			}()
-			ut := time.Now().Unix()
-			for {
-				select {
-				case <-t.C:
-					// Ensure we aren't too backlogged
-					if inflight.Load() > int64(maxTxBacklog) {
-						t.Reset(1 * time.Second)
-						continue
-					}
-
-					// Select tx time
-					//
-					// Needed to prevent duplicates if called within the same
-					// unix second.
-					nextTime := time.Now().Unix()
-					if nextTime <= ut {
-						nextTime = ut + 1
-					}
-					ut = nextTime
-					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - 5*consts.MillisecondsPerSecond}
-
-					// Send transaction
-					start := time.Now()
-					selected := map[codec.Address]int{}
-					for k := 0; k < numTxsPerAccount; k++ {
-						recipient, err := getNextRecipient(i, recipientFunc, accounts)
-						if err != nil {
-							utils.Outf("{{orange}}failed to get next recipient:{{/}} %v\n", err)
-							return err
-						}
-						v := selected[recipient] + 1
-						selected[recipient] = v
-						actions := getTransfer(recipient, uint64(v))
-						fee, err := fees.MulSum(unitPrices, maxUnits)
-						if err != nil {
-							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
-							return err
-						}
-						if maxFee != nil {
-							fee = *maxFee
-						}
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, actions, factory, fee, tm)
-						if err != nil {
-							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
-							continue
-						}
-						if err := issuer.d.RegisterTx(tx); err != nil {
-							issuer.l.Lock()
-							if issuer.d.Closed() {
-								if issuer.abandoned != nil {
-									issuer.l.Unlock()
-									return issuer.abandoned
-								}
-								// recreate issuer
-								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
-								dcli, err := rpc.NewWebSocketClient(uris[issuer.uri], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-								if err != nil {
-									issuer.abandoned = err
-									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
-									issuer.l.Unlock()
-									return err
-								}
-								issuer.d = dcli
-								startIssuer(cctx, issuer)
-								issuer.l.Unlock()
-								utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
-							}
-							continue
-						}
-						balance -= (fee + uint64(v))
-						issuer.l.Lock()
-						issuer.outstandingTxs++
-						issuer.l.Unlock()
-						inflight.Add(1)
-						sent.Add(1)
-					}
-
-					// Determine how long to sleep
-					dur := time.Since(start)
-					sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
-					t.Reset(time.Duration(sleep) * time.Millisecond)
-				case <-gctx.Done():
-					return gctx.Err()
-				case <-cctx.Done():
-					return nil
-				case <-signals:
-					exiting.Do(func() {
-						utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-						cancel()
-					})
-					return nil
-				}
-			}
-		})
-	}
-	if err := g.Wait(); err != nil {
-		// We don't return here because we want to return funds
-		utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
 	}
 
 	// Wait for all issuers to finish
@@ -569,14 +498,6 @@ type txIssuer struct {
 	uri            int
 	abandoned      error
 	outstandingTxs int
-}
-
-type timeModifier struct {
-	Timestamp int64
-}
-
-func (t *timeModifier) Base(b *chain.Base) {
-	b.Timestamp = t.Timestamp
 }
 
 func startIssuer(cctx context.Context, issuer *txIssuer) {
