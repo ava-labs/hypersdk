@@ -6,10 +6,12 @@ package cli
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/zclconf/go-cty/cty/set"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -29,11 +32,16 @@ import (
 )
 
 const (
-	defaultRange          = 32
+	pendingTargetMultiplier        = 10
+	successfulRunsToIncreaseTarget = 10
+	failedRunsToDecreaseTarget     = 5
+
 	issuerShutdownTimeout = 60 * time.Second
 )
 
 var (
+	maxConcurrency = runtime.NumCPU()
+
 	issuerWg sync.WaitGroup
 	exiting  sync.Once
 
@@ -45,14 +53,14 @@ var (
 	sent     atomic.Int64
 )
 
+// TODO: make these functions an interface rather than functions
 func (h *Handler) Spam(
-	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
 	createClient func(string, uint32, ids.ID) error, // must save on caller side
 	getFactory func(*PrivateKey) (chain.AuthFactory, error),
 	createAccount func() (*PrivateKey, error),
 	lookupBalance func(int, string) (uint64, error),
 	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64) []chain.Action,
+	getTransfer func(codec.Address, uint64, []byte) []chain.Action,
 	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
 ) error {
 	ctx := context.Background()
@@ -110,18 +118,34 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	actions := getTransfer(keys[0].Address, 0)
+	actions := getTransfer(keys[0].Address, 0, binary.BigEndian.AppendUint64(nil, 0))
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
 	}
 
-	// Distribute funds
+	// Collect parameters
 	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second", consts.MaxInt)
+	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
+	if err != nil {
+		return err
+	}
+	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
+	if err != nil {
+		return err
+	}
+	txsPerSecond, err := h.PromptInt("txs to try and issue per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	minTxsPerSecond, err := h.PromptInt("minimum txs to issue per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	txsPerSecondStep, err := h.PromptInt("txs to increase per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -129,6 +153,18 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+
+	// Log Zipf participants
+	zipfSeed := rand.New(rand.NewSource(0))
+	zz := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+	trials := txsPerSecond * 60 * 2 // sender/receiver
+	unique := set.NewSet[uint64](trials)
+	for i := 0; i < trials; i++ {
+		unique.Add(zz.Uint64())
+	}
+	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
+
+	// Distribute funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -137,15 +173,11 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if maxFee != nil {
-		feePerTx = *maxFee
-		utils.Outf("{{cyan}}overriding max fee:{{/}} %d\n", feePerTx)
+	withholding := feePerTx * uint64(numAccounts)
+	if balance < withholding {
+		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, withholding)
 	}
-	witholding := feePerTx * uint64(numAccounts)
-	if balance < witholding {
-		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, witholding)
-	}
-	distAmount := (balance - witholding) / uint64(numAccounts)
+	distAmount := (balance - withholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
 		utils.FormatBalance(distAmount, h.c.Decimals()),
@@ -157,6 +189,7 @@ func (h *Handler) Spam(
 		return err
 	}
 	funds := map[codec.Address]uint64{}
+	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -165,9 +198,14 @@ func (h *Handler) Spam(
 			return err
 		}
 		accounts[i] = pk
+		f, err := getFactory(pk)
+		if err != nil {
+			return err
+		}
+		factories[i] = f
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount, nil), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -188,10 +226,6 @@ func (h *Handler) Spam(
 			// Should never happen
 			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
 		}
-	}
-	var recipientFunc func() (*PrivateKey, error)
-	if randomRecipient {
-		recipientFunc = createAccount
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
@@ -215,7 +249,6 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	PrintUnitPrices(unitPrices)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, client := range clients {
@@ -255,7 +288,80 @@ func (h *Handler) Spam(
 	}()
 
 	// broadcast txs
-	g, gctx := errgroup.WithContext(ctx)
+	var (
+		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
+		z = rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+
+		it                      = time.NewTimer(0)
+		currentTarget           = min(txsPerSecond, minTxsPerSecond)
+		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
+
+		stop bool
+	)
+	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
+	for !stop {
+		select {
+		case <-it.C:
+			start := time.Now()
+
+			// Check to see if we should wait for pending txs
+			if int64(currentTarget)+inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+				consecutiveUnderBacklog = 0
+				consecutiveAboveBacklog++
+				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
+					if currentTarget > txsPerSecondStep {
+						currentTarget -= txsPerSecondStep
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
+					} else {
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+					}
+					consecutiveAboveBacklog = 0
+				}
+				it.Reset(1 * time.Second)
+				continue
+			}
+			consecutiveAboveBacklog = 0
+			consecutiveUnderBacklog++
+
+			// Issue txs
+			g, gctx := errgroup.WithContext(ctx)
+			g.SetLimit(maxConcurrency)
+			for i := 0; i < currentTarget; i++ {
+				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
+				sender := accounts[senderIndex]
+				issuerIndex, issuer := getRandomIssuer(clients)
+				if recipientIndex == senderIndex {
+					if recipientIndex == uint64(numAccounts-1) {
+						recipientIndex--
+					} else {
+						recipientIndex++
+					}
+				}
+				recipient := accounts[recipientIndex].Address
+				g.Go(func() error {
+					factory := factories[senderIndex]
+					fundsL.Lock()
+					balance := funds[sender.Address]
+					if feePerTx > balance {
+						fundsL.Unlock()
+						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
+						return fmt.Errorf("%s has insufficient funds", sender.Address)
+					}
+					funds[sender.Address] = balance - feePerTx
+					fundsL.Unlock()
+
+					// Send transaction
+					action := getTransfer(recipient, 1, binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1))))
+					if err := issueTransfer(cctx, issuer, issuerIndex, feePerTx, factory, action); err != nil {
+						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+						return err
+					}
+					return nil
+				})
+			}
+		}
+	}
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
 		g.Go(func() error {
@@ -371,7 +477,8 @@ func (h *Handler) Spam(
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return err
+		// We don't return here because we want to return funds
+		utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
 	}
 
 	// Wait for all issuers to finish
@@ -404,9 +511,6 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if maxFee != nil {
-		feePerTx = *maxFee
-	}
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var (
 		returnedBalance uint64
@@ -424,7 +528,7 @@ func (h *Handler) Spam(
 		if err != nil {
 			return err
 		}
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt), f, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt, nil), f, feePerTx)
 		if err != nil {
 			return err
 		}

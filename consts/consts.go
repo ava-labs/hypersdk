@@ -3,6 +3,8 @@
 
 package consts
 
+import "math"
+
 const (
 	// These `codec` consts are defined here to avoid a circular dependency
 	BoolLen   = 1
@@ -26,5 +28,6 @@ const (
 	MaxInt                = int(MaxUint >> 1)
 	MaxUint64Offset       = 63
 	MaxUint64             = ^uint64(0)
+	MaxFloat64            = math.MaxFloat64
 	MillisecondsPerSecond = 1000
 )
