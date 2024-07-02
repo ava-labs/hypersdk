@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,11 +32,16 @@ import (
 )
 
 const (
-	maxZipfValue          = 100
+	pendingTargetMultiplier        = 10
+	successfulRunsToIncreaseTarget = 10
+	failedRunsToDecreaseTarget     = 5
+
 	issuerShutdownTimeout = 60 * time.Second
 )
 
 var (
+	maxConcurrency = runtime.NumCPU()
+
 	issuerWg sync.WaitGroup
 	exiting  sync.Once
 
@@ -122,11 +128,11 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", maxZipfValue)
+	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
 	if err != nil {
 		return err
 	}
-	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", maxZipfValue)
+	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
 	if err != nil {
 		return err
 	}
@@ -182,6 +188,7 @@ func (h *Handler) Spam(
 		return err
 	}
 	funds := map[codec.Address]uint64{}
+	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -190,6 +197,11 @@ func (h *Handler) Spam(
 			return err
 		}
 		accounts[i] = pk
+		f, err := getFactory(pk)
+		if err != nil {
+			return err
+		}
+		factories[i] = f
 
 		// Send funds
 		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount, nil), factory, feePerTx)
@@ -276,15 +288,79 @@ func (h *Handler) Spam(
 
 	// broadcast txs
 	var (
-		g, gctx = errgroup.WithContext(ctx)
-		z       = rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
+		z = rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
 
 		it                      = time.NewTimer(0)
 		currentTarget           = min(txsPerSecond, minTxsPerSecond)
 		consecutiveUnderBacklog int
 		consecutiveAboveBacklog int
+
+		stop bool
 	)
 	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
+	for !stop {
+		select {
+		case <-it.C:
+			start := time.Now()
+
+			// Check to see if we should wait for pending txs
+			if int64(currentTarget)+inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+				consecutiveUnderBacklog = 0
+				consecutiveAboveBacklog++
+				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
+					if currentTarget > txsPerSecondStep {
+						currentTarget -= txsPerSecondStep
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
+					} else {
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+					}
+					consecutiveAboveBacklog = 0
+				}
+				it.Reset(1 * time.Second)
+				continue
+			}
+			consecutiveAboveBacklog = 0
+			consecutiveUnderBacklog++
+
+			// Issue txs
+			g, gctx := errgroup.WithContext(ctx)
+			g.SetLimit(maxConcurrency)
+			for i := 0; i < currentTarget; i++ {
+				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
+				sender := accounts[senderIndex]
+				issuerIndex, issuer := getRandomIssuer(clients)
+				if recipientIndex == senderIndex {
+					if recipientIndex == uint64(numAccounts-1) {
+						recipientIndex--
+					} else {
+						recipientIndex++
+					}
+				}
+				recipient := accounts[recipientIndex].Address
+				g.Go(func() error {
+					factory := factories[senderIndex]
+					fundsL.Lock()
+					balance := funds[sender.Address]
+					if feePerTx > balance {
+						fundsL.Unlock()
+						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
+						return fmt.Errorf("%s has insufficient funds", sender.Address)
+					}
+					funds[sender.Address] = balance - feePerTx
+					fundsL.Unlock()
+
+					// Send transaction
+					action := getTransfer(recipient, 1, binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1))))
+					if err := issueTransfer(cctx, issuer, issuerIndex, feePerTx, factory, action); err != nil {
+						utils.Outf("{{orange}}failed to generate tx (issuer: %d):{{/}} %v\n", issuerIndex, err)
+						return err
+					}
+					return nil
+				})
+			}
+		}
+	}
 	for ri := 0; ri < numAccounts; ri++ {
 		i := ri
 		g.Go(func() error {
