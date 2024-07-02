@@ -41,7 +41,7 @@ impl<'a, K: Key> State<'a, K> {
     /// Store a key and value to the host storage. If the key already exists,
     /// the value will be overwritten.
     /// # Errors
-    /// Returns an [Error] if the key or value cannot be
+    /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
     pub fn store<V>(self, key: K, value: &V) -> Result<(), Error>
     where
@@ -67,7 +67,7 @@ impl<'a, K: Key> State<'a, K> {
     /// function call. This function will take ownership of the pointer and free it.
     ///
     /// # Errors
-    /// Returns an [Error] if the key cannot be serialized or if
+    /// Returns an [`Error`] if the key cannot be serialized or if
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
