@@ -778,7 +778,7 @@ func (vm *VM) Submit(
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
+	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
 		return []error{err}
 	}

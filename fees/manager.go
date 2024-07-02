@@ -35,13 +35,20 @@ type (
 
 // Manager is safe for concurrent use
 type Manager struct {
-	l   sync.RWMutex
+	l sync.RWMutex
+
+	// Layout: [timestamp(s)][dimension[0].price][dimension[0].window][dimension[0].lastConsumed]...
+	//
+	// Note, we must store the timestamp because computing the time difference exclusively off
+	// of block parent timestamps may never result in a window roll (difference may always be less
+	// than 1 second). This bug would result in the unit price never changing (or even going up if the
+	// last consumed is larger than the target).
 	raw []byte
 }
 
 func NewManager(raw []byte) *Manager {
 	if len(raw) == 0 {
-		raw = make([]byte, FeeDimensions*dimensionStateLen)
+		raw = make([]byte, consts.Int64Len+FeeDimensions*dimensionStateLen)
 	}
 	return &Manager{raw: raw}
 }
@@ -54,7 +61,7 @@ func (f *Manager) UnitPrice(d Dimension) uint64 {
 }
 
 func (f *Manager) unitPrice(d Dimension) uint64 {
-	start := dimensionStateLen * d
+	start := consts.Int64Len + dimensionStateLen*d
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
@@ -66,7 +73,7 @@ func (f *Manager) Window(d Dimension) window.Window {
 }
 
 func (f *Manager) window(d Dimension) window.Window {
-	start := dimensionStateLen*d + consts.Uint64Len
+	start := consts.Int64Len + dimensionStateLen*d + consts.Uint64Len
 	return window.Window(f.raw[start : start+window.WindowSliceSize])
 }
 
@@ -78,19 +85,22 @@ func (f *Manager) LastConsumed(d Dimension) uint64 {
 }
 
 func (f *Manager) lastConsumed(d Dimension) uint64 {
-	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
+	start := consts.IntLen + dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	return binary.BigEndian.Uint64(f.raw[start : start+consts.Uint64Len])
 }
 
-func (f *Manager) ComputeNext(lastTime int64, currTime int64, r Rules) (*Manager, error) {
+func (f *Manager) ComputeNext(currTime int64, r Rules) (*Manager, error) {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
 	targetUnits := r.GetWindowTargetUnits()
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
-	since := int((currTime - lastTime) / consts.MillisecondsPerSecond)
-	bytes := make([]byte, dimensionStateLen*FeeDimensions)
+	lastTimeSeconds := int64(binary.BigEndian.Uint64(f.raw[0:consts.Int64Len]))
+	currTimeSeconds := int64(currTime / consts.MillisecondsPerSecond)
+	since := uint64(currTimeSeconds - lastTimeSeconds)
+	bytes := make([]byte, consts.Int64Len+dimensionStateLen*FeeDimensions)
+	binary.BigEndian.PutUint64(bytes[0:consts.Int64Len], uint64(currTimeSeconds))
 	for i := Dimension(0); i < FeeDimensions; i++ {
 		nextUnitPrice, nextUnitWindow, err := computeNextPriceWindow(
 			f.Window(i),
@@ -104,7 +114,7 @@ func (f *Manager) ComputeNext(lastTime int64, currTime int64, r Rules) (*Manager
 		if err != nil {
 			return nil, err
 		}
-		start := dimensionStateLen * i
+		start := consts.Int64Len + dimensionStateLen*i
 		binary.BigEndian.PutUint64(bytes[start:start+consts.Uint64Len], nextUnitPrice)
 		copy(bytes[start+consts.Uint64Len:start+consts.Uint64Len+window.WindowSliceSize], nextUnitWindow[:])
 		// Usage must be set after block is processed (we leave as 0 for now)
@@ -120,7 +130,7 @@ func (f *Manager) SetUnitPrice(d Dimension, price uint64) {
 }
 
 func (f *Manager) setUnitPrice(d Dimension, price uint64) {
-	start := dimensionStateLen * d
+	start := consts.Int64Len + dimensionStateLen*d
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], price)
 }
 
@@ -132,7 +142,7 @@ func (f *Manager) SetLastConsumed(d Dimension, consumed uint64) {
 }
 
 func (f *Manager) setLastConsumed(d Dimension, consumed uint64) {
-	start := dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
+	start := consts.Int64Len + dimensionStateLen*d + consts.Uint64Len + window.WindowSliceSize
 	binary.BigEndian.PutUint64(f.raw[start:start+consts.Uint64Len], consumed)
 }
 
@@ -217,7 +227,7 @@ func computeNextPriceWindow(
 	target uint64, /* per window */
 	changeDenom uint64,
 	minPrice uint64,
-	since int, /* seconds */
+	since uint64, /* seconds */
 ) (uint64, window.Window, error) {
 	newRollupWindow, err := window.Roll(previous, since)
 	if err != nil {
@@ -227,7 +237,7 @@ func computeNextPriceWindow(
 		// add in the units used by the parent block in the correct place
 		// If the parent consumed units within the rollup window, add the consumed
 		// units in.
-		slot := window.WindowSize - 1 - since
+		slot := window.WindowSize - 1 - int(since)
 		start := slot * consts.Uint64Len
 		window.Update(&newRollupWindow, start, previousConsumed)
 	}

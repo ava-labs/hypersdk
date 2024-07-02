@@ -16,6 +16,7 @@ const (
 	WindowSliceSize = WindowSize * consts.Uint64Len
 )
 
+// TODO: how does this handle many consecutive updates of < 1s?
 type Window [WindowSliceSize]byte
 
 // Roll rolls the uint64s within [consumptionWindow] over by [roll] places.
@@ -34,7 +35,7 @@ type Window [WindowSliceSize]byte
 // Roll >= 4
 // [0, 0, 0, 0]
 // Assumes that [roll] is greater than or equal to 0
-func Roll(w Window, roll int) (Window, error) {
+func Roll(w Window, roll uint64) (Window, error) {
 	// Note: make allocates a zeroed array, so we are guaranteed
 	// that what we do not copy into, will be set to 0
 	res := [WindowSliceSize]byte{}
