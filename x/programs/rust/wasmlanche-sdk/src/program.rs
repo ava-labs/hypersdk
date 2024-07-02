@@ -21,6 +21,8 @@ pub enum ExternalCallError {
     CallPanicked = 1,
     #[error("not enough fuel to cover the execution")]
     OutOfFuel = 2,
+    #[error("insufficient funds")]
+    InsufficientFunds = 3,
 }
 
 /// Represents the current Program in the context of the caller, or an external
@@ -76,7 +78,7 @@ impl<K> Program<K> {
     /// let params = borsh::to_vec(&increment).expect("failed to borsh serialize params");
     /// let max_units = 1000000;
     /// target
-    ///     .call_function("call_with_param", &params, max_units)
+    ///     .call_function("call_with_param", &params, max_units, 0)
     ///     .unwrap()
     /// ```
     pub fn call_function<T: BorshDeserialize>(
@@ -84,6 +86,7 @@ impl<K> Program<K> {
         function_name: &str,
         args: &[u8],
         max_units: Gas,
+        max_value: u64,
     ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -96,6 +99,7 @@ impl<K> Program<K> {
             function: function_name.as_bytes(),
             args,
             max_units,
+            max_value,
         };
 
         let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
@@ -152,6 +156,7 @@ struct CallProgramArgs<'a, K> {
     function: &'a [u8],
     args: &'a [u8],
     max_units: Gas,
+    max_value: u64,
 }
 
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {
@@ -161,13 +166,14 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
             function,
             args,
             max_units,
+            max_value,
         } = self;
 
         target.serialize(writer)?;
         function.serialize(writer)?;
         args.serialize(writer)?;
         max_units.serialize(writer)?;
-
+        max_value.serialize(writer)?;
         Ok(())
     }
 }

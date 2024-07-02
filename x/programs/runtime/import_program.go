@@ -27,6 +27,7 @@ const (
 	CallPanicked ProgramCallErrorCode = iota
 	ExecutionFailure
 	OutOfFuel
+	InsufficientBalance
 )
 
 type callProgramInput struct {
@@ -34,6 +35,7 @@ type callProgramInput struct {
 	FunctionName string
 	Params       []byte
 	Fuel         uint64
+	Value        uint64
 }
 
 type deployProgramInput struct {
@@ -71,7 +73,8 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				newInfo.Program = input.Program
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
-				newInfo.Fuel = input.Fuel
+				newInfo.MaxFuel = input.Fuel
+				newInfo.Value = input.Value
 
 				result, err := r.CallProgram(
 					context.Background(),
@@ -85,6 +88,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 
 				// return any remaining fuel to the calling program
 				callInfo.AddFuel(newInfo.RemainingFuel())
+				callInfo.Value += newInfo.Value
 
 				return Ok[RawBytes, ProgramCallErrorCode](result), nil
 			})},

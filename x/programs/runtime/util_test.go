@@ -18,6 +18,7 @@ type testRuntime struct {
 	Runtime      *WasmRuntime
 	StateManager StateManager
 	DefaultGas   uint64
+	DefaultValue uint64
 }
 
 func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
@@ -33,7 +34,8 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
-			Fuel:         t.DefaultGas,
+			MaxFuel:      t.DefaultGas,
+			Value:        t.DefaultValue,
 		})
 }
 
@@ -46,8 +48,13 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Runtime: NewRuntime(
 				NewConfig(),
 				logging.NoLog{}),
-			StateManager: test.StateManager{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}, Mu: test.NewTestDB()},
-			DefaultGas:   10000000,
+			StateManager: test.StateManager{
+				ProgramsMap: map[ids.ID]string{id: program},
+				AccountMap:  map[codec.Address]ids.ID{account: id},
+				Balances:    map[codec.Address]uint64{},
+				Mu:          test.NewTestDB(),
+			},
+			DefaultGas: 10000000,
 		},
 		Address: account,
 	}

@@ -206,3 +206,5 @@ func (o Option[T]) Some() (T, bool) {
 func (o Option[T]) None() bool {
 	return o.isNone
 }
+
+type Unit struct{}

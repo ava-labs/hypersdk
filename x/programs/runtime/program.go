@@ -43,8 +43,8 @@ type CallInfo struct {
 	// the serialized parameters that will be passed to the called function
 	Params []byte
 
-	// the amount of fuel allowed to be consumed by wasm for this call
-	Fuel uint64
+	// the maximum amount of fuel allowed to be consumed by wasm for this call
+	MaxFuel uint64
 
 	// the height of the chain that this call was made from
 	Height uint64
@@ -55,11 +55,13 @@ type CallInfo struct {
 	// the action id that triggered this call
 	ActionID ids.ID
 
+	Value uint64
+
 	inst *ProgramInstance
 }
 
 func (c *CallInfo) RemainingFuel() uint64 {
-	remaining := c.Fuel
+	remaining := c.MaxFuel
 	usedFuel, fuelEnabled := c.inst.store.FuelConsumed()
 	if fuelEnabled {
 		remaining -= usedFuel
@@ -83,9 +85,15 @@ type ProgramInstance struct {
 	result []byte
 }
 
-func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
-	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
+func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
+	if err := p.store.AddFuel(callInfo.MaxFuel); err != nil {
 		return nil, err
+	}
+
+	if callInfo.Value > 0 {
+		if err := callInfo.State.TransferBalance(ctx, callInfo.Actor, callInfo.Program, callInfo.Value); err != nil {
+			return nil, errors.New("insufficient balance")
+		}
 	}
 
 	// create the program context
