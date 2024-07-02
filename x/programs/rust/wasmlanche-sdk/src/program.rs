@@ -126,22 +126,7 @@ impl<K> Program<K> {
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        let result_bytes = match bytes.first().expect("missing result prefix byte") {
-            0 => {
-                if bytes.len() != 2 {
-                    panic!("wrong encoding for result");
-                } else {
-                    let error_code = bytes.get(1).unwrap();
-                    let error_res: ExternalCallError = borsh::from_slice(&[*error_code][..])
-                        .expect("failed to deserialize error code");
-                    return Err(error_res);
-                }
-            }
-            1 => bytes.get(1..).unwrap(),
-            _ => panic!("wrong error code"),
-        };
-
-        Ok(DeferDeserialize(result_bytes.to_vec()))
+        borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
     /// Gets the remaining fuel available to this program
