@@ -11,7 +11,11 @@ pub fn simple_call(_: Context) -> i64 {
 
 #[public]
 pub fn simple_call_external(_: Context, target: Program, max_units: Gas) -> i64 {
-    target.call_function("simple_call", &[], max_units).unwrap()
+    target
+        .call_function("simple_call", &[], max_units)
+        .unwrap()
+        .deserialize()
+        .expect("deserialization failed")
 }
 
 #[public]
@@ -24,6 +28,8 @@ pub fn actor_check_external(_: Context, target: Program, max_units: Gas) -> Addr
     target
         .call_function("actor_check", &[], max_units)
         .expect("failure")
+        .deserialize()
+        .expect("deserialization failed")
 }
 
 #[public]
@@ -36,6 +42,8 @@ pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, val
     target
         .call_function("call_with_param", &value.to_le_bytes(), max_units)
         .unwrap()
+        .deserialize()
+        .expect("deserialization failed")
 }
 
 #[public]
@@ -59,4 +67,6 @@ pub fn call_with_two_params_external(
     target
         .call_function("call_with_two_params", &args, max_units)
         .unwrap()
+        .deserialize()
+        .expect("deserialization failed")
 }

@@ -9,6 +9,16 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap};
 use thiserror::Error;
 
+#[cfg_attr(feature = "debug", derive(Debug))]
+pub struct DeferDeserialize(Vec<u8>);
+
+impl DeferDeserialize {
+    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+        let Self(bytes) = self;
+        borsh::from_slice(&bytes)
+    }
+}
+
 /// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
@@ -71,20 +81,19 @@ impl<K> Program<K> {
     /// # use wasmlanche_sdk::{types::Address, Program};
     /// #
     /// # let program_id = [0; Address::LEN];
-    /// # let target: Program<()> = borsh::from_slice(&program_id).expect("the program should deserialize");
+    /// # let target: Program<()> = borsh::from_slice(&program_id)?;
     /// let increment = 10;
-    /// let params = borsh::to_vec(&increment).expect("failed to borsh serialize params");
+    /// let params = borsh::to_vec(&increment)?;
     /// let max_units = 1000000;
-    /// target
-    ///     .call_function("call_with_param", &params, max_units)
-    ///     .unwrap()
+    /// let bytes = target.call_function("increment", &params, max_units)?;
+    /// let incremented = bytes.deserialize()?;
     /// ```
-    pub fn call_function<T: BorshDeserialize>(
+    pub fn call_function(
         &self,
         function_name: &str,
         args: &[u8],
         max_units: Gas,
-    ) -> Result<T, ExternalCallError> {
+    ) -> Result<DeferDeserialize, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "call_program"]
@@ -102,7 +111,22 @@ impl<K> Program<K> {
 
         let bytes = unsafe { call_program(args_bytes.as_ptr(), args_bytes.len()) };
 
-        borsh::from_slice(&bytes).expect("failed to deserialize")
+        let result_bytes = match bytes.first().expect("missing result prefix byte") {
+            0 => {
+                if bytes.len() != 2 {
+                    panic!("wrong encoding for result");
+                } else {
+                    let error_code = bytes.get(1).unwrap();
+                    let error_res: ExternalCallError = borsh::from_slice(&[*error_code][..])
+                        .expect("failed to deserialize error code");
+                    return Err(error_res);
+                }
+            }
+            1 => bytes.get(1..).unwrap(),
+            _ => panic!("wrong error code"),
+        };
+
+        Ok(DeferDeserialize(result_bytes.to_vec()))
     }
 
     /// Gets the remaining fuel available to this program
