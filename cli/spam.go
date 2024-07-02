@@ -41,9 +41,7 @@ const (
 
 var (
 	maxConcurrency = runtime.NumCPU()
-
-	issuerWg sync.WaitGroup
-	exiting  sync.Once
+	issuerWg       sync.WaitGroup
 
 	l            sync.Mutex
 	confirmedTxs uint64
@@ -53,16 +51,17 @@ var (
 	sent     atomic.Int64
 )
 
+type SpamHelper interface {
+	CreateClient(uri string, networkID uint32, chainID ids.ID) error
+	GetFactory(pk *PrivateKey) (chain.AuthFactory, error)
+	CreateAccount() (*PrivateKey, error)
+	LookupBalance(choice int, address string) (uint64, error)
+	GetParser(ctx context.Context, chainID ids.ID) (chain.Parser, error)
+	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
+}
+
 // TODO: make these functions an interface rather than functions
-func (h *Handler) Spam(
-	createClient func(string, uint32, ids.ID) error, // must save on caller side
-	getFactory func(*PrivateKey) (chain.AuthFactory, error),
-	createAccount func() (*PrivateKey, error),
-	lookupBalance func(int, string) (uint64, error),
-	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64, []byte) []chain.Action,
-	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
-) error {
+func (h *Handler) Spam(sh SpamHelper) error {
 	ctx := context.Background()
 
 	// Select chain
@@ -82,12 +81,12 @@ func (h *Handler) Spam(
 		return err
 	}
 	balances := make([]uint64, len(keys))
-	if err := createClient(uris[0], networkID, chainID); err != nil {
+	if err := sh.CreateClient(uris[0], networkID, chainID); err != nil {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {
 		address := h.c.Address(keys[i].Address)
-		balance, err := lookupBalance(i, address)
+		balance, err := sh.LookupBalance(i, address)
 		if err != nil {
 			return err
 		}
@@ -99,7 +98,7 @@ func (h *Handler) Spam(
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
-	factory, err := getFactory(key)
+	factory, err := sh.GetFactory(key)
 	if err != nil {
 		return err
 	}
@@ -110,11 +109,11 @@ func (h *Handler) Spam(
 	}
 
 	// Compute max units
-	parser, err := getParser(ctx, chainID)
+	parser, err := sh.GetParser(ctx, chainID)
 	if err != nil {
 		return err
 	}
-	actions := getTransfer(keys[0].Address, 0, uniqueBytes())
+	actions := sh.GetTransfer(keys[0].Address, 0, uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
@@ -192,19 +191,19 @@ func (h *Handler) Spam(
 	var fundsL sync.Mutex
 	for i := 0; i < numAccounts; i++ {
 		// Create account
-		pk, err := createAccount()
+		pk, err := sh.CreateAccount()
 		if err != nil {
 			return err
 		}
 		accounts[i] = pk
-		f, err := getFactory(pk)
+		f, err := sh.GetFactory(pk)
 		if err != nil {
 			return err
 		}
 		factories[i] = f
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount, nil), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, sh.GetTransfer(pk.Address, distAmount, nil), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -322,7 +321,7 @@ func (h *Handler) Spam(
 			}
 
 			// Issue txs
-			g := errgroup.Group{}
+			g := &errgroup.Group{}
 			g.SetLimit(maxConcurrency)
 			for i := 0; i < currentTarget; i++ {
 				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
@@ -349,7 +348,7 @@ func (h *Handler) Spam(
 					fundsL.Unlock()
 
 					// Send transaction
-					actions := getTransfer(recipient, 1, uniqueBytes())
+					actions := sh.GetTransfer(recipient, 1, uniqueBytes())
 					_, tx, err := issuer.c.GenerateTransactionManual(parser, actions, factory, feePerTx)
 					if err != nil {
 						utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
@@ -417,24 +416,7 @@ func (h *Handler) Spam(
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	dctx, cancel := context.WithCancel(ctx)
-	go func() {
-		// Send a dummy transaction if shutdown is taking too long (listeners are
-		// expired on accept if dropped)
-		t := time.NewTicker(15 * time.Second)
-		defer t.Stop()
-		for {
-			select {
-			case <-t.C:
-				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				_ = h.SubmitDummy(dctx, cli, submitDummy(cli, key))
-			case <-dctx.Done():
-				return
-			}
-		}
-	}()
 	issuerWg.Wait()
-	cancel()
 
 	// Return funds
 	unitPrices, err = cli.UnitPrices(ctx, false)
@@ -448,43 +430,55 @@ func (h *Handler) Spam(
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var (
 		returnedBalance uint64
-		returnsSent     int
+		returns         = make(chan struct{}, txsPerSecondStep)
 	)
-	for i := 0; i < numAccounts; i++ {
-		// Determine if we should return funds
-		balance := funds[accounts[i].Address]
-		if feePerTx > balance {
-			continue
-		}
-		returnsSent++
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		for i := 0; i < numAccounts; i++ {
+			// Determine if we should return funds
+			balance := funds[accounts[i].Address]
+			if feePerTx > balance {
+				continue
+			}
 
-		// Send funds
-		returnAmt := balance - feePerTx
-		actions := getTransfer(key.Address, returnAmt, uniqueBytes())
-		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
-		if err != nil {
-			return err
+			// Send funds
+			returnAmt := balance - feePerTx
+			actions := sh.GetTransfer(key.Address, returnAmt, uniqueBytes())
+			_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
+			if err != nil {
+				return err
+			}
+			if err != nil {
+				return err
+			}
+			if err := dcli.RegisterTx(tx); err != nil {
+				return err
+			}
+			returnedBalance += returnAmt
+			returns <- struct{}{}
 		}
-		if err != nil {
-			return err
+		close(returns)
+		return nil
+	})
+	g.Go(func() error {
+		for range returns {
+			_, dErr, result, err := dcli.ListenTx(gctx)
+			if err != nil {
+				return err
+			}
+			if dErr != nil {
+				return dErr
+			}
+			if !result.Success {
+				// Should never happen
+				return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
+			}
 		}
-		if err := dcli.RegisterTx(tx); err != nil {
-			return err
-		}
-		returnedBalance += returnAmt
-	}
-	for i := 0; i < returnsSent; i++ {
-		_, dErr, result, err := dcli.ListenTx(ctx)
-		if err != nil {
-			return err
-		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
-			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
-		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
+		return err
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
@@ -500,8 +494,9 @@ type txIssuer struct {
 
 	l              sync.Mutex
 	uri            int
-	abandoned      error
 	outstandingTxs int
+
+	abandoned error
 }
 
 func startIssuer(cctx context.Context, issuer *txIssuer) {
@@ -555,27 +550,6 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 		}
 		utils.Outf("{{orange}}issuer shutdown timeout{{/}}\n")
 	}()
-}
-
-func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys []*PrivateKey) (codec.Address, error) {
-	// Send to a random, new account
-	if createAccount != nil {
-		priv, err := createAccount()
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		return priv.Address, nil
-	}
-
-	// Select item from array
-	index := rand.Int() % len(keys)
-	if index == self {
-		index++
-		if index == len(keys) {
-			index = 0
-		}
-	}
-	return keys[index].Address, nil
 }
 
 func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
