@@ -81,12 +81,13 @@ impl<K> Program<K> {
     /// # use wasmlanche_sdk::{types::Address, Program};
     /// #
     /// # let program_id = [0; Address::LEN];
-    /// # let target: Program<()> = borsh::from_slice(&program_id)?;
+    /// # let target: Program<()> = borsh::from_slice(&program_id).unwrap();
     /// let increment = 10;
-    /// let params = borsh::to_vec(&increment)?;
+    /// let params = borsh::to_vec(&increment).expect("serialization error");
     /// let max_units = 1000000;
     /// let bytes = target.call_function("increment", &params, max_units)?;
-    /// let incremented = bytes.deserialize()?;
+    /// let has_incremented: bool = bytes.deserialize().expect("deserialization error");
+    /// # Ok::<(), wasmlanche_sdk::ExternalCallError>(())
     /// ```
     pub fn call_function(
         &self,
