@@ -33,8 +33,9 @@ pub fn call_with_param(_: Context, value: i64) -> i64 {
 
 #[public]
 pub fn call_with_param_external(_: Context, target: Program, max_units: Gas, value: i64) -> i64 {
+    let params = borsh::to_vec(&value).expect("serialization failed");
     target
-        .call_function("call_with_param", &value.to_le_bytes(), max_units)
+        .call_function("call_with_param", &params, max_units)
         .unwrap()
 }
 
@@ -51,11 +52,7 @@ pub fn call_with_two_params_external(
     value1: i64,
     value2: i64,
 ) -> i64 {
-    let args: Vec<_> = value1
-        .to_le_bytes()
-        .into_iter()
-        .chain(value2.to_le_bytes())
-        .collect();
+    let args: Vec<_> = borsh::to_vec(&(value1, value2)).expect("serialization failed");
     target
         .call_function("call_with_two_params", &args, max_units)
         .unwrap()
