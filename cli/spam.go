@@ -52,11 +52,13 @@ var (
 )
 
 type SpamHelper interface {
-	CreateClient(uri string, networkID uint32, chainID ids.ID) error
-	GetFactory(pk *PrivateKey) (chain.AuthFactory, error)
 	CreateAccount() (*PrivateKey, error)
-	LookupBalance(choice int, address string) (uint64, error)
+	GetFactory(pk *PrivateKey) (chain.AuthFactory, error)
+
+	CreateClient(uri string, networkID uint32, chainID ids.ID) error
 	GetParser(ctx context.Context, chainID ids.ID) (chain.Parser, error)
+	LookupBalance(choice int, address string) (uint64, error)
+
 	GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action
 }
 
