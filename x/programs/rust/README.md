@@ -144,7 +144,7 @@ pub fn vote(program: Program, proposal: i64, weight: i64) -> i64 {
 
 ### Rust Program SDK
 
-These modules provides the necessary tools to build WASM programs using rust.
+These modules provide the necessary tools to build WASM programs using rust.
 
 - `state` : Exposes methods with interacting with the host state.
 - `types` : Defines types(currently just `Address`).
@@ -165,7 +165,7 @@ pub fn add(_: Program, a: i64, b: i64) -> i64 {
   a + b
 }
 ```
-Example of golang host calling a Program's `add` funciton.
+Example of golang host calling a Program's `add` function.
 
 ```go
 a := uint64(1)
