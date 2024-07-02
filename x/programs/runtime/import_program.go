@@ -30,7 +30,20 @@ const (
 	InsufficientBalance
 )
 
-func extractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
+type callProgramInput struct {
+	Program      codec.Address
+	FunctionName string
+	Params       []byte
+	Fuel         uint64
+	Value        uint64
+}
+
+type deployProgramInput struct {
+	ProgramID           ids.ID
+	AccountCreationData []byte
+}
+
+func ExtractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
 	var trap *wasmtime.Trap
 	if errors.As(err, &trap) {
 		switch *trap.Code() {
@@ -45,19 +58,6 @@ func extractProgramCallErrorCode(err error) (ProgramCallErrorCode, bool) {
 	return 0, false
 }
 
-type callProgramInput struct {
-	Program      codec.Address
-	FunctionName string
-	Params       []byte
-	MaxFuel      uint64
-	Value        uint64
-}
-
-type deployProgramInput struct {
-	ProgramID           ids.ID
-	AccountCreationData []byte
-}
-
 func NewProgramModule(r *WasmRuntime) *ImportModule {
 	return &ImportModule{
 		Name: "program",
@@ -65,7 +65,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
 				newInfo := *callInfo
 
-				if err := callInfo.ConsumeFuel(input.MaxFuel); err != nil {
+				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
 					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
 				}
 
@@ -73,14 +73,14 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				newInfo.Program = input.Program
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
-				newInfo.MaxFuel = input.MaxFuel
+				newInfo.MaxFuel = input.Fuel
 				newInfo.Value = input.Value
 
 				result, err := r.CallProgram(
 					context.Background(),
 					&newInfo)
 				if err != nil {
-					if code, ok := extractProgramCallErrorCode(err); ok {
+					if code, ok := ExtractProgramCallErrorCode(err); ok {
 						return Err[RawBytes, ProgramCallErrorCode](code), nil
 					}
 					return Err[RawBytes, ProgramCallErrorCode](ExecutionFailure), err

@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -112,12 +111,8 @@ func programExecuteFunc(
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) ([][]byte, uint64, error) {
+) ([]byte, uint64, error) {
 	// execute the action
-	if len(function) == 0 {
-		return nil, 0, errors.New("no function called")
-	}
-
 	var bytes []byte
 	for _, param := range callParams {
 		bytes = append(bytes, param.Value...)
@@ -132,14 +127,13 @@ func programExecuteFunc(
 		FunctionName: function,
 		Params:       bytes,
 	}
-	programOutput, err := rt.CallProgram(ctx, callInfo)
-	output := [][]byte{programOutput}
+	result, err := rt.CallProgram(ctx, callInfo)
 	if err != nil {
-		response := multilineOutput(output)
+		response := string(result)
 		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
-	return output, callInfo.RemainingFuel(), err
+	return result, callInfo.RemainingFuel(), err
 }
 
 func multilineOutput(resp [][]byte) (response string) {

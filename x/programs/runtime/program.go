@@ -104,8 +104,7 @@ func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte,
 		Timestamp: callInfo.Timestamp,
 		ActionID:  callInfo.ActionID,
 	}
-
-	paramsBytes, err := serialize(programCtx)
+	paramsBytes, err := Serialize(programCtx)
 	if err != nil {
 		return nil, err
 	}

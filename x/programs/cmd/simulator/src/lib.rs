@@ -1,6 +1,6 @@
 //! A client and types for the VM simulator. This crate allows for Rust
 //! developers to construct tests for their programs completely in Rust.
-//! Alternatively the [Step]s can be written in JSON and passed to the
+//! Alternatively the [`Step`]s can be written in JSON and passed to the
 //! Simulator binary directly.
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
@@ -12,12 +12,13 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
+use wasmlanche_sdk::ExternalCallError;
 
 mod id;
 
 pub use id::Id;
 
-/// The endpoint to call for a [Step].
+/// The endpoint to call for a [`Step`].
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
@@ -31,7 +32,7 @@ pub enum Endpoint {
     Execute,
 }
 
-/// A [Step] is a call to the simulator
+/// A [`Step`] is a call to the simulator
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
@@ -55,7 +56,7 @@ pub struct SimulatorStep<'a> {
 }
 
 impl Step {
-    /// Create a [Step] that creates a key.
+    /// Create a [`Step`] that creates a key.
     #[must_use]
     pub fn create_key(key: Key) -> Self {
         Self {
@@ -66,7 +67,7 @@ impl Step {
         }
     }
 
-    /// Create a [Step] that creates a program.
+    /// Create a [`Step`] that creates a program.
     #[must_use]
     pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
         let path = path.as_ref().to_string_lossy();
@@ -80,7 +81,7 @@ impl Step {
     }
 }
 
-/// The algorithm used to generate the key along with a [String] identifier for the key.
+/// The algorithm used to generate the key along with a [`String`] identifier for the key.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type", content = "value")]
@@ -172,12 +173,21 @@ pub struct StepResult {
     response: Vec<u8>,
 }
 
+#[derive(Error, Debug)]
+pub enum StepResponseError {
+    #[error(transparent)]
+    Serialization(#[from] borsh::io::Error),
+    #[error(transparent)]
+    ExternalCall(#[from] ExternalCallError),
+}
+
 impl StepResult {
-    pub fn response<T>(&self) -> Result<T, borsh::io::Error>
+    pub fn response<T>(&self) -> Result<T, StepResponseError>
     where
         T: BorshDeserialize,
     {
-        borsh::from_slice(&self.response)
+        let res: Result<T, ExternalCallError> = borsh::from_slice(&self.response)?;
+        res.map_err(StepResponseError::ExternalCall)
     }
 }
 
@@ -237,7 +247,7 @@ pub enum StepError {
     Program(String),
 }
 
-/// A [Client] is required to pass [Step]s to the simulator by calling [run](Self::run_step).
+/// A [`Client`] is required to pass [`Step`]s to the simulator by calling [`run`](Self::run_step).
 pub struct Client<W, R> {
     writer: W,
     responses: R,
