@@ -471,8 +471,8 @@ type timeModifier struct {
 	Timestamp int64
 }
 
-func (t *timeModifier) Base(b *chain.Base) {
-	b.Timestamp = t.Timestamp
+func (t *timeModifier) Base(timestamp *int64, _ *ids.ID, _ *uint64) {
+	*timestamp = t.Timestamp
 }
 
 func startIssuer(cctx context.Context, issuer *txIssuer) {

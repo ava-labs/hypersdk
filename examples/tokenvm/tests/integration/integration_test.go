@@ -398,11 +398,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 		ginkgo.By("skip invalid time", func() {
 			tx := chain.NewTx(
-				&chain.Base{
-					ChainID:   instances[0].chainID,
-					Timestamp: 0,
-					MaxFee:    1000,
-				},
+				0,
+				instances[0].chainID,
+				1000,
 				[]chain.Action{&actions.Transfer{
 					To:    rsender2,
 					Value: 110,
@@ -765,11 +763,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
 		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1001,
-			},
+			hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+			instances[0].chainID,
+			1001,
 			[]chain.Action{&actions.Transfer{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,
@@ -826,11 +822,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("create a new asset (no metadata)", func() {
 		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1001,
-			},
+			hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+			instances[0].chainID,
+			1001,
 			[]chain.Action{&actions.CreateAsset{
 				Symbol:   []byte("s0"),
 				Decimals: 0,
@@ -856,11 +850,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("create a new asset (no symbol)", func() {
 		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1001,
-			},
+			hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+			instances[0].chainID,
+			1001,
 			[]chain.Action{&actions.CreateAsset{
 				Symbol:   nil,
 				Decimals: 0,
@@ -886,11 +878,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 	ginkgo.It("create asset with too long of metadata", func() {
 		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
+			hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+			instances[0].chainID,
+			1000,
 			[]chain.Action{&actions.CreateAsset{
 				Symbol:   []byte("s0"),
 				Decimals: 0,
@@ -1097,11 +1087,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
 		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
+			hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+			instances[0].chainID,
+			1000,
 			[]chain.Action{&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Asset: asset1ID,
@@ -1168,11 +1156,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
 		tx := chain.NewTx(
-			&chain.Base{
-				ChainID:   instances[0].chainID,
-				Timestamp: hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
-				MaxFee:    1000,
-			},
+			hutils.UnixRMilli(-1, 5*consts.MillisecondsPerSecond),
+			instances[0].chainID,
+			1000,
 			[]chain.Action{&actions.MintAsset{
 				To:    auth.NewED25519Address(other.PublicKey()),
 				Value: 10,

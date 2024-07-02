@@ -21,13 +21,17 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+const BaseSize = consts.Uint64Len*2 + ids.IDLen
+
 var (
 	_ emap.Item    = (*Transaction)(nil)
 	_ mempool.Item = (*Transaction)(nil)
 )
 
 type Transaction struct {
-	Base *Base `json:"base"`
+	Timestamp  int64  `json:"timestamp"`
+	ChainID    ids.ID `json:"chainId"`
+	MaximumFee uint64 `json:"maxFee"`
 
 	Actions []Action `json:"actions"`
 	Auth    Auth     `json:"auth"`
@@ -39,10 +43,12 @@ type Transaction struct {
 	stateKeys state.Keys
 }
 
-func NewTx(base *Base, actions []Action) *Transaction {
+func NewTx(timestamp int64, chainID ids.ID, maxFee uint64, actions []Action) *Transaction {
 	return &Transaction{
-		Base:    base,
-		Actions: actions,
+		Timestamp:  timestamp,
+		ChainID:    chainID,
+		MaximumFee: maxFee,
+		Actions:    actions,
 	}
 }
 
@@ -50,12 +56,12 @@ func (t *Transaction) Digest() ([]byte, error) {
 	if len(t.digest) > 0 {
 		return t.digest, nil
 	}
-	size := t.Base.Size() + consts.Uint8Len
+	size := BaseSize + consts.Uint8Len
 	for _, action := range t.Actions {
 		size += consts.ByteLen + action.Size()
 	}
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	t.Base.Marshal(p)
+	marshalBase(p, t.Timestamp, t.ChainID, t.MaximumFee)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
@@ -99,9 +105,9 @@ func (t *Transaction) Size() int { return t.size }
 
 func (t *Transaction) ID() ids.ID { return t.id }
 
-func (t *Transaction) Expiry() int64 { return t.Base.Timestamp }
+func (t *Transaction) Expiry() int64 { return t.Timestamp }
 
-func (t *Transaction) MaxFee() uint64 { return t.Base.MaxFee }
+func (t *Transaction) MaxFee() uint64 { return t.MaximumFee }
 
 func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	if t.stateKeys != nil {
@@ -251,8 +257,16 @@ func (t *Transaction) PreExecute(
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
-		return err
+	switch {
+	case t.Timestamp%consts.MillisecondsPerSecond != 0:
+		// TODO: make this modulus configurable
+		return fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, t.Timestamp)
+	case t.Timestamp < timestamp: // tx: 100 block: 110
+		return ErrTimestampTooLate
+	case t.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
+		return ErrTimestampTooEarly
+	case t.ChainID != r.ChainID():
+		return ErrInvalidChainID
 	}
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {
 		return ErrTooManyActions
@@ -361,7 +375,7 @@ func (t *Transaction) Marshal(p *codec.Packer) error {
 }
 
 func (t *Transaction) marshalActions(p *codec.Packer) error {
-	t.Base.Marshal(p)
+	marshalBase(p, t.Timestamp, t.ChainID, t.MaximumFee)
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
@@ -420,10 +434,14 @@ func UnmarshalTx(
 	authRegistry *codec.TypeParser[Auth, bool],
 ) (*Transaction, error) {
 	start := p.Offset()
-	base, err := UnmarshalBase(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: could not unmarshal base", err)
+	timestamp := p.UnpackInt64(true)
+	if timestamp%consts.MillisecondsPerSecond != 0 {
+		// TODO: make this modulus configurable
+		return nil, fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, timestamp)
 	}
+	var chainID ids.ID
+	p.UnpackID(true, &chainID)
+	maxFee := p.UnpackUint64(true)
 	actions, err := unmarshalActions(p, actionRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal actions", err)
@@ -445,9 +463,7 @@ func UnmarshalTx(
 		return nil, fmt.Errorf("%w: sponsorType (%d) did not match authType (%d)", ErrInvalidSponsor, sponsorType, authType)
 	}
 
-	var tx Transaction
-	tx.Base = base
-	tx.Actions = actions
+	tx := NewTx(timestamp, chainID, maxFee, actions)
 	tx.Auth = auth
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
@@ -457,7 +473,13 @@ func UnmarshalTx(
 	tx.bytes = codecBytes[start:p.Offset()] // ensure errors handled before grabbing memory
 	tx.size = len(tx.bytes)
 	tx.id = utils.ToID(tx.bytes)
-	return &tx, nil
+	return tx, nil
+}
+
+func marshalBase(p *codec.Packer, timestamp int64, chainID ids.ID, maximumFee uint64) {
+	p.PackInt64(timestamp)
+	p.PackID(chainID)
+	p.PackUint64(maximumFee)
 }
 
 func unmarshalActions(
