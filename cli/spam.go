@@ -122,6 +122,14 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", maxZipfValue)
+	if err != nil {
+		return err
+	}
+	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", maxZipfValue)
+	if err != nil {
+		return err
+	}
 	txsPerSecond, err := h.PromptInt("txs to try and issue per second", consts.MaxInt)
 	if err != nil {
 		return err
@@ -131,18 +139,6 @@ func (h *Handler) Spam(
 		return err
 	}
 	txsPerSecondStep, err := h.PromptInt("txs to increase per second", consts.MaxInt)
-	if err != nil {
-		return err
-	}
-	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", maxZipfValue)
-	if err != nil {
-		return err
-	}
-	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", maxZipfValue)
-	if err != nil {
-		return err
-	}
-	maxTxBacklog, err := h.PromptInt("maximum txs to have inflight", consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -196,7 +192,7 @@ func (h *Handler) Spam(
 		accounts[i] = pk
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount), factory, feePerTx)
+		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount, nil), factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -217,10 +213,6 @@ func (h *Handler) Spam(
 			// Should never happen
 			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
 		}
-	}
-	var recipientFunc func() (*PrivateKey, error)
-	if randomRecipient {
-		recipientFunc = createAccount
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
@@ -244,7 +236,6 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	PrintUnitPrices(unitPrices)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, client := range clients {
