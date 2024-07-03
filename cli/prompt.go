@@ -172,10 +172,10 @@ func (*Handler) PromptFloat(
 				return err
 			}
 			if amount <= 0 {
-				return fmt.Errorf("%d must be > 0", amount)
+				return fmt.Errorf("%f must be > 0", amount)
 			}
 			if amount > max {
-				return fmt.Errorf("%d must be <= %d", amount, max)
+				return fmt.Errorf("%f must be <= %f", amount, max)
 			}
 			return nil
 		},
