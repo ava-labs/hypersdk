@@ -190,7 +190,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	funds := map[codec.Address]uint64{}
 	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
-	p := &pacer{cli: cli, ws: ws}
+	p := &pacer{ws: ws}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
@@ -206,7 +206,8 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		factories[i] = f
 
 		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, sh.GetTransfer(pk.Address, distAmount, nil), factory, feePerTx)
+		actions := sh.GetTransfer(pk.Address, distAmount, uniqueBytes())
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
 		if err != nil {
 			return err
 		}
@@ -388,6 +389,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	issuerWg.Wait()
 
 	// Return funds
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	unitPrices, err = cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -396,9 +398,8 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	if err != nil {
 		return err
 	}
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var returnedBalance uint64
-	p = &pacer{cli: cli, ws: ws}
+	p = &pacer{ws: ws}
 	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
@@ -409,7 +410,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 
 		// Send funds
 		returnAmt := balance - feePerTx
-		actions := sh.GetTransfer(key.Address, returnAmt, nil)
+		actions := sh.GetTransfer(key.Address, returnAmt, uniqueBytes())
 		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
@@ -417,6 +418,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		if err := p.Add(tx); err != nil {
 			return err
 		}
+		returnedBalance += returnAmt
 
 		if i%250 == 0 && i > 0 {
 			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
@@ -435,8 +437,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 }
 
 type pacer struct {
-	cli *rpc.JSONRPCClient
-	ws  *rpc.WebSocketClient
+	ws *rpc.WebSocketClient
 
 	inflight chan struct{}
 	done     chan error
