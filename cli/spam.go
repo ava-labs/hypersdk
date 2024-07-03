@@ -191,7 +191,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
 	p := &pacer{cli: cli, ws: ws}
-	go p.Run(ctx, minTxsPerSecond*pendingTargetMultiplier)
+	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
 		pk, err := sh.CreateAccount()
@@ -399,7 +399,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	var returnedBalance uint64
 	p = &pacer{cli: cli, ws: ws}
-	go p.Run(ctx, minTxsPerSecond*pendingTargetMultiplier)
+	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
@@ -541,20 +541,28 @@ func (i *issuer) Start(ctx context.Context) {
 			if outstanding == 0 {
 				return
 			}
-			time.Sleep(500 * time.Millisecond)
+			utils.Outf("{{orange}}waiting for issuer %d to finish:{{/}} %d\n", i.i, outstanding)
+			time.Sleep(time.Second)
 		}
-		utils.Outf("{{orange}}issuer shutdown timeout{{/}}\n")
+		utils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", i.i)
 	}()
-
 }
 
 func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
+	// Construct transaction
 	_, tx, err := i.cli.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
 	if err != nil {
 		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
 		return fmt.Errorf("failed to generate tx: %w", err)
 	}
+
+	// Increase outstanding txs for issuer
+	i.l.Lock()
+	i.outstandingTxs++
+	i.l.Unlock()
 	inflight.Add(1)
+
+	// Register transaction and recover upon failure
 	if err := i.ws.RegisterTx(tx); err != nil {
 		i.l.Lock()
 		if i.ws.Closed() {

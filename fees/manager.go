@@ -97,8 +97,8 @@ func (f *Manager) ComputeNext(currTime int64, r Rules) (*Manager, error) {
 	unitPriceChangeDenom := r.GetUnitPriceChangeDenominator()
 	minUnitPrice := r.GetMinUnitPrice()
 	lastTimeSeconds := int64(binary.BigEndian.Uint64(f.raw[0:consts.Int64Len]))
-	currTimeSeconds := int64(currTime / consts.MillisecondsPerSecond)
-	since := uint64(currTimeSeconds - lastTimeSeconds)
+	currTimeSeconds := currTime / consts.MillisecondsPerSecond
+	since := currTimeSeconds - lastTimeSeconds
 	bytes := make([]byte, consts.Int64Len+dimensionStateLen*FeeDimensions)
 	binary.BigEndian.PutUint64(bytes[0:consts.Int64Len], uint64(currTimeSeconds))
 	for i := Dimension(0); i < FeeDimensions; i++ {
@@ -227,7 +227,7 @@ func computeNextPriceWindow(
 	target uint64, /* per window */
 	changeDenom uint64,
 	minPrice uint64,
-	since uint64, /* seconds */
+	since int64, /* seconds */
 ) (uint64, window.Window, error) {
 	newRollupWindow, err := window.Roll(previous, since)
 	if err != nil {
