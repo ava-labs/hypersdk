@@ -25,7 +25,7 @@ func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		result, err := program.Call("get_value")
 		require.NoError(err)
-		require.Equal([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, result)
+		require.Equal(uint64(0), into[uint64](result))
 	}
 }
 
