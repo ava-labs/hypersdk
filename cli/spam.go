@@ -502,10 +502,10 @@ func (i *issuer) Start(ctx context.Context) {
 			if err != nil {
 				return
 			}
-			inflight.Add(-1)
 			i.l.Lock()
 			i.outstandingTxs--
 			i.l.Unlock()
+			inflight.Add(-1)
 			l.Lock()
 			if result != nil {
 				if result.Success {
