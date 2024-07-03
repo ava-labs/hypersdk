@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -221,21 +222,17 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
-		if err != nil {
-			return err
-		}
+		result, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
+		response, err := runtime.Serialize(output)
+		if err != nil {
+			return err
+		}
 
-		if len(response) > 1 {
-			return errors.New("multi response not supported")
-		}
-		res := response[0]
-		if res != nil {
-			resp.setResponse(res)
-		}
+		resp.setResponse(response)
 		resp.setBalance(balance)
 
 		return nil
@@ -245,26 +242,33 @@ func (c *runCmd) runStepFunc(
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
-		if err != nil {
-			return err
-		}
+		result, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
+		response, err := runtime.Serialize(output)
+		if err != nil {
+			return err
+		}
 
-		if len(response) > 1 {
-			return errors.New("multi response not supported")
-		}
-		res := response[0]
-		if res != nil {
-			resp.setResponse(res)
-		}
+		resp.setResponse(response)
 
 		return nil
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, endpoint)
 	}
+}
+
+func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, runtime.ProgramCallErrorCode] {
+	if err != nil {
+		if code, ok := runtime.ExtractProgramCallErrorCode(err); ok {
+			return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](code)
+		}
+		return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](runtime.ExecutionFailure)
+	}
+
+	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
 }
 
 func AddressToString(pk ed25519.PublicKey) string {
