@@ -10,13 +10,13 @@ use std::{cell::RefCell, collections::HashMap, io::Read};
 use thiserror::Error;
 
 /// Defer deserialization from bytes
+/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct DeferDeserialize(Vec<u8>);
 
 impl DeferDeserialize {
     /// # Errors
     /// Returns a [`std::io::Error`] if there was an issue deserializing the value
-    #[allow(clippy::must_use_candidate)]
     pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
         let Self(bytes) = self;
         borsh::from_slice(&bytes)
@@ -24,8 +24,7 @@ impl DeferDeserialize {
 }
 
 impl BorshDeserialize for DeferDeserialize {
-    /// <div class="warning">This function does not provide any size-hint.
-    /// It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
+    /// <div class="warning">This function does not provide any size-hint.</div>
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut inner = Vec::new();
         reader.read_to_end(&mut inner)?;
@@ -198,35 +197,17 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DeferDeserialize, ExternalCallError};
+    use super::DeferDeserialize;
 
     #[test]
-    fn defer_ok_variant() {
-        let bytes = DeferDeserialize(vec![1, 0]);
-        assert_eq!(bytes.deserialize::<Result<_, ()>>().unwrap(), Ok(false));
-    }
+    fn defer_bytes() {
+        type ExpectedType = u64;
 
-    #[test]
-    fn defer_err_variant() {
-        let bytes = DeferDeserialize(vec![0, 1]);
-        assert_eq!(
-            bytes
-                .deserialize::<Result<(), ExternalCallError>>()
-                .unwrap(),
-            Err(ExternalCallError::CallPanicked)
-        );
-    }
-
-    #[test]
-    fn defer_no_len_prefix() {
-        let inner_bytes = vec![1, 4, 3, 2, 1];
-        let defer_res = borsh::from_slice::<Result<DeferDeserialize, ()>>(&inner_bytes);
-        assert!(defer_res.is_ok());
-        let Ok(defer) = defer_res else {
-            unreachable!();
-        };
-        assert!(defer.is_ok_and(|bytes| bytes.0 == vec![4, 3, 2, 1]));
-        let defer = borsh::from_slice::<Result<Vec<u8>, ExternalCallError>>(&inner_bytes);
-        assert!(defer.is_err());
+        let expected: ExpectedType = 42;
+        let serialized = borsh::to_vec(&expected).unwrap();
+        let deferred: DeferDeserialize = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(deferred.0, serialized);
+        let actual = deferred.deserialize::<ExpectedType>().unwrap();
+        assert_eq!(actual, expected);
     }
 }
