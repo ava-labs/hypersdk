@@ -34,7 +34,7 @@ func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, fu
 			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
-			MaxFuel:      t.DefaultGas,
+			Fuel:         t.DefaultGas,
 			Value:        t.DefaultValue,
 		})
 }

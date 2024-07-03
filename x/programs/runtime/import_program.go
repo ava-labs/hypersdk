@@ -73,7 +73,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				newInfo.Program = input.Program
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
-				newInfo.MaxFuel = input.Fuel
+				newInfo.Fuel = input.Fuel
 				newInfo.Value = input.Value
 
 				result, err := r.CallProgram(

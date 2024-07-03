@@ -44,7 +44,7 @@ type CallInfo struct {
 	Params []byte
 
 	// the maximum amount of fuel allowed to be consumed by wasm for this call
-	MaxFuel uint64
+	Fuel uint64
 
 	// the height of the chain that this call was made from
 	Height uint64
@@ -61,7 +61,7 @@ type CallInfo struct {
 }
 
 func (c *CallInfo) RemainingFuel() uint64 {
-	remaining := c.MaxFuel
+	remaining := c.Fuel
 	usedFuel, fuelEnabled := c.inst.store.FuelConsumed()
 	if fuelEnabled {
 		remaining -= usedFuel
@@ -86,7 +86,7 @@ type ProgramInstance struct {
 }
 
 func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
-	if err := p.store.AddFuel(callInfo.MaxFuel); err != nil {
+	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
 		return nil, err
 	}
 

@@ -123,7 +123,7 @@ func programExecuteFunc(
 		State:        &programStateManager{Mutable: db},
 		Actor:        codec.EmptyAddress,
 		Program:      program,
-		MaxFuel:      maxUnits,
+		Fuel:         maxUnits,
 		FunctionName: function,
 		Params:       bytes,
 	}
