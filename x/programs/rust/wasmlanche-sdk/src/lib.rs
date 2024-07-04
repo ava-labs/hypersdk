@@ -26,7 +26,6 @@ use types::Address;
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(BorshSerialize)]
 pub struct Context<K = ()> {
     program: Program<K>,
     actor: Address,
@@ -57,6 +56,24 @@ impl<K> Context<K> {
     }
 }
 
+impl<K> BorshSerialize for Context<K> {
+    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let Self {
+            program,
+            actor,
+            height,
+            timestamp,
+            action_id,
+        } = self;
+        BorshSerialize::serialize(program, writer)?;
+        BorshSerialize::serialize(actor, writer)?;
+        BorshSerialize::serialize(height, writer)?;
+        BorshSerialize::serialize(timestamp, writer)?;
+        BorshSerialize::serialize(action_id, writer)?;
+        Ok(())
+    }
+}
+
 impl<K> BorshDeserialize for Context<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
         let program = BorshDeserialize::deserialize_reader(reader)?;
@@ -74,6 +91,7 @@ impl<K> BorshDeserialize for Context<K> {
     }
 }
 
+/// Special context that is passed to external programs.
 pub struct ExternalCallContext {
     program: Program,
     max_units: Gas,

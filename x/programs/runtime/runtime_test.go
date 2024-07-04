@@ -60,25 +60,46 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 }
 
 func TestContextInjection(t *testing.T) {
-	require := require.New(t)
+	tests := []struct {
+		name string
+		fun  func(*testProgram, *require.Assertions)
+	}{
+		{
+			name: "timestamp",
+			fun: func(program *testProgram, require *require.Assertions) {
+				result, err := program.CallWithTimestamp(1, "get_timestamp")
+				require.NoError(err)
+				require.Equal(uint64(1), into[uint64](result))
+			},
+		},
+		{
+			name: "height",
+			fun: func(program *testProgram, require *require.Assertions) {
+				result, err := program.CallWithHeight(1, "get_height")
+				require.NoError(err)
+				require.Equal(uint64(1), into[uint64](result))
+			},
+		},
+		{
+			name: "actor",
+			fun: func(program *testProgram, require *require.Assertions) {
+				result, err := program.CallWithActor(codec.CreateAddress(0, ids.GenerateTestID()), "get_actor")
+				require.NoError(err)
+				require.NotEqual(ids.Empty, into[ids.ID](result))
+			},
+		},
+	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
 
-	program := newTestProgram(ctx, "context_injection")
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	_, err := program.Call("can_change_timestamp")
-	require.NoError(err)
-	_, err = program.CallWithTimestamp(1, "can_change_timestamp")
-	require.NoError(err)
+			program := newTestProgram(ctx, "context_injection")
 
-	_, err = program.Call("can_change_height")
-	require.NoError(err)
-	_, err = program.CallWithHeight(1, "can_change_height")
-	require.NoError(err)
-
-	_, err = program.Call("can_change_actor")
-	require.NoError(err)
-	_, err = program.CallWithActor(codec.CreateAddress(0, ids.GenerateTestID()), "can_change_actor")
-	require.NoError(err)
+			tt.fun(program, require)
+		})
+	}
 }

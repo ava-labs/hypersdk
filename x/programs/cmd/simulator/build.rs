@@ -58,7 +58,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rustc-env=SIMULATOR_PATH={simulator_path}");
 
-    // wasmlanche_sdk::build::build_wasm_on_test();
-
     Ok(())
 }
