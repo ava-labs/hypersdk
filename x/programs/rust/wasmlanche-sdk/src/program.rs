@@ -6,6 +6,7 @@ use crate::{
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::Serialize;
 use std::{cell::RefCell, collections::HashMap};
 use thiserror::Error;
 
@@ -26,20 +27,12 @@ pub enum ExternalCallError {
 /// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, BorshSerialize, Serialize)]
 pub struct Program<K = ()> {
     account: Address,
+    #[borsh(skip)]
+    #[serde(skip)]
     state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
-}
-
-impl<K> BorshSerialize for Program<K> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            account,
-            state_cache: _,
-        } = self;
-
-        account.serialize(writer)
-    }
 }
 
 impl<K> BorshDeserialize for Program<K> {
@@ -163,10 +156,10 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
             max_units,
         } = self;
 
-        target.serialize(writer)?;
-        function.serialize(writer)?;
-        args.serialize(writer)?;
-        max_units.serialize(writer)?;
+        BorshSerialize::serialize(target, writer)?;
+        BorshSerialize::serialize(function, writer)?;
+        BorshSerialize::serialize(args, writer)?;
+        BorshSerialize::serialize(max_units, writer)?;
 
         Ok(())
     }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -218,11 +219,12 @@ func (c *runCmd) runStepFunc(
 			return nil
 		}
 
-		programAddress, err := codec.ToAddress(params[0].Value)
+		var testContext runtime.Context
+		err := json.Unmarshal(params[0].Value, &testContext)
 		if err != nil {
 			return err
 		}
-		result, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		result, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, maxUnits)
 		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
@@ -237,12 +239,13 @@ func (c *runCmd) runStepFunc(
 
 		return nil
 	case EndpointReadOnly:
-		programAddress, err := codec.ToAddress(params[0].Value)
+		var testContext runtime.Context
+		err := json.Unmarshal(params[0].Value, &testContext)
 		if err != nil {
 			return err
 		}
 		// TODO: implement readonly for now just don't charge for gas
-		result, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
+		result, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, math.MaxUint64)
 		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
@@ -321,7 +324,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				key = string(address)
 			}
 			cp = append(cp, Parameter{Value: []byte(key), Type: param.Type})
-		case Uint64, Bool:
+		case Uint64, Bool, TestContext:
 			cp = append(cp, param)
 		default:
 			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)

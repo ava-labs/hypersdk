@@ -12,7 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::ExternalCallError;
+use wasmlanche_sdk::{Context, ExternalCallError};
 
 mod id;
 
@@ -46,7 +46,7 @@ pub struct Step {
     pub params: Vec<Param>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimulatorStep<'a> {
     /// The key of the caller used in each step of the plan.
@@ -101,6 +101,7 @@ pub enum Param {
     String(String),
     Id(Id),
     Key(Key),
+    Context(Context),
 }
 
 #[derive(Serialize)]
@@ -122,7 +123,7 @@ impl From<&Param> for StringParam {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
             }
-            Param::Key(_) => unreachable!(),
+            Param::Key(_) | Param::Context(_) => unreachable!(),
         }
     }
 }
@@ -134,6 +135,7 @@ impl Serialize for Param {
     {
         match self {
             Param::Key(key) => Serialize::serialize(key, serializer),
+            Param::Context(ctx) => Serialize::serialize(ctx, serializer),
             _ => StringParam::from(self).serialize(serializer),
         }
     }
