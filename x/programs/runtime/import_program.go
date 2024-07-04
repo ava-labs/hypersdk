@@ -24,8 +24,8 @@ const (
 )
 
 const (
-	CallPanicked ProgramCallErrorCode = iota
-	ExecutionFailure
+	ExecutionFailure ProgramCallErrorCode = iota
+	CallPanicked
 	OutOfFuel
 )
 
