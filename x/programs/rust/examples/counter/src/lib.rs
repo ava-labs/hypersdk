@@ -183,7 +183,10 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_value".into(),
                     max_units: 0,
-                    params: vec![counter2_id.into(), bob_key_param.clone()],
+                    params: vec![
+                        TestContext::default().with_program_id(counter2_id).into(),
+                        bob_key_param.clone(),
+                    ],
                 },
             )
             .unwrap()
@@ -200,7 +203,7 @@ mod tests {
                     method: "inc_external".into(),
                     max_units: 100_000_000,
                     params: vec![
-                        counter1_id.into(),
+                        TestContext::default().with_program_id(counter1_id).into(),
                         counter2_id.into(),
                         1_000_000.into(),
                         bob_key_param.clone(),
@@ -218,7 +221,7 @@ mod tests {
                     method: "get_value_external".into(),
                     max_units: 0,
                     params: vec![
-                        counter1_id.into(),
+                        TestContext::default().with_program_id(counter1_id).into(),
                         counter2_id.into(),
                         1_000_000.into(),
                         bob_key_param,

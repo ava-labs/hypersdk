@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
 )
 
@@ -56,4 +57,28 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	result, err := program.Call("get_value")
 	require.NoError(err)
 	require.Equal(ComplexReturn{Program: program.Address, MaxUnits: 1000}, into[ComplexReturn](result))
+}
+
+func TestContextInjection(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "context_injection")
+
+	_, err := program.Call("can_change_timestamp")
+	require.NoError(err)
+	_, err = program.CallWithTimestamp(1, "can_change_timestamp")
+	require.NoError(err)
+
+	_, err = program.Call("can_change_height")
+	require.NoError(err)
+	_, err = program.CallWithHeight(1, "can_change_height")
+	require.NoError(err)
+
+	_, err = program.Call("can_change_actor")
+	require.NoError(err)
+	_, err = program.CallWithActor(codec.CreateAddress(0, ids.GenerateTestID()), "can_change_actor")
+	require.NoError(err)
 }

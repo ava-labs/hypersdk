@@ -5,9 +5,7 @@
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
-use serde::ser::{SerializeMap, SerializeStruct};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_with::{base64::Base64, serde_as};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -98,7 +96,10 @@ pub enum Key {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct TestContext {
-    pub program_id: Id,
+    program_id: Id,
+    actor_key: Option<Key>,
+    height: u64,
+    timestamp: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -112,6 +113,25 @@ impl TestContext {
     pub fn with_program_id(mut self, program_id: Id) -> Self {
         self.program_id = program_id;
         self
+    }
+
+    pub fn with_actor_key(mut self, key: Key) -> Self {
+        self.actor_key = Some(key);
+        self
+    }
+
+    pub fn with_height(mut self, height: u64) -> Self {
+        self.height = height;
+        self
+    }
+
+    pub fn with_timestamp(mut self, timestamp: u64) -> Self {
+        self.timestamp = timestamp;
+        self
+    }
+
+    pub fn clear_actor_key(&mut self) {
+        self.actor_key = None;
     }
 }
 
@@ -245,7 +265,6 @@ where
 {
     let bytes = serde_json::to_vec(struc).unwrap();
     serializer.serialize_str(&b64.encode(bytes))
-    // serializer.serialize_bytes(&b64.encode(bytes).as_bytes())
 }
 
 fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
