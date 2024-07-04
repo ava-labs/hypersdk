@@ -76,13 +76,13 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
     let program = context.program();
     let total_supply = total_supply(program);
     assert!(total_supply > 0, "no liquidity");
-    // x * y = constant 
+    // x * y = constant
     // x' = x + dx
     // y' = y + dy
     // (x + dx) * (y + dy) = x * y
     // y + dy = (x * y) / (x + dx)
     // dy = ((x * y) / (x + dx)) - y
-    // skip a few steps 
+    // skip a few steps
     // -dy = y * dx / (x + dx)
     let (reserve_x, reserve_y) = reserves(context.program());
     let (reserve_x, reserve_y, out) = if x_to_y {
