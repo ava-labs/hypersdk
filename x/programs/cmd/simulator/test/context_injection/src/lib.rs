@@ -2,17 +2,17 @@ use wasmlanche_sdk::{public, types::Address, Context};
 
 #[public]
 pub fn get_timestamp(context: Context) -> u64 {
-    context.timestamp
+    context.timestamp()
 }
 
 #[public]
 pub fn get_height(context: Context) -> u64 {
-    context.height
+    context.height()
 }
 
 #[public]
 pub fn get_actor(context: Context) -> Address {
-    context.actor
+    context.actor()
 }
 
 #[cfg(test)]

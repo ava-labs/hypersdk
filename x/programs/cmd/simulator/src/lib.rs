@@ -12,7 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::{Context, ExternalCallError};
+use wasmlanche_sdk::ExternalCallError;
 
 mod id;
 

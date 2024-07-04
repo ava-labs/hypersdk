@@ -302,6 +302,7 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 	}
 
 	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
+}
 
 type SimulatorTestContext struct {
 	ProgramID uint64     `json:"programId"`
