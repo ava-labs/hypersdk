@@ -19,8 +19,23 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     // amount_x  | minted
     // reserve_x | total_supply
     let (reserve_x, reserve_y) = reserves(program);
-    let minted = amount_x * total_supply / reserve_x;
-    assert_eq!(minted, amount_y * total_supply / reserve_y); // make sure that the ratio is good
+    let minted = if total_supply == 0 {
+        let minted = amount_x;
+        assert_eq!(minted, amount_y);
+        minted
+    } else {
+        let minted = amount_x * total_supply / reserve_x;
+        assert_eq!(minted, amount_y * total_supply / reserve_y); // make sure that the ratio is good
+        minted
+    };
+    program
+        .state()
+        .store(StateKeys::ReserveX, &(reserve_x + amount_x))
+        .unwrap();
+    program
+        .state()
+        .store(StateKeys::ReserveY, &(reserve_y + amount_y))
+        .unwrap();
     program
         .state()
         .store(StateKeys::TotalySupply, &(total_supply + minted))
@@ -39,6 +54,14 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
     );
     program
         .state()
+        .store(StateKeys::ReserveX, &(reserve_x - amount_x))
+        .unwrap();
+    program
+        .state()
+        .store(StateKeys::ReserveY, &(reserve_y - amount_y))
+        .unwrap();
+    program
+        .state()
         .store(StateKeys::TotalySupply, &(total_supply - shares))
         .unwrap();
     (amount_x, amount_y)
@@ -53,11 +76,23 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
     // dy = y - (x * y) / (x + dx)
     // dy = y * dx / (x + dx)
     let (reserve_x, reserve_y) = reserves(context.program());
-    if x_to_y {
-        (reserve_y * amount_in) / (reserve_x + amount_in)
+    let (reserve_x, reserve_y, out) = if x_to_y {
+        let dy = (reserve_y * amount_in) / (reserve_x + amount_in);
+        (reserve_x + amount_in, reserve_y - dy, dy)
     } else {
-        (reserve_x * amount_in) / (reserve_y + amount_in)
-    }
+        let dx = (reserve_x * amount_in) / (reserve_y + amount_in);
+        (reserve_x - dx, reserve_y + amount_in, dx)
+    };
+    let program = context.program();
+    program
+        .state()
+        .store(StateKeys::ReserveX, &reserve_x)
+        .unwrap();
+    program
+        .state()
+        .store(StateKeys::ReserveY, &reserve_y)
+        .unwrap();
+    out
 }
 
 fn total_supply(program: &Program<StateKeys>) -> u64 {
@@ -91,7 +126,7 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
-    fn add_liquidity() {
+    fn init_state() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner = "owner";
@@ -125,5 +160,139 @@ mod tests {
         };
 
         assert_eq!(call_err, ExternalCallError::CallPanicked);
+
+        let resp = simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "swap".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 100000u64.into(), true.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+
+        assert_eq!(resp, 0);
+    }
+
+    #[test]
+    fn add_liquidity_same_ratio() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        let owner = "owner";
+
+        let program_id = simulator
+            .run_step(owner, &Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        simulator
+            .run_step(owner, &Step::create_key(Key::Ed25519(owner.to_string())))
+            .unwrap();
+
+        let resp = simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "add_liquidity".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 1000u64.into(), 1000u64.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+
+        assert_eq!(resp, 1000);
+
+        let resp = simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "add_liquidity".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 1000u64.into(), 1001u64.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap_err();
+
+        let StepResponseError::ExternalCall(call_err) = resp else {
+            panic!("unexpected error");
+        };
+
+        assert_eq!(call_err, ExternalCallError::CallPanicked);
+    }
+
+    #[test]
+    fn swap_changes_ratio() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        let owner = "owner";
+
+        let program_id = simulator
+            .run_step(owner, &Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        simulator
+            .run_step(owner, &Step::create_key(Key::Ed25519(owner.to_string())))
+            .unwrap();
+
+        let resp = simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "add_liquidity".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 1000u64.into(), 1000u64.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+
+        assert_eq!(resp, 1000);
+
+        simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "swap".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 10u64.into(), true.into()],
+                },
+            )
+            .unwrap();
+
+        let (amount_x, amount_y) = simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "remove_liquidity".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 1000.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<(u64, u64)>()
+            .unwrap();
+
+        assert!(amount_x > 1000);
+        assert!(amount_y < 1000);
     }
 }
