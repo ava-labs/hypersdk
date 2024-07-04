@@ -68,6 +68,10 @@ func NewRuntime(
 	return runtime
 }
 
+func (r *WasmRuntime) WithDefaults(callInfo *CallInfo) CallContext {
+	return CallContext{r: r, defaultCallInfo: *callInfo}
+}
+
 func (r *WasmRuntime) AddImportModule(mod *ImportModule) {
 	r.hostImports.AddModule(mod)
 	r.linkerNeedsInitialization = true
