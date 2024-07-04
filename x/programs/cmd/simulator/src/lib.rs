@@ -97,6 +97,7 @@ pub enum Key {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     U64(u64),
+    Bool(bool),
     String(String),
     Id(Id),
     Key(Key),
@@ -106,6 +107,7 @@ pub enum Param {
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 enum StringParam {
     U64(String),
+    Bool(String),
     String(String),
     Id(String),
 }
@@ -114,6 +116,7 @@ impl From<&Param> for StringParam {
     fn from(value: &Param) -> Self {
         match value {
             Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
+            Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
             Param::String(text) => StringParam::String(b64.encode(text.clone())),
             Param::Id(id) => {
                 let num: &usize = id.into();
@@ -139,6 +142,12 @@ impl Serialize for Param {
 impl From<u64> for Param {
     fn from(val: u64) -> Self {
         Param::U64(val)
+    }
+}
+
+impl From<bool> for Param {
+    fn from(val: bool) -> Self {
+        Param::Bool(val)
     }
 }
 
@@ -411,6 +420,26 @@ mod tests {
         let key = Key::Ed25519(expected_value.to_string());
         let param = Param::from(key.clone());
         let expected_param = Param::Key(key);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_bool_param() {
+        let value = false;
+        let expected_value = value as u8;
+
+        let expected_json = json!({
+            "type": "bool",
+            "value": &b64.encode(vec![expected_value]),
+        });
+
+        let param = Param::from(value);
+        let expected_param = Param::Bool(value);
 
         assert_eq!(param, expected_param);
 
