@@ -111,6 +111,8 @@ mod tests {
             .unwrap()
             .id;
 
+        let test_context = TestContext::from(counter_id);
+
         simulator
             .run_step(
                 &owner,
@@ -119,7 +121,7 @@ mod tests {
                     method: "inc".into(),
                     max_units: 1000000,
                     params: vec![
-                        TestContext::default().with_program_id(counter_id).into(),
+                        test_context.clone().into(),
                         bob_key_param.clone(),
                         10u64.into(),
                     ],
@@ -134,10 +136,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_value".into(),
                     max_units: 0,
-                    params: vec![
-                        TestContext::default().with_program_id(counter_id).into(),
-                        bob_key_param,
-                    ],
+                    params: vec![test_context.into(), bob_key_param],
                 },
             )
             .unwrap()
@@ -176,6 +175,9 @@ mod tests {
             .unwrap()
             .id;
 
+        let test_context1 = TestContext::from(counter1_id);
+        let test_context2 = TestContext::from(counter2_id);
+
         let value = simulator
             .run_step(
                 &owner_key,
@@ -183,10 +185,7 @@ mod tests {
                     endpoint: Endpoint::ReadOnly,
                     method: "get_value".into(),
                     max_units: 0,
-                    params: vec![
-                        TestContext::default().with_program_id(counter2_id).into(),
-                        bob_key_param.clone(),
-                    ],
+                    params: vec![test_context2.into(), bob_key_param.clone()],
                 },
             )
             .unwrap()
@@ -203,7 +202,7 @@ mod tests {
                     method: "inc_external".into(),
                     max_units: 100_000_000,
                     params: vec![
-                        TestContext::default().with_program_id(counter1_id).into(),
+                        test_context1.clone().into(),
                         counter2_id.into(),
                         1_000_000.into(),
                         bob_key_param.clone(),
@@ -221,7 +220,7 @@ mod tests {
                     method: "get_value_external".into(),
                     max_units: 0,
                     params: vec![
-                        TestContext::default().with_program_id(counter1_id).into(),
+                        test_context1.into(),
                         counter2_id.into(),
                         1_000_000.into(),
                         bob_key_param,

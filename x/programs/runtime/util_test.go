@@ -24,16 +24,15 @@ func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
 	t.StateManager.(test.StateManager).ProgramsMap[programID] = programName
 }
 
-// TODO just pass the CallInfo here
-func (t *testRuntime) CallProgram(program codec.Address, actor codec.Address, height uint64, timestamp uint64, function string, params ...interface{}) ([]byte, error) {
+func (t *testRuntime) CallProgram(callContext Context, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
 		t.Context,
 		&CallInfo{
-			Program:      program,
-			Actor:        actor,
+			Program:      callContext.Program,
+			Actor:        callContext.Actor,
+			Height:       callContext.Height,
+			Timestamp:    callContext.Timestamp,
 			State:        t.StateManager,
-			Height:       height,
-			Timestamp:    timestamp,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
 			Fuel:         t.DefaultGas,
@@ -63,40 +62,48 @@ type testProgram struct {
 
 func (t *testProgram) Call(function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.Address,
-		codec.CreateAddress(0, ids.GenerateTestID()),
-		0,
-		0,
+		Context{
+			Program:   t.Address,
+			Actor:     codec.CreateAddress(0, ids.GenerateTestID()),
+			Height:    0,
+			Timestamp: 0,
+		},
 		function,
 		params...)
 }
 
 func (t *testProgram) CallWithActor(actor codec.Address, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.Address,
-		actor,
-		0,
-		0,
+		Context{
+			Program:   t.Address,
+			Actor:     actor,
+			Height:    0,
+			Timestamp: 0,
+		},
 		function,
 		params...)
 }
 
 func (t *testProgram) CallWithHeight(height uint64, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.Address,
-		codec.CreateAddress(0, ids.GenerateTestID()),
-		height,
-		0,
+		Context{
+			Program:   t.Address,
+			Actor:     codec.CreateAddress(0, ids.GenerateTestID()),
+			Height:    height,
+			Timestamp: 0,
+		},
 		function,
 		params...)
 }
 
 func (t *testProgram) CallWithTimestamp(timestamp uint64, function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		t.Address,
-		codec.CreateAddress(0, ids.GenerateTestID()),
-		0,
-		timestamp,
+		Context{
+			Program:   t.Address,
+			Actor:     codec.CreateAddress(0, ids.GenerateTestID()),
+			Height:    0,
+			Timestamp: timestamp,
+		},
 		function,
 		params...)
 }

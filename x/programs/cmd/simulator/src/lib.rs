@@ -97,9 +97,18 @@ pub enum Key {
 #[non_exhaustive]
 pub struct TestContext {
     program_id: Id,
-    actor_key: Option<Key>,
-    height: u64,
-    timestamp: u64,
+    pub actor_key: Option<Key>,
+    pub height: u64,
+    pub timestamp: u64,
+}
+
+impl From<Id> for TestContext {
+    fn from(program_id: Id) -> Self {
+        Self {
+            program_id,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -110,14 +119,13 @@ pub(crate) struct SimulatorTestContext {
 }
 
 impl TestContext {
-    pub fn with_program_id(mut self, program_id: Id) -> Self {
-        self.program_id = program_id;
-        self
-    }
-
     pub fn with_actor_key(mut self, key: Key) -> Self {
         self.actor_key = Some(key);
         self
+    }
+
+    pub fn clear_actor_key(&mut self) {
+        self.actor_key = None;
     }
 
     pub fn with_height(mut self, height: u64) -> Self {
@@ -128,10 +136,6 @@ impl TestContext {
     pub fn with_timestamp(mut self, timestamp: u64) -> Self {
         self.timestamp = timestamp;
         self
-    }
-
-    pub fn clear_actor_key(&mut self) {
-        self.actor_key = None;
     }
 }
 
