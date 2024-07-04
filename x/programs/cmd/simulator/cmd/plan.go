@@ -132,9 +132,9 @@ func verifyEndpoint(i int, step *Step) error {
 			return fmt.Errorf("%w: %s", ErrInvalidMethod, step.Method)
 		}
 	case EndpointReadOnly:
-		// verify the first param is a program ID
-		if firstParamType != ID {
-			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
+		// verify the first param is a test context
+		if firstParamType != TestContext {
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
 	case EndpointExecute:
 		if step.Method == ProgramCreate {
@@ -143,9 +143,9 @@ func verifyEndpoint(i int, step *Step) error {
 				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
 			}
 		} else {
-			// verify the first param is a program id
-			if step.Params[0].Type != ID {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
+			// verify the first param is a test context
+			if step.Params[0].Type != TestContext {
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 			}
 		}
 	default:
@@ -219,11 +219,22 @@ func (c *runCmd) runStepFunc(
 			return nil
 		}
 
-		var testContext runtime.Context
-		err := json.Unmarshal(params[0].Value, &testContext)
+		var simulatorTestContext SimulatorTestContext
+		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
 			return err
 		}
+
+		id := simulatorTestContext.ProgramId
+		programAddress, ok := c.programIDStrMap[int(id)]
+		if !ok {
+			return fmt.Errorf("failed to map to id: %d", id)
+		}
+
+		testContext := runtime.Context {
+				Program: programAddress,
+		}
+
 		result, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, maxUnits)
 		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
@@ -239,11 +250,22 @@ func (c *runCmd) runStepFunc(
 
 		return nil
 	case EndpointReadOnly:
-		var testContext runtime.Context
-		err := json.Unmarshal(params[0].Value, &testContext)
+		var simulatorTestContext SimulatorTestContext
+		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
 			return err
 		}
+
+		id := simulatorTestContext.ProgramId
+		programAddress, ok := c.programIDStrMap[int(id)]
+		if !ok {
+			return fmt.Errorf("failed to map to id: %d", id)
+		}
+
+		testContext := runtime.Context {
+				Program: programAddress,
+		}
+
 		// TODO: implement readonly for now just don't charge for gas
 		result, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, math.MaxUint64)
 		output := resultToOutput(result, err)
@@ -272,6 +294,9 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 	}
 
 	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
+
+type SimulatorTestContext struct {
+	ProgramId    uint64 `json:"programId"`
 }
 
 func AddressToString(pk ed25519.PublicKey) string {

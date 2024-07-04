@@ -11,3 +11,4 @@ serde_json = "1.0.117"
 thiserror = { workspace = true }
 borsh = { workspace = true }
 wasmlanche-sdk = { workspace = true }
+serde_with = { version = "3.8.1", features = ["base64"] }
