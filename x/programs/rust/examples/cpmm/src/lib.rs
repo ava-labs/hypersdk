@@ -69,6 +69,9 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
 
 #[public]
 pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
+    let program = context.program();
+    let total_supply = total_supply(program);
+    assert!(total_supply > 0, "no liquidity");
     // k = x * y
     // x' * y' = x * y
     // (x + dx) * (y - dy) = x * y
@@ -83,7 +86,6 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
         let dx = (reserve_x * amount_in) / (reserve_y + amount_in);
         (reserve_x - dx, reserve_y + amount_in, dx)
     };
-    let program = context.program();
     program
         .state()
         .store(StateKeys::ReserveX, &reserve_x)
@@ -120,7 +122,7 @@ fn reserves(program: &Program<StateKeys>) -> (u64, u64) {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step, StepError, StepResponseError};
+    use simulator::{Endpoint, Key, Step, StepResponseError};
     use wasmlanche_sdk::ExternalCallError;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -161,7 +163,7 @@ mod tests {
 
         assert_eq!(call_err, ExternalCallError::CallPanicked);
 
-        let resp = simulator
+        let resp_err = simulator
             .run_step(
                 owner,
                 &Step {
@@ -174,9 +176,13 @@ mod tests {
             .unwrap()
             .result
             .response::<u64>()
-            .unwrap();
+            .unwrap_err();
 
-        assert_eq!(resp, 0);
+        let StepResponseError::ExternalCall(call_err) = resp_err else {
+            panic!("wrong error returned");
+        };
+
+        assert_eq!(call_err, ExternalCallError::CallPanicked);
     }
 
     #[test]
