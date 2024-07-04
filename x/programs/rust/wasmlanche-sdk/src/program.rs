@@ -24,7 +24,6 @@ impl DeferDeserialize {
 }
 
 impl BorshDeserialize for DeferDeserialize {
-    /// <div class="warning">This function does not provide any size-hint.</div>
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut inner = Vec::new();
         reader.read_to_end(&mut inner)?;
