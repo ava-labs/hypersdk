@@ -46,15 +46,6 @@ pub struct Step {
     pub params: Vec<Param>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SimulatorStep<'a> {
-    /// The key of the caller used in each step of the plan.
-    pub caller_key: &'a str,
-    #[serde(flatten)]
-    pub step: &'a Step,
-}
-
 impl Step {
     /// Create a [`Step`] that creates a key.
     #[must_use]
@@ -357,11 +348,10 @@ where
     W: Write,
     R: Iterator<Item = StepResultItem>,
 {
-    pub fn run_step(&mut self, caller_key: &str, step: &Step) -> StepResultItem {
+    pub fn run_step(&mut self, step: &Step) -> StepResultItem {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
-        let step = SimulatorStep { caller_key, step };
         let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
