@@ -1,7 +1,10 @@
 use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::cell::RefMut;
-use std::{cell::RefCell, collections::HashMap, hash::Hash};
+use std::{
+    cell::{RefCell, RefMut},
+    collections::HashMap,
+    hash::Hash,
+};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
