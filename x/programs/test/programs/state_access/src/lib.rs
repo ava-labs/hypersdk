@@ -12,7 +12,7 @@ pub fn put(context: Context<StateKeys>, value: i64) {
     context
         .program()
         .state()
-        .store_single(StateKeys::State, &value)
+        .store_by_key(StateKeys::State, &value)
         .expect("failed to store state");
 }
 

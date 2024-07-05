@@ -1,10 +1,6 @@
 use crate::{memory::HostPtr, state::Error as StateError};
-use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
-use std::{
-    cell::{RefCell, RefMut},
-    collections::HashMap,
-    hash::Hash,
-};
+use borsh::{from_slice, BorshDeserialize, BorshSerialize};
+use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -51,9 +47,16 @@ impl<'a, K: Key> State<'a, K> {
         pairs: Pairs,
     ) -> Result<(), Error> {
         let cache = &mut self.cache.borrow_mut();
-        for (key, value) in pairs {
-            Self::store_internal(cache, key, value)?;
-        }
+
+        pairs
+            .into_iter()
+            .map(|(k, v)| borsh::to_vec(&v).map(|bytes| (k, Some(bytes))))
+            .try_for_each(|result| {
+                result.map(|(k, v)| {
+                    cache.insert(k, v);
+                })
+            })
+            .map_err(|_| StateError::Serialization)?;
 
         Ok(())
     }
@@ -63,29 +66,8 @@ impl<'a, K: Key> State<'a, K> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store_single<V: BorshSerialize>(self, key: K, value: &V) -> Result<(), Error> {
-        let cache = &mut self.cache.borrow_mut();
-        Self::store_internal(cache, key, value)
-    }
-
-    fn store_internal<V: BorshSerialize>(
-        cache: &mut RefMut<HashMap<K, Option<Vec<u8>>>>,
-        key: K,
-        value: &V,
-    ) -> Result<(), Error> {
-        let serialized = to_vec(&value)
-            .map_err(|_| StateError::Deserialization)
-            .and_then(|bytes| {
-                if bytes.is_empty() {
-                    Err(StateError::InvalidByteLength(0))
-                } else {
-                    Ok(bytes)
-                }
-            })?;
-
-        cache.insert(key, Some(serialized));
-
-        Ok(())
+    pub fn store_by_key<V: BorshSerialize>(self, key: K, value: &V) -> Result<(), Error> {
+        self.store([(key, value)])
     }
 
     /// Get a value from the host's storage.
