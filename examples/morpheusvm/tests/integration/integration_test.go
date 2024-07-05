@@ -324,7 +324,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	// read: 2 keys reads
 	// allocate: 1 key created with 1 chunk
 	// write: 2 keys modified
-	transferTxUnits := fees.Dimensions{188, 7, 14, 50, 26}
+	transferTxUnits := fees.Dimensions{192, 7, 14, 50, 26}
 	transferTxFee := uint64(285)
 
 	ginkgo.It("get currently accepted block ID", func() {
