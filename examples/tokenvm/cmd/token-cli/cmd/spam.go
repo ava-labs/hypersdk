@@ -28,7 +28,7 @@ type SpamHelper struct {
 	ws  *rpc.WebSocketClient
 }
 
-func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
+func (*SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
 	p, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
 	}, nil
 }
 
-func (sh *SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
+func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	return auth.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
 }
 
@@ -53,7 +53,7 @@ func (sh *SpamHelper) CreateClient(uri string, networkID uint32, chainID ids.ID)
 	return nil
 }
 
-func (sh *SpamHelper) GetParser(ctx context.Context, chainID ids.ID) (chain.Parser, error) {
+func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
@@ -72,7 +72,7 @@ func (sh *SpamHelper) LookupBalance(choice int, address string) (uint64, error) 
 	return balance, err
 }
 
-func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
+func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
 	return []chain.Action{&actions.Transfer{
 		To:    address,
 		Asset: ids.Empty,
