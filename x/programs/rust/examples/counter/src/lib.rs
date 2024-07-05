@@ -22,7 +22,7 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     context
         .program()
         .state()
-        .store(StateKeys::Counter(to), &counter)
+        .store_single(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
 
     true

@@ -1,5 +1,6 @@
 use crate::{memory::HostPtr, state::Error as StateError};
 use borsh::{from_slice, to_vec, BorshDeserialize, BorshSerialize};
+use std::cell::RefMut;
 use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
 #[derive(Clone, thiserror::Error, Debug)]
@@ -38,15 +39,37 @@ impl<'a, K: Key> State<'a, K> {
         Self { cache }
     }
 
+    /// Store a list of tuple of key and value to the host storage.
+    /// # Errors
+    /// Returns an [`Error`] if the key or value cannot be
+    /// serialized or if the host fails to handle the operation.
+    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (K, &'b V)>>(
+        self,
+        pairs: Pairs,
+    ) -> Result<(), Error> {
+        let cache = &mut self.cache.borrow_mut();
+        for (key, value) in pairs {
+            Self::store_internal(cache, key, value)?;
+        }
+
+        Ok(())
+    }
+
     /// Store a key and value to the host storage. If the key already exists,
     /// the value will be overwritten.
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<V>(self, key: K, value: &V) -> Result<(), Error>
-    where
-        V: BorshSerialize,
-    {
+    pub fn store_single<V: BorshSerialize>(self, key: K, value: &V) -> Result<(), Error> {
+        let cache = &mut self.cache.borrow_mut();
+        Self::store_internal(cache, key, value)
+    }
+
+    fn store_internal<V: BorshSerialize>(
+        cache: &mut RefMut<HashMap<K, Option<Vec<u8>>>>,
+        key: K,
+        value: &V,
+    ) -> Result<(), Error> {
         let serialized = to_vec(&value)
             .map_err(|_| StateError::Deserialization)
             .and_then(|bytes| {
@@ -56,7 +79,8 @@ impl<'a, K: Key> State<'a, K> {
                     Ok(bytes)
                 }
             })?;
-        self.cache.borrow_mut().insert(key, Some(serialized));
+
+        cache.insert(key, Some(serialized));
 
         Ok(())
     }

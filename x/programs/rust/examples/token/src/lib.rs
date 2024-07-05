@@ -26,19 +26,19 @@ pub fn init(context: Context<StateKeys>) {
     // set total supply
     program
         .state()
-        .store(StateKeys::TotalSupply, &INITIAL_SUPPLY)
+        .store_single(StateKeys::TotalSupply, &INITIAL_SUPPLY)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKeys::Name, b"WasmCoin")
+        .store_single(StateKeys::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKeys::Symbol, b"WACK")
+        .store_single(StateKeys::Symbol, b"WACK")
         .expect("failed to store symbol");
 }
 
@@ -76,7 +76,7 @@ fn mint_to_internal(
 
     program
         .state()
-        .store(StateKeys::Balance(recipient), &(balance + amount))
+        .store_single(StateKeys::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
     context
@@ -123,12 +123,10 @@ pub fn transfer(
     // update balances
     program
         .state()
-        .store(StateKeys::Balance(sender), &(sender_balance - amount))
-        .expect("failed to store balance");
-
-    program
-        .state()
-        .store(StateKeys::Balance(recipient), &(recipient_balance + amount))
+        .store([
+            (StateKeys::Balance(sender), &(sender_balance - amount)),
+            (StateKeys::Balance(recipient), &(recipient_balance + amount)),
+        ])
         .expect("failed to store balance");
 
     true
