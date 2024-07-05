@@ -11,3 +11,6 @@ serde_json = "1.0.117"
 thiserror = { workspace = true }
 borsh = { workspace = true }
 wasmlanche-sdk = { workspace = true }
+
+[build-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["build"] }
