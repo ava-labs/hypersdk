@@ -28,6 +28,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
         assert_eq!(minted, amount_y * total_supply / reserve_y); // make sure that the ratio is good
         minted
     };
+
     program
         .state()
         .store(StateKeys::ReserveX, &(reserve_x + amount_x))
@@ -40,6 +41,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
         .state()
         .store(StateKeys::TotalySupply, &(total_supply + minted))
         .unwrap();
+
     minted
 }
 
@@ -52,6 +54,7 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
         shares * reserve_x / total_supply,
         shares * reserve_y / total_supply,
     );
+
     program
         .state()
         .store(StateKeys::ReserveX, &(reserve_x - amount_x))
@@ -64,6 +67,7 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
         .state()
         .store(StateKeys::TotalySupply, &(total_supply - shares))
         .unwrap();
+
     (amount_x, amount_y)
 }
 
@@ -72,12 +76,14 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
     let program = context.program();
     let total_supply = total_supply(program);
     assert!(total_supply > 0, "no liquidity");
-    // k = x * y
-    // x' * y' = x * y
-    // (x + dx) * (y - dy) = x * y
-    // y - dy = (x * y) / (x + dx)
-    // dy = y - (x * y) / (x + dx)
-    // dy = y * dx / (x + dx)
+    // x * y = constant 
+    // x' = x + dx
+    // y' = y + dy
+    // (x + dx) * (y + dy) = x * y
+    // y + dy = (x * y) / (x + dx)
+    // dy = ((x * y) / (x + dx)) - y
+    // skip a few steps 
+    // -dy = y * dx / (x + dx)
     let (reserve_x, reserve_y) = reserves(context.program());
     let (reserve_x, reserve_y, out) = if x_to_y {
         let dy = (reserve_y * amount_in) / (reserve_x + amount_in);
@@ -86,6 +92,7 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
         let dx = (reserve_x * amount_in) / (reserve_y + amount_in);
         (reserve_x - dx, reserve_y + amount_in, dx)
     };
+
     program
         .state()
         .store(StateKeys::ReserveX, &reserve_x)
@@ -94,6 +101,7 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
         .state()
         .store(StateKeys::ReserveY, &reserve_y)
         .unwrap();
+
     out
 }
 
@@ -161,7 +169,7 @@ mod tests {
             panic!("wrong error returned");
         };
 
-        assert_eq!(call_err, ExternalCallError::CallPanicked);
+        assert!(matches!(call_err, ExternalCallError::CallPanicked));
 
         let resp_err = simulator
             .run_step(
@@ -182,7 +190,7 @@ mod tests {
             panic!("wrong error returned");
         };
 
-        assert_eq!(call_err, ExternalCallError::CallPanicked);
+        assert!(matches!(call_err, ExternalCallError::CallPanicked));
     }
 
     #[test]
@@ -236,7 +244,7 @@ mod tests {
             panic!("unexpected error");
         };
 
-        assert_eq!(call_err, ExternalCallError::CallPanicked);
+        assert!(matches!(call_err, ExternalCallError::CallPanicked));
     }
 
     #[test]
