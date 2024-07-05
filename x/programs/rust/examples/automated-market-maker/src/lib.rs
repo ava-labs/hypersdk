@@ -31,15 +31,11 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
 
     program
         .state()
-        .store(StateKeys::ReserveX, &(reserve_x + amount_x))
-        .unwrap();
-    program
-        .state()
-        .store(StateKeys::ReserveY, &(reserve_y + amount_y))
-        .unwrap();
-    program
-        .state()
-        .store(StateKeys::TotalySupply, &(total_supply + minted))
+        .store([
+            (StateKeys::ReserveX, &(reserve_x + amount_x)),
+            (StateKeys::ReserveY, &(reserve_y + amount_y)),
+            (StateKeys::TotalySupply, &(total_supply + minted)),
+        ])
         .unwrap();
 
     minted
@@ -57,15 +53,11 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
 
     program
         .state()
-        .store(StateKeys::ReserveX, &(reserve_x - amount_x))
-        .unwrap();
-    program
-        .state()
-        .store(StateKeys::ReserveY, &(reserve_y - amount_y))
-        .unwrap();
-    program
-        .state()
-        .store(StateKeys::TotalySupply, &(total_supply - shares))
+        .store([
+            (StateKeys::ReserveX, &(reserve_x - amount_x)),
+            (StateKeys::ReserveY, &(reserve_y - amount_y)),
+            (StateKeys::TotalySupply, &(total_supply - shares)),
+        ])
         .unwrap();
 
     (amount_x, amount_y)
@@ -95,11 +87,10 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
 
     program
         .state()
-        .store(StateKeys::ReserveX, &reserve_x)
-        .unwrap();
-    program
-        .state()
-        .store(StateKeys::ReserveY, &reserve_y)
+        .store([
+            (StateKeys::ReserveX, &reserve_x),
+            (StateKeys::ReserveY, &reserve_y),
+        ])
         .unwrap();
 
     out
