@@ -35,7 +35,7 @@ func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
 	return generatePrivateKey(sh.keyType)
 }
 
-func (sh *SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
+func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	switch pk.Address[0] {
 	case consts.ED25519ID:
 		return auth.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
@@ -60,10 +60,9 @@ func (sh *SpamHelper) CreateClient(uri string, networkID uint32, chainID ids.ID)
 	}
 	sh.ws = ws
 	return nil
-
 }
 
-func (sh *SpamHelper) GetParser(ctx context.Context, chainID ids.ID) (chain.Parser, error) {
+func (sh *SpamHelper) GetParser(ctx context.Context) (chain.Parser, error) {
 	return sh.cli.Parser(ctx)
 }
 
@@ -80,10 +79,9 @@ func (sh *SpamHelper) LookupBalance(choice int, address string) (uint64, error) 
 		consts.Symbol,
 	)
 	return balance, err
-
 }
 
-func (sh *SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
+func (*SpamHelper) GetTransfer(address codec.Address, amount uint64, memo []byte) []chain.Action {
 	return []chain.Action{&actions.Transfer{
 		To:    address,
 		Value: amount,
