@@ -130,7 +130,7 @@ fn reserves(program: &Program<StateKeys>) -> (u64, u64) {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Step, StepResponseError};
+    use simulator::{Endpoint, Key, Step, StepResponseError, TestContext};
     use wasmlanche_sdk::ExternalCallError;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -150,6 +150,8 @@ mod tests {
             .run_step(owner, &Step::create_key(Key::Ed25519(owner.to_string())))
             .unwrap();
 
+        let test_context = TestContext::from(program_id);
+
         let resp_err = simulator
             .run_step(
                 owner,
@@ -157,7 +159,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "remove_liquidity".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 100000u64.into()],
+                    params: vec![test_context.clone().into(), 100000u64.into()],
                 },
             )
             .unwrap()
@@ -178,7 +180,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "swap".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 100000u64.into(), true.into()],
+                    params: vec![test_context.into(), 100000u64.into(), true.into()],
                 },
             )
             .unwrap()
@@ -208,6 +210,8 @@ mod tests {
             .run_step(owner, &Step::create_key(Key::Ed25519(owner.to_string())))
             .unwrap();
 
+        let test_context = TestContext::from(program_id);
+
         let resp = simulator
             .run_step(
                 owner,
@@ -215,7 +219,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "add_liquidity".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 1000u64.into(), 1000u64.into()],
+                    params: vec![test_context.clone().into(), 1000u64.into(), 1000u64.into()],
                 },
             )
             .unwrap()
@@ -232,7 +236,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "add_liquidity".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 1000u64.into(), 1001u64.into()],
+                    params: vec![test_context.into(), 1000u64.into(), 1001u64.into()],
                 },
             )
             .unwrap()
@@ -262,6 +266,8 @@ mod tests {
             .run_step(owner, &Step::create_key(Key::Ed25519(owner.to_string())))
             .unwrap();
 
+        let test_context = TestContext::from(program_id);
+
         let resp = simulator
             .run_step(
                 owner,
@@ -269,7 +275,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "add_liquidity".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 1000u64.into(), 1000u64.into()],
+                    params: vec![test_context.clone().into(), 1000u64.into(), 1000u64.into()],
                 },
             )
             .unwrap()
@@ -286,7 +292,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "swap".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 10u64.into(), true.into()],
+                    params: vec![test_context.clone().into(), 10u64.into(), true.into()],
                 },
             )
             .unwrap();
@@ -298,7 +304,7 @@ mod tests {
                     endpoint: Endpoint::Execute,
                     method: "remove_liquidity".to_string(),
                     max_units: u64::MAX,
-                    params: vec![program_id.into(), 1000.into()],
+                    params: vec![test_context.into(), 1000.into()],
                 },
             )
             .unwrap()
