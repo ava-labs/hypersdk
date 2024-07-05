@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -56,4 +57,49 @@ func TestRuntimeCallProgramComplexReturn(t *testing.T) {
 	result, err := program.Call("get_value")
 	require.NoError(err)
 	require.Equal(ComplexReturn{Program: program.Address, MaxUnits: 1000}, into[ComplexReturn](result))
+}
+
+func TestContextInjection(t *testing.T) {
+	tests := []struct {
+		name string
+		fun  func(*testProgram, *require.Assertions)
+	}{
+		{
+			name: "timestamp",
+			fun: func(program *testProgram, require *require.Assertions) {
+				result, err := program.CallWithTimestamp(1, "get_timestamp")
+				require.NoError(err)
+				require.Equal(uint64(1), into[uint64](result))
+			},
+		},
+		{
+			name: "height",
+			fun: func(program *testProgram, require *require.Assertions) {
+				result, err := program.CallWithHeight(1, "get_height")
+				require.NoError(err)
+				require.Equal(uint64(1), into[uint64](result))
+			},
+		},
+		{
+			name: "actor",
+			fun: func(program *testProgram, require *require.Assertions) {
+				result, err := program.CallWithActor(codec.CreateAddress(0, ids.GenerateTestID()), "get_actor")
+				require.NoError(err)
+				require.NotEqual(ids.Empty, into[ids.ID](result))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			program := newTestProgram(ctx, "context_injection")
+
+			tt.fun(program, require)
+		})
+	}
 }

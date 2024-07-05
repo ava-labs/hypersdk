@@ -46,7 +46,7 @@ pub struct Step {
     pub params: Vec<Param>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimulatorStep<'a> {
     /// The key of the caller used in each step of the plan.
@@ -92,6 +92,32 @@ pub enum Key {
     Secp256r1(String),
 }
 
+#[derive(Clone, Debug, PartialEq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TestContext {
+    program_id: Id,
+    pub actor_key: Option<Key>,
+    pub height: u64,
+    pub timestamp: u64,
+}
+
+impl From<Id> for TestContext {
+    fn from(program_id: Id) -> Self {
+        Self {
+            program_id,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "type", rename = "testContext")]
+pub(crate) struct SimulatorTestContext {
+    #[serde(serialize_with = "base64_struct_encode")]
+    value: TestContext,
+}
+
 // TODO:
 // add `Cow` types for borrowing
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +127,8 @@ pub enum Param {
     String(String),
     Id(Id),
     Key(Key),
+    #[allow(private_interfaces)]
+    TestContext(SimulatorTestContext),
 }
 
 #[derive(Serialize)]
@@ -122,7 +150,7 @@ impl From<&Param> for StringParam {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
             }
-            Param::Key(_) => unreachable!(),
+            Param::Key(_) | Param::TestContext(_) => unreachable!(),
         }
     }
 }
@@ -134,6 +162,7 @@ impl Serialize for Param {
     {
         match self {
             Param::Key(key) => Serialize::serialize(key, serializer),
+            Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
             _ => StringParam::from(self).serialize(serializer),
         }
     }
@@ -166,6 +195,12 @@ impl From<Id> for Param {
 impl From<Key> for Param {
     fn from(val: Key) -> Self {
         Param::Key(val)
+    }
+}
+
+impl From<TestContext> for Param {
+    fn from(val: TestContext) -> Self {
+        Param::TestContext(SimulatorTestContext { value: val })
     }
 }
 
@@ -205,6 +240,14 @@ where
     S: Serializer,
 {
     serializer.serialize_str(&b64.encode(text))
+}
+
+fn base64_struct_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let bytes = serde_json::to_vec(struc).unwrap();
+    serializer.serialize_str(&b64.encode(bytes))
 }
 
 fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>

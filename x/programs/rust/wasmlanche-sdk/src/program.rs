@@ -48,20 +48,11 @@ pub enum ExternalCallError {
 /// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(BorshSerialize)]
 pub struct Program<K = ()> {
     account: Address,
+    #[borsh(skip)]
     state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
-}
-
-impl<K> BorshSerialize for Program<K> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            account,
-            state_cache: _,
-        } = self;
-
-        account.serialize(writer)
-    }
 }
 
 impl<K> BorshDeserialize for Program<K> {
