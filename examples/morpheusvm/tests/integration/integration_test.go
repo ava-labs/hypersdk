@@ -325,7 +325,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	// allocate: 1 key created with 1 chunk
 	// write: 2 keys modified
 	transferTxUnits := fees.Dimensions{192, 7, 14, 50, 26}
-	transferTxFee := uint64(285)
+	transferTxFee := uint64(289)
 
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
