@@ -126,7 +126,7 @@ func (h *Handler) Spam(sh SpamHelper) error {
 		return err
 	}
 	if numAccounts < 2 {
-		return fmt.Errorf("must have at least 2 accounts")
+		return ErrInsufficientAccounts
 	}
 	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
 	if err != nil {
