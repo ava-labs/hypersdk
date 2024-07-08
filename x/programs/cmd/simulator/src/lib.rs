@@ -489,4 +489,23 @@ mod tests {
 
         assert_eq!(output_json, expected_json);
     }
+
+    #[test]
+    fn convert_bytes_param() {
+        let value = vec![12, 34, 56, 78, 90];
+
+        let expected_json = json!({
+            "type": "bytes",
+            "value": &b64.encode(value.clone()),
+        });
+
+        let param = Param::from(value.clone());
+        let expected_param = Param::Bytes(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
 }
