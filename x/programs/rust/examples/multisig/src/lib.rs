@@ -7,6 +7,8 @@ use wasmlanche_sdk::{DeferDeserialize, ExternalCallError};
 
 const MIN_VOTES: u32 = 2;
 
+const MIN_VOTES: u32 = 2;
+
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct Proposal {
     to: Program,
