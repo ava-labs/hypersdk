@@ -139,8 +139,8 @@ func verifyEndpoint(i int, step *Step) error {
 	case EndpointExecute:
 		if step.Method == ProgramCreate {
 			// verify the first param is a string for the path
-			if step.Params[0].Type != String {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
+			if step.Params[0].Type != Path {
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
 			}
 		} else {
 			// verify the first param is a test context
@@ -360,17 +360,18 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				return nil, fmt.Errorf("failed to map to id: %d", id)
 			}
 			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-		case String:
-			programAddress, err := codec.ToAddress(param.Value)
-			if err == nil {
-				cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-			} else {
-				path := string(param.Value)
-				if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-					return nil, errors.New("this path does not exists")
-				}
-				cp = append(cp, param)
+		case Path:
+			path := string(param.Value)
+			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+				return nil, errors.New("this path does not exists")
 			}
+			cp = append(cp, param)
+		case Address:
+			programAddress, err := codec.ToAddress(param.Value)
+			if err != nil {
+				return nil, errors.New("invalid address")
+			}
+			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 		case KeyEd25519: // TODO: support secp256k1
 			key := param.Value
 			// get named public key from db
@@ -391,10 +392,8 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				key = address[:]
 			}
 			cp = append(cp, Parameter{Value: key, Type: param.Type})
-		case Uint64, Bool, TestContext:
-			cp = append(cp, param)
 		default:
-			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
+			cp = append(cp, param)
 		}
 	}
 

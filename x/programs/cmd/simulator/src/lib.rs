@@ -12,7 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::ExternalCallError;
+use wasmlanche_sdk::{types::Address, ExternalCallError};
 
 mod id;
 
@@ -67,7 +67,7 @@ impl Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 0,
-            params: vec![Param::String(path.into())],
+            params: vec![Param::Path(path.into())],
         }
     }
 }
@@ -120,6 +120,9 @@ pub enum Param {
     Key(Key),
     #[allow(private_interfaces)]
     TestContext(SimulatorTestContext),
+    Bytes(Vec<u8>),
+    Path(String),
+    Address(Address),
 }
 
 #[derive(Serialize)]
@@ -129,6 +132,9 @@ enum StringParam {
     Bool(String),
     String(String),
     Id(String),
+    Bytes(String),
+    Path(String),
+    Address(String),
 }
 
 impl From<&Param> for StringParam {
@@ -136,7 +142,14 @@ impl From<&Param> for StringParam {
         match value {
             Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
             Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
-            Param::String(text) => StringParam::String(b64.encode(text.clone())),
+            Param::String(text) => StringParam::String(
+                b64.encode(borsh::to_vec(text).expect("the serialization should work")),
+            ),
+            Param::Path(text) => StringParam::Path(b64.encode(text)),
+            Param::Bytes(bytes) => StringParam::Bytes(
+                b64.encode(borsh::to_vec(bytes).expect("the serialization should work")),
+            ),
+            Param::Address(addr) => StringParam::Address(b64.encode(addr)),
             Param::Id(id) => {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
@@ -192,6 +205,18 @@ impl From<Key> for Param {
 impl From<TestContext> for Param {
     fn from(val: TestContext) -> Self {
         Param::TestContext(SimulatorTestContext { value: val })
+    }
+}
+
+impl From<Vec<u8>> for Param {
+    fn from(val: Vec<u8>) -> Self {
+        Param::Bytes(val)
+    }
+}
+
+impl From<Address> for Param {
+    fn from(addr: Address) -> Self {
+        Param::Address(addr)
     }
 }
 
@@ -401,11 +426,10 @@ mod tests {
     fn convert_string_param() {
         let value = String::from("hello world");
         let expected_param_type = "string";
-        let expected_value = value.clone();
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &b64.encode(expected_value),
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
         });
 
         let param = Param::from(value.clone());
@@ -473,6 +497,44 @@ mod tests {
 
         let param = Param::from(value);
         let expected_param = Param::Bool(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_bytes_param() {
+        let value = vec![12, 34, 56, 78, 90];
+
+        let expected_json = json!({
+            "type": "bytes",
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
+        });
+
+        let param = Param::from(value.clone());
+        let expected_param = Param::Bytes(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_address_param() {
+        let value = Address::default();
+
+        let expected_json = json!({
+            "type": "address",
+            "value": &b64.encode(value),
+        });
+
+        let param = Param::from(value);
+        let expected_param = Param::Address(value);
 
         assert_eq!(param, expected_param);
 
