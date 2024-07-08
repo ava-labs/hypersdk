@@ -105,6 +105,11 @@ pub fn execute(context: Context<StateKeys>, max_units: u64) -> Result<DeferDeser
         .expect("state corrupt")
         .unwrap();
 
+    program
+        .state()
+        .store_by_key(StateKeys::Executed, &true)
+        .unwrap();
+
     called_program
         .call_function(&function, args.as_slice(), max_units)
         .map_err(Error::ExternalCall)
@@ -251,5 +256,58 @@ mod tests {
             .unwrap();
 
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn cannot_re_execute() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        let program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        let mut test_context = TestContext::from(program_id);
+        let timestamp = 123456;
+        test_context.timestamp = timestamp;
+
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "schedule".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    test_context.clone().into(),
+                    program_id.into(),
+                    String::new().into(),
+                    Vec::new().into(),
+                ],
+            })
+            .unwrap();
+
+        test_context.timestamp = timestamp + LOCK_TIME;
+
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "execute".to_string(),
+                max_units: u64::MAX,
+                params: vec![test_context.clone().into(), 1000000u64.into()],
+            })
+            .unwrap();
+
+        let res = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "execute".to_string(),
+                max_units: u64::MAX,
+                params: vec![test_context.clone().into(), 1000000u64.into()],
+            })
+            .unwrap()
+            .result
+            .response::<Result<DeferDeserialize, Error>>()
+            .unwrap();
+
+        assert_eq!(res, Err(Error::AlreadyExecuted));
     }
 }
