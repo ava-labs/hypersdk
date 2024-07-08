@@ -67,7 +67,7 @@ func TestContextInjection(t *testing.T) {
 		{
 			name: "timestamp",
 			fun: func(program *testProgram, require *require.Assertions) {
-				result, err := program.CallWithTimestamp(1, "get_timestamp")
+				result, err := program.WithTimestamp(1).Call("get_timestamp")
 				require.NoError(err)
 				require.Equal(uint64(1), into[uint64](result))
 			},
@@ -75,7 +75,7 @@ func TestContextInjection(t *testing.T) {
 		{
 			name: "height",
 			fun: func(program *testProgram, require *require.Assertions) {
-				result, err := program.CallWithHeight(1, "get_height")
+				result, err := program.WithHeight(1).Call("get_height")
 				require.NoError(err)
 				require.Equal(uint64(1), into[uint64](result))
 			},
@@ -83,7 +83,7 @@ func TestContextInjection(t *testing.T) {
 		{
 			name: "actor",
 			fun: func(program *testProgram, require *require.Assertions) {
-				result, err := program.CallWithActor(codec.CreateAddress(0, ids.GenerateTestID()), "get_actor")
+				result, err := program.WithActor(codec.CreateAddress(0, ids.GenerateTestID())).Call("get_actor")
 				require.NoError(err)
 				require.NotEqual(ids.Empty, into[ids.ID](result))
 			},

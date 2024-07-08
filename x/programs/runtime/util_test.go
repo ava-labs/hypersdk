@@ -15,22 +15,64 @@ import (
 
 type testRuntime struct {
 	Context      context.Context
-	Runtime      CallContext
+	callContext  CallContext
 	StateManager StateManager
+}
+
+func (t *testRuntime) WithStateManager(manager StateManager) *testRuntime {
+	t.callContext = t.callContext.WithStateManager(manager)
+	return t
+}
+
+func (t *testRuntime) WithActor(address codec.Address) *testRuntime {
+	t.callContext = t.callContext.WithActor(address)
+	return t
+}
+
+func (t *testRuntime) WithFunction(s string) *testRuntime {
+	t.callContext = t.callContext.WithFunction(s)
+	return t
+}
+
+func (t *testRuntime) WithProgram(address codec.Address) *testRuntime {
+	t.callContext = t.callContext.WithProgram(address)
+	return t
+}
+
+func (t *testRuntime) WithFuel(u uint64) *testRuntime {
+	t.callContext = t.callContext.WithFuel(u)
+	return t
+}
+
+func (t *testRuntime) WithParams(bytes []byte) *testRuntime {
+	t.callContext = t.callContext.WithParams(bytes)
+	return t
+}
+
+func (t *testRuntime) WithHeight(height uint64) *testRuntime {
+	t.callContext = t.callContext.WithHeight(height)
+	return t
+}
+
+func (t *testRuntime) WithActionID(actionID ids.ID) *testRuntime {
+	t.callContext = t.callContext.WithActionID(actionID)
+	return t
+}
+
+func (t *testRuntime) WithTimestamp(ts uint64) *testRuntime {
+	t.callContext = t.callContext.WithTimestamp(ts)
+	return t
 }
 
 func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
 	t.StateManager.(test.StateManager).ProgramsMap[programID] = programName
 }
 
-func (t *testRuntime) CallProgram(callContext Context, function string, params ...interface{}) ([]byte, error) {
-	return t.Runtime.CallProgram(
+func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
+	return t.callContext.CallProgram(
 		t.Context,
 		&CallInfo{
-			Program:      callContext.Program,
-			Actor:        callContext.Actor,
-			Height:       callContext.Height,
-			Timestamp:    callContext.Timestamp,
+			Program:      program,
 			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
@@ -43,7 +85,7 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 	return &testProgram{
 		Runtime: &testRuntime{
 			Context: ctx,
-			Runtime: NewRuntime(
+			callContext: NewRuntime(
 				NewConfig(),
 				logging.NoLog{}).WithDefaults(&CallInfo{Fuel: 10000000}),
 			StateManager: test.StateManager{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}, Mu: test.NewTestDB()},
@@ -59,50 +101,54 @@ type testProgram struct {
 
 func (t *testProgram) Call(function string, params ...interface{}) ([]byte, error) {
 	return t.Runtime.CallProgram(
-		Context{
-			Program:   t.Address,
-			Actor:     codec.CreateAddress(0, ids.GenerateTestID()),
-			Height:    0,
-			Timestamp: 0,
-		},
+		t.Address,
 		function,
 		params...)
 }
 
-func (t *testProgram) CallWithActor(actor codec.Address, function string, params ...interface{}) ([]byte, error) {
-	return t.Runtime.CallProgram(
-		Context{
-			Program:   t.Address,
-			Actor:     actor,
-			Height:    0,
-			Timestamp: 0,
-		},
-		function,
-		params...)
+func (t *testProgram) WithStateManager(manager StateManager) *testProgram {
+	t.Runtime = t.Runtime.WithStateManager(manager)
+	return t
 }
 
-func (t *testProgram) CallWithHeight(height uint64, function string, params ...interface{}) ([]byte, error) {
-	return t.Runtime.CallProgram(
-		Context{
-			Program:   t.Address,
-			Actor:     codec.CreateAddress(0, ids.GenerateTestID()),
-			Height:    height,
-			Timestamp: 0,
-		},
-		function,
-		params...)
+func (t *testProgram) WithActor(address codec.Address) *testProgram {
+	t.Runtime = t.Runtime.WithActor(address)
+	return t
 }
 
-func (t *testProgram) CallWithTimestamp(timestamp uint64, function string, params ...interface{}) ([]byte, error) {
-	return t.Runtime.CallProgram(
-		Context{
-			Program:   t.Address,
-			Actor:     codec.CreateAddress(0, ids.GenerateTestID()),
-			Height:    0,
-			Timestamp: timestamp,
-		},
-		function,
-		params...)
+func (t *testProgram) WithFunction(s string) *testProgram {
+	t.Runtime = t.Runtime.WithFunction(s)
+	return t
+}
+
+func (t *testProgram) WithProgram(address codec.Address) *testProgram {
+	t.Runtime = t.Runtime.WithProgram(address)
+	return t
+}
+
+func (t *testProgram) WithFuel(u uint64) *testProgram {
+	t.Runtime = t.Runtime.WithFuel(u)
+	return t
+}
+
+func (t *testProgram) WithParams(bytes []byte) *testProgram {
+	t.Runtime = t.Runtime.WithParams(bytes)
+	return t
+}
+
+func (t *testProgram) WithHeight(height uint64) *testProgram {
+	t.Runtime = t.Runtime.WithHeight(height)
+	return t
+}
+
+func (t *testProgram) WithActionID(actionID ids.ID) *testProgram {
+	t.Runtime = t.Runtime.WithActionID(actionID)
+	return t
+}
+
+func (t *testProgram) WithTimestamp(ts uint64) *testProgram {
+	t.Runtime = t.Runtime.WithTimestamp(ts)
+	return t
 }
 
 func into[T any](data []byte) T {
