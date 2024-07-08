@@ -21,6 +21,10 @@ impl DeferDeserialize {
         let Self(bytes) = self;
         borsh::from_slice(&bytes)
     }
+
+    pub fn into_inner(self) -> Vec<u8> {
+        self.0
+    }
 }
 
 impl BorshDeserialize for DeferDeserialize {
