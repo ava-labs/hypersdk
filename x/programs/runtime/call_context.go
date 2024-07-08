@@ -94,3 +94,8 @@ func (c CallContext) WithTimestamp(timestamp uint64) CallContext {
 	c.defaultCallInfo.Timestamp = timestamp
 	return c
 }
+
+func (c CallContext) WithValue(value uint64) CallContext {
+	c.defaultCallInfo.Value = value
+	return c
+}

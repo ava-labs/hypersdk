@@ -43,9 +43,8 @@ func TestRuntimeCallProgramBasicAttachValue(t *testing.T) {
 	require.NoError(err)
 	require.Equal(uint64(10), actorBalance)
 
-	program.Runtime.DefaultValue = 4
 	// calling a program with a value transfers that amount from the caller to the program
-	result, err := program.CallWithActor(actor, "get_value")
+	result, err := program.WithActor(actor).WithValue(4).Call("get_value")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 

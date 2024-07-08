@@ -22,7 +22,7 @@ func TestImportBalanceGetBalance(t *testing.T) {
 	actor := codec.CreateAddress(0, ids.GenerateTestID())
 	program := newTestProgram(ctx, "balance")
 	program.Runtime.StateManager.(test.StateManager).Balances[actor] = 3
-	result, err := program.CallWithActor(actor, "balance")
+	result, err := program.WithActor(actor).Call("balance")
 	require.NoError(err)
 	require.Equal(uint64(3), into[uint64](result))
 }
@@ -39,11 +39,11 @@ func TestImportBalanceSend(t *testing.T) {
 	require.NoError(err)
 	require.True(into[bool](result))
 
-	result, err = program.CallWithActor(actor, "balance")
+	result, err = program.WithActor(actor).Call("balance")
 	require.NoError(err)
 	require.Equal(uint64(1), into[uint64](result))
 
-	result, err = program.CallWithActor(program.Address, "balance")
+	result, err = program.WithActor(program.Address).Call("balance")
 	require.NoError(err)
 	require.Equal(uint64(2), into[uint64](result))
 }
