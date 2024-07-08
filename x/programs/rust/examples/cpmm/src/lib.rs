@@ -11,7 +11,7 @@ pub enum StateKeys {
 }
 
 #[public]
-pub fn add_liquidity(context: Context<StateKeys>, amount_x: u128, amount_y: u128) -> u128 {
+pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) -> u64 {
     let program = context.program();
     let total_supply = total_supply(program);
     // tokens    | shares
@@ -29,7 +29,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u128, amount_y: u128
 }
 
 #[public]
-pub fn remove_liquidity(context: Context<StateKeys>, shares: u128) -> (u128, u128) {
+pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) {
     let program = context.program();
     let total_supply = total_supply(program);
     let (reserve_x, reserve_y) = reserves(program);
@@ -45,7 +45,7 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u128) -> (u128, u12
 }
 
 #[public]
-pub fn swap(context: Context<StateKeys>, amount_in: u128, x_to_y: bool) -> u128 {
+pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
     // k = x * y
     // x' * y' = x * y
     // (x + dx) * (y - dy) = x * y
@@ -60,7 +60,7 @@ pub fn swap(context: Context<StateKeys>, amount_in: u128, x_to_y: bool) -> u128 
     }
 }
 
-fn total_supply(program: &Program<StateKeys>) -> u128 {
+fn total_supply(program: &Program<StateKeys>) -> u64 {
     program
         .state()
         .get(StateKeys::TotalySupply)
@@ -68,7 +68,7 @@ fn total_supply(program: &Program<StateKeys>) -> u128 {
         .unwrap_or_default()
 }
 
-fn reserves(program: &Program<StateKeys>) -> (u128, u128) {
+fn reserves(program: &Program<StateKeys>) -> (u64, u64) {
     (
         program
             .state()
@@ -81,4 +81,49 @@ fn reserves(program: &Program<StateKeys>) -> (u128, u128) {
             .unwrap()
             .unwrap_or_default(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use simulator::{Endpoint, Key, Param, Step, StepError, StepResponseError};
+    use wasmlanche_sdk::ExternalCallError;
+
+    const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+
+    #[test]
+    fn add_liquidity() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        let owner = "owner";
+
+        let program_id = simulator
+            .run_step(owner, &Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        simulator
+            .run_step(owner, &Step::create_key(Key::Ed25519(owner.to_string())))
+            .unwrap();
+
+        let resp_err = simulator
+            .run_step(
+                owner,
+                &Step {
+                    endpoint: Endpoint::Execute,
+                    method: "remove_liquidity".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![program_id.into(), 100000u64.into()],
+                },
+            )
+            .unwrap()
+            .result
+            .response::<(u64, u64)>()
+            .unwrap_err();
+
+        let StepResponseError::ExternalCall(call_err) = resp_err else {
+            panic!("wrong error returned");
+        };
+
+        assert_eq!(call_err, ExternalCallError::CallPanicked);
+    }
 }
