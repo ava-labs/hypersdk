@@ -14,7 +14,7 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{ExternalCallError, Program},
+    program::{DeferDeserialize, ExternalCallError, Program},
 };
 use crate::types::{Gas, Id};
 

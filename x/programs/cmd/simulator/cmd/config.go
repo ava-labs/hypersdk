@@ -15,8 +15,6 @@ const (
 )
 
 type Step struct {
-	// The key of the caller used.
-	CallerKey string `json:"callerKey"`
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint"`
 	// The method to call on the endpoint.
@@ -117,6 +115,7 @@ const (
 	KeyEd25519   Type = "ed25519"
 	KeySecp256k1 Type = "secp256k1"
 	Uint64       Type = "u64"
+	TestContext  Type = "testContext"
 )
 
 func unmarshalStep(bytes []byte) (*Step, error) {
