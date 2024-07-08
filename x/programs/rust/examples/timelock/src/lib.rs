@@ -2,7 +2,7 @@ use borsh::BorshSerialize;
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys};
-use wasmlanche_sdk::{ExternalCallError, Gas, Program};
+use wasmlanche_sdk::{ExternalCallError, Program};
 
 #[derive(Debug, BorshSerialize)]
 pub enum Error {
@@ -31,12 +31,12 @@ pub fn schedule(
     function: String,
     data: Vec<u8>,
 ) -> Result<(), Error> {
-    let program = context.program;
+    let program = context.program();
 
     if program
         .state()
         .get::<u64>(StateKeys::Time)
-        .expect("state corrup")
+        .expect("state corrupt")
         .is_some()
     {
         return Err(Error::AlreadyScheduled);
@@ -44,36 +44,35 @@ pub fn schedule(
 
     program
         .state()
-        .store(StateKeys::Time, &(context.timestamp + LOCK_TIME))
+        .store_by_key(StateKeys::Time, &(context.timestamp() + LOCK_TIME))
         .expect("state corrupt");
 
     program
         .state()
-        .store(StateKeys::Program, &to)
+        .store_by_key(StateKeys::Program, &to)
         .expect("state corrupt");
 
     program
         .state()
-        .store(StateKeys::Function, &function)
+        .store_by_key(StateKeys::Function, &function)
         .expect("state corrupt");
 
     program
         .state()
-        .store(StateKeys::Args, &data)
+        .store_by_key(StateKeys::Args, &data)
         .expect("state corrupt");
 
     Ok(())
 }
 
 #[public]
-pub fn execute(context: Context<StateKeys>, max_units: Gas) -> Result<Vec<u8>, Error> {
+pub fn execute(context: Context<StateKeys>, max_units: u64) -> Result<Vec<u8>, Error> {
     let program = context.program;
 
     if program
         .state()
         .get::<bool>(StateKeys::Executed)
         .expect("state corrupt")
-        == Some(true)
     {
         return Err(Error::AlreadyExecuted);
     }
@@ -84,7 +83,7 @@ pub fn execute(context: Context<StateKeys>, max_units: Gas) -> Result<Vec<u8>, E
         .expect("state corrupt")
         .ok_or(Error::NotScheduled)?;
 
-    if time > context.timestamp {
+    if time > context.timestamp() {
         return Err(Error::TooEarly);
     }
 
