@@ -5,7 +5,7 @@ use wasmlanche_sdk::types::Address;
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys, DeferDeserialize, ExternalCallError, Program};
 
-const MIN_VOTES: u32 = 2;
+pub const MIN_VOTES: u32 = 2;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct Proposal {
@@ -135,14 +135,14 @@ pub fn pub_quorum_reached(
     Ok(quorum_reached(&proposal))
 }
 
-fn proposal_at(program: &Program<StateKeys>, proposal_id: u32) -> Option<Proposal> {
+pub fn proposal_at(program: &Program<StateKeys>, proposal_id: u32) -> Option<Proposal> {
     program
         .state()
         .get(StateKeys::Proposals(proposal_id))
         .expect("state corrupt")
 }
 
-fn proposal_id(program: &Program<StateKeys>) -> u32 {
+pub fn proposal_id(program: &Program<StateKeys>) -> u32 {
     program
         .state()
         .get(StateKeys::LastProposalId)
@@ -150,7 +150,7 @@ fn proposal_id(program: &Program<StateKeys>) -> u32 {
         .unwrap_or_default()
 }
 
-fn quorum_reached(proposal: &Proposal) -> bool {
+pub fn quorum_reached(proposal: &Proposal) -> bool {
     proposal.yea + proposal.nay >= MIN_VOTES && proposal.yea > proposal.nay
 }
 
