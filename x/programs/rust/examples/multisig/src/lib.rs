@@ -160,7 +160,7 @@ mod tests {
 
         let test_context = TestContext::from(program_id);
 
-        let pid: usize = simulator
+        let pid: u32 = simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "propose".to_string(),
@@ -168,9 +168,23 @@ mod tests {
                 params: vec![
                     test_context.clone().into(),
                     program_id.into(),
-                    String::new().into(),
-                    // Vec::new().into(),
+                    String::from("asdasdasd").into(),
+                    Vec::new().into(),
                 ],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+
+        assert_eq!(pid, 0);
+
+        let pid: u32 = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "pub_proposal_id".to_string(),
+                max_units: 0,
+                params: vec![test_context.clone().into()],
             })
             .unwrap()
             .result
