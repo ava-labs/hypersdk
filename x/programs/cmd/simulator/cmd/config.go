@@ -110,11 +110,11 @@ type Type string
 
 const (
 	String       Type = "string"
-	Bool         Type = "bool"
+	Path         Type = "path"
+	Address      Type = "address"
 	ID           Type = "id"
 	KeyEd25519   Type = "ed25519"
 	KeySecp256k1 Type = "secp256k1"
-	Uint64       Type = "u64"
 	TestContext  Type = "testContext"
 )
 
