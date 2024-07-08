@@ -369,7 +369,7 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 		case Address:
 			programAddress, err := codec.ToAddress(param.Value)
 			if err != nil {
-				return nil, errors.New("Invalid address")
+				return nil, errors.New("invalid address")
 			}
 			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 		case KeyEd25519: // TODO: support secp256k1

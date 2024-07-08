@@ -426,11 +426,10 @@ mod tests {
     fn convert_string_param() {
         let value = String::from("hello world");
         let expected_param_type = "string";
-        let expected_value = value.clone();
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &b64.encode(expected_value),
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
         });
 
         let param = Param::from(value.clone());
@@ -512,7 +511,7 @@ mod tests {
 
         let expected_json = json!({
             "type": "bytes",
-            "value": &b64.encode(value.clone()),
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
         });
 
         let param = Param::from(value.clone());
