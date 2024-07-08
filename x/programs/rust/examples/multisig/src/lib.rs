@@ -84,10 +84,6 @@ pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), Propo
 
     program
         .state()
-        .delete::<DeferDeserialize>(StateKeys::Proposals(id))
-        .unwrap();
-    program
-        .state()
         .store_by_key(StateKeys::Proposals(id), &proposal)
         .expect("state corrupt");
 
