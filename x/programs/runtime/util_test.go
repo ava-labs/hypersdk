@@ -15,9 +15,8 @@ import (
 
 type testRuntime struct {
 	Context      context.Context
-	Runtime      *WasmRuntime
+	Runtime      CallContext
 	StateManager StateManager
-	DefaultGas   uint64
 }
 
 func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
@@ -35,7 +34,6 @@ func (t *testRuntime) CallProgram(callContext Context, function string, params .
 			State:        t.StateManager,
 			FunctionName: function,
 			Params:       test.SerializeParams(params...),
-			Fuel:         t.DefaultGas,
 		})
 }
 
@@ -47,9 +45,8 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Context: ctx,
 			Runtime: NewRuntime(
 				NewConfig(),
-				logging.NoLog{}),
+				logging.NoLog{}).WithDefaults(&CallInfo{Fuel: 10000000}),
 			StateManager: test.StateManager{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}, Mu: test.NewTestDB()},
-			DefaultGas:   10000000,
 		},
 		Address: account,
 	}

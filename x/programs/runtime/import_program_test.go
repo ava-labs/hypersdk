@@ -153,7 +153,7 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	program := newTestProgram(ctx, "fuel")
 	result, err := program.Call("get_fuel")
 	require.NoError(err)
-	require.LessOrEqual(into[uint64](result), program.Runtime.DefaultGas)
+	require.LessOrEqual(into[uint64](result), program.Runtime.Runtime.defaultCallInfo.Fuel)
 }
 
 func TestImportOutOfFuel(t *testing.T) {
