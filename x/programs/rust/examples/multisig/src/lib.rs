@@ -36,7 +36,7 @@ pub enum StateKeys {
 #[public]
 pub fn propose(context: Context<StateKeys>, to: Program, method: String, data: Vec<u8>) -> u32 {
     let program = context.program();
-    let last_id = proposal_id(&program);
+    let last_id = proposal_id(program);
 
     program
         .state()
@@ -65,7 +65,7 @@ pub fn propose(context: Context<StateKeys>, to: Program, method: String, data: V
 #[public]
 pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), ProposalError> {
     let program = context.program();
-    let mut proposal = proposal_at(&program, id).ok_or(ProposalError::InexistentProposal)?;
+    let mut proposal = proposal_at(program, id).ok_or(ProposalError::InexistentProposal)?;
 
     let actor = context.actor();
     if proposal.voters.contains(&actor) {
@@ -102,7 +102,7 @@ pub fn execute(
 ) -> Result<DeferDeserialize, ProposalError> {
     let program = context.program();
     let mut proposal =
-        proposal_at(&program, proposal_id).ok_or(ProposalError::InexistentProposal)?;
+        proposal_at(program, proposal_id).ok_or(ProposalError::InexistentProposal)?;
 
     if proposal.executed {
         return Err(ProposalError::AlreadyExecuted);
@@ -113,10 +113,10 @@ pub fn execute(
 
     proposal.executed = true;
 
-    Ok(proposal
+    proposal
         .to
         .call_function::<DeferDeserialize>(&proposal.method, &proposal.data, max_units)
-        .map_err(ProposalError::ExecutionFailed)?)
+        .map_err(ProposalError::ExecutionFailed)
 }
 
 #[public]

@@ -188,9 +188,9 @@ mod tests {
                 params: vec![
                     test_context1.clone().into(),
                     counter2_id.into(),
-                    1_000_000.into(),
+                    1_000_000u64.into(),
                     bob_key_param.clone(),
-                    10.into(),
+                    10u64.into(),
                 ],
             })
             .unwrap();
@@ -203,7 +203,7 @@ mod tests {
                 params: vec![
                     test_context1.into(),
                     counter2_id.into(),
-                    1_000_000.into(),
+                    1_000_000u64.into(),
                     bob_key_param,
                 ],
             })
