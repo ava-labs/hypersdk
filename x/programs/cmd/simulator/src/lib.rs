@@ -120,6 +120,7 @@ pub enum Param {
     Key(Key),
     #[allow(private_interfaces)]
     TestContext(SimulatorTestContext),
+    Bytes(Vec<u8>),
 }
 
 #[derive(Serialize)]
@@ -129,6 +130,7 @@ enum StringParam {
     Bool(String),
     String(String),
     Id(String),
+    Bytes(String),
 }
 
 impl From<&Param> for StringParam {
@@ -136,7 +138,8 @@ impl From<&Param> for StringParam {
         match value {
             Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
             Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
-            Param::String(text) => StringParam::String(b64.encode(text.clone())),
+            Param::String(text) => StringParam::String(b64.encode(text)),
+            Param::Bytes(bytes) => StringParam::Bytes(b64.encode(bytes)),
             Param::Id(id) => {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
@@ -192,6 +195,12 @@ impl From<Key> for Param {
 impl From<TestContext> for Param {
     fn from(val: TestContext) -> Self {
         Param::TestContext(SimulatorTestContext { value: val })
+    }
+}
+
+impl From<Vec<u8>> for Param {
+    fn from(val: Vec<u8>) -> Self {
+        Param::Bytes(val)
     }
 }
 
