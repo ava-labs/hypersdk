@@ -1,13 +1,8 @@
-use wasmlanche_sdk::{
-    balance::{get, send},
-    public,
-    types::Address,
-    Context,
-};
+use wasmlanche_sdk::{public, send, state::get_balance, types::Address, Context};
 
 #[public]
 pub fn balance(ctx: Context) -> u64 {
-    get(ctx.actor())
+    get_balance(ctx.actor())
 }
 
 #[public]

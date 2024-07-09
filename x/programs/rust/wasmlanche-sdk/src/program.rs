@@ -9,28 +9,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap, io::Read};
 use thiserror::Error;
 
-/// Defer deserialization from bytes
-/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
-#[cfg_attr(feature = "debug", derive(Debug))]
-pub struct DeferDeserialize(Vec<u8>);
-
-impl DeferDeserialize {
-    /// # Errors
-    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
-    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
-        let Self(bytes) = self;
-        borsh::from_slice(&bytes)
-    }
-}
-
-impl BorshDeserialize for DeferDeserialize {
-    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut inner = Vec::new();
-        reader.read_to_end(&mut inner)?;
-        Ok(Self(inner))
-    }
-}
-
 /// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
@@ -45,6 +23,24 @@ pub enum ExternalCallError {
     OutOfFuel = 2,
     #[error("insufficient funds")]
     InsufficientFunds = 3,
+}
+
+/// Transfer currency from the calling program to the passed address
+/// # Panics
+/// Panics if there was an issue deserializing the result
+/// # Errors
+/// Errors if there are insufficient funds
+pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
+    #[link(wasm_import_module = "balance")]
+    extern "C" {
+        #[link_name = "send"]
+        fn send_value(ptr: *const u8, len: usize) -> HostPtr;
+    }
+    let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
+
+    let bytes = unsafe { send_value(ptr.as_ptr(), ptr.len()) };
+
+    borsh::from_slice(&bytes).expect("failed to deserialize the result")
 }
 
 /// Represents the current Program in the context of the caller, or an external
@@ -189,6 +185,28 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
         max_units.serialize(writer)?;
         max_value.serialize(writer)?;
         Ok(())
+    }
+}
+
+/// Defer deserialization from bytes
+/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
+#[cfg_attr(feature = "debug", derive(Debug))]
+pub struct DeferDeserialize(Vec<u8>);
+
+impl DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
+    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+        let Self(bytes) = self;
+        borsh::from_slice(&bytes)
+    }
+}
+
+impl BorshDeserialize for DeferDeserialize {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut inner = Vec::new();
+        reader.read_to_end(&mut inner)?;
+        Ok(Self(inner))
     }
 }
 
