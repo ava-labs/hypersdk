@@ -1,10 +1,6 @@
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{
-    public, state_keys,
-    types::{Address, Gas},
-    Program,
-};
+use wasmlanche_sdk::{public, state_keys, types::Address};
 
 #[state_keys]
 pub enum StateKeys {
@@ -117,5 +113,4 @@ mod tests {
             .unwrap();
         assert_eq!(value, 10);
     }
-
 }
