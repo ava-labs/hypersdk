@@ -6,6 +6,7 @@ pub mod state;
 /// Program types.
 pub mod types;
 
+pub mod balance;
 mod logging;
 mod memory;
 mod program;
@@ -95,11 +96,16 @@ impl<K> BorshDeserialize for Context<K> {
 pub struct ExternalCallContext {
     program: Program,
     max_units: Gas,
+    value: u64,
 }
 
 impl ExternalCallContext {
-    pub fn new(program: Program, max_units: Gas) -> Self {
-        Self { program, max_units }
+    pub fn new(program: Program, max_units: Gas, value: u64) -> Self {
+        Self {
+            program,
+            max_units,
+            value,
+        }
     }
 
     pub fn program(&self) -> &Program {
@@ -108,5 +114,9 @@ impl ExternalCallContext {
 
     pub fn max_units(&self) -> Gas {
         self.max_units
+    }
+
+    pub fn value(&self) -> u64 {
+        self.value
     }
 }
