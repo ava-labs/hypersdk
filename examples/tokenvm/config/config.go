@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 	"github.com/ava-labs/hypersdk/gossiper"
@@ -104,7 +103,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 }
 
 func (c *Config) setDefault() {
-	defaultConfig := config.NewConfig()
+	defaultConfig := vm.NewConfig()
 	c.LogLevel = logging.Info
 	gcfg := gossiper.DefaultProposerConfig()
 	c.GossipMaxSize = gcfg.GossipMaxSize

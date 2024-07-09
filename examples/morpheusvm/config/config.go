@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 	"github.com/ava-labs/hypersdk/trace"
@@ -89,7 +88,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 }
 
 func (c *Config) setDefault() {
-	defaultConfig := config.NewConfig()
+	defaultConfig := vm.NewConfig()
 	c.LogLevel = logging.Info
 	c.AuthVerificationCores = defaultConfig.AuthVerificationCores
 	c.RootGenerationCores = defaultConfig.RootGenerationCores
