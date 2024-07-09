@@ -22,8 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 )
 
-var _ vm.Config = (*Config)(nil)
-
 const (
 	defaultContinuousProfilerFrequency = 1 * time.Minute
 	defaultContinuousProfilerMaxFiles  = 10
@@ -32,7 +30,7 @@ const (
 )
 
 type Config struct {
-	*config.Config
+	vm.Config
 
 	// Concurrency
 	AuthVerificationCores     int `json:"authVerificationCores"`
@@ -106,22 +104,23 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 }
 
 func (c *Config) setDefault() {
-	c.LogLevel = c.Config.GetLogLevel()
+	defaultConfig := config.NewConfig()
+	c.LogLevel = logging.Info
 	gcfg := gossiper.DefaultProposerConfig()
 	c.GossipMaxSize = gcfg.GossipMaxSize
 	c.GossipProposerDiff = gcfg.GossipProposerDiff
 	c.GossipProposerDepth = gcfg.GossipProposerDepth
 	c.NoGossipBuilderDiff = gcfg.NoGossipBuilderDiff
 	c.VerifyTimeout = gcfg.VerifyTimeout
-	c.AuthVerificationCores = c.Config.GetAuthVerificationCores()
-	c.RootGenerationCores = c.Config.GetRootGenerationCores()
-	c.TransactionExecutionCores = c.Config.GetTransactionExecutionCores()
-	c.StateFetchConcurrency = c.Config.GetStateFetchConcurrency()
-	c.MempoolSize = c.Config.GetMempoolSize()
-	c.MempoolSponsorSize = c.Config.GetMempoolSponsorSize()
-	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
-	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
-	c.VerifyAuth = c.Config.GetVerifyAuth()
+	c.AuthVerificationCores = defaultConfig.AuthVerificationCores
+	c.RootGenerationCores = defaultConfig.RootGenerationCores
+	c.TransactionExecutionCores = defaultConfig.TransactionExecutionCores
+	c.StateFetchConcurrency = defaultConfig.StateFetchConcurrency
+	c.MempoolSize = defaultConfig.MempoolSize
+	c.MempoolSponsorSize = defaultConfig.MempoolSponsorSize
+	c.StateSyncServerDelay = defaultConfig.StateSyncServerDelay
+	c.StreamingBacklogSize = defaultConfig.StreamingBacklogSize
+	c.VerifyAuth = defaultConfig.VerifyAuth
 	c.StoreTransactions = defaultStoreTransactions
 	c.MaxOrdersPerPair = defaultMaxOrdersPerPair
 }
