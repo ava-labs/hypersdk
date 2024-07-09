@@ -12,7 +12,7 @@ use thiserror::Error;
 /// Defer deserialization from bytes
 /// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(BorshSerialize, PartialEq)]
+#[derive(BorshSerialize)]
 pub struct DeferDeserialize(Vec<u8>);
 
 impl DeferDeserialize {

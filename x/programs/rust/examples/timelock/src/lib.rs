@@ -308,6 +308,6 @@ mod tests {
             .response::<Result<DeferDeserialize, Error>>()
             .unwrap();
 
-        assert_eq!(res, Err(Error::AlreadyExecuted));
+        assert!(matches!(res, Err(Error::AlreadyExecuted)));
     }
 }
