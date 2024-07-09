@@ -18,7 +18,7 @@ pub struct Proposal {
     voters: HashSet<Address>,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub enum ProposalError {
     AlreadyExecuted,
     AlreadyVoted,
@@ -272,7 +272,7 @@ mod tests {
             .response::<Result<(), ProposalError>>()
             .unwrap();
 
-        assert_eq!(res, Err(ProposalError::AlreadyVoted));
+        assert!(matches!(res, Err(ProposalError::AlreadyVoted)));
     }
 
     #[test]
@@ -315,7 +315,7 @@ mod tests {
             .response::<Result<(), ProposalError>>()
             .unwrap();
 
-        assert_eq!(res, Err(ProposalError::QuorumNotReached));
+        assert!(matches!(res, Err(ProposalError::QuorumNotReached)));
 
         let voter = "voter";
         let voter_key = Key::Ed25519(voter.to_string());
