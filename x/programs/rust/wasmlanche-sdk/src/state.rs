@@ -145,9 +145,9 @@ impl<'a, K: Key> State<'a, K> {
             }
             Some(None) => return Ok(None),
             None => {
-                &if let Some(val) = Self::get_host(key)? {
-                    cache.entry(key).or_insert(Some(Vec::new()));
-                    val
+                // if no value in cache, fetch from host
+               if let Some(val) = Self::get_host(key)? {
+                    cache.entry(key).or_insert(Some(val)).as_ref().unwrap()
                 } else {
                     return Ok(None);
                 }
