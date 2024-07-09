@@ -42,9 +42,7 @@ func TestBlockCache(t *testing.T) {
 	controller := NewMockController(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
-		config:  &config.Config{},
-
-		vmDB: memdb.New(),
+		vmDB:    memdb.New(),
 
 		tracer:                 tracer,
 		acceptedBlocksByID:     bByID,
