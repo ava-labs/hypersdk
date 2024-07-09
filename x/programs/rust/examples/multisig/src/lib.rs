@@ -12,6 +12,7 @@ pub struct Proposal {
     to: Program,
     method: String,
     data: Vec<u8>,
+    value: u64,
     yea: u32,
     nay: u32,
     executed: bool,
@@ -34,7 +35,13 @@ pub enum StateKeys {
 }
 
 #[public]
-pub fn propose(context: Context<StateKeys>, to: Program, method: String, data: Vec<u8>) -> u32 {
+pub fn propose(
+    context: Context<StateKeys>,
+    to: Program,
+    method: String,
+    data: Vec<u8>,
+    value: u64,
+) -> u32 {
     let program = context.program();
     let last_id = proposal_id(program);
 
@@ -46,6 +53,7 @@ pub fn propose(context: Context<StateKeys>, to: Program, method: String, data: V
                 to,
                 method,
                 data,
+                value,
                 yea: 1,
                 nay: 0,
                 executed: false,
@@ -111,7 +119,12 @@ pub fn execute(
 
     proposal
         .to
-        .call_function::<DeferDeserialize>(&proposal.method, &proposal.data, max_units)
+        .call_function::<DeferDeserialize>(
+            &proposal.method,
+            &proposal.data,
+            max_units,
+            proposal.value,
+        )
         .map_err(ProposalError::ExecutionFailed)
 }
 
@@ -183,6 +196,7 @@ mod tests {
                     program_id.into(),
                     String::new().into(),
                     Vec::new().into(),
+                    0u64.into(),
                 ],
             })
             .unwrap()
@@ -228,6 +242,7 @@ mod tests {
                     program_id.into(),
                     String::new().into(),
                     Vec::new().into(),
+                    0u64.into(),
                 ],
             })
             .unwrap()
@@ -296,6 +311,7 @@ mod tests {
                     program_id.into(),
                     String::from("pub_proposal_id").into(),
                     Vec::new().into(),
+                    0u64.into(),
                 ],
             })
             .unwrap()
