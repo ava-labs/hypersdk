@@ -47,17 +47,6 @@ pub struct Step {
 }
 
 impl Step {
-    /// Create a [`Step`] that creates a key.
-    #[must_use]
-    pub fn create_key(key: Key) -> Self {
-        Self {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            max_units: 0,
-            params: vec![Param::Key(key)],
-        }
-    }
-
     /// Create a [`Step`] that creates a program.
     #[must_use]
     pub fn create_program<P: AsRef<Path>>(path: P) -> Self {

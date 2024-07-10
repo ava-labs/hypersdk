@@ -10,7 +10,6 @@ import (
 
 const (
 	ProgramCreate  = "program_create"
-	KeyCreate      = "key_create"
 	ProgramExecute = "execute"
 )
 
@@ -28,8 +27,6 @@ type Step struct {
 type Endpoint string
 
 const (
-	/// Perform an operation against the key api.
-	EndpointKey Endpoint = "key"
 	/// Make a read-only call to a program function and return the result.
 	EndpointReadOnly Endpoint = "readonly"
 	/// Create a transaction on-chain from a possible state changing program
@@ -113,8 +110,6 @@ const (
 	Path         Type = "path"
 	Address      Type = "address"
 	ID           Type = "id"
-	KeyEd25519   Type = "ed25519"
-	KeySecp256k1 Type = "secp256k1"
 	TestContext  Type = "testContext"
 )
 

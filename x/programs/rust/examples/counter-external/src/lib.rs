@@ -14,7 +14,8 @@ pub fn get_value(_: Context, external: Program, address: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{ClientBuilder, Endpoint, Key, Param, Step, TestContext};
+    use simulator::{ClientBuilder, Endpoint, Param, Step, TestContext};
+    use wasmlanche_sdk::types::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -26,13 +27,7 @@ mod tests {
             .replace("counter-external", "counter")
             .replace("counter_external", "counter");
 
-        let owner = String::from("owner");
-        let owner_key = Key::Ed25519(owner.clone());
-
-        simulator
-            .run_step(&Step::create_key(owner_key.clone()))
-            .unwrap();
-        let owner_key = Param::Key(owner_key);
+        let owner = Address::from_str("owner");
 
         let counter_external = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
@@ -48,7 +43,7 @@ mod tests {
         let params = vec![
             TestContext::from(counter_external).into(),
             counter.clone(),
-            owner_key.clone(),
+            owner.into(),
         ];
 
         simulator

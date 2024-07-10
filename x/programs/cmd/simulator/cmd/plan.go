@@ -122,15 +122,6 @@ func verifyEndpoint(i int, step *Step) error {
 	firstParamType := step.Params[0].Type
 
 	switch step.Endpoint {
-	case EndpointKey:
-		if step.Method == KeyCreate {
-			// verify the first param is a string for key name
-			if firstParamType != KeyEd25519 && firstParamType != KeySecp256k1 {
-				return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
-			}
-		} else {
-			return fmt.Errorf("%w: %s", ErrInvalidMethod, step.Method)
-		}
 	case EndpointReadOnly:
 		// verify the first param is a test context
 		if firstParamType != TestContext {
@@ -194,17 +185,6 @@ func (c *runCmd) runStepFunc(
 ) error {
 	defer resp.setTimestamp(time.Now().Unix())
 	switch endpoint {
-	case EndpointKey:
-		keyName := string(params[0].Value)
-		key, err := keyCreateFunc(ctx, db, keyName)
-		if errors.Is(err, ErrDuplicateKeyName) {
-			c.log.Debug("key already exists")
-		} else if err != nil {
-			return err
-		}
-		resp.setMsg("created named key with address " + AddressToString(key))
-
-		return nil
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
 		if method == ProgramCreate {
 			// get program path from params
@@ -344,26 +324,6 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				return nil, errors.New("invalid address")
 			}
 			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-		case KeyEd25519: // TODO: support secp256k1
-			key := param.Value
-			// get named public key from db
-			pk, ok, err := GetPublicKey(ctx, db, string(param.Value))
-			if err != nil {
-				return nil, err
-			}
-			if !ok && endpoint != EndpointKey {
-				// using not stored named public key in other context than key creation
-				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, string(param.Value))
-			}
-			if ok {
-				id, err := ids.ToID(pk[:])
-				if err != nil {
-					return nil, err
-				}
-				address := codec.CreateAddress(0, id)
-				key = address[:]
-			}
-			cp = append(cp, Parameter{Value: key, Type: param.Type})
 		default:
 			cp = append(cp, param)
 		}
