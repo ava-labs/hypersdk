@@ -64,6 +64,11 @@ func (t *testRuntime) WithTimestamp(ts uint64) *testRuntime {
 	return t
 }
 
+func (t *testRuntime) WithValue(value uint64) *testRuntime {
+	t.callContext = t.callContext.WithValue(value)
+	return t
+}
+
 func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
 	t.StateManager.(test.StateManager).ProgramsMap[programID] = programName
 }
@@ -87,8 +92,13 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 			Context: ctx,
 			callContext: NewRuntime(
 				NewConfig(),
-				logging.NoLog{}).WithDefaults(&CallInfo{Fuel: 10000000}),
-			StateManager: test.StateManager{ProgramsMap: map[ids.ID]string{id: program}, AccountMap: map[codec.Address]ids.ID{account: id}, Mu: test.NewTestDB()},
+				logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
+			StateManager: test.StateManager{
+				ProgramsMap: map[ids.ID]string{id: program},
+				AccountMap:  map[codec.Address]ids.ID{account: id},
+				Balances:    map[codec.Address]uint64{},
+				Mu:          test.NewTestDB(),
+			},
 		},
 		Address: account,
 	}
@@ -148,6 +158,11 @@ func (t *testProgram) WithActionID(actionID ids.ID) *testProgram {
 
 func (t *testProgram) WithTimestamp(ts uint64) *testProgram {
 	t.Runtime = t.Runtime.WithTimestamp(ts)
+	return t
+}
+
+func (t *testProgram) WithValue(value uint64) *testProgram {
+	t.Runtime = t.Runtime.WithValue(value)
 	return t
 }
 
