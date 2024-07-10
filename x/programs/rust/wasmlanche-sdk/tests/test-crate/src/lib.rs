@@ -6,12 +6,12 @@ use wasmlanche_sdk::{public, state_keys, Context};
 pub enum StateKeys {}
 
 #[public]
-pub fn always_true(_: Context<StateKeys>) -> bool {
+pub fn always_true(_: Context) -> bool {
     true
 }
 
 #[public]
-pub fn combine_last_bit_of_each_id_byte(context: Context<StateKeys>) -> u32 {
+pub fn combine_last_bit_of_each_id_byte(context: Context) -> u32 {
     context
         .program()
         .account()

@@ -1,5 +1,6 @@
 use crate::{memory::HostPtr, types::Address};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
+use bytemuck::{NoUninit, Pod};
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -34,8 +35,8 @@ pub fn get_balance(account: Address) -> u64 {
     borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
-pub struct State<'a, K: Key> {
-    cache: &'a RefCell<HashMap<K, Option<Vec<u8>>>>,
+pub struct State<'a> {
+    cache: &'a RefCell<HashMap<Vec<u8>, Option<Vec<u8>>>>,
 }
 
 /// Key trait for program state keys
@@ -43,7 +44,14 @@ pub struct State<'a, K: Key> {
 /// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
 pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
-impl<'a, K: Key> Drop for State<'a, K> {
+pub unsafe trait Schema {
+    type Key: Pod;
+    type Value: BorshSerialize + BorshDeserialize;
+
+    fn get() -> Self::Value;
+}
+
+impl<'a> Drop for State<'a> {
     fn drop(&mut self) {
         if !self.cache.borrow().is_empty() {
             // force flush
@@ -52,9 +60,9 @@ impl<'a, K: Key> Drop for State<'a, K> {
     }
 }
 
-impl<'a, K: Key> State<'a, K> {
+impl<'a> State<'a> {
     #[must_use]
-    pub fn new(cache: &'a RefCell<HashMap<K, Option<Vec<u8>>>>) -> Self {
+    pub fn new(cache: &'a RefCell<HashMap<Vec<u8>, Option<Vec<u8>>>>) -> Self {
         Self { cache }
     }
 
@@ -62,7 +70,7 @@ impl<'a, K: Key> State<'a, K> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (K, &'b V)>>(
+    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (Vec<u8>, &'b V)>>(
         self,
         pairs: Pairs,
     ) -> Result<(), Error> {
@@ -86,7 +94,12 @@ impl<'a, K: Key> State<'a, K> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store_by_key<V: BorshSerialize>(self, key: K, value: &V) -> Result<(), Error> {
+    pub fn store_by_key<K: NoUninit, V: BorshSerialize>(
+        self,
+        key: &K,
+        value: &V,
+    ) -> Result<(), Error> {
+        let key = bytemuck::bytes_of(key).to_vec();
         self.store([(key, value)])
     }
 
@@ -100,7 +113,7 @@ impl<'a, K: Key> State<'a, K> {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<V>(self, key: K) -> Result<Option<V>, Error>
+    pub fn get<K: NoUninit, V>(self, key: &K) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
@@ -112,25 +125,30 @@ impl<'a, K: Key> State<'a, K> {
     /// Returns an [Error] if the value is inexistent
     /// or if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete<V: BorshDeserialize>(self, key: K) -> Result<Option<V>, Error> {
+    pub fn delete<K: NoUninit, V: BorshDeserialize>(self, key: &K) -> Result<Option<V>, Error> {
         self.get_mut_with(key, |val| from_slice(&std::mem::take(val)))
     }
 
     /// Only used internally
     /// The closure is only called if the key already exists in the cache
     /// The closure may mutate the value and return anything it likes for deserializaiton
-    fn get_mut_with<V, F>(self, key: K, f: F) -> Result<Option<V>, Error>
+    fn get_mut_with<K: NoUninit, V, F>(self, key: &K, f: F) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
         F: FnOnce(&mut Vec<u8>) -> borsh::io::Result<V>,
     {
         let mut cache = self.cache.borrow_mut();
+        // TODO: should only need to allocate on cache-miss
+        let key = bytemuck::bytes_of(key).to_vec();
 
         let cache_entry = match cache.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
-                let key = borsh::to_vec(&key).map_err(|_| Error::Serialization)?;
-                entry.insert(get_bytes(&key))
+                let bytes = {
+                    let key = entry.key();
+                    get_bytes(&key)
+                };
+                entry.insert(bytes)
             }
         };
 

@@ -1,23 +1,24 @@
 use crate::{
-    state::{Error, Key, State},
+    state::{Error, State},
     types::Address,
     Gas, Id, Program,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
+use bytemuck::NoUninit;
 use std::{cell::RefCell, collections::HashMap};
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
-pub struct Context<K = ()> {
+pub struct Context {
     program: Program,
     actor: Address,
     height: u64,
     timestamp: u64,
     action_id: Id,
-    state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
+    state_cache: RefCell<HashMap<Vec<u8>, Option<Vec<u8>>>>,
 }
 
-impl<K> BorshDeserialize for Context<K> {
+impl BorshDeserialize for Context {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let program = Program::deserialize_reader(reader)?;
         let actor = Address::deserialize_reader(reader)?;
@@ -36,7 +37,7 @@ impl<K> BorshDeserialize for Context<K> {
     }
 }
 
-impl<K> Context<K> {
+impl Context {
     pub fn program(&self) -> &Program {
         &self.program
     }
@@ -58,19 +59,24 @@ impl<K> Context<K> {
     }
 }
 
-impl<K: Key> Context<K> {
+impl Context {
     /// See [`State::get`].
     /// # Errors
     /// See [`State::get`].
-    pub fn get<V: BorshDeserialize>(&self, key: K) -> Result<Option<V>, crate::state::Error> {
+    pub fn get<K, V>(&self, key: &K) -> Result<Option<V>, crate::state::Error>
+    where
+        K: NoUninit,
+        V: BorshDeserialize,
+    {
         State::new(&self.state_cache).get(key)
     }
 
     /// See [`State::store_by_key`].
     /// # Errors
     /// See [`State::store_by_key`].
-    pub fn store_by_key<V>(&self, key: K, value: &V) -> Result<(), crate::state::Error>
+    pub fn store_by_key<K, V>(&self, key: &K, value: &V) -> Result<(), crate::state::Error>
     where
+        K: NoUninit,
         V: BorshSerialize,
     {
         State::new(&self.state_cache).store_by_key(key, value)
@@ -79,7 +85,7 @@ impl<K: Key> Context<K> {
     /// See [`State::store`].
     /// # Errors
     /// See [`State::store`].    
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (K, &'b V)>>(
+    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (Vec<u8>, &'b V)>>(
         &self,
         pairs: Pairs,
     ) -> Result<(), Error> {
@@ -89,7 +95,7 @@ impl<K: Key> Context<K> {
     /// See [`State::delete`].
     /// # Errors
     /// See [`State::delete`].
-    pub fn delete<V: BorshDeserialize>(&self, key: K) -> Result<Option<V>, Error> {
+    pub fn delete<K: NoUninit, V: BorshDeserialize>(&self, key: &K) -> Result<Option<V>, Error> {
         State::new(&self.state_cache).delete(key)
     }
 }
