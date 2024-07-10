@@ -7,6 +7,7 @@ edition = "2021"
 borsh = { workspace = true }
 sdk-macros = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 wasmtime = "14"

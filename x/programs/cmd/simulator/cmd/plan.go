@@ -228,7 +228,7 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor(ctx, db)
+		actor, err := simulatorTestContext.Actor()
 		if err != nil {
 			return err
 		}
@@ -263,7 +263,7 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor(ctx, db)
+		actor, err := simulatorTestContext.Actor()
 		if err != nil {
 			return err
 		}
@@ -305,10 +305,10 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 }
 
 type SimulatorTestContext struct {
-	ProgramID uint64     `json:"programId"`
-	ActorKey  *Parameter `json:"actorKey"`
-	Height    uint64     `json:"height"`
-	Timestamp uint64     `json:"timestamp"`
+	ProgramID uint64 `json:"programId"`
+	ActorAddr []byte `json:"actor"`
+	Height    uint64 `json:"height"`
+	Timestamp uint64 `json:"timestamp"`
 }
 
 func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
@@ -320,22 +320,10 @@ func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (c
 	return programAddress, nil
 }
 
-func (s *SimulatorTestContext) Actor(ctx context.Context, db *state.SimpleMutable) (codec.Address, error) {
-	actor := codec.EmptyAddress
-	if s.ActorKey != nil {
-		key := string(s.ActorKey.Value)
-		pk, ok, err := GetPublicKey(ctx, db, key)
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		if !ok {
-			return codec.EmptyAddress, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
-		}
-		id, err := ids.ToID(pk[:])
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		actor = codec.CreateAddress(0, id)
+func (s *SimulatorTestContext) Actor() (codec.Address, error) {
+	actor, err := codec.ToAddress(s.ActorAddr)
+	if err != nil {
+		return codec.EmptyAddress, err
 	}
 	return actor, nil
 }
