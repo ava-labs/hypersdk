@@ -88,11 +88,11 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 }
 
 func (c *Config) setDefault() {
-	defaultConfig := vm.NewConfig()
+	c.Config = vm.NewConfig()
 	c.LogLevel = logging.Info
-	c.AuthVerificationCores = defaultConfig.AuthVerificationCores
-	c.RootGenerationCores = defaultConfig.RootGenerationCores
-	c.TransactionExecutionCores = defaultConfig.TransactionExecutionCores
+	c.AuthVerificationCores = c.Config.AuthVerificationCores
+	c.RootGenerationCores = c.Config.RootGenerationCores
+	c.TransactionExecutionCores = c.Config.TransactionExecutionCores
 	c.StateFetchConcurrency = c.Config.StateFetchConcurrency
 	c.MempoolSize = c.Config.MempoolSize
 	c.MempoolSponsorSize = c.Config.MempoolSponsorSize

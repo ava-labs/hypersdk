@@ -103,7 +103,7 @@ func New(nodeID ids.NodeID, b []byte) (*Config, error) {
 }
 
 func (c *Config) setDefault() {
-	defaultConfig := vm.NewConfig()
+	c.Config = vm.NewConfig()
 	c.LogLevel = logging.Info
 	gcfg := gossiper.DefaultProposerConfig()
 	c.GossipMaxSize = gcfg.GossipMaxSize
@@ -111,15 +111,15 @@ func (c *Config) setDefault() {
 	c.GossipProposerDepth = gcfg.GossipProposerDepth
 	c.NoGossipBuilderDiff = gcfg.NoGossipBuilderDiff
 	c.VerifyTimeout = gcfg.VerifyTimeout
-	c.AuthVerificationCores = defaultConfig.AuthVerificationCores
-	c.RootGenerationCores = defaultConfig.RootGenerationCores
-	c.TransactionExecutionCores = defaultConfig.TransactionExecutionCores
-	c.StateFetchConcurrency = defaultConfig.StateFetchConcurrency
-	c.MempoolSize = defaultConfig.MempoolSize
-	c.MempoolSponsorSize = defaultConfig.MempoolSponsorSize
-	c.StateSyncServerDelay = defaultConfig.StateSyncServerDelay
-	c.StreamingBacklogSize = defaultConfig.StreamingBacklogSize
-	c.VerifyAuth = defaultConfig.VerifyAuth
+	c.AuthVerificationCores = c.Config.AuthVerificationCores
+	c.RootGenerationCores = c.Config.RootGenerationCores
+	c.TransactionExecutionCores = c.Config.TransactionExecutionCores
+	c.StateFetchConcurrency = c.Config.StateFetchConcurrency
+	c.MempoolSize = c.Config.MempoolSize
+	c.MempoolSponsorSize = c.Config.MempoolSponsorSize
+	c.StateSyncServerDelay = c.Config.StateSyncServerDelay
+	c.StreamingBacklogSize = c.Config.StreamingBacklogSize
+	c.VerifyAuth = c.Config.VerifyAuth
 	c.StoreTransactions = defaultStoreTransactions
 	c.MaxOrdersPerPair = defaultMaxOrdersPerPair
 }
