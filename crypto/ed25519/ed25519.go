@@ -5,6 +5,7 @@ package ed25519
 
 import (
 	"crypto/ed25519"
+	"errors"
 
 	"github.com/hdevalence/ed25519consensus"
 
@@ -54,6 +55,15 @@ func GeneratePrivateKey() (PrivateKey, error) {
 	if err != nil {
 		return EmptyPrivateKey, err
 	}
+	return PrivateKey(k), nil
+}
+
+// GeneratePrivateKeyFromSeed returns a Ed25519 PrivateKey from a 32 bytes seed.
+func GeneratePrivateKeyFromSeed(seed []byte) (PrivateKey, error) {
+	if len(seed) != ed25519.SeedSize {
+		return EmptyPrivateKey, errors.New("wrong seed size")
+	}
+	k := ed25519.NewKeyFromSeed(seed)
 	return PrivateKey(k), nil
 }
 

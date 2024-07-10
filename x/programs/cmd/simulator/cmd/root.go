@@ -65,9 +65,9 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 
 	// if it's our first time parsing args, there is the possibility to enter in interpreter mode
 	if !interpreterMode {
-		stdinCmd := InterpreterCmd{}
-		stdinCmd.New(parser)
-		subcommands = append(subcommands, &stdinCmd)
+		interpreterCmd := InterpreterCmd{}
+		interpreterCmd.New(parser)
+		subcommands = append(subcommands, &interpreterCmd)
 	}
 
 	err := parser.Parse(args)
@@ -166,8 +166,10 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	programCmd.New(parser)
 	keyCmd := keyCreateCmd{}
 	keyCmd.New(parser)
+	keypairCmd := keypairCreateCmd{}
+	keypairCmd.New(parser)
 
-	return parser, []Cmd{&runCmd, &programCmd, &keyCmd}
+	return parser, []Cmd{&runCmd, &programCmd, &keyCmd, &keypairCmd}
 }
 
 func (s *Simulator) Init() error {
