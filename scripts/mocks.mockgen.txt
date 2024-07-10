@@ -5,4 +5,3 @@ github.com/ava-labs/hypersdk/chain=Rules=chain/mock_rules.go
 github.com/ava-labs/hypersdk/state=Mutable=state/mock_mutable.go
 github.com/ava-labs/hypersdk/state=Immutable=state/mock_immutable.go
 github.com/ava-labs/hypersdk/state=View=state/mock_view.go
-github.com/ava-labs/hypersdk/vm=Controller=vm/mock_controller.go
