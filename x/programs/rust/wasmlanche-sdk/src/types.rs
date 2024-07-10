@@ -1,4 +1,5 @@
 use borsh::BorshDeserialize;
+#[cfg(feature = "test-utils")]
 use serde::Serialize;
 
 /// Byte length of an action ID.
@@ -10,8 +11,11 @@ pub type Gas = u64;
 
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Eq, borsh::BorshSerialize, BorshDeserialize, Serialize, Hash)]
-pub struct Address(#[serde(serialize_with = "<[_]>::serialize")] [u8; Self::LEN]);
+#[cfg_attr(feature = "test-utils", derive(Serialize))]
+#[derive(Clone, Copy, PartialEq, Eq, borsh::BorshSerialize, BorshDeserialize, Hash)]
+pub struct Address(
+    #[cfg_attr(feature = "test-utils", serde(serialize_with = "<[_]>::serialize"))] [u8; Self::LEN],
+);
 
 impl Address {
     // TODO: move to HyperSDK.Address which will be 33 bytes
