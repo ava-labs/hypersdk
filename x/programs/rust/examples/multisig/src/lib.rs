@@ -155,7 +155,7 @@ pub fn proposal_at(program: &Program<StateKeys>, proposal_id: u32) -> Option<Pro
         .expect("state corrupt")
 }
 
-pub fn proposal_id(program: &Program<StateKeys>) -> u32 {
+pub fn last_proposal_id(program: &Program<StateKeys>) -> u32 {
     program
         .state()
         .get(StateKeys::LastProposalId)
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn cast_votes() {
+    fn cannot_double_vote() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let program_id = simulator
@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn vote_execution() {
+    fn execute() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let program_id = simulator
