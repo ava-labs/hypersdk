@@ -12,6 +12,7 @@ borsh = { workspace = true }
 counter = { path = "../counter", features = ["bindings"] }
 
 [dev-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["debug", "test-utils"] }
 simulator = { workspace = true }
 
 [build-dependencies]

@@ -121,7 +121,7 @@ fn reserves(program: &Program<StateKeys>) -> (u64, u64) {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Step, StepResponseError, TestContext};
+    use simulator::{Endpoint, Step, StepResponseError, TestContext};
     use wasmlanche_sdk::ExternalCallError;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -130,16 +130,10 @@ mod tests {
     fn init_state() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner = String::from("owner");
-
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner)))
-            .unwrap();
 
         let test_context = TestContext::from(program_id);
 
@@ -184,16 +178,10 @@ mod tests {
     fn add_liquidity_same_ratio() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner = String::from("owner");
-
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner)))
-            .unwrap();
 
         let test_context = TestContext::from(program_id);
 
@@ -234,16 +222,10 @@ mod tests {
     fn swap_changes_ratio() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner = String::from("owner");
-
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner)))
-            .unwrap();
 
         let test_context = TestContext::from(program_id);
 
