@@ -23,8 +23,8 @@ import (
 )
 
 type (
-	ActionRegistry *codec.TypeParser[Action, bool]
-	AuthRegistry   *codec.TypeParser[Auth, bool]
+	ActionRegistry *codec.TypeParser[Action]
+	AuthRegistry   *codec.TypeParser[Auth]
 )
 
 type Parser interface {
