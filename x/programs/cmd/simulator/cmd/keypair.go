@@ -41,6 +41,8 @@ func (c *keypairCreateCmd) Run(_ context.Context, log logging.Logger, _ *state.S
 		return resp, err
 	}
 
+	resp.setResponse(pkey[:])
+
 	c.log.Debug("keypair create successful", zap.String("public key", fmt.Sprintf("%x", pkey)))
 
 	return resp, nil

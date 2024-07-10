@@ -58,6 +58,17 @@ impl Step {
         }
     }
 
+    /// Create a [`Step`] that creates a key.
+    #[must_use]
+    pub fn create_keypair() -> Self {
+        Self {
+            endpoint: Endpoint::Key,
+            method: "keypair_create".into(),
+            max_units: 0,
+            params: vec![],
+        }
+    }
+
     /// Create a [`Step`] that creates a program.
     #[must_use]
     pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
