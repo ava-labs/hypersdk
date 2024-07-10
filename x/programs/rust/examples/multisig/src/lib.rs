@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn cast_votes() {
+    fn cannot_double_vote() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let program_id = simulator
