@@ -52,7 +52,6 @@ pub fn propose(
 ) -> u32 {
     let voters_len = voters.len().try_into().expect("too much voters");
     assert!(voters_len >= MIN_VOTES);
-    wasmlanche_sdk::dbg!("asd");
     assert!(not_duplicate(&voters));
 
     let program = context.program();
@@ -283,7 +282,7 @@ pub fn not_duplicate(voters: &[Address]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::ProposalError;
-    use simulator::{Endpoint, Key, Step, StepError, TestContext};
+    use simulator::{Endpoint, Key, Param, Step, StepResponseError, TestContext};
     use wasmlanche_sdk::types::Address;
     use wasmlanche_sdk::DeferDeserialize;
 
@@ -301,22 +300,25 @@ mod tests {
         let test_context = TestContext::from(program_id);
 
         assert!(matches!(
-            dbg!(simulator.run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "propose".to_string(),
-                max_units: u64::MAX,
-                params: vec![
-                    test_context.clone().into(),
-                    Vec::new().into(),
-                    program_id.into(),
-                    String::new().into(),
-                    Vec::new().into(),
-                    0u64.into(),
-                ],
-            })),
-            Err(StepError::Program(_))
+            simulator
+                .run_step(&Step {
+                    endpoint: Endpoint::Execute,
+                    method: "propose".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![
+                        test_context.clone().into(),
+                        Vec::new().into(),
+                        program_id.into(),
+                        String::new().into(),
+                        Vec::new().into(),
+                        0u64.into(),
+                    ],
+                })
+                .unwrap()
+                .result
+                .response::<()>(),
+            Err(StepResponseError::ExternalCall(_))
         ));
-        return;
 
         let voters = vec![
             Address::new([1; Address::LEN]),
@@ -324,20 +326,24 @@ mod tests {
         ];
 
         assert!(matches!(
-            simulator.run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "propose".to_string(),
-                max_units: u64::MAX,
-                params: vec![
-                    test_context.clone().into(),
-                    borsh::to_vec(&voters).unwrap().into(),
-                    program_id.into(),
-                    String::new().into(),
-                    Vec::new().into(),
-                    0u64.into(),
-                ],
-            }),
-            Err(StepError::Program(_))
+            simulator
+                .run_step(&Step {
+                    endpoint: Endpoint::Execute,
+                    method: "propose".to_string(),
+                    max_units: u64::MAX,
+                    params: vec![
+                        test_context.clone().into(),
+                        Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
+                        program_id.into(),
+                        String::new().into(),
+                        Vec::new().into(),
+                        0u64.into(),
+                    ],
+                })
+                .unwrap()
+                .result
+                .response::<()>(),
+            Err(StepResponseError::ExternalCall(_))
         ));
     }
 
@@ -352,6 +358,11 @@ mod tests {
 
         let test_context = TestContext::from(program_id);
 
+        let voters = vec![
+            Address::new([1; Address::LEN]),
+            Address::new([2; Address::LEN]),
+        ];
+
         let pid: u32 = simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
@@ -359,6 +370,7 @@ mod tests {
                 max_units: u64::MAX,
                 params: vec![
                     test_context.clone().into(),
+                    Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
                     program_id.into(),
                     String::new().into(),
                     Vec::new().into(),
@@ -428,6 +440,7 @@ mod tests {
                 max_units: u64::MAX,
                 params: vec![
                     test_context.clone().into(),
+                    // voters,
                     program_id.into(),
                     String::from("pub_last_proposal_id").into(),
                     Vec::new().into(),
