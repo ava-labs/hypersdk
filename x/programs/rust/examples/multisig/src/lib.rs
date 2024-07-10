@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn vote_execution() {
+    fn execute() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let program_id = simulator
