@@ -419,7 +419,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	}
 
 	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
+	results, ts, err := b.Execute(ctx, b.vm.ChainID(), b.vm.Tracer(), parentView, feeManager, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err

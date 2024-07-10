@@ -215,7 +215,7 @@ type Parser struct {
 }
 
 func (p *Parser) Rules(t int64) chain.Rules {
-	return p.genesis.Rules(t, p.networkID, p.chainID)
+	return p.genesis.Rules(t)
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {

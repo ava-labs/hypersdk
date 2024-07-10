@@ -245,13 +245,14 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 
 func (t *Transaction) PreExecute(
 	ctx context.Context,
+	chainID ids.ID,
 	feeManager *fees.Manager,
 	s StateManager,
 	r Rules,
 	im state.Immutable,
 	timestamp int64,
 ) error {
-	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
+	if err := t.Base.Execute(chainID, r, timestamp); err != nil {
 		return err
 	}
 	if len(t.Actions) > int(r.GetMaxActionsPerTx()) {

@@ -262,7 +262,7 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+				if err := tx.PreExecute(ctx, b.vm.ChainID(), feeManager, sm, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {

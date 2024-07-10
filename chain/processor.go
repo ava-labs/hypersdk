@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/executor"
@@ -25,6 +26,7 @@ type fetchData struct {
 
 func (b *StatelessBlock) Execute(
 	ctx context.Context,
+	chainID ids.ID,
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
 	feeManager *fees.Manager,
@@ -88,7 +90,7 @@ func (b *StatelessBlock) Execute(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, chainID, feeManager, sm, r, tsv, t); err != nil {
 				return err
 			}
 

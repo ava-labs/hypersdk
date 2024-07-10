@@ -4,8 +4,6 @@
 package genesis
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
@@ -15,22 +13,11 @@ var _ chain.Rules = (*Rules)(nil)
 
 type Rules struct {
 	g *Genesis
-
-	networkID uint32
-	chainID   ids.ID
 }
 
 // TODO: use upgradeBytes
-func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
-	return &Rules{g, networkID, chainID}
-}
-
-func (r *Rules) NetworkID() uint32 {
-	return r.networkID
-}
-
-func (r *Rules) ChainID() ids.ID {
-	return r.chainID
+func (g *Genesis) Rules(_ int64) *Rules {
+	return &Rules{g: g}
 }
 
 func (r *Rules) GetMinBlockGap() int64 {

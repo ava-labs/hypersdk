@@ -843,7 +843,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, vm.ChainID(), nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

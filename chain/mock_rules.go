@@ -15,7 +15,6 @@ package chain
 import (
 	reflect "reflect"
 
-	ids "github.com/ava-labs/avalanchego/ids"
 	fees "github.com/ava-labs/hypersdk/fees"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -41,20 +40,6 @@ func NewMockRules(ctrl *gomock.Controller) *MockRules {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRules) EXPECT() *MockRulesMockRecorder {
 	return m.recorder
-}
-
-// ChainID mocks base method.
-func (m *MockRules) ChainID() ids.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ChainID")
-	ret0, _ := ret[0].(ids.ID)
-	return ret0
-}
-
-// ChainID indicates an expected call of ChainID.
-func (mr *MockRulesMockRecorder) ChainID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRules)(nil).ChainID))
 }
 
 // FetchCustom mocks base method.
@@ -308,18 +293,4 @@ func (m *MockRules) GetWindowTargetUnits() fees.Dimensions {
 func (mr *MockRulesMockRecorder) GetWindowTargetUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWindowTargetUnits", reflect.TypeOf((*MockRules)(nil).GetWindowTargetUnits))
-}
-
-// NetworkID mocks base method.
-func (m *MockRules) NetworkID() uint32 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NetworkID")
-	ret0, _ := ret[0].(uint32)
-	return ret0
-}
-
-// NetworkID indicates an expected call of NetworkID.
-func (mr *MockRulesMockRecorder) NetworkID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkID", reflect.TypeOf((*MockRules)(nil).NetworkID))
 }

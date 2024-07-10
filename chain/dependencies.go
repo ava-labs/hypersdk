@@ -90,6 +90,8 @@ type VM interface {
 	// and false if the sync completed with the previous root.
 	UpdateSyncTarget(*StatelessBlock) (bool, error)
 	StateReady() bool
+
+	ChainID() ids.ID
 }
 
 type VerifyContext interface {
@@ -116,11 +118,6 @@ type Mempool interface {
 
 // TODO: add fixed rules as a subset of this interface
 type Rules interface {
-	// Should almost always be constant (unless there is a fork of
-	// a live network)
-	NetworkID() uint32
-	ChainID() ids.ID
-
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
