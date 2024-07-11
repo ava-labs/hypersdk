@@ -16,7 +16,7 @@ pub struct DeferDeserialize(Vec<u8>);
 
 impl BorshSerialize for DeferDeserialize {
     /// # Errors
-    /// Returns a [`std::io::Error`] if there was an issue serializing the value
+    /// Returns a [`std::io::Error`] if there was an issue writing
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(&self.0)?;
         Ok(())
