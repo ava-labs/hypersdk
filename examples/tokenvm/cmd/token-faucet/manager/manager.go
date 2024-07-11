@@ -129,8 +129,7 @@ func (m *Manager) sendFunds(ctx context.Context, destination codec.Address, amou
 		To:    destination,
 		Asset: ids.Empty,
 		Value: amount,
-	}}, m.factory,
-	)
+	}}, m.factory)
 	if err != nil {
 		return ids.Empty, 0, err
 	}
