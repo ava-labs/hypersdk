@@ -100,11 +100,10 @@ func (c *Controller) Initialize(
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
 	// Create DBs
-	db, err := hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
+	c.db, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	c.db = db
 
 	// Create handlers
 	//
