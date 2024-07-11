@@ -79,7 +79,6 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
-		// TODO: consider splitting out blockDB for use with more experimental
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
