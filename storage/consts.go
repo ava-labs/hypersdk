@@ -4,7 +4,5 @@
 package storage
 
 const (
-	block    = "blockdb"
-	state    = "statedb"
 	metadata = "metadatadb"
 )

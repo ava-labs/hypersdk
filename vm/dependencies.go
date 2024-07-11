@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -81,9 +80,6 @@ type Controller interface {
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
 		// TODO: consider splitting out blockDB for use with more experimental
-		// databases
-		vmDB database.Database,
-		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,

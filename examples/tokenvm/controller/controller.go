@@ -24,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
 	"github.com/ava-labs/hypersdk/gossiper"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
@@ -64,8 +65,6 @@ func (c *Controller) Initialize(
 	vm.Genesis,
 	builder.Builder,
 	gossiper.Gossiper,
-	database.Database,
-	database.Database,
 	vm.Handlers,
 	chain.ActionRegistry,
 	chain.AuthRegistry,
@@ -80,20 +79,20 @@ func (c *Controller) Initialize(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = config.New(c.snowCtx.NodeID, configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	c.snowCtx.Log.SetLevel(c.config.GetLogLevel())
 	snowCtx.Log.Info("initialized config", zap.Bool("loaded", c.config.Loaded()), zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -101,9 +100,9 @@ func (c *Controller) Initialize(
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
 	// Create DBs
-	blockDB, stateDB, metaDB, err := hstorage.New(snowCtx.ChainDataDir, gatherer)
+	metaDB, err := hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "metadatadb", gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	c.metaDB = metaDB
 
@@ -117,7 +116,7 @@ func (c *Controller) Initialize(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
@@ -140,13 +139,13 @@ func (c *Controller) Initialize(
 		gcfg.VerifyTimeout = c.config.VerifyTimeout
 		gossip, err = gossiper.NewProposer(inner, gcfg)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
 	// Initialize order book used to track all open orders
 	c.orderBook = orderbook.New(c, c.config.TrackedPairs, c.config.MaxOrdersPerPair)
-	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c.config, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
