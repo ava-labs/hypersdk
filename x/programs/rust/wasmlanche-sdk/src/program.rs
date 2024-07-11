@@ -12,6 +12,7 @@ use thiserror::Error;
 /// Defer deserialization from bytes
 /// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
 #[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(BorshSerialize)]
 pub struct DeferDeserialize(Vec<u8>);
 
 impl DeferDeserialize {
@@ -20,10 +21,6 @@ impl DeferDeserialize {
     pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
         let Self(bytes) = self;
         borsh::from_slice(&bytes)
-    }
-
-    pub fn into_inner(self) -> Vec<u8> {
-        self.0
     }
 }
 
