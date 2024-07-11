@@ -41,6 +41,7 @@ fn burn_lp(context: Context<StateKeys>, amount: u64) {
 
 #[public]
 // swaps 'amount' of token_program_in with the other token in the pool. Returns the amount of token_program_out received
+// amount of token_program_in must be approved by the actor before calling this function
 pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64) -> u64 {
     let program = context.program();
 
@@ -70,8 +71,8 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
 
     // transfer tokens fropm actor to the pool
     // this will ensure the actor has enough tokens
-    token::transfer(token_in, program.account(), amount);
-    
+    token::transfer_from(token_in, )
+
     // transfer the amount of token_program_out to the actor
     token::transfer(token_out, program.account(), amount_out);
 
