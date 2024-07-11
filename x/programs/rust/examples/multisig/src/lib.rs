@@ -44,15 +44,23 @@ pub enum StateKeys {
 #[public]
 pub fn propose(
     context: Context<StateKeys>,
-    voters: Vec<Address>,
+    voters_addr: Vec<Address>,
     to: Program,
     method: String,
     args: Vec<u8>,
     value: u64,
 ) -> u32 {
-    let voters_len = voters.len().try_into().expect("too much voters");
+    let voters_len = voters_addr.len().try_into().expect("too much voters");
     assert!(voters_len >= MIN_VOTES);
-    assert!(not_duplicate(&voters));
+    assert!(is_not_duplicate(&voters_addr));
+    let voters: Vec<_> = voters_addr
+        .iter()
+        .map(|address| Voter {
+            address: *address,
+            voted: false,
+        })
+        .collect();
+    ensure_voter(&context.actor(), &voters).unwrap();
 
     let program = context.program();
     let last_id = last_proposal_id(program);
@@ -72,16 +80,10 @@ pub fn propose(
         )
         .unwrap();
 
-    for (i, address) in voters.into_iter().enumerate() {
+    for (i, voter) in voters.into_iter().enumerate() {
         program
             .state()
-            .store_by_key(
-                StateKeys::Voter(last_id, i),
-                &Voter {
-                    address,
-                    voted: false,
-                },
-            )
+            .store_by_key(StateKeys::Voter(last_id, i), &voter)
             .unwrap();
     }
 
@@ -111,29 +113,17 @@ pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), Propo
     }
 
     let actor = context.actor();
-
-    let mut i = 0;
-    let voter = loop {
-        if i < proposal.voters_len {
-            let voter: Voter = program
+    let voters: Vec<_> = (0..proposal.voters_len)
+        .map(|i| {
+            program
                 .state()
                 .get(StateKeys::Voter(id, i as usize))
                 .unwrap()
-                .unwrap();
+                .unwrap()
+        })
+        .collect();
 
-            if voter.address == actor {
-                if voter.voted {
-                    return Err(ProposalError::AlreadyVoted);
-                } else {
-                    break voter;
-                }
-            }
-
-            i += 1;
-        } else {
-            return Err(ProposalError::NotVoter);
-        }
-    };
+    let i = ensure_voter(&actor, &voters)?;
 
     if yea {
         program
@@ -165,7 +155,13 @@ pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), Propo
 
     program
         .state()
-        .store_by_key(StateKeys::Voter(id, i as usize), &voter)
+        .store_by_key(
+            StateKeys::Voter(id, i as usize),
+            &Voter {
+                address: actor,
+                voted: true,
+            },
+        )
         .unwrap();
 
     Ok(())
@@ -263,7 +259,7 @@ pub fn quorum_reached(max_votes: u32, yeas: u32, nays: u32) -> bool {
     yeas + nays >= MIN_VOTES && yeas > nays && yeas >= (max_votes + 1) / 2
 }
 
-pub fn not_duplicate(voters: &[Address]) -> bool {
+pub fn is_not_duplicate(voters: &[Address]) -> bool {
     if voters.is_empty() {
         panic!("there should be at least one voter");
     }
@@ -279,10 +275,34 @@ pub fn not_duplicate(voters: &[Address]) -> bool {
     true
 }
 
+/// Check if the passed actor is part of the voters and return its index on success
+pub fn ensure_voter(actor: &Address, voters: &[Voter]) -> Result<u32, ProposalError> {
+    let mut i = 0;
+    loop {
+        if i < voters.len() {
+            let voter = &voters[i];
+
+            if &voter.address == actor {
+                if voter.voted {
+                    return Err(ProposalError::AlreadyVoted);
+                } else {
+                    break;
+                }
+            }
+
+            i += 1;
+        } else {
+            return Err(ProposalError::NotVoter);
+        }
+    }
+
+    Ok(i as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::ProposalError;
-    use simulator::{Endpoint, Key, Param, Step, StepResponseError, TestContext};
+    use simulator::{Endpoint, Param, Step, StepResponseError, TestContext};
     use wasmlanche_sdk::types::Address;
     use wasmlanche_sdk::DeferDeserialize;
 
@@ -356,12 +376,14 @@ mod tests {
             .unwrap()
             .id;
 
-        let test_context = TestContext::from(program_id);
+        let mut test_context = TestContext::from(program_id);
 
-        let voters = vec![
-            Address::new([1; Address::LEN]),
-            Address::new([2; Address::LEN]),
-        ];
+        let voter1 = Address::from_str("voter1");
+        let voter2 = Address::from_str("voter2");
+
+        let voters = vec![voter1, voter2];
+
+        test_context.actor = voter1;
 
         let pid: u32 = simulator
             .run_step(&Step {
@@ -382,18 +404,12 @@ mod tests {
             .response()
             .unwrap();
 
-        let voter = "voter";
-        let voter_key = Key::Ed25519(voter.to_string());
-        simulator
-            .run_step(&Step::create_key(voter_key.clone()))
-            .unwrap();
-
         let voter_context = TestContext {
-            actor_key: Some(voter_key),
+            actor: voter2,
             ..test_context.clone()
         };
 
-        let res = simulator
+        let res = dbg!(simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "vote".to_string(),
@@ -403,7 +419,7 @@ mod tests {
             .unwrap()
             .result
             .response::<Result<(), ProposalError>>()
-            .unwrap();
+            .unwrap());
 
         assert!(res.is_ok());
 
@@ -431,7 +447,14 @@ mod tests {
             .unwrap()
             .id;
 
-        let test_context = TestContext::from(program_id);
+        let mut test_context = TestContext::from(program_id);
+
+        let voter1 = Address::from_str("voter1");
+        let voter2 = Address::from_str("voter2");
+
+        let voters = vec![voter1, voter2];
+
+        test_context.actor = voter1;
 
         let pid: u32 = simulator
             .run_step(&Step {
@@ -440,7 +463,7 @@ mod tests {
                 max_units: u64::MAX,
                 params: vec![
                     test_context.clone().into(),
-                    // voters,
+                    Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
                     program_id.into(),
                     String::from("pub_last_proposal_id").into(),
                     Vec::new().into(),
@@ -466,14 +489,8 @@ mod tests {
 
         assert!(matches!(res, Err(ProposalError::QuorumNotReached)));
 
-        let voter = "voter";
-        let voter_key = Key::Ed25519(voter.to_string());
-        simulator
-            .run_step(&Step::create_key(voter_key.clone()))
-            .unwrap();
-
         let voter_context = TestContext {
-            actor_key: Some(voter_key),
+            actor: voter2,
             ..test_context.clone()
         };
 

@@ -156,7 +156,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		zap.Any("params", step.Params),
 	)
 
-	params, err := c.createCallParams(ctx, db, step.Params, step.Endpoint)
+	params, err := c.createCallParams(step.Params)
 	if err != nil {
 		c.log.Error(fmt.Sprintf("simulation call: %s", err))
 		return newResponse(0), err
@@ -286,6 +286,7 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 
 type SimulatorTestContext struct {
 	ProgramID uint64 `json:"programId"`
+	// TODO can we not just use the Address type ?
 	ActorAddr []byte `json:"actor"`
 	Height    uint64 `json:"height"`
 	Timestamp uint64 `json:"timestamp"`
@@ -314,7 +315,7 @@ func AddressToString(pk ed25519.PublicKey) string {
 }
 
 // createCallParams converts a slice of Parameters to a slice of runtime.CallParams.
-func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, params []Parameter, endpoint Endpoint) ([]Parameter, error) {
+func (c *runCmd) createCallParams(params []Parameter) ([]Parameter, error) {
 	cp := make([]Parameter, 0, len(params))
 	for _, param := range params {
 		switch param.Type {
