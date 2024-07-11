@@ -228,13 +228,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor()
-		if err != nil {
-			return err
-		}
 		testContext := runtime.Context{
 			Program:   program,
-			Actor:     actor,
+			Actor:     simulatorTestContext.ActorAddr,
 			Timestamp: simulatorTestContext.Timestamp,
 			Height:    simulatorTestContext.Height,
 		}
@@ -263,13 +259,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor()
-		if err != nil {
-			return err
-		}
 		testContext := runtime.Context{
 			Program:   program,
-			Actor:     actor,
+			Actor:     simulatorTestContext.ActorAddr,
 			Timestamp: simulatorTestContext.Timestamp,
 			Height:    simulatorTestContext.Height,
 		}
@@ -305,10 +297,10 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 }
 
 type SimulatorTestContext struct {
-	ProgramID uint64 `json:"programId"`
-	ActorAddr []byte `json:"actor"`
-	Height    uint64 `json:"height"`
-	Timestamp uint64 `json:"timestamp"`
+	ProgramID uint64        `json:"programId"`
+	ActorAddr codec.Address `json:"actor"`
+	Height    uint64        `json:"height"`
+	Timestamp uint64        `json:"timestamp"`
 }
 
 func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
@@ -318,14 +310,6 @@ func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (c
 		return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
 	}
 	return programAddress, nil
-}
-
-func (s *SimulatorTestContext) Actor() (codec.Address, error) {
-	actor, err := codec.ToAddress(s.ActorAddr)
-	if err != nil {
-		return codec.EmptyAddress, err
-	}
-	return actor, nil
 }
 
 func AddressToString(pk ed25519.PublicKey) string {
