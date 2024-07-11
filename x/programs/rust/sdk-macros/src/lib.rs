@@ -3,9 +3,12 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
-    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, ReturnType, Signature, Token, Type,
-    Visibility,
+    parse::{Parse, ParseStream},
+    parse_macro_input, parse_quote, parse_str,
+    punctuated::Punctuated,
+    spanned::Spanned,
+    token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path,
+    ReturnType, Signature, Token, Type, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
@@ -258,7 +261,7 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // add default attributes
     item_enum.attrs.push(parse_quote! {
-         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, wasmlanche_sdk::bytemuck::NoUninit)]
     });
 
     let name = &item_enum.ident;
@@ -341,6 +344,86 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
         unsafe impl wasmlanche_sdk::state::Key for #name {}
     }
     .into()
+}
+
+#[derive(Debug)]
+struct KeyPair {
+    key_comments: Vec<Attribute>,
+    key_vis: Visibility,
+    key_type_name: Ident,
+    key_fields: Fields,
+    value_type: Ident,
+}
+
+impl Parse for KeyPair {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let key_comments = input.call(Attribute::parse_outer)?;
+        let key_vis = input.parse::<Visibility>()?;
+        let key_type_name: Ident = input.parse()?;
+        let lookahead = input.lookahead1();
+
+        // TODO: fail on named fields
+        let key_fields = if lookahead.peek(token::Paren) {
+            let fields = input.parse()?;
+            Fields::Unnamed(fields)
+        } else {
+            Fields::Unit
+        };
+
+        input.parse::<Token![=>]>()?;
+        let value_type: Ident = input.parse()?;
+
+        Ok(Self {
+            key_comments,
+            key_vis,
+            key_type_name,
+            key_fields,
+            value_type,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn state_schema(input: TokenStream) -> TokenStream {
+    // parse out the key-pairs
+    let key_pairs =
+        parse_macro_input!(input with Punctuated::<KeyPair, Token![,]>::parse_terminated);
+    key_pairs
+        .into_iter()
+        .enumerate()
+        .map(|(i, val)| (i as u8, val))
+        .fold(
+            quote! {},
+            |mut token_stream,
+             (
+                i,
+                KeyPair {
+                    key_comments,
+                    key_vis,
+                    key_type_name,
+                    key_fields,
+                    value_type,
+                },
+            )| {
+                token_stream.extend(Some(quote! {
+                    #(#key_comments)*
+                    #[derive(Copy, Clone, bytemuck::NoUninit)]
+                    #[repr(C)]
+                    #key_vis struct #key_type_name #key_fields;
+
+                    unsafe impl wasmlanche_sdk::state::Schema for #key_type_name {
+                        type Value = #value_type;
+
+                        fn prefix() -> u8 {
+                            #i
+                        }
+                    }
+                }));
+
+                token_stream
+            },
+        )
+        .into()
 }
 
 /// Returns whether the type_path represents a Program type.

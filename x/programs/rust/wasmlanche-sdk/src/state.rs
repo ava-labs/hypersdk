@@ -1,6 +1,11 @@
-use crate::{memory::HostPtr, types::Address};
+use crate::{
+    context::{CacheKey, CacheValue},
+    memory::HostPtr,
+    types::Address,
+    Context,
+};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
-use bytemuck::{NoUninit, Pod};
+use bytemuck::NoUninit;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -36,7 +41,7 @@ pub fn get_balance(account: Address) -> u64 {
 }
 
 pub struct State<'a> {
-    cache: &'a RefCell<HashMap<Vec<u8>, Option<Vec<u8>>>>,
+    cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>,
 }
 
 /// Key trait for program state keys
@@ -44,25 +49,44 @@ pub struct State<'a> {
 /// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
 pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
-pub unsafe trait Schema {
-    type Key: Pod;
-    type Value: BorshSerialize + BorshDeserialize;
-
-    fn get() -> Self::Value;
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub(crate) struct PrefixedKey<K: NoUninit> {
+    prefix: u8,
+    key: K,
 }
 
-impl<'a> Drop for State<'a> {
-    fn drop(&mut self) {
-        if !self.cache.borrow().is_empty() {
-            // force flush
-            self.flush();
-        }
+impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
+    fn as_ref(&self) -> &[u8] {
+        bytemuck::bytes_of(self)
+    }
+}
+
+// TODO: deal wiht padding?
+unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
+
+// TODO: use bytemuck::must_cast (behind feature flag)
+pub unsafe trait Schema: NoUninit {
+    type Value: BorshSerialize + BorshDeserialize;
+
+    fn prefix() -> u8;
+
+    fn get(self, context: &mut Context) -> Result<Option<Self::Value>, Error> {
+        let key = to_key(self);
+        context.get_with_raw_key(key.as_ref())
+    }
+}
+
+pub(crate) fn to_key<K: Schema>(key: K) -> PrefixedKey<K> {
+    PrefixedKey {
+        prefix: K::prefix(),
+        key,
     }
 }
 
 impl<'a> State<'a> {
     #[must_use]
-    pub fn new(cache: &'a RefCell<HashMap<Vec<u8>, Option<Vec<u8>>>>) -> Self {
+    pub fn new(cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>) -> Self {
         Self { cache }
     }
 
@@ -70,7 +94,7 @@ impl<'a> State<'a> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (Vec<u8>, &'b V)>>(
+    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (&'b [u8], &'b V)>>(
         self,
         pairs: Pairs,
     ) -> Result<(), Error> {
@@ -81,7 +105,7 @@ impl<'a> State<'a> {
             .map(|(k, v)| borsh::to_vec(&v).map(|bytes| (k, Some(bytes))))
             .try_for_each(|result| {
                 result.map(|(k, v)| {
-                    cache.insert(k, v);
+                    cache.insert(CacheKey::from(k), v);
                 })
             })
             .map_err(|_| Error::Serialization)?;
@@ -94,13 +118,12 @@ impl<'a> State<'a> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store_by_key<K: NoUninit, V: BorshSerialize>(
-        self,
-        key: &K,
-        value: &V,
-    ) -> Result<(), Error> {
-        let key = bytemuck::bytes_of(key).to_vec();
-        self.store([(key, value)])
+    pub fn store_by_key<K, V>(self, key: K, value: &V) -> Result<(), Error>
+    where
+        K: Schema,
+        V: BorshSerialize,
+    {
+        self.store([(to_key(key).as_ref(), value)])
     }
 
     /// Get a value from the host's storage.
@@ -120,6 +143,31 @@ impl<'a> State<'a> {
         self.get_mut_with(key, |x| from_slice(x))
     }
 
+    pub(crate) fn get_with_raw_key<V>(self, key: &[u8]) -> Result<Option<V>, Error>
+    where
+        V: BorshDeserialize,
+    {
+        let mut cache = self.cache.borrow_mut();
+
+        if let Some(value) = cache.get(key) {
+            value
+                .as_deref()
+                .map(from_slice)
+                .transpose()
+                .map_err(|_| Error::Deserialization)
+        } else {
+            let key = CacheKey::from(key);
+            let bytes = get_bytes(&key);
+            cache
+                .entry(key)
+                .or_insert(bytes)
+                .as_deref()
+                .map(from_slice)
+                .transpose()
+                .map_err(|_| Error::Deserialization)
+        }
+    }
+
     /// Delete a value from the hosts's storage.
     /// # Errors
     /// Returns an [Error] if the value is inexistent
@@ -135,11 +183,11 @@ impl<'a> State<'a> {
     fn get_mut_with<K: NoUninit, V, F>(self, key: &K, f: F) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
-        F: FnOnce(&mut Vec<u8>) -> borsh::io::Result<V>,
+        F: FnOnce(&mut CacheValue) -> borsh::io::Result<V>,
     {
         let mut cache = self.cache.borrow_mut();
         // TODO: should only need to allocate on cache-miss
-        let key = bytemuck::bytes_of(key).to_vec();
+        let key = CacheKey::from(bytemuck::bytes_of(key));
 
         let cache_entry = match cache.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -160,7 +208,7 @@ impl<'a> State<'a> {
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
-    fn flush(&self) {
+    pub(super) fn flush(&self) {
         #[link(wasm_import_module = "state")]
         extern "C" {
             #[link_name = "put"]
@@ -170,7 +218,7 @@ impl<'a> State<'a> {
         #[derive(BorshSerialize)]
         struct PutArgs<Key> {
             key: Key,
-            value: Vec<u8>,
+            value: CacheValue,
         }
 
         let mut cache = self.cache.borrow_mut();
@@ -187,12 +235,19 @@ impl<'a> State<'a> {
     }
 }
 
-fn get_bytes(key: &[u8]) -> Option<Vec<u8>> {
+fn get_bytes(key: &[u8]) -> Option<CacheValue> {
     #[link(wasm_import_module = "state")]
     extern "C" {
         #[link_name = "get"]
         fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
     }
+
+    #[derive(BorshSerialize)]
+    struct GetArgs<'a> {
+        key: &'a [u8],
+    }
+
+    let key = borsh::to_vec(&GetArgs { key }).expect("failed to serialize args");
 
     let ptr = unsafe { get_bytes(key.as_ptr(), key.len()) };
 

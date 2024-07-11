@@ -1,9 +1,6 @@
 #![no_std]
 
-use wasmlanche_sdk::{public, state_keys, Context};
-
-#[state_keys]
-pub enum StateKeys {}
+use wasmlanche_sdk::{public, Context};
 
 #[public]
 pub fn always_true(_: Context) -> bool {

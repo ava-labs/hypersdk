@@ -1,11 +1,14 @@
 use crate::{
-    state::{Error, State},
+    state::{self, Error, Schema, State},
     types::Address,
     Gas, Id, Program,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use std::{cell::RefCell, collections::HashMap};
+
+pub type CacheKey = Box<[u8]>;
+pub type CacheValue = Vec<u8>;
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
@@ -15,7 +18,13 @@ pub struct Context {
     height: u64,
     timestamp: u64,
     action_id: Id,
-    state_cache: RefCell<HashMap<Vec<u8>, Option<Vec<u8>>>>,
+    state_cache: RefCell<HashMap<CacheKey, Option<CacheValue>>>,
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        State::new(&self.state_cache).flush();
+    }
 }
 
 impl BorshDeserialize for Context {
@@ -57,26 +66,30 @@ impl Context {
     pub fn action_id(&self) -> Id {
         self.action_id
     }
-}
 
-impl Context {
     /// See [`State::get`].
     /// # Errors
     /// See [`State::get`].
-    pub fn get<K, V>(&self, key: &K) -> Result<Option<V>, crate::state::Error>
+    pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, state::Error>
     where
-        K: NoUninit,
+        Key: Schema,
+    {
+        key.get(self)
+    }
+
+    pub fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, state::Error>
+    where
         V: BorshDeserialize,
     {
-        State::new(&self.state_cache).get(key)
+        State::new(&self.state_cache).get_with_raw_key(key)
     }
 
     /// See [`State::store_by_key`].
     /// # Errors
     /// See [`State::store_by_key`].
-    pub fn store_by_key<K, V>(&self, key: &K, value: &V) -> Result<(), crate::state::Error>
+    pub fn store_by_key<K, V>(&self, key: K, value: &V) -> Result<(), state::Error>
     where
-        K: NoUninit,
+        K: Schema,
         V: BorshSerialize,
     {
         State::new(&self.state_cache).store_by_key(key, value)
@@ -85,7 +98,7 @@ impl Context {
     /// See [`State::store`].
     /// # Errors
     /// See [`State::store`].    
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (Vec<u8>, &'b V)>>(
+    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (&'b [u8], &'b V)>>(
         &self,
         pairs: Pairs,
     ) -> Result<(), Error> {

@@ -12,6 +12,7 @@ bindings = []
 [dependencies]
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
 borsh = { workspace = true }
+bytemuck = { version = "1.16.1", features = ["derive"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
