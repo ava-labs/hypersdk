@@ -43,7 +43,7 @@ type Controller struct {
 
 	metrics *metrics
 
-	metaDB database.Database
+	db database.Database
 }
 
 func New() *vm.VM {
@@ -96,11 +96,11 @@ func (c *Controller) Initialize(
 	}
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	metaDB, err := hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "metadatadb", gatherer)
+	db, err := hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	c.metaDB = metaDB
+	c.db = db
 
 	// Create handlers
 	//
@@ -146,7 +146,7 @@ func (c *Controller) StateManager() chain.StateManager {
 }
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	batch := c.metaDB.NewBatch()
+	batch := c.db.NewBatch()
 	defer batch.Reset()
 
 	results := blk.Results()

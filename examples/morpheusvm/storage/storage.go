@@ -37,10 +37,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x3/ (hypersdk-fee)
 
 const (
-	// metaDB
+	// VM state
 	txPrefix = 0x0
 
-	// stateDB
+	// HyperSDK state
 	balancePrefix   = 0x0
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
