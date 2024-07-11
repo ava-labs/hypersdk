@@ -4,7 +4,7 @@
 package config
 
 import (
-	"github.com/ava-labs/hypersdk/chain/auth"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"

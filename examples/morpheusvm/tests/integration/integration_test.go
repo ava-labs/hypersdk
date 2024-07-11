@@ -43,7 +43,7 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/vm"
 
-	auth "github.com/ava-labs/hypersdk/chain/auth"
+	auth "github.com/ava-labs/hypersdk/auth"
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
