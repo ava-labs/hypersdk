@@ -2,8 +2,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::collections::HashSet;
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::ExternalCallError;
 use wasmlanche_sdk::{public, state_keys, types::Address, Program};
+use wasmlanche_sdk::{DeferDeserialize, ExternalCallError};
+
+const MIN_VOTES: u32 = 2;
 
 const MIN_VOTES: u32 = 2;
 
@@ -35,11 +37,12 @@ pub enum StateKeys {
 
 #[public]
 pub fn propose(context: Context<StateKeys>, to: Program, method: String, data: Vec<u8>) -> u32 {
-    let Context { program, actor, .. } = context;
+    let program = context.program();
     let last_id = proposal_id(&program);
+
     program
         .state()
-        .store(
+        .store_by_key(
             StateKeys::Proposals(last_id),
             &Proposal {
                 to,
@@ -48,18 +51,20 @@ pub fn propose(context: Context<StateKeys>, to: Program, method: String, data: V
                 yea: 1,
                 nay: 0,
                 executed: false,
-                voters: HashSet::from([actor]),
+                voters: HashSet::from([context.actor()]),
             },
         )
         .expect("state corrupt");
+
     last_id
 }
 
 #[public]
 pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), ProposalError> {
-    let Context { program, actor, .. } = context;
+    let program = context.program();
     let mut proposal = proposal_at(&program, id).ok_or(ProposalError::InexistentProposal)?;
 
+    let actor = context.actor();
     if proposal.voters.contains(&actor) {
         return Err(ProposalError::AlreadyVoted);
     }
@@ -76,7 +81,7 @@ pub fn vote(context: Context<StateKeys>, id: u32, yea: bool) -> Result<(), Propo
 
     program
         .state()
-        .store(StateKeys::Proposals(id), &proposal)
+        .store_by_key(StateKeys::Proposals(id), &proposal)
         .expect("state corrupt");
 
     Ok(())
@@ -87,8 +92,8 @@ pub fn execute(
     context: Context<StateKeys>,
     proposal_id: u32,
     max_units: u64,
-) -> Result<T, ProposalError> {
-    let Context { program, .. } = context;
+) -> Result<Vec<u8>, ProposalError> {
+    let program = context.program();
     let mut proposal =
         proposal_at(&program, proposal_id).ok_or(ProposalError::InexistentProposal)?;
 
@@ -101,11 +106,21 @@ pub fn execute(
 
     proposal.executed = true;
 
-    // proposal
-    //     .to
-    //     .call_function(&proposal.method, &proposal.data, max_units)
-    //     .map_err(ProposalError::ExecutionFailed)
-    todo!()
+    Ok(proposal
+        .to
+        .call_function::<DeferDeserialize>(&proposal.method, &proposal.data, max_units)
+        .map_err(ProposalError::ExecutionFailed)?
+        .into_inner())
+}
+
+#[public]
+pub fn pub_proposal_at(context: Context<StateKeys>, proposal_id: u32) -> Option<Proposal> {
+    proposal_at(context.program(), proposal_id)
+}
+
+#[public]
+pub fn pub_proposal_id(context: Context<StateKeys>) -> u32 {
+    proposal_id(context.program())
 }
 
 fn proposal_at(program: &Program<StateKeys>, proposal_id: u32) -> Option<Proposal> {
@@ -130,7 +145,54 @@ fn quorum_reached(proposal: &Proposal) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step};
+    use simulator::{Endpoint, Key, Param, Step, TestContext};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+
+    #[test]
+    fn can_propose() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        let owner = String::from("owner");
+
+        let program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        let test_context = TestContext::from(program_id);
+
+        let pid: u32 = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "propose".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    test_context.clone().into(),
+                    program_id.into(),
+                    String::from("asdasdasd").into(),
+                    Vec::new().into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+
+        assert_eq!(pid, 0);
+
+        let pid: u32 = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "pub_proposal_id".to_string(),
+                max_units: 0,
+                params: vec![test_context.clone().into()],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+
+        assert_eq!(pid, 0);
+    }
 }
