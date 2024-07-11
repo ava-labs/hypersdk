@@ -18,8 +18,7 @@ impl BorshSerialize for DeferDeserialize {
     /// # Errors
     /// Returns a [`std::io::Error`] if there was an issue writing
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        writer.write_all(&self.0)?;
-        Ok(())
+        writer.write_all(&self.0)
     }
 }
 
