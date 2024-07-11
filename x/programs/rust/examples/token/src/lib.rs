@@ -146,7 +146,7 @@ pub fn _allowance(program: &Program<StateKey>, owner: Address, spender: Address)
 pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> bool {
     let program = context.program();
     let actor = context.actor();
-    assert_ne!(actor, spender, "actor and spender must be different");
+    
     program
         .state()
         .store_by_key(StateKey::Allowance(actor, spender), &amount)
