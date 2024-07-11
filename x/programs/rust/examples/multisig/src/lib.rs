@@ -309,7 +309,7 @@ mod tests {
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
-    fn cannot_propose_invalid() {
+    fn cannot_propose_invalid_with_params() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let program_id = simulator
@@ -439,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn execute() {
+    fn execute_proposal() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let program_id = simulator

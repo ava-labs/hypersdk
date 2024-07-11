@@ -75,10 +75,6 @@ func (r *Response) setResponse(response []byte) {
 	r.Result.Response = response
 }
 
-func (r *Response) setMsg(msg string) {
-	r.Result.Msg = msg
-}
-
 func (r *Response) setTimestamp(timestamp int64) {
 	r.Result.Timestamp = uint64(timestamp)
 }
@@ -90,8 +86,6 @@ type Result struct {
 	Balance uint64 `json:"balance,omitempty"`
 	// The response from the call.
 	Response []byte `json:"response"`
-	// An optional message.
-	Msg string `json:"msg,omitempty"`
 	// Timestamp of the response.
 	Timestamp uint64 `json:"timestamp,omitempty"`
 }
@@ -106,11 +100,11 @@ type Parameter struct {
 type Type string
 
 const (
-	String       Type = "string"
-	Path         Type = "path"
-	Address      Type = "address"
-	ID           Type = "id"
-	TestContext  Type = "testContext"
+	String      Type = "string"
+	Path        Type = "path"
+	Address     Type = "address"
+	ID          Type = "id"
+	TestContext Type = "testContext"
 )
 
 func unmarshalStep(bytes []byte) (*Step, error) {
