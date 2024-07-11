@@ -182,15 +182,31 @@ func (vm *VM) Initialize(
 
 	// TODO do not expose entire context to the Controller
 	//
-	// Note: copies the consensus lock by value but this is safe because the
+	// Note: does not copy the consensus lock but this is safe because the
 	// consensus lock does not work over rpc anyways
-	controllerContext := *vm.snowCtx
-	controllerContext.ChainDataDir = filepath.Join(controllerContext.ChainDataDir, vmDataDir)
+	controllerContext := &snow.Context{
+		NetworkID:      vm.snowCtx.NetworkID,
+		SubnetID:       vm.snowCtx.SubnetID,
+		ChainID:        vm.snowCtx.ChainID,
+		NodeID:         vm.snowCtx.NodeID,
+		PublicKey:      vm.snowCtx.PublicKey,
+		XChainID:       vm.snowCtx.XChainID,
+		CChainID:       vm.snowCtx.CChainID,
+		AVAXAssetID:    vm.snowCtx.AVAXAssetID,
+		Log:            vm.snowCtx.Log,
+		Keystore:       vm.snowCtx.Keystore,
+		SharedMemory:   vm.snowCtx.SharedMemory,
+		BCLookup:       vm.snowCtx.BCLookup,
+		Metrics:        vm.snowCtx.Metrics,
+		WarpSigner:     vm.snowCtx.WarpSigner,
+		ValidatorState: vm.snowCtx.ValidatorState,
+		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
+	}
 
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
-		&controllerContext,
+		controllerContext,
 		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
