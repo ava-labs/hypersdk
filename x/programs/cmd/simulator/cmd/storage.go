@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -28,6 +29,25 @@ const (
 
 type programStateManager struct {
 	state.Mutable
+}
+
+func (s *programStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
+	return getAccountBalance(ctx, s, address)
+}
+
+func (s *programStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	fromBalance, err := getAccountBalance(ctx, s, from)
+	if err != nil {
+		return err
+	}
+	if fromBalance < amount {
+		return errors.New("insufficient balance")
+	}
+	toBalance, err := getAccountBalance(ctx, s, to)
+	if err != nil {
+		return err
+	}
+	return setAccountBalance(ctx, s, to, toBalance+amount)
 }
 
 func (s *programStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
@@ -107,11 +127,12 @@ func accountStateKey(key []byte) (k []byte) {
 	return
 }
 
-func accountDataKey(key []byte) (k []byte) {
-	k = make([]byte, 2+len(key))
+func accountDataKey(account []byte, key []byte) (k []byte) {
+	k = make([]byte, 2+len(account)+len(key))
 	k[0] = accountPrefix
-	copy(k[1:], key)
-	k[len(k)-1] = accountDataPrefix
+	copy(k[1:], account)
+	k[1+len(account)] = accountDataPrefix
+	copy(k[2+len(account):], key)
 	return
 }
 
@@ -120,6 +141,33 @@ func programKey(key []byte) (k []byte) {
 	k[0] = programPrefix
 	copy(k[1:], key)
 	return
+}
+
+func getAccountBalance(
+	ctx context.Context,
+	db state.Immutable,
+	account codec.Address,
+) (
+	uint64,
+	error,
+) {
+	v, err := db.GetValue(ctx, accountDataKey(account[:], []byte("balance")))
+	if errors.Is(err, database.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(v), nil
+}
+
+func setAccountBalance(
+	ctx context.Context,
+	mu state.Mutable,
+	account codec.Address,
+	amount uint64,
+) error {
+	return mu.Insert(ctx, accountDataKey(account[:], []byte("balance")), binary.BigEndian.AppendUint64(nil, amount))
 }
 
 // [programID] -> [programBytes]
@@ -132,7 +180,7 @@ func getAccountProgram(
 	bool, // exists
 	error,
 ) {
-	v, err := db.GetValue(ctx, accountDataKey(account[:]))
+	v, err := db.GetValue(ctx, accountDataKey(account[:], []byte("program")))
 	if errors.Is(err, database.ErrNotFound) {
 		return ids.Empty, false, nil
 	}
@@ -148,7 +196,7 @@ func setAccountProgram(
 	account codec.Address,
 	programID ids.ID,
 ) error {
-	return mu.Insert(ctx, accountDataKey(account[:]), programID[:])
+	return mu.Insert(ctx, accountDataKey(account[:], []byte("program")), programID[:])
 }
 
 // [programID] -> [programBytes]

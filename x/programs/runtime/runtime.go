@@ -30,11 +30,17 @@ type WasmRuntime struct {
 }
 
 type StateManager interface {
-	GetProgramState(address codec.Address) state.Mutable
-	ProgramStore
+	BalanceManager
+	ProgramManager
 }
 
-type ProgramStore interface {
+type BalanceManager interface {
+	GetBalance(ctx context.Context, address codec.Address) (uint64, error)
+	TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error
+}
+
+type ProgramManager interface {
+	GetProgramState(address codec.Address) state.Mutable
 	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
 	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
 	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
@@ -62,14 +68,15 @@ func NewRuntime(
 	}
 
 	runtime.AddImportModule(NewLogModule())
+	runtime.AddImportModule(NewBalanceModule())
 	runtime.AddImportModule(NewStateAccessModule())
 	runtime.AddImportModule(NewProgramModule(runtime))
 
 	return runtime
 }
 
-func (r *WasmRuntime) WithDefaults(callInfo *CallInfo) CallContext {
-	return CallContext{r: r, defaultCallInfo: *callInfo}
+func (r *WasmRuntime) WithDefaults(callInfo CallInfo) CallContext {
+	return CallContext{r: r, defaultCallInfo: callInfo}
 }
 
 func (r *WasmRuntime) AddImportModule(mod *ImportModule) {

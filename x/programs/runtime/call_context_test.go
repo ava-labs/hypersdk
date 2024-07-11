@@ -27,7 +27,7 @@ func TestCallContext(t *testing.T) {
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
-		&CallInfo{
+		CallInfo{
 			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{programID: "call_program"}, AccountMap: map[codec.Address]ids.ID{programAccount: programID}},
 			Program: programAccount,
 			Fuel:    1000000,
@@ -74,7 +74,7 @@ func TestCallContextPreventOverwrite(t *testing.T) {
 		NewConfig(),
 		logging.NoLog{},
 	).WithDefaults(
-		&CallInfo{
+		CallInfo{
 			Program: program0Address,
 			State:   &test.StateManager{ProgramsMap: map[ids.ID]string{program0ID: "call_program"}, AccountMap: map[codec.Address]ids.ID{program0Address: program0ID}},
 			Fuel:    1000000,
