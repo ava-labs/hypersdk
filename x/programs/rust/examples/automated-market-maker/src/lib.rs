@@ -71,6 +71,11 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     // transfer tokens fropm actor to the pool
     // this will ensure the actor has enough tokens
     token::transfer(token_in, program.account(), amount);
+    
+    // transfer the amount of token_program_out to the actor
+    token::transfer(token_out, program.account(), amount_out);
+
+    // to be continued
 }
 
 #[public]
