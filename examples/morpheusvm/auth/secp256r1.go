@@ -39,11 +39,11 @@ func (*SECP256R1) GetTypeID() uint8 {
 	return consts.SECP256R1ID
 }
 
-func (*SECP256R1) ComputeUnits(chain.Rules) uint64 {
+func (*SECP256R1) ComputeUnits(chain.CustomRules) uint64 {
 	return SECP256R1ComputeUnits
 }
 
-func (*SECP256R1) ValidRange(chain.Rules) (int64, int64) {
+func (*SECP256R1) ValidRange(chain.CustomRules) (int64, int64) {
 	return -1, -1
 }
 

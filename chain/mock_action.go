@@ -46,7 +46,7 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // ComputeUnits mocks base method.
-func (m *MockAction) ComputeUnits(arg0 Rules) uint64 {
+func (m *MockAction) ComputeUnits(arg0 CustomRules) uint64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ComputeUnits", arg0)
 	ret0, _ := ret[0].(uint64)
@@ -60,7 +60,7 @@ func (mr *MockActionMockRecorder) ComputeUnits(arg0 any) *gomock.Call {
 }
 
 // Execute mocks base method.
-func (m *MockAction) Execute(arg0 context.Context, arg1 Rules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID) ([][]byte, error) {
+func (m *MockAction) Execute(arg0 context.Context, arg1 CustomRules, arg2 state.Mutable, arg3 int64, arg4 codec.Address, arg5 ids.ID) ([][]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].([][]byte)
@@ -143,7 +143,7 @@ func (mr *MockActionMockRecorder) StateKeysMaxChunks() *gomock.Call {
 }
 
 // ValidRange mocks base method.
-func (m *MockAction) ValidRange(arg0 Rules) (int64, int64) {
+func (m *MockAction) ValidRange(arg0 CustomRules) (int64, int64) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidRange", arg0)
 	ret0, _ := ret[0].(int64)

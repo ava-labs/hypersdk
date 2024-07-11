@@ -39,11 +39,11 @@ func (*ED25519) GetTypeID() uint8 {
 	return consts.ED25519ID
 }
 
-func (*ED25519) ComputeUnits(chain.Rules) uint64 {
+func (*ED25519) ComputeUnits(chain.CustomRules) uint64 {
 	return ED25519ComputeUnits
 }
 
-func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
+func (*ED25519) ValidRange(chain.CustomRules) (int64, int64) {
 	return -1, -1
 }
 

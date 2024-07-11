@@ -39,11 +39,11 @@ func (*BLS) GetTypeID() uint8 {
 	return consts.BLSID
 }
 
-func (*BLS) ComputeUnits(chain.Rules) uint64 {
+func (*BLS) ComputeUnits(chain.CustomRules) uint64 {
 	return BLSComputeUnits
 }
 
-func (*BLS) ValidRange(chain.Rules) (int64, int64) {
+func (*BLS) ValidRange(chain.CustomRules) (int64, int64) {
 	return -1, -1
 }
 

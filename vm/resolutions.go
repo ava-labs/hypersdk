@@ -65,7 +65,7 @@ func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
 }
 
-func (vm *VM) Rules(t int64) chain.Rules {
+func (vm *VM) Rules(t int64) chain.CustomRules {
 	return vm.c.Rules(t)
 }
 

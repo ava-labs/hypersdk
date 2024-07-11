@@ -28,7 +28,7 @@ func (b *StatelessBlock) Execute(
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
 	feeManager *fees.Manager,
-	r Rules,
+	r CustomRules,
 ) ([]*Result, *tstate.TState, error) {
 	ctx, span := tracer.Start(ctx, "Processor.Execute")
 	defer span.End()

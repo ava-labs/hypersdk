@@ -63,7 +63,7 @@ func (*CreateOrder) StateKeysMaxChunks() []uint16 {
 
 func (c *CreateOrder) Execute(
 	ctx context.Context,
-	_ chain.Rules,
+	_ chain.CustomRules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -93,7 +93,7 @@ func (c *CreateOrder) Execute(
 	return nil, nil
 }
 
-func (*CreateOrder) ComputeUnits(chain.Rules) uint64 {
+func (*CreateOrder) ComputeUnits(chain.CustomRules) uint64 {
 	return CreateOrderComputeUnits
 }
 
@@ -119,7 +119,7 @@ func UnmarshalCreateOrder(p *codec.Packer) (chain.Action, error) {
 	return &create, p.Err()
 }
 
-func (*CreateOrder) ValidRange(chain.Rules) (int64, int64) {
+func (*CreateOrder) ValidRange(chain.CustomRules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

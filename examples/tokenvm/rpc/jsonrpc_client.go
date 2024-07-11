@@ -214,7 +214,7 @@ type Parser struct {
 	genesis   *genesis.Genesis
 }
 
-func (p *Parser) Rules(t int64) chain.Rules {
+func (p *Parser) Rules(t int64) chain.CustomRules {
 	return p.genesis.Rules(t, p.networkID, p.chainID)
 }
 

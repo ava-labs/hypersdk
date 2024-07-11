@@ -58,7 +58,7 @@ func (mr *MockAuthMockRecorder) Actor() *gomock.Call {
 }
 
 // ComputeUnits mocks base method.
-func (m *MockAuth) ComputeUnits(arg0 Rules) uint64 {
+func (m *MockAuth) ComputeUnits(arg0 CustomRules) uint64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ComputeUnits", arg0)
 	ret0, _ := ret[0].(uint64)
@@ -126,7 +126,7 @@ func (mr *MockAuthMockRecorder) Sponsor() *gomock.Call {
 }
 
 // ValidRange mocks base method.
-func (m *MockAuth) ValidRange(arg0 Rules) (int64, int64) {
+func (m *MockAuth) ValidRange(arg0 CustomRules) (int64, int64) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidRange", arg0)
 	ret0, _ := ret[0].(int64)

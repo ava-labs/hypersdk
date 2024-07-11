@@ -28,7 +28,7 @@ type VM interface {
 	PreferredBlock(context.Context) (*chain.StatelessBlock, error)
 	Registry() (chain.ActionRegistry, chain.AuthRegistry)
 	NodeID() ids.NodeID
-	Rules(int64) chain.Rules
+	Rules(int64) chain.CustomRules
 	Submit(ctx context.Context, verify bool, txs []*chain.Transaction) []error
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool)
 	StateManager() chain.StateManager

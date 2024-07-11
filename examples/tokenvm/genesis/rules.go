@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-var _ chain.Rules = (*Rules)(nil)
+var _ chain.CustomRules = (*Rules)(nil)
 
 type Rules struct {
 	g *Genesis

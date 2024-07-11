@@ -101,17 +101,17 @@ func (mr *MockControllerMockRecorder) Rejected(arg0, arg1 any) *gomock.Call {
 }
 
 // Rules mocks base method.
-func (m *MockController) Rules(arg0 int64) chain.Rules {
+func (m *MockController) Rules(arg0 int64) chain.CustomRules {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rules", arg0)
-	ret0, _ := ret[0].(chain.Rules)
+	ret := m.ctrl.Call(m, "CustomRules", arg0)
+	ret0, _ := ret[0].(chain.CustomRules)
 	return ret0
 }
 
 // Rules indicates an expected call of Rules.
 func (mr *MockControllerMockRecorder) Rules(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rules", reflect.TypeOf((*MockController)(nil).Rules), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRules", reflect.TypeOf((*MockController)(nil).Rules), arg0)
 }
 
 // Shutdown mocks base method.

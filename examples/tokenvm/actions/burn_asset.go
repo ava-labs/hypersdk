@@ -44,7 +44,7 @@ func (*BurnAsset) StateKeysMaxChunks() []uint16 {
 
 func (b *BurnAsset) Execute(
 	ctx context.Context,
-	_ chain.Rules,
+	_ chain.CustomRules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -73,7 +73,7 @@ func (b *BurnAsset) Execute(
 	return nil, nil
 }
 
-func (*BurnAsset) ComputeUnits(chain.Rules) uint64 {
+func (*BurnAsset) ComputeUnits(chain.CustomRules) uint64 {
 	return BurnComputeUnits
 }
 
@@ -93,7 +93,7 @@ func UnmarshalBurnAsset(p *codec.Packer) (chain.Action, error) {
 	return &burn, p.Err()
 }
 
-func (*BurnAsset) ValidRange(chain.Rules) (int64, int64) {
+func (*BurnAsset) ValidRange(chain.CustomRules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

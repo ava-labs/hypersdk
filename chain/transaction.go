@@ -132,7 +132,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 func (t *Transaction) Sponsor() codec.Address { return t.Auth.Sponsor() }
 
 // Units is charged whether or not a transaction is successful.
-func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
+func (t *Transaction) Units(sm StateManager, r CustomRules) (fees.Dimensions, error) {
 	// Calculate compute usage
 	computeOp := math.NewUint64Operator(r.GetBaseComputeUnits())
 	for _, action := range t.Actions {
@@ -186,7 +186,7 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r CustomRules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -247,7 +247,7 @@ func (t *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *fees.Manager,
 	s StateManager,
-	r Rules,
+	r CustomRules,
 	im state.Immutable,
 	timestamp int64,
 ) error {
@@ -292,7 +292,7 @@ func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *fees.Manager,
 	s StateManager,
-	r Rules,
+	r CustomRules,
 	ts *tstate.TStateView,
 	timestamp int64,
 ) (*Result, error) {

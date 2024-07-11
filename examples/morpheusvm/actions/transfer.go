@@ -44,7 +44,7 @@ func (*Transfer) StateKeysMaxChunks() []uint16 {
 
 func (t *Transfer) Execute(
 	ctx context.Context,
-	_ chain.Rules,
+	_ chain.CustomRules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -62,7 +62,7 @@ func (t *Transfer) Execute(
 	return nil, nil
 }
 
-func (*Transfer) ComputeUnits(chain.Rules) uint64 {
+func (*Transfer) ComputeUnits(chain.CustomRules) uint64 {
 	return TransferComputeUnits
 }
 
@@ -85,7 +85,7 @@ func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	return &transfer, nil
 }
 
-func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
+func (*Transfer) ValidRange(chain.CustomRules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

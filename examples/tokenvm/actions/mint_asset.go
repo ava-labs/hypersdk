@@ -50,7 +50,7 @@ func (*MintAsset) StateKeysMaxChunks() []uint16 {
 
 func (m *MintAsset) Execute(
 	ctx context.Context,
-	_ chain.Rules,
+	_ chain.CustomRules,
 	mu state.Mutable,
 	_ int64,
 	actor codec.Address,
@@ -85,7 +85,7 @@ func (m *MintAsset) Execute(
 	return nil, nil
 }
 
-func (*MintAsset) ComputeUnits(chain.Rules) uint64 {
+func (*MintAsset) ComputeUnits(chain.CustomRules) uint64 {
 	return MintAssetComputeUnits
 }
 
@@ -107,7 +107,7 @@ func UnmarshalMintAsset(p *codec.Packer) (chain.Action, error) {
 	return &mint, p.Err()
 }
 
-func (*MintAsset) ValidRange(chain.Rules) (int64, int64) {
+func (*MintAsset) ValidRange(chain.CustomRules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
