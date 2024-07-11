@@ -40,7 +40,7 @@ const (
 	// VM state
 	txPrefix = 0x0
 
-	// HyperSDK state
+	// State keys
 	balancePrefix   = 0x0
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2

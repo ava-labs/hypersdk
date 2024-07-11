@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
+
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 )
 
@@ -43,7 +44,7 @@ const (
 	// VM state
 	txPrefix = 0x0
 
-	// HyperSDK state
+	// State keys
 	balancePrefix   = 0x0
 	assetPrefix     = 0x1
 	orderPrefix     = 0x2
