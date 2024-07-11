@@ -12,7 +12,7 @@ simulator = { workspace = true }
 borsh = { workspace = true }
 
 [dev-dependencies]
-wasmlanche-sdk = { workspace = true, features = ["debug", "test-utils"] }
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }

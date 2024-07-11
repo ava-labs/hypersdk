@@ -28,4 +28,3 @@ wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
 
 borsh = { version = "1.5.1", features = ["derive"] }
 thiserror = "1.0.61"
-serde = { version = "1.0.203", features = ["derive"] }
