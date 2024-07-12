@@ -2,9 +2,6 @@
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_keys, types::Address, Program};
 
-#[cfg(not(feature = "bindings"))]
-const INITIAL_SUPPLY: u64 = 0;
-
 /// The program state keys.
 #[state_keys]
 pub enum StateKey {
