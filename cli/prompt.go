@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,6 +17,24 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/utils"
 )
+
+func (h *Handler) PromptBytes(label string) ([]byte, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_, err := hex.DecodeString(input)
+			return err
+		},
+	}
+	hexString, err := promptText.Run()
+	if err != nil {
+		return nil, err
+	}
+	return hex.DecodeString(hexString)
+}
 
 func (h *Handler) PromptAddress(label string) (codec.Address, error) {
 	promptText := promptui.Prompt{

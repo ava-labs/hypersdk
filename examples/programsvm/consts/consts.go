@@ -33,7 +33,8 @@ func init() {
 // Instantiate registry here so it can be imported by any package. We set these
 // values in [controller/registry].
 var (
-	ActionRegistry *codec.TypeParser[chain.Action, bool]
-	AuthRegistry   *codec.TypeParser[chain.Auth, bool]
-	ProgramsRuntime
+	ActionRegistry *codec.TypeParser[chain.Action]
+	AuthRegistry   *codec.TypeParser[chain.Auth]
+
+	ProgramRuntime *runtime.WasmRuntime
 )

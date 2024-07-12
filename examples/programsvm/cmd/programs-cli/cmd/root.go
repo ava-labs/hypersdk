@@ -145,6 +145,8 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+		publishProgramCmd,
+		callProgramCmd,
 	)
 
 	// spam

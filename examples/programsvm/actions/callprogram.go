@@ -5,6 +5,8 @@ package actions
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -14,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
-	mconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	pconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
 )
 
 var _ chain.Action = (*CallProgram)(nil)
@@ -23,21 +25,18 @@ type CallProgram struct {
 	// program is the address of the program to be called
 	Program codec.Address `json:"program"`
 
+	// Amount are transferred to [To].
+	Value uint64 `json:"value"`
+
 	// Function is the name of the function to call on the program.
 	Function string `json:"function"`
 
 	// CallData are the serialized parameters to be passed to the program.
 	CallData []byte `json:"calldata"`
-
-	// Amount are transferred to [To].
-	Value uint64 `json:"value"`
-
-	// StateKeyList is the list of all touched state keys
-	StateKeyList []string `json:"statekeys"`
 }
 
 func (*CallProgram) GetTypeID() uint8 {
-	return mconsts.TransferID
+	return pconsts.CallProgramID
 }
 
 func (t *CallProgram) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
@@ -53,15 +52,23 @@ func (t *CallProgram) Execute(
 	ctx context.Context,
 	_ chain.Rules,
 	mu state.Mutable,
-	_ int64,
+	timestamp int64,
 	actor codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
-	return nil, nil
+	result, err := pconsts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
+		Program:      t.Program,
+		Actor:        actor,
+		State:        &storage.ProgramStateManager{Mutable: mu},
+		FunctionName: t.Function,
+		Params:       t.CallData,
+		Timestamp:    uint64(timestamp),
+	})
+	return [][]byte{result}, err
 }
 
 func (*CallProgram) ComputeUnits(chain.Rules) uint64 {
-	return TransferComputeUnits
+	return CallComputeUnits
 }
 
 func (*CallProgram) Size() int {
@@ -69,17 +76,22 @@ func (*CallProgram) Size() int {
 }
 
 func (t *CallProgram) Marshal(p *codec.Packer) {
-	p.PackAddress(t.To)
+	p.PackAddress(t.Program)
 	p.PackUint64(t.Value)
+	p.PackString(t.Function)
+	p.PackBytes(t.CallData)
 }
 
 func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
 	var callProgram CallProgram
-	p.UnpackAddress(&callProgram.To) // we do not verify the typeID is valid
+	p.UnpackAddress(&callProgram.Program) // we do not verify the typeID is valid
 	callProgram.Value = p.UnpackUint64(true)
+	callProgram.Function = p.UnpackString(true)
+	p.UnpackBytes(units.MiB, true, &callProgram.CallData)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
+
 	return &callProgram, nil
 }
 

@@ -5,6 +5,7 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -35,6 +36,8 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x1/ (hypersdk-height)
 // 0x2/ (hypersdk-timestamp)
 // 0x3/ (hypersdk-fee)
+// 0x4/ (accounts)
+// 0x5/ (programs)
 
 const (
 	// metaDB
@@ -45,6 +48,11 @@ const (
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
 	feePrefix       = 0x3
+	accountsPrefix  = 0x4
+	programsPrefix  = 0x5
+
+	accountProgramPrefix = 0x0
+	accountStatePrefix   = 0x1
 )
 
 const BalanceChunks uint16 = 1
@@ -253,4 +261,39 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
+}
+
+// [accountStatePrefix] + [account]
+func accountStateKey(account codec.Address) (k []byte) {
+	k = make([]byte, 2+codec.AddressLen)
+	k[0] = accountsPrefix
+	copy(k[1:], account[:])
+	k[len(k)-1] = accountStatePrefix
+	return
+}
+
+// [accountStatePrefix] + [account]
+func accountProgramKey(account codec.Address) (k []byte) {
+	k = make([]byte, 2+codec.AddressLen)
+	k[0] = accountsPrefix
+	copy(k[1:], account[:])
+	k[len(k)-1] = accountProgramPrefix
+	return
+}
+
+// [accountStatePrefix] + [account]
+func programsKey(id ids.ID) (k []byte) {
+	k = make([]byte, 1+ids.IDLen)
+	k[0] = programsPrefix
+	copy(k[1:], id[:])
+	return
+}
+
+func StoreProgram(
+	ctx context.Context,
+	mu state.Mutable,
+	programBytes []byte,
+) (ids.ID, error) {
+	programID := ids.ID(sha256.Sum256(programBytes))
+	return programID, mu.Insert(ctx, programsKey(programID), programBytes)
 }
