@@ -52,15 +52,15 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
 
     // transfer tokens fropm actor to the pool
     // this will ensure the actor has enough tokens
-    token::transfer_from(token_in, context.actor(), *program.account(), amount);
+    token::transfer_from(&token_in, context.actor(), *program.account(), amount);
 
     // transfer the amount_out to the actor
-    token::transfer(token_out, context.actor(), amount_out);
+    token::transfer(&token_out, context.actor(), amount_out);
 
     // update the allowances
     assert!(
-        token::approve(token_in, *program.account(), reserve_token_in + amount)
-            && token::approve(token_out, *program.account(), reserve_token_out - amount)
+        token::approve(&token_in, *program.account(), reserve_token_in + amount)
+            && token::approve(&token_out, *program.account(), reserve_token_out - amount)
     );
 
     amount_out
@@ -82,8 +82,8 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     // ensure the proper ratio
     assert_eq!(reserve_x * amount_y, reserve_y * amount_x, "invalid ratio");
     // transfer tokens from the actor to the pool
-    token::transfer_from(token_x, context.actor(), *program.account(), amount_x);
-    token::transfer_from(token_y, context.actor(), *program.account(), amount_y);
+    token::transfer_from(&token_x, context.actor(), *program.account(), amount_x);
+    token::transfer_from(&token_y, context.actor(), *program.account(), amount_y);
 
     // calculate the amount of shares to mint
     let total_shares = total_shares(program);
@@ -110,8 +110,8 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
 
     // update the allowances
     assert!(
-        token::approve(token_x, *program.account(), reserve_x + amount_x)
-            && token::approve(token_y, *program.account(), reserve_y + amount_y)
+        token::approve(&token_x, *program.account(), reserve_x + amount_x)
+            && token::approve(&token_y, *program.account(), reserve_y + amount_y)
     );
 
     shares
@@ -144,13 +144,13 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
     burn_lp(program, shares);
 
     // update the reserves
-    token::transfer(token_x, context.actor(), amount_x);
-    token::transfer(token_y, context.actor(), amount_y);
+    token::transfer(&token_x, context.actor(), amount_x);
+    token::transfer(&token_y, context.actor(), amount_y);
 
     // update the allowances
     assert!(
-        token::approve(token_x, *program.account(), reserve_x - amount_x)
-            && token::approve(token_y, *program.account(), reserve_y - amount_y)
+        token::approve(&token_x, *program.account(), reserve_x - amount_x)
+            && token::approve(&token_y, *program.account(), reserve_y - amount_y)
     );
 
     (amount_x, amount_y)
