@@ -37,10 +37,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x3/ (hypersdk-fee)
 
 const (
-	// VM state
+	// Indexes
 	txPrefix = 0x0
 
-	// State keys
+	// Active state
 	balancePrefix   = 0x0
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
