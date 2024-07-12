@@ -416,8 +416,8 @@ func UnmarshalTxs(
 
 func UnmarshalTx(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, bool],
-	authRegistry *codec.TypeParser[Auth, bool],
+	actionRegistry *codec.TypeParser[Action],
+	authRegistry *codec.TypeParser[Auth],
 ) (*Transaction, error) {
 	start := p.Offset()
 	base, err := UnmarshalBase(p)
@@ -462,7 +462,7 @@ func UnmarshalTx(
 
 func unmarshalActions(
 	p *codec.Packer,
-	actionRegistry *codec.TypeParser[Action, bool],
+	actionRegistry *codec.TypeParser[Action],
 ) ([]Action, error) {
 	actionCount := p.UnpackByte()
 	if actionCount == 0 {

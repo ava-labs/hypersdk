@@ -228,13 +228,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor(ctx, db)
-		if err != nil {
-			return err
-		}
 		testContext := runtime.Context{
 			Program:   program,
-			Actor:     actor,
+			Actor:     simulatorTestContext.ActorAddr,
 			Timestamp: simulatorTestContext.Timestamp,
 			Height:    simulatorTestContext.Height,
 		}
@@ -263,13 +259,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor(ctx, db)
-		if err != nil {
-			return err
-		}
 		testContext := runtime.Context{
 			Program:   program,
-			Actor:     actor,
+			Actor:     simulatorTestContext.ActorAddr,
 			Timestamp: simulatorTestContext.Timestamp,
 			Height:    simulatorTestContext.Height,
 		}
@@ -305,10 +297,10 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 }
 
 type SimulatorTestContext struct {
-	ProgramID uint64     `json:"programId"`
-	ActorKey  *Parameter `json:"actorKey"`
-	Height    uint64     `json:"height"`
-	Timestamp uint64     `json:"timestamp"`
+	ProgramID uint64        `json:"programId"`
+	ActorAddr codec.Address `json:"actor"`
+	Height    uint64        `json:"height"`
+	Timestamp uint64        `json:"timestamp"`
 }
 
 func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
@@ -318,26 +310,6 @@ func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (c
 		return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
 	}
 	return programAddress, nil
-}
-
-func (s *SimulatorTestContext) Actor(ctx context.Context, db *state.SimpleMutable) (codec.Address, error) {
-	actor := codec.EmptyAddress
-	if s.ActorKey != nil {
-		key := string(s.ActorKey.Value)
-		pk, ok, err := GetPublicKey(ctx, db, key)
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		if !ok {
-			return codec.EmptyAddress, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
-		}
-		id, err := ids.ToID(pk[:])
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		actor = codec.CreateAddress(0, id)
-	}
-	return actor, nil
 }
 
 func AddressToString(pk ed25519.PublicKey) string {
