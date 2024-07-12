@@ -93,6 +93,13 @@ pub struct TestContext {
     pub timestamp: u64,
 }
 
+// allow the actor key to be set
+impl TestContext {
+    pub fn with_actor_key(&mut self, key: Key) {
+        self.actor_key = Some(key);
+    }
+}
+
 impl From<Id> for TestContext {
     fn from(program_id: Id) -> Self {
         Self {

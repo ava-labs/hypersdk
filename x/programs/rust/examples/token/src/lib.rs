@@ -19,19 +19,17 @@ pub enum StateKey {
     Owner,
 }
 
-pub fn get_owner(program: &Program<StateKey>) -> Option<Address> {
+pub fn get_owner(program: &Program<StateKey>) -> Address {
     program
         .state()
         .get::<Address>(StateKey::Owner)
         .expect("failure")
+        .unwrap()
 }
 
 pub fn owner_check(program: &Program<StateKey>, actor: Address) {
     assert!(
-        match get_owner(program) {
-            None => true,
-            Some(owner) => owner == actor,
-        },
+        get_owner(program) == actor,
         "caller is required to be owner"
     )
 }
@@ -502,87 +500,90 @@ mod tests {
         assert_eq!(balance, alice_initial_balance - alice_burn_amount);
     }
 
-    // #[test]
-    // fn transfer() {
-    //     let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+    #[test]
+    fn transfer() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-    //     let owner_key = String::from("owner");
-    //     let alice_key = Key::Ed25519(String::from("alice"));
-    //     let alice_key_param = Param::Key(alice_key.clone());
-    //     let alice_initial_balance = 1000;
-    //     let alice_transfer_amount = 100;
+        let owner_key = String::from("owner");
+        let alice_key = Key::Ed25519(String::from("alice"));
+        let alice_key_param = Param::Key(alice_key.clone());
+        let alice_initial_balance = 1000;
+        let alice_transfer_amount = 100;
 
-    //     let bob_key = Key::Ed25519(String::from("gunkyman"));
-    //     let bob_key_param = Param::Key(bob_key.clone());
+        let bob_key = Key::Ed25519(String::from("bob"));
+        let bob_key_param = Param::Key(bob_key.clone());
 
-    //     simulator
-    //         .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-    //         .unwrap();
+        simulator
+            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
+            .unwrap();
 
-    //     let program_id = simulator
-    //         .run_step(&Step::create_program(PROGRAM_PATH))
-    //         .unwrap()
-    //         .id;
+        let program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
 
-    //     simulator.run_step(&Step::create_key(alice_key)).unwrap();
+        simulator.run_step(&Step::create_key(alice_key.clone())).unwrap();
+        simulator.run_step(&Step::create_key(bob_key)).unwrap();
 
-    //     let test_context = TestContext::from(program_id);
+        let mut test_context = TestContext::from(program_id);
 
-    //     simulator
-    //     .run_step(&Step {
-    //         endpoint: Endpoint::Execute,
-    //         method: "init".into(),
-    //         params: vec![test_context.clone().into(), Param::String("Test".into()), Param::String("TST".into())],
-    //         max_units: 1000000,
-    //     })
-    //     .unwrap();
+        simulator
+        .run_step(&Step {
+            endpoint: Endpoint::Execute,
+            method: "init".into(),
+            params: vec![test_context.clone().into(), Param::String("Test".into()), Param::String("TST".into())],
+            max_units: 1000000,
+        })
+        .unwrap();
 
-    //     simulator
-    //         .run_step(&Step {
-    //             endpoint: Endpoint::Execute,
-    //             method: "mint".into(),
-    //             params: vec![
-    //                 test_context.clone().into(),
-    //                 alice_key_param.clone(),
-    //                 Param::U64(alice_initial_balance),
-    //             ],
-    //             max_units: 1000000,
-    //         })
-    //         .unwrap();
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "mint".into(),
+                params: vec![
+                    test_context.clone().into(),
+                    alice_key_param.clone(),
+                    Param::U64(alice_initial_balance),
+                ],
+                max_units: 1000000,
+            })
+            .unwrap();
+        // run the simulator with alice as the actor
+        test_context.with_actor_key(alice_key.clone());
 
-    //     simulator.run_step(
-    //         &Step {
-    //             endpoint: Endpoint::Execute,
-    //             method: "transfer_from".into(),
-    //             max_units: 1000000,
-    //             params: vec![test_context.clone().into(), alice_key_param.clone(), Param::Key(bob_key.clone()), Param::U64(alice_transfer_amount)],
-    //                     }
-    //     ).unwrap();
+        simulator.run_step(
+            &Step {
+                endpoint: Endpoint::Execute,
+                method: "transfer".into(),
+                max_units: 1000000,
+                params: vec![test_context.clone().into(), bob_key_param.clone(), Param::U64(alice_transfer_amount)],
+                        }
+        ).unwrap();
+        
+        let alice_balance = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "balance_of".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into(), alice_key_param],
+            })
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+        assert_eq!(alice_balance, alice_initial_balance - alice_transfer_amount);
 
-    //     let alice_balance = simulator
-    //         .run_step(&Step {
-    //             endpoint: Endpoint::ReadOnly,
-    //             method: "balance_of".into(),
-    //             max_units: 0,
-    //             params: vec![test_context.clone().into(), alice_key_param],
-    //         })
-    //         .unwrap()
-    //         .result
-    //         .response::<u64>()
-    //         .unwrap();
-    //     assert_eq!(alice_balance, alice_initial_balance - alice_transfer_amount);
-
-    //     let bob_balance = simulator
-    //         .run_step(&Step {
-    //             endpoint: Endpoint::ReadOnly,
-    //             method: "balance_of".into(),
-    //             max_units: 0,
-    //             params: vec![test_context.clone().into(), bob_key_param],
-    //         })
-    //         .unwrap()
-    //         .result
-    //         .response::<u64>()
-    //         .unwrap();
-    //     assert_eq!(bob_balance, alice_transfer_amount);
-    // }
+        let bob_balance = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "balance_of".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into(), bob_key_param],
+            })
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+        assert_eq!(bob_balance, alice_transfer_amount);
+    }
 }
