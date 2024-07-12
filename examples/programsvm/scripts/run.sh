@@ -99,11 +99,11 @@ fi
 echo "building programsvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+-o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN \
 ./cmd/programsvm
 
 echo "building programs-cli"
