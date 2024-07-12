@@ -224,6 +224,20 @@ pub fn transfer_from(
 }
 
 #[public]
+pub fn transfer_ownership(context: Context<StateKey>, new_owner: Address) -> bool {
+    let program = context.program();
+    let actor = context.actor();
+
+    owner_check(&program, actor);
+    program
+        .state()
+        .store_by_key(StateKey::Owner, &new_owner)
+        .expect("failed to store owner");
+    true
+}
+
+
+#[public]
 // grab the symbol of the token
 pub fn symbol(context: Context<StateKey>) -> String {
     let program = context.program();

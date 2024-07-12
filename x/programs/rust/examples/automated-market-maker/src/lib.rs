@@ -5,14 +5,33 @@ mod math;
 
 #[state_keys]
 pub enum StateKeys {
-    // Tokens in the Pool
+    // Tokens in the Pool as Program type
     TokenX,
     TokenY,
-    // Liquidity Token
+    // Liquidity Token as a Program type
     LiquidityToken,
 }
 
 const MAX_GAS: u64 = 10000000;
+
+// Initializes the pool with the two tokens and the liquidity token
+#[public]
+pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liquidity_token: Program) {
+    let program = context.program();
+
+    program.state().store([
+        (StateKeys::TokenX, &token_x),
+        (StateKeys::TokenY, &token_y),
+        (StateKeys::LiquidityToken, &liquidity_token),
+    ]).expect("failed to set state");
+
+    let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
+
+    // TODO: the init function should spin up a new token contract instead
+    // of requiring the caller to pass in the liquidity token
+    token::transfer_ownership(&liquidity_context, *program.account());
+}
+
 
 // Swaps 'amount' of `token_program_in` with the other token in the pool.
 // Returns the amount of tokens received from the swap
