@@ -8,10 +8,8 @@ pub enum StateKeys {
     // Tokens in the Pool
     TokenX,
     TokenY,
-    // total LP shares
-    TotalShares,
-    // balances of LP shares
-    Balances(Address),
+    // Liquidity Token
+    LiquidityToken,
 }
 
 const MAX_GAS: u64 = 10000000;
@@ -26,7 +24,7 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     // ensure the token_program_in is one of the tokens
     _token_check(program, &token_program_in);
 
-    let (token_in, token_out) = external_token_contracts(program, MAX_GAS, 1000000);
+    let (token_in, token_out) = external_token_contracts(program);
 
     // make sure token_in is the first token
     let (token_in, token_out) = if token_program_in.account() == token_in.program().account() {
@@ -71,8 +69,8 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
 #[public]
 pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) -> u64 {
     let program = context.program();
-    let (token_x, token_y) = external_token_contracts(program, MAX_GAS, 1000000);
-
+    let (token_x, token_y) = external_token_contracts(program);
+    let lp_token = external_liquidity_token(program);
     // calculate the amount of tokens in the pool
     let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
 
@@ -83,7 +81,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     token::transfer_from(&token_y, context.actor(), *program.account(), amount_y);
 
     // calculate the amount of shares to mint
-    let total_shares = total_shares(program);
+    let total_shares = token::total_supply(&lp_token);
     let shares = if total_shares == 0 {
         // if the pool is empty, mint the shares
         math::sqrt(amount_x * amount_y)
@@ -97,13 +95,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     assert!(shares > 0, "insufficient liquidity");
 
     // mint the shares
-    mint_lp(program, shares);
-    let lp_balance: u64 = program
-        .state()
-        .get(StateKeys::Balances(context.actor()))
-        .unwrap()
-        .unwrap_or_default();
-    update_lp_balance(program, context.actor(), lp_balance + shares);
+    token::mint(&lp_token, context.actor(), shares);
 
     // update the allowances
     assert!(
@@ -119,17 +111,13 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
 #[public]
 pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) {
     let program = context.program();
-
+    let lp_token = external_liquidity_token(program);
     // assert that the actor has enough shares
-    let lp_balance: u64 = program
-        .state()
-        .get(StateKeys::Balances(context.actor()))
-        .unwrap()
-        .unwrap_or_default();
+    let lp_balance = token::balance_of(&lp_token, context.actor());
     assert!(lp_balance >= shares, "insufficient shares");
 
-    let total_shares = total_shares(program);
-    let (token_x, token_y) = external_token_contracts(program, MAX_GAS, 1000000);
+    let total_shares = token::total_supply(&lp_token);
+    let (token_x, token_y) = external_token_contracts(program);
     let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
 
     let amount_x = (shares * reserve_x) / total_shares;
@@ -138,10 +126,7 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
     assert!(amount_x > 0 && amount_y > 0, "insufficient liquidity");
 
     // burn the shares
-    burn_lp(program, shares);
-
-    // update the LP balance
-    update_lp_balance(program, context.actor(), lp_balance - shares);
+    token::burn(&lp_token, context.actor(), shares);
 
     // update the reserves
     token::transfer(&token_x, context.actor(), amount_x);
@@ -160,23 +145,9 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
 #[public]
 pub fn remove_all_liquidity(context: Context<StateKeys>) -> (u64, u64) {
     let program = context.program();
-    let lp_balance = program
-        .state()
-        .get(StateKeys::Balances(context.actor()))
-        .unwrap()
-        .unwrap_or_default();
+    let lp_token = external_liquidity_token(program);
+    let lp_balance = token::balance_of(&lp_token, context.actor());
     remove_liquidity(context, lp_balance)
-}
-
-// Returns the amount of LP shares owned by the actor
-#[public]
-pub fn lp_balance(context: Context<StateKeys>) -> u64 {
-    let program = context.program();
-    program
-        .state()
-        .get(StateKeys::Balances(context.actor()))
-        .unwrap()
-        .unwrap_or_default()
 }
 
 // Calculates the balances of the tokens in the pool
@@ -193,15 +164,6 @@ fn reserves(token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (u6
     );
 
     (balance_x, balance_y)
-}
-
-// Returns the total amount of LP shares in circulation
-fn total_shares(program: &Program<StateKeys>) -> u64 {
-    program
-        .state()
-        .get(StateKeys::TotalShares)
-        .unwrap()
-        .unwrap_or_default()
 }
 
 // Checks if `token_program` is one of the tokens supported by the pool
@@ -225,45 +187,25 @@ fn token_programs(program: &Program<StateKeys>) -> (Program, Program) {
 // Returns the external call contexts for the tokens in the pool
 fn external_token_contracts(
     program: &Program<StateKeys>,
-    max_gas_x: u64,
-    max_gas_y: u64,
 ) -> (ExternalCallContext, ExternalCallContext) {
     let (token_x, token_y) = token_programs(program);
 
     (
-        ExternalCallContext::new(token_x, max_gas_x, 0),
-        ExternalCallContext::new(token_y, max_gas_y, 0),
+        ExternalCallContext::new(token_x, MAX_GAS, 0),
+        ExternalCallContext::new(token_y, MAX_GAS, 0),
     )
 }
 
-// Updates the LP balance of the actor to `new_balance`
-fn update_lp_balance(program: &Program<StateKeys>, actor: Address, new_balance: u64) {
-    program
-        .state()
-        .store_by_key(StateKeys::Balances(actor), &(new_balance))
-        .unwrap();
-}
-
-// Increases the amount of LP shares in circulation by 'amount'
-fn mint_lp(program: &Program<StateKeys>, amount: u64) {
-    let total_shares = total_shares(program);
-
-    program
-        .state()
-        .store_by_key(StateKeys::TotalShares, &(total_shares + amount))
-        .unwrap();
-}
-
-// Decreases the amount of LP shares in circulation by 'amount'
-fn burn_lp(program: &Program<StateKeys>, amount: u64) {
-    let total_shares = total_shares(program);
-
-    assert!(total_shares >= amount, "not enough shares to burn");
-
-    program
-        .state()
-        .store_by_key(StateKeys::TotalShares, &(total_shares - amount))
-        .unwrap();
+fn external_liquidity_token(program: &Program<StateKeys>) -> ExternalCallContext {
+    ExternalCallContext::new(
+        program
+            .state()
+            .get(StateKeys::LiquidityToken)
+            .unwrap()
+            .unwrap(),
+        MAX_GAS,
+        0,
+    )
 }
 
 #[cfg(test)]
