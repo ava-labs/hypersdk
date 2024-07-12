@@ -174,8 +174,13 @@ EOF
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
 function cleanup {
-  echo -e "\n\n${RED}destroying the devnet, running:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
-  ${TMPDIR}/avalanche node destroy ${CLUSTER} -y
+  exit_status=$?
+  if [ $exit_status -eq 0 ]; then
+    echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+  else
+    echo -e "\n\n${RED}destroying the devnet, running:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+    ${TMPDIR}/avalanche node destroy ${CLUSTER} -y
+  fi
 }
 trap cleanup EXIT
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
