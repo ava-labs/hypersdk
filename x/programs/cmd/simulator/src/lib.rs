@@ -243,8 +243,6 @@ impl From<Address> for Param {
 pub struct StepResult {
     /// The ID created from the program execution.
     pub action_id: Option<String>,
-    /// An optional message.
-    pub msg: Option<String>,
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
