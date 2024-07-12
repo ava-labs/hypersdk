@@ -45,12 +45,14 @@ pub fn init(context: Context<StateKey>, name: String, symbol: String) {
     let program = context.program();
     let actor = context.actor();
 
-    program.state().store_by_key(StateKey::Owner, &actor).expect("failed to store owner");
+    program
+        .state()
+        .store_by_key(StateKey::Owner, &actor)
+        .expect("failed to store owner");
     // initialize the owner, name, and symbol
     program
         .state()
-        .store([(StateKey::Name, &name),
-                (StateKey::Symbol, &symbol)])
+        .store([(StateKey::Name, &name), (StateKey::Symbol, &symbol)])
         .expect("failed to store owner");
 }
 
@@ -84,10 +86,10 @@ pub fn mint(context: Context<StateKey>, recipient: Address, amount: u64) -> bool
     let total_supply = _total_supply(&program);
     program
         .state()
-        .store([(StateKey::Balance(recipient), &(balance + amount)), (
-            StateKey::TotalSupply,
-            &(total_supply + amount),
-        )])
+        .store([
+            (StateKey::Balance(recipient), &(balance + amount)),
+            (StateKey::TotalSupply, &(total_supply + amount)),
+        ])
         .expect("failed to store balance");
 
     true
@@ -146,7 +148,7 @@ pub fn _allowance(program: &Program<StateKey>, owner: Address, spender: Address)
 pub fn approve(context: Context<StateKey>, spender: Address, amount: u64) -> bool {
     let program = context.program();
     let actor = context.actor();
-    
+
     program
         .state()
         .store_by_key(StateKey::Allowance(actor, spender), &amount)
@@ -188,8 +190,10 @@ fn _transfer(
     // update balances
     program
         .state()
-        .store([(StateKey::Balance(sender), &(sender_balance - amount)), 
-                (StateKey::Balance(recipient), &(recipient_balance + amount))])
+        .store([
+            (StateKey::Balance(sender), &(sender_balance - amount)),
+            (StateKey::Balance(recipient), &(recipient_balance + amount)),
+        ])
         .expect("failed to store sender balance");
 
     true
@@ -247,7 +251,7 @@ pub fn name(context: Context<StateKey>) -> String {
 #[cfg(test)]
 mod tests {
     use simulator::{Endpoint, Key, Param, Step, TestContext};
-    
+
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
@@ -285,7 +289,11 @@ mod tests {
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "init".into(),
-                params: vec![test_context.clone().into(), Param::String("Test".into()), Param::String("TST".into())],
+                params: vec![
+                    test_context.clone().into(),
+                    Param::String("Test".into()),
+                    Param::String("TST".into()),
+                ],
                 max_units: 1000000,
             })
             .unwrap();
@@ -303,24 +311,30 @@ mod tests {
             .unwrap();
         assert_eq!(supply, 0);
 
-        let symbol =  simulator.run_step(
-            &Step {
+        let symbol = simulator
+            .run_step(&Step {
                 endpoint: Endpoint::ReadOnly,
                 method: "symbol".into(),
                 max_units: 0,
                 params: vec![test_context.clone().into()],
-            }
-        ).unwrap().result.response::<String>().unwrap();
+            })
+            .unwrap()
+            .result
+            .response::<String>()
+            .unwrap();
         assert_eq!(symbol, "TST");
 
-        let name =  simulator.run_step(
-            &Step {
+        let name = simulator
+            .run_step(&Step {
                 endpoint: Endpoint::ReadOnly,
                 method: "name".into(),
                 max_units: 0,
                 params: vec![test_context.into()],
-            }
-        ).unwrap().result.response::<String>().unwrap();
+            })
+            .unwrap()
+            .result
+            .response::<String>()
+            .unwrap();
         assert_eq!(name, "Test");
     }
 
@@ -347,13 +361,17 @@ mod tests {
         let test_context = TestContext::from(program_id);
 
         simulator
-        .run_step(&Step {
-            endpoint: Endpoint::Execute,
-            method: "init".into(),
-            params: vec![test_context.clone().into(), Param::String("Test".into()), Param::String("TST".into())],
-            max_units: 1000000,
-        })
-        .unwrap();
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".into(),
+                params: vec![
+                    test_context.clone().into(),
+                    Param::String("Test".into()),
+                    Param::String("TST".into()),
+                ],
+                max_units: 1000000,
+            })
+            .unwrap();
 
         simulator
             .run_step(&Step {
@@ -382,14 +400,17 @@ mod tests {
 
         assert_eq!(balance, alice_initial_balance);
 
-        let total_supply = simulator.run_step(
-            &Step {
+        let total_supply = simulator
+            .run_step(&Step {
                 endpoint: Endpoint::ReadOnly,
                 method: "total_supply".into(),
                 max_units: 0,
                 params: vec![test_context.into()],
-            }
-        ).unwrap().result.response::<u64>().unwrap();
+            })
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
         assert_eq!(total_supply, alice_initial_balance);
     }
 
@@ -417,13 +438,17 @@ mod tests {
         let test_context = TestContext::from(program_id);
 
         simulator
-        .run_step(&Step {
-            endpoint: Endpoint::Execute,
-            method: "init".into(),
-            params: vec![test_context.clone().into(), Param::String("Test".into()), Param::String("TST".into())],
-            max_units: 1000000,
-        })
-        .unwrap();
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".into(),
+                params: vec![
+                    test_context.clone().into(),
+                    Param::String("Test".into()),
+                    Param::String("TST".into()),
+                ],
+                max_units: 1000000,
+            })
+            .unwrap();
 
         simulator
             .run_step(&Step {
@@ -438,14 +463,18 @@ mod tests {
             })
             .unwrap();
 
-        simulator.run_step(
-            &Step {
+        simulator
+            .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "burn".into(),
                 max_units: 1000000,
-                params: vec![test_context.clone().into(), alice_key_param.clone(), Param::U64(alice_burn_amount)],
-            }
-        ).unwrap();
+                params: vec![
+                    test_context.clone().into(),
+                    alice_key_param.clone(),
+                    Param::U64(alice_burn_amount),
+                ],
+            })
+            .unwrap();
 
         let balance = simulator
             .run_step(&Step {
@@ -546,8 +575,3 @@ mod tests {
     //     assert_eq!(bob_balance, alice_transfer_amount);
     // }
 }
-
-
-
-
-
