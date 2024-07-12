@@ -1,4 +1,4 @@
-use crate::{memory::HostPtr, state::Error as StateError};
+use crate::memory::HostPtr;
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
@@ -56,7 +56,7 @@ impl<'a, K: Key> State<'a, K> {
                     cache.insert(k, v);
                 })
             })
-            .map_err(|_| StateError::Serialization)?;
+            .map_err(|_| Error::Serialization)?;
 
         Ok(())
     }
@@ -105,7 +105,7 @@ impl<'a, K: Key> State<'a, K> {
         };
 
         from_slice::<V>(val_bytes)
-            .map_err(|_| StateError::Deserialization)
+            .map_err(|_| Error::Deserialization)
             .map(Some)
     }
 
@@ -116,7 +116,7 @@ impl<'a, K: Key> State<'a, K> {
             fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
         }
 
-        let args_bytes = borsh::to_vec(&key).map_err(|_| StateError::Serialization)?;
+        let args_bytes = borsh::to_vec(&key).map_err(|_| Error::Serialization)?;
 
         let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
 
@@ -155,7 +155,7 @@ impl<'a, K: Key> State<'a, K> {
         };
 
         from_slice::<V>(val_bytes)
-            .map_err(|_| StateError::Deserialization)
+            .map_err(|_| Error::Deserialization)
             .map(Some)
     }
 
