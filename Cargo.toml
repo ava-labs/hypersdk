@@ -11,6 +11,9 @@ members = [
     "x/programs/test/programs/*",
     "x/programs/cmd/simulator/test/*",
 ]
+default-members = [
+    "x/programs/rust/wasmlanche-sdk",
+]
 resolver = "2"
 
 [profile.release]

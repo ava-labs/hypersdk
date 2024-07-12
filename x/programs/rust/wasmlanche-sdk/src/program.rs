@@ -9,7 +9,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap, io::Read};
 use thiserror::Error;
 
-/// Defer deserialization from bytes
+/// Defer deserialization from bytes.
 /// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct DeferDeserialize(Vec<u8>);
@@ -24,7 +24,7 @@ impl BorshSerialize for DeferDeserialize {
 
 impl DeferDeserialize {
     /// # Errors
-    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value.
     pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
         let Self(bytes) = self;
         borsh::from_slice(&bytes)
@@ -131,9 +131,9 @@ impl<K> Program<K> {
         borsh::from_slice(&bytes).expect("failed to deserialize")
     }
 
-    /// Gets the remaining fuel available to this program
+    /// Gets the remaining fuel available to this program.
     /// # Panics
-    /// Panics if there was an issue deserializing the remaining fuel
+    /// Panics if there was an issue deserializing the remaining fuel.
     pub fn remaining_fuel(&self) -> u64 {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -146,9 +146,9 @@ impl<K> Program<K> {
         borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
     }
 
-    /// Deploy an instance of the specified program and returns the account of the new instance
+    /// Deploy an instance of the specified program and returns the account of the new instance.
     /// # Panics
-    /// Panics if there was an issue deserializing the account
+    /// Panics if there was an issue deserializing the account.
     pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
         #[link(wasm_import_module = "program")]
         extern "C" {

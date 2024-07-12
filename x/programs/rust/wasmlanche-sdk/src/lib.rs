@@ -6,7 +6,9 @@ pub mod state;
 /// Program types.
 pub mod types;
 
+/// Accounts-owned value.
 pub mod balance;
+
 mod logging;
 mod memory;
 mod program;
@@ -35,6 +37,7 @@ pub struct Context<K = ()> {
     action_id: Id,
 }
 
+/// Getters of the `Context` components
 impl<K> Context<K> {
     pub fn program(&self) -> &Program<K> {
         &self.program
