@@ -52,7 +52,6 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
