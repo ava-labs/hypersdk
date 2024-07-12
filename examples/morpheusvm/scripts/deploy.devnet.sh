@@ -174,11 +174,15 @@ EOF
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
 
+interrupted=false
 function showcleanup {
-  echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+   if [ "$interrupted" = false ]; then
+        echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+   fi
 }
 
 function cleanup {
+  interrupted=true
   echo -e "\n\n${RED}destroying the devnet, running:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
   ${TMPDIR}/avalanche node destroy ${CLUSTER} -y
 }
