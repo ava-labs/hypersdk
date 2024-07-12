@@ -14,6 +14,14 @@ use thiserror::Error;
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct DeferDeserialize(Vec<u8>);
 
+impl BorshSerialize for DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue writing
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.0)
+    }
+}
+
 impl DeferDeserialize {
     /// # Errors
     /// Returns a [`std::io::Error`] if there was an issue deserializing the value
@@ -43,6 +51,8 @@ pub enum ExternalCallError {
     CallPanicked = 1,
     #[error("not enough fuel to cover the execution")]
     OutOfFuel = 2,
+    #[error("insufficient funds")]
+    InsufficientFunds = 3,
 }
 
 /// Represents the current Program in the context of the caller, or an external
@@ -88,7 +98,8 @@ impl<K> Program<K> {
     /// let increment = 10;
     /// let params = borsh::to_vec(&increment).unwrap();
     /// let max_units = 1000000;
-    /// let has_incremented: bool = target.call_function("increment", &params, max_units)?;
+    /// let value = 0;
+    /// let has_incremented: bool = target.call_function("increment", &params, max_units, value)?;
     /// assert!(has_incremented);
     /// # Ok::<(), wasmlanche_sdk::ExternalCallError>(())
     /// ```
@@ -97,6 +108,7 @@ impl<K> Program<K> {
         function_name: &str,
         args: &[u8],
         max_units: Gas,
+        max_value: u64,
     ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -109,6 +121,7 @@ impl<K> Program<K> {
             function: function_name.as_bytes(),
             args,
             max_units,
+            max_value,
         };
 
         let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
@@ -165,6 +178,7 @@ struct CallProgramArgs<'a, K> {
     function: &'a [u8],
     args: &'a [u8],
     max_units: Gas,
+    max_value: u64,
 }
 
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {
@@ -174,13 +188,14 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
             function,
             args,
             max_units,
+            max_value,
         } = self;
 
         target.serialize(writer)?;
         function.serialize(writer)?;
         args.serialize(writer)?;
         max_units.serialize(writer)?;
-
+        max_value.serialize(writer)?;
         Ok(())
     }
 }

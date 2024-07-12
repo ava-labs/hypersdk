@@ -24,10 +24,8 @@ func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if gatherer != nil {
-		if err := gatherer.Register(block, blockDBRegistry); err != nil {
-			return nil, nil, nil, err
-		}
+	if err := gatherer.Register(block, blockDBRegistry); err != nil {
+		return nil, nil, nil, err
 	}
 	statePath, err := utils.InitSubDirectory(chainDataDir, state)
 	if err != nil {
@@ -37,10 +35,8 @@ func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if gatherer != nil {
-		if err := gatherer.Register(state, stateDBRegistry); err != nil {
-			return nil, nil, nil, err
-		}
+	if err := gatherer.Register(state, stateDBRegistry); err != nil {
+		return nil, nil, nil, err
 	}
 	metaPath, err := utils.InitSubDirectory(chainDataDir, metadata)
 	if err != nil {
@@ -50,10 +46,8 @@ func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if gatherer != nil {
-		if err := gatherer.Register(metadata, metaDBRegistry); err != nil {
-			return nil, nil, nil, err
-		}
+	if err := gatherer.Register(metadata, metaDBRegistry); err != nil {
+		return nil, nil, nil, err
 	}
 	return corruptabledb.New(blockDB), corruptabledb.New(stateDB), corruptabledb.New(metaDB), nil
 }
