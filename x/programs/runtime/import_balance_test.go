@@ -26,8 +26,9 @@ func TestImportBalanceSendBalanceToAnotherProgram(t *testing.T) {
 
 	// create a new instance of the balance program
 	newInstanceAddress := codec.CreateAddress(0, ids.GenerateTestID())
-	programID := stateManager.AccountMap[program.Address]
-	r.StateManager.(test.StateManager).AccountMap[newInstanceAddress] = programID
+	programID, err := stateManager.GetAccountProgram(ctx, program.Address)
+	require.NoError(err)
+	r.StateManager.SetAccountProgram(ctx, newInstanceAddress, programID)
 	stateManager.Balances[newInstanceAddress] = 0
 
 	// program 2 starts with 0 balance
