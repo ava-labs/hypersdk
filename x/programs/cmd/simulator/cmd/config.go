@@ -15,8 +15,6 @@ const (
 )
 
 type Step struct {
-	// The key of the caller used.
-	CallerKey string `json:"callerKey"`
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint"`
 	// The method to call on the endpoint.
@@ -112,11 +110,11 @@ type Type string
 
 const (
 	String       Type = "string"
-	Bool         Type = "bool"
+	Path         Type = "path"
+	Address      Type = "address"
 	ID           Type = "id"
 	KeyEd25519   Type = "ed25519"
 	KeySecp256k1 Type = "secp256k1"
-	Uint64       Type = "u64"
 	TestContext  Type = "testContext"
 )
 

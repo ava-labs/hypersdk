@@ -29,11 +29,11 @@ mod tests {
         let owner = String::from("owner");
 
         simulator
-            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
+            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
         let program_id = simulator
-            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
@@ -42,15 +42,12 @@ mod tests {
         test_context.timestamp = timestamp;
 
         let response = simulator
-            .run_step(
-                &owner,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "get_timestamp".into(),
-                    max_units: 1000000,
-                    params: vec![test_context.into()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "get_timestamp".into(),
+                max_units: 1000000,
+                params: vec![test_context.into()],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -66,11 +63,11 @@ mod tests {
         let owner = String::from("owner");
 
         simulator
-            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
+            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
         let program_id = simulator
-            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
@@ -79,15 +76,12 @@ mod tests {
         test_context.height = height;
 
         let response = simulator
-            .run_step(
-                &owner,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "get_height".into(),
-                    max_units: 1000000,
-                    params: vec![test_context.into()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "get_height".into(),
+                max_units: 1000000,
+                params: vec![test_context.into()],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -103,33 +97,30 @@ mod tests {
         let owner = String::from("owner");
 
         simulator
-            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
+            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
         let program_id = simulator
-            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         let actor_key = Key::Ed25519(String::from("actor"));
 
         simulator
-            .run_step(&owner, &Step::create_key(actor_key.clone()))
+            .run_step(&Step::create_key(actor_key.clone()))
             .unwrap();
 
         let mut test_context = TestContext::from(program_id);
-        test_context.actor_key = Some(actor_key);
+        test_context.actor = Address::new([1; Address::LEN]);
 
         let response = simulator
-            .run_step(
-                &owner,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "get_actor".into(),
-                    max_units: 1000000,
-                    params: vec![test_context.into()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "get_actor".into(),
+                max_units: 1000000,
+                params: vec![test_context.into()],
+            })
             .unwrap()
             .result
             .response::<Address>()

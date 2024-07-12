@@ -22,7 +22,7 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     context
         .program()
         .state()
-        .store(StateKeys::Counter(to), &counter)
+        .store_by_key(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
 
     true
@@ -38,7 +38,7 @@ pub fn inc_external(
     amount: Count,
 ) -> bool {
     let args = borsh::to_vec(&(of, amount)).unwrap();
-    target.call_function("inc", &args, max_units).unwrap()
+    target.call_function("inc", &args, max_units, 0).unwrap()
 }
 
 /// Gets the count at the address.
@@ -61,7 +61,9 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
 #[public]
 pub fn get_value_external(_: Context, target: Program, max_units: Gas, of: Address) -> Count {
     let args = borsh::to_vec(&of).unwrap();
-    target.call_function("get_value", &args, max_units).unwrap()
+    target
+        .call_function("get_value", &args, max_units, 0)
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -78,15 +80,15 @@ mod tests {
         let alice = String::from("alice");
 
         simulator
-            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
+            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
         simulator
-            .run_step(&owner, &Step::create_key(Key::Ed25519(alice)))
+            .run_step(&Step::create_key(Key::Ed25519(alice)))
             .unwrap();
 
         simulator
-            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap();
     }
 
@@ -99,46 +101,38 @@ mod tests {
         let bob_key_param = Param::Key(bob_key.clone());
 
         simulator
-            .run_step(&owner, &Step::create_key(Key::Ed25519(owner.clone())))
+            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
-        simulator
-            .run_step(&owner, &Step::create_key(bob_key))
-            .unwrap();
+        simulator.run_step(&Step::create_key(bob_key)).unwrap();
 
         let counter_id = simulator
-            .run_step(&owner, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         let test_context = TestContext::from(counter_id);
 
         simulator
-            .run_step(
-                &owner,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "inc".into(),
-                    max_units: 1000000,
-                    params: vec![
-                        test_context.clone().into(),
-                        bob_key_param.clone(),
-                        10u64.into(),
-                    ],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "inc".into(),
+                max_units: 1000000,
+                params: vec![
+                    test_context.clone().into(),
+                    bob_key_param.clone(),
+                    10u64.into(),
+                ],
+            })
             .unwrap();
 
         let value = simulator
-            .run_step(
-                &owner,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_value".into(),
-                    max_units: 0,
-                    params: vec![test_context.into(), bob_key_param],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_value".into(),
+                max_units: 0,
+                params: vec![test_context.into(), bob_key_param],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -155,23 +149,18 @@ mod tests {
         let bob_key_param = Param::Key(bob_key.clone());
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
             .unwrap();
 
-        simulator
-            .run_step(&owner_key, &Step::create_key(bob_key))
-            .unwrap();
+        simulator.run_step(&Step::create_key(bob_key)).unwrap();
 
         let counter1_id = simulator
-            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         let counter2_id = simulator
-            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
@@ -179,15 +168,12 @@ mod tests {
         let test_context2 = TestContext::from(counter2_id);
 
         let value = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_value".into(),
-                    max_units: 0,
-                    params: vec![test_context2.into(), bob_key_param.clone()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_value".into(),
+                max_units: 0,
+                params: vec![test_context2.into(), bob_key_param.clone()],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -195,38 +181,32 @@ mod tests {
         assert_eq!(value, 0);
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "inc_external".into(),
-                    max_units: 100_000_000,
-                    params: vec![
-                        test_context1.clone().into(),
-                        counter2_id.into(),
-                        1_000_000.into(),
-                        bob_key_param.clone(),
-                        10.into(),
-                    ],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "inc_external".into(),
+                max_units: 100_000_000,
+                params: vec![
+                    test_context1.clone().into(),
+                    counter2_id.into(),
+                    1_000_000.into(),
+                    bob_key_param.clone(),
+                    10.into(),
+                ],
+            })
             .unwrap();
 
         let value = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_value_external".into(),
-                    max_units: 0,
-                    params: vec![
-                        test_context1.into(),
-                        counter2_id.into(),
-                        1_000_000.into(),
-                        bob_key_param,
-                    ],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_value_external".into(),
+                max_units: 0,
+                params: vec![
+                    test_context1.into(),
+                    counter2_id.into(),
+                    1_000_000.into(),
+                    bob_key_param,
+                ],
+            })
             .unwrap()
             .result
             .response::<u64>()

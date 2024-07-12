@@ -36,6 +36,7 @@ func CompileTest(programName string) error {
 type StateManager struct {
 	ProgramsMap map[ids.ID]string
 	AccountMap  map[codec.Address]ids.ID
+	Balances    map[codec.Address]uint64
 	Mu          state.Mutable
 }
 
@@ -69,6 +70,26 @@ func (t StateManager) NewAccountWithProgram(_ context.Context, programID ids.ID,
 
 func (t StateManager) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
 	t.AccountMap[account] = programID
+	return nil
+}
+
+func (t StateManager) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
+	if balance, ok := t.Balances[address]; ok {
+		return balance, nil
+	}
+	return 0, nil
+}
+
+func (t StateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	balance, err := t.GetBalance(ctx, from)
+	if err != nil {
+		return err
+	}
+	if balance < amount {
+		return errors.New("insufficient balance")
+	}
+	t.Balances[from] -= amount
+	t.Balances[to] += amount
 	return nil
 }
 

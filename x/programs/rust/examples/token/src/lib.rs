@@ -26,19 +26,19 @@ pub fn init(context: Context<StateKeys>) {
     // set total supply
     program
         .state()
-        .store(StateKeys::TotalSupply, &INITIAL_SUPPLY)
+        .store_by_key(StateKeys::TotalSupply, &INITIAL_SUPPLY)
         .expect("failed to store total supply");
 
     // set token name
     program
         .state()
-        .store(StateKeys::Name, b"WasmCoin")
+        .store_by_key(StateKeys::Name, b"WasmCoin")
         .expect("failed to store coin name");
 
     // set token symbol
     program
         .state()
-        .store(StateKeys::Symbol, b"WACK")
+        .store_by_key(StateKeys::Symbol, b"WACK")
         .expect("failed to store symbol");
 }
 
@@ -76,7 +76,7 @@ fn mint_to_internal(
 
     program
         .state()
-        .store(StateKeys::Balance(recipient), &(balance + amount))
+        .store_by_key(StateKeys::Balance(recipient), &(balance + amount))
         .expect("failed to store balance");
 
     context
@@ -123,12 +123,10 @@ pub fn transfer(
     // update balances
     program
         .state()
-        .store(StateKeys::Balance(sender), &(sender_balance - amount))
-        .expect("failed to store balance");
-
-    program
-        .state()
-        .store(StateKeys::Balance(recipient), &(recipient_balance + amount))
+        .store([
+            (StateKeys::Balance(sender), &(sender_balance - amount)),
+            (StateKeys::Balance(recipient), &(recipient_balance + amount)),
+        ])
         .expect("failed to store balance");
 
     true
@@ -174,13 +172,10 @@ mod tests {
         let owner_key = String::from("owner");
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
             .unwrap();
         simulator
-            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap();
     }
 
@@ -191,40 +186,31 @@ mod tests {
         let owner_key = String::from("owner");
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
             .unwrap();
         let program_id = simulator
-            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         let test_context = TestContext::from(program_id);
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "init".into(),
-                    params: vec![test_context.clone().into()],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".into(),
+                params: vec![test_context.clone().into()],
+                max_units: 1000000,
+            })
             .unwrap();
 
         let supply = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_total_supply".into(),
-                    max_units: 0,
-                    params: vec![test_context.into()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_total_supply".into(),
+                max_units: 0,
+                params: vec![test_context.into()],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -243,61 +229,47 @@ mod tests {
         let alice_initial_balance = 1000;
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
             .unwrap();
 
         let program_id = simulator
-            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
-        simulator
-            .run_step(&owner_key, &Step::create_key(alice_key))
-            .unwrap();
+        simulator.run_step(&Step::create_key(alice_key)).unwrap();
 
         let test_context = TestContext::from(program_id);
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "init".into(),
-                    params: vec![test_context.clone().into()],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".into(),
+                params: vec![test_context.clone().into()],
+                max_units: 1000000,
+            })
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "mint_to".into(),
-                    params: vec![
-                        test_context.clone().into(),
-                        alice_key_param.clone(),
-                        Param::U64(alice_initial_balance),
-                    ],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "mint_to".into(),
+                params: vec![
+                    test_context.clone().into(),
+                    alice_key_param.clone(),
+                    Param::U64(alice_initial_balance),
+                ],
+                max_units: 1000000,
+            })
             .unwrap();
 
         let balance = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_balance".into(),
-                    max_units: 0,
-                    params: vec![test_context.into(), alice_key_param],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_balance".into(),
+                max_units: 0,
+                params: vec![test_context.into(), alice_key_param],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -318,82 +290,67 @@ mod tests {
         let post_transfer_balance = alice_initial_balance - transfer_amount;
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step::create_key(Key::Ed25519(owner_key.clone())),
-            )
+            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
             .unwrap();
 
         let program_id = simulator
-            .run_step(&owner_key, &Step::create_program(PROGRAM_PATH))
+            .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
         simulator
-            .run_step(&owner_key, &Step::create_key(alice_key.clone()))
+            .run_step(&Step::create_key(alice_key.clone()))
             .unwrap();
 
         simulator
-            .run_step(&owner_key, &Step::create_key(bob_key.clone()))
+            .run_step(&Step::create_key(bob_key.clone()))
             .unwrap();
 
         let test_context = TestContext::from(program_id);
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "init".into(),
-                    params: vec![test_context.clone().into()],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".into(),
+                params: vec![test_context.clone().into()],
+                max_units: 1000000,
+            })
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "mint_to".into(),
-                    params: vec![
-                        test_context.clone().into(),
-                        alice_key_param.clone(),
-                        Param::U64(alice_initial_balance),
-                    ],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "mint_to".into(),
+                params: vec![
+                    test_context.clone().into(),
+                    alice_key_param.clone(),
+                    Param::U64(alice_initial_balance),
+                ],
+                max_units: 1000000,
+            })
             .unwrap();
 
         simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "transfer".into(),
-                    params: vec![
-                        test_context.clone().into(),
-                        alice_key_param.clone(),
-                        bob_key_param.clone(),
-                        Param::U64(transfer_amount),
-                    ],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "transfer".into(),
+                params: vec![
+                    test_context.clone().into(),
+                    alice_key_param.clone(),
+                    bob_key_param.clone(),
+                    Param::U64(transfer_amount),
+                ],
+                max_units: 1000000,
+            })
             .unwrap();
 
         let supply = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_total_supply".into(),
-                    max_units: 0,
-                    params: vec![test_context.clone().into()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_total_supply".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into()],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -401,15 +358,12 @@ mod tests {
         assert_eq!(supply, INITIAL_SUPPLY);
 
         let balance = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_balance".into(),
-                    max_units: 0,
-                    params: vec![test_context.clone().into(), alice_key_param.clone()],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_balance".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into(), alice_key_param.clone()],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -417,15 +371,12 @@ mod tests {
         assert_eq!(balance, post_transfer_balance);
 
         let balance = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_balance".into(),
-                    max_units: 0,
-                    params: vec![test_context.clone().into(), bob_key_param],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_balance".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into(), bob_key_param],
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -433,15 +384,12 @@ mod tests {
         assert_eq!(balance, transfer_amount);
 
         let balance = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::Execute,
-                    method: "burn_from".into(),
-                    params: vec![test_context.clone().into(), alice_key_param.clone()],
-                    max_units: 1000000,
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "burn_from".into(),
+                params: vec![test_context.clone().into(), alice_key_param.clone()],
+                max_units: 1000000,
+            })
             .unwrap()
             .result
             .response::<u64>()
@@ -449,15 +397,12 @@ mod tests {
         assert_eq!(balance, post_transfer_balance);
 
         let balance = simulator
-            .run_step(
-                &owner_key,
-                &Step {
-                    endpoint: Endpoint::ReadOnly,
-                    method: "get_balance".into(),
-                    max_units: 0,
-                    params: vec![test_context.clone().into(), alice_key_param],
-                },
-            )
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_balance".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into(), alice_key_param],
+            })
             .unwrap()
             .result
             .response::<u64>()

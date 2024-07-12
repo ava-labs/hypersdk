@@ -20,8 +20,9 @@ func TestImportProgramDeployProgram(t *testing.T) {
 	defer cancel()
 
 	program := newTestProgram(ctx, "deploy_program")
+	runtime := program.Runtime
 	otherProgramID := ids.GenerateTestID()
-	program.Runtime.AddProgram(otherProgramID, "call_program")
+	runtime.AddProgram(otherProgramID, "call_program")
 
 	result, err := program.Call(
 		"deploy",
@@ -30,10 +31,7 @@ func TestImportProgramDeployProgram(t *testing.T) {
 
 	newAccount := into[codec.Address](result)
 
-	result, err = program.Runtime.CallProgram(Context{
-		Program: newAccount,
-		Actor:   codec.EmptyAddress,
-	}, "simple_call")
+	result, err = runtime.CallProgram(newAccount, "simple_call")
 	require.NoError(err)
 	require.Equal(uint64(0), into[uint64](result))
 }
@@ -69,7 +67,7 @@ func TestImportProgramCallProgramActor(t *testing.T) {
 	program := newTestProgram(ctx, "call_program")
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
-	result, err := program.CallWithActor(actor, "actor_check")
+	result, err := program.WithActor(actor).Call("actor_check")
 	require.NoError(err)
 	expected, err := Serialize(actor)
 	require.NoError(err)
@@ -85,8 +83,7 @@ func TestImportProgramCallProgramActorChange(t *testing.T) {
 	program := newTestProgram(ctx, "call_program")
 	actor := codec.CreateAddress(1, ids.GenerateTestID())
 
-	result, err := program.CallWithActor(
-		actor,
+	result, err := program.WithActor(actor).Call(
 		"actor_check_external",
 		program.Address, uint64(100000))
 	require.NoError(err)
@@ -153,7 +150,7 @@ func TestImportGetRemainingFuel(t *testing.T) {
 	program := newTestProgram(ctx, "fuel")
 	result, err := program.Call("get_fuel")
 	require.NoError(err)
-	require.LessOrEqual(into[uint64](result), program.Runtime.DefaultGas)
+	require.LessOrEqual(into[uint64](result), program.Runtime.callContext.defaultCallInfo.Fuel)
 }
 
 func TestImportOutOfFuel(t *testing.T) {

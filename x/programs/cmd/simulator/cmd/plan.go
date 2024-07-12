@@ -139,8 +139,8 @@ func verifyEndpoint(i int, step *Step) error {
 	case EndpointExecute:
 		if step.Method == ProgramCreate {
 			// verify the first param is a string for the path
-			if step.Params[0].Type != String {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
+			if step.Params[0].Type != Path {
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
 			}
 		} else {
 			// verify the first param is a test context
@@ -228,13 +228,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor(ctx, db)
-		if err != nil {
-			return err
-		}
 		testContext := runtime.Context{
 			Program:   program,
-			Actor:     actor,
+			Actor:     simulatorTestContext.ActorAddr,
 			Timestamp: simulatorTestContext.Timestamp,
 			Height:    simulatorTestContext.Height,
 		}
@@ -263,13 +259,9 @@ func (c *runCmd) runStepFunc(
 		if err != nil {
 			return err
 		}
-		actor, err := simulatorTestContext.Actor(ctx, db)
-		if err != nil {
-			return err
-		}
 		testContext := runtime.Context{
 			Program:   program,
-			Actor:     actor,
+			Actor:     simulatorTestContext.ActorAddr,
 			Timestamp: simulatorTestContext.Timestamp,
 			Height:    simulatorTestContext.Height,
 		}
@@ -305,10 +297,10 @@ func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, r
 }
 
 type SimulatorTestContext struct {
-	ProgramID uint64     `json:"programId"`
-	ActorKey  *Parameter `json:"actorKey"`
-	Height    uint64     `json:"height"`
-	Timestamp uint64     `json:"timestamp"`
+	ProgramID uint64        `json:"programId"`
+	ActorAddr codec.Address `json:"actor"`
+	Height    uint64        `json:"height"`
+	Timestamp uint64        `json:"timestamp"`
 }
 
 func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
@@ -318,26 +310,6 @@ func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (c
 		return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
 	}
 	return programAddress, nil
-}
-
-func (s *SimulatorTestContext) Actor(ctx context.Context, db *state.SimpleMutable) (codec.Address, error) {
-	actor := codec.EmptyAddress
-	if s.ActorKey != nil {
-		key := string(s.ActorKey.Value)
-		pk, ok, err := GetPublicKey(ctx, db, key)
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		if !ok {
-			return codec.EmptyAddress, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
-		}
-		id, err := ids.ToID(pk[:])
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		actor = codec.CreateAddress(0, id)
-	}
-	return actor, nil
 }
 
 func AddressToString(pk ed25519.PublicKey) string {
@@ -360,17 +332,18 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				return nil, fmt.Errorf("failed to map to id: %d", id)
 			}
 			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-		case String:
-			programAddress, err := codec.ToAddress(param.Value)
-			if err == nil {
-				cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-			} else {
-				path := string(param.Value)
-				if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-					return nil, errors.New("this path does not exists")
-				}
-				cp = append(cp, param)
+		case Path:
+			path := string(param.Value)
+			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+				return nil, errors.New("this path does not exists")
 			}
+			cp = append(cp, param)
+		case Address:
+			programAddress, err := codec.ToAddress(param.Value)
+			if err != nil {
+				return nil, errors.New("invalid address")
+			}
+			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 		case KeyEd25519: // TODO: support secp256k1
 			key := param.Value
 			// get named public key from db
@@ -391,10 +364,8 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				key = address[:]
 			}
 			cp = append(cp, Parameter{Value: key, Type: param.Type})
-		case Uint64, Bool, TestContext:
-			cp = append(cp, param)
 		default:
-			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
+			cp = append(cp, param)
 		}
 	}
 

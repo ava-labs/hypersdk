@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/x/programs/test"
 )
 
 func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
@@ -26,6 +27,34 @@ func BenchmarkRuntimeCallProgramBasic(b *testing.B) {
 		require.NoError(err)
 		require.Equal(uint64(0), into[uint64](result))
 	}
+}
+
+func TestRuntimeCallProgramBasicAttachValue(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "simple")
+	actor := codec.CreateAddress(0, ids.GenerateTestID())
+	program.Runtime.StateManager.(test.StateManager).Balances[actor] = 10
+
+	actorBalance, err := program.Runtime.StateManager.GetBalance(context.Background(), actor)
+	require.NoError(err)
+	require.Equal(uint64(10), actorBalance)
+
+	// calling a program with a value transfers that amount from the caller to the program
+	result, err := program.WithActor(actor).WithValue(4).Call("get_value")
+	require.NoError(err)
+	require.Equal(uint64(0), into[uint64](result))
+
+	actorBalance, err = program.Runtime.StateManager.GetBalance(context.Background(), actor)
+	require.NoError(err)
+	require.Equal(uint64(6), actorBalance)
+
+	programBalance, err := program.Runtime.StateManager.GetBalance(context.Background(), program.Address)
+	require.NoError(err)
+	require.Equal(uint64(4), programBalance)
 }
 
 func TestRuntimeCallProgramBasic(t *testing.T) {
@@ -67,7 +96,7 @@ func TestContextInjection(t *testing.T) {
 		{
 			name: "timestamp",
 			fun: func(program *testProgram, require *require.Assertions) {
-				result, err := program.CallWithTimestamp(1, "get_timestamp")
+				result, err := program.WithTimestamp(1).Call("get_timestamp")
 				require.NoError(err)
 				require.Equal(uint64(1), into[uint64](result))
 			},
@@ -75,7 +104,7 @@ func TestContextInjection(t *testing.T) {
 		{
 			name: "height",
 			fun: func(program *testProgram, require *require.Assertions) {
-				result, err := program.CallWithHeight(1, "get_height")
+				result, err := program.WithHeight(1).Call("get_height")
 				require.NoError(err)
 				require.Equal(uint64(1), into[uint64](result))
 			},
@@ -83,7 +112,7 @@ func TestContextInjection(t *testing.T) {
 		{
 			name: "actor",
 			fun: func(program *testProgram, require *require.Assertions) {
-				result, err := program.CallWithActor(codec.CreateAddress(0, ids.GenerateTestID()), "get_actor")
+				result, err := program.WithActor(codec.CreateAddress(0, ids.GenerateTestID())).Call("get_actor")
 				require.NoError(err)
 				require.NotEqual(ids.Empty, into[ids.ID](result))
 			},

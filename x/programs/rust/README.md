@@ -7,7 +7,7 @@
 rustup target add wasm32-unknown-unknown
 ```
 
-- Compile `Program`` to WebAssembly.
+- Compile `Program` to WebAssembly.
 ```sh
 cargo build --target wasm32-unknown-unknown --target-dir $CARGO_TARGET_DIR --release
 ```

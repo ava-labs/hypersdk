@@ -307,6 +307,8 @@ func BuildBlock(
 						stop = true
 						return errBlockFull
 					}
+					// Skip this transaction and continue packing if it exceeds the dimension's
+					// limit.
 					return nil
 				}
 

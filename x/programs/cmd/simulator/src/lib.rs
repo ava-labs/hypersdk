@@ -12,7 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::ExternalCallError;
+use wasmlanche_sdk::{types::Address, ExternalCallError};
 
 mod id;
 
@@ -46,15 +46,6 @@ pub struct Step {
     pub params: Vec<Param>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SimulatorStep<'a> {
-    /// The key of the caller used in each step of the plan.
-    pub caller_key: &'a str,
-    #[serde(flatten)]
-    pub step: &'a Step,
-}
-
 impl Step {
     /// Create a [`Step`] that creates a key.
     #[must_use]
@@ -76,7 +67,7 @@ impl Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 0,
-            params: vec![Param::String(path.into())],
+            params: vec![Param::Path(path.into())],
         }
     }
 }
@@ -92,14 +83,44 @@ pub enum Key {
     Secp256r1(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq, Default)]
 #[non_exhaustive]
 pub struct TestContext {
     program_id: Id,
-    pub actor_key: Option<Key>,
+    pub actor: Address,
     pub height: u64,
     pub timestamp: u64,
+}
+
+impl Serialize for TestContext {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct BorrowedContext<'a> {
+            program_id: Id,
+            actor: &'a [u8],
+            height: u64,
+            timestamp: u64,
+        }
+
+        let Self {
+            program_id,
+            actor,
+            height,
+            timestamp,
+        } = self;
+
+        BorrowedContext {
+            program_id: *program_id,
+            actor: actor.as_ref(),
+            height: *height,
+            timestamp: *timestamp,
+        }
+        .serialize(serializer)
+    }
 }
 
 impl From<Id> for TestContext {
@@ -129,6 +150,9 @@ pub enum Param {
     Key(Key),
     #[allow(private_interfaces)]
     TestContext(SimulatorTestContext),
+    Bytes(Vec<u8>),
+    Path(String),
+    Address(Address),
 }
 
 #[derive(Serialize)]
@@ -138,6 +162,9 @@ enum StringParam {
     Bool(String),
     String(String),
     Id(String),
+    Bytes(String),
+    Path(String),
+    Address(String),
 }
 
 impl From<&Param> for StringParam {
@@ -145,7 +172,14 @@ impl From<&Param> for StringParam {
         match value {
             Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
             Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
-            Param::String(text) => StringParam::String(b64.encode(text.clone())),
+            Param::String(text) => StringParam::String(
+                b64.encode(borsh::to_vec(text).expect("the serialization should work")),
+            ),
+            Param::Path(text) => StringParam::Path(b64.encode(text)),
+            Param::Bytes(bytes) => StringParam::Bytes(
+                b64.encode(borsh::to_vec(bytes).expect("the serialization should work")),
+            ),
+            Param::Address(addr) => StringParam::Address(b64.encode(addr)),
             Param::Id(id) => {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
@@ -201,6 +235,18 @@ impl From<Key> for Param {
 impl From<TestContext> for Param {
     fn from(val: TestContext) -> Self {
         Param::TestContext(SimulatorTestContext { value: val })
+    }
+}
+
+impl From<Vec<u8>> for Param {
+    fn from(val: Vec<u8>) -> Self {
+        Param::Bytes(val)
+    }
+}
+
+impl From<Address> for Param {
+    fn from(addr: Address) -> Self {
+        Param::Address(addr)
     }
 }
 
@@ -357,11 +403,10 @@ where
     W: Write,
     R: Iterator<Item = StepResultItem>,
 {
-    pub fn run_step(&mut self, caller_key: &str, step: &Step) -> StepResultItem {
+    pub fn run_step(&mut self, step: &Step) -> StepResultItem {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
-        let step = SimulatorStep { caller_key, step };
         let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
@@ -411,11 +456,10 @@ mod tests {
     fn convert_string_param() {
         let value = String::from("hello world");
         let expected_param_type = "string";
-        let expected_value = value.clone();
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &b64.encode(expected_value),
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
         });
 
         let param = Param::from(value.clone());
@@ -483,6 +527,44 @@ mod tests {
 
         let param = Param::from(value);
         let expected_param = Param::Bool(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_bytes_param() {
+        let value = vec![12, 34, 56, 78, 90];
+
+        let expected_json = json!({
+            "type": "bytes",
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
+        });
+
+        let param = Param::from(value.clone());
+        let expected_param = Param::Bytes(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_address_param() {
+        let value = Address::default();
+
+        let expected_json = json!({
+            "type": "address",
+            "value": &b64.encode(value),
+        });
+
+        let param = Param::from(value);
+        let expected_param = Param::Address(value);
 
         assert_eq!(param, expected_param);
 
