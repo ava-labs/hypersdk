@@ -128,7 +128,7 @@ func New(c Controller, v *version.Semantic) *VM {
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	baseDB database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -157,8 +157,6 @@ func (vm *VM) Initialize(
 	vm.metrics = metrics
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
-
-	vm.baseDB = baseDB
 
 	// Always initialize implementation first
 	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
@@ -444,11 +442,6 @@ func (vm *VM) isReady() bool {
 		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
-}
-
-// TODO: remove?
-func (vm *VM) BaseDB() database.Database {
-	return vm.baseDB
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
