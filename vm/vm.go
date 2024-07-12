@@ -169,7 +169,6 @@ func (vm *VM) Initialize(
 
 	vm.baseDB = baseDB
 	pebbleConfig := pebble.NewDefaultConfig()
-
 	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
 	if err != nil {
 		return err
