@@ -12,42 +12,20 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-// TODO: add option to use a single DB with prefixes to allow for atomic writes
-func New(chainDataDir string, gatherer metrics.MultiGatherer) (database.Database, database.Database, database.Database, error) {
-	// TODO: tune Pebble config based on each sub-db focus
-	cfg := pebble.NewDefaultConfig()
-	blockPath, err := utils.InitSubDirectory(chainDataDir, block)
+func New(cfg pebble.Config, chainDataDir string, namespace string, gatherer metrics.MultiGatherer) (database.Database, error) {
+	path, err := utils.InitSubDirectory(chainDataDir, namespace)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	blockDB, blockDBRegistry, err := pebble.New(blockPath, cfg)
+
+	db, registry, err := pebble.New(path, cfg)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	if err := gatherer.Register(block, blockDBRegistry); err != nil {
-		return nil, nil, nil, err
+
+	if err := gatherer.Register(namespace, registry); err != nil {
+		return nil, err
 	}
-	statePath, err := utils.InitSubDirectory(chainDataDir, state)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	stateDB, stateDBRegistry, err := pebble.New(statePath, cfg)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if err := gatherer.Register(state, stateDBRegistry); err != nil {
-		return nil, nil, nil, err
-	}
-	metaPath, err := utils.InitSubDirectory(chainDataDir, metadata)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	metaDB, metaDBRegistry, err := pebble.New(metaPath, cfg)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if err := gatherer.Register(metadata, metaDBRegistry); err != nil {
-		return nil, nil, nil, err
-	}
-	return corruptabledb.New(blockDB), corruptabledb.New(stateDB), corruptabledb.New(metaDB), nil
+
+	return corruptabledb.New(db), nil
 }
