@@ -2,11 +2,9 @@
 
 /// State-related operations in programs.
 pub mod state;
-
 /// Program types.
 pub mod types;
 
-pub mod balance;
 mod logging;
 mod memory;
 mod program;
@@ -14,7 +12,7 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{DeferDeserialize, ExternalCallError, Program},
+    program::{send, DeferDeserialize, ExternalCallError, Program},
 };
 use crate::types::{Gas, Id};
 
