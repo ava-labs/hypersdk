@@ -17,7 +17,7 @@ type successfulTxIndexer struct {
 	c *Controller
 }
 
-func (s *successfulTxIndexer) Accepted(_ context.Context, tx *chain.Transaction, result *chain.Result) error {
+func (s *successfulTxIndexer) Accepted(_ context.Context, tx *chain.Transaction, _ *chain.Result) error {
 	for _, action := range tx.Actions {
 		switch action.(type) { //nolint:gocritic
 		case *actions.Transfer:
