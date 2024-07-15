@@ -8,17 +8,17 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/stretchr/testify/require"
 )
 
-func TestTranferAction(t *testing.T) {
+func TestTransferAction(t *testing.T) {
 	require := require.New(t)
-
 	ts := tstate.New(1)
 
 	tests := map[string]chain.ActionTest{
@@ -62,12 +62,11 @@ func TestTranferAction(t *testing.T) {
 				keys := make(state.Keys)
 				k := storage.BalanceKey(codec.EmptyAddress)
 				keys.Add(string(k), state.All)
-				context := context.TODO()
 				stor := map[string][]byte{}
 				tsv := ts.NewView(keys, stor)
 				b := make([]byte, 8)
 				binary.LittleEndian.PutUint64(b, uint64(1))
-				require.NoError(tsv.Insert(context, k, b))
+				require.NoError(tsv.Insert(context.TODO(), k, b))
 				return tsv
 			}(),
 		},
