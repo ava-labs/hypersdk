@@ -154,8 +154,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 	return c.txIndexer.Accepted(ctx, blk)
 }
 
-func (*Controller) Shutdown(context.Context) error {
-	// Do not close any databases provided during initialization. The VM will
-	// close any databases your provided.
-	return nil
+func (c *Controller) Shutdown(context.Context) error {
+	// Close any databases created during initialization
+	return c.txDB.Close()
 }
