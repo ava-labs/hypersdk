@@ -83,20 +83,6 @@ func (mr *MockControllerMockRecorder) Initialize(arg0, arg1, arg2, arg3, arg4, a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockController)(nil).Initialize), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-// Rejected mocks base method.
-func (m *MockController) Rejected(arg0 context.Context, arg1 *chain.StatelessBlock) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rejected", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Rejected indicates an expected call of Rejected.
-func (mr *MockControllerMockRecorder) Rejected(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rejected", reflect.TypeOf((*MockController)(nil).Rejected), arg0, arg1)
-}
-
 // Rules mocks base method.
 func (m *MockController) Rules(arg0 int64) chain.Rules {
 	m.ctrl.T.Helper()
