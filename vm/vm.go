@@ -214,7 +214,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Setup tracer
-	vm.tracer, err = trace.New(vm.config.GetTraceConfig())
+	vm.tracer, err = trace.New(&vm.config.TraceConfig)
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func (vm *VM) Initialize(
 	defer span.End()
 
 	// Setup profiler
-	if cfg := vm.config.GetContinuousProfilerConfig(); cfg.Enabled {
+	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
 		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
 		go vm.profiler.Dispatch() //nolint:errcheck
 	}
@@ -232,13 +232,13 @@ func (vm *VM) Initialize(
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
-		// that will be used across all concurrent root generations.
-		RootGenConcurrency:          uint(vm.config.GetRootGenerationCores()),
-		HistoryLength:               uint(vm.config.GetStateHistoryLength()),
-		ValueNodeCacheSize:          uint(vm.config.GetValueNodeCacheSize()),
-		IntermediateNodeCacheSize:   uint(vm.config.GetIntermediateNodeCacheSize()),
-		IntermediateWriteBufferSize: uint(vm.config.GetStateIntermediateWriteBufferSize()),
-		IntermediateWriteBatchSize:  uint(vm.config.GetStateIntermediateWriteBatchSize()),
+		// that will be used across all concurrent root generations
+		RootGenConcurrency:          uint(vm.config.RootGenerationCores),
+		HistoryLength:               uint(vm.config.StateHistoryLength),
+		ValueNodeCacheSize:          uint(vm.config.ValueNodeCacheSize),
+		IntermediateNodeCacheSize:   uint(vm.config.IntermediateNodeCacheSize),
+		IntermediateWriteBufferSize: uint(vm.config.StateIntermediateWriteBufferSize),
+		IntermediateWriteBatchSize:  uint(vm.config.StateIntermediateWriteBatchSize),
 		Reg:                         merkleRegistry,
 		TraceLevel:                  merkledb.InfoTrace,
 		Tracer:                      vm.tracer,
@@ -254,29 +254,29 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	vm.authVerifiers = workers.NewParallel(vm.config.GetAuthVerificationCores(), 100) // TODO: make job backlog a const
+	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindowCache())
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
-	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindowCache())
+	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
+	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
 	vm.mempool = mempool.New[*chain.Transaction](
 		vm.tracer,
-		vm.config.GetMempoolSize(),
-		vm.config.GetMempoolSponsorSize(),
-		vm.config.GetMempoolExemptSponsors(),
+		vm.config.MempoolSize,
+		vm.config.MempoolSponsorSize,
+		vm.config.MempoolExemptSponsors,
 	)
 
 	// Try to load last accepted
@@ -391,7 +391,7 @@ func (vm *VM) Initialize(
 	vm.stateSyncNetworkClient, err = avasync.NewNetworkClient(
 		stateSyncSender,
 		vm.snowCtx.NodeID,
-		int64(vm.config.GetStateSyncParallelism()),
+		int64(vm.config.StateSyncParallelism),
 		vm.Logger(),
 		"",
 		syncRegistry,
@@ -430,7 +430,7 @@ func (vm *VM) Initialize(
 	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
 		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
 	}
-	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
+	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
@@ -757,7 +757,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	vm.verifiedL.RLock()
 	processingBlocks := len(vm.verifiedBlocks)
 	vm.verifiedL.RUnlock()
-	if processingBlocks > vm.config.GetProcessingBuildSkip() {
+	if processingBlocks > vm.config.ProcessingBuildSkip {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
 		return nil, ErrTooManyProcessing
 	}
@@ -849,7 +849,7 @@ func (vm *VM) Submit(
 		}
 
 		// Verify auth if not already verified by caller
-		if verifyAuth && vm.config.GetVerifyAuth() {
+		if verifyAuth && vm.config.VerifyAuth {
 			msg, err := tx.Digest()
 			if err != nil {
 				// Should never fail
@@ -1099,7 +1099,7 @@ func (vm *VM) backfillSeenTransactions() {
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
-	lookback := uint64(vm.config.GetAcceptedBlockWindowCache()) - 1 // include latest
+	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
 		start = vm.lastAccepted.Hght - lookback
 	}
