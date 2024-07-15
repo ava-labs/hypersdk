@@ -106,14 +106,17 @@ impl<'a> ExternalCallContext<'a> {
         }
     }
 
+    #[must_use]
     pub fn program(&self) -> &Program {
-        &self.program
+        self.program
     }
 
+    #[must_use]
     pub fn max_units(&self) -> Gas {
         self.max_units
     }
 
+    #[must_use]
     pub fn value(&self) -> u64 {
         self.value
     }
