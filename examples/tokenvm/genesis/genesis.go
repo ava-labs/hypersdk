@@ -15,85 +15,22 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/rules"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ vm.Genesis = (*Genesis)(nil)
 
-type CustomAllocation struct {
-	Address string `json:"address"` // bech32 address
-	Balance uint64 `json:"balance"`
-}
-
 type Genesis struct {
-	// State Parameters
-	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
-
-	// Chain Parameters
-	MinBlockGap      int64 `json:"minBlockGap"`      // ms
-	MinEmptyBlockGap int64 `json:"minEmptyBlockGap"` // ms
-
-	// Chain Fee Parameters
-	MinUnitPrice               fees.Dimensions `json:"minUnitPrice"`
-	UnitPriceChangeDenominator fees.Dimensions `json:"unitPriceChangeDenominator"`
-	WindowTargetUnits          fees.Dimensions `json:"windowTargetUnits"` // 10s
-	MaxBlockUnits              fees.Dimensions `json:"maxBlockUnits"`     // must be possible to reach before block too large
-
-	// Tx Parameters
-	ValidityWindow      int64 `json:"validityWindow"` // ms
-	MaxActionsPerTx     uint8 `json:"maxActionsPerTx"`
-	MaxOutputsPerAction uint8 `json:"maxOutputsPerAction"`
-
-	// Tx Fee Parameters
-	BaseComputeUnits          uint64 `json:"baseUnits"`
-	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
-	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
-	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
-	StorageValueAllocateUnits uint64 `json:"storageValueAllocateUnits"` // per chunk
-	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
-	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
-
-	// Allocates
-	CustomAllocation []*CustomAllocation `json:"customAllocation"`
+	rules.Genesis
 }
 
 func Default() *Genesis {
 	return &Genesis{
-		// State Parameters
-		StateBranchFactor: merkledb.BranchFactor16,
-
-		// Chain Parameters
-		MinBlockGap:      100,
-		MinEmptyBlockGap: 2_500,
-
-		// Chain Fee Parameters
-		MinUnitPrice:               fees.Dimensions{100, 100, 100, 100, 100},
-		UnitPriceChangeDenominator: fees.Dimensions{48, 48, 48, 48, 48},
-		WindowTargetUnits:          fees.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
-		MaxBlockUnits:              fees.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
-
-		// Tx Parameters
-		ValidityWindow:      60 * hconsts.MillisecondsPerSecond, // ms
-		MaxActionsPerTx:     16,
-		MaxOutputsPerAction: 1,
-
-		// Tx Fee Compute Parameters
-		BaseComputeUnits: 1,
-
-		// Tx Fee Storage Parameters
-		//
-		// TODO: tune this
-		StorageKeyReadUnits:       5,
-		StorageValueReadUnits:     2,
-		StorageKeyAllocateUnits:   20,
-		StorageValueAllocateUnits: 5,
-		StorageKeyWriteUnits:      10,
-		StorageValueWriteUnits:    3,
+		Genesis: rules.Default(),
 	}
 }
 
