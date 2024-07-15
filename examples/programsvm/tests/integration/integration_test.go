@@ -97,7 +97,7 @@ func init() {
 }
 
 func TestIntegration(t *testing.T) {
-	ginkgo.RunSpecs(t, "programsvm integration test suites")
+	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
 }
 
 func init() {

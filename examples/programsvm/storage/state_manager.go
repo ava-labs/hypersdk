@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ chain.StateManager = (*StateManager)(nil)
+var _ (chain.StateManager) = (*StateManager)(nil)
 
 type StateManager struct{}
 

@@ -4,5 +4,3 @@
 package actions
 
 const TransferComputeUnits = 1
-const CallComputeUnits = 1
-const PublishComputeUnits = 1

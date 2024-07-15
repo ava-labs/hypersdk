@@ -13,7 +13,7 @@ set -o pipefail
 export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 
 # Root directory
-programsVM_PATH=$(
+MORPHEUSVM_PATH=$(
     cd "$(dirname "${BASH_SOURCE[0]}")"
     cd .. && pwd
 )
@@ -24,20 +24,20 @@ if [[ $# -eq 1 ]]; then
     BINARY_PATH=$BINARY_DIR/$BINARY_FNAME
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
-    name="rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN"
-    BINARY_PATH=$programsVM_PATH/build/$name
+    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+    BINARY_PATH=$MORPHEUSVM_PATH/build/$name
 else
-    echo "Invalid arguments to build programsvm. Requires zero (default location) or one argument to specify binary location."
+    echo "Invalid arguments to build morpheusvm. Requires zero (default location) or one argument to specify binary location."
     exit 1
 fi
 
-cd "$programsVM_PATH"
+cd "$MORPHEUSVM_PATH"
 
-echo "Building programsvm in $BINARY_PATH"
+echo "Building morpheusvm in $BINARY_PATH"
 mkdir -p "$(dirname "$BINARY_PATH")"
-go build -o "$BINARY_PATH" ./cmd/programsvm
+go build -o "$BINARY_PATH" ./cmd/morpheusvm
 
-CLI_PATH=$programsVM_PATH/build/programs-cli
-echo "Building programs-cli in $CLI_PATH"
+CLI_PATH=$MORPHEUSVM_PATH/build/morpheus-cli
+echo "Building morpheus-cli in $CLI_PATH"
 mkdir -p "$(dirname "$CLI_PATH")"
-go build -o "$CLI_PATH" ./cmd/programs-cli
+go build -o "$CLI_PATH" ./cmd/morpheus-cli
