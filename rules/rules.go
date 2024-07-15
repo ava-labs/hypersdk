@@ -1,7 +1,7 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package genesis
+package rules
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,8 +18,7 @@ type Rules struct {
 	chainID   ids.ID
 }
 
-// TODO: use upgradeBytes
-func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) *Rules {
+func New(g *Genesis, networkID uint32, chainID ids.ID) *Rules {
 	return &Rules{g, networkID, chainID}
 }
 

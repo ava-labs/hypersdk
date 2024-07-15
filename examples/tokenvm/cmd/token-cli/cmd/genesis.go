@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/rules"
 )
 
 var genesisCmd = &cobra.Command{
@@ -61,7 +62,7 @@ var genGenesisCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		allocs := []*genesis.CustomAllocation{}
+		allocs := []*rules.CustomAllocation{}
 		if err := json.Unmarshal(a, &allocs); err != nil {
 			return err
 		}

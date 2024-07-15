@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
@@ -80,4 +81,8 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 
 func (g *Genesis) GetStateBranchFactor() merkledb.BranchFactor {
 	return g.StateBranchFactor
+}
+
+func (g *Genesis) Rules(t int64, networkID uint32, chainID ids.ID) chain.Rules {
+	return rules.New(&g.Genesis, networkID, chainID)
 }

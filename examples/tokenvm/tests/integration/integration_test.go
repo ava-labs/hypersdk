@@ -41,6 +41,7 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/rules"
 	"github.com/ava-labs/hypersdk/vm"
 
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
@@ -197,7 +198,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gen = genesis.Default()
 	gen.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
 	gen.MinBlockGap = 0
-	gen.CustomAllocation = []*genesis.CustomAllocation{
+	gen.CustomAllocation = []*rules.CustomAllocation{
 		{
 			Address: sender,
 			Balance: 10_000_000,
