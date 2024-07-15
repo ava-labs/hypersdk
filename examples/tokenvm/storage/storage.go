@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
-
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 )
 
