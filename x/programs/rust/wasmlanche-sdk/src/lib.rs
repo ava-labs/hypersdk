@@ -97,7 +97,7 @@ pub struct ExternalCallContext<'a> {
     value: u64,
 }
 
-impl <'a> ExternalCallContext<'a> {
+impl<'a> ExternalCallContext<'a> {
     pub fn new(program: &'a Program, max_units: Gas, value: u64) -> Self {
         Self {
             program,
