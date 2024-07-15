@@ -32,7 +32,7 @@ func (c *Controller) GetTransaction(
 	ctx context.Context,
 	txID ids.ID,
 ) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return storage.GetTransaction(ctx, c.db, txID)
+	return c.txIndexer.GetTransaction(ctx, txID)
 }
 
 func (c *Controller) GetBalanceFromState(
