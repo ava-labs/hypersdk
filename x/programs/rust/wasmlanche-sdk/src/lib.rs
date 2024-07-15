@@ -91,14 +91,14 @@ impl<K> BorshDeserialize for Context<K> {
 }
 
 /// Special context that is passed to external programs.
-pub struct ExternalCallContext {
-    program: Program,
+pub struct ExternalCallContext<'a> {
+    program: &'a Program,
     max_units: Gas,
     value: u64,
 }
 
-impl ExternalCallContext {
-    pub fn new(program: Program, max_units: Gas, value: u64) -> Self {
+impl <'a> ExternalCallContext<'a> {
+    pub fn new(program: &'a Program, max_units: Gas, value: u64) -> Self {
         Self {
             program,
             max_units,
