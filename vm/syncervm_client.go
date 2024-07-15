@@ -83,7 +83,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		s.vm.snowCtx.Log.Warn("could not determine if syncing", zap.Error(err))
 		return block.StateSyncSkipped, err
 	}
-	if !syncing && (s.vm.lastAccepted.Hght+s.vm.config.GetStateSyncMinBlocks() > sb.Height()) {
+	if !syncing && (s.vm.lastAccepted.Hght+s.vm.config.StateSyncMinBlocks > sb.Height()) {
 		s.vm.snowCtx.Log.Info(
 			"bypassing state sync",
 			zap.Uint64("lastAccepted", s.vm.lastAccepted.Hght),
@@ -142,7 +142,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		BranchFactor:          s.vm.genesis.GetStateBranchFactor(),
 		DB:                    s.vm.stateDB,
 		Client:                syncClient,
-		SimultaneousWorkLimit: s.vm.config.GetStateSyncParallelism(),
+		SimultaneousWorkLimit: s.vm.config.StateSyncParallelism,
 		Log:                   s.vm.snowCtx.Log,
 		TargetRoot:            sb.StateRoot,
 	})

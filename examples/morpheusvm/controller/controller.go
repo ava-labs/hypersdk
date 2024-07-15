@@ -76,20 +76,20 @@ func (c *Controller) Initialize(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = config.New(c.snowCtx.NodeID, configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	c.snowCtx.Log.SetLevel(c.config.GetLogLevel())
 	snowCtx.Log.Info("initialized config", zap.Bool("loaded", c.config.Loaded()), zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -98,7 +98,7 @@ func (c *Controller) Initialize(
 
 	c.db, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Create handlers
@@ -111,7 +111,7 @@ func (c *Controller) Initialize(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
@@ -129,10 +129,10 @@ func (c *Controller) Initialize(
 		gcfg := gossiper.DefaultProposerConfig()
 		gossip, err = gossiper.NewProposer(inner, gcfg)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, err
+			return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	return c.config, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c.config.Config, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
