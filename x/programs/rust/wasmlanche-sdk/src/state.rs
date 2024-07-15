@@ -1,4 +1,4 @@
-use crate::memory::HostPtr;
+use crate::{memory::HostPtr, types::Address};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
@@ -12,6 +12,22 @@ pub enum Error {
 
     #[error("failed to deserialize bytes")]
     Deserialization,
+}
+
+/// Gets the balance for the specified address
+/// # Panics
+/// Panics if there was an issue deserializing the balance
+#[must_use]
+pub fn get_balance(account: Address) -> u64 {
+    #[link(wasm_import_module = "balance")]
+    extern "C" {
+        #[link_name = "get"]
+        fn get(ptr: *const u8, len: usize) -> HostPtr;
+    }
+    let ptr = borsh::to_vec(&account).expect("failed to serialize args");
+    let bytes = unsafe { get(ptr.as_ptr(), ptr.len()) };
+
+    borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
 pub struct State<'a, K: Key> {

@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -36,7 +35,7 @@ func (d *ED25519) address() codec.Address {
 }
 
 func (*ED25519) GetTypeID() uint8 {
-	return consts.ED25519ID
+	return ED25519ID
 }
 
 func (*ED25519) ComputeUnits(chain.Rules) uint64 {
@@ -150,5 +149,5 @@ func (b *ED25519Batch) Done() []func() error {
 }
 
 func NewED25519Address(pk ed25519.PublicKey) codec.Address {
-	return codec.CreateAddress(consts.ED25519ID, utils.ToID(pk[:]))
+	return codec.CreateAddress(ED25519ID, utils.ToID(pk[:]))
 }
