@@ -61,7 +61,6 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
@@ -137,7 +136,7 @@ func New(c Controller, v *version.Semantic) *VM {
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	baseDB database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -167,7 +166,6 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
-	vm.baseDB = baseDB
 	pebbleConfig := pebble.NewDefaultConfig()
 	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
 	if err != nil {
@@ -485,11 +483,6 @@ func (vm *VM) isReady() bool {
 		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
-}
-
-// TODO: remove?
-func (vm *VM) BaseDB() database.Database {
-	return vm.baseDB
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
