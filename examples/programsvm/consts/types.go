@@ -5,7 +5,9 @@ package consts
 
 const (
 	// Action TypeIDs
-	TransferID uint8 = 0
+	TransferID       uint8 = 0
+	CallProgramID    uint8 = 1
+	PublishProgramID uint8 = 2
 
 	// Auth TypeIDs
 	ED25519ID   uint8 = 0

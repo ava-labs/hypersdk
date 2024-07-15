@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -135,6 +136,9 @@ func (c *Controller) Initialize(
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
+
+	consts.ProgramRuntime = runtime.NewRuntime(runtime.NewConfig(), c.inner.Logger())
+
 	return c.config, c.genesis, build, gossip, blockDB, stateDB, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
