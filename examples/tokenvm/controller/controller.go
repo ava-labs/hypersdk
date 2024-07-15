@@ -216,10 +216,6 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 	return batch.Write()
 }
 
-func (*Controller) Rejected(context.Context, *chain.StatelessBlock) error {
-	return nil
-}
-
 func (*Controller) Shutdown(context.Context) error {
 	// Do not close any databases provided during initialization. The VM will
 	// close any databases your provided.

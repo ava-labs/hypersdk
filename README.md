@@ -576,7 +576,6 @@ type Controller interface {
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
-	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
 	// Shutdown should be used by the [Controller] to terminate any async
 	// processes it may be running in the background. It is invoked when

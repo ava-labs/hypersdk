@@ -144,10 +144,6 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedL.Unlock()
 	vm.mempool.Add(ctx, b.Txs)
 
-	if err := vm.c.Rejected(ctx, b); err != nil {
-		vm.Fatal("rejected processing failed", zap.Error(err))
-	}
-
 	// Ensure children of block are cleared, they may never be
 	// verified
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
