@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/bls"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -36,7 +35,7 @@ func (b *BLS) address() codec.Address {
 }
 
 func (*BLS) GetTypeID() uint8 {
-	return consts.BLSID
+	return BLSID
 }
 
 func (*BLS) ComputeUnits(chain.Rules) uint64 {
@@ -113,5 +112,5 @@ func (*BLSFactory) MaxUnits() (uint64, uint64) {
 }
 
 func NewBLSAddress(pk *bls.PublicKey) codec.Address {
-	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
+	return codec.CreateAddress(BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
 }
