@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -34,7 +33,7 @@ func (p *ProgramStateManager) GetProgramState(address codec.Address) state.Mutab
 }
 
 func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
-	result, err := p.GetValue(ctx, accountProgramKey(account))
+	result, err := p.GetValue(ctx, AccountProgramKey(account))
 	if err != nil {
 		return ids.Empty, err
 	}
@@ -42,13 +41,12 @@ func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account cod
 }
 
 func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
-	return p.GetValue(ctx, programsKey(programID))
+	return p.GetValue(ctx, ProgramsKey(programID))
 }
 
 func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
-	digest := sha256.Sum256(accountCreationData)
-	newAddress := codec.CreateAddress(0, digest)
-	_, err := p.GetValue(ctx, accountProgramKey(newAddress))
+	newAddress := GetAddressForDeploy(0, accountCreationData)
+	_, err := p.GetValue(ctx, AccountProgramKey(newAddress))
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return codec.EmptyAddress, err
 	} else if err == nil {
@@ -59,7 +57,7 @@ func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, program
 }
 
 func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
-	return p.Insert(ctx, accountProgramKey(account), programID[:])
+	return p.Insert(ctx, AccountProgramKey(account), programID[:])
 }
 
 type prefixedStateMutable struct {

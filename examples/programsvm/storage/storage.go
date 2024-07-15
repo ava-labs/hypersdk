@@ -272,8 +272,7 @@ func accountStateKey(account codec.Address) (k []byte) {
 	return
 }
 
-// [accountStatePrefix] + [account]
-func accountProgramKey(account codec.Address) (k []byte) {
+func AccountProgramKey(account codec.Address) (k []byte) {
 	k = make([]byte, 2+codec.AddressLen)
 	k[0] = accountsPrefix
 	copy(k[1:], account[:])
@@ -281,8 +280,7 @@ func accountProgramKey(account codec.Address) (k []byte) {
 	return
 }
 
-// [accountStatePrefix] + [account]
-func programsKey(id ids.ID) (k []byte) {
+func ProgramsKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+ids.IDLen)
 	k[0] = programsPrefix
 	copy(k[1:], id[:])
@@ -295,5 +293,10 @@ func StoreProgram(
 	programBytes []byte,
 ) (ids.ID, error) {
 	programID := ids.ID(sha256.Sum256(programBytes))
-	return programID, mu.Insert(ctx, programsKey(programID), programBytes)
+	return programID, mu.Insert(ctx, ProgramsKey(programID), programBytes)
+}
+
+func GetAddressForDeploy(typeID uint8, creationData []byte) codec.Address {
+	digest := sha256.Sum256(creationData)
+	return codec.CreateAddress(typeID, digest)
 }

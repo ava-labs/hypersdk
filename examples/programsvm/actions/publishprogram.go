@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"crypto/sha256"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
 	pconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
@@ -20,6 +21,7 @@ var _ chain.Action = (*PublishProgram)(nil)
 
 type PublishProgram struct {
 	ProgramBytes []byte `json:"programBytes"`
+	id           ids.ID
 }
 
 func (*PublishProgram) GetTypeID() uint8 {
@@ -27,7 +29,13 @@ func (*PublishProgram) GetTypeID() uint8 {
 }
 
 func (t *PublishProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
-	keys := state.Keys{}
+	if t.id == ids.Empty {
+		t.id = sha256.Sum256(t.ProgramBytes)
+	}
+
+	keys := state.Keys{
+		string(storage.ProgramsKey(t.id)): state.All,
+	}
 	return keys
 }
 

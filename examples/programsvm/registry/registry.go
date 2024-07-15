@@ -24,6 +24,7 @@ func init() {
 		consts.ActionRegistry.Register((&actions.Transfer{}).GetTypeID(), actions.UnmarshalTransfer),
 		consts.ActionRegistry.Register((&actions.CallProgram{}).GetTypeID(), actions.UnmarshalCallProgram),
 		consts.ActionRegistry.Register((&actions.PublishProgram{}).GetTypeID(), actions.UnmarshalPublishProgram),
+		consts.ActionRegistry.Register((&actions.DeployProgram{}).GetTypeID(), actions.UnmarshalDeployProgram),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		consts.AuthRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519),

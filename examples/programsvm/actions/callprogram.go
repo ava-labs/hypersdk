@@ -33,13 +33,28 @@ type CallProgram struct {
 
 	// CallData are the serialized parameters to be passed to the program.
 	CallData []byte `json:"calldata"`
+
+	state state.Immutable
 }
 
 func (*CallProgram) GetTypeID() uint8 {
 	return pconsts.CallProgramID
 }
 
+func (t *CallProgram) SetState(im state.Immutable) {
+	t.state = im
+}
+
 func (t *CallProgram) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
+	recorder := &storage.Recorder{State: t.state}
+	pconsts.ProgramRuntime.CallProgram(context.Background(), &runtime.CallInfo{
+		Program:      t.Program,
+		Actor:        actor,
+		State:        &storage.ProgramStateManager{Mutable: recorder},
+		FunctionName: t.Function,
+		Params:       t.CallData,
+	})
+
 	keys := state.Keys{}
 	return keys
 }

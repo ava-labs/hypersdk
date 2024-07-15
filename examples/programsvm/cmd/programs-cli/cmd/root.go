@@ -42,7 +42,7 @@ var (
 	rootCmd = &cobra.Command{
 		Use:        "programs-cli",
 		Short:      "programsvm CLI",
-		SuggestFor: []string{"programs-cli", "morpheuscli"},
+		SuggestFor: []string{"programs-cli", "programscli"},
 	}
 )
 
@@ -145,6 +145,9 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+		publishProgramCmd,
+		callProgramCmd,
+		deployProgramCmd,
 	)
 
 	// spam
