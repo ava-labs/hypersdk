@@ -112,7 +112,7 @@ mod tests {
             .unwrap();
 
         let mut test_context = TestContext::from(program_id);
-        test_context.actor_key = Some(actor_key);
+        test_context.actor = Address::new([1; Address::LEN]);
 
         let response = simulator
             .run_step(&Step {

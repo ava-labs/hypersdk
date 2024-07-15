@@ -9,6 +9,36 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use std::{cell::RefCell, collections::HashMap, io::Read};
 use thiserror::Error;
 
+/// Defer deserialization from bytes
+/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
+#[cfg_attr(feature = "debug", derive(Debug))]
+pub struct DeferDeserialize(Vec<u8>);
+
+impl BorshSerialize for DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue writing
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.0)
+    }
+}
+
+impl DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
+    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+        let Self(bytes) = self;
+        borsh::from_slice(&bytes)
+    }
+}
+
+impl BorshDeserialize for DeferDeserialize {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut inner = Vec::new();
+        reader.read_to_end(&mut inner)?;
+        Ok(Self(inner))
+    }
+}
+
 /// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
@@ -185,28 +215,6 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
         max_units.serialize(writer)?;
         max_value.serialize(writer)?;
         Ok(())
-    }
-}
-
-/// Defer deserialization from bytes
-/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
-#[cfg_attr(feature = "debug", derive(Debug))]
-pub struct DeferDeserialize(Vec<u8>);
-
-impl DeferDeserialize {
-    /// # Errors
-    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
-    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
-        let Self(bytes) = self;
-        borsh::from_slice(&bytes)
-    }
-}
-
-impl BorshDeserialize for DeferDeserialize {
-    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut inner = Vec::new();
-        reader.read_to_end(&mut inner)?;
-        Ok(Self(inner))
     }
 }
 
