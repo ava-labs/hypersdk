@@ -92,7 +92,7 @@ var publishProgramCmd = &cobra.Command{
 }
 
 var callProgramCmd = &cobra.Command{
-	Use: "transfer",
+	Use: "callProgram",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
 		_, priv, factory, cli, bcli, ws, err := handler.DefaultActor()

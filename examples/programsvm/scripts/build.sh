@@ -24,7 +24,7 @@ if [[ $# -eq 1 ]]; then
     BINARY_PATH=$BINARY_DIR/$BINARY_FNAME
 elif [[ $# -eq 0 ]]; then
     # Set default binary directory location
-    name="pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+    name="rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN"
     BINARY_PATH=$programsVM_PATH/build/$name
 else
     echo "Invalid arguments to build programsvm. Requires zero (default location) or one argument to specify binary location."
