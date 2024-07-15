@@ -13,7 +13,7 @@ import (
 
 const (
 	HRP      = "morpheus"
-	Name     = "morpheusvm"
+	Name     = "programsvm"
 	Symbol   = "RED"
 	Decimals = 9
 )

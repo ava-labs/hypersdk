@@ -96,18 +96,18 @@ fi
 ############################
 
 ############################
-echo "building morpheusvm"
+echo "building programsvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/morpheusvm
+-o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN \
+./cmd/programsvm
 
-echo "building morpheus-cli"
-go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
+echo "building programs-cli"
+go build -v -o "${TMPDIR}"/programs-cli ./cmd/programs-cli
 
 # log everything in the avalanchego directory
 find "${TMPDIR}"/avalanchego-"${VERSION}"
@@ -127,16 +127,16 @@ EOF
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f "${TMPDIR}"/morpheusvm.genesis
-  "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
+  rm -f "${TMPDIR}"/programsvm.genesis
+  "${TMPDIR}"/programs-cli genesis generate "${TMPDIR}"/allocations.json \
   --window-target-units "${WINDOW_TARGET_UNITS}" \
   --max-block-units "${MAX_BLOCK_UNITS}" \
   --min-block-gap "${MIN_BLOCK_GAP}" \
-  --genesis-file "${TMPDIR}"/morpheusvm.genesis
+  --genesis-file "${TMPDIR}"/programsvm.genesis
 else
   echo "copying custom genesis file"
-  rm -f "${TMPDIR}"/morpheusvm.genesis
-  cp "${GENESIS_PATH}" "${TMPDIR}"/morpheusvm.genesis
+  rm -f "${TMPDIR}"/programsvm.genesis
+  cp "${GENESIS_PATH}" "${TMPDIR}"/programsvm.genesis
 fi
 
 ############################
@@ -144,9 +144,9 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f "${TMPDIR}"/morpheusvm.config
-rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
-cat <<EOF > "${TMPDIR}"/morpheusvm.config
+rm -f "${TMPDIR}"/programsvm.config
+rm -rf "${TMPDIR}"/programsvm-e2e-profiles
+cat <<EOF > "${TMPDIR}"/programsvm.config
 {
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
@@ -158,19 +158,19 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOG_LEVEL}",
-  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
+  "continuousProfilerDir":"${TMPDIR}/programsvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p "${TMPDIR}"/morpheusvm-e2e-profiles
+mkdir -p "${TMPDIR}"/programsvm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f "${TMPDIR}"/morpheusvm.subnet
-cat <<EOF > "${TMPDIR}"/morpheusvm.subnet
+rm -f "${TMPDIR}"/programsvm.subnet
+cat <<EOF > "${TMPDIR}"/programsvm.subnet
 {
   "proposerMinBlockDelay": 0,
   "proposerNumHistoricalBlocks": 50000
@@ -254,9 +254,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
 --avalanchego-plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \
---vm-genesis-path="${TMPDIR}"/morpheusvm.genesis \
---vm-config-path="${TMPDIR}"/morpheusvm.config \
---subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
+--vm-genesis-path="${TMPDIR}"/programsvm.genesis \
+--vm-config-path="${TMPDIR}"/programsvm.config \
+--subnet-config-path="${TMPDIR}"/programsvm.subnet \
 --output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
 --mode="${MODE}"
 

@@ -3,9 +3,9 @@
 
 # ref. https://goreleaser.com/customization/build/
 builds:
-  - id: morpheus-cli
-    main: ./cmd/morpheus-cli
-    binary: morpheus-cli
+  - id: programs-cli
+    main: ./cmd/programs-cli
+    binary: programs-cli
     flags:
       - -v
     goos:
@@ -31,9 +31,9 @@ builds:
         goamd64: v1
         env:
           - CC=o64-clang
-  - id: morpheusvm
-    main: ./cmd/morpheusvm
-    binary: morpheusvm
+  - id: programsvm
+    main: ./cmd/programsvm
+    binary: programsvm
     flags:
       - -v
     goos:
@@ -61,11 +61,11 @@ builds:
           - CC=o64-clang
 
 checksum:
-  name_template: "morpheusvm_checksums.txt"
+  name_template: "programsvm_checksums.txt"
 
 archives:
   - id: default
-    name_template: 'morpheusvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    name_template: 'programsvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
 release:
   make_latest: false # Should be done manually
