@@ -51,7 +51,7 @@ func TestBlockCache(t *testing.T) {
 
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
 		seen:           emap.NewEMap[*chain.Transaction](),
-		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),
+		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
 	}

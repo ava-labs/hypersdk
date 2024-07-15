@@ -27,6 +27,7 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
 )
@@ -58,7 +59,6 @@ func (c *Controller) Initialize(
 	upgradeBytes []byte, // subnets to allow for AWM
 	configBytes []byte,
 ) (
-	vm.Config,
 	vm.Genesis,
 	builder.Builder,
 	gossiper.Gossiper,
@@ -76,20 +76,21 @@ func (c *Controller) Initialize(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Load config and genesis
-	c.config, err = config.New(c.snowCtx.NodeID, configBytes)
+	c.config, err = config.New(configBytes)
 	if err != nil {
-		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	c.snowCtx.Log.SetLevel(c.config.GetLogLevel())
-	snowCtx.Log.Info("initialized config", zap.Bool("loaded", c.config.Loaded()), zap.Any("contents", c.config))
+
+	c.snowCtx.Log.SetLevel(c.config.LogLevel)
+	snowCtx.Log.Info("initialized config", zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -98,7 +99,7 @@ func (c *Controller) Initialize(
 
 	c.db, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
 	if err != nil {
-		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Create handlers
@@ -111,7 +112,7 @@ func (c *Controller) Initialize(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
@@ -129,10 +130,10 @@ func (c *Controller) Initialize(
 		gcfg := gossiper.DefaultProposerConfig()
 		gossip, err = gossiper.NewProposer(inner, gcfg)
 		if err != nil {
-			return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	return c.config.Config, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
@@ -151,7 +152,7 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 	results := blk.Results()
 	for i, tx := range blk.Txs {
 		result := results[i]
-		if c.config.GetStoreTransactions() {
+		if c.config.StoreTransactions {
 			err := storage.StoreTransaction(
 				ctx,
 				batch,
