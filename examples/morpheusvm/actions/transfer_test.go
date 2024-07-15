@@ -13,9 +13,12 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTranferAction(t *testing.T) {
+	require := require.New(t)
+
 	ts := tstate.New(1)
 
 	tests := map[string]chain.ActionTest{
@@ -64,7 +67,7 @@ func TestTranferAction(t *testing.T) {
 				tsv := ts.NewView(keys, stor)
 				b := make([]byte, 8)
 				binary.LittleEndian.PutUint64(b, uint64(1))
-				tsv.Insert(context, k, b)
+				require.NoError(tsv.Insert(context, k, b))
 				return tsv
 			}(),
 		},
