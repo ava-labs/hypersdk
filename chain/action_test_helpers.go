@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package chain
 
 import (
@@ -5,29 +8,37 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"github.com/stretchr/testify/require"
 )
 
 type ActionTest struct {
-	Rules           Rules
-	State           state.Mutable
-	Timestamp       int64
-	Actor           codec.Address
-	ActionID        ids.ID
+	Action Action
+
+	Rules     Rules
+	State     state.Mutable
+	Timestamp int64
+	Actor     codec.Address
+	ActionID  ids.ID
 
 	ExpectedOutputs [][]byte
 	ExpectedErr     error
 }
 
 type ActionTestSuite struct {
-	Action   Action
-	Tests    map[string]ActionTest
+	Tests map[string]ActionTest
+
+	Setup    func()
 	Teardown func()
 }
 
 func (suite *ActionTestSuite) Run(t *testing.T) {
+	if suite.Setup != nil {
+		suite.Setup()
+	}
+
 	for testName := range suite.Tests {
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
@@ -41,7 +52,7 @@ func (suite *ActionTestSuite) Run(t *testing.T) {
 				t.Fatalf("neither ExpectedOutputs nor ExpectedErr is set in test %s", testName)
 			}
 
-			output, err := suite.Action.Execute(context.TODO(), test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+			output, err := test.Action.Execute(context.TODO(), test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 
 			require.Equal(err, test.ExpectedErr)
 			require.Equal(output, test.ExpectedOutputs)
