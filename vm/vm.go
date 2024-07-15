@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -33,8 +34,10 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -43,6 +46,12 @@ import (
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
+)
+
+const (
+	blockDB   = "blockdb"
+	stateDB   = "statedb"
+	vmDataDir = "vm"
 )
 
 type VM struct {
@@ -157,12 +166,45 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
+	pebbleConfig := pebble.NewDefaultConfig()
+	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
+	if err != nil {
+		return err
+	}
+
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, vm.snowCtx.Metrics)
+	if err != nil {
+		return err
+	}
+
+	// TODO do not expose entire context to the Controller
+	//
+	// Note: does not copy the consensus lock but this is safe because the
+	// consensus lock does not work over rpc anyways
+	controllerContext := &snow.Context{
+		NetworkID:      vm.snowCtx.NetworkID,
+		SubnetID:       vm.snowCtx.SubnetID,
+		ChainID:        vm.snowCtx.ChainID,
+		NodeID:         vm.snowCtx.NodeID,
+		PublicKey:      vm.snowCtx.PublicKey,
+		XChainID:       vm.snowCtx.XChainID,
+		CChainID:       vm.snowCtx.CChainID,
+		AVAXAssetID:    vm.snowCtx.AVAXAssetID,
+		Log:            vm.snowCtx.Log,
+		Keystore:       vm.snowCtx.Keystore,
+		SharedMemory:   vm.snowCtx.SharedMemory,
+		BCLookup:       vm.snowCtx.BCLookup,
+		Metrics:        vm.snowCtx.Metrics,
+		WarpSigner:     vm.snowCtx.WarpSigner,
+		ValidatorState: vm.snowCtx.ValidatorState,
+		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
+	}
+
 	// Always initialize implementation first
-	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
-		snowCtx,
-		vm.snowCtx.Metrics,
+		controllerContext,
+		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
 		configBytes,
