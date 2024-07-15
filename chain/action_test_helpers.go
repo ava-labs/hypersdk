@@ -23,8 +23,9 @@ type ActionTest struct {
 	Actor     codec.Address
 	ActionID  ids.ID
 
-	ExpectedOutputs [][]byte
-	ExpectedErr     error
+	ExpectedOutputs   [][]byte
+	ExpectedErr       error
+	ContainsErrString string
 }
 
 type ActionTestSuite struct {
@@ -44,17 +45,29 @@ func (suite *ActionTestSuite) Run(t *testing.T) {
 			require := require.New(t)
 			test := suite.Tests[testName]
 
-			// Ensure that only one of ExpectedOutputs or ExpectedErr is set
-			if test.ExpectedOutputs != nil && test.ExpectedErr != nil {
-				t.Fatalf("both ExpectedOutputs and ExpectedErr are set in test %s", testName)
+			// Ensure that only one of outputs or err is set
+			if test.ExpectedOutputs != nil && (test.ExpectedErr != nil || len(test.ContainsErrString) > 0) {
+				t.Fatalf("ExpectedOutputs and ExpectedErr are set in test %s", testName)
 			}
-			if test.ExpectedOutputs == nil && test.ExpectedErr == nil {
+			if test.ExpectedOutputs == nil && test.ExpectedErr == nil && len(test.ContainsErrString) == 0 {
 				t.Fatalf("neither ExpectedOutputs nor ExpectedErr is set in test %s", testName)
 			}
 
 			output, err := test.Action.Execute(context.TODO(), test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 
-			require.Equal(err, test.ExpectedErr)
+			if err != nil {
+				if test.ExpectedErr == nil && len(test.ContainsErrString) == 0 {
+					t.Fatalf("got unexpected error: %w", err)
+				}
+
+				if test.ExpectedErr != nil {
+					require.Equal(err, test.ExpectedErr)
+				}
+				if len(test.ContainsErrString) > 0 {
+					require.Contains(err.Error(), test.ContainsErrString)
+				}
+			}
+
 			require.Equal(output, test.ExpectedOutputs)
 		})
 	}
