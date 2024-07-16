@@ -33,7 +33,7 @@ func (c *Controller) GetTransaction(
 	ctx context.Context,
 	txID ids.ID,
 ) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return c.txIndexer.GetTransaction(ctx, txID)
+	return c.txIndexer.GetTransaction(txID)
 }
 
 func (c *Controller) GetAssetFromState(

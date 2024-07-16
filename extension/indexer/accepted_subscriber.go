@@ -12,3 +12,20 @@ import (
 type AcceptedSubscriber interface {
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 }
+
+type CombinedAcceptedSubscriber struct {
+	subscribers []AcceptedSubscriber
+}
+
+func NewCombinedAcceptedSubscriber(subscribers ...AcceptedSubscriber) *CombinedAcceptedSubscriber {
+	return &CombinedAcceptedSubscriber{subscribers: subscribers}
+}
+
+func (c *CombinedAcceptedSubscriber) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+	for _, subscriber := range c.subscribers {
+		if err := subscriber.Accepted(ctx, blk); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -8,20 +8,20 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/extensions/indexer"
+	"github.com/ava-labs/hypersdk/extension/indexer"
 )
 
-var _ indexer.SuccessfulTxIndexer = &successfulTxIndexer{}
+var _ indexer.SuccessfulTxSubscriber = (*actionHandler)(nil)
 
-type successfulTxIndexer struct {
+type actionHandler struct {
 	c *Controller
 }
 
-func (s *successfulTxIndexer) Accepted(_ context.Context, tx *chain.Transaction, _ *chain.Result) error {
+func (a *actionHandler) Accepted(_ context.Context, tx *chain.Transaction, _ *chain.Result) error {
 	for _, action := range tx.Actions {
 		switch action.(type) { //nolint:gocritic
 		case *actions.Transfer:
-			s.c.metrics.transfer.Inc()
+			a.c.metrics.transfer.Inc()
 		}
 	}
 	return nil

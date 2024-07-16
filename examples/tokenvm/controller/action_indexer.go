@@ -8,31 +8,31 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/extensions/indexer"
+	"github.com/ava-labs/hypersdk/extension/indexer"
 )
 
-var _ indexer.SuccessfulTxIndexer = &successfulTxIndexer{}
+var _ indexer.SuccessfulTxSubscriber = (*actionHandler)(nil)
 
-type successfulTxIndexer struct {
+type actionHandler struct {
 	c *Controller
 }
 
-func (s *successfulTxIndexer) Accepted(_ context.Context, tx *chain.Transaction, result *chain.Result) error {
+func (a *actionHandler) Accepted(_ context.Context, tx *chain.Transaction, result *chain.Result) error {
 	for i, act := range tx.Actions {
 		switch action := act.(type) {
 		case *actions.CreateAsset:
-			s.c.metrics.createAsset.Inc()
+			a.c.metrics.createAsset.Inc()
 		case *actions.MintAsset:
-			s.c.metrics.mintAsset.Inc()
+			a.c.metrics.mintAsset.Inc()
 		case *actions.BurnAsset:
-			s.c.metrics.burnAsset.Inc()
+			a.c.metrics.burnAsset.Inc()
 		case *actions.Transfer:
-			s.c.metrics.transfer.Inc()
+			a.c.metrics.transfer.Inc()
 		case *actions.CreateOrder:
-			s.c.metrics.createOrder.Inc()
-			s.c.orderBook.Add(chain.CreateActionID(tx.ID(), uint8(i)), tx.Auth.Actor(), action)
+			a.c.metrics.createOrder.Inc()
+			a.c.orderBook.Add(chain.CreateActionID(tx.ID(), uint8(i)), tx.Auth.Actor(), action)
 		case *actions.FillOrder:
-			s.c.metrics.fillOrder.Inc()
+			a.c.metrics.fillOrder.Inc()
 			outputs := result.Outputs[i]
 			for _, output := range outputs {
 				orderResult, err := actions.UnmarshalOrderResult(output)
@@ -41,14 +41,14 @@ func (s *successfulTxIndexer) Accepted(_ context.Context, tx *chain.Transaction,
 					return err
 				}
 				if orderResult.Remaining == 0 {
-					s.c.orderBook.Remove(action.Order)
+					a.c.orderBook.Remove(action.Order)
 					continue
 				}
-				s.c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
+				a.c.orderBook.UpdateRemaining(action.Order, orderResult.Remaining)
 			}
 		case *actions.CloseOrder:
-			s.c.metrics.closeOrder.Inc()
-			s.c.orderBook.Remove(action.Order)
+			a.c.metrics.closeOrder.Inc()
+			a.c.orderBook.Remove(action.Order)
 		}
 	}
 

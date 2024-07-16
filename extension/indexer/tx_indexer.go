@@ -16,36 +16,27 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-var _ AcceptedSubscriber = (*TxIndexer)(nil)
+var _ AcceptedSubscriber = (*txIndexer)(nil)
 
 var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 )
 
-type SuccessfulTxIndexer interface {
-	Accepted(ctx context.Context, tx *chain.Transaction, result *chain.Result) error
+type TxIndexer interface {
+	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
+	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 }
 
-type TxIndexer struct {
-	db                  database.Database
-	enabled             bool
-	successfulTxIndexer SuccessfulTxIndexer
+type txIndexer struct {
+	db database.Database
 }
 
-func NewTxIndexer(
-	db database.Database,
-	enabled bool,
-	successfulTxIndexer SuccessfulTxIndexer,
-) *TxIndexer {
-	return &TxIndexer{
-		db:                  db,
-		enabled:             enabled,
-		successfulTxIndexer: successfulTxIndexer,
-	}
+func NewTxIndexer(db database.Database) *txIndexer {
+	return &txIndexer{db: db}
 }
 
-func (i *TxIndexer) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+func (i *txIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
 	batch := i.db.NewBatch()
 	defer batch.Reset()
 
@@ -53,30 +44,22 @@ func (i *TxIndexer) Accepted(ctx context.Context, blk *chain.StatelessBlock) err
 	results := blk.Results()
 	for j, tx := range blk.Txs {
 		result := results[j]
-		if i.enabled {
-			if err := i.storeTransaction(
-				batch,
-				tx.ID(),
-				timestamp,
-				result.Success,
-				result.Units,
-				result.Fee,
-			); err != nil {
-				return err
-			}
-		}
-
-		if result.Success {
-			if err := i.successfulTxIndexer.Accepted(ctx, tx, result); err != nil {
-				return err
-			}
+		if err := i.storeTransaction(
+			batch,
+			tx.ID(),
+			timestamp,
+			result.Success,
+			result.Units,
+			result.Fee,
+		); err != nil {
+			return err
 		}
 	}
 
 	return batch.Write()
 }
 
-func (*TxIndexer) storeTransaction(
+func (*txIndexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	t int64,
@@ -96,7 +79,7 @@ func (*TxIndexer) storeTransaction(
 	return batch.Put(txID[:], v)
 }
 
-func (i *TxIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (i *txIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	v, err := i.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil
@@ -115,4 +98,18 @@ func (i *TxIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensi
 	}
 	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
 	return true, t, success, d, fee, nil
+}
+
+type noopTxIndexer struct{}
+
+func NewNoopTxIndexer() *noopTxIndexer {
+	return &noopTxIndexer{}
+}
+
+func (i *noopTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
+	return nil
+}
+
+func (i *noopTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+	return false, 0, false, fees.Dimensions{}, 0, errors.New("tx indexer not enabled")
 }

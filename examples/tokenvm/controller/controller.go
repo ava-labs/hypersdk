@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/tokenvm/orderbook"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/version"
-	"github.com/ava-labs/hypersdk/extensions/indexer"
+	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
@@ -43,8 +43,9 @@ type Controller struct {
 
 	metrics *metrics
 
-	txDB      database.Database
-	txIndexer *indexer.TxIndexer
+	txDB               database.Database
+	txIndexer          indexer.TxIndexer
+	acceptedSubscriber indexer.AcceptedSubscriber
 
 	orderBook *orderbook.OrderBook
 }
@@ -104,11 +105,15 @@ func (c *Controller) Initialize(
 	if err != nil {
 		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	c.txIndexer = indexer.NewTxIndexer(
-		c.txDB,
-		c.config.GetStoreTransactions(),
-		&successfulTxIndexer{c: c},
-	)
+	acceptedSubscribers := make([]indexer.AcceptedSubscriber, 0)
+	if c.config.GetStoreTransactions() {
+		c.txIndexer = indexer.NewTxIndexer(c.txDB)
+		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
+	} else {
+		c.txIndexer = indexer.NewNoopTxIndexer()
+	}
+	acceptedSubscribers = append(acceptedSubscribers, indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}))
+	c.acceptedSubscriber = indexer.NewCombinedAcceptedSubscriber(acceptedSubscribers...)
 
 	// Create handlers
 	//
