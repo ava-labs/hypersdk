@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/chaintesting"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -21,7 +21,7 @@ func TestTransferAction(t *testing.T) {
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
 
-	tests := map[string]chain.ActionTest{
+	tests := map[string]chaintesting.ActionTest{
 		"ZeroTransfer": {
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
@@ -34,7 +34,7 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			State:       ts.NewView(map[string]state.Permissions{}, map[string][]byte{}),
+			State:       ts.NewView(make(state.Keys), map[string][]byte{}),
 			ExpectedErr: tstate.ErrInvalidKeyOrPermission,
 		},
 		"NotEnoughBalance": {
@@ -57,16 +57,15 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
-				store := chain.NewInMemoryStore()
-				require.NoError(storage.SetBalance(context.TODO(), store, codec.EmptyAddress, 1))
+				store := chaintesting.NewInMemoryStore()
+				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
-				tsv := ts.NewView(keys, store.Storage)
-				return tsv
+				return ts.NewView(keys, store.Storage)
 			}(),
 		},
 	}
 
-	testSuite := chain.ActionTestSuite{
+	testSuite := chaintesting.ActionTestSuite{
 		Tests: tests,
 	}
 
