@@ -576,7 +576,7 @@ type Interface interface {
 	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 
-	// Shutdown should be used by the [VM] to terminate any async
+	// Shutdown should be used by the VM to terminate any async
 	// processes it may be running in the background. It is invoked when
 	// `vm.Shutdown` is called.
 	Shutdown(context.Context) error
