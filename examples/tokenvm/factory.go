@@ -6,6 +6,8 @@ package vm
 import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms"
+
+	"github.com/ava-labs/hypersdk/examples/tokenvm/vm"
 )
 
 var _ vms.Factory = &Factory{}
