@@ -25,7 +25,7 @@ pub fn get_owner(program: &Program<StateKeys>) -> Address {
         .state()
         .get::<Address>(StateKeys::Owner)
         .expect("failed to get owner")
-        .unwrap()
+        .expect("owner not initialized")
 }
 
 // Checks if the caller is the owner of the token
@@ -61,7 +61,7 @@ fn _total_supply(program: &Program<StateKeys>) -> u64 {
     program
         .state()
         .get(StateKeys::TotalSupply)
-        .expect("failure")
+        .expect("failed to get total supply")
         .unwrap_or_default()
 }
 
@@ -72,11 +72,7 @@ pub fn mint(context: Context<StateKeys>, recipient: Address, amount: u64) -> boo
     let actor = context.actor();
 
     check_owner(program, actor);
-    let balance = program
-        .state()
-        .get::<u64>(StateKeys::Balance(recipient))
-        .expect("failed to get balance")
-        .unwrap_or_default();
+    let balance = _balance_of(program, recipient);
     let total_supply = _total_supply(program);
     program
         .state()
@@ -98,7 +94,7 @@ pub fn burn(context: Context<StateKeys>, recipient: Address, value: u64) -> u64 
     check_owner(program, actor);
     let total = _balance_of(program, recipient);
 
-    assert!(value < total, "address doesn't have enough tokens to burn");
+    assert!(value <= total, "address doesn't have enough tokens to burn");
     let new_amount = total - value;
 
     program
@@ -120,7 +116,7 @@ fn _balance_of(program: &Program<StateKeys>, account: Address) -> u64 {
     program
         .state()
         .get(StateKeys::Balance(account))
-        .expect("failure")
+        .expect("failed to get balance")
         .unwrap_or_default()
 }
 
@@ -135,7 +131,7 @@ pub fn _allowance(program: &Program<StateKeys>, owner: Address, spender: Address
     program
         .state()
         .get::<u64>(StateKeys::Allowance(owner, spender))
-        .expect("failure")
+        .expect("failed to get allowance")
         .unwrap_or_default()
 }
 
@@ -170,19 +166,11 @@ fn _transfer(
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
-    let sender_balance = program
-        .state()
-        .get::<u64>(StateKeys::Balance(sender))
-        .expect("failed to get sender balance")
-        .unwrap_or_default();
+    let sender_balance = _balance_of(program, sender);
 
-    assert!(sender_balance >= amount, "invalid input");
+    assert!(sender_balance >= amount, "sender has insufficient balance");
 
-    let recipient_balance = program
-        .state()
-        .get::<u64>(StateKeys::Balance(recipient))
-        .expect("failed to store recipient balance")
-        .unwrap_or_default();
+    let recipient_balance = _balance_of(program, recipient);
 
     // update balances
     program
@@ -191,13 +179,13 @@ fn _transfer(
             (StateKeys::Balance(sender), &(sender_balance - amount)),
             (StateKeys::Balance(recipient), &(recipient_balance + amount)),
         ])
-        .expect("failed to store sender balance");
+        .expect("failed to update balances");
 
     true
 }
 
 /// Transfers balance from the sender to the recipient.
-/// The caller must be the owner of the tokens or have an allowance.
+/// The caller must have an allowance to spend the senders tokens.
 #[public]
 pub fn transfer_from(
     context: Context<StateKeys>,
@@ -205,16 +193,14 @@ pub fn transfer_from(
     recipient: Address,
     amount: u64,
 ) -> bool {
+    assert_ne!(sender, recipient, "sender and recipient must be different");
+
     let program = context.program();
     let actor = context.actor();
 
-    let total_allowance = if sender == actor {
-        _balance_of(program, actor)
-    } else {
-        _allowance(program, sender, actor)
-    };
-
+    let total_allowance = _allowance(program, sender, actor);
     assert!(total_allowance >= amount, "insufficient allowance");
+
     program
         .state()
         .store_by_key(
@@ -222,6 +208,7 @@ pub fn transfer_from(
             &(total_allowance - amount),
         )
         .expect("failed to store allowance");
+
     _transfer(program, sender, recipient, amount)
 }
 
@@ -246,7 +233,7 @@ pub fn symbol(context: Context<StateKeys>) -> String {
         .state()
         .get::<String>(StateKeys::Symbol)
         .expect("failed to get symbol")
-        .unwrap_or_default()
+        .expect("symbol not initialized")
 }
 
 #[public]
@@ -257,7 +244,7 @@ pub fn name(context: Context<StateKeys>) -> String {
         .state()
         .get::<String>(StateKeys::Name)
         .expect("failed to get name")
-        .unwrap_or_default()
+        .expect("name not initialized")
 }
 
 #[cfg(test)]
