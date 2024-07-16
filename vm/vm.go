@@ -177,7 +177,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// TODO do not expose entire context to the Interface
+	// TODO do not expose entire context to the VM
 	//
 	// Note: does not copy the consensus lock but this is safe because the
 	// consensus lock does not work over rpc anyways
