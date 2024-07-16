@@ -55,8 +55,8 @@ const (
 )
 
 type VM struct {
-	c Controller
-	v *version.Semantic
+	vm Interface
+	v  *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
@@ -128,8 +128,8 @@ type VM struct {
 	stop  chan struct{}
 }
 
-func New(c Controller, v *version.Semantic) *VM {
-	return &VM{c: c, v: v}
+func New(vm Interface, v *version.Semantic) *VM {
+	return &VM{vm: vm, v: v}
 }
 
 // implements "block.ChainVM.common.VM"
@@ -177,7 +177,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	// TODO do not expose entire context to the Controller
+	// TODO do not expose entire context to the Interface
 	//
 	// Note: does not copy the consensus lock but this is safe because the
 	// consensus lock does not work over rpc anyways
@@ -201,7 +201,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.vm.Initialize(
 		vm,
 		controllerContext,
 		controllerContext.Metrics,
@@ -348,7 +348,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		genesisRules := vm.c.Rules(0)
+		genesisRules := vm.vm.Rules(0)
 		feeManager := fees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
@@ -590,9 +590,9 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	// Shutdown controller once all mechanisms that could invoke it have
+	// Shutdown VM once all mechanisms that could invoke it have
 	// shutdown.
-	if err := vm.c.Shutdown(ctx); err != nil {
+	if err := vm.vm.Shutdown(ctx); err != nil {
 		return err
 	}
 
@@ -811,7 +811,7 @@ func (vm *VM) Submit(
 	}
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
-	r := vm.c.Rules(now)
+	r := vm.vm.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
 	if err != nil {
 		return []error{err}
@@ -842,7 +842,7 @@ func (vm *VM) Submit(
 		}
 
 		// Ensure state keys are valid
-		_, err := tx.StateKeys(vm.c.StateManager())
+		_, err := tx.StateKeys(vm.vm.StateManager())
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
 			continue
@@ -877,7 +877,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, vm.vm.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

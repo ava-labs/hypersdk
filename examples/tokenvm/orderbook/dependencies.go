@@ -7,6 +7,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
-type Controller interface {
+// TODO remove
+type VM interface {
 	Logger() logging.Logger
 }

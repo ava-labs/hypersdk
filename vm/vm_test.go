@@ -39,7 +39,7 @@ func TestBlockCache(t *testing.T) {
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 	bByID, _ := cache.NewFIFO[ids.ID, *chain.StatelessBlock](3)
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
-	controller := NewMockController(ctrl)
+	mockVM := NewMockInterface(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
 		config:  NewConfig(),
@@ -53,7 +53,7 @@ func TestBlockCache(t *testing.T) {
 		seen:           emap.NewEMap[*chain.Transaction](),
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
-		c:              controller,
+		vm:             mockVM,
 	}
 
 	// Init metrics (called in [Accepted])
@@ -67,7 +67,7 @@ func TestBlockCache(t *testing.T) {
 	ctx := context.TODO()
 	rules := chain.NewMockRules(ctrl)
 	rules.EXPECT().GetValidityWindow().Return(int64(60))
-	controller.EXPECT().Rules(gomock.Any()).Return(rules)
+	mockVM.EXPECT().Rules(gomock.Any()).Return(rules)
 	vm.Accepted(ctx, blk)
 
 	// we have not set up any persistent db

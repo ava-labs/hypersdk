@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/tokenvm/cmd/tokenvm/version"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/vm"
 )
 
 var rootCmd = &cobra.Command{
@@ -46,5 +46,5 @@ func runFunc(*cobra.Command, []string) error {
 	if err := ulimit.Set(ulimit.DefaultFDLimit, logging.NoLog{}); err != nil {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
-	return rpcchainvm.Serve(context.TODO(), controller.New())
+	return rpcchainvm.Serve(context.TODO(), vm.New())
 }

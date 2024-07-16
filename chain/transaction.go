@@ -109,7 +109,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	}
 	stateKeys := make(state.Keys)
 
-	// Verify the formatting of state keys passed by the controller
+	// Verify the formatting of state keys passed by the VM
 	for i, action := range t.Actions {
 		for k, v := range action.StateKeys(t.Auth.Actor(), CreateActionID(t.ID(), uint8(i))) {
 			if !stateKeys.Add(k, v) {

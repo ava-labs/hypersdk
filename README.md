@@ -542,9 +542,9 @@ required interfaces. Below, we'll cover some of the ones that your
 
 > _Note: `hypersdk` requires a minimum Go version of 1.21_
 
-### Controller
+### Interface
 ```golang
-type Controller interface {
+type Interface interface {
 	Initialize(
 		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
@@ -569,29 +569,29 @@ type Controller interface {
 	Rules(t int64) chain.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required
-	// information in state (without clobbering things the Controller is
-	// storing).
+	// information in state (without clobbering things the Interface is
+    // storing).
 	StateManager() chain.StateManager
 
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 
-	// Shutdown should be used by the [Controller] to terminate any async
+	// Shutdown should be used by the [VM] to terminate any async
 	// processes it may be running in the background. It is invoked when
 	// `vm.Shutdown` is called.
 	Shutdown(context.Context) error
 }
 ```
 
-The `Controller` is the entry point of any `hypervm`. It initializes the data
+The `Interface` is the entry point of any `hypervm`. It initializes the data
 structures utilized by the `hypersdk` and handles both `Accepted` and
 `Rejected` block callbacks. Most `hypervms` use the default `Builder`,
 `Gossiper`, `Handlers`, and `Database` packages so this is typically a lot of
 boilerplate code.
 
 You can view what this looks like in the `tokenvm` by clicking this
-[link](./examples/tokenvm/controller/controller.go).
+[link](./examples/tokenvm/vm/vm.go).
 
 #### Registry
 ```golang
@@ -600,7 +600,7 @@ AuthRegistry   *codec.TypeParser[Auth, bool]
 ```
 
 The `ActionRegistry` and `AuthRegistry` inform the `hypersdk` how to
-marshal/unmarshal bytes on-the-wire. If the `Controller` did not provide these,
+marshal/unmarshal bytes on-the-wire. If the `Interface` did not provide these,
 the `hypersdk` would not know how to extract anything from the bytes it was
 provided by the Avalanche Consensus Engine.
 
@@ -756,11 +756,11 @@ type Rules interface {
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
-	// * Controllers must manage the max key length and max value length (max network
+	// * VMs must manage the max key length and max value length (max network
 	//   limit is ~2MB)
 	// * Creating a new key involves first allocating and then writing
 	// * Keys are only charged once per transaction (even if used multiple times), it is
-	//   up to the controller to ensure multiple usage has some compute cost
+	//   up to the VM to ensure multiple usage has some compute cost
 	GetSponsorStateKeysMaxChunks() []uint16
 	GetStorageKeyReadUnits() uint64
 	GetStorageValueReadUnits() uint64 // per chunk
@@ -773,9 +773,9 @@ type Rules interface {
 }
 ```
 
-`Rules` govern block validity and are requested from the `Controller` prior to
+`Rules` govern block validity and are requested from the `Interface` prior to
 executing any block. The `hypersdk` performs this request so that the
-`Controller` can modify any `Rules` on-the-fly. Many common rules are provided
+`Interface` can modify any `Rules` on-the-fly. Many common rules are provided
 directly in the interface but there is also an option to provide custom rules
 that can be accessed during `Auth` or `Action` execution.
 

@@ -35,18 +35,19 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/actions"
-	"github.com/ava-labs/hypersdk/examples/tokenvm/controller"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/tokenvm/vm"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/vm"
+	hypervm "github.com/ava-labs/hypersdk/vm"
+
+	"github.com/onsi/ginkgo/v2"
 
 	"github.com/ava-labs/hypersdk/auth"
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	trpc "github.com/ava-labs/hypersdk/examples/tokenvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
@@ -130,7 +131,7 @@ func init() {
 type instance struct {
 	chainID            ids.ID
 	nodeID             ids.NodeID
-	vm                 *vm.VM
+	vm                 *hypervm.VM
 	toEngine           chan common.Message
 	JSONRPCServer      *httptest.Server
 	TokenJSONRPCServer *httptest.Server
@@ -234,7 +235,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v := controller.New()
+		v := vm.New()
 		err = v.Initialize(
 			context.TODO(),
 			snowCtx,

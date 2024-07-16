@@ -118,7 +118,7 @@ func init() {
 type instance struct {
 	chainID           ids.ID
 	nodeID            ids.NodeID
-	vm                *vm.VM
+	vm                *hypervm.VM
 	toEngine          chan common.Message
 	JSONRPCServer     *httptest.Server
 	BaseJSONRPCServer *httptest.Server
@@ -213,7 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v := controller.New()
+		v := vm.New()
 		err = v.Initialize(
 			context.TODO(),
 			snowCtx,

@@ -14,7 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-type Controller interface {
+type VM interface {
 	Genesis() *genesis.Genesis
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)

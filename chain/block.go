@@ -605,7 +605,7 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 // implements "snowman.Block"
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
-// Used to determine if should notify listeners and/or pass to controller
+// Used to determine if should notify listeners and/or pass to the VM
 func (b *StatelessBlock) Processed() bool {
 	return b.view != nil
 }

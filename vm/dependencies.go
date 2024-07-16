@@ -99,7 +99,7 @@ type AuthEngine interface {
 	Cache(auth chain.Auth)
 }
 
-type Controller interface {
+type Interface interface {
 	Initialize(
 		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
@@ -122,7 +122,7 @@ type Controller interface {
 	Rules(t int64) chain.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required
-	// information in state (without clobbering things the Controller is
+	// information in state (without clobbering things the Interface is
 	// storing).
 	StateManager() chain.StateManager
 
@@ -130,7 +130,7 @@ type Controller interface {
 	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 
-	// Shutdown should be used by the [Controller] to terminate any async
+	// Shutdown should be used by the [Interface] to terminate any async
 	// processes it may be running in the background. It is invoked when
 	// `vm.Shutdown` is called.
 	Shutdown(context.Context) error

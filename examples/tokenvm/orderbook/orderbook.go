@@ -30,7 +30,7 @@ type Order struct {
 }
 
 type OrderBook struct {
-	c Controller
+	vm VM
 
 	// Fee required to create an order should be high enough to prevent too many
 	// dust orders from filling the heap.
@@ -44,21 +44,21 @@ type OrderBook struct {
 	trackAll bool
 }
 
-func New(c Controller, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
+func New(vm VM, trackedPairs []string, maxOrdersPerPair int) *OrderBook {
 	m := map[string]*heap.Heap[*Order, float64]{}
 	trackAll := false
 	if len(trackedPairs) == 1 && trackedPairs[0] == allPairs {
 		trackAll = true
-		c.Logger().Info("tracking all order books")
+		vm.Logger().Info("tracking all order books")
 	} else {
 		for _, pair := range trackedPairs {
 			// We use a max heap so we return the best rates in order.
 			m[pair] = heap.New[*Order, float64](maxOrdersPerPair+1, true)
-			c.Logger().Info("tracking order book", zap.String("pair", pair))
+			vm.Logger().Info("tracking order book", zap.String("pair", pair))
 		}
 	}
 	return &OrderBook{
-		c:                c,
+		vm:               vm,
 		orders:           m,
 		orderToPair:      map[ids.ID]string{},
 		maxOrdersPerPair: maxOrdersPerPair,
@@ -86,7 +86,7 @@ func (o *OrderBook) Add(actionID ids.ID, actor codec.Address, action *actions.Cr
 	case !ok && !o.trackAll:
 		return
 	case !ok && o.trackAll:
-		o.c.Logger().Info("tracking order book", zap.String("pair", pair))
+		o.vm.Logger().Info("tracking order book", zap.String("pair", pair))
 		h = heap.New[*Order, float64](o.maxOrdersPerPair+1, true)
 		o.orders[pair] = h
 	}

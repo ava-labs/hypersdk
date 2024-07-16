@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package controller
+package vm
 
 import (
 	"context"
@@ -17,45 +17,45 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-func (c *Controller) Genesis() *genesis.Genesis {
-	return c.genesis
+func (vm *VM) Genesis() *genesis.Genesis {
+	return vm.genesis
 }
 
-func (c *Controller) Logger() logging.Logger {
-	return c.inner.Logger()
+func (vm *VM) Logger() logging.Logger {
+	return vm.inner.Logger()
 }
 
-func (c *Controller) Tracer() trace.Tracer {
-	return c.inner.Tracer()
+func (vm *VM) Tracer() trace.Tracer {
+	return vm.inner.Tracer()
 }
 
-func (c *Controller) GetTransaction(
+func (vm *VM) GetTransaction(
 	ctx context.Context,
 	txID ids.ID,
 ) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return storage.GetTransaction(ctx, c.db, txID)
+	return storage.GetTransaction(ctx, vm.db, txID)
 }
 
-func (c *Controller) GetAssetFromState(
+func (vm *VM) GetAssetFromState(
 	ctx context.Context,
 	asset ids.ID,
 ) (bool, []byte, uint8, []byte, uint64, codec.Address, error) {
-	return storage.GetAssetFromState(ctx, c.inner.ReadState, asset)
+	return storage.GetAssetFromState(ctx, vm.inner.ReadState, asset)
 }
 
-func (c *Controller) GetBalanceFromState(
+func (vm *VM) GetBalanceFromState(
 	ctx context.Context,
 	addr codec.Address,
 	asset ids.ID,
 ) (uint64, error) {
-	return storage.GetBalanceFromState(ctx, c.inner.ReadState, addr, asset)
+	return storage.GetBalanceFromState(ctx, vm.inner.ReadState, addr, asset)
 }
 
-func (c *Controller) Orders(pair string, limit int) []*orderbook.Order {
-	return c.orderBook.Orders(pair, limit)
+func (vm *VM) Orders(pair string, limit int) []*orderbook.Order {
+	return vm.orderBook.Orders(pair, limit)
 }
 
-func (c *Controller) GetOrderFromState(
+func (vm *VM) GetOrderFromState(
 	ctx context.Context,
 	orderID ids.ID,
 ) (
@@ -68,5 +68,5 @@ func (c *Controller) GetOrderFromState(
 	codec.Address, // owner
 	error,
 ) {
-	return storage.GetOrderFromState(ctx, c.inner.ReadState, orderID)
+	return storage.GetOrderFromState(ctx, vm.inner.ReadState, orderID)
 }

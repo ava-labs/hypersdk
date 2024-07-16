@@ -16,11 +16,11 @@ import (
 )
 
 type JSONRPCServer struct {
-	c Controller
+	vm VM
 }
 
-func NewJSONRPCServer(c Controller) *JSONRPCServer {
-	return &JSONRPCServer{c}
+func NewJSONRPCServer(vm VM) *JSONRPCServer {
+	return &JSONRPCServer{vm}
 }
 
 type GenesisReply struct {
@@ -28,7 +28,7 @@ type GenesisReply struct {
 }
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-	reply.Genesis = j.c.Genesis()
+	reply.Genesis = j.vm.Genesis()
 	return nil
 }
 
@@ -44,10 +44,10 @@ type TxReply struct {
 }
 
 func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
-	found, t, success, units, fee, err := j.c.GetTransaction(ctx, args.TxID)
+	found, t, success, units, fee, err := j.vm.GetTransaction(ctx, args.TxID)
 	if err != nil {
 		return err
 	}
@@ -74,10 +74,10 @@ type AssetReply struct {
 }
 
 func (j *JSONRPCServer) Asset(req *http.Request, args *AssetArgs, reply *AssetReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Asset")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Asset")
 	defer span.End()
 
-	exists, symbol, decimals, metadata, supply, owner, err := j.c.GetAssetFromState(ctx, args.Asset)
+	exists, symbol, decimals, metadata, supply, owner, err := j.vm.GetAssetFromState(ctx, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -102,14 +102,14 @@ type BalanceReply struct {
 }
 
 func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *BalanceReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
 	addr, err := codec.ParseAddressBech32(consts.HRP, args.Address)
 	if err != nil {
 		return err
 	}
-	balance, err := j.c.GetBalanceFromState(ctx, addr, args.Asset)
+	balance, err := j.vm.GetBalanceFromState(ctx, addr, args.Asset)
 	if err != nil {
 		return err
 	}
@@ -126,10 +126,10 @@ type OrdersReply struct {
 }
 
 func (j *JSONRPCServer) Orders(req *http.Request, args *OrdersArgs, reply *OrdersReply) error {
-	_, span := j.c.Tracer().Start(req.Context(), "Server.Orders")
+	_, span := j.vm.Tracer().Start(req.Context(), "Server.Orders")
 	defer span.End()
 
-	reply.Orders = j.c.Orders(args.Pair, ordersToSend)
+	reply.Orders = j.vm.Orders(args.Pair, ordersToSend)
 	return nil
 }
 
@@ -142,10 +142,10 @@ type GetOrderReply struct {
 }
 
 func (j *JSONRPCServer) GetOrder(req *http.Request, args *GetOrderArgs, reply *GetOrderReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.GetOrder")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "Server.GetOrder")
 	defer span.End()
 
-	exists, in, inTick, out, outTick, remaining, owner, err := j.c.GetOrderFromState(ctx, args.OrderID)
+	exists, in, inTick, out, outTick, remaining, owner, err := j.vm.GetOrderFromState(ctx, args.OrderID)
 	if err != nil {
 		return err
 	}

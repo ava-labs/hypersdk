@@ -136,7 +136,7 @@ type Rules interface {
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
-	// * Controllers must manage the max key length and max value length (max network
+	// * VMs must manage the max key length and max value length (max network
 	//   limit is ~2MB)
 	// * Creating a new key involves first allocating and then writing
 	// * Keys are only charged once per transaction (even if used multiple times), it is

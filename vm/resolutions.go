@@ -66,7 +66,7 @@ func (vm *VM) Logger() logging.Logger {
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.c.Rules(t)
+	return vm.vm.Rules(t)
 }
 
 func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {
@@ -165,8 +165,8 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		return
 	}
 
-	// Update controller
-	if err := vm.c.Accepted(context.TODO(), b); err != nil {
+	// Update vm
+	if err := vm.vm.Accepted(context.TODO(), b); err != nil {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 
@@ -355,7 +355,7 @@ func (vm *VM) StateSyncEnabled(ctx context.Context) (bool, error) {
 }
 
 func (vm *VM) StateManager() chain.StateManager {
-	return vm.c.StateManager()
+	return vm.vm.StateManager()
 }
 
 func (vm *VM) RecordRootCalculated(t time.Duration) {
