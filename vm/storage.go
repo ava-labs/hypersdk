@@ -87,15 +87,15 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 }
 
 func (vm *VM) SetLastProcessedHeight(height uint64) error {
-	return vm.vmDB.Put(lastAccepted, binary.BigEndian.AppendUint64(nil, height))
+	return vm.vmDB.Put(lastProcessed, binary.BigEndian.AppendUint64(nil, height))
 }
 
 func (vm *VM) HasLastProcessed() (bool, error) {
-	return vm.vmDB.Has(lastAccepted)
+	return vm.vmDB.Has(lastProcessed)
 }
 
 func (vm *VM) GetLastProcessedHeight() (uint64, error) {
-	b, err := vm.vmDB.Get(lastAccepted)
+	b, err := vm.vmDB.Get(lastProcessed)
 	if err != nil {
 		return 0, err
 	}
@@ -103,7 +103,7 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 }
 
 func (vm *VM) RemoveLastProcessedHeight() error {
-	return vm.vmDB.Delete(lastAccepted)
+	return vm.vmDB.Delete(lastProcessed)
 }
 
 func (vm *VM) shouldComapct(expiryHeight uint64) bool {
