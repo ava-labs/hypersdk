@@ -24,11 +24,11 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
-	hypervm "github.com/ava-labs/hypersdk/vm"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
+	hypervm "github.com/ava-labs/hypersdk/vm"
 )
 
 var _ hypervm.Interface = (*VM)(nil)
