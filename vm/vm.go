@@ -466,6 +466,14 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not remove last processed block", zap.Error(err))
 			return err
 		}
+
+		// Update price metrics
+		feeManager := blk.FeeManager()
+		vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
+		vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
+		vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
+		vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
+		vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 	}
 
 	return nil
