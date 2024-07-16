@@ -186,7 +186,9 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 
-	vm.SetLastAcceptedHeight(b.Height())
+	if err := vm.SetLastAcceptedHeight(b.Height()); err != nil {
+		vm.Fatal("failed to update the last accepted height", zap.Error(err))
+	}
 
 	// Update price metrics
 	feeManager := b.FeeManager()
