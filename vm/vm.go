@@ -433,6 +433,41 @@ func (vm *VM) Initialize(
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
+
+	has, err = vm.HasLastProcessed()
+	if err != nil {
+		snowCtx.Log.Error("could not determine if have last processed")
+		return err
+	}
+	if has {
+		lastProcessedHeight, err := vm.GetLastProcessedHeight()
+		if err != nil {
+			snowCtx.Log.Error("could not get last processed height", zap.Error(err))
+			return err
+		}
+
+		blk, err := vm.GetDiskBlock(ctx, lastProcessedHeight)
+		if err != nil {
+			snowCtx.Log.Error("could not get last processed block", zap.Error(err))
+			return err
+		}
+
+		if err := vm.webSocketServer.AcceptBlock(blk); err != nil {
+			snowCtx.Log.Error("unable to accept block in websocket server", zap.Error(err))
+			return err
+		}
+
+		if err := vm.webSocketServer.SetMinTx(blk.Tmstmp); err != nil {
+			snowCtx.Log.Error("unable to set min tx in websocket server", zap.Error(err))
+			return err
+		}
+
+		if err := vm.RemoveLastProcessedHeight(); err != nil {
+			snowCtx.Log.Error("could not remove last processed block", zap.Error(err))
+			return err
+		}
+	}
+
 	return nil
 }
 

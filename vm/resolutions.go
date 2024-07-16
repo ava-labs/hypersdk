@@ -176,6 +176,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.cacheAuth(tx.Auth)
 	}
 
+	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
+		vm.Fatal("failed to update the last processed height", zap.Error(err))
+	}
+
 	// Update server
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
@@ -184,10 +188,6 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// send [ErrExpired] messages.
 	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
 		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
-	}
-
-	if err := vm.SetLastAcceptedHeight(b.Height()); err != nil {
-		vm.Fatal("failed to update the last accepted height", zap.Error(err))
 	}
 
 	// Update price metrics
