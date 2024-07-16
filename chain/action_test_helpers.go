@@ -27,7 +27,7 @@ func NewInMemoryStore() *InMemoryStore {
 	}
 }
 
-func (s *InMemoryStore) GetValue(ctx context.Context, key []byte) ([]byte, error) {
+func (s *InMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	val, ok := s.Storage[string(key)]
 	if !ok {
 		return nil, database.ErrNotFound
@@ -35,12 +35,12 @@ func (s *InMemoryStore) GetValue(ctx context.Context, key []byte) ([]byte, error
 	return val, nil
 }
 
-func (s *InMemoryStore) Insert(ctx context.Context, key []byte, value []byte) error {
+func (s *InMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
 	s.Storage[string(key)] = value
 	return nil
 }
 
-func (s *InMemoryStore) Remove(ctx context.Context, key []byte) error {
+func (s *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	delete(s.Storage, string(key))
 	return nil
 }
