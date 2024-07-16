@@ -109,10 +109,10 @@ func NewNoopTxIndexer() *noopTxIndexer {
 	return &noopTxIndexer{}
 }
 
-func (i *noopTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
+func (*noopTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
 	return nil
 }
 
-func (i *noopTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (*noopTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	return false, 0, false, fees.Dimensions{}, 0, errors.New("tx indexer not enabled")
 }
