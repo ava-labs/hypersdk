@@ -102,10 +102,6 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) RemoveLastProcessedHeight() error {
-	return vm.vmDB.Delete(lastProcessed)
-}
-
 func (vm *VM) shouldComapct(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
 		compactionOffset = rand.Intn(vm.config.BlockCompactionFrequency) //nolint:gosec
