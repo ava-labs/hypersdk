@@ -105,14 +105,15 @@ func (c *Controller) Initialize(
 	if err != nil {
 		return vm.Config{}, nil, nil, nil, nil, nil, nil, nil, err
 	}
-	acceptedSubscribers := make([]indexer.AcceptedSubscriber, 0)
+	acceptedSubscribers := []indexer.AcceptedSubscriber{
+		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
+	}
 	if c.config.GetStoreTransactions() {
 		c.txIndexer = indexer.NewTxIndexer(c.txDB)
 		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
 	} else {
 		c.txIndexer = indexer.NewNoopTxIndexer()
 	}
-	acceptedSubscribers = append(acceptedSubscribers, indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}))
 	c.acceptedSubscriber = indexer.NewCombinedAcceptedSubscriber(acceptedSubscribers...)
 
 	// Create handlers
