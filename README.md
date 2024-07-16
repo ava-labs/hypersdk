@@ -569,8 +569,7 @@ type Interface interface {
 	Rules(t int64) chain.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required
-	// information in state (without clobbering things the Interface is
-    // storing).
+	// information in state (without clobbering things the VM is storing).
 	StateManager() chain.StateManager
 
 	// Anything that the VM wishes to store outside of state or blocks must be
