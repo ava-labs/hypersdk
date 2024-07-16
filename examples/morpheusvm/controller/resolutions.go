@@ -28,10 +28,7 @@ func (c *Controller) Tracer() trace.Tracer {
 	return c.inner.Tracer()
 }
 
-func (c *Controller) GetTransaction(
-	ctx context.Context,
-	txID ids.ID,
-) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (c *Controller) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	return c.txIndexer.GetTransaction(txID)
 }
 
