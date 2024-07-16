@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
+
 	tconsts "github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 )
 
@@ -40,10 +41,10 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x5/ (hypersdk-fee)
 
 const (
-	// metaDB
+	// Indexes
 	txPrefix = 0x0
 
-	// stateDB
+	// Active state
 	balancePrefix   = 0x0
 	assetPrefix     = 0x1
 	orderPrefix     = 0x2

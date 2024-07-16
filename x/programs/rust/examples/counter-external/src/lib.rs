@@ -3,13 +3,13 @@ use wasmlanche_sdk::{public, types::Address, Context, ExternalCallContext, Progr
 #[public]
 pub fn inc(_: Context, external: Program, address: Address) {
     let ctx = ExternalCallContext::new(external, 1_000_000, 0);
-    counter::inc(ctx, address, 1);
+    counter::inc(&ctx, address, 1);
 }
 
 #[public]
 pub fn get_value(_: Context, external: Program, address: Address) -> u64 {
     let ctx = ExternalCallContext::new(external, 1_000_000, 0);
-    counter::get_value(ctx, address)
+    counter::get_value(&ctx, address)
 }
 
 #[cfg(test)]

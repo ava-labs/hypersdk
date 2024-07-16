@@ -144,10 +144,6 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedL.Unlock()
 	vm.mempool.Add(ctx, b.Txs)
 
-	if err := vm.c.Rejected(ctx, b); err != nil {
-		vm.Fatal("rejected processing failed", zap.Error(err))
-	}
-
 	// Ensure children of block are cleared, they may never be
 	// verified
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
@@ -383,7 +379,7 @@ func (vm *VM) RecordStateOperations(c int) {
 }
 
 func (vm *VM) GetVerifyAuth() bool {
-	return vm.config.GetVerifyAuth()
+	return vm.config.VerifyAuth
 }
 
 func (vm *VM) RecordTxsGossiped(c int) {
@@ -403,11 +399,11 @@ func (vm *VM) RecordBuildCapped() {
 }
 
 func (vm *VM) GetTargetBuildDuration() time.Duration {
-	return vm.config.GetTargetBuildDuration()
+	return vm.config.TargetBuildDuration
 }
 
 func (vm *VM) GetTargetGossipDuration() time.Duration {
-	return vm.config.GetTargetGossipDuration()
+	return vm.config.TargetGossipDuration
 }
 
 func (vm *VM) RecordEmptyBlockBuilt() {
@@ -451,11 +447,11 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {
-	return vm.config.GetTransactionExecutionCores()
+	return vm.config.TransactionExecutionCores
 }
 
 func (vm *VM) GetStateFetchConcurrency() int {
-	return vm.config.GetStateFetchConcurrency()
+	return vm.config.StateFetchConcurrency
 }
 
 func (vm *VM) GetExecutorBuildRecorder() executor.Metrics {

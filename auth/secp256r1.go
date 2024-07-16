@@ -10,7 +10,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -36,7 +35,7 @@ func (d *SECP256R1) address() codec.Address {
 }
 
 func (*SECP256R1) GetTypeID() uint8 {
-	return consts.SECP256R1ID
+	return SECP256R1ID
 }
 
 func (*SECP256R1) ComputeUnits(chain.Rules) uint64 {
@@ -103,5 +102,5 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64) {
 }
 
 func NewSECP256R1Address(pk secp256r1.PublicKey) codec.Address {
-	return codec.CreateAddress(consts.SECP256R1ID, utils.ToID(pk[:]))
+	return codec.CreateAddress(SECP256R1ID, utils.ToID(pk[:]))
 }
