@@ -16,7 +16,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/consts"
 	"github.com/ava-labs/hypersdk/examples/tokenvm/storage"
-	"github.com/ava-labs/hypersdk/rules"
+	hgenesis "github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -26,12 +26,12 @@ import (
 var _ vm.Genesis = (*Genesis)(nil)
 
 type Genesis struct {
-	rules.Genesis
+	hgenesis.Genesis
 }
 
 func Default() *Genesis {
 	return &Genesis{
-		Genesis: rules.Default(),
+		Genesis: hgenesis.Default(),
 	}
 }
 
@@ -84,5 +84,5 @@ func (g *Genesis) GetStateBranchFactor() merkledb.BranchFactor {
 }
 
 func (g *Genesis) Rules(t int64, networkID uint32, chainID ids.ID) chain.Rules {
-	return rules.New(&g.Genesis, networkID, chainID)
+	return hgenesis.New(&g.Genesis, networkID, chainID)
 }

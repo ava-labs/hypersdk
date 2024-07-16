@@ -12,7 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/rules"
+	hgenesis "github.com/ava-labs/hypersdk/genesis"
 )
 
 var genesisCmd = &cobra.Command{
@@ -62,7 +62,7 @@ var genGenesisCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		allocs := []*rules.CustomAllocation{}
+		allocs := []*hgenesis.CustomAllocation{}
 		if err := json.Unmarshal(a, &allocs); err != nil {
 			return err
 		}
