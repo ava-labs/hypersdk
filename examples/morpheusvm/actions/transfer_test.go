@@ -5,7 +5,6 @@ package actions
 
 import (
 	"context"
-	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,6 +19,7 @@ import (
 func TestTransferAction(t *testing.T) {
 	require := require.New(t)
 	ts := tstate.New(1)
+	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
 
 	tests := map[string]chain.ActionTest{
 		"ZeroTransfer": {
@@ -42,11 +42,9 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			Actor: codec.EmptyAddress,
 			State: func() state.Mutable {
 				keys := make(state.Keys)
-				k := storage.BalanceKey(codec.EmptyAddress)
-				keys.Add(string(k), state.Read)
+				keys.Add(string(emptyBalanceKey), state.Read)
 				tsv := ts.NewView(keys, map[string][]byte{})
 				return tsv
 			}(),
@@ -57,16 +55,12 @@ func TestTransferAction(t *testing.T) {
 				To:    codec.EmptyAddress,
 				Value: 1,
 			},
-			Actor: codec.EmptyAddress,
 			State: func() state.Mutable {
 				keys := make(state.Keys)
-				k := storage.BalanceKey(codec.EmptyAddress)
-				keys.Add(string(k), state.All)
-				stor := map[string][]byte{}
-				tsv := ts.NewView(keys, stor)
-				b := make([]byte, 8)
-				binary.LittleEndian.PutUint64(b, uint64(1))
-				require.NoError(tsv.Insert(context.TODO(), k, b))
+				store := chain.NewInMemoryStore()
+				require.NoError(storage.SetBalance(context.TODO(), store, codec.EmptyAddress, 1))
+				keys.Add(string(emptyBalanceKey), state.All)
+				tsv := ts.NewView(keys, store.Storage)
 				return tsv
 			}(),
 		},

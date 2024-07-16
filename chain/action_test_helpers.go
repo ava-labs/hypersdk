@@ -7,12 +7,43 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
+
+var _ state.Mutable = (*InMemoryStore)(nil)
+
+type InMemoryStore struct {
+	Storage map[string][]byte
+}
+
+func NewInMemoryStore() *InMemoryStore {
+	return &InMemoryStore{
+		Storage: make(map[string][]byte),
+	}
+}
+
+func (s *InMemoryStore) GetValue(ctx context.Context, key []byte) ([]byte, error) {
+	val, ok := s.Storage[string(key)]
+	if !ok {
+		return nil, database.ErrNotFound
+	}
+	return val, nil
+}
+
+func (s *InMemoryStore) Insert(ctx context.Context, key []byte, value []byte) error {
+	s.Storage[string(key)] = value
+	return nil
+}
+
+func (s *InMemoryStore) Remove(ctx context.Context, key []byte) error {
+	delete(s.Storage, string(key))
+	return nil
+}
 
 type ActionTest struct {
 	Action Action
