@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/genesis"
 	hgenesis "github.com/ava-labs/hypersdk/genesis"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
@@ -71,5 +70,5 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 }
 
 func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) chain.Rules {
-	return genesis.New(&g.Genesis, networkID, chainID)
+	return hgenesis.New(&g.Genesis, networkID, chainID)
 }
