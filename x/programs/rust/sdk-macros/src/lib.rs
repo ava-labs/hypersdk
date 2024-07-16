@@ -140,7 +140,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         move |mut arg| {
             if first {
                 first = false;
-                arg.ty = Box::new(parse_quote!(wasmlanche_sdk::ExternalCallContext));
+                arg.ty = Box::new(parse_quote!(&wasmlanche_sdk::ExternalCallContext));
             }
 
             FnArg::Typed(arg)
