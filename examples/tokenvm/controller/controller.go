@@ -167,7 +167,7 @@ func (c *Controller) StateManager() chain.StateManager {
 }
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	return c.txIndexer.Accepted(ctx, blk)
+	return c.acceptedSubscriber.Accepted(ctx, blk)
 }
 
 func (c *Controller) Shutdown(context.Context) error {
