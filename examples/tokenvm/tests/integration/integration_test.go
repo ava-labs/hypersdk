@@ -1376,6 +1376,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		require.NoError(err)
 		require.Equal(balance, uint64(5))
 
+		// TODO: fix race condition where the in-memory orderbook is updated async by the acceptor
+		// queue, such that checks for the orderbook immediately after the block is accepted may
+		// return stale data.
+		// ref: https://github.com/ava-labs/hypersdk/pull/1143#issuecomment-2231901383
 		orders, err := instances[0].tcli.Orders(context.TODO(), actions.PairID(asset2ID, asset3ID))
 		require.NoError(err)
 		require.Len(orders, 1)
