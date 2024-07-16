@@ -70,6 +70,6 @@ func (g *Genesis) Load(ctx context.Context, tracer trace.Tracer, mu state.Mutabl
 	return nil
 }
 
-func (g *Genesis) Rules(t int64, networkID uint32, chainID ids.ID) chain.Rules {
+func (g *Genesis) Rules(_ int64, networkID uint32, chainID ids.ID) chain.Rules {
 	return genesis.New(&g.Genesis, networkID, chainID)
 }
