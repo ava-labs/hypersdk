@@ -16,7 +16,10 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
-var _ AcceptedSubscriber = (*txIndexer)(nil)
+var (
+	_ AcceptedSubscriber = (*txIndexer)(nil)
+	_ AcceptedSubscriber = (*noopTxIndexer)(nil)
+}
 
 var (
 	failureByte = byte(0x0)
