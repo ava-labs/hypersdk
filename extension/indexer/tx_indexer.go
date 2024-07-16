@@ -19,7 +19,7 @@ import (
 var (
 	_ AcceptedSubscriber = (*txIndexer)(nil)
 	_ AcceptedSubscriber = (*noopTxIndexer)(nil)
-}
+)
 
 var (
 	failureByte = byte(0x0)
