@@ -176,10 +176,6 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.cacheAuth(tx.Auth)
 	}
 
-	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
-		vm.Fatal("failed to update the last processed height", zap.Error(err))
-	}
-
 	// Update server
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
@@ -197,6 +193,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
 	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+
+	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
+		vm.Fatal("failed to update the last processed height", zap.Error(err))
+	}
 }
 
 func (vm *VM) processAcceptedBlocks() {

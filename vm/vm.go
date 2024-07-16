@@ -446,34 +446,19 @@ func (vm *VM) Initialize(
 			return err
 		}
 
-		blk, err := vm.GetDiskBlock(ctx, lastProcessedHeight)
-		if err != nil {
-			snowCtx.Log.Error("could not get last processed block", zap.Error(err))
-			return err
+		for height := lastProcessedHeight; height <= vm.lastAccepted.Height(); height++ {
+			var blk *chain.StatelessBlock
+			if height == vm.lastAccepted.Height() {
+				blk = vm.lastAccepted
+			} else {
+				blk, err = vm.GetDiskBlock(ctx, height)
+				if err != nil {
+					vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", height))
+					return err
+				}
+			}
+			vm.processAcceptedBlock(blk)
 		}
-
-		if err := vm.webSocketServer.AcceptBlock(blk); err != nil {
-			snowCtx.Log.Error("unable to accept block in websocket server", zap.Error(err))
-			return err
-		}
-
-		if err := vm.webSocketServer.SetMinTx(blk.Tmstmp); err != nil {
-			snowCtx.Log.Error("unable to set min tx in websocket server", zap.Error(err))
-			return err
-		}
-
-		if err := vm.RemoveLastProcessedHeight(); err != nil {
-			snowCtx.Log.Error("could not remove last processed block", zap.Error(err))
-			return err
-		}
-
-		// Update price metrics
-		feeManager := blk.FeeManager()
-		vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))
-		vm.metrics.computePrice.Set(float64(feeManager.UnitPrice(fees.Compute)))
-		vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
-		vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
-		vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 	}
 
 	return nil
