@@ -2,13 +2,45 @@ use crate::{
     memory::HostPtr,
     state::{Key, State},
     types::Address,
+    types::Id,
     Gas,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, io::Read};
 use thiserror::Error;
 
-#[derive(Error, Debug, BorshDeserialize)]
+/// Defer deserialization from bytes
+/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
+#[cfg_attr(feature = "debug", derive(Debug))]
+pub struct DeferDeserialize(Vec<u8>);
+
+impl BorshSerialize for DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue writing
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.0)
+    }
+}
+
+impl DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
+    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+        let Self(bytes) = self;
+        borsh::from_slice(&bytes)
+    }
+}
+
+impl BorshDeserialize for DeferDeserialize {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut inner = Vec::new();
+        reader.read_to_end(&mut inner)?;
+        Ok(Self(inner))
+    }
+}
+
+/// An error that is returned from call to public functions.
+#[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
 #[non_exhaustive]
 #[borsh(use_discriminant = true)]
@@ -19,25 +51,36 @@ pub enum ExternalCallError {
     CallPanicked = 1,
     #[error("not enough fuel to cover the execution")]
     OutOfFuel = 2,
+    #[error("insufficient funds")]
+    InsufficientFunds = 3,
 }
 
-/// Represents the current Program in the context of the caller. Or an external
+/// Transfer currency from the calling program to the passed address
+/// # Panics
+/// Panics if there was an issue deserializing the result
+/// # Errors
+/// Errors if there are insufficient funds
+pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
+    #[link(wasm_import_module = "balance")]
+    extern "C" {
+        #[link_name = "send"]
+        fn send_value(ptr: *const u8, len: usize) -> HostPtr;
+    }
+    let ptr = borsh::to_vec(&(to, amount)).expect("failed to serialize args");
+
+    let bytes = unsafe { send_value(ptr.as_ptr(), ptr.len()) };
+
+    borsh::from_slice(&bytes).expect("failed to deserialize the result")
+}
+
+/// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(BorshSerialize)]
 pub struct Program<K = ()> {
     account: Address,
-    state_cache: RefCell<HashMap<K, Vec<u8>>>,
-}
-
-impl<K> BorshSerialize for Program<K> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            account,
-            state_cache: _,
-        } = self;
-
-        account.serialize(writer)
-    }
+    #[borsh(skip)]
+    state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
 }
 
 impl<K> BorshDeserialize for Program<K> {
@@ -64,11 +107,26 @@ impl<K> Program<K> {
     /// Will panic if the args cannot be serialized
     /// # Safety
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
+    /// # Examples
+    /// ```no_run
+    /// # use wasmlanche_sdk::{types::Address, Program};
+    /// #
+    /// # let program_id = [0; Address::LEN];
+    /// # let target: Program<()> = borsh::from_slice(&program_id).unwrap();
+    /// let increment = 10;
+    /// let params = borsh::to_vec(&increment).unwrap();
+    /// let max_units = 1000000;
+    /// let value = 0;
+    /// let has_incremented: bool = target.call_function("increment", &params, max_units, value)?;
+    /// assert!(has_incremented);
+    /// # Ok::<(), wasmlanche_sdk::ExternalCallError>(())
+    /// ```
     pub fn call_function<T: BorshDeserialize>(
         &self,
         function_name: &str,
         args: &[u8],
         max_units: Gas,
+        max_value: u64,
     ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -81,6 +139,7 @@ impl<K> Program<K> {
             function: function_name.as_bytes(),
             args,
             max_units,
+            max_value,
         };
 
         let args_bytes = borsh::to_vec(&args).expect("failed to serialize args");
@@ -104,6 +163,23 @@ impl<K> Program<K> {
 
         borsh::from_slice::<u64>(&bytes).expect("failed to deserialize the remaining fuel")
     }
+
+    /// Deploy an instance of the specified program and returns the account of the new instance
+    /// # Panics
+    /// Panics if there was an issue deserializing the account
+    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "deploy"]
+            fn deploy(ptr: *const u8, len: usize) -> HostPtr;
+        }
+        let ptr =
+            borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
+
+        let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
+
+        borsh::from_slice(&bytes).expect("failed to deserialize the account")
+    }
 }
 
 impl<K: Key> Program<K> {
@@ -120,6 +196,7 @@ struct CallProgramArgs<'a, K> {
     function: &'a [u8],
     args: &'a [u8],
     max_units: Gas,
+    max_value: u64,
 }
 
 impl<K> BorshSerialize for CallProgramArgs<'_, K> {
@@ -129,13 +206,31 @@ impl<K> BorshSerialize for CallProgramArgs<'_, K> {
             function,
             args,
             max_units,
+            max_value,
         } = self;
 
         target.serialize(writer)?;
         function.serialize(writer)?;
         args.serialize(writer)?;
         max_units.serialize(writer)?;
-
+        max_value.serialize(writer)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeferDeserialize;
+
+    #[test]
+    fn defer_bytes() {
+        type ExpectedType = u64;
+
+        let expected: ExpectedType = 42;
+        let serialized = borsh::to_vec(&expected).unwrap();
+        let deferred: DeferDeserialize = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(deferred.0, serialized);
+        let actual = deferred.deserialize::<ExpectedType>().unwrap();
+        assert_eq!(actual, expected);
     }
 }

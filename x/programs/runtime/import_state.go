@@ -48,10 +48,8 @@ func NewStateAccessModule() *ImportModule {
 						if err := programState.Remove(ctx, entry.Key); err != nil {
 							return err
 						}
-					} else {
-						if err := programState.Insert(ctx, entry.Key, entry.Value); err != nil {
-							return err
-						}
+					} else if err := programState.Insert(ctx, entry.Key, entry.Value); err != nil {
+						return err
 					}
 				}
 				return nil

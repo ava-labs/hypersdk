@@ -21,15 +21,16 @@ const (
 )
 
 type Context struct {
-	Program  codec.Address
-	Actor    codec.Address
-	Height   uint64
-	ActionID ids.ID
+	Program   codec.Address
+	Actor     codec.Address
+	Height    uint64
+	Timestamp uint64
+	ActionID  ids.ID
 }
 
 type CallInfo struct {
 	// the state that the program will run against
-	State StateLoader
+	State StateManager
 
 	// the address that originated the initial program call
 	Actor codec.Address
@@ -42,14 +43,19 @@ type CallInfo struct {
 	// the serialized parameters that will be passed to the called function
 	Params []byte
 
-	// the amount of fuel allowed to be consumed by wasm for this call
+	// the maximum amount of fuel allowed to be consumed by wasm for this call
 	Fuel uint64
 
 	// the height of the chain that this call was made from
 	Height uint64
 
+	// the timestamp of the chain at the time this call was made
+	Timestamp uint64
+
 	// the action id that triggered this call
 	ActionID ids.ID
+
+	Value uint64
 
 	inst *ProgramInstance
 }
@@ -73,35 +79,32 @@ func (c *CallInfo) ConsumeFuel(fuel uint64) error {
 	return err
 }
 
-type Program struct {
-	module *wasmtime.Module
-}
-
 type ProgramInstance struct {
 	inst   *wasmtime.Instance
 	store  *wasmtime.Store
 	result []byte
 }
 
-func newProgram(engine *wasmtime.Engine, programBytes []byte) (*Program, error) {
-	module, err := wasmtime.NewModule(engine, programBytes)
-	if err != nil {
-		return nil, err
-	}
-	return &Program{module: module}, nil
-}
-
-func (p *ProgramInstance) call(_ context.Context, callInfo *CallInfo) ([]byte, error) {
+func (p *ProgramInstance) call(ctx context.Context, callInfo *CallInfo) ([]byte, error) {
 	if err := p.store.AddFuel(callInfo.Fuel); err != nil {
 		return nil, err
 	}
 
+	if callInfo.Value > 0 {
+		if err := callInfo.State.TransferBalance(ctx, callInfo.Actor, callInfo.Program, callInfo.Value); err != nil {
+			return nil, errors.New("insufficient balance")
+		}
+	}
+
 	// create the program context
 	programCtx := Context{
-		Program: callInfo.Program,
-		Actor:   callInfo.Actor,
+		Program:   callInfo.Program,
+		Actor:     callInfo.Actor,
+		Height:    callInfo.Height,
+		Timestamp: callInfo.Timestamp,
+		ActionID:  callInfo.ActionID,
 	}
-	paramsBytes, err := serialize(programCtx)
+	paramsBytes, err := Serialize(programCtx)
 	if err != nil {
 		return nil, err
 	}

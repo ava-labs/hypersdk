@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -81,7 +80,14 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		return codec.EmptyAddress, err
 	}
 
-	address, err := SetProgram(ctx, db, programID, programBytes)
+	err = setProgram(ctx, db, programID, programBytes)
+	if err != nil {
+		response := multilineOutput([][]byte{utils.ErrBytes(err)})
+		fmt.Println(response)
+		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
+	}
+
+	account, err := deployProgram(ctx, db, programID, []byte{})
 	if err != nil {
 		response := multilineOutput([][]byte{utils.ErrBytes(err)})
 		fmt.Println(response)
@@ -94,45 +100,42 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		return codec.EmptyAddress, err
 	}
 
-	return address, nil
+	return account, nil
 }
 
 func programExecuteFunc(
 	ctx context.Context,
 	log logging.Logger,
 	db *state.SimpleMutable,
-	program codec.Address,
+	rctx runtime.Context,
 	callParams []Parameter,
 	function string,
 	maxUnits uint64,
-) ([][]byte, uint64, error) {
+) ([]byte, uint64, error) {
 	// execute the action
-	if len(function) == 0 {
-		return nil, 0, errors.New("no function called")
-	}
-
 	var bytes []byte
 	for _, param := range callParams {
 		bytes = append(bytes, param.Value...)
 	}
 
-	rt := runtime.NewRuntime(runtime.NewConfig(), log, &ProgramStore{Mutable: db})
+	rt := runtime.NewRuntime(runtime.NewConfig(), log)
 	callInfo := &runtime.CallInfo{
-		State:        programStateLoader{inner: db},
-		Actor:        codec.EmptyAddress,
-		Program:      program,
+		State:        &programStateManager{Mutable: db},
+		Actor:        rctx.Actor,
+		Program:      rctx.Program,
 		Fuel:         maxUnits,
+		Height:       rctx.Height,
+		Timestamp:    rctx.Timestamp,
 		FunctionName: function,
 		Params:       bytes,
 	}
-	programOutput, err := rt.CallProgram(ctx, callInfo)
-	output := [][]byte{programOutput}
+	result, err := rt.CallProgram(ctx, callInfo)
 	if err != nil {
-		response := multilineOutput(output)
+		response := string(result)
 		return nil, 0, fmt.Errorf("program execution failed: %s, err: %w", response, err)
 	}
 
-	return output, callInfo.RemainingFuel(), err
+	return result, callInfo.RemainingFuel(), err
 }
 
 func multilineOutput(resp [][]byte) (response string) {
@@ -140,21 +143,4 @@ func multilineOutput(resp [][]byte) (response string) {
 		response += string(res) + "\n"
 	}
 	return response
-}
-
-type ProgramStore struct {
-	state.Mutable
-}
-
-func (s *ProgramStore) GetProgramBytes(ctx context.Context, program codec.Address) ([]byte, error) {
-	// TODO: take fee out of balance?
-	programBytes, exists, err := GetProgram(ctx, s, program)
-	if err != nil {
-		return []byte{}, err
-	}
-	if !exists {
-		return []byte{}, errors.New("unknown program")
-	}
-
-	return programBytes, nil
 }

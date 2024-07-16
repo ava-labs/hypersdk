@@ -1,3 +1,4 @@
+/// Prints and returns the value of a given expression for quick and dirty debugging.
 #[macro_export]
 macro_rules! dbg {
     () => {
@@ -31,6 +32,7 @@ macro_rules! dbg {
     };
 }
 
+/// Catch panics by sending their information to the host.
 pub fn register_panic() {
     #[cfg(debug_assertions)]
     {
@@ -46,13 +48,14 @@ pub fn register_panic() {
     }
 }
 
-/// # Panics
-/// Panics if there was an issue regarding memory allocation on the host
+/// Log an arbitrary [&str] on the terminal.
 pub fn log(text: &str) {
     log_bytes(text.as_bytes());
 }
 
-/// Logging facility for debugging purposes
+/// Logging facility for debugging purposes.
+/// # Panics
+/// Panics if there was an issue regarding memory allocation on the host
 pub(super) fn log_bytes(bytes: &[u8]) {
     #[link(wasm_import_module = "log")]
     extern "C" {

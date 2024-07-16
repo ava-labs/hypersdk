@@ -1,6 +1,8 @@
 #![deny(clippy::pedantic)]
 
+/// State-related operations in programs.
 pub mod state;
+/// Program types.
 pub mod types;
 
 mod logging;
@@ -10,8 +12,9 @@ mod program;
 pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{ExternalCallError, Program},
+    program::{send, DeferDeserialize, ExternalCallError, Program},
 };
+use crate::types::{Gas, Id};
 
 #[cfg(feature = "build")]
 pub mod build;
@@ -20,24 +23,36 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use sdk_macros::{public, state_keys};
 use types::Address;
 
-pub const ID_LEN: usize = 32;
-pub type Id = [u8; ID_LEN];
-pub type Gas = u64;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("State error: {0}")]
-    State(#[from] state::Error),
-    #[error("Param error: {0}")]
-    Param(#[from] std::io::Error),
-}
-
+/// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Context<K = ()> {
-    pub program: Program<K>,
-    pub actor: Address,
-    pub height: u64,
-    pub action_id: Id,
+    program: Program<K>,
+    actor: Address,
+    height: u64,
+    timestamp: u64,
+    action_id: Id,
+}
+
+impl<K> Context<K> {
+    pub fn program(&self) -> &Program<K> {
+        &self.program
+    }
+
+    pub fn actor(&self) -> Address {
+        self.actor
+    }
+
+    pub fn height(&self) -> u64 {
+        self.height
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    pub fn action_id(&self) -> Id {
+        self.action_id
+    }
 }
 
 impl<K> BorshSerialize for Context<K> {
@@ -46,11 +61,13 @@ impl<K> BorshSerialize for Context<K> {
             program,
             actor,
             height,
+            timestamp,
             action_id,
         } = self;
         BorshSerialize::serialize(program, writer)?;
         BorshSerialize::serialize(actor, writer)?;
         BorshSerialize::serialize(height, writer)?;
+        BorshSerialize::serialize(timestamp, writer)?;
         BorshSerialize::serialize(action_id, writer)?;
         Ok(())
     }
@@ -58,27 +75,35 @@ impl<K> BorshSerialize for Context<K> {
 
 impl<K> BorshDeserialize for Context<K> {
     fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let program: Program<K> = BorshDeserialize::deserialize_reader(reader)?;
-        let actor: Address = BorshDeserialize::deserialize_reader(reader)?;
-        let height: u64 = BorshDeserialize::deserialize_reader(reader)?;
-        let action_id: Id = BorshDeserialize::deserialize_reader(reader)?;
+        let program = BorshDeserialize::deserialize_reader(reader)?;
+        let actor = BorshDeserialize::deserialize_reader(reader)?;
+        let height = BorshDeserialize::deserialize_reader(reader)?;
+        let timestamp = BorshDeserialize::deserialize_reader(reader)?;
+        let action_id = BorshDeserialize::deserialize_reader(reader)?;
         Ok(Self {
             program,
             actor,
             height,
+            timestamp,
             action_id,
         })
     }
 }
 
+/// Special context that is passed to external programs.
 pub struct ExternalCallContext {
     program: Program,
     max_units: Gas,
+    value: u64,
 }
 
 impl ExternalCallContext {
-    pub fn new(program: Program, max_units: Gas) -> Self {
-        Self { program, max_units }
+    pub fn new(program: Program, max_units: Gas, value: u64) -> Self {
+        Self {
+            program,
+            max_units,
+            value,
+        }
     }
 
     pub fn program(&self) -> &Program {
@@ -87,5 +112,9 @@ impl ExternalCallContext {
 
     pub fn max_units(&self) -> Gas {
         self.max_units
+    }
+
+    pub fn value(&self) -> u64 {
+        self.value
     }
 }

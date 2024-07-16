@@ -2,7 +2,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wasmlanche_sdk::{types::Address, Context, Id, Program, ID_LEN};
+use wasmlanche_sdk::types::{Address, ID_LEN};
 use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -120,22 +120,18 @@ impl TestCrate {
     }
 
     fn write_context(&mut self) -> AllocReturn {
-        let program_id: [u8; Address::LEN] = std::array::from_fn(|_| 1);
-        // this is a hack to create a program since the constructor is private
-        let program: Program<()> =
-            borsh::from_slice(&program_id).expect("the program should deserialize");
-
-        let action: [u8; ID_LEN] = std::array::from_fn(|_| 1);
-        let action_id: Id = borsh::from_slice(&action).expect("the action_id should deserialize");
-        let actor = Address::default();
+        let program_id = vec![1; Address::LEN];
+        let mut actor = vec![0; Address::LEN];
         let height: u64 = 0;
-        let context = Context {
-            program,
-            actor,
-            height,
-            action_id,
-        };
-        let serialized_context = borsh::to_vec(&context).expect("failed to serialize context");
+        let timestamp: u64 = 0;
+        let mut action_id = vec![1; ID_LEN];
+
+        // this is a hack to create a context since the constructor is private
+        let mut serialized_context = program_id;
+        serialized_context.append(&mut actor);
+        serialized_context.append(&mut height.to_le_bytes().to_vec());
+        serialized_context.append(&mut timestamp.to_le_bytes().to_vec());
+        serialized_context.append(&mut action_id);
 
         self.allocate(serialized_context)
     }

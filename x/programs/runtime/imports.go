@@ -133,14 +133,14 @@ func getInputFromMemory[T any](caller *wasmtime.Caller, vals []wasmtime.Val) (*T
 	if offset == 0 || length == 0 {
 		return new(T), nil
 	}
-	return deserialize[T](caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length])
+	return Deserialize[T](caller.GetExport(MemoryName).Memory().UnsafeData(caller)[offset : offset+length])
 }
 
 func writeOutputToMemory[T any](callInfo *CallInfo, results T, err error) ([]wasmtime.Val, *wasmtime.Trap) {
 	if err != nil {
 		return nilResult, convertToTrap(err)
 	}
-	data, err := serialize(results)
+	data, err := Serialize(results)
 	if data == nil || err != nil {
 		return nilResult, convertToTrap(err)
 	}

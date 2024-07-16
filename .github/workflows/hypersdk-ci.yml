@@ -53,6 +53,9 @@ jobs:
       - name: Run shellcheck
         shell: bash
         run: scripts/tests.shellcheck.sh
+      - name: Run actionlint
+        shell: bash
+        run: scripts/tests.actionlint.sh
 
   hypersdk-unit-tests:
     runs-on: ubuntu-20.04-32
@@ -87,14 +90,14 @@ jobs:
         id: check_changes
         run: |
           diff=$(git diff --name-only HEAD origin/main)
-          echo "diff:\n$diff\n"
-          output=$(echo $diff | grep -v '^x/programs/' || true)
+          printf "diff:\n%s\n" "$diff"
+          output=$(echo "$diff" | grep -v '^x/programs/' || true)
           if [ -n "$diff" ] && [ -z "$output" ]; then
             echo "only x/programs changed, will skip unafected tests"
-            echo "only_programs_changed=true" >> $GITHUB_OUTPUT
+            echo "only_programs_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "cannot skip tests"
-            echo "only_programs_changed=false" >> $GITHUB_OUTPUT
+            echo "only_programs_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
   # TokenVM

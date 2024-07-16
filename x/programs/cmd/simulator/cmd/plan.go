@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -23,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
 var _ Cmd = (*runCmd)(nil)
@@ -121,25 +123,29 @@ func verifyEndpoint(i int, step *Step) error {
 
 	switch step.Endpoint {
 	case EndpointKey:
-		// verify the first param is a string for key name
-		if firstParamType != KeyEd25519 && firstParamType != KeySecp256k1 {
-			return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
+		if step.Method == KeyCreate {
+			// verify the first param is a string for key name
+			if firstParamType != KeyEd25519 && firstParamType != KeySecp256k1 {
+				return fmt.Errorf("%w %d %w: expected ed25519 or secp256k1", ErrInvalidStep, i, ErrInvalidParamType)
+			}
+		} else {
+			return fmt.Errorf("%w: %s", ErrInvalidMethod, step.Method)
 		}
 	case EndpointReadOnly:
-		// verify the first param is a program ID
-		if firstParamType != ID {
-			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
+		// verify the first param is a test context
+		if firstParamType != TestContext {
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
 	case EndpointExecute:
 		if step.Method == ProgramCreate {
 			// verify the first param is a string for the path
-			if step.Params[0].Type != String {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredString)
+			if step.Params[0].Type != Path {
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
 			}
 		} else {
-			// verify the first param is a program id
-			if step.Params[0].Type != ID {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredID)
+			// verify the first param is a test context
+			if step.Params[0].Type != TestContext {
+				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 			}
 		}
 	default:
@@ -213,54 +219,97 @@ func (c *runCmd) runStepFunc(
 			return nil
 		}
 
-		programAddress, err := codec.ToAddress(params[0].Value)
+		var simulatorTestContext SimulatorTestContext
+		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
 			return err
 		}
-		response, balance, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, maxUnits)
+		program, err := simulatorTestContext.Program(c.programIDStrMap)
 		if err != nil {
 			return err
 		}
+		testContext := runtime.Context{
+			Program:   program,
+			Actor:     simulatorTestContext.ActorAddr,
+			Timestamp: simulatorTestContext.Timestamp,
+			Height:    simulatorTestContext.Height,
+		}
+
+		result, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, maxUnits)
+		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
+		response, err := runtime.Serialize(output)
+		if err != nil {
+			return err
+		}
 
-		if len(response) > 1 {
-			return errors.New("multi response not supported")
-		}
-		res := response[0]
-		if res != nil {
-			resp.setResponse(res)
-		}
+		resp.setResponse(response)
 		resp.setBalance(balance)
 
 		return nil
 	case EndpointReadOnly:
-		programAddress, err := codec.ToAddress(params[0].Value)
+		var simulatorTestContext SimulatorTestContext
+		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
 			return err
 		}
+		program, err := simulatorTestContext.Program(c.programIDStrMap)
+		if err != nil {
+			return err
+		}
+		testContext := runtime.Context{
+			Program:   program,
+			Actor:     simulatorTestContext.ActorAddr,
+			Timestamp: simulatorTestContext.Timestamp,
+			Height:    simulatorTestContext.Height,
+		}
+
 		// TODO: implement readonly for now just don't charge for gas
-		response, _, err := programExecuteFunc(ctx, c.log, db, programAddress, params[1:], method, math.MaxUint64)
-		if err != nil {
-			return err
-		}
+		result, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, math.MaxUint64)
+		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}
+		response, err := runtime.Serialize(output)
+		if err != nil {
+			return err
+		}
 
-		if len(response) > 1 {
-			return errors.New("multi response not supported")
-		}
-		res := response[0]
-		if res != nil {
-			resp.setResponse(res)
-		}
+		resp.setResponse(response)
 
 		return nil
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, endpoint)
 	}
+}
+
+func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, runtime.ProgramCallErrorCode] {
+	if err != nil {
+		if code, ok := runtime.ExtractProgramCallErrorCode(err); ok {
+			return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](code)
+		}
+		return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](runtime.ExecutionFailure)
+	}
+
+	return runtime.Ok[runtime.RawBytes, runtime.ProgramCallErrorCode](result)
+}
+
+type SimulatorTestContext struct {
+	ProgramID uint64        `json:"programId"`
+	ActorAddr codec.Address `json:"actor"`
+	Height    uint64        `json:"height"`
+	Timestamp uint64        `json:"timestamp"`
+}
+
+func (s *SimulatorTestContext) Program(programIDStrMap map[int]codec.Address) (codec.Address, error) {
+	id := s.ProgramID
+	programAddress, ok := programIDStrMap[int(id)]
+	if !ok {
+		return codec.EmptyAddress, fmt.Errorf("failed to map to id: %d", id)
+	}
+	return programAddress, nil
 }
 
 func AddressToString(pk ed25519.PublicKey) string {
@@ -283,43 +332,40 @@ func (c *runCmd) createCallParams(ctx context.Context, db state.Immutable, param
 				return nil, fmt.Errorf("failed to map to id: %d", id)
 			}
 			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-		case String:
-			programAddress, err := codec.ToAddress(param.Value)
-			if err == nil {
-				cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
-			} else {
-				path := string(param.Value)
-				if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-					return nil, errors.New("this path does not exists")
-				}
-				cp = append(cp, param)
+		case Path:
+			path := string(param.Value)
+			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+				return nil, errors.New("this path does not exists")
 			}
+			cp = append(cp, param)
+		case Address:
+			programAddress, err := codec.ToAddress(param.Value)
+			if err != nil {
+				return nil, errors.New("invalid address")
+			}
+			cp = append(cp, Parameter{Value: programAddress[:], Type: param.Type})
 		case KeyEd25519: // TODO: support secp256k1
-			key := string(param.Value)
+			key := param.Value
 			// get named public key from db
-			pk, ok, err := GetPublicKey(ctx, db, key)
+			pk, ok, err := GetPublicKey(ctx, db, string(param.Value))
 			if err != nil {
 				return nil, err
 			}
 			if !ok && endpoint != EndpointKey {
 				// using not stored named public key in other context than key creation
-				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, key)
+				return nil, fmt.Errorf("%w: %s", ErrNamedKeyNotFound, string(param.Value))
 			}
 			if ok {
-				// otherwise use the public key address
-				address := make([]byte, codec.AddressLen)
-				address[0] = 0 // prefix
-				copy(address[1:], pk[:])
-				key = string(address)
+				id, err := ids.ToID(pk[:])
+				if err != nil {
+					return nil, err
+				}
+				address := codec.CreateAddress(0, id)
+				key = address[:]
 			}
-			if err != nil {
-				return nil, err
-			}
-			cp = append(cp, Parameter{Value: []byte(key), Type: param.Type})
-		case Uint64, Bool:
-			cp = append(cp, param)
+			cp = append(cp, Parameter{Value: key, Type: param.Type})
 		default:
-			return nil, fmt.Errorf("%w: %s", ErrInvalidParamType, param.Type)
+			cp = append(cp, param)
 		}
 	}
 

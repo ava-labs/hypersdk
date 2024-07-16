@@ -1,6 +1,6 @@
 //! A client and types for the VM simulator. This crate allows for Rust
 //! developers to construct tests for their programs completely in Rust.
-//! Alternatively the [Step]s can be written in JSON and passed to the
+//! Alternatively the [`Step`]s can be written in JSON and passed to the
 //! Simulator binary directly.
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
@@ -12,12 +12,13 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
+use wasmlanche_sdk::{types::Address, ExternalCallError};
 
 mod id;
 
 pub use id::Id;
 
-/// The endpoint to call for a [Step].
+/// The endpoint to call for a [`Step`].
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
@@ -31,7 +32,7 @@ pub enum Endpoint {
     Execute,
 }
 
-/// A [Step] is a call to the simulator
+/// A [`Step`] is a call to the simulator
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Step {
@@ -45,28 +46,19 @@ pub struct Step {
     pub params: Vec<Param>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SimulatorStep<'a> {
-    /// The key of the caller used in each step of the plan.
-    pub caller_key: &'a str,
-    #[serde(flatten)]
-    pub step: &'a Step,
-}
-
 impl Step {
-    /// Create a [Step] that creates a key.
+    /// Create a [`Step`] that creates a key.
     #[must_use]
     pub fn create_key(key: Key) -> Self {
         Self {
             endpoint: Endpoint::Key,
-            method: "create_key".into(),
+            method: "key_create".into(),
             max_units: 0,
             params: vec![Param::Key(key)],
         }
     }
 
-    /// Create a [Step] that creates a program.
+    /// Create a [`Step`] that creates a program.
     #[must_use]
     pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
         let path = path.as_ref().to_string_lossy();
@@ -75,12 +67,12 @@ impl Step {
             endpoint: Endpoint::Execute,
             method: "program_create".into(),
             max_units: 0,
-            params: vec![Param::String(path.into())],
+            params: vec![Param::Path(path.into())],
         }
     }
 }
 
-/// The algorithm used to generate the key along with a [String] identifier for the key.
+/// The algorithm used to generate the key along with a [`String`] identifier for the key.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type", content = "value")]
@@ -91,34 +83,108 @@ pub enum Key {
     Secp256r1(String),
 }
 
+#[derive(Clone, Debug, PartialEq, Default)]
+#[non_exhaustive]
+pub struct TestContext {
+    program_id: Id,
+    pub actor: Address,
+    pub height: u64,
+    pub timestamp: u64,
+}
+
+impl Serialize for TestContext {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct BorrowedContext<'a> {
+            program_id: Id,
+            actor: &'a [u8],
+            height: u64,
+            timestamp: u64,
+        }
+
+        let Self {
+            program_id,
+            actor,
+            height,
+            timestamp,
+        } = self;
+
+        BorrowedContext {
+            program_id: *program_id,
+            actor: actor.as_ref(),
+            height: *height,
+            timestamp: *timestamp,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl From<Id> for TestContext {
+    fn from(program_id: Id) -> Self {
+        Self {
+            program_id,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "type", rename = "testContext")]
+pub(crate) struct SimulatorTestContext {
+    #[serde(serialize_with = "base64_struct_encode")]
+    value: TestContext,
+}
+
 // TODO:
 // add `Cow` types for borrowing
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     U64(u64),
+    Bool(bool),
     String(String),
     Id(Id),
     Key(Key),
+    #[allow(private_interfaces)]
+    TestContext(SimulatorTestContext),
+    Bytes(Vec<u8>),
+    Path(String),
+    Address(Address),
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 enum StringParam {
     U64(String),
+    Bool(String),
     String(String),
     Id(String),
+    Bytes(String),
+    Path(String),
+    Address(String),
 }
 
 impl From<&Param> for StringParam {
     fn from(value: &Param) -> Self {
         match value {
             Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
-            Param::String(text) => StringParam::String(b64.encode(text.clone())),
+            Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
+            Param::String(text) => StringParam::String(
+                b64.encode(borsh::to_vec(text).expect("the serialization should work")),
+            ),
+            Param::Path(text) => StringParam::Path(b64.encode(text)),
+            Param::Bytes(bytes) => StringParam::Bytes(
+                b64.encode(borsh::to_vec(bytes).expect("the serialization should work")),
+            ),
+            Param::Address(addr) => StringParam::Address(b64.encode(addr)),
             Param::Id(id) => {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
             }
-            Param::Key(_) => unreachable!(),
+            Param::Key(_) | Param::TestContext(_) => unreachable!(),
         }
     }
 }
@@ -130,6 +196,7 @@ impl Serialize for Param {
     {
         match self {
             Param::Key(key) => Serialize::serialize(key, serializer),
+            Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
             _ => StringParam::from(self).serialize(serializer),
         }
     }
@@ -138,6 +205,12 @@ impl Serialize for Param {
 impl From<u64> for Param {
     fn from(val: u64) -> Self {
         Param::U64(val)
+    }
+}
+
+impl From<bool> for Param {
+    fn from(val: bool) -> Self {
+        Param::Bool(val)
     }
 }
 
@@ -159,6 +232,24 @@ impl From<Key> for Param {
     }
 }
 
+impl From<TestContext> for Param {
+    fn from(val: TestContext) -> Self {
+        Param::TestContext(SimulatorTestContext { value: val })
+    }
+}
+
+impl From<Vec<u8>> for Param {
+    fn from(val: Vec<u8>) -> Self {
+        Param::Bytes(val)
+    }
+}
+
+impl From<Address> for Param {
+    fn from(addr: Address) -> Self {
+        Param::Address(addr)
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct StepResult {
     /// The ID created from the program execution.
@@ -172,12 +263,21 @@ pub struct StepResult {
     response: Vec<u8>,
 }
 
+#[derive(Error, Debug)]
+pub enum StepResponseError {
+    #[error(transparent)]
+    Serialization(#[from] borsh::io::Error),
+    #[error(transparent)]
+    ExternalCall(#[from] ExternalCallError),
+}
+
 impl StepResult {
-    pub fn response<T>(&self) -> Result<T, borsh::io::Error>
+    pub fn response<T>(&self) -> Result<T, StepResponseError>
     where
         T: BorshDeserialize,
     {
-        borsh::from_slice(&self.response)
+        let res: Result<T, ExternalCallError> = borsh::from_slice(&self.response)?;
+        res.map_err(StepResponseError::ExternalCall)
     }
 }
 
@@ -186,6 +286,14 @@ where
     S: Serializer,
 {
     serializer.serialize_str(&b64.encode(text))
+}
+
+fn base64_struct_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let bytes = serde_json::to_vec(struc).unwrap();
+    serializer.serialize_str(&b64.encode(bytes))
 }
 
 fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
@@ -237,7 +345,7 @@ pub enum StepError {
     Program(String),
 }
 
-/// A [Client] is required to pass [Step]s to the simulator by calling [run](Self::run_step).
+/// A [`Client`] is required to pass [`Step`]s to the simulator by calling [`run`](Self::run_step).
 pub struct Client<W, R> {
     writer: W,
     responses: R,
@@ -295,11 +403,10 @@ where
     W: Write,
     R: Iterator<Item = StepResultItem>,
 {
-    pub fn run_step(&mut self, caller_key: &str, step: &Step) -> StepResultItem {
+    pub fn run_step(&mut self, step: &Step) -> StepResultItem {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
-        let step = SimulatorStep { caller_key, step };
         let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
@@ -349,11 +456,10 @@ mod tests {
     fn convert_string_param() {
         let value = String::from("hello world");
         let expected_param_type = "string";
-        let expected_value = value.clone();
 
         let expected_json = json!({
             "type": expected_param_type,
-            "value": &b64.encode(expected_value),
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
         });
 
         let param = Param::from(value.clone());
@@ -401,6 +507,64 @@ mod tests {
         let key = Key::Ed25519(expected_value.to_string());
         let param = Param::from(key.clone());
         let expected_param = Param::Key(key);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_bool_param() {
+        let value = false;
+        let expected_value = value as u8;
+
+        let expected_json = json!({
+            "type": "bool",
+            "value": &b64.encode(vec![expected_value]),
+        });
+
+        let param = Param::from(value);
+        let expected_param = Param::Bool(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_bytes_param() {
+        let value = vec![12, 34, 56, 78, 90];
+
+        let expected_json = json!({
+            "type": "bytes",
+            "value": &b64.encode(borsh::to_vec(&value).unwrap()),
+        });
+
+        let param = Param::from(value.clone());
+        let expected_param = Param::Bytes(value);
+
+        assert_eq!(param, expected_param);
+
+        let output_json = serde_json::to_value(&param).unwrap();
+
+        assert_eq!(output_json, expected_json);
+    }
+
+    #[test]
+    fn convert_address_param() {
+        let value = Address::default();
+
+        let expected_json = json!({
+            "type": "address",
+            "value": &b64.encode(value),
+        });
+
+        let param = Param::from(value);
+        let expected_param = Param::Address(value);
 
         assert_eq!(param, expected_param);
 

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/profiler"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/builder"
@@ -26,34 +26,66 @@ import (
 
 type Handlers map[string]http.Handler
 
-type Config interface {
-	GetTraceConfig() *trace.Config
-	GetMempoolSize() int
-	GetAuthVerificationCores() int
-	GetVerifyAuth() bool
-	GetRootGenerationCores() int
-	GetTransactionExecutionCores() int
-	GetStateFetchConcurrency() int
-	GetMempoolSponsorSize() int
-	GetMempoolExemptSponsors() []codec.Address
-	GetStreamingBacklogSize() int
-	GetStateHistoryLength() int               // how many roots back of data to keep to serve state queries
-	GetIntermediateNodeCacheSize() int        // how many bytes to keep in intermediate cache
-	GetStateIntermediateWriteBufferSize() int // how many bytes to keep unwritten in intermediate cache
-	GetStateIntermediateWriteBatchSize() int  // how many bytes to write from intermediate cache at once
-	GetValueNodeCacheSize() int               // how many bytes to keep in value cache
-	GetAcceptorSize() int                     // how far back we can fall in processing accepted blocks
-	GetStateSyncParallelism() int
-	GetStateSyncMinBlocks() uint64
-	GetStateSyncServerDelay() time.Duration
-	GetParsedBlockCacheSize() int
-	GetAcceptedBlockWindow() int
-	GetAcceptedBlockWindowCache() int
-	GetContinuousProfilerConfig() *profiler.Config
-	GetTargetBuildDuration() time.Duration
-	GetProcessingBuildSkip() int
-	GetTargetGossipDuration() time.Duration
-	GetBlockCompactionFrequency() int
+type Config struct {
+	TraceConfig                      trace.Config
+	MempoolSize                      int
+	AuthVerificationCores            int
+	VerifyAuth                       bool
+	RootGenerationCores              int
+	TransactionExecutionCores        int
+	StateFetchConcurrency            int
+	MempoolSponsorSize               int
+	MempoolExemptSponsors            []codec.Address
+	StreamingBacklogSize             int
+	StateHistoryLength               int // how many roots back of data to keep to serve state queries
+	IntermediateNodeCacheSize        int // how many bytes to keep in intermediate cache
+	StateIntermediateWriteBufferSize int // how many bytes to keep unwritten in intermediate cache
+	StateIntermediateWriteBatchSize  int // how many bytes to write from intermediate cache at once
+	ValueNodeCacheSize               int // how many bytes to keep in value cache
+	AcceptorSize                     int // how far back we can fall in processing accepted blocks
+	StateSyncParallelism             int
+	StateSyncMinBlocks               uint64
+	StateSyncServerDelay             time.Duration
+	ParsedBlockCacheSize             int
+	AcceptedBlockWindow              int
+	AcceptedBlockWindowCache         int
+	ContinuousProfilerConfig         profiler.Config
+	TargetBuildDuration              time.Duration
+	ProcessingBuildSkip              int
+	TargetGossipDuration             time.Duration
+	BlockCompactionFrequency         int
+}
+
+func NewConfig() Config {
+	return Config{
+		TraceConfig:                      trace.Config{Enabled: false},
+		MempoolSize:                      2_048,
+		AuthVerificationCores:            1,
+		VerifyAuth:                       true,
+		RootGenerationCores:              1,
+		TransactionExecutionCores:        1,
+		StateFetchConcurrency:            1,
+		MempoolSponsorSize:               32,
+		MempoolExemptSponsors:            nil,
+		StreamingBacklogSize:             1_024,
+		StateHistoryLength:               256,
+		IntermediateNodeCacheSize:        4 * units.GiB,
+		StateIntermediateWriteBufferSize: 32 * units.MiB,
+		StateIntermediateWriteBatchSize:  4 * units.MiB,
+		ValueNodeCacheSize:               2 * units.GiB,
+		AcceptorSize:                     64,
+		StateSyncParallelism:             4,
+		StateSyncMinBlocks:               768, // set to max int for archive nodes to ensure no skips
+		StateSyncServerDelay:             0,   // used for testing
+		ParsedBlockCacheSize:             128,
+		AcceptedBlockWindow:              50_000, // ~3.5hr with 250ms block time (100GB at 2MB)
+		AcceptedBlockWindowCache:         128,    // 256MB at 2MB blocks
+		ContinuousProfilerConfig:         profiler.Config{Enabled: false},
+		TargetBuildDuration:              100 * time.Millisecond,
+		ProcessingBuildSkip:              16,
+		TargetGossipDuration:             20 * time.Millisecond,
+		BlockCompactionFrequency:         32, // 64 MB of deletion if 2 MB blocks
+	}
 }
 
 type Genesis interface {
@@ -80,10 +112,6 @@ type Controller interface {
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
-		// TODO: consider splitting out blockDB for use with more experimental
-		// databases
-		vmDB database.Database,
-		stateDB database.Database,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
@@ -101,7 +129,6 @@ type Controller interface {
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
-	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
 	// Shutdown should be used by the [Controller] to terminate any async
 	// processes it may be running in the background. It is invoked when

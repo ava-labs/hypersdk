@@ -17,7 +17,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
@@ -42,10 +41,9 @@ func TestBlockCache(t *testing.T) {
 	bByHeight, _ := cache.NewFIFO[uint64, ids.ID](3)
 	controller := NewMockController(ctrl)
 	vm := VM{
-		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewOptionalGatherer()},
-		config:  &config.Config{},
-
-		vmDB: memdb.New(),
+		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
+		config:  NewConfig(),
+		vmDB:    memdb.New(),
 
 		tracer:                 tracer,
 		acceptedBlocksByID:     bByID,
@@ -59,12 +57,10 @@ func TestBlockCache(t *testing.T) {
 	}
 
 	// Init metrics (called in [Accepted])
-	gatherer := metrics.NewMultiGatherer()
 	reg, m, err := newMetrics()
 	require.NoError(err)
 	vm.metrics = m
-	require.NoError(gatherer.Register("hypersdk", reg))
-	require.NoError(vm.snowCtx.Metrics.Register(gatherer))
+	require.NoError(vm.snowCtx.Metrics.Register("hypersdk", reg))
 
 	// put the block into the cache "vm.blocks"
 	// and delete from "vm.verifiedBlocks"

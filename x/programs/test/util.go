@@ -6,11 +6,13 @@ package test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/near/borsh-go"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -31,26 +33,67 @@ func CompileTest(programName string) error {
 	return nil
 }
 
-type ProgramLoader struct {
-	ProgramName string
+type StateManager struct {
+	ProgramsMap map[ids.ID]string
+	AccountMap  map[codec.Address]ids.ID
+	Balances    map[codec.Address]uint64
+	Mu          state.Mutable
 }
 
-func (t ProgramLoader) GetProgramBytes(_ context.Context, _ codec.Address) ([]byte, error) {
-	if err := CompileTest(t.ProgramName); err != nil {
+func (t StateManager) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {
+	if programID, ok := t.AccountMap[account]; ok {
+		return programID, nil
+	}
+	return ids.Empty, nil
+}
+
+func (t StateManager) GetProgramBytes(_ context.Context, programID ids.ID) ([]byte, error) {
+	programName, ok := t.ProgramsMap[programID]
+	if !ok {
+		return nil, errors.New("couldn't find program")
+	}
+	if err := CompileTest(programName); err != nil {
 		return nil, err
 	}
 	dir, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+t.ProgramName+".wasm"))
+	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 }
 
-type StateLoader struct {
-	Mu state.Mutable
+func (t StateManager) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
+	account := codec.CreateAddress(0, programID)
+	t.AccountMap[account] = programID
+	return account, nil
 }
 
-func (t StateLoader) GetProgramState(address codec.Address) state.Mutable {
+func (t StateManager) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
+	t.AccountMap[account] = programID
+	return nil
+}
+
+func (t StateManager) GetBalance(_ context.Context, address codec.Address) (uint64, error) {
+	if balance, ok := t.Balances[address]; ok {
+		return balance, nil
+	}
+	return 0, nil
+}
+
+func (t StateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+	balance, err := t.GetBalance(ctx, from)
+	if err != nil {
+		return err
+	}
+	if balance < amount {
+		return errors.New("insufficient balance")
+	}
+	t.Balances[from] -= amount
+	t.Balances[to] += amount
+	return nil
+}
+
+func (t StateManager) GetProgramState(address codec.Address) state.Mutable {
 	return &prefixedState{address: address, inner: t.Mu}
 }
 
