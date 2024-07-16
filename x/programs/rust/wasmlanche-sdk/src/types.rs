@@ -24,19 +24,6 @@ impl Address {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
-
-    #[allow(clippy::should_implement_trait)]
-    #[cfg(feature = "test-utils")]
-    #[must_use]
-    /// # Panics
-    /// Panics if the length of the bytes representation of the name is longer than [`Address::LEN`]
-    pub fn from_str(name: &str) -> Self {
-        let mut bytes = [0u8; Self::LEN];
-        let name_bytes = name.as_bytes();
-        assert!(name_bytes.len() <= Self::LEN, "passed name is too long");
-        bytes[0..name_bytes.len()].copy_from_slice(name_bytes);
-        Self::new(bytes)
-    }
 }
 
 impl Default for Address {

@@ -14,4 +14,3 @@ wasmtime = "14"
 [features]
 build = []
 debug = []
-test-utils = []

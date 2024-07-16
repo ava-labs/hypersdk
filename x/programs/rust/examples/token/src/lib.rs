@@ -214,7 +214,7 @@ mod tests {
     fn mint() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let alice = Address::from_str("alice");
+        let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
         let program_id = simulator
@@ -265,8 +265,8 @@ mod tests {
     fn mint_and_transfer() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let alice = Address::from_str("alice");
-        let bob = Address::from_str("bob");
+        let alice = Address::new([1; 33]);
+        let bob = Address::new([2; 33]);
         let alice_initial_balance = 1000;
         let transfer_amount = 100;
         let post_transfer_balance = alice_initial_balance - transfer_amount;

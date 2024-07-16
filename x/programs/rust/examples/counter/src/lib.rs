@@ -86,7 +86,7 @@ mod tests {
     fn increment() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let bob = Address::from_str("bob");
+        let bob = Address::new([1; 33]);
 
         let counter_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
@@ -122,7 +122,7 @@ mod tests {
     fn external_call() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let bob = Address::from_str("bob");
+        let bob = Address::new([1; 33]);
 
         let counter1_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))

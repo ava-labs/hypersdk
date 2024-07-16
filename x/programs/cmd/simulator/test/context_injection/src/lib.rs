@@ -88,7 +88,7 @@ mod tests {
             .id;
 
         let mut test_context = TestContext::from(program_id);
-        test_context.actor = Address::from_str("actor");
+        test_context.actor = Address::new([1; 33]);
 
         let response = simulator
             .run_step(&Step {
