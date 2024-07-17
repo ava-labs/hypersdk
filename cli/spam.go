@@ -476,6 +476,7 @@ type issuer struct {
 	uri    string
 	parser chain.Parser
 
+	// TODO: clean up potential race conditions here.
 	l              sync.Mutex
 	cli            *rpc.JSONRPCClient
 	ws             *rpc.WebSocketClient
