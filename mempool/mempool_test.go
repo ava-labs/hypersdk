@@ -55,7 +55,7 @@ func TestMempool(t *testing.T) {
 
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	txm := New[*TestItem](tracer, 3, 16, nil)
+	txm := New[*TestItem](tracer, 3, 16)
 
 	for _, i := range []int64{100, 200, 300, 400} {
 		item := GenerateTestItem(testSponsor, i)
@@ -75,7 +75,7 @@ func TestMempoolAddDuplicates(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	txm := New[*TestItem](tracer, 3, 16, nil)
+	txm := New[*TestItem](tracer, 3, 16)
 	// Generate item
 	item := GenerateTestItem(testSponsor, 300)
 	items := []*TestItem{item}
@@ -97,20 +97,16 @@ func TestMempoolAddExceedMaxSponsorSize(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
-	exemptSponsor := codec.CreateAddress(99, ids.GenerateTestID())
 	sponsor := codec.CreateAddress(4, ids.GenerateTestID())
 	// Non exempt sponsors max of 4
-	txm := New[*TestItem](tracer, 20, 4, []codec.Address{exemptSponsor})
+	txm := New[*TestItem](tracer, 20, 4)
 	// Add 6 transactions for each sponsor
 	for i := int64(0); i <= 5; i++ {
 		itemSponsor := GenerateTestItem(sponsor, i)
-		itemExempt := GenerateTestItem(exemptSponsor, i)
-		items := []*TestItem{itemSponsor, itemExempt}
-		txm.Add(ctx, items)
+		txm.Add(ctx, []*TestItem{itemSponsor})
 	}
-	require.Equal(10, txm.Len(ctx), "Mempool has incorrect txs.")
+	require.Equal(4, txm.Len(ctx), "Mempool has incorrect txs.")
 	require.Equal(4, txm.owned[sponsor], "Sponsor has incorrect txs.")
-	require.Equal(6, txm.owned[exemptSponsor], "Sponsor has incorrect txs.")
 }
 
 func TestMempoolAddExceedMaxSize(t *testing.T) {
@@ -120,7 +116,7 @@ func TestMempoolAddExceedMaxSize(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*TestItem](tracer, 3, 20, nil)
+	txm := New[*TestItem](tracer, 3, 20)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i < 10; i++ {
 		item := GenerateTestItem(testSponsor, i)
@@ -150,7 +146,7 @@ func TestMempoolRemoveTxs(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*TestItem](tracer, 3, 20, nil)
+	txm := New[*TestItem](tracer, 3, 20)
 	// Add
 	item := GenerateTestItem(testSponsor, 10)
 	items := []*TestItem{item}
@@ -170,7 +166,7 @@ func TestMempoolSetMinTimestamp(t *testing.T) {
 	ctx := context.TODO()
 	tracer, _ := trace.New(&trace.Config{Enabled: false})
 
-	txm := New[*TestItem](tracer, 20, 20, nil)
+	txm := New[*TestItem](tracer, 20, 20)
 	// Add more tx's than txm.maxSize
 	for i := int64(0); i < 10; i++ {
 		item := GenerateTestItem(testSponsor, i)

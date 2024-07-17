@@ -15,7 +15,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
@@ -27,33 +26,34 @@ import (
 type Handlers map[string]http.Handler
 
 type Config struct {
-	TraceConfig                      trace.Config
-	MempoolSize                      int
-	AuthVerificationCores            int
-	VerifyAuth                       bool
-	RootGenerationCores              int
-	TransactionExecutionCores        int
-	StateFetchConcurrency            int
-	MempoolSponsorSize               int
-	MempoolExemptSponsors            []codec.Address
-	StreamingBacklogSize             int
-	StateHistoryLength               int // how many roots back of data to keep to serve state queries
-	IntermediateNodeCacheSize        int // how many bytes to keep in intermediate cache
-	StateIntermediateWriteBufferSize int // how many bytes to keep unwritten in intermediate cache
-	StateIntermediateWriteBatchSize  int // how many bytes to write from intermediate cache at once
-	ValueNodeCacheSize               int // how many bytes to keep in value cache
-	AcceptorSize                     int // how far back we can fall in processing accepted blocks
-	StateSyncParallelism             int
-	StateSyncMinBlocks               uint64
-	StateSyncServerDelay             time.Duration
-	ParsedBlockCacheSize             int
-	AcceptedBlockWindow              int
-	AcceptedBlockWindowCache         int
-	ContinuousProfilerConfig         profiler.Config
-	TargetBuildDuration              time.Duration
-	ProcessingBuildSkip              int
-	TargetGossipDuration             time.Duration
-	BlockCompactionFrequency         int
+	TraceConfig                      trace.Config    `json:"traceConfig"`
+	MempoolSize                      int             `json:"mempoolSize"`
+	AuthVerificationCores            int             `json:"authVerificationCores"`
+	VerifyAuth                       bool            `json:"verifyAuth"`
+	RootGenerationCores              int             `json:"rootGenerationCores"`
+	TransactionExecutionCores        int             `json:"transactionExecutionCores"`
+	StateFetchConcurrency            int             `json:"stateFetchConcurrency"`
+	MempoolSponsorSize               int             `json:"mempoolSponsorSize"`
+	StreamingBacklogSize             int             `json:"streamingBacklogSize"`
+	StateHistoryLength               int             `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
+	IntermediateNodeCacheSize        int             `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
+	StateIntermediateWriteBufferSize int             `json:"stateIntermediateWriteBufferSize"` // how many bytes to keep unwritten in intermediate cache
+	StateIntermediateWriteBatchSize  int             `json:"stateIntermediateWriteBatchSize"`  // how many bytes to write from intermediate cache at once
+	ValueNodeCacheSize               int             `json:"valueNodeCacheSize"`               // how many bytes to keep in value cache
+	AcceptorSize                     int             `json:"acceptorSize"`                     // how far back we can fall in processing accepted blocks
+	StateSyncParallelism             int             `json:"stateSyncParallelism"`
+	StateSyncMinBlocks               uint64          `json:"stateSyncMinBlocks"`
+	StateSyncServerDelay             time.Duration   `json:"stateSyncServerDelay"`
+	ParsedBlockCacheSize             int             `json:"parsedBlockCacheSize"`
+	AcceptedBlockWindow              int             `json:"acceptedBlockWindow"`
+	AcceptedBlockWindowCache         int             `json:"acceptedBlockWindowCache"`
+	ContinuousProfilerConfig         profiler.Config `json:"continuousProfilerConfig"`
+	TargetBuildDuration              time.Duration   `json:"targetBuildDuration"`
+	ProcessingBuildSkip              int             `json:"processingBuildSkip"`
+	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
+	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
+	// Config is defined by the Controller
+	Config map[string]any `json:"config"`
 }
 
 func NewConfig() Config {
@@ -66,8 +66,6 @@ func NewConfig() Config {
 		TransactionExecutionCores:        1,
 		StateFetchConcurrency:            1,
 		MempoolSponsorSize:               32,
-		MempoolExemptSponsors:            nil,
-		StreamingBacklogSize:             1_024,
 		StateHistoryLength:               256,
 		IntermediateNodeCacheSize:        4 * units.GiB,
 		StateIntermediateWriteBufferSize: 32 * units.MiB,
@@ -108,7 +106,6 @@ type Controller interface {
 		upgradeBytes []byte,
 		configBytes []byte,
 	) (
-		config Config,
 		genesis Genesis,
 		builder builder.Builder,
 		gossiper gossiper.Gossiper,
