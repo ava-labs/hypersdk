@@ -1,12 +1,6 @@
-use crate::{
-    memory::HostPtr,
-    state::{Key, State},
-    types::Address,
-    types::Id,
-    Gas,
-};
+use crate::{memory::HostPtr, types::Address, types::Id, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap, io::Read};
+use std::io::Read;
 use thiserror::Error;
 
 /// Defer deserialization from bytes
@@ -76,24 +70,12 @@ pub fn send(to: Address, amount: u64) -> Result<(), ExternalCallError> {
 /// Represents the current Program in the context of the caller, or an external
 /// program that is being invoked.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(BorshSerialize)]
-pub struct Program<K = ()> {
+#[derive(Clone, Copy, BorshSerialize, BorshDeserialize)]
+pub struct Program {
     account: Address,
-    #[borsh(skip)]
-    state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
 }
 
-impl<K> BorshDeserialize for Program<K> {
-    fn deserialize_reader<R: std::io::prelude::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let account: Address = BorshDeserialize::deserialize_reader(reader)?;
-        Ok(Self {
-            account,
-            state_cache: RefCell::default(),
-        })
-    }
-}
-
-impl<K> Program<K> {
+impl Program {
     #[must_use]
     pub fn account(&self) -> &Address {
         &self.account
@@ -109,10 +91,10 @@ impl<K> Program<K> {
     /// The caller must ensure that `function_name` + `args` point to valid memory locations.
     /// # Examples
     /// ```no_run
-    /// # use wasmlanche_sdk::{types::Address, Program};
+    /// # use wasmlanche_sdk::{Address, Program};
     /// #
     /// # let program_id = [0; Address::LEN];
-    /// # let target: Program<()> = borsh::from_slice(&program_id).unwrap();
+    /// # let target: Program = borsh::from_slice(&program_id).unwrap();
     /// let increment = 10;
     /// let params = borsh::to_vec(&increment).unwrap();
     /// let max_units = 1000000;
@@ -152,6 +134,7 @@ impl<K> Program<K> {
     /// Gets the remaining fuel available to this program
     /// # Panics
     /// Panics if there was an issue deserializing the remaining fuel
+    #[must_use]
     pub fn remaining_fuel(&self) -> u64 {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -167,6 +150,7 @@ impl<K> Program<K> {
     /// Deploy an instance of the specified program and returns the account of the new instance
     /// # Panics
     /// Panics if there was an issue deserializing the account
+    #[must_use]
     pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
         #[link(wasm_import_module = "program")]
         extern "C" {
@@ -182,40 +166,13 @@ impl<K> Program<K> {
     }
 }
 
-impl<K: Key> Program<K> {
-    /// Returns a State object that can be used to interact with persistent
-    /// storage exposed by the host.
-    #[must_use]
-    pub fn state(&self) -> State<K> {
-        State::new(&self.state_cache)
-    }
-}
-
-struct CallProgramArgs<'a, K> {
-    target: &'a Program<K>,
+#[derive(BorshSerialize)]
+struct CallProgramArgs<'a> {
+    target: &'a Program,
     function: &'a [u8],
     args: &'a [u8],
     max_units: Gas,
     max_value: u64,
-}
-
-impl<K> BorshSerialize for CallProgramArgs<'_, K> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let Self {
-            target,
-            function,
-            args,
-            max_units,
-            max_value,
-        } = self;
-
-        target.serialize(writer)?;
-        function.serialize(writer)?;
-        args.serialize(writer)?;
-        max_units.serialize(writer)?;
-        max_value.serialize(writer)?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
