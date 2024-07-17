@@ -62,19 +62,18 @@ func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 any) *gomock.Call {
 }
 
 // Initialize mocks base method.
-func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, Handlers, chain.ActionRegistry, chain.AuthRegistry, map[byte]AuthEngine, error) {
+func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Genesis, builder.Builder, gossiper.Gossiper, Handlers, chain.ActionRegistry, chain.AuthRegistry, map[byte]AuthEngine, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Initialize", arg0, arg1, arg2, arg3, arg4, arg5)
-	ret0, _ := ret[0].(Config)
-	ret1, _ := ret[1].(Genesis)
-	ret2, _ := ret[2].(builder.Builder)
-	ret3, _ := ret[3].(gossiper.Gossiper)
-	ret4, _ := ret[4].(Handlers)
-	ret5, _ := ret[5].(chain.ActionRegistry)
-	ret6, _ := ret[6].(chain.AuthRegistry)
-	ret7, _ := ret[7].(map[byte]AuthEngine)
-	ret8, _ := ret[8].(error)
-	return ret0, ret1, ret2, ret3, ret4, ret5, ret6, ret7, ret8
+	ret0, _ := ret[0].(Genesis)
+	ret1, _ := ret[1].(builder.Builder)
+	ret2, _ := ret[2].(gossiper.Gossiper)
+	ret3, _ := ret[3].(Handlers)
+	ret4, _ := ret[4].(chain.ActionRegistry)
+	ret5, _ := ret[5].(chain.AuthRegistry)
+	ret6, _ := ret[6].(map[byte]AuthEngine)
+	ret7, _ := ret[7].(error)
+	return ret0, ret1, ret2, ret3, ret4, ret5, ret6, ret7
 }
 
 // Initialize indicates an expected call of Initialize.
