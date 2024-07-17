@@ -242,7 +242,14 @@ var _ = ginkgo.BeforeSuite(func() {
 			genesisBytes,
 			nil,
 			[]byte(
-				`{"parallelism":3, "testMode":true, "logLevel":"debug", "trackedPairs":["*"]}`,
+				`{
+				  "config": {
+				    "parallelism":3,
+				    "testMode":true,
+				    "logLevel":"debug",
+				    "trackedPairs":["*"]
+				  }
+				}`,
 			),
 			toEngine,
 			nil,
