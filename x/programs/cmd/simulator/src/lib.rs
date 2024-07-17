@@ -28,8 +28,6 @@ pub use id::Id;
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
-    /// Perform an operation against the key api.
-    Key,
     /// Make a read-only call to a program function and return the result.
     ReadOnly,
     /// Create a transaction on-chain from a possible state changing program
@@ -38,15 +36,33 @@ pub enum Endpoint {
     Execute,
 }
 
-/// The algorithm used to generate the key along with a [`String`] identifier for the key.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-#[serde(tag = "type", content = "value")]
-pub enum Key {
-    #[serde(serialize_with = "base64_encode")]
-    Ed25519(String),
-    #[serde(serialize_with = "base64_encode")]
-    Secp256r1(String),
+/// A [`Step`] is a call to the simulator
+#[derive(Debug, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Step {
+    /// The API endpoint to call.
+    pub endpoint: Endpoint,
+    /// The method to call on the endpoint.
+    pub method: String,
+    /// The maximum number of units the step can consume.
+    pub max_units: u64,
+    /// The parameters to pass to the method.
+    pub params: Vec<Param>,
+}
+
+impl Step {
+    /// Create a [`Step`] that creates a program.
+    #[must_use]
+    pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
+        let path = path.as_ref().to_string_lossy();
+
+        Self {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::Path(path.into())],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -101,8 +117,175 @@ impl From<Id> for TestContext {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "type", rename = "testContext")]
 pub(crate) struct SimulatorTestContext {
-    #[serde(serialize_with = "base64_struct_encode")]
+    #[serde(serialize_with = "base64_encode")]
     value: TestContext,
+}
+
+// TODO:
+// add `Cow` types for borrowing
+#[derive(Clone, Debug, PartialEq)]
+pub enum Param {
+    U64(u64),
+    Bool(bool),
+    String(String),
+    Id(Id),
+    #[allow(private_interfaces)]
+    TestContext(SimulatorTestContext),
+    Bytes(Vec<u8>),
+    Path(String),
+    Address(Address),
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase", tag = "type", content = "value")]
+enum StringParam {
+    U64(String),
+    Bool(String),
+    String(String),
+    Id(String),
+    Bytes(String),
+    Path(String),
+    Address(String),
+}
+
+impl From<&Param> for StringParam {
+    fn from(value: &Param) -> Self {
+        match value {
+            Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
+            Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
+            Param::String(text) => StringParam::String(
+                b64.encode(borsh::to_vec(text).expect("the serialization should work")),
+            ),
+            Param::Path(text) => StringParam::Path(b64.encode(text)),
+            Param::Bytes(bytes) => StringParam::Bytes(
+                b64.encode(borsh::to_vec(bytes).expect("the serialization should work")),
+            ),
+            Param::Address(addr) => StringParam::Address(b64.encode(addr)),
+            Param::Id(id) => {
+                let num: &usize = id.into();
+                StringParam::Id(b64.encode(num.to_le_bytes()))
+            }
+            Param::TestContext(_) => unreachable!(),
+        }
+    }
+}
+
+impl Serialize for Param {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
+            _ => StringParam::from(self).serialize(serializer),
+        }
+    }
+}
+
+impl From<u64> for Param {
+    fn from(val: u64) -> Self {
+        Param::U64(val)
+    }
+}
+
+impl From<bool> for Param {
+    fn from(val: bool) -> Self {
+        Param::Bool(val)
+    }
+}
+
+impl From<String> for Param {
+    fn from(val: String) -> Self {
+        Param::String(val)
+    }
+}
+
+impl From<Id> for Param {
+    fn from(val: Id) -> Self {
+        Param::Id(val)
+    }
+}
+
+impl From<TestContext> for Param {
+    fn from(val: TestContext) -> Self {
+        Param::TestContext(SimulatorTestContext { value: val })
+    }
+}
+
+impl From<Vec<u8>> for Param {
+    fn from(val: Vec<u8>) -> Self {
+        Param::Bytes(val)
+    }
+}
+
+impl From<Address> for Param {
+    fn from(addr: Address) -> Self {
+        Param::Address(addr)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StepResult {
+    /// The ID created from the program execution.
+    pub action_id: Option<String>,
+    /// The timestamp of the function call response.
+    pub timestamp: u64,
+    /// The result of the function call.
+    #[serde(deserialize_with = "base64_decode")]
+    response: Vec<u8>,
+}
+
+#[derive(Error, Debug)]
+pub enum StepResponseError {
+    #[error(transparent)]
+    Serialization(#[from] borsh::io::Error),
+    #[error(transparent)]
+    ExternalCall(#[from] ExternalCallError),
+}
+
+impl StepResult {
+    pub fn response<T>(&self) -> Result<T, StepResponseError>
+    where
+        T: BorshDeserialize,
+    {
+        let res: Result<T, ExternalCallError> = borsh::from_slice(&self.response)?;
+        res.map_err(StepResponseError::ExternalCall)
+    }
+}
+
+fn base64_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let bytes = serde_json::to_vec(struc).unwrap();
+    serializer.serialize_str(&b64.encode(bytes))
+}
+
+fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    <&str>::deserialize(deserializer).and_then(|s| {
+        b64.decode(s)
+            .map_err(|err| serde::de::Error::custom(err.to_string()))
+    })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StepResponse {
+    /// The numeric id of the step.
+    #[serde(deserialize_with = "id_from_usize")]
+    pub id: Id, // TODO override of the Id Deserialize before removing the prefix
+    /// An optional error message.
+    pub error: Option<String>,
+    pub result: StepResult,
+}
+
+fn id_from_usize<'de, D>(deserializer: D) -> Result<Id, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    <usize as Deserialize>::deserialize(deserializer).map(Id::from)
 }
 
 #[derive(Error, Debug)]
@@ -299,27 +482,6 @@ mod tests {
         let id = Id::from(value);
         let param = Param::from(id);
         let expected_param = Param::Id(id);
-
-        assert_eq!(param, expected_param);
-
-        let output_json = serde_json::to_value(&param).unwrap();
-
-        assert_eq!(output_json, expected_json);
-    }
-
-    #[test]
-    fn convert_key_param() {
-        let expected_param_type = "ed25519";
-        let expected_value = "id";
-
-        let expected_json = json!({
-            "type": expected_param_type,
-            "value": &b64.encode(expected_value),
-        });
-
-        let key = Key::Ed25519(expected_value.to_string());
-        let param = Param::from(key.clone());
-        let expected_param = Param::Key(key);
 
         assert_eq!(param, expected_param);
 
