@@ -12,7 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError};
+use wasmlanche_sdk::{log, Address, ExternalCallError};
 
 mod id;
 
@@ -345,60 +345,63 @@ pub enum StepError {
     Program(String),
 }
 
+
+
+type StepResultItem = Result<StepResponse, StepError>;
+
+
 /// A [`Client`] is required to pass [`Step`]s to the simulator by calling [`run`](Self::run_step).
-pub struct Client<W, R> {
+pub struct Simulator<W, R> {
     writer: W,
     responses: R,
 }
 
-type StepResultItem = Result<StepResponse, StepError>;
 
-pub struct ClientBuilder<'a> {
-    path: &'a str,
-}
+fn get_path() -> &'static str {
+    let path = env!("SIMULATOR_PATH");
 
-impl ClientBuilder<'_> {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        let path = env!("SIMULATOR_PATH");
+    if !Path::new(path).exists() {
+        eprintln!();
+        eprintln!("Simulator binary not found at path: {path}");
+        eprintln!();
+        eprintln!("Please run `cargo clean -p simulator` and rebuild your dependent crate.");
+        eprintln!();
 
-        if !Path::new(path).exists() {
-            eprintln!();
-            eprintln!("Simulator binary not found at path: {path}");
-            eprintln!();
-            eprintln!("Please run `cargo clean -p simulator` and rebuild your dependent crate.");
-            eprintln!();
-
-            panic!("Simulator binary not found, must rebuild simulator");
-        }
-
-        Self { path }
+        panic!("Simulator binary not found, must rebuild simulator");
     }
 
-    pub fn try_build(
-        self,
-    ) -> Result<Client<impl Write, impl Iterator<Item = StepResultItem>>, ClientError> {
-        let Child { stdin, stdout, .. } = Command::new(self.path)
-            .arg("interpreter")
-            .arg("--cleanup")
-            .arg("--log-level")
-            .arg("error")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?;
-
-        let writer = stdin.ok_or(ClientError::StdIo)?;
-        let reader = stdout.ok_or(ClientError::StdIo)?;
-
-        let responses = BufReader::new(reader)
-            .lines()
-            .map(|line| serde_json::from_str(&line?).map_err(StepError::Serde));
-
-        Ok(Client { writer, responses })
-    }
+    path
 }
 
-impl<W, R> Client<W, R>
+pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = StepResultItem>>, ClientError> {
+    let path = get_path();
+
+    let Child { stdin, stdout, .. } = Command::new(path)
+    .arg("interpreter")
+    .arg("--cleanup")
+    .arg("--log-level")
+    .arg("error")
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .spawn()?;
+
+    let writer = stdin.ok_or(ClientError::StdIo)?;
+    let reader = stdout.ok_or(ClientError::StdIo)?;
+
+    let responses = BufReader::new(reader)
+        .lines()
+        .map(|line| serde_json::from_str(&line?).map_err(StepError::Serde));
+
+    
+    Ok(Simulator {
+        writer,
+        responses,
+    })
+}
+
+
+
+impl<W, R> Simulator<W, R>
 where
     W: Write,
     R: Iterator<Item = StepResultItem>,

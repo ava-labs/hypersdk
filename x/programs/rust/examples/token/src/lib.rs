@@ -232,8 +232,8 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
-
+        let mut simulator = simulator::build().unwrap();
+        
         let owner_key = String::from("owner");
 
         simulator
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
 
         let owner_key = String::from("owner");
 
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn mint() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
 
         let owner_key = String::from("owner");
         let alice_key = Key::Ed25519(String::from("alice"));
@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn burn() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
 
         let owner_key = String::from("owner");
         let alice_key = Key::Ed25519(String::from("alice"));
