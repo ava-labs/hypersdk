@@ -57,6 +57,8 @@ type CallInfo struct {
 
 	Value uint64
 
+	ReadOnly bool
+
 	inst *ProgramInstance
 }
 

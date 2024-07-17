@@ -110,6 +110,7 @@ func programExecuteFunc(
 	rctx runtime.Context,
 	callParams []Parameter,
 	function string,
+	readOnly bool,
 	maxUnits uint64,
 ) ([]byte, uint64, error) {
 	// execute the action
@@ -128,6 +129,7 @@ func programExecuteFunc(
 		Timestamp:    rctx.Timestamp,
 		FunctionName: function,
 		Params:       bytes,
+		ReadOnly:     readOnly,
 	}
 	result, err := rt.CallProgram(ctx, callInfo)
 	if err != nil {

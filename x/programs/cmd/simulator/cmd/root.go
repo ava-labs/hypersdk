@@ -136,7 +136,7 @@ func (s *Simulator) Execute(ctx context.Context) error {
 	s.lastStep = 0
 	s.programIDStrMap = make(map[int]codec.Address)
 
-	defer s.manageCleanup(ctx)
+	// defer s.manageCleanup(ctx)
 
 	err := s.ParseCommandArgs(ctx, os.Args, false)
 	if err != nil {

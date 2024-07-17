@@ -9,6 +9,8 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 )
 
+var ErrWriteReadOnly = errors.New("cannot execute a write operation in read-only mode")
+
 func convertToTrap(err error) *wasmtime.Trap {
 	if err == nil {
 		return nil

@@ -6,6 +6,8 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 )
@@ -42,6 +44,10 @@ func NewStateAccessModule() *ImportModule {
 			"put": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+				fmt.Fprintln(os.Stderr, input)
+				if callInfo.ReadOnly {
+					return ErrWriteReadOnly
+				}
 				programState := callInfo.State.GetProgramState(callInfo.Program)
 				for _, entry := range input {
 					if len(entry.Value) == 0 {

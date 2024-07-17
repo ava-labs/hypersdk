@@ -31,6 +31,9 @@ func NewBalanceModule() *ImportModule {
 			"send": {FuelCost: sendBalanceCost, Function: Function[transferBalanceInput, Result[Unit, ProgramCallErrorCode]](func(callInfo *CallInfo, input transferBalanceInput) (Result[Unit, ProgramCallErrorCode], error) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+				if callInfo.ReadOnly {
+					return Err[Unit, ProgramCallErrorCode](ExecutionFailure), ErrWriteReadOnly
+				}
 				err := callInfo.State.TransferBalance(ctx, callInfo.Program, input.To, input.Amount)
 				if err != nil {
 					if extractedError, ok := ExtractProgramCallErrorCode(err); ok {

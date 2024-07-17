@@ -101,7 +101,7 @@ mod tests {
                 endpoint: Endpoint::ReadOnly,
                 method: "get_value".into(),
                 max_units: 0,
-                params: vec![test_context.into(), bob_key_param],
+                params: vec![test_context.clone().into(), bob_key_param.clone()],
             })
             .unwrap()
             .result

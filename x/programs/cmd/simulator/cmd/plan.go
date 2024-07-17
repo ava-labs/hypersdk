@@ -235,7 +235,7 @@ func (c *runCmd) runStepFunc(
 			Height:    simulatorTestContext.Height,
 		}
 
-		result, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, maxUnits)
+		result, balance, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, false, maxUnits)
 		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
@@ -266,8 +266,7 @@ func (c *runCmd) runStepFunc(
 			Height:    simulatorTestContext.Height,
 		}
 
-		// TODO: implement readonly for now just don't charge for gas
-		result, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, math.MaxUint64)
+		result, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, true, math.MaxUint64)
 		output := resultToOutput(result, err)
 		if err := db.Commit(ctx); err != nil {
 			return err
@@ -286,6 +285,7 @@ func (c *runCmd) runStepFunc(
 }
 
 func resultToOutput(result []byte, err error) runtime.Result[runtime.RawBytes, runtime.ProgramCallErrorCode] {
+	fmt.Fprintln(os.Stderr, err)
 	if err != nil {
 		if code, ok := runtime.ExtractProgramCallErrorCode(err); ok {
 			return runtime.Err[runtime.RawBytes, runtime.ProgramCallErrorCode](code)

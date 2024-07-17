@@ -105,6 +105,9 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 					func(callInfo *CallInfo, input deployProgramInput) (codec.Address, error) {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
+						if callInfo.ReadOnly {
+							return codec.EmptyAddress, ErrWriteReadOnly
+						}
 						address, err := callInfo.State.NewAccountWithProgram(ctx, input.ProgramID, input.AccountCreationData)
 						if err != nil {
 							return codec.EmptyAddress, err
