@@ -5,17 +5,23 @@
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
+use param::Param;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use step::StepError;
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::{log, Address, ExternalCallError};
+use wasmlanche_sdk::{Address, ExternalCallError};
 
 mod id;
-
+pub mod step;
+pub mod param;
+mod codec;
+use crate::step::{Step, StepResultItem};
+use crate::codec::{base64_encode, base64_struct_encode};
 pub use id::Id;
 
 /// The endpoint to call for a [`Step`].
@@ -30,46 +36,6 @@ pub enum Endpoint {
     /// function call. A program's function can internally optionally call other
     /// functions including program to program.
     Execute,
-}
-
-/// A [`Step`] is a call to the simulator
-#[derive(Debug, Serialize, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct Step {
-    /// The API endpoint to call.
-    pub endpoint: Endpoint,
-    /// The method to call on the endpoint.
-    pub method: String,
-    /// The maximum number of units the step can consume.
-    pub max_units: u64,
-    /// The parameters to pass to the method.
-    pub params: Vec<Param>,
-}
-
-impl Step {
-    /// Create a [`Step`] that creates a key.
-    #[must_use]
-    pub fn create_key(key: Key) -> Self {
-        Self {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
-            max_units: 0,
-            params: vec![Param::Key(key)],
-        }
-    }
-
-    /// Create a [`Step`] that creates a program.
-    #[must_use]
-    pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
-        let path = path.as_ref().to_string_lossy();
-
-        Self {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::Path(path.into())],
-        }
-    }
 }
 
 /// The algorithm used to generate the key along with a [`String`] identifier for the key.
@@ -139,190 +105,6 @@ pub(crate) struct SimulatorTestContext {
     value: TestContext,
 }
 
-// TODO:
-// add `Cow` types for borrowing
-#[derive(Clone, Debug, PartialEq)]
-pub enum Param {
-    U64(u64),
-    Bool(bool),
-    String(String),
-    Id(Id),
-    Key(Key),
-    #[allow(private_interfaces)]
-    TestContext(SimulatorTestContext),
-    Bytes(Vec<u8>),
-    Path(String),
-    Address(Address),
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "lowercase", tag = "type", content = "value")]
-enum StringParam {
-    U64(String),
-    Bool(String),
-    String(String),
-    Id(String),
-    Bytes(String),
-    Path(String),
-    Address(String),
-}
-
-impl From<&Param> for StringParam {
-    fn from(value: &Param) -> Self {
-        match value {
-            Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
-            Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
-            Param::String(text) => StringParam::String(
-                b64.encode(borsh::to_vec(text).expect("the serialization should work")),
-            ),
-            Param::Path(text) => StringParam::Path(b64.encode(text)),
-            Param::Bytes(bytes) => StringParam::Bytes(
-                b64.encode(borsh::to_vec(bytes).expect("the serialization should work")),
-            ),
-            Param::Address(addr) => StringParam::Address(b64.encode(addr)),
-            Param::Id(id) => {
-                let num: &usize = id.into();
-                StringParam::Id(b64.encode(num.to_le_bytes()))
-            }
-            Param::Key(_) | Param::TestContext(_) => unreachable!(),
-        }
-    }
-}
-
-impl Serialize for Param {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Param::Key(key) => Serialize::serialize(key, serializer),
-            Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
-            _ => StringParam::from(self).serialize(serializer),
-        }
-    }
-}
-
-impl From<u64> for Param {
-    fn from(val: u64) -> Self {
-        Param::U64(val)
-    }
-}
-
-impl From<bool> for Param {
-    fn from(val: bool) -> Self {
-        Param::Bool(val)
-    }
-}
-
-impl From<String> for Param {
-    fn from(val: String) -> Self {
-        Param::String(val)
-    }
-}
-
-impl From<Id> for Param {
-    fn from(val: Id) -> Self {
-        Param::Id(val)
-    }
-}
-
-impl From<Key> for Param {
-    fn from(val: Key) -> Self {
-        Param::Key(val)
-    }
-}
-
-impl From<TestContext> for Param {
-    fn from(val: TestContext) -> Self {
-        Param::TestContext(SimulatorTestContext { value: val })
-    }
-}
-
-impl From<Vec<u8>> for Param {
-    fn from(val: Vec<u8>) -> Self {
-        Param::Bytes(val)
-    }
-}
-
-impl From<Address> for Param {
-    fn from(addr: Address) -> Self {
-        Param::Address(addr)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct StepResult {
-    /// The ID created from the program execution.
-    pub action_id: Option<String>,
-    /// An optional message.
-    pub msg: Option<String>,
-    /// The timestamp of the function call response.
-    pub timestamp: u64,
-    /// The result of the function call.
-    #[serde(deserialize_with = "base64_decode")]
-    response: Vec<u8>,
-}
-
-#[derive(Error, Debug)]
-pub enum StepResponseError {
-    #[error(transparent)]
-    Serialization(#[from] borsh::io::Error),
-    #[error(transparent)]
-    ExternalCall(#[from] ExternalCallError),
-}
-
-impl StepResult {
-    pub fn response<T>(&self) -> Result<T, StepResponseError>
-    where
-        T: BorshDeserialize,
-    {
-        let res: Result<T, ExternalCallError> = borsh::from_slice(&self.response)?;
-        res.map_err(StepResponseError::ExternalCall)
-    }
-}
-
-fn base64_encode<S>(text: &str, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&b64.encode(text))
-}
-
-fn base64_struct_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let bytes = serde_json::to_vec(struc).unwrap();
-    serializer.serialize_str(&b64.encode(bytes))
-}
-
-fn base64_decode<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    <&str>::deserialize(deserializer).and_then(|s| {
-        b64.decode(s)
-            .map_err(|err| serde::de::Error::custom(err.to_string()))
-    })
-}
-
-#[derive(Debug, Deserialize)]
-pub struct StepResponse {
-    /// The numeric id of the step.
-    #[serde(deserialize_with = "id_from_usize")]
-    pub id: Id, // TODO override of the Id Deserialize before removing the prefix
-    /// An optional error message.
-    pub error: Option<String>,
-    pub result: StepResult,
-}
-
-fn id_from_usize<'de, D>(deserializer: D) -> Result<Id, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    <usize as Deserialize>::deserialize(deserializer).map(Id::from)
-}
-
 #[derive(Error, Debug)]
 pub enum ClientError {
     #[error("Read error: {0}")]
@@ -332,30 +114,6 @@ pub enum ClientError {
     #[error("Missing handle")]
     StdIo,
 }
-
-#[derive(Error, Debug)]
-pub enum StepError {
-    #[error("Client error: {0}")]
-    Client(#[from] ClientError),
-    #[error("Serialization / Deserialization error: {0}")]
-    Serde(#[from] serde_json::Error),
-    #[error("Borsh deserialization error: {0}")]
-    BorshDeserialization(#[from] borsh::io::Error),
-    #[error("Program error: {0}")]
-    Program(String),
-}
-
-
-
-type StepResultItem = Result<StepResponse, StepError>;
-
-
-/// A [`Client`] is required to pass [`Step`]s to the simulator by calling [`run`](Self::run_step).
-pub struct Simulator<W, R> {
-    writer: W,
-    responses: R,
-}
-
 
 fn get_path() -> &'static str {
     let path = env!("SIMULATOR_PATH");
@@ -373,6 +131,13 @@ fn get_path() -> &'static str {
     path
 }
 
+
+/// A [`Client`] is required to pass [`Step`]s to the simulator by calling [`run`](Self::run_step).
+pub struct Simulator<W, R> {
+    writer: W,
+    responses: R,
+}
+
 pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = StepResultItem>>, ClientError> {
     let path = get_path();
 
@@ -380,7 +145,7 @@ pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = StepResultIt
     .arg("interpreter")
     .arg("--cleanup")
     .arg("--log-level")
-    .arg("error")
+    .arg("debug")
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
     .spawn()?;
@@ -414,7 +179,7 @@ where
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
-
+        // println!("input: {:?}", input);
         self.responses
             .next()
             .ok_or(StepError::Client(ClientError::Eof))?
@@ -426,11 +191,56 @@ where
                 }
             })
     }
+
+    pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> StepResultItem {
+        let path = path.as_ref().to_string_lossy();
+        let run_command = b"run --step '";
+        self.writer.write_all(run_command)?;
+
+        let input = serde_json::to_vec(&Step {
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
+            max_units: 0,
+            params: vec![Param::Path(path.into())],
+        })?;
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"'\n")?;
+        self.writer.flush()?;
+
+        self.responses.next().ok_or(
+            StepError::Client(ClientError::Eof)
+        )?.and_then(|step| {
+            if let Some(err) = step.error {
+                Err(StepError::Program(err))
+            } else {
+                Ok(step)
+            }
+        })
+    }
+
+    // pub fn read(&mut self, method: String, params: Vec<Param>) -> Result<StepResultItem, ClientError> {
+    //     let read_command = b"read --method '";
+    //     self.writer.write_all(read_command)?;
+
+    //     let input = serde_json::to_vec(&Step {
+    //         endpoint: Endpoint::ReadOnly,
+    //         method,
+    //         max_units: 1000000,
+    //         params,
+    //     })?;
+
+    //     self.writer.write_all(&input)?;
+    //     self.writer.write_all(b"'\n")?;
+    //     self.writer.flush()?;
+
+    //     Ok(self.responses.next().ok_or(ClientError::Eof)?)
+    // }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::param::Param;
     use base64::{engine::general_purpose::STANDARD as b64, Engine};
     use serde_json::json;
 

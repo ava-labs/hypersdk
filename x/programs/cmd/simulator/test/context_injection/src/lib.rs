@@ -17,14 +17,16 @@ pub fn get_actor(context: Context) -> Address {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{ClientBuilder, Endpoint, Key, Step, TestContext};
+    use simulator::{Endpoint, Key, TestContext};
+    use simulator::step::Step;
+
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn can_set_timestamp() {
-        let mut simulator = ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
 
         let owner = String::from("owner");
 
@@ -32,10 +34,7 @@ mod tests {
             .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let timestamp = 100;
         let mut test_context = TestContext::from(program_id);
@@ -58,7 +57,8 @@ mod tests {
 
     #[test]
     fn can_set_height() {
-        let mut simulator = ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
+
 
         let owner = String::from("owner");
 
@@ -66,10 +66,8 @@ mod tests {
             .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
+
 
         let height = 1000;
         let mut test_context = TestContext::from(program_id);
@@ -92,7 +90,8 @@ mod tests {
 
     #[test]
     fn can_set_actor() {
-        let mut simulator = ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
+
 
         let owner = String::from("owner");
 
@@ -100,10 +99,7 @@ mod tests {
             .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
             .unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+            let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let actor_key = Key::Ed25519(String::from("actor"));
 

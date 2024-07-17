@@ -61,7 +61,7 @@ func (r *Response) Print() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal response: %w", err)
 	}
-
+	
 	fmt.Println(string(jsonBytes))
 	return nil
 }

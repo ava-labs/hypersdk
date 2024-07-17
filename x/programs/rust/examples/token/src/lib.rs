@@ -226,8 +226,9 @@ fn _total_supply(context: &Context<StateKeys>) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step, TestContext};
-
+    use simulator::{Endpoint, Key, TestContext};
+    use simulator::step::Step;
+    use simulator::param::Param;
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
