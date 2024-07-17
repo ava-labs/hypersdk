@@ -48,7 +48,7 @@ func (s *InMemoryStore) Remove(_ context.Context, key []byte) error {
 }
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
-// and checks that the assertions passes.
+// and checks that all assertions pass.
 type ActionTest struct {
 	Action chain.Action
 
