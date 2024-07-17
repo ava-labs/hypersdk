@@ -24,7 +24,7 @@ import (
 // sendAndWait may not be used concurrently
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *rpc.JSONRPCClient,
-	scli *rpc.WebSocketClient, tcli *trpc.JSONRPCClient, factory chain.AuthFactory, printStatus bool,
+	scli *rpc.WebSocketClient, tcli *trpc.JSONRPCClient, factory chain.AuthFactory,
 ) (ids.ID, error) {
 	parser, err := tcli.Parser(ctx)
 	if err != nil {
@@ -54,9 +54,7 @@ func sendAndWait(
 		// TODO: don't drop these results (may be needed by a different connection)
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
-	if printStatus {
-		handler.Root().PrintStatus(tx.ID(), res.Success)
-	}
+	handler.Root().PrintStatus(tx.ID(), res.Success)
 	return tx.ID(), nil
 }
 
