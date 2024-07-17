@@ -221,7 +221,12 @@ var _ = ginkgo.BeforeSuite(func() {
 			genesisBytes,
 			nil,
 			[]byte(
-				`{"parallelism":3, "testMode":true, "logLevel":"debug"}`,
+				`{
+				  "config": {
+				    "testMode":true,
+				    "logLevel":"debug"
+				  }
+				}`,
 			),
 			toEngine,
 			nil,

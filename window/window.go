@@ -54,7 +54,7 @@ func Sum(w Window) uint64 {
 		sum      uint64
 		overflow error
 	)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < WindowSize; i++ {
 		// If an overflow occurs while summing the elements of the window, return the maximum
 		// uint64 value immediately.
 		sum, overflow = math.Add64(sum, binary.BigEndian.Uint64(w[consts.Uint64Len*i:]))
