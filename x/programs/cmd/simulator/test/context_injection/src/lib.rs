@@ -17,7 +17,7 @@ pub fn get_actor(context: Context) -> Address {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{ClientBuilder, Endpoint, Key, Step, TestContext};
+    use simulator::{ClientBuilder, Endpoint, Step, TestContext};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -25,12 +25,6 @@ mod tests {
     #[test]
     fn can_set_timestamp() {
         let mut simulator = ClientBuilder::new().try_build().unwrap();
-
-        let owner = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
-            .unwrap();
 
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
@@ -60,12 +54,6 @@ mod tests {
     fn can_set_height() {
         let mut simulator = ClientBuilder::new().try_build().unwrap();
 
-        let owner = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
-            .unwrap();
-
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
@@ -94,25 +82,13 @@ mod tests {
     fn can_set_actor() {
         let mut simulator = ClientBuilder::new().try_build().unwrap();
 
-        let owner = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
-            .unwrap();
-
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
 
-        let actor_key = Key::Ed25519(String::from("actor"));
-
-        simulator
-            .run_step(&Step::create_key(actor_key.clone()))
-            .unwrap();
-
         let mut test_context = TestContext::from(program_id);
-        test_context.actor = Address::new([1; Address::LEN]);
+        test_context.actor = Address::new([1; 33]);
 
         let response = simulator
             .run_step(&Step {

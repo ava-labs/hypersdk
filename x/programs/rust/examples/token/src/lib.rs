@@ -226,7 +226,8 @@ fn _total_supply(context: &Context<StateKeys>) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step, TestContext};
+    use simulator::{Endpoint, Param, Step, TestContext};
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -234,11 +235,6 @@ mod tests {
     fn create_program() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
         simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap();
@@ -249,11 +245,6 @@ mod tests {
     fn init_token() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
@@ -318,21 +309,13 @@ mod tests {
     fn mint() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-        let alice_key = Key::Ed25519(String::from("alice"));
-        let alice_key_param = Param::Key(alice_key.clone());
+        let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
 
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator.run_step(&Step::create_key(alice_key)).unwrap();
 
         let test_context = TestContext::from(program_id);
 
@@ -355,7 +338,7 @@ mod tests {
                 method: "mint".into(),
                 params: vec![
                     test_context.clone().into(),
-                    alice_key_param.clone(),
+                    alice.into(),
                     Param::U64(alice_initial_balance),
                 ],
                 max_units: 1000000,
@@ -367,7 +350,7 @@ mod tests {
                 endpoint: Endpoint::ReadOnly,
                 method: "balance_of".into(),
                 max_units: 0,
-                params: vec![test_context.clone().into(), alice_key_param],
+                params: vec![test_context.clone().into(), alice.into()],
             })
             .unwrap()
             .result
@@ -394,22 +377,14 @@ mod tests {
     fn burn() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-        let alice_key = Key::Ed25519(String::from("alice"));
-        let alice_key_param = Param::Key(alice_key.clone());
+        let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
 
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator.run_step(&Step::create_key(alice_key)).unwrap();
 
         let test_context = TestContext::from(program_id);
 
@@ -432,7 +407,7 @@ mod tests {
                 method: "mint".into(),
                 params: vec![
                     test_context.clone().into(),
-                    alice_key_param.clone(),
+                    alice.into(),
                     Param::U64(alice_initial_balance),
                 ],
                 max_units: 1000000,
@@ -446,7 +421,7 @@ mod tests {
                 max_units: 1000000,
                 params: vec![
                     test_context.clone().into(),
-                    alice_key_param.clone(),
+                    alice.into(),
                     Param::U64(alice_burn_amount),
                 ],
             })
@@ -457,7 +432,7 @@ mod tests {
                 endpoint: Endpoint::ReadOnly,
                 method: "balance_of".into(),
                 max_units: 0,
-                params: vec![test_context.clone().into(), alice_key_param],
+                params: vec![test_context.clone().into(), alice.into()],
             })
             .unwrap()
             .result
