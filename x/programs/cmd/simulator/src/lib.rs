@@ -10,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Child, Command, Stdio}, str::Bytes,
 };
 use step::SimulatorError;
 use thiserror::Error;
@@ -21,7 +21,6 @@ mod id;
 pub mod param;
 pub mod step;
 pub mod context;
-use crate::codec::base64_encode;
 use crate::step::{Step, SimulatorResponseItem};
 pub use id::Id;
 
@@ -98,9 +97,10 @@ where
     W: Write,
     R: Iterator<Item = SimulatorResponseItem>,
 {
+    const RUN_COMMAND: &'static [u8] = b"run --message '";    
+
     pub fn run_step(&mut self, step: &Step) -> SimulatorResponseItem {
-        let run_command = b"run --step '";
-        self.writer.write_all(run_command)?;
+        self.writer.write_all(Self::RUN_COMMAND)?;
 
         let input = serde_json::to_vec(&step).map_err(SimulatorError::Serde)?;
         self.writer.write_all(&input)?;
@@ -122,8 +122,7 @@ where
     pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> SimulatorResponseItem {
         println!("calling create_program");
         let path = path.as_ref().to_string_lossy();
-        let run_command = b"run --step '";
-        self.writer.write_all(run_command)?;
+        self.writer.write_all(Self::RUN_COMMAND)?;
 
         let input = serde_json::to_vec(&Step {
             endpoint: Endpoint::CreateProgram,

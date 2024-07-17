@@ -32,11 +32,18 @@ var _ Cmd = (*runCmd)(nil)
 type runCmd struct {
 	cmd *argparse.Command
 
+	// seems like last step is an id? Not sure who is using the response when lastStep is retuerning?
+	//  i think we can delete this, but keep for now i guess
 	lastStep *int
-	file     *string
-	planStep *string
 
-	step   *Step
+	// different commands a user may run on the simulator
+	// readonly *string
+	// execute  *string
+	// create   *string
+	requestMessage *string
+
+   request *SimulatorRequest	
+
 	log    logging.Logger
 	reader *bufio.Reader
 
@@ -47,12 +54,11 @@ type runCmd struct {
 func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]codec.Address, lastStep *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
-	c.file = c.cmd.String("", "file", &argparse.Options{
-		Required: false,
+	
+	c.requestMessage = c.cmd.String("", "message", &argparse.Options{
+		Required: true,
 	})
-	c.planStep = c.cmd.String("", "step", &argparse.Options{
-		Required: false,
-	})
+
 	c.lastStep = lastStep
 	c.reader = reader
 }
@@ -78,25 +84,16 @@ func (c *runCmd) Happened() bool {
 }
 
 func (c *runCmd) Init() (err error) {
-	var planStep []byte
-	switch {
-	case c.planStep != nil && len(*c.planStep) > 0:
-		{
-			planStep = []byte(*c.planStep)
-		}
-	case len(*c.file) > 0:
-		{
-			// read simulation step from file
-			planStep, err = os.ReadFile(*c.file)
-			if err != nil {
-				return err
-			}
-		}
-	default:
-		return errors.New("please specify either a --plan or a --file flag")
+	var marshaledBytes []byte
+	if c.requestMessage == nil || *c.requestMessage == "" {
+		return errors.New("please specify either a valid run command")
 	}
 
-	c.step, err = unmarshalStep(planStep)
+	marshaledBytes = []byte(*c.requestMessage)
+	
+
+
+	c.request, err = unmarshalRequest(marshaledBytes)
 	if err != nil {
 		return err
 	}
@@ -105,23 +102,23 @@ func (c *runCmd) Init() (err error) {
 }
 
 func (c *runCmd) Verify() error {
-	step := c.step
-	if step == nil {
+	request := c.request
+	if request == nil {
 		return fmt.Errorf("%w: %s", ErrInvalidStep, "no steps found")
 	}
 
-	if step.Params == nil {
+	if request.Params == nil {
 		return fmt.Errorf("%w: %s", ErrInvalidParams, "no params found")
 	}
 
 	// verify endpoint requirements
-	return verifyEndpoint(*c.lastStep, step)
+	return verifyEndpoint(*c.lastStep, request)
 }
 
-func verifyEndpoint(i int, step *Step) error {
-	firstParamType := step.Params[0].Type
+func verifyEndpoint(i int, request *SimulatorRequest) error {
+	firstParamType := request.Params[0].Type
 
-	switch step.Endpoint {
+	switch request.Endpoint {
 	case EndpointReadOnly:
 		// verify the first param is a test context
 		if firstParamType != TestContext {
@@ -129,39 +126,39 @@ func verifyEndpoint(i int, step *Step) error {
 		}
 	case EndpointExecute:
 		// verify the first param is a test context
-		if step.Params[0].Type != TestContext {
+		if request.Params[0].Type != TestContext {
 			return fmt.Errorf("execute %w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
 	case EndpointCreateProgram:
 		// verify the first param is a string for the path
-		if step.Params[0].Type != Path {
+		if request.Params[0].Type != Path {
 			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
 		}
 	default:
-		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, step.Endpoint)
+		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, request.Endpoint)
 	}
 	return nil
 }
 
 func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Response, error) {
 	index := *c.lastStep
-	step := c.step
+	request := c.request
 	c.log.Info("simulation",
 		zap.Int("step", index),
-		zap.String("endpoint", string(step.Endpoint)),
-		zap.String("method", step.Method),
-		zap.Uint64("maxUnits", step.MaxUnits),
-		zap.Any("params", step.Params),
+		zap.String("endpoint", string(request.Endpoint)),
+		zap.String("method", request.Method),
+		zap.Uint64("maxUnits", request.MaxUnits),
+		zap.Any("params", request.Params),
 	)
 
-	params, err := c.createCallParams(step.Params)
+	params, err := c.createCallParams(request.Params)
 	if err != nil {
 		c.log.Error(fmt.Sprintf("simulation call: %s", err))
 		return newResponse(0), err
 	}
 
 	resp := newResponse(index)
-	err = c.runStepFunc(ctx, db, step.Endpoint, step.MaxUnits, step.Method, params, resp)
+	err = c.runStepFunc(ctx, db, request.Endpoint, request.MaxUnits, request.Method, params, resp)
 	if err != nil {
 		resp.setError(err)
 	}

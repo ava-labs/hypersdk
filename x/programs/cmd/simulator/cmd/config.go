@@ -10,9 +10,10 @@ import (
 
 const (
 	ProgramExecute = "execute"
+	RequestMessage	 = "message"
 )
 
-type Step struct {
+type SimulatorRequest struct {
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint"`
 	// The method to call on the endpoint.
@@ -108,8 +109,8 @@ const (
 	TestContext Type = "testContext"
 )
 
-func unmarshalStep(bytes []byte) (*Step, error) {
-	var s Step
+func unmarshalRequest(bytes []byte) (*SimulatorRequest, error) {
+	var s SimulatorRequest
 	if err := json.Unmarshal(bytes, &s); err != nil {
 		return nil, err
 	}
