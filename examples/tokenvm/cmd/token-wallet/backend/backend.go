@@ -480,7 +480,7 @@ func (b *Backend) collectBlocks() {
 		bi := &BlockInfo{}
 		if lastBlock != 0 {
 			since := now.Unix() - lastBlock
-			newWindow, err := window.Roll(tpsWindow, int(since))
+			newWindow, err := window.Roll(tpsWindow, since)
 			if err != nil {
 				b.fatal(err)
 				return
