@@ -1,6 +1,10 @@
-use crate::memory::HostPtr;
+use crate::{memory::HostPtr, types::Address};
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
-use std::{cell::RefCell, collections::HashMap, hash::Hash};
+use std::{
+    cell::RefCell,
+    collections::{hash_map::Entry, HashMap},
+    hash::Hash,
+};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -12,6 +16,22 @@ pub enum Error {
 
     #[error("failed to deserialize bytes")]
     Deserialization,
+}
+
+/// Gets the balance for the specified address
+/// # Panics
+/// Panics if there was an issue deserializing the balance
+#[must_use]
+pub fn get_balance(account: Address) -> u64 {
+    #[link(wasm_import_module = "balance")]
+    extern "C" {
+        #[link_name = "get"]
+        fn get(ptr: *const u8, len: usize) -> HostPtr;
+    }
+    let ptr = borsh::to_vec(&account).expect("failed to serialize args");
+    let bytes = unsafe { get(ptr.as_ptr(), ptr.len()) };
+
+    borsh::from_slice(&bytes).expect("failed to deserialize the balance")
 }
 
 pub struct State<'a, K: Key> {
@@ -84,47 +104,7 @@ impl<'a, K: Key> State<'a, K> {
     where
         V: BorshDeserialize,
     {
-        let mut cache = self.cache.borrow_mut();
-        let val_bytes = match cache.get(&key) {
-            Some(Some(val)) => {
-                if val.is_empty() {
-                    return Ok(None);
-                }
-
-                val
-            }
-            Some(None) => return Ok(None),
-            None => {
-                if let Some(val) = Self::get_host(key)? {
-                    cache.entry(key).or_insert(Some(val)).as_ref().unwrap()
-                } else {
-                    cache.insert(key, None);
-                    return Ok(None);
-                }
-            }
-        };
-
-        from_slice::<V>(val_bytes)
-            .map_err(|_| Error::Deserialization)
-            .map(Some)
-    }
-
-    fn get_host(key: K) -> Result<Option<Vec<u8>>, Error> {
-        #[link(wasm_import_module = "state")]
-        extern "C" {
-            #[link_name = "get"]
-            fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
-        }
-
-        let args_bytes = borsh::to_vec(&key).map_err(|_| Error::Serialization)?;
-
-        let ptr = unsafe { get_bytes(args_bytes.as_ptr(), args_bytes.len()) };
-
-        if ptr.is_null() {
-            Ok(None)
-        } else {
-            Ok(Some(ptr.into()))
-        }
+        self.get_mut_with(key, |x| from_slice(x))
     }
 
     /// Delete a value from the hosts's storage.
@@ -133,30 +113,32 @@ impl<'a, K: Key> State<'a, K> {
     /// or if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
     pub fn delete<V: BorshDeserialize>(self, key: K) -> Result<Option<V>, Error> {
-        let mut cache = self.cache.borrow_mut();
-        let val_bytes = match cache.get(&key) {
-            Some(Some(val)) => {
-                if val.is_empty() {
-                    cache.entry(key).or_insert(None);
-                    return Ok(None);
-                }
+        self.get_mut_with(key, |val| from_slice(&std::mem::take(val)))
+    }
 
-                val
-            }
-            Some(None) => return Ok(None),
-            None => {
-                &if let Some(val) = Self::get_host(key)? {
-                    cache.entry(key).or_insert(Some(Vec::new()));
-                    val
-                } else {
-                    return Ok(None);
-                }
+    /// Only used internally
+    /// The closure is only called if the key already exists in the cache
+    /// The closure may mutate the value and return anything it likes for deserializaiton
+    fn get_mut_with<V, F>(self, key: K, f: F) -> Result<Option<V>, Error>
+    where
+        V: BorshDeserialize,
+        F: FnOnce(&mut Vec<u8>) -> borsh::io::Result<V>,
+    {
+        let mut cache = self.cache.borrow_mut();
+
+        let cache_entry = match cache.entry(key) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let key = borsh::to_vec(&key).map_err(|_| Error::Serialization)?;
+                entry.insert(get_bytes(&key))
             }
         };
 
-        from_slice::<V>(val_bytes)
-            .map_err(|_| Error::Deserialization)
-            .map(Some)
+        match cache_entry {
+            None => Ok(None),
+            Some(val) if val.is_empty() => Ok(None),
+            Some(val) => f(val).map_err(|_| Error::Deserialization).map(Some),
+        }
     }
 
     /// Apply all pending operations to storage and mark the cache as flushed
@@ -184,5 +166,21 @@ impl<'a, K: Key> State<'a, K> {
             let serialized_args = borsh::to_vec(&args).expect("failed to serialize");
             unsafe { put(serialized_args.as_ptr(), serialized_args.len()) };
         }
+    }
+}
+
+fn get_bytes(key: &[u8]) -> Option<Vec<u8>> {
+    #[link(wasm_import_module = "state")]
+    extern "C" {
+        #[link_name = "get"]
+        fn get_bytes(ptr: *const u8, len: usize) -> HostPtr;
+    }
+
+    let ptr = unsafe { get_bytes(key.as_ptr(), key.len()) };
+
+    if ptr.is_null() {
+        None
+    } else {
+        Some(ptr.into())
     }
 }

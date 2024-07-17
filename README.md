@@ -576,7 +576,6 @@ type Controller interface {
 	// Anything that the VM wishes to store outside of state or blocks must be
 	// recorded here
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
-	Rejected(ctx context.Context, blk *chain.StatelessBlock) error
 
 	// Shutdown should be used by the [Controller] to terminate any async
 	// processes it may be running in the background. It is invoked when
@@ -785,8 +784,8 @@ You can view what this looks like in the `indexvm` by clicking
 case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
 
-You can view what the import `Action` associated with the above examples looks like
-[here](./examples/tokenvm/actions/import_asset.go)
+You can view what the CreateAsset `Action` associated with the above examples looks like
+[here](./examples/tokenvm/actions/create_asset.go)
 
 _As mentioned above, it is up to the `hypervm` to implement a message format
 that it can understand (so that it can parse inbound AWM messages). In the
