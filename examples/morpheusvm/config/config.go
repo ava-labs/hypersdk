@@ -10,7 +10,6 @@ import (
 )
 
 type Config struct {
-	// Misc
 	StoreTransactions bool          `json:"storeTransactions"`
 	TestMode          bool          `json:"testMode"` // makes gossip/building manual
 	LogLevel          logging.Level `json:"logLevel"`
