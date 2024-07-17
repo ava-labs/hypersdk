@@ -1,8 +1,4 @@
-use wasmlanche_sdk::{
-    public,
-    types::{Address, Gas},
-    Context, Program,
-};
+use wasmlanche_sdk::{public, Address, Context, Gas, Program};
 
 #[public]
 pub fn simple_call(_: Context) -> i64 {
