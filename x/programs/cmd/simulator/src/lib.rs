@@ -12,7 +12,7 @@ use std::{
     path::Path,
     process::{Child, Command, Stdio}, str::Bytes,
 };
-use step::SimulatorError;
+use step::{SimulatorError, SimulatorResponse};
 use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError};
 
@@ -21,7 +21,7 @@ mod id;
 pub mod param;
 pub mod step;
 pub mod context;
-use crate::step::{Step, SimulatorResponseItem};
+use crate::step::{SimulatorRequest, SimulatorResponseItem};
 pub use id::Id;
 
 /// The endpoint to call for a [`Step`].
@@ -99,70 +99,91 @@ where
 {
     const RUN_COMMAND: &'static [u8] = b"run --message '";    
 
-    pub fn run_step(&mut self, step: &Step) -> SimulatorResponseItem {
-        self.writer.write_all(Self::RUN_COMMAND)?;
+    // pub fn run_step(&mut self, step: &Step) -> SimulatorResponseItem {
+    //     self.writer.write_all(Self::RUN_COMMAND)?;
 
-        let input = serde_json::to_vec(&step).map_err(SimulatorError::Serde)?;
-        self.writer.write_all(&input)?;
-        self.writer.write_all(b"'\n")?;
-        self.writer.flush()?;
-        // println!("input: {:?}", input);
-        self.responses
-            .next()
-            .ok_or(SimulatorError::Client(ClientError::Eof))?
-            .and_then(|step| {
-                if let Some(err) = step.error {
-                    Err(SimulatorError::Program(err))
-                } else {
-                    Ok(step)
-                }
-            })
-    }
-
-    pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> SimulatorResponseItem {
-        println!("calling create_program");
-        let path = path.as_ref().to_string_lossy();
-        self.writer.write_all(Self::RUN_COMMAND)?;
-
-        let input = serde_json::to_vec(&Step {
-            endpoint: Endpoint::CreateProgram,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::Path(path.into())],
-        })?;
-        self.writer.write_all(&input)?;
-        self.writer.write_all(b"'\n")?;
-        self.writer.flush()?;
-
-        self.responses
-            .next()
-            .ok_or(SimulatorError::Client(ClientError::Eof))?
-            .and_then(|step| {
-                if let Some(err) = step.error {
-                    Err(SimulatorError::Program(err))
-                } else {
-                    Ok(step)
-                }
-            })
-    }
-
-    // pub fn read(&mut self, method: String, params: Vec<Param>) -> Result<SimulatorResponseItem, ClientError> {
-    //     let read_command = b"read --method '";
-    //     self.writer.write_all(read_command)?;
-
-    //     let input = serde_json::to_vec(&Step {
-    //         endpoint: Endpoint::ReadOnly,
-    //         method,
-    //         max_units: 1000000,
-    //         params,
-    //     })?;
-
+    //     let input = serde_json::to_vec(&step).map_err(SimulatorError::Serde)?;
     //     self.writer.write_all(&input)?;
     //     self.writer.write_all(b"'\n")?;
     //     self.writer.flush()?;
-
-    //     Ok(self.responses.next().ok_or(ClientError::Eof)?)
+    //     // println!("input: {:?}", input);
+    //     self.responses
+    //         .next()
+    //         .ok_or(SimulatorError::Client(ClientError::Eof))?
+    //         .and_then(|step| {
+    //             if let Some(err) = step.error {
+    //                 Err(SimulatorError::Program(err))
+    //             } else {
+    //                 Ok(step)
+    //             }
+    //         })
     // }
+
+    pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> SimulatorResponseItem {
+        let path = path.as_ref().to_string_lossy();
+        self.writer.write_all(Self::RUN_COMMAND)?;
+
+        let input = serde_json::to_vec(
+            &SimulatorRequest::new_create_program(path.into()),
+        )?;
+
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"'\n")?;
+        self.writer.flush()?;
+
+        self.responses
+            .next()
+            .ok_or(SimulatorError::Client(ClientError::Eof))?
+            .and_then(|step| {
+                if let Some(err) = step.error {
+                    Err(SimulatorError::Program(err))
+                } else {
+                    Ok(step)
+                }
+            })
+    }
+
+    pub fn read(&mut self, method: String, params: Vec<Param>) -> SimulatorResponseItem {
+        self.writer.write_all(Self::RUN_COMMAND)?;
+
+        let input = serde_json::to_vec(&SimulatorRequest::new_read(method, params))?;
+
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"'\n")?;
+        self.writer.flush()?;
+
+        self.responses
+            .next()
+            .ok_or(SimulatorError::Client(ClientError::Eof))?
+            .and_then(|step| {
+                if let Some(err) = step.error {
+                    Err(SimulatorError::Program(err))
+                } else {
+                    Ok(step)
+                }
+            })
+    }
+
+    pub fn execute(&mut self, method: String, params: Vec<Param>, max_units: u64) -> SimulatorResponseItem {
+        self.writer.write_all(Self::RUN_COMMAND)?;
+
+        let input = serde_json::to_vec(&SimulatorRequest::new_execute(method, params, max_units))?;
+
+        self.writer.write_all(&input)?;
+        self.writer.write_all(b"'\n")?;
+        self.writer.flush()?;
+
+        self.responses
+            .next()
+            .ok_or(SimulatorError::Client(ClientError::Eof))?
+            .and_then(|step| {
+                if let Some(err) = step.error {
+                    Err(SimulatorError::Program(err))
+                } else {
+                    Ok(step)
+                }
+            })
+    }
 }
 
 #[cfg(test)]

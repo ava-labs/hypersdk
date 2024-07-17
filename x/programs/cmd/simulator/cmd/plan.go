@@ -158,7 +158,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	}
 
 	resp := newResponse(index)
-	err = c.runStepFunc(ctx, db, request.Endpoint, request.MaxUnits, request.Method, params, resp)
+	err = c.runRequestFunc(ctx, db, request.Endpoint, request.MaxUnits, request.Method, params, resp)
 	if err != nil {
 		resp.setError(err)
 	}
@@ -169,7 +169,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	return resp, nil
 }
 
-func (c *runCmd) runStepFunc(
+func (c *runCmd) runRequestFunc(
 	ctx context.Context,
 	db *state.SimpleMutable,
 	endpoint Endpoint,

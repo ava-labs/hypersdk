@@ -4,23 +4,54 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::Path;
 use thiserror::Error;
 use wasmlanche_sdk::ExternalCallError;
-
+use std::borrow::Cow;
 use crate::codec::{base64_decode, id_from_usize};
 use crate::{param::Param, ClientError, Endpoint, Id};
 
-/// A [`Step`] is a call to the simulator
+/// A [`SimulatorRequest`] is a call to the simulator
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Step {
+pub struct SimulatorRequest {
     /// The API endpoint to call.
     pub endpoint: Endpoint,
     /// The method to call on the endpoint.
     pub method: String,
-    /// The maximum number of units the step can consume.
+    /// The maximum number of units the Request can consume.
     pub max_units: u64,
     /// The parameters to pass to the method.
     pub params: Vec<Param>,
 }
+
+impl SimulatorRequest {
+    pub fn new_read(method: String, params: Vec<Param>) -> Self {
+        Self {
+            endpoint: Endpoint::ReadOnly,
+            method: method.to_string(),
+            max_units: 0,
+            params,
+        }
+    }
+
+    pub fn new_execute(method: String, params: Vec<Param>, max_units: u64) -> Self {
+        Self {
+            endpoint: Endpoint::Execute,
+            method,
+            max_units,
+            params,
+        }
+    }
+
+    pub fn new_create_program(path: String) -> Self {
+        Self {
+            endpoint: Endpoint::CreateProgram,
+            // TODO: this does not need to be passed in
+            method: "create_program".to_string(),
+            max_units: 0,
+            params: vec![Param::Path(path)],
+        }
+    }
+}
+
 
 #[derive(Error, Debug)]
 pub enum SimulatorError {
@@ -34,21 +65,6 @@ pub enum SimulatorError {
     Program(String),
 }
 pub(crate) type SimulatorResponseItem = Result<SimulatorResponse, SimulatorError>;
-
-impl Step {
-    /// Create a [`Step`] that creates a program.
-    #[must_use]
-    pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
-        let path = path.as_ref().to_string_lossy();
-
-        Self {
-            endpoint: Endpoint::Execute,
-            method: "program_create".into(),
-            max_units: 0,
-            params: vec![Param::Path(path.into())],
-        }
-    }
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SimulatorResult {

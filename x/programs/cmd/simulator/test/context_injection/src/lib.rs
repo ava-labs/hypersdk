@@ -18,7 +18,7 @@ pub fn get_actor(context: Context) -> Address {
 #[cfg(test)]
 mod tests {
     use simulator::{Endpoint};
-    use simulator::step::Step;
+    use simulator::step::SimulatorRequest;
     use simulator::context::TestContext;
     use wasmlanche_sdk::Address;
 
@@ -33,19 +33,11 @@ mod tests {
         let timestamp = 100;
         let mut test_context = TestContext::from(program_id);
         test_context.timestamp = timestamp;
-
-        let response = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "get_timestamp".into(),
-                max_units: 1000000,
-                params: vec![test_context.into()],
-            })
+        let response = simulator.execute("get_timestamp".into(), vec![test_context.into()], 1000000)
             .unwrap()
             .result
             .response::<u64>()
             .unwrap();
-
         assert_eq!(response, timestamp);
     }
 
@@ -59,17 +51,8 @@ mod tests {
         let mut test_context = TestContext::from(program_id);
         test_context.height = height;
 
-        let response = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "get_height".into(),
-                max_units: 1000000,
-                params: vec![test_context.into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
-            .unwrap();
+        // TODO: this shoukld just return a resposne without having to do .result.respnse
+        let response = simulator.execute("get_height".into(), vec![test_context.into()], 1000000).unwrap().result.response::<u64>().unwrap();
 
         assert_eq!(response, height);
     }
@@ -83,17 +66,7 @@ mod tests {
         let mut test_context = TestContext::from(program_id);
         test_context.actor = Address::new([1; 33]);
 
-        let response = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "get_actor".into(),
-                max_units: 1000000,
-                params: vec![test_context.into()],
-            })
-            .unwrap()
-            .result
-            .response::<Address>()
-            .unwrap();
+        let response = simulator.execute("get_actor".into(), vec![test_context.into()], 1000000).unwrap().result.response::<Address>().unwrap();
 
         assert_ne!(response, Address::default());
     }
