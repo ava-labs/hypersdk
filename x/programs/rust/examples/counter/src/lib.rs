@@ -1,6 +1,6 @@
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, types::Address};
+use wasmlanche_sdk::{public, state_keys, Address};
 
 #[state_keys]
 pub enum StateKeys {
@@ -16,8 +16,6 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     let counter = amount + get_value_internal(&context, to);
 
     context
-        .program()
-        .state()
         .store_by_key(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
 
@@ -33,8 +31,6 @@ pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
 #[cfg(not(feature = "bindings"))]
 fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
     context
-        .program()
-        .state()
         .get(StateKeys::Counter(of))
         .expect("state corrupt")
         .unwrap_or_default()
@@ -43,7 +39,7 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
 #[cfg(test)]
 mod tests {
     use simulator::{Endpoint, Step, TestContext};
-    use wasmlanche_sdk::types::Address;
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
