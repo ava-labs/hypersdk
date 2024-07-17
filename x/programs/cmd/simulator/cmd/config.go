@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	ProgramCreate  = "program_create"
 	ProgramExecute = "execute"
 )
 
@@ -33,6 +32,8 @@ const (
 	/// function call. A program's function can internally optionally call other
 	/// functions including program to program.
 	EndpointExecute Endpoint = "execute"
+	/// Create a new program on-chain
+	EndpointCreateProgram Endpoint = "createprogram"
 )
 
 func newResponse(id int) *Response {

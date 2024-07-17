@@ -35,6 +35,8 @@ pub enum Endpoint {
     /// function call. A program's function can internally optionally call other
     /// functions including program to program.
     Execute,
+    /// Create a new program on-chain
+    CreateProgram,
 }
 
 #[derive(Error, Debug)]
@@ -118,12 +120,13 @@ where
     }
 
     pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> SimulatorResponseItem {
+        println!("calling create_program");
         let path = path.as_ref().to_string_lossy();
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
         let input = serde_json::to_vec(&Step {
-            endpoint: Endpoint::Execute,
+            endpoint: Endpoint::CreateProgram,
             method: "program_create".into(),
             max_units: 0,
             params: vec![Param::Path(path.into())],

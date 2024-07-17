@@ -107,6 +107,6 @@ steps:
         value: 100
     require:
       result:
-        operator: '=='
+        operator: "=="
         value: 200
 ```

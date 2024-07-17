@@ -125,19 +125,17 @@ func verifyEndpoint(i int, step *Step) error {
 	case EndpointReadOnly:
 		// verify the first param is a test context
 		if firstParamType != TestContext {
-			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
+			return fmt.Errorf("read only %w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
 	case EndpointExecute:
-		if step.Method == ProgramCreate {
-			// verify the first param is a string for the path
-			if step.Params[0].Type != Path {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
-			}
-		} else {
-			// verify the first param is a test context
-			if step.Params[0].Type != TestContext {
-				return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
-			}
+		// verify the first param is a test context
+		if step.Params[0].Type != TestContext {
+			return fmt.Errorf("execute %w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
+		}
+	case EndpointCreateProgram:
+		// verify the first param is a string for the path
+		if step.Params[0].Type != Path {
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
 		}
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, step.Endpoint)
@@ -186,19 +184,6 @@ func (c *runCmd) runStepFunc(
 	defer resp.setTimestamp(time.Now().Unix())
 	switch endpoint {
 	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
-		if method == ProgramCreate {
-			// get program path from params
-			programPath := string(params[0].Value)
-			programAddress, err := programCreateFunc(ctx, db, programPath)
-			if err != nil {
-				return err
-			}
-			c.programIDStrMap[*c.lastStep] = programAddress
-			resp.setTimestamp(time.Now().Unix())
-
-			return nil
-		}
-
 		var simulatorTestContext SimulatorTestContext
 		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
@@ -258,6 +243,17 @@ func (c *runCmd) runStepFunc(
 		}
 
 		resp.setResponse(response)
+
+		return nil
+	case EndpointCreateProgram:
+		// get program path from params
+		programPath := string(params[0].Value)
+		programAddress, err := programCreateFunc(ctx, db, programPath)
+		if err != nil {
+			return err
+		}
+		c.programIDStrMap[*c.lastStep] = programAddress
+		resp.setTimestamp(time.Now().Unix())
 
 		return nil
 	default:

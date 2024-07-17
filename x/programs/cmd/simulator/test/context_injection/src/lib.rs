@@ -28,10 +28,7 @@ mod tests {
     fn can_set_timestamp() {
         let mut simulator = simulator::build().unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let timestamp = 100;
         let mut test_context = TestContext::from(program_id);
@@ -56,10 +53,7 @@ mod tests {
     fn can_set_height() {
         let mut simulator = simulator::build().unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let height = 1000;
         let mut test_context = TestContext::from(program_id);
@@ -84,11 +78,8 @@ mod tests {
     fn can_set_actor() {
         let mut simulator = simulator::build().unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
+        
         let mut test_context = TestContext::from(program_id);
         test_context.actor = Address::new([1; 33]);
 
