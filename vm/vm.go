@@ -434,34 +434,7 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 
-	has, err = vm.HasLastProcessed()
-	if err != nil {
-		snowCtx.Log.Error("could not determine if have last processed")
-		return err
-	}
-	if has {
-		lastProcessedHeight, err := vm.GetLastProcessedHeight()
-		if err != nil {
-			snowCtx.Log.Error("could not get last processed height", zap.Error(err))
-			return err
-		}
-
-		for height := lastProcessedHeight; height <= vm.lastAccepted.Height(); height++ {
-			var blk *chain.StatelessBlock
-			if height == vm.lastAccepted.Height() {
-				blk = vm.lastAccepted
-			} else {
-				blk, err = vm.GetDiskBlock(ctx, height)
-				if err != nil {
-					vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", height))
-					return err
-				}
-			}
-			vm.processAcceptedBlock(blk)
-		}
-	}
-
-	return nil
+	return vm.restoreLastAcceptedBlock(ctx)
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
@@ -1144,6 +1117,40 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		zap.Uint64("start", start),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
+	return nil
+}
+
+func (vm *VM) restoreLastAcceptedBlock(ctx context.Context) error {
+	has, err := vm.HasLastProcessed()
+	if err != nil {
+		vm.snowCtx.Log.Error("could not determine if have last processed")
+		return err
+	}
+	if !has {
+		return nil
+	}
+
+	lastProcessedHeight, err := vm.GetLastProcessedHeight()
+	if err != nil {
+		vm.snowCtx.Log.Error("could not get last processed height", zap.Error(err))
+		return err
+	}
+
+	for height := lastProcessedHeight; height <= vm.lastAccepted.Height(); height++ {
+		var blk *chain.StatelessBlock
+		if height == vm.lastAccepted.Height() {
+			blk = vm.lastAccepted
+		} else {
+			blk, err = vm.GetDiskBlock(ctx, height)
+			if err != nil {
+				vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", height))
+				return err
+			}
+		}
+
+		vm.acceptedQueue <- blk
+	}
+
 	return nil
 }
 
