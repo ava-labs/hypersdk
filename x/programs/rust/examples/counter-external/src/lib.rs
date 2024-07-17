@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{public, types::Address, Context, ExternalCallContext, Program};
+use wasmlanche_sdk::{public, Address, Context, ExternalCallContext, Program};
 
 #[public]
 pub fn inc(_: Context, external: Program, address: Address) {

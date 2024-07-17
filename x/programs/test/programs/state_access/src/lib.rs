@@ -10,8 +10,6 @@ pub enum StateKeys {
 #[public]
 pub fn put(context: Context<StateKeys>, value: i64) {
     context
-        .program()
-        .state()
         .store_by_key(StateKeys::State, &value)
         .expect("failed to store state");
 }
@@ -19,8 +17,6 @@ pub fn put(context: Context<StateKeys>, value: i64) {
 #[public]
 pub fn get(context: Context<StateKeys>) -> Option<i64> {
     context
-        .program()
-        .state()
         .get::<i64>(StateKeys::State)
         .expect("failed to get state")
 }
@@ -28,8 +24,6 @@ pub fn get(context: Context<StateKeys>) -> Option<i64> {
 #[public]
 pub fn delete(context: Context<StateKeys>) -> Option<i64> {
     context
-        .program()
-        .state()
         .delete(StateKeys::State)
         .expect("failed to get state")
 }

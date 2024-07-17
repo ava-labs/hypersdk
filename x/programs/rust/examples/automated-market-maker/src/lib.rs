@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{public, state_keys, Context, Program};
+use wasmlanche_sdk::{public, state_keys, Context};
 
 #[state_keys]
 pub enum StateKeys {
@@ -12,13 +12,12 @@ pub enum StateKeys {
 
 #[public]
 pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) -> u64 {
-    let program = context.program();
-    let total_supply = total_supply(program);
+    let total_supply = total_supply(&context);
     // tokens    | shares
     // -------------------------
     // amount_x  | minted
     // reserve_x | total_supply
-    let (reserve_x, reserve_y) = reserves(program);
+    let (reserve_x, reserve_y) = reserves(&context);
     let minted = if total_supply == 0 {
         let minted = amount_x;
         assert_eq!(minted, amount_y);
@@ -29,8 +28,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
         minted
     };
 
-    program
-        .state()
+    context
         .store([
             (StateKeys::ReserveX, &(reserve_x + amount_x)),
             (StateKeys::ReserveY, &(reserve_y + amount_y)),
@@ -43,16 +41,14 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
 
 #[public]
 pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) {
-    let program = context.program();
-    let total_supply = total_supply(program);
-    let (reserve_x, reserve_y) = reserves(program);
+    let total_supply = total_supply(&context);
+    let (reserve_x, reserve_y) = reserves(&context);
     let (amount_x, amount_y) = (
         shares * reserve_x / total_supply,
         shares * reserve_y / total_supply,
     );
 
-    program
-        .state()
+    context
         .store([
             (StateKeys::ReserveX, &(reserve_x - amount_x)),
             (StateKeys::ReserveY, &(reserve_y - amount_y)),
@@ -65,8 +61,7 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
 
 #[public]
 pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
-    let program = context.program();
-    let total_supply = total_supply(program);
+    let total_supply = total_supply(&context);
     assert!(total_supply > 0, "no liquidity");
     // x * y = constant
     // x' = x + dx
@@ -76,7 +71,7 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
     // dy = ((x * y) / (x + dx)) - y
     // skip a few steps
     // -dy = y * dx / (x + dx)
-    let (reserve_x, reserve_y) = reserves(context.program());
+    let (reserve_x, reserve_y) = reserves(&context);
     let (reserve_x, reserve_y, out) = if x_to_y {
         let dy = (reserve_y * amount_in) / (reserve_x + amount_in);
         (reserve_x + amount_in, reserve_y - dy, dy)
@@ -85,8 +80,7 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
         (reserve_x - dx, reserve_y + amount_in, dx)
     };
 
-    program
-        .state()
+    context
         .store([
             (StateKeys::ReserveX, &reserve_x),
             (StateKeys::ReserveY, &reserve_y),
@@ -96,23 +90,20 @@ pub fn swap(context: Context<StateKeys>, amount_in: u64, x_to_y: bool) -> u64 {
     out
 }
 
-fn total_supply(program: &Program<StateKeys>) -> u64 {
-    program
-        .state()
+fn total_supply(context: &Context<StateKeys>) -> u64 {
+    context
         .get(StateKeys::TotalySupply)
         .unwrap()
         .unwrap_or_default()
 }
 
-fn reserves(program: &Program<StateKeys>) -> (u64, u64) {
+fn reserves(context: &Context<StateKeys>) -> (u64, u64) {
     (
-        program
-            .state()
+        context
             .get(StateKeys::ReserveX)
             .unwrap()
             .unwrap_or_default(),
-        program
-            .state()
+        context
             .get(StateKeys::ReserveY)
             .unwrap()
             .unwrap_or_default(),
