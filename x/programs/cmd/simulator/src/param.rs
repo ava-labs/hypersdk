@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use serde::Serialize;
 use wasmlanche_sdk::Address;
 
-use crate::{Id, SimulatorTestContext, TestContext};
+use crate::{Id, context::SimulatorTestContext, context::TestContext};
 
 // TODO:
 // add `Cow` types for borrowing

@@ -17,8 +17,9 @@ pub fn get_actor(context: Context) -> Address {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, TestContext};
+    use simulator::{Endpoint};
     use simulator::step::Step;
+    use simulator::context::TestContext;
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");

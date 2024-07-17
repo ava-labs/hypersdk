@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{Id, TestContext};
+use crate::{Id, context::TestContext};
 
 pub(crate) fn base64_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
 where

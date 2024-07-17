@@ -235,8 +235,7 @@ mod tests {
 
     #[test]
     fn create_program() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
-
+        let mut simulator = simulator::build().unwrap();
         simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap();
@@ -245,7 +244,7 @@ mod tests {
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = simulator::build().unwrap();
 
         let owner_key = String::from("owner");
 

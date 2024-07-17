@@ -23,7 +23,7 @@ pub struct Step {
 }
 
 #[derive(Error, Debug)]
-pub enum StepError {
+pub enum SimulatorError {
     #[error("Client error: {0}")]
     Client(#[from] ClientError),
     #[error("Serialization / Deserialization error: {0}")]
@@ -33,7 +33,7 @@ pub enum StepError {
     #[error("Program error: {0}")]
     Program(String),
 }
-pub(crate) type StepResultItem = Result<StepResponse, StepError>;
+pub(crate) type SimulatorResponseItem = Result<SimulatorResponse, SimulatorError>;
 
 impl Step {
     /// Create a [`Step`] that creates a program.
@@ -51,7 +51,7 @@ impl Step {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct StepResult {
+pub struct SimulatorResult {
     /// The ID created from the program execution.
     pub action_id: Option<String>,
     /// The timestamp of the function call response.
@@ -62,29 +62,29 @@ pub struct StepResult {
 }
 
 #[derive(Error, Debug)]
-pub enum StepResponseError {
+pub enum SimulatorResponseError {
     #[error(transparent)]
     Serialization(#[from] borsh::io::Error),
     #[error(transparent)]
     ExternalCall(#[from] ExternalCallError),
 }
 
-impl StepResult {
-    pub fn response<T>(&self) -> Result<T, StepResponseError>
+impl SimulatorResult {
+    pub fn response<T>(&self) -> Result<T, SimulatorResponseError>
     where
         T: BorshDeserialize,
     {
         let res: Result<T, ExternalCallError> = borsh::from_slice(&self.response)?;
-        res.map_err(StepResponseError::ExternalCall)
+        res.map_err(SimulatorResponseError::ExternalCall)
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub struct StepResponse {
+pub struct SimulatorResponse {
     /// The numeric id of the step.
     #[serde(deserialize_with = "id_from_usize")]
     pub id: Id, // TODO override of the Id Deserialize before removing the prefix
     /// An optional error message.
     pub error: Option<String>,
-    pub result: StepResult,
+    pub result: SimulatorResult,
 }

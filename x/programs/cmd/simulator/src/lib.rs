@@ -12,7 +12,7 @@ use std::{
     path::Path,
     process::{Child, Command, Stdio},
 };
-use step::StepError;
+use step::SimulatorError;
 use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError};
 
@@ -20,8 +20,9 @@ mod codec;
 mod id;
 pub mod param;
 pub mod step;
+pub mod context;
 use crate::codec::base64_encode;
-use crate::step::{Step, StepResultItem};
+use crate::step::{Step, SimulatorResponseItem};
 pub use id::Id;
 
 /// The endpoint to call for a [`Step`].
@@ -34,62 +35,6 @@ pub enum Endpoint {
     /// function call. A program's function can internally optionally call other
     /// functions including program to program.
     Execute,
-}
-
-#[derive(Clone, Debug, PartialEq, Default)]
-#[non_exhaustive]
-pub struct TestContext {
-    program_id: Id,
-    pub actor: Address,
-    pub height: u64,
-    pub timestamp: u64,
-}
-
-impl Serialize for TestContext {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct BorrowedContext<'a> {
-            program_id: Id,
-            actor: &'a [u8],
-            height: u64,
-            timestamp: u64,
-        }
-
-        let Self {
-            program_id,
-            actor,
-            height,
-            timestamp,
-        } = self;
-
-        BorrowedContext {
-            program_id: *program_id,
-            actor: actor.as_ref(),
-            height: *height,
-            timestamp: *timestamp,
-        }
-        .serialize(serializer)
-    }
-}
-
-impl From<Id> for TestContext {
-    fn from(program_id: Id) -> Self {
-        Self {
-            program_id,
-            ..Default::default()
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(tag = "type", rename = "testContext")]
-pub(crate) struct SimulatorTestContext {
-    #[serde(serialize_with = "base64_encode")]
-    value: TestContext,
 }
 
 #[derive(Error, Debug)]
@@ -124,7 +69,7 @@ pub struct Simulator<W, R> {
     responses: R,
 }
 
-pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = StepResultItem>>, ClientError> {
+pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = SimulatorResponseItem>>, ClientError> {
     let path = get_path();
 
     let Child { stdin, stdout, .. } = Command::new(path)
@@ -141,7 +86,7 @@ pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = StepResultIt
 
     let responses = BufReader::new(reader)
         .lines()
-        .map(|line| serde_json::from_str(&line?).map_err(StepError::Serde));
+        .map(|line| serde_json::from_str(&line?).map_err(SimulatorError::Serde));
 
     Ok(Simulator { writer, responses })
 }
@@ -149,30 +94,30 @@ pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = StepResultIt
 impl<W, R> Simulator<W, R>
 where
     W: Write,
-    R: Iterator<Item = StepResultItem>,
+    R: Iterator<Item = SimulatorResponseItem>,
 {
-    pub fn run_step(&mut self, step: &Step) -> StepResultItem {
+    pub fn run_step(&mut self, step: &Step) -> SimulatorResponseItem {
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
 
-        let input = serde_json::to_vec(&step).map_err(StepError::Serde)?;
+        let input = serde_json::to_vec(&step).map_err(SimulatorError::Serde)?;
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
         // println!("input: {:?}", input);
         self.responses
             .next()
-            .ok_or(StepError::Client(ClientError::Eof))?
+            .ok_or(SimulatorError::Client(ClientError::Eof))?
             .and_then(|step| {
                 if let Some(err) = step.error {
-                    Err(StepError::Program(err))
+                    Err(SimulatorError::Program(err))
                 } else {
                     Ok(step)
                 }
             })
     }
 
-    pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> StepResultItem {
+    pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> SimulatorResponseItem {
         let path = path.as_ref().to_string_lossy();
         let run_command = b"run --step '";
         self.writer.write_all(run_command)?;
@@ -189,17 +134,17 @@ where
 
         self.responses
             .next()
-            .ok_or(StepError::Client(ClientError::Eof))?
+            .ok_or(SimulatorError::Client(ClientError::Eof))?
             .and_then(|step| {
                 if let Some(err) = step.error {
-                    Err(StepError::Program(err))
+                    Err(SimulatorError::Program(err))
                 } else {
                     Ok(step)
                 }
             })
     }
 
-    // pub fn read(&mut self, method: String, params: Vec<Param>) -> Result<StepResultItem, ClientError> {
+    // pub fn read(&mut self, method: String, params: Vec<Param>) -> Result<SimulatorResponseItem, ClientError> {
     //     let read_command = b"read --method '";
     //     self.writer.write_all(read_command)?;
 
