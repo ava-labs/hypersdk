@@ -1,8 +1,8 @@
-use serde::Serialize;
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
+use serde::Serialize;
 use wasmlanche_sdk::Address;
 
-use crate::{Id, Key, SimulatorTestContext, TestContext};
+use crate::{Id, SimulatorTestContext, TestContext};
 
 // TODO:
 // add `Cow` types for borrowing
@@ -12,7 +12,6 @@ pub enum Param {
     Bool(bool),
     String(String),
     Id(Id),
-    Key(Key),
     #[allow(private_interfaces)]
     TestContext(SimulatorTestContext),
     Bytes(Vec<u8>),
@@ -49,7 +48,7 @@ impl From<&Param> for StringParam {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
             }
-            Param::Key(_) | Param::TestContext(_) => unreachable!(),
+            Param::TestContext(_) => unreachable!(),
         }
     }
 }
@@ -60,7 +59,6 @@ impl Serialize for Param {
         S: serde::Serializer,
     {
         match self {
-            Param::Key(key) => Serialize::serialize(key, serializer),
             Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
             _ => StringParam::from(self).serialize(serializer),
         }
@@ -88,12 +86,6 @@ impl From<String> for Param {
 impl From<Id> for Param {
     fn from(val: Id) -> Self {
         Param::Id(val)
-    }
-}
-
-impl From<Key> for Param {
-    fn from(val: Key) -> Self {
-        Param::Key(val)
     }
 }
 

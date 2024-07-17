@@ -4,14 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{Id, TestContext};
 
-pub(crate) fn base64_encode<S>(text: &str, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&b64.encode(text))
-}
-
-pub(crate) fn base64_struct_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn base64_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

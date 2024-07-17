@@ -226,9 +226,10 @@ fn _total_supply(context: &Context<StateKeys>) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, TestContext};
+    use simulator::param::Param;
     use simulator::step::Step;
-    use simulator::param::Param;    use wasmlanche_sdk::Address;
+    use simulator::{Endpoint, TestContext};
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 

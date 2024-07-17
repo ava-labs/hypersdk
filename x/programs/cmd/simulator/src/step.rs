@@ -1,13 +1,12 @@
-
-use std::path::Path;
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::path::Path;
 use thiserror::Error;
 use wasmlanche_sdk::ExternalCallError;
 
-use crate::{param::Param, ClientError, Endpoint, Id, Key};
 use crate::codec::{base64_decode, id_from_usize};
+use crate::{param::Param, ClientError, Endpoint, Id};
 
 /// A [`Step`] is a call to the simulator
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -23,26 +22,38 @@ pub struct Step {
     pub params: Vec<Param>,
 }
 
+#[derive(Error, Debug)]
+pub enum StepError {
+    #[error("Client error: {0}")]
+    Client(#[from] ClientError),
+    #[error("Serialization / Deserialization error: {0}")]
+    Serde(#[from] serde_json::Error),
+    #[error("Borsh deserialization error: {0}")]
+    BorshDeserialization(#[from] borsh::io::Error),
+    #[error("Program error: {0}")]
+    Program(String),
+}
+pub(crate) type StepResultItem = Result<StepResponse, StepError>;
+
 impl Step {
-    /// Create a [`Step`] that creates a key.
+    /// Create a [`Step`] that creates a program.
     #[must_use]
-    pub fn create_key(key: Key) -> Self {
+    pub fn create_program<P: AsRef<Path>>(path: P) -> Self {
+        let path = path.as_ref().to_string_lossy();
+
         Self {
-            endpoint: Endpoint::Key,
-            method: "key_create".into(),
+            endpoint: Endpoint::Execute,
+            method: "program_create".into(),
             max_units: 0,
-            params: vec![Param::Key(key)],
+            params: vec![Param::Path(path.into())],
         }
     }
 }
-
 
 #[derive(Debug, Deserialize)]
 pub struct StepResult {
     /// The ID created from the program execution.
     pub action_id: Option<String>,
-    /// An optional message.
-    pub msg: Option<String>,
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
@@ -68,8 +79,6 @@ impl StepResult {
     }
 }
 
-pub(crate) type StepResultItem = Result<StepResponse, StepError>;
-
 #[derive(Debug, Deserialize)]
 pub struct StepResponse {
     /// The numeric id of the step.
@@ -79,17 +88,3 @@ pub struct StepResponse {
     pub error: Option<String>,
     pub result: StepResult,
 }
-
-
-#[derive(Error, Debug)]
-pub enum StepError {
-    #[error("Client error: {0}")]
-    Client(#[from] ClientError),
-    #[error("Serialization / Deserialization error: {0}")]
-    Serde(#[from] serde_json::Error),
-    #[error("Borsh deserialization error: {0}")]
-    BorshDeserialization(#[from] borsh::io::Error),
-    #[error("Program error: {0}")]
-    Program(String),
-}
-
