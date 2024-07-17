@@ -224,11 +224,13 @@ fn _total_supply(context: &Context<StateKeys>) -> u64 {
         .unwrap_or_default()
 }
 
+
 #[cfg(test)]
 mod tests {
-    use simulator::param::Param;
+    use simulator::{Endpoint};
+    use simulator::context::TestContext;
     use simulator::step::Step;
-    use simulator::{Endpoint, TestContext};
+    use simulator::param::Param;
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -236,25 +238,16 @@ mod tests {
     #[test]
     fn create_program() {
         let mut simulator = simulator::build().unwrap();
-        simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap();
+
+        simulator.create_program(PROGRAM_PATH).unwrap();
     }
 
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
         let mut simulator = simulator::build().unwrap();
-
-        let owner_key = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+ 
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let test_context = TestContext::from(program_id);
 
@@ -318,10 +311,7 @@ mod tests {
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let test_context = TestContext::from(program_id);
 
@@ -387,10 +377,8 @@ mod tests {
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
+
 
         let test_context = TestContext::from(program_id);
 
