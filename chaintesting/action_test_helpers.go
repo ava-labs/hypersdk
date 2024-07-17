@@ -16,20 +16,20 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ state.Mutable = (*InMemoryStore)(nil)
+var _ state.Mutable = (*inMemoryStore)(nil)
 
-// InMemoryStore is a storage that acts as a wrapper around a map and implements state.Mutable.
-type InMemoryStore struct {
+// inMemoryStore is a storage that acts as a wrapper around a map and implements state.Mutable.
+type inMemoryStore struct {
 	Storage map[string][]byte
 }
 
-func NewInMemoryStore() *InMemoryStore {
-	return &InMemoryStore{
+func NewInMemoryStore() *inMemoryStore {
+	return &inMemoryStore{
 		Storage: make(map[string][]byte),
 	}
 }
 
-func (s *InMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
+func (s *inMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	val, ok := s.Storage[string(key)]
 	if !ok {
 		return nil, database.ErrNotFound
@@ -37,12 +37,12 @@ func (s *InMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) 
 	return val, nil
 }
 
-func (s *InMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
+func (s *inMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
 	s.Storage[string(key)] = value
 	return nil
 }
 
-func (s *InMemoryStore) Remove(_ context.Context, key []byte) error {
+func (s *inMemoryStore) Remove(_ context.Context, key []byte) error {
 	delete(s.Storage, string(key))
 	return nil
 }
@@ -60,6 +60,8 @@ type ActionTest struct {
 
 	ExpectedOutputs [][]byte
 	ExpectedErr     error
+
+	Assertion func(state.Mutable) bool
 }
 
 type ActionTestSuite struct {
@@ -76,6 +78,10 @@ func (suite *ActionTestSuite) Run(t *testing.T) {
 
 			require.ErrorIs(err, test.ExpectedErr)
 			require.Equal(output, test.ExpectedOutputs)
+
+			if test.Assertion != nil {
+				require.True(test.Assertion(test.State))
+			}
 		})
 	}
 }

@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,9 +21,16 @@ func TestTransferAction(t *testing.T) {
 	require := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
+	addrSlice := make([]byte, codec.AddressLen)
+	for i := range addrSlice {
+		addrSlice[i] = 1
+	}
+	oneAddr, err := codec.ToAddress(addrSlice)
+	require.NoError(err)
 
 	tests := map[string]chaintesting.ActionTest{
 		"ZeroTransfer": {
+			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
 				Value: 0,
@@ -30,6 +38,7 @@ func TestTransferAction(t *testing.T) {
 			ExpectedErr: ErrOutputValueZero,
 		},
 		"InvalidStateKey": {
+			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
 				Value: 1,
@@ -38,6 +47,7 @@ func TestTransferAction(t *testing.T) {
 			ExpectedErr: tstate.ErrInvalidKeyOrPermission,
 		},
 		"NotEnoughBalance": {
+			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
 				Value: 1,
@@ -50,7 +60,8 @@ func TestTransferAction(t *testing.T) {
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
-		"SimpleTransfer": {
+		"SimpleZeroTransfer": {
+			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
 				Value: 1,
@@ -62,6 +73,46 @@ func TestTransferAction(t *testing.T) {
 				keys.Add(string(emptyBalanceKey), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
+			Assertion: func(store state.Mutable) bool {
+				balance, err := storage.GetBalance(context.Background(), store, codec.EmptyAddress)
+				require.NoError(err)
+				return balance == 1
+			},
+		},
+		"OverflowBalance": {
+			Actor: codec.EmptyAddress,
+			Action: &Transfer{
+				To:    codec.EmptyAddress,
+				Value: math.MaxUint64,
+			},
+			State: func() state.Mutable {
+				keys := make(state.Keys)
+				store := chaintesting.NewInMemoryStore()
+				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				keys.Add(string(emptyBalanceKey), state.All)
+				return ts.NewView(keys, store.Storage)
+			}(),
+			ExpectedErr: storage.ErrInvalidBalance,
+		},
+		"SimpleTransfer": {
+			Actor: codec.EmptyAddress,
+			Action: &Transfer{
+				To:    oneAddr,
+				Value: 1,
+			},
+			State: func() state.Mutable {
+				keys := make(state.Keys)
+				store := chaintesting.NewInMemoryStore()
+				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				keys.Add(string(emptyBalanceKey), state.All)
+				keys.Add(string(storage.BalanceKey(oneAddr)), state.All)
+				return ts.NewView(keys, store.Storage)
+			}(),
+			Assertion: func(store state.Mutable) bool {
+				balance, err := storage.GetBalance(context.Background(), store, oneAddr)
+				require.NoError(err)
+				return balance == 1
+			},
 		},
 	}
 
