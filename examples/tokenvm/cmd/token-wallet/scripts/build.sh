@@ -6,16 +6,23 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Set the CGO flags to use the portable version of BLST
-#
-# We use "export" here instead of just setting a bash variable because we need
-# to pass this flag to all child processes spawned by the shell.
-export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
+# Get the directory of the script, even if sourced from another directory
+SCRIPT_DIR=$(
+  cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd
+)
+
+# shellcheck source=/scripts/common/utils.sh
+source "$SCRIPT_DIR"/../../../../../scripts/common/utils.sh
+# shellcheck source=/scripts/constants.sh
+source "$SCRIPT_DIR"/../../../../../scripts/constants.sh
 
 PUBLISH=${PUBLISH:-true}
 
 # Install wails
 go install -v github.com/wailsapp/wails/v2/cmd/wails@v2.6.0
+
+# alert the user if they do not have $GOPATH properly configured
+check_command wails
 
 # Build file for local arch
 #
