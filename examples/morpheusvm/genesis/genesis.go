@@ -68,7 +68,7 @@ func Default() *Genesis {
 
 		// Chain Parameters
 		MinBlockGap:      100,
-		MinEmptyBlockGap: 2_500,
+		MinEmptyBlockGap: 750,
 
 		// Chain Fee Parameters
 		MinUnitPrice:               fees.Dimensions{100, 100, 100, 100, 100},
