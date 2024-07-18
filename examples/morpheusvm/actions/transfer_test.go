@@ -64,7 +64,7 @@ func TestTransferAction(t *testing.T) {
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
 		{
-			Name:  "SimpleZeroTransfer",
+			Name:  "SelfTransfer",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
