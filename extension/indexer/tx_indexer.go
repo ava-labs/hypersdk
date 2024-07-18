@@ -18,7 +18,7 @@ import (
 
 var (
 	_ AcceptedSubscriber = (*txDBIndexer)(nil)
-	_ AcceptedSubscriber = (*noopTxIndexer)(nil)
+	_ AcceptedSubscriber = (*NoOpTxIndexer)(nil)
 
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
@@ -101,16 +101,16 @@ func (i *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimen
 	return true, t, success, d, fee, nil
 }
 
-type noopTxIndexer struct{}
+type NoOpTxIndexer struct{}
 
-func NewNoOpTxIndexer() *noopTxIndexer {
-	return &noopTxIndexer{}
+func NewNoOpTxIndexer() *NoOpTxIndexer {
+	return &NoOpTxIndexer{}
 }
 
-func (*noopTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
+func (*NoOpTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
 	return nil
 }
 
-func (*noopTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (*NoOpTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	return false, 0, false, fees.Dimensions{}, 0, errors.New("tx indexer not enabled")
 }
