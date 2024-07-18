@@ -173,10 +173,23 @@ EOF
 
 # Setup devnet
 CLUSTER="vryx-$(date +%s)"
-function cleanup {
-  echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+
+interrupted=false
+function showcleanup {
+   if [ "$interrupted" = false ]; then
+        echo -e "\n\n${RED}run this command to destroy the devnet:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+   fi
 }
-trap cleanup EXIT
+
+function cleanup {
+  interrupted=true
+  echo -e "\n\n${RED}destroying the devnet, running:${NC} ${TMPDIR}/avalanche node destroy ${CLUSTER}\n"
+  ${TMPDIR}/avalanche node destroy ${CLUSTER} -y
+}
+
+trap showcleanup EXIT
+trap cleanup SIGINT
+
 # List of supported instances in each AWS region: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-instance-regions.html
 #
 # It is not recommended to use an instance with burstable network performance.
