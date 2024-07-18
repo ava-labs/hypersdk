@@ -139,7 +139,6 @@ mod tests {
         let SimulatorResponseError::ExternalCall(call_err) = resp_err else {
             panic!("wrong error returned");
         };
-        println!("{:?}", call_err);
         assert!(matches!(call_err, ExternalCallError::CallPanicked));
 
         let resp_err = simulator
