@@ -1,7 +1,5 @@
 //! A client and types for the VM simulator. This crate allows for Rust
 //! developers to construct tests for their programs completely in Rust.
-//! Alternatively the [`Step`]s can be written in JSON and passed to the
-//! Simulator binary directly.
 mod codec;
 mod context;
 mod id;

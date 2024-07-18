@@ -11,7 +11,7 @@ use std::{
 use thiserror::Error;
 use wasmlanche_sdk::ExternalCallError;
 
-/// The endpoint to call for a [`Step`].
+/// The endpoint to call for a [`SimulatorRequest`].
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
@@ -35,7 +35,6 @@ pub enum ClientError {
     StdIo,
 }
 
-/// A [`Client`] is required to pass [`Step`]s to the simulator by calling [`run`](Self::run_step).
 pub struct Simulator<W, R> {
     writer: W,
     responses: R,
@@ -105,11 +104,11 @@ where
         self.responses
             .next()
             .ok_or(SimulatorError::Client(ClientError::Eof))?
-            .and_then(|step| {
-                if let Some(err) = step.error {
+            .and_then(|request| {
+                if let Some(err) = request.error {
                     Err(SimulatorError::Program(err))
                 } else {
-                    Ok(step)
+                    Ok(request)
                 }
             })
     }
@@ -118,7 +117,7 @@ where
         &mut self,
         method: String,
         params: Vec<Param>,
-        max_units: u64
+        max_units: u64,
     ) -> SimulatorResponseItem {
         self.writer.write_all(Self::RUN_COMMAND)?;
 
@@ -131,11 +130,11 @@ where
         self.responses
             .next()
             .ok_or(SimulatorError::Client(ClientError::Eof))?
-            .and_then(|step| {
-                if let Some(err) = step.error {
+            .and_then(|request| {
+                if let Some(err) = request.error {
                     Err(SimulatorError::Program(err))
                 } else {
-                    Ok(step)
+                    Ok(request)
                 }
             })
     }
@@ -229,7 +228,7 @@ impl SimulatorResult {
 
 #[derive(Debug, Deserialize)]
 pub struct SimulatorResponse {
-    /// The numeric id of the step.
+    /// The numeric id of the response.
     #[serde(deserialize_with = "id_from_usize")]
     pub id: Id, // TODO override of the Id Deserialize before removing the prefix
     /// An optional error message.
