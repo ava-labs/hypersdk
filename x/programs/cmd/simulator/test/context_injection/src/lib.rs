@@ -17,9 +17,9 @@ pub fn get_actor(context: Context) -> Address {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint};
-    use simulator::step::SimulatorRequest;
     use simulator::context::TestContext;
+    use simulator::step::SimulatorRequest;
+    use simulator::Endpoint;
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -33,7 +33,8 @@ mod tests {
         let timestamp = 100;
         let mut test_context = TestContext::from(program_id);
         test_context.timestamp = timestamp;
-        let response = simulator.execute("get_timestamp".into(), vec![test_context.into()], 1000000)
+        let response = simulator
+            .execute("get_timestamp".into(), vec![test_context.into()], 1000000)
             .unwrap()
             .result
             .response::<u64>()
@@ -52,7 +53,12 @@ mod tests {
         test_context.height = height;
 
         // TODO: this shoukld just return a resposne without having to do .result.respnse
-        let response = simulator.execute("get_height".into(), vec![test_context.into()], 1000000).unwrap().result.response::<u64>().unwrap();
+        let response = simulator
+            .execute("get_height".into(), vec![test_context.into()], 1000000)
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
 
         assert_eq!(response, height);
     }
@@ -62,11 +68,16 @@ mod tests {
         let mut simulator = simulator::build().unwrap();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
-        
+
         let mut test_context = TestContext::from(program_id);
         test_context.actor = Address::new([1; 33]);
 
-        let response = simulator.execute("get_actor".into(), vec![test_context.into()], 1000000).unwrap().result.response::<Address>().unwrap();
+        let response = simulator
+            .execute("get_actor".into(), vec![test_context.into()], 1000000)
+            .unwrap()
+            .result
+            .response::<Address>()
+            .unwrap();
 
         assert_ne!(response, Address::default());
     }

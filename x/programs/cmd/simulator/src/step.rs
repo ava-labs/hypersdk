@@ -1,12 +1,12 @@
+use crate::codec::{base64_decode, id_from_usize};
+use crate::{param::Param, ClientError, Endpoint, Id};
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Cow;
 use std::path::Path;
 use thiserror::Error;
 use wasmlanche_sdk::ExternalCallError;
-use std::borrow::Cow;
-use crate::codec::{base64_decode, id_from_usize};
-use crate::{param::Param, ClientError, Endpoint, Id};
 
 /// A [`SimulatorRequest`] is a call to the simulator
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -51,7 +51,6 @@ impl SimulatorRequest {
         }
     }
 }
-
 
 #[derive(Error, Debug)]
 pub enum SimulatorError {

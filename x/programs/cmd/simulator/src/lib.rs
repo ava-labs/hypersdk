@@ -10,17 +10,18 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
-    process::{Child, Command, Stdio}, str::Bytes,
+    process::{Child, Command, Stdio},
+    str::Bytes,
 };
 use step::{SimulatorError, SimulatorResponse};
 use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError};
 
 mod codec;
+pub mod context;
 mod id;
 pub mod param;
 pub mod step;
-pub mod context;
 use crate::step::{SimulatorRequest, SimulatorResponseItem};
 pub use id::Id;
 
@@ -70,7 +71,8 @@ pub struct Simulator<W, R> {
     responses: R,
 }
 
-pub fn build() -> Result<Simulator<impl Write, impl Iterator<Item = SimulatorResponseItem>>, ClientError> {
+pub fn build(
+) -> Result<Simulator<impl Write, impl Iterator<Item = SimulatorResponseItem>>, ClientError> {
     let path = get_path();
 
     let Child { stdin, stdout, .. } = Command::new(path)
@@ -97,35 +99,13 @@ where
     W: Write,
     R: Iterator<Item = SimulatorResponseItem>,
 {
-    const RUN_COMMAND: &'static [u8] = b"run --message '";    
-
-    // pub fn run_step(&mut self, step: &Step) -> SimulatorResponseItem {
-    //     self.writer.write_all(Self::RUN_COMMAND)?;
-
-    //     let input = serde_json::to_vec(&step).map_err(SimulatorError::Serde)?;
-    //     self.writer.write_all(&input)?;
-    //     self.writer.write_all(b"'\n")?;
-    //     self.writer.flush()?;
-    //     // println!("input: {:?}", input);
-    //     self.responses
-    //         .next()
-    //         .ok_or(SimulatorError::Client(ClientError::Eof))?
-    //         .and_then(|step| {
-    //             if let Some(err) = step.error {
-    //                 Err(SimulatorError::Program(err))
-    //             } else {
-    //                 Ok(step)
-    //             }
-    //         })
-    // }
+    const RUN_COMMAND: &'static [u8] = b"run --message '";
 
     pub fn create_program<P: AsRef<Path>>(&mut self, path: P) -> SimulatorResponseItem {
         let path = path.as_ref().to_string_lossy();
         self.writer.write_all(Self::RUN_COMMAND)?;
 
-        let input = serde_json::to_vec(
-            &SimulatorRequest::new_create_program(path.into()),
-        )?;
+        let input = serde_json::to_vec(&SimulatorRequest::new_create_program(path.into()))?;
 
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
@@ -164,7 +144,12 @@ where
             })
     }
 
-    pub fn execute(&mut self, method: String, params: Vec<Param>, max_units: u64) -> SimulatorResponseItem {
+    pub fn execute(
+        &mut self,
+        method: String,
+        params: Vec<Param>,
+        max_units: u64,
+    ) -> SimulatorResponseItem {
         self.writer.write_all(Self::RUN_COMMAND)?;
 
         let input = serde_json::to_vec(&SimulatorRequest::new_execute(method, params, max_units))?;
