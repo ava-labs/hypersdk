@@ -15,7 +15,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
@@ -24,10 +23,6 @@ import (
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
-// Metadata
-// 0x0/ (tx)
-//   -> [txID] => timestamp
-//
 // State
 // 0x0/ (balance)
 //   -> [owner|asset] => balance
@@ -40,9 +35,6 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x5/ (hypersdk-fee)
 
 const (
-	// Indexes
-	txPrefix = 0x0
-
 	// Active state
 	balancePrefix   = 0x0
 	assetPrefix     = 0x1
@@ -59,8 +51,6 @@ const (
 )
 
 var (
-	failureByte  = byte(0x0)
-	successByte  = byte(0x1)
 	heightKey    = []byte{heightPrefix}
 	timestampKey = []byte{timestampPrefix}
 	feeKey       = []byte{feePrefix}
@@ -71,62 +61,6 @@ var (
 		},
 	}
 )
-
-// [txPrefix] + [txID]
-func TxKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+ids.IDLen)
-	k[0] = txPrefix
-	copy(k[1:], id[:])
-	return
-}
-
-func StoreTransaction(
-	_ context.Context,
-	db database.KeyValueWriter,
-	id ids.ID,
-	t int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-) error {
-	k := TxKey(id)
-	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
-	binary.BigEndian.PutUint64(v, uint64(t))
-	if success {
-		v[consts.Uint64Len] = successByte
-	} else {
-		v[consts.Uint64Len] = failureByte
-	}
-	copy(v[consts.Uint64Len+1:], units.Bytes())
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
-	return db.Put(k, v)
-}
-
-func GetTransaction(
-	_ context.Context,
-	db database.KeyValueReader,
-	id ids.ID,
-) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	k := TxKey(id)
-	v, err := db.Get(k)
-	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil
-	}
-	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, err
-	}
-	t := int64(binary.BigEndian.Uint64(v))
-	success := true
-	if v[consts.Uint64Len] == failureByte {
-		success = false
-	}
-	d, err := fees.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+fees.DimensionsLen])
-	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, err
-	}
-	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
-	return true, t, success, d, fee, nil
-}
 
 // [accountPrefix] + [address] + [asset]
 func BalanceKey(addr codec.Address, asset ids.ID) (k []byte) {

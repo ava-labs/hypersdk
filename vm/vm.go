@@ -284,8 +284,6 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if vm.config.AcceptedBlockWindow <= vm.config.AcceptorSize {
-	}
 	if vm.config.AcceptorSize > 256 {
 		return errors.New("AcceptorSize should be less than 256")
 	}
