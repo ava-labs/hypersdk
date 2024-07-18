@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn init_state() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn add_liquidity_same_ratio() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn swap_changes_ratio() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 

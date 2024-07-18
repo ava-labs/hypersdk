@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn can_set_timestamp() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn can_set_height() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn can_set_actor() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 

@@ -222,6 +222,11 @@ func (c *runCmd) runRequestFunc(
 		// TODO: implement readonly for now just don't charge for gas
 		result, _, err := programExecuteFunc(ctx, c.log, db, testContext, params[1:], method, math.MaxUint64)
 		output := resultToOutput(result, err)
+		// check if the db has any new changes
+		if db.HasChanges() {
+			changes := db.Changes()
+			return fmt.Errorf("%w: %s, %s", ErrInvalidRequest, "readonly request should not have any changes", changes)
+		}
 		if err := db.Commit(ctx); err != nil {
 			return err
 		}

@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn inc_and_get_value() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let counter_path = PROGRAM_PATH
             .replace("counter-external", "counter")

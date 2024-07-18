@@ -45,14 +45,14 @@ mod tests {
 
     #[test]
     fn init_program() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         simulator.create_program(PROGRAM_PATH).unwrap();
     }
 
     #[test]
     fn increment() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let bob = Address::new([1; 33]);
 

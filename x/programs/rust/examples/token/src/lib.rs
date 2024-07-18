@@ -233,7 +233,7 @@ mod tests {
     const MAX_UNITS: u64 = 1000000;
     #[test]
     fn create_program() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         simulator.create_program(PROGRAM_PATH).unwrap();
     }
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
         let test_context = TestContext::from(program_id);
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn mint() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn burn() {
-        let mut simulator = build_simulator().unwrap();
+        let mut simulator = build_simulator();
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
