@@ -50,7 +50,6 @@ mod tests {
         let mut test_context = TestContext::from(program_id);
         test_context.height = height;
 
-        // TODO: this shoukld just return a resposne without having to do .result.respnse
         let response = simulator
             .execute("get_height".into(), vec![test_context.into()], 1000000)
             .unwrap()
