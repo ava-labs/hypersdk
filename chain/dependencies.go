@@ -253,7 +253,7 @@ type Auth interface {
 	// Verify is run concurrently during transaction verification. It may not be run by the time
 	// a transaction is executed but will be checked before a [Transaction] is considered successful.
 	// Verify is typically used to perform cryptographic operations.
-	Verify(ctx context.Context, msg []byte) error
+	Verify(ctx context.Context, tx *Transaction) error
 
 	// Actor is the subject of the [Action] signed.
 	//
@@ -275,12 +275,12 @@ type Auth interface {
 }
 
 type AuthBatchVerifier interface {
-	Add([]byte, Auth) func() error
+	Add(*Transaction, Auth) func() error
 	Done() []func() error
 }
 
 type AuthFactory interface {
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
-	Sign(msg []byte) (Auth, error)
+	Sign(tx *Transaction) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)
 }

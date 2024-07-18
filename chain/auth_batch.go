@@ -48,15 +48,15 @@ func NewAuthBatch(vm AuthVM, job workers.Job, authTypes map[uint8]int) *AuthBatc
 	return &AuthBatch{vm, job, bvs}
 }
 
-func (a *AuthBatch) Add(digest []byte, auth Auth) {
+func (a *AuthBatch) Add(tx *Transaction, auth Auth) {
 	// If batch doesn't exist for auth, just add verify right to job and start
 	// processing.
 	bv, ok := a.bvs[auth.GetTypeID()]
 	if !ok {
-		a.job.Go(func() error { return auth.Verify(context.TODO(), digest) })
+		a.job.Go(func() error { return auth.Verify(context.TODO(), tx) })
 		return
 	}
-	bv.items <- &authBatchObject{digest, auth}
+	bv.items <- &authBatchObject{tx, auth}
 }
 
 func (a *AuthBatch) Done(f func()) {
@@ -73,8 +73,8 @@ func (a *AuthBatch) Done(f func()) {
 }
 
 type authBatchObject struct {
-	digest []byte
-	auth   Auth
+	tx   *Transaction
+	auth Auth
 }
 
 type authBatchWorker struct {
@@ -89,7 +89,7 @@ func (b *authBatchWorker) start() {
 	defer close(b.done)
 
 	for object := range b.items {
-		if j := b.bv.Add(object.digest, object.auth); j != nil {
+		if j := b.bv.Add(object.tx, object.auth); j != nil {
 			// May finish parts of batch early, let's start computing them as soon as possible
 			b.job.Go(j)
 			b.vm.Logger().Debug("enqueued batch for processing during add")

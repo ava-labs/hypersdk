@@ -169,11 +169,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
-			txDigest, err := tx.Digest()
-			if err != nil {
-				return err
-			}
-			batchVerifier.Add(txDigest, tx.Auth)
+			batchVerifier.Add(tx, tx.Auth)
 		}
 	}
 	return nil

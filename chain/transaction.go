@@ -69,11 +69,14 @@ func (t *Transaction) Sign(
 	actionRegistry ActionRegistry,
 	authRegistry AuthRegistry,
 ) (*Transaction, error) {
+	// FIXME: We are calling Digest twice here, which is an overhead.
+	// We need to decide what is faster: providing the codec packer with the correct initial size or calling Digest once.
+	// The current implementation calls Digest twice (once here and once in factory.Sign).
 	msg, err := t.Digest()
 	if err != nil {
 		return nil, err
 	}
-	auth, err := factory.Sign(msg)
+	auth, err := factory.Sign(t)
 	if err != nil {
 		return nil, err
 	}

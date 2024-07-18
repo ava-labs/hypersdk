@@ -416,9 +416,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			)
 			// Must do manual construction to avoid `tx.Sign` error (would fail with
 			// 0 timestamp)
-			msg, err := tx.Digest()
-			require.NoError(err)
-			auth, err := factory.Sign(msg)
+			auth, err := factory.Sign(tx)
 			require.NoError(err)
 			tx.Auth = auth
 			p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -784,9 +782,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// too large)
-		msg, err := tx.Digest()
-		require.NoError(err)
-		auth, err := factory.Sign(msg)
+		auth, err := factory.Sign(tx)
 		require.NoError(err)
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -845,9 +841,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// too large)
-		msg, err := tx.Digest()
-		require.NoError(err)
-		auth, err := factory.Sign(msg)
+		auth, err := factory.Sign(tx)
 		require.NoError(err)
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -875,9 +869,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// too large)
-		msg, err := tx.Digest()
-		require.NoError(err)
-		auth, err := factory.Sign(msg)
+		auth, err := factory.Sign(tx)
 		require.NoError(err)
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -905,9 +897,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// too large)
-		msg, err := tx.Digest()
-		require.NoError(err)
-		auth, err := factory.Sign(msg)
+		auth, err := factory.Sign(tx)
 		require.NoError(err)
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1115,9 +1105,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// bad codec)
-		msg, err := tx.Digest()
-		require.NoError(err)
-		auth, err := factory.Sign(msg)
+		auth, err := factory.Sign(tx)
 		require.NoError(err)
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth
@@ -1186,9 +1174,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		)
 		// Must do manual construction to avoid `tx.Sign` error (would fail with
 		// bad codec)
-		msg, err := tx.Digest()
-		require.NoError(err)
-		auth, err := factory.Sign(msg)
+		auth, err := factory.Sign(tx)
 		require.NoError(err)
 		tx.Auth = auth
 		p := codec.NewWriter(0, consts.MaxInt) // test codec growth

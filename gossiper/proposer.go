@@ -192,17 +192,7 @@ func (g *Proposer) HandleAppGossip(ctx context.Context, nodeID ids.NodeID, msg [
 	var seen int
 	for _, tx := range txs {
 		// Verify signature async
-		txDigest, err := tx.Digest()
-		if err != nil {
-			g.vm.Logger().Warn(
-				"unable to compute tx digest",
-				zap.Stringer("peerID", nodeID),
-				zap.Error(err),
-			)
-			batchVerifier.Done(nil)
-			return nil
-		}
-		batchVerifier.Add(txDigest, tx.Auth)
+		batchVerifier.Add(tx, tx.Auth)
 
 		// Add incoming txs to the cache to make
 		// sure we never gossip anything we receive (someone

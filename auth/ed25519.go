@@ -46,7 +46,12 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (d *ED25519) Verify(_ context.Context, msg []byte) error {
+func (d *ED25519) Verify(_ context.Context, tx *chain.Transaction) error {
+	msg, err := tx.Digest()
+	if err != nil {
+		return err
+	}
+
 	if !ed25519.Verify(msg, d.Signer, d.Signature) {
 		return crypto.ErrInvalidSignature
 	}
@@ -89,7 +94,12 @@ type ED25519Factory struct {
 	priv ed25519.PrivateKey
 }
 
-func (d *ED25519Factory) Sign(msg []byte) (chain.Auth, error) {
+func (d *ED25519Factory) Sign(tx *chain.Transaction) (chain.Auth, error) {
+	msg, err := tx.Digest()
+	if err != nil {
+		return nil, err
+	}
+
 	sig := ed25519.Sign(msg, d.priv)
 	return &ED25519{Signer: d.priv.PublicKey(), Signature: sig}, nil
 }
@@ -121,7 +131,12 @@ type ED25519Batch struct {
 	batch        *ed25519.Batch
 }
 
-func (b *ED25519Batch) Add(msg []byte, rauth chain.Auth) func() error {
+func (b *ED25519Batch) Add(tx *chain.Transaction, rauth chain.Auth) func() error {
+	msg, err := tx.Digest()
+	if err != nil {
+		return func() error { return err }
+	}
+
 	auth := rauth.(*ED25519)
 	if b.batch == nil {
 		b.batch = ed25519.NewBatch(b.batchSize)

@@ -46,7 +46,12 @@ func (*BLS) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (b *BLS) Verify(_ context.Context, msg []byte) error {
+func (b *BLS) Verify(_ context.Context, tx *chain.Transaction) error {
+	msg, err := tx.Digest()
+	if err != nil {
+		return err
+	}
+
 	if !bls.Verify(msg, b.Signer, b.Signature) {
 		return crypto.ErrInvalidSignature
 	}
@@ -103,7 +108,12 @@ func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
 	return &BLSFactory{priv}
 }
 
-func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
+func (b *BLSFactory) Sign(tx *chain.Transaction) (chain.Auth, error) {
+	msg, err := tx.Digest()
+	if err != nil {
+		return nil, err
+	}
+
 	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.Sign(msg, b.priv)}, nil
 }
 
