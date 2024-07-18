@@ -105,7 +105,7 @@ func (i *txIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensi
 
 type noopTxIndexer struct{}
 
-func NewNoopTxIndexer() *noopTxIndexer {
+func NewNoOpTxIndexer() *noopTxIndexer {
 	return &noopTxIndexer{}
 }
 

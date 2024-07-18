@@ -109,7 +109,7 @@ func (c *Controller) Initialize(
 		c.txIndexer = indexer.NewTxIndexer(c.txDB)
 		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
 	} else {
-		c.txIndexer = indexer.NewNoopTxIndexer()
+		c.txIndexer = indexer.NewNoOpTxIndexer()
 	}
 	c.acceptedSubscriber = indexer.NewCombinedAcceptedSubscriber(acceptedSubscribers...)
 
