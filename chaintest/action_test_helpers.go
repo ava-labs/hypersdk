@@ -16,20 +16,20 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-var _ state.Mutable = (*inMemoryStore)(nil)
+var _ state.Mutable = (*InMemoryStore)(nil)
 
-// inMemoryStore is a storage that acts as a wrapper around a map and implements state.Mutable.
-type inMemoryStore struct {
+// InMemoryStore is a storage that acts as a wrapper around a map and implements state.Mutable.
+type InMemoryStore struct {
 	Storage map[string][]byte
 }
 
-func NewInMemoryStore() *inMemoryStore {
-	return &inMemoryStore{
+func NewInMemoryStore() *InMemoryStore {
+	return &InMemoryStore{
 		Storage: make(map[string][]byte),
 	}
 }
 
-func (i *inMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
+func (i *InMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	val, ok := i.Storage[string(key)]
 	if !ok {
 		return nil, database.ErrNotFound
@@ -37,12 +37,12 @@ func (i *inMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) 
 	return val, nil
 }
 
-func (i *inMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
+func (i *InMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
 	i.Storage[string(key)] = value
 	return nil
 }
 
-func (i *inMemoryStore) Remove(_ context.Context, key []byte) error {
+func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	delete(i.Storage, string(key))
 	return nil
 }
