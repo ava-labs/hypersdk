@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -443,7 +444,12 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 
-	return vm.restoreLastAcceptedBlock(ctx)
+	err = vm.restoreAcceptedQueue(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to restore the pending accepted blocks: %w", err)
+	}
+
+	return nil
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
@@ -1129,11 +1135,10 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	return nil
 }
 
-func (vm *VM) restoreLastAcceptedBlock(ctx context.Context) error {
+func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	has, err := vm.HasLastProcessed()
 	if err != nil {
-		vm.snowCtx.Log.Error("could not determine if have last processed")
-		return err
+		return errors.New("could not determine if have last processed")
 	}
 	if !has {
 		return nil
@@ -1141,24 +1146,31 @@ func (vm *VM) restoreLastAcceptedBlock(ctx context.Context) error {
 
 	lastProcessedHeight, err := vm.GetLastProcessedHeight()
 	if err != nil {
-		vm.snowCtx.Log.Error("could not get last processed height", zap.Error(err))
-		return err
+		return fmt.Errorf("could not get last processed height: %w", err)
 	}
 
-	for height := lastProcessedHeight; height <= vm.lastAccepted.Height(); height++ {
+	start := lastProcessedHeight + 1
+	end := vm.lastAccepted.Height()
+	if end >= start {
+		return nil
+	}
+	acceptedToRestore := end - start
+	vm.snowCtx.Log.Info("accepted blocks have to be restored", zap.Uint64("n", acceptedToRestore))
+
+	for height := start; height <= end; height++ {
 		var blk *chain.StatelessBlock
 		if height == vm.lastAccepted.Height() {
 			blk = vm.lastAccepted
 		} else {
 			blk, err = vm.GetDiskBlock(ctx, height)
 			if err != nil {
-				vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", height))
-				return err
+				return fmt.Errorf("could not find block at height %d on disk", height)
 			}
 		}
 
 		vm.acceptedQueue <- blk
 	}
+	vm.snowCtx.Log.Info("accepted blocks have been added to the queue")
 
 	return nil
 }
