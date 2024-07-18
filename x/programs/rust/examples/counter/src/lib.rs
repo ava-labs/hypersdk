@@ -64,7 +64,7 @@ mod tests {
             "inc".into(),
             vec![test_context.clone().into(), bob.into(), 10u64.into()],
             1000000,
-        );
+        ).unwrap();
 
         let value = simulator
             .read("get_value".into(), vec![test_context.into(), bob.into()])

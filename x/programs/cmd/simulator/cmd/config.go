@@ -8,11 +8,6 @@ import (
 	"fmt"
 )
 
-const (
-	ProgramExecute = "execute"
-	RequestMessage = "message"
-)
-
 type SimulatorRequest struct {
 	// The API endpoint to call. (required)
 	Endpoint Endpoint `json:"endpoint"`

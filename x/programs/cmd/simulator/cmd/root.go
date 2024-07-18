@@ -91,7 +91,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 			}
 
 			s.log.Debug("a request has ben ran", zap.Any("resp", resp))
-			
+
 			if interpreterMode {
 				// we need feedback, so print response to stdout
 				if err := resp.Print(); err != nil {

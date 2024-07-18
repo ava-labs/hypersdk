@@ -112,8 +112,6 @@ fn reserves(context: &Context<StateKeys>) -> (u64, u64) {
 
 #[cfg(test)]
 mod tests {
-    use std::u64;
-
     use simulator::{build_simulator, SimulatorResponseError, TestContext};
     use wasmlanche_sdk::ExternalCallError;
 
