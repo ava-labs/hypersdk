@@ -48,7 +48,7 @@ var secp256r1Order = elliptic.P256().Params().N
 // source: https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#low-s-values-in-signatures
 var secp256r1HalfOrder = new(big.Int).Div(secp256r1Order, big.NewInt(2))
 
-// normalized returns true if [s] falls in the lower half of the curve order (inclusive).
+// normalizedS returns true if [s] falls in the lower half of the curve order (inclusive).
 // This should be used when verifying signatures to ensure they are not malleable.
 //
 // source: https://github.com/cosmos/cosmos-sdk/blob/b71ec62807628b9a94bef32071e1c8686fcd9d36/crypto/keys/internal/ecdsa/privkey.go#L12-L37
