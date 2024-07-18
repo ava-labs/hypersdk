@@ -17,29 +17,27 @@ import (
 )
 
 var (
-	_ AcceptedSubscriber = (*txIndexer)(nil)
+	_ AcceptedSubscriber = (*txDBIndexer)(nil)
 	_ AcceptedSubscriber = (*noopTxIndexer)(nil)
-)
 
-var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 )
 
 type TxIndexer interface {
-	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
+	AcceptedSubscriber
 	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 }
 
-type txIndexer struct {
+type txDBIndexer struct {
 	db database.Database
 }
 
-func NewTxIndexer(db database.Database) *txIndexer {
-	return &txIndexer{db: db}
+func NewTxDBIndexer(db database.Database) *txDBIndexer {
+	return &txDBIndexer{db: db}
 }
 
-func (i *txIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
+func (i *txDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
 	batch := i.db.NewBatch()
 	defer batch.Reset()
 
@@ -62,7 +60,7 @@ func (i *txIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error
 	return batch.Write()
 }
 
-func (*txIndexer) storeTransaction(
+func (*txDBIndexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	t int64,
@@ -82,7 +80,7 @@ func (*txIndexer) storeTransaction(
 	return batch.Put(txID[:], v)
 }
 
-func (i *txIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (i *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	v, err := i.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil

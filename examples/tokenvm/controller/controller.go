@@ -109,7 +109,7 @@ func (c *Controller) Initialize(
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
 	}
 	if c.config.StoreTransactions {
-		c.txIndexer = indexer.NewTxIndexer(c.txDB)
+		c.txIndexer = indexer.NewTxDBIndexer(c.txDB)
 		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
 	} else {
 		c.txIndexer = indexer.NewNoOpTxIndexer()
