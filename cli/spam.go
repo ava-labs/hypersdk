@@ -6,17 +6,19 @@ package cli
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -29,13 +31,16 @@ import (
 )
 
 const (
-	defaultRange          = 32
+	pendingTargetMultiplier        = 10
+	successfulRunsToIncreaseTarget = 10
+	failedRunsToDecreaseTarget     = 5
+
 	issuerShutdownTimeout = 60 * time.Second
 )
 
 var (
-	issuerWg sync.WaitGroup
-	exiting  sync.Once
+	maxConcurrency = runtime.NumCPU()
+	issuerWg       sync.WaitGroup
 
 	l            sync.Mutex
 	confirmedTxs uint64
@@ -45,20 +50,16 @@ var (
 	sent     atomic.Int64
 )
 
-func (h *Handler) Spam(
-	maxTxBacklog int, maxFee *uint64, randomRecipient bool,
-	createClient func(string, uint32, ids.ID) error, // must save on caller side
-	getFactory func(*PrivateKey) (chain.AuthFactory, error),
-	createAccount func() (*PrivateKey, error),
-	lookupBalance func(int, string) (uint64, error),
-	getParser func(context.Context, ids.ID) (chain.Parser, error),
-	getTransfer func(codec.Address, uint64) []chain.Action,
-	submitDummy func(*rpc.JSONRPCClient, *PrivateKey) func(context.Context, uint64) error,
-) error {
+func (h *Handler) Spam(sh SpamHelper) error {
 	ctx := context.Background()
 
 	// Select chain
 	chainID, uris, err := h.PromptChain("select chainID", nil)
+	if err != nil {
+		return err
+	}
+	cli := rpc.NewJSONRPCClient(uris[0])
+	networkID, _, _, err := cli.Network(ctx)
 	if err != nil {
 		return err
 	}
@@ -68,22 +69,13 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if len(keys) == 0 {
-		return ErrNoKeys
-	}
-	utils.Outf("{{cyan}}stored keys:{{/}} %d\n", len(keys))
-	cli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := cli.Network(ctx)
-	if err != nil {
-		return err
-	}
 	balances := make([]uint64, len(keys))
-	if err := createClient(uris[0], networkID, chainID); err != nil {
+	if err := sh.CreateClient(uris[0], networkID, chainID); err != nil {
 		return err
 	}
 	for i := 0; i < len(keys); i++ {
 		address := h.c.Address(keys[i].Address)
-		balance, err := lookupBalance(i, address)
+		balance, err := sh.LookupBalance(i, address)
 		if err != nil {
 			return err
 		}
@@ -95,7 +87,7 @@ func (h *Handler) Spam(
 	}
 	key := keys[keyIndex]
 	balance := balances[keyIndex]
-	factory, err := getFactory(key)
+	factory, err := sh.GetFactory(key)
 	if err != nil {
 		return err
 	}
@@ -106,22 +98,41 @@ func (h *Handler) Spam(
 	}
 
 	// Compute max units
-	parser, err := getParser(ctx, chainID)
+	parser, err := sh.GetParser(ctx)
 	if err != nil {
 		return err
 	}
-	actions := getTransfer(keys[0].Address, 0)
+	actions := sh.GetTransfer(keys[0].Address, 0, uniqueBytes())
 	maxUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, factory)
 	if err != nil {
 		return err
 	}
 
-	// Distribute funds
+	// Collect parameters
 	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
 	if err != nil {
 		return err
 	}
-	numTxsPerAccount, err := h.PromptInt("number of transactions per account per second", consts.MaxInt)
+	if numAccounts < 2 {
+		return ErrInsufficientAccounts
+	}
+	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
+	if err != nil {
+		return err
+	}
+	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
+	if err != nil {
+		return err
+	}
+	txsPerSecond, err := h.PromptInt("txs to try and issue per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	minTxsPerSecond, err := h.PromptInt("minimum txs to issue per second", consts.MaxInt)
+	if err != nil {
+		return err
+	}
+	txsPerSecondStep, err := h.PromptInt("txs to increase per second", consts.MaxInt)
 	if err != nil {
 		return err
 	}
@@ -129,6 +140,18 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
+
+	// Log Zipf participants
+	zipfSeed := rand.New(rand.NewSource(0))
+	zz := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
+	trials := txsPerSecond * 60 * 2 // sender/receiver
+	unique := set.NewSet[uint64](trials)
+	for i := 0; i < trials; i++ {
+		unique.Add(zz.Uint64())
+	}
+	utils.Outf("{{blue}}unique participants expected every 60s:{{/}} %d\n", unique.Len())
+
+	// Distribute funds
 	unitPrices, err := cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -137,92 +160,88 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if maxFee != nil {
-		feePerTx = *maxFee
-		utils.Outf("{{cyan}}overriding max fee:{{/}} %d\n", feePerTx)
+	withholding := feePerTx * uint64(numAccounts)
+	if balance < withholding {
+		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, withholding)
 	}
-	witholding := feePerTx * uint64(numAccounts)
-	if balance < witholding {
-		return fmt.Errorf("insufficient funds (have=%d need=%d)", balance, witholding)
-	}
-	distAmount := (balance - witholding) / uint64(numAccounts)
+	distAmount := (balance - withholding) / uint64(numAccounts)
 	utils.Outf(
 		"{{yellow}}distributing funds to each account:{{/}} %s %s\n",
 		utils.FormatBalance(distAmount, h.c.Decimals()),
 		h.c.Symbol(),
 	)
 	accounts := make([]*PrivateKey, numAccounts)
-	dcli, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 	if err != nil {
 		return err
 	}
 	funds := map[codec.Address]uint64{}
+	factories := make([]chain.AuthFactory, numAccounts)
 	var fundsL sync.Mutex
+	p := &pacer{ws: ws}
+	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
 		// Create account
-		pk, err := createAccount()
+		pk, err := sh.CreateAccount()
 		if err != nil {
 			return err
 		}
 		accounts[i] = pk
-
-		// Send funds
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(pk.Address, distAmount), factory, feePerTx)
+		f, err := sh.GetFactory(pk)
 		if err != nil {
 			return err
 		}
-		if err := dcli.RegisterTx(tx); err != nil {
+		factories[i] = f
+
+		// Send funds
+		actions := sh.GetTransfer(pk.Address, distAmount, uniqueBytes())
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, factory, feePerTx)
+		if err != nil {
+			return err
+		}
+		if err := p.Add(tx); err != nil {
 			return fmt.Errorf("%w: failed to register tx", err)
 		}
 		funds[pk.Address] = distAmount
-	}
-	for i := 0; i < numAccounts; i++ {
-		_, dErr, result, err := dcli.ListenTx(ctx)
-		if err != nil {
-			return err
-		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
-			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
+
+		// Log progress
+		if i%250 == 0 && i > 0 {
+			utils.Outf("{{yellow}}issued transfer to %d accounts{{/}}\n", i)
 		}
 	}
-	var recipientFunc func() (*PrivateKey, error)
-	if randomRecipient {
-		recipientFunc = createAccount
+	if err := p.Wait(); err != nil {
+		return err
 	}
 	utils.Outf("{{yellow}}distributed funds to %d accounts{{/}}\n", numAccounts)
 
 	// Kickoff txs
-	clients := []*txIssuer{}
+	issuers := []*issuer{}
 	for i := 0; i < len(uris); i++ {
 		for j := 0; j < numClients; j++ {
 			cli := rpc.NewJSONRPCClient(uris[i])
-			dcli, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			ws, err := rpc.NewWebSocketClient(uris[i], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
 			if err != nil {
 				return err
 			}
-			clients = append(clients, &txIssuer{c: cli, d: dcli, uri: i})
+			issuer := &issuer{i: len(issuers), cli: cli, ws: ws, parser: parser, uri: uris[i]}
+			issuers = append(issuers, issuer)
 		}
 	}
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	// confirm txs (track failure rate)
-	unitPrices, err = clients[0].c.UnitPrices(ctx, false)
+	// Start issuers
+	unitPrices, err = issuers[0].cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
 	}
-	PrintUnitPrices(unitPrices)
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	for _, client := range clients {
-		startIssuer(cctx, client)
+	for _, issuer := range issuers {
+		issuer.Start(cctx)
 	}
 
-	// log stats
+	// Log stats
 	t := time.NewTicker(1 * time.Second) // ensure no duplicates created
 	defer t.Stop()
 	var psent int64
@@ -233,7 +252,7 @@ func (h *Handler) Spam(
 				current := sent.Load()
 				l.Lock()
 				if totalTxs > 0 {
-					unitPrices, err = clients[0].c.UnitPrices(ctx, false)
+					unitPrices, err = issuers[0].cli.UnitPrices(ctx, false)
 					if err != nil {
 						continue
 					}
@@ -254,148 +273,111 @@ func (h *Handler) Spam(
 		}
 	}()
 
-	// broadcast txs
-	g, gctx := errgroup.WithContext(ctx)
-	for ri := 0; ri < numAccounts; ri++ {
-		i := ri
-		g.Go(func() error {
-			t := time.NewTimer(0) // ensure no duplicates created
-			defer t.Stop()
+	// Broadcast txs
+	var (
+		// Do not call this function concurrently (math.Rand is not safe for concurrent use)
+		z = rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numAccounts)-1)
 
-			issuerIndex, issuer := getRandomIssuer(clients)
-			factory, err := getFactory(accounts[i])
-			if err != nil {
-				return err
+		it                      = time.NewTimer(0)
+		currentTarget           = min(txsPerSecond, minTxsPerSecond)
+		consecutiveUnderBacklog int
+		consecutiveAboveBacklog int
+
+		stop bool
+	)
+	utils.Outf("{{cyan}}initial target tps:{{/}} %d\n", currentTarget)
+	for !stop {
+		select {
+		case <-it.C:
+			start := time.Now()
+
+			// Check to see if we should wait for pending txs
+			if int64(currentTarget)+inflight.Load() > int64(currentTarget*pendingTargetMultiplier) {
+				consecutiveUnderBacklog = 0
+				consecutiveAboveBacklog++
+				if consecutiveAboveBacklog >= failedRunsToDecreaseTarget {
+					if currentTarget > txsPerSecondStep {
+						currentTarget -= txsPerSecondStep
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, decreasing target tps:{{/}} %d\n", currentTarget)
+					} else {
+						utils.Outf("{{cyan}}skipping issuance because large backlog detected, cannot decrease target{{/}}\n")
+					}
+					consecutiveAboveBacklog = 0
+				}
+				it.Reset(1 * time.Second)
+				break
 			}
-			fundsL.Lock()
-			balance := funds[accounts[i].Address]
-			fundsL.Unlock()
-			defer func() {
-				fundsL.Lock()
-				funds[accounts[i].Address] = balance
-				fundsL.Unlock()
-			}()
-			ut := time.Now().Unix()
-			for {
-				select {
-				case <-t.C:
-					// Ensure we aren't too backlogged
-					if inflight.Load() > int64(maxTxBacklog) {
-						t.Reset(1 * time.Second)
-						continue
-					}
 
-					// Select tx time
-					//
-					// Needed to prevent duplicates if called within the same
-					// unix second.
-					nextTime := time.Now().Unix()
-					if nextTime <= ut {
-						nextTime = ut + 1
+			// Issue txs
+			g := &errgroup.Group{}
+			g.SetLimit(maxConcurrency)
+			for i := 0; i < currentTarget; i++ {
+				senderIndex, recipientIndex := z.Uint64(), z.Uint64()
+				sender := accounts[senderIndex]
+				if recipientIndex == senderIndex {
+					if recipientIndex == uint64(numAccounts-1) {
+						recipientIndex--
+					} else {
+						recipientIndex++
 					}
-					ut = nextTime
-					tm := &timeModifier{nextTime*consts.MillisecondsPerSecond + parser.Rules(nextTime).GetValidityWindow() - 5*consts.MillisecondsPerSecond}
+				}
+				recipient := accounts[recipientIndex].Address
+				issuer := getRandomIssuer(issuers)
+				g.Go(func() error {
+					factory := factories[senderIndex]
+					fundsL.Lock()
+					balance := funds[sender.Address]
+					if feePerTx > balance {
+						fundsL.Unlock()
+						utils.Outf("{{orange}}tx has insufficient funds:{{/}} %s\n", sender.Address)
+						return fmt.Errorf("%s has insufficient funds", sender.Address)
+					}
+					funds[sender.Address] = balance - feePerTx
+					fundsL.Unlock()
 
 					// Send transaction
-					start := time.Now()
-					selected := map[codec.Address]int{}
-					for k := 0; k < numTxsPerAccount; k++ {
-						recipient, err := getNextRecipient(i, recipientFunc, accounts)
-						if err != nil {
-							utils.Outf("{{orange}}failed to get next recipient:{{/}} %v\n", err)
-							return err
-						}
-						v := selected[recipient] + 1
-						selected[recipient] = v
-						actions := getTransfer(recipient, uint64(v))
-						fee, err := fees.MulSum(unitPrices, maxUnits)
-						if err != nil {
-							utils.Outf("{{orange}}failed to estimate max fee:{{/}} %v\n", err)
-							return err
-						}
-						if maxFee != nil {
-							fee = *maxFee
-						}
-						_, tx, err := issuer.c.GenerateTransactionManual(parser, actions, factory, fee, tm)
-						if err != nil {
-							utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
-							continue
-						}
-						if err := issuer.d.RegisterTx(tx); err != nil {
-							issuer.l.Lock()
-							if issuer.d.Closed() {
-								if issuer.abandoned != nil {
-									issuer.l.Unlock()
-									return issuer.abandoned
-								}
-								// recreate issuer
-								utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %d\n", issuerIndex, issuer.uri)
-								dcli, err := rpc.NewWebSocketClient(uris[issuer.uri], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
-								if err != nil {
-									issuer.abandoned = err
-									utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
-									issuer.l.Unlock()
-									return err
-								}
-								issuer.d = dcli
-								startIssuer(cctx, issuer)
-								issuer.l.Unlock()
-								utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", issuerIndex)
-							}
-							continue
-						}
-						balance -= (fee + uint64(v))
-						issuer.l.Lock()
-						issuer.outstandingTxs++
-						issuer.l.Unlock()
-						inflight.Add(1)
-						sent.Add(1)
-					}
-
-					// Determine how long to sleep
-					dur := time.Since(start)
-					sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
-					t.Reset(time.Duration(sleep) * time.Millisecond)
-				case <-gctx.Done():
-					return gctx.Err()
-				case <-cctx.Done():
-					return nil
-				case <-signals:
-					exiting.Do(func() {
-						utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
-						cancel()
-					})
-					return nil
-				}
+					actions := sh.GetTransfer(recipient, 1, uniqueBytes())
+					return issuer.Send(cctx, actions, factory, feePerTx)
+				})
 			}
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return err
+
+			// Wait for txs to finish
+			if err := g.Wait(); err != nil {
+				// We don't return here because we want to return funds
+				utils.Outf("{{orange}}broadcast loop error:{{/}} %v\n", err)
+				stop = true
+				break
+			}
+
+			// Determine how long to sleep
+			dur := time.Since(start)
+			sleep := max(float64(consts.MillisecondsPerSecond-dur.Milliseconds()), 0)
+			it.Reset(time.Duration(sleep) * time.Millisecond)
+
+			// Check to see if we should increase target
+			consecutiveAboveBacklog = 0
+			consecutiveUnderBacklog++
+			if consecutiveUnderBacklog >= successfulRunsToIncreaseTarget && currentTarget < txsPerSecond {
+				currentTarget = min(currentTarget+txsPerSecondStep, txsPerSecond)
+				utils.Outf("{{cyan}}increasing target tps:{{/}} %d\n", currentTarget)
+				consecutiveUnderBacklog = 0
+			}
+		case <-cctx.Done():
+			stop = true
+			utils.Outf("{{yellow}}context canceled{{/}}\n")
+		case <-signals:
+			stop = true
+			utils.Outf("{{yellow}}exiting broadcast loop{{/}}\n")
+			cancel()
+		}
 	}
 
 	// Wait for all issuers to finish
 	utils.Outf("{{yellow}}waiting for issuers to return{{/}}\n")
-	dctx, cancel := context.WithCancel(ctx)
-	go func() {
-		// Send a dummy transaction if shutdown is taking too long (listeners are
-		// expired on accept if dropped)
-		t := time.NewTicker(15 * time.Second)
-		defer t.Stop()
-		for {
-			select {
-			case <-t.C:
-				utils.Outf("{{yellow}}remaining:{{/}} %d\n", inflight.Load())
-				_ = h.SubmitDummy(dctx, cli, submitDummy(cli, key))
-			case <-dctx.Done():
-				return
-			}
-		}
-	}()
 	issuerWg.Wait()
-	cancel()
 
 	// Return funds
+	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
 	unitPrices, err = cli.UnitPrices(ctx, false)
 	if err != nil {
 		return err
@@ -404,50 +386,35 @@ func (h *Handler) Spam(
 	if err != nil {
 		return err
 	}
-	if maxFee != nil {
-		feePerTx = *maxFee
-	}
-	utils.Outf("{{yellow}}returning funds to %s{{/}}\n", h.c.Address(key.Address))
-	var (
-		returnedBalance uint64
-		returnsSent     int
-	)
+	var returnedBalance uint64
+	p = &pacer{ws: ws}
+	go p.Run(ctx, minTxsPerSecond)
 	for i := 0; i < numAccounts; i++ {
+		// Determine if we should return funds
 		balance := funds[accounts[i].Address]
 		if feePerTx > balance {
 			continue
 		}
-		returnsSent++
+
 		// Send funds
 		returnAmt := balance - feePerTx
-		f, err := getFactory(accounts[i])
+		actions := sh.GetTransfer(key.Address, returnAmt, uniqueBytes())
+		_, tx, err := cli.GenerateTransactionManual(parser, actions, factories[i], feePerTx)
 		if err != nil {
 			return err
 		}
-		_, tx, err := cli.GenerateTransactionManual(parser, getTransfer(key.Address, returnAmt), f, feePerTx)
-		if err != nil {
-			return err
-		}
-		if err != nil {
-			return err
-		}
-		if err := dcli.RegisterTx(tx); err != nil {
+		if err := p.Add(tx); err != nil {
 			return err
 		}
 		returnedBalance += returnAmt
+
+		if i%250 == 0 && i > 0 {
+			utils.Outf("{{yellow}}checked %d accounts for fund return{{/}}\n", i)
+		}
 	}
-	for i := 0; i < returnsSent; i++ {
-		_, dErr, result, err := dcli.ListenTx(ctx)
-		if err != nil {
-			return err
-		}
-		if dErr != nil {
-			return dErr
-		}
-		if !result.Success {
-			// Should never happen
-			return fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
-		}
+	if err := p.Wait(); err != nil {
+		utils.Outf("{{orange}}failed to return funds:{{/}} %v\n", err)
+		return err
 	}
 	utils.Outf(
 		"{{yellow}}returned funds:{{/}} %s %s\n",
@@ -457,36 +424,78 @@ func (h *Handler) Spam(
 	return nil
 }
 
-type txIssuer struct {
-	c *rpc.JSONRPCClient
-	d *rpc.WebSocketClient
+type pacer struct {
+	ws *rpc.WebSocketClient
 
+	inflight chan struct{}
+	done     chan error
+}
+
+func (p *pacer) Run(ctx context.Context, max int) {
+	p.inflight = make(chan struct{}, max)
+	p.done = make(chan error)
+
+	for range p.inflight {
+		_, wsErr, result, err := p.ws.ListenTx(ctx)
+		if err != nil {
+			p.done <- err
+			return
+		}
+		if wsErr != nil {
+			p.done <- wsErr
+			return
+		}
+		if !result.Success {
+			// Should never happen
+			p.done <- fmt.Errorf("%w: %s", ErrTxFailed, result.Error)
+			return
+		}
+	}
+	p.done <- nil
+}
+
+func (p *pacer) Add(tx *chain.Transaction) error {
+	if err := p.ws.RegisterTx(tx); err != nil {
+		return err
+	}
+	select {
+	case p.inflight <- struct{}{}:
+		return nil
+	case err := <-p.done:
+		return err
+	}
+}
+
+func (p *pacer) Wait() error {
+	close(p.inflight)
+	return <-p.done
+}
+
+type issuer struct {
+	i      int
+	uri    string
+	parser chain.Parser
+
+	// TODO: clean up potential race conditions here.
 	l              sync.Mutex
-	uri            int
-	abandoned      error
+	cli            *rpc.JSONRPCClient
+	ws             *rpc.WebSocketClient
 	outstandingTxs int
+	abandoned      error
 }
 
-type timeModifier struct {
-	Timestamp int64
-}
-
-func (t *timeModifier) Base(b *chain.Base) {
-	b.Timestamp = t.Timestamp
-}
-
-func startIssuer(cctx context.Context, issuer *txIssuer) {
+func (i *issuer) Start(ctx context.Context) {
 	issuerWg.Add(1)
 	go func() {
 		for {
-			_, dErr, result, err := issuer.d.ListenTx(context.TODO())
+			_, wsErr, result, err := i.ws.ListenTx(context.TODO())
 			if err != nil {
 				return
 			}
+			i.l.Lock()
+			i.outstandingTxs--
+			i.l.Unlock()
 			inflight.Add(-1)
-			issuer.l.Lock()
-			issuer.outstandingTxs--
-			issuer.l.Unlock()
 			l.Lock()
 			if result != nil {
 				if result.Success {
@@ -496,8 +505,8 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 				}
 			} else {
 				// We can't error match here because we receive it over the wire.
-				if !strings.Contains(dErr.Error(), rpc.ErrExpired.Error()) {
-					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", dErr)
+				if !strings.Contains(wsErr.Error(), rpc.ErrExpired.Error()) {
+					utils.Outf("{{orange}}pre-execute tx failure:{{/}} %v\n", wsErr)
 				}
 			}
 			totalTxs++
@@ -506,50 +515,79 @@ func startIssuer(cctx context.Context, issuer *txIssuer) {
 	}()
 	go func() {
 		defer func() {
-			_ = issuer.d.Close()
+			_ = i.ws.Close()
 			issuerWg.Done()
 		}()
 
-		<-cctx.Done()
+		<-ctx.Done()
 		start := time.Now()
 		for time.Since(start) < issuerShutdownTimeout {
-			if issuer.d.Closed() {
+			if i.ws.Closed() {
 				return
 			}
-			issuer.l.Lock()
-			outstanding := issuer.outstandingTxs
-			issuer.l.Unlock()
+			i.l.Lock()
+			outstanding := i.outstandingTxs
+			i.l.Unlock()
 			if outstanding == 0 {
 				return
 			}
-			time.Sleep(500 * time.Millisecond)
+			utils.Outf("{{orange}}waiting for issuer %d to finish:{{/}} %d\n", i.i, outstanding)
+			time.Sleep(time.Second)
 		}
-		utils.Outf("{{orange}}issuer shutdown timeout{{/}}\n")
+		utils.Outf("{{orange}}issuer %d shutdown timeout{{/}}\n", i.i)
 	}()
 }
 
-func getNextRecipient(self int, createAccount func() (*PrivateKey, error), keys []*PrivateKey) (codec.Address, error) {
-	// Send to a random, new account
-	if createAccount != nil {
-		priv, err := createAccount()
-		if err != nil {
-			return codec.EmptyAddress, err
-		}
-		return priv.Address, nil
+func (i *issuer) Send(ctx context.Context, actions []chain.Action, factory chain.AuthFactory, feePerTx uint64) error {
+	// Construct transaction
+	_, tx, err := i.cli.GenerateTransactionManual(i.parser, actions, factory, feePerTx)
+	if err != nil {
+		utils.Outf("{{orange}}failed to generate tx:{{/}} %v\n", err)
+		return fmt.Errorf("failed to generate tx: %w", err)
 	}
 
-	// Select item from array
-	index := rand.Int() % len(keys)
-	if index == self {
-		index++
-		if index == len(keys) {
-			index = 0
+	// Increase outstanding txs for issuer
+	i.l.Lock()
+	i.outstandingTxs++
+	i.l.Unlock()
+	inflight.Add(1)
+
+	// Register transaction and recover upon failure
+	if err := i.ws.RegisterTx(tx); err != nil {
+		i.l.Lock()
+		if i.ws.Closed() {
+			if i.abandoned != nil {
+				i.l.Unlock()
+				return i.abandoned
+			}
+
+			// Attempt to recreate issuer
+			utils.Outf("{{orange}}re-creating issuer:{{/}} %d {{orange}}uri:{{/}} %s\n", i.i, i.uri)
+			ws, err := rpc.NewWebSocketClient(i.uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize) // we write the max read
+			if err != nil {
+				i.abandoned = err
+				utils.Outf("{{orange}}could not re-create closed issuer:{{/}} %v\n", err)
+				i.l.Unlock()
+				return err
+			}
+			i.ws = ws
+			i.l.Unlock()
+
+			i.Start(ctx)
+			utils.Outf("{{green}}re-created closed issuer:{{/}} %d\n", i.i)
 		}
+
+		// If issuance fails during retry, we should fail
+		return i.ws.RegisterTx(tx)
 	}
-	return keys[index].Address, nil
+	return nil
 }
 
-func getRandomIssuer(issuers []*txIssuer) (int, *txIssuer) {
+func getRandomIssuer(issuers []*issuer) *issuer {
 	index := rand.Int() % len(issuers)
-	return index, issuers[index]
+	return issuers[index]
+}
+
+func uniqueBytes() []byte {
+	return binary.BigEndian.AppendUint64(nil, uint64(sent.Add(1)))
 }

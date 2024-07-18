@@ -25,7 +25,7 @@ import (
 func sendAndWait(
 	ctx context.Context, actions []chain.Action, cli *rpc.JSONRPCClient,
 	bcli *brpc.JSONRPCClient, ws *rpc.WebSocketClient, factory chain.AuthFactory, printStatus bool,
-) (bool, ids.ID, error) { //nolint:unparam
+) (bool, ids.ID, error) {
 	parser, err := bcli.Parser(ctx)
 	if err != nil {
 		return false, ids.Empty, err
