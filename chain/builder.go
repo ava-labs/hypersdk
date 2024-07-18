@@ -100,7 +100,7 @@ func BuildBlock(
 		return nil, err
 	}
 	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
 	if err != nil {
 		return nil, err
 	}

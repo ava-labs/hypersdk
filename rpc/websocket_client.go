@@ -139,7 +139,7 @@ func (c *WebSocketClient) RegisterBlocks() error {
 	return c.mb.Send([]byte{BlockMode})
 }
 
-// Listen listens for block messages from the streaming server.
+// ListenBlock listens for block messages from the streaming server.
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
 	parser chain.Parser,
