@@ -21,8 +21,8 @@ func NewAcceptedSubscribers(subscribers ...AcceptedSubscriber) *AcceptedSubscrib
 	return &AcceptedSubscribers{subscribers: subscribers}
 }
 
-func (c *AcceptedSubscribers) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	for _, subscriber := range c.subscribers {
+func (a *AcceptedSubscribers) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+	for _, subscriber := range a.subscribers {
 		if err := subscriber.Accepted(ctx, blk); err != nil {
 			return err
 		}

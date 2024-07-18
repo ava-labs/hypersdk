@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	_ AcceptedSubscriber = (*txDBIndexer)(nil)
+	_ AcceptedSubscriber = (*TxDBIndexer)(nil)
 	_ AcceptedSubscriber = (*NoOpTxIndexer)(nil)
 
 	failureByte = byte(0x0)
@@ -29,23 +29,23 @@ type TxIndexer interface {
 	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 }
 
-type txDBIndexer struct {
+type TxDBIndexer struct {
 	db database.Database
 }
 
-func NewTxDBIndexer(db database.Database) *txDBIndexer {
-	return &txDBIndexer{db: db}
+func NewTxDBIndexer(db database.Database) *TxDBIndexer {
+	return &TxDBIndexer{db: db}
 }
 
-func (i *txDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
-	batch := i.db.NewBatch()
+func (t *TxDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
+	batch := t.db.NewBatch()
 	defer batch.Reset()
 
 	timestamp := blk.GetTimestamp()
 	results := blk.Results()
 	for j, tx := range blk.Txs {
 		result := results[j]
-		if err := i.storeTransaction(
+		if err := t.storeTransaction(
 			batch,
 			tx.ID(),
 			timestamp,
@@ -60,16 +60,16 @@ func (i *txDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) err
 	return batch.Write()
 }
 
-func (*txDBIndexer) storeTransaction(
+func (*TxDBIndexer) storeTransaction(
 	batch database.KeyValueWriter,
 	txID ids.ID,
-	t int64,
+	timestamp int64,
 	success bool,
 	units fees.Dimensions,
 	fee uint64,
 ) error {
 	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
-	binary.BigEndian.PutUint64(v, uint64(t))
+	binary.BigEndian.PutUint64(v, uint64(timestamp))
 	if success {
 		v[consts.Uint64Len] = successByte
 	} else {
@@ -80,15 +80,15 @@ func (*txDBIndexer) storeTransaction(
 	return batch.Put(txID[:], v)
 }
 
-func (i *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	v, err := i.db.Get(txID[:])
+func (t *TxDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+	v, err := t.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil
 	}
 	if err != nil {
 		return false, 0, false, fees.Dimensions{}, 0, err
 	}
-	t := int64(binary.BigEndian.Uint64(v))
+	timestamp := int64(binary.BigEndian.Uint64(v))
 	success := true
 	if v[consts.Uint64Len] == failureByte {
 		success = false
@@ -98,7 +98,7 @@ func (i *txDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimen
 		return false, 0, false, fees.Dimensions{}, 0, err
 	}
 	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
-	return true, t, success, d, fee, nil
+	return true, timestamp, success, d, fee, nil
 }
 
 type NoOpTxIndexer struct{}
