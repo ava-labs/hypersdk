@@ -115,9 +115,11 @@ func TestTransferAction(t *testing.T) {
 				return ts.NewView(keys, store.Storage)
 			}(),
 			Assertion: func(store state.Mutable) bool {
-				balance, err := storage.GetBalance(context.Background(), store, oneAddr)
+				receiverBalance, err := storage.GetBalance(context.Background(), store, oneAddr)
 				require.NoError(err)
-				return balance == 1
+				senderBalance, err := storage.GetBalance(context.Background(), store, codec.EmptyAddress)
+				require.NoError(err)
+				return receiverBalance == 1 && senderBalance == 0
 			},
 		},
 	}
