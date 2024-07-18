@@ -10,7 +10,7 @@ import (
 
 const (
 	ProgramExecute = "execute"
-	RequestMessage	 = "message"
+	RequestMessage = "message"
 )
 
 type SimulatorRequest struct {
@@ -18,7 +18,7 @@ type SimulatorRequest struct {
 	Endpoint Endpoint `json:"endpoint"`
 	// The method to call on the endpoint.
 	Method string `json:"method"`
-	// The maximum number of units to consume for this step.
+	// The maximum number of units to consume for this request.
 	MaxUnits uint64 `json:"maxUnits"`
 	// The parameters to pass to the method.
 	Params []Parameter `json:"params"`
@@ -47,9 +47,9 @@ func newResponse(id int) *Response {
 }
 
 type Response struct {
-	// The index of the step that generated this response.
+	// The index of the request that generated this response.
 	ID int `json:"id"`
-	// The result of the step.
+	// The result of the request.
 	Result *Result `json:"result,omitempty"`
 	// The error message if available.
 	Error string `json:"error,omitempty"`
@@ -60,7 +60,6 @@ func (r *Response) Print() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal response: %w", err)
 	}
-	
 	fmt.Println(string(jsonBytes))
 	return nil
 }
@@ -84,7 +83,7 @@ func (r *Response) setTimestamp(timestamp int64) {
 type Result struct {
 	// The tx id of the transaction that was created.
 	ID string `json:"id,omitempty"`
-	// The balance after the step has completed.
+	// The balance after the request has completed.
 	Balance uint64 `json:"balance,omitempty"`
 	// The response from the call.
 	Response []byte `json:"response"`

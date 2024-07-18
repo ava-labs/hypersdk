@@ -17,15 +17,14 @@ pub fn get_actor(context: Context) -> Address {
 
 #[cfg(test)]
 mod tests {
-    use simulator;
-    use simulator::TestContext;
+    use simulator::{build_simulator, TestContext};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn can_set_timestamp() {
-        let mut simulator = simulator::build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
@@ -43,7 +42,7 @@ mod tests {
 
     #[test]
     fn can_set_height() {
-        let mut simulator = simulator::build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
@@ -64,7 +63,7 @@ mod tests {
 
     #[test]
     fn can_set_actor() {
-        let mut simulator = simulator::build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
         let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 

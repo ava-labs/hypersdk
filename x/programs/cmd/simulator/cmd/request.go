@@ -32,17 +32,13 @@ var _ Cmd = (*runCmd)(nil)
 type runCmd struct {
 	cmd *argparse.Command
 
-	// seems like last step is an id? Not sure who is using the response when lastStep is retuerning?
-	//  i think we can delete this, but keep for now i guess
-	lastStep *int
+	// counts the number of requests made
+	numRequests *int
 
-	// different commands a user may run on the simulator
-	// readonly *string
-	// execute  *string
-	// create   *string
+	// the message send to the simulator
 	requestMessage *string
 
-   request *SimulatorRequest	
+	request *SimulatorRequest
 
 	log    logging.Logger
 	reader *bufio.Reader
@@ -51,15 +47,14 @@ type runCmd struct {
 	programIDStrMap map[int]codec.Address
 }
 
-func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]codec.Address, lastStep *int, reader *bufio.Reader) {
+func (c *runCmd) New(parser *argparse.Parser, programIDStrMap map[int]codec.Address, lastRequest *int, reader *bufio.Reader) {
 	c.programIDStrMap = programIDStrMap
 	c.cmd = parser.NewCommand("run", "Run a HyperSDK program simulation plan")
-	
+
 	c.requestMessage = c.cmd.String("", "message", &argparse.Options{
 		Required: true,
 	})
-
-	c.lastStep = lastStep
+	c.numRequests = lastRequest
 	c.reader = reader
 }
 
@@ -72,7 +67,7 @@ func (c *runCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMu
 	if err = c.Verify(); err != nil {
 		return newResponse(0), err
 	}
-	resp, err := c.RunStep(ctx, db)
+	resp, err := c.RunRequest(ctx, db)
 	if err != nil {
 		return newResponse(0), err
 	}
@@ -101,7 +96,7 @@ func (c *runCmd) Init() (err error) {
 func (c *runCmd) Verify() error {
 	request := c.request
 	if request == nil {
-		return fmt.Errorf("%w: %s", ErrInvalidStep, "no steps found")
+		return fmt.Errorf("%w: %s", ErrInvalidRequest, "no request found")
 	}
 
 	if request.Params == nil {
@@ -109,7 +104,7 @@ func (c *runCmd) Verify() error {
 	}
 
 	// verify endpoint requirements
-	return verifyEndpoint(*c.lastStep, request)
+	return verifyEndpoint(*c.numRequests, request)
 }
 
 func verifyEndpoint(i int, request *SimulatorRequest) error {
@@ -119,17 +114,17 @@ func verifyEndpoint(i int, request *SimulatorRequest) error {
 	case EndpointReadOnly:
 		// verify the first param is a test context
 		if firstParamType != TestContext {
-			return fmt.Errorf("read only %w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidRequest, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
 	case EndpointExecute:
 		// verify the first param is a test context
 		if request.Params[0].Type != TestContext {
-			return fmt.Errorf("execute %w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidRequest, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
 	case EndpointCreateProgram:
 		// verify the first param is a string for the path
 		if request.Params[0].Type != Path {
-			return fmt.Errorf("%w %d %w: %w", ErrInvalidStep, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
+			return fmt.Errorf("%w %d %w: %w", ErrInvalidRequest, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
 		}
 	default:
 		return fmt.Errorf("%w: %s", ErrInvalidEndpoint, request.Endpoint)
@@ -137,11 +132,11 @@ func verifyEndpoint(i int, request *SimulatorRequest) error {
 	return nil
 }
 
-func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Response, error) {
-	index := *c.lastStep
+func (c *runCmd) RunRequest(ctx context.Context, db *state.SimpleMutable) (*Response, error) {
+	index := *c.numRequests
 	request := c.request
 	c.log.Info("simulation",
-		zap.Int("step", index),
+		zap.Int("request", index),
 		zap.String("endpoint", string(request.Endpoint)),
 		zap.String("method", request.Method),
 		zap.Uint64("maxUnits", request.MaxUnits),
@@ -160,8 +155,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 		resp.setError(err)
 	}
 
-	lastStep := index + 1
-	*c.lastStep = lastStep
+	*c.numRequests = index + 1
 
 	return resp, nil
 }
@@ -247,7 +241,7 @@ func (c *runCmd) runRequestFunc(
 		if err != nil {
 			return err
 		}
-		c.programIDStrMap[*c.lastStep] = programAddress
+		c.programIDStrMap[*c.numRequests] = programAddress
 		resp.setTimestamp(time.Now().Unix())
 
 		return nil

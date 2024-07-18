@@ -8,17 +8,17 @@ import "errors"
 var (
 	ErrMissingSubcommand     = errors.New("missing subcommand")
 	ErrProgramNotFound       = errors.New("program not found")
-	ErrProgramPathRequired   = errors.New("program path required for this step")
+	ErrProgramPathRequired   = errors.New("program path required for this request")
 	ErrDuplicateKeyName      = errors.New("duplicate key name")
 	ErrNamedKeyNotFound      = errors.New("named key not found")
 	ErrInvalidConfigFormat   = errors.New("invalid config format")
 	ErrResultAssertionFailed = errors.New("result assertion failed")
 	ErrInvalidParamType      = errors.New("invalid param type")
 	ErrFailedParamTypeCast   = errors.New("failed to cast param type")
-	ErrKeyNameRequired       = errors.New("key name required for this step")
+	ErrKeyNameRequired       = errors.New("key name required for this request")
 
-	// Steps
-	ErrInvalidStep               = errors.New("invalid step")
+	// Requests
+	ErrInvalidRequest            = errors.New("invalid request")
 	ErrInvalidEndpoint           = errors.New("invalid endpoint")
 	ErrInvalidMethod             = errors.New("invalid method")
 	ErrInvalidParams             = errors.New("invalid params")

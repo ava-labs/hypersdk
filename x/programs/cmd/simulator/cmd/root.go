@@ -50,7 +50,7 @@ type Simulator struct {
 	logLevel               *string
 	cleanup                *bool
 	enableWriterDisplaying *bool
-	lastStep               int
+	numRequests            int
 	programIDStrMap        map[int]codec.Address
 
 	db *state.SimpleMutable
@@ -90,7 +90,8 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 				return err
 			}
 
-			s.log.Debug("a step has ben ran", zap.Any("resp", resp))
+			s.log.Debug("a request has ben ran", zap.Any("resp", resp))
+			
 			if interpreterMode {
 				// we need feedback, so print response to stdout
 				if err := resp.Print(); err != nil {
@@ -132,7 +133,7 @@ func (s *Simulator) ParseCommandArgs(ctx context.Context, args []string, interpr
 }
 
 func (s *Simulator) Execute(ctx context.Context) error {
-	s.lastStep = 0
+	s.numRequests = 0
 	s.programIDStrMap = make(map[int]codec.Address)
 
 	defer s.manageCleanup(ctx)
@@ -160,7 +161,7 @@ func (s *Simulator) BaseParser() (*argparse.Parser, []Cmd) {
 	s.reader = bufio.NewReader(stdin)
 
 	runCmd := runCmd{}
-	runCmd.New(parser, s.programIDStrMap, &s.lastStep, s.reader)
+	runCmd.New(parser, s.programIDStrMap, &s.numRequests, s.reader)
 	programCmd := programCreateCmd{}
 	programCmd.New(parser)
 	keyCmd := keyCreateCmd{}
