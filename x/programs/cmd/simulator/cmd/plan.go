@@ -90,9 +90,6 @@ func (c *runCmd) Init() (err error) {
 	}
 
 	marshaledBytes = []byte(*c.requestMessage)
-	
-
-
 	c.request, err = unmarshalRequest(marshaledBytes)
 	if err != nil {
 		return err
@@ -169,6 +166,7 @@ func (c *runCmd) RunStep(ctx context.Context, db *state.SimpleMutable) (*Respons
 	return resp, nil
 }
 
+// runRequestFunc runs the simulation request and returns the response.
 func (c *runCmd) runRequestFunc(
 	ctx context.Context,
 	db *state.SimpleMutable,
@@ -180,7 +178,7 @@ func (c *runCmd) runRequestFunc(
 ) error {
 	defer resp.setTimestamp(time.Now().Unix())
 	switch endpoint {
-	case EndpointExecute: // for now the logic is the same for both TODO: breakout readonly
+	case EndpointExecute: // for now the logic is the same for both Execute & ReadOnly: breakout readonly
 		var simulatorTestContext SimulatorTestContext
 		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {

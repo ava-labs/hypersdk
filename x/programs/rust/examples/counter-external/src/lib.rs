@@ -14,14 +14,15 @@ pub fn get_value(_: Context, external: Program, address: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{ClientBuilder, Endpoint, Param, Step, TestContext};
+    use simulator::{build_simulator, Param, TestContext};
+
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn inc_and_get_value() {
-        let mut simulator = ClientBuilder::new().try_build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
         let counter_path = PROGRAM_PATH
             .replace("counter-external", "counter")
@@ -30,14 +31,15 @@ mod tests {
         let owner = Address::new([1; 33]);
 
         let counter_external = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
+            .create_program(PROGRAM_PATH)
             .expect("should be able to create this program")
             .id;
 
         let counter = simulator
-            .run_step(&Step::create_program(counter_path))
+            .create_program(counter_path)
             .expect("should be able to create the counter")
             .id;
+
         let counter = Param::Id(counter);
 
         let params = vec![
@@ -47,21 +49,11 @@ mod tests {
         ];
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "inc".into(),
-                max_units: 100_000_000,
-                params: params.clone(),
-            })
+            .execute("inc".into(), params.clone(), 100_000_000)
             .expect("call inc");
 
         let response = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_value".into(),
-                max_units: 1_000_000,
-                params,
-            })
+            .read("get_value".into(), params)
             .expect("call get_value")
             .result
             .response::<u64>()

@@ -112,53 +112,50 @@ fn reserves(context: &Context<StateKeys>) -> (u64, u64) {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Step, StepResponseError, TestContext};
+    use std::u64;
+
+    use simulator::{build_simulator, SimulatorResponseError, TestContext};
     use wasmlanche_sdk::ExternalCallError;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn init_state() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let test_context = TestContext::from(program_id);
 
         let resp_err = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "remove_liquidity".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.clone().into(), 100000u64.into()],
-            })
+            .execute(
+                "remove_liquidity".into(),
+                vec![test_context.clone().into(), 100000u64.into()],
+                u64::MAX,
+            )
             .unwrap()
             .result
             .response::<(u64, u64)>()
             .unwrap_err();
 
-        let StepResponseError::ExternalCall(call_err) = resp_err else {
+        let SimulatorResponseError::ExternalCall(call_err) = resp_err else {
             panic!("wrong error returned");
         };
-
+        println!("{:?}", call_err);
         assert!(matches!(call_err, ExternalCallError::CallPanicked));
 
         let resp_err = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "swap".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.into(), 100000u64.into(), true.into()],
-            })
+            .execute(
+                "swap".to_string(),
+                vec![test_context.into(), 100000u64.into(), true.into()],
+                u64::MAX,
+            )
             .unwrap()
             .result
             .response::<u64>()
             .unwrap_err();
 
-        let StepResponseError::ExternalCall(call_err) = resp_err else {
+        let SimulatorResponseError::ExternalCall(call_err) = resp_err else {
             panic!("wrong error returned");
         };
 
@@ -167,22 +164,18 @@ mod tests {
 
     #[test]
     fn add_liquidity_same_ratio() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let test_context = TestContext::from(program_id);
 
         let resp = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "add_liquidity".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.clone().into(), 1000u64.into(), 1000u64.into()],
-            })
+            .execute(
+                "add_liquidity".to_string(),
+                vec![test_context.clone().into(), 1000u64.into(), 1000u64.into()],
+                u64::MAX,
+            )
             .unwrap()
             .result
             .response::<u64>()
@@ -191,18 +184,17 @@ mod tests {
         assert_eq!(resp, 1000);
 
         let resp = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "add_liquidity".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.into(), 1000u64.into(), 1001u64.into()],
-            })
+            .execute(
+                "add_liquidity".to_string(),
+                vec![test_context.clone().into(), 1000u64.into(), u64::MAX.into()],
+                u64::MAX,
+            )
             .unwrap()
             .result
             .response::<u64>()
             .unwrap_err();
 
-        let StepResponseError::ExternalCall(call_err) = resp else {
+        let SimulatorResponseError::ExternalCall(call_err) = resp else {
             panic!("unexpected error");
         };
 
@@ -211,22 +203,18 @@ mod tests {
 
     #[test]
     fn swap_changes_ratio() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut simulator = build_simulator().unwrap();
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
+        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
 
         let test_context = TestContext::from(program_id);
 
         let resp = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "add_liquidity".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.clone().into(), 1000u64.into(), 1000u64.into()],
-            })
+            .execute(
+                "add_liquidity".to_string(),
+                vec![test_context.clone().into(), 1000u64.into(), 1000u64.into()],
+                u64::MAX,
+            )
             .unwrap()
             .result
             .response::<u64>()
@@ -235,21 +223,19 @@ mod tests {
         assert_eq!(resp, 1000);
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "swap".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.clone().into(), 10u64.into(), true.into()],
-            })
+            .execute(
+                "swap".to_string(),
+                vec![test_context.clone().into(), 10u64.into(), true.into()],
+                u64::MAX,
+            )
             .unwrap();
 
         let (amount_x, amount_y) = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "remove_liquidity".to_string(),
-                max_units: u64::MAX,
-                params: vec![test_context.into(), 1000.into()],
-            })
+            .execute(
+                "remove_liquidity".to_string(),
+                vec![test_context.clone().into(), 1000u64.into()],
+                u64::MAX,
+            )
             .unwrap()
             .result
             .response::<(u64, u64)>()

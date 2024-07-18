@@ -1,6 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
-use borsh::BorshDeserialize;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serializer};
 
 use crate::{context::TestContext, Id};
 
