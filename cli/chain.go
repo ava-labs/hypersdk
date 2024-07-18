@@ -244,7 +244,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		}
 		if lastBlock != 0 {
 			since := now.Unix() - lastBlock
-			newWindow, err := window.Roll(tpsWindow, int(since))
+			newWindow, err := window.Roll(tpsWindow, since)
 			if err != nil {
 				return err
 			}

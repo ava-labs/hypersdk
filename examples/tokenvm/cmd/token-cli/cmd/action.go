@@ -76,7 +76,7 @@ var fundFaucetCmd = &cobra.Command{
 			To:    addr,
 			Asset: ids.Empty,
 			Value: amount,
-		}}, cli, scli, tcli, factory, true); err != nil {
+		}}, cli, scli, tcli, factory); err != nil {
 			return err
 		}
 		utils.Outf("{{green}}funded faucet:{{/}} %s\n", faucetAddress)
@@ -126,7 +126,7 @@ var transferCmd = &cobra.Command{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory)
 		return err
 	},
 }
@@ -169,7 +169,7 @@ var createAssetCmd = &cobra.Command{
 			Symbol:   []byte(symbol),
 			Decimals: uint8(decimals), // already constrain above to prevent overflow
 			Metadata: []byte(metadata),
-		}}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory)
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ var mintAssetCmd = &cobra.Command{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory)
 		return err
 	},
 }
@@ -276,7 +276,7 @@ var closeOrderCmd = &cobra.Command{
 		_, err = sendAndWait(ctx, []chain.Action{&actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory)
 		return err
 	},
 }
@@ -365,7 +365,7 @@ var createOrderCmd = &cobra.Command{
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory)
 		if err != nil {
 			return err
 		}
@@ -489,7 +489,7 @@ var fillOrderCmd = &cobra.Command{
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}}, cli, scli, tcli, factory, true)
+		}}, cli, scli, tcli, factory)
 		return err
 	},
 }

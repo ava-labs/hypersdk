@@ -59,7 +59,7 @@ We welcome contributions to hypersdk! To contribute, please follow these steps:
 
 1. Fork the repository and create a new branch for your contribution.
 
-2. Make your changes and ensure that all tests pass and linting is clean.
+2. Make your changes, sign all of your commits, and ensure that all tests pass and linting is clean.
 
 3. Write tests for any new features or bug fixes. (If necessary)
 

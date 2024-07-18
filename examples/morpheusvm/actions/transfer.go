@@ -25,6 +25,9 @@ type Transfer struct {
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
+
+	// Optional message to accompany transaction.
+	Memo []byte `json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -53,6 +56,9 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}
+	if len(t.Memo) > MaxMemoSize {
+		return nil, ErrOutputMemoTooLarge
+	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return nil, err
 	}
@@ -66,23 +72,22 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (*Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (t *Transfer) Size() int {
+	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackAddress(t.To)
 	p.PackUint64(t.Value)
+	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	return &transfer, nil
+	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
+	return &transfer, p.Err()
 }
 
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
