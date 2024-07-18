@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package chaintesting
+package chaintest
 
 import (
 	"context"
@@ -29,27 +29,29 @@ func NewInMemoryStore() *inMemoryStore {
 	}
 }
 
-func (s *inMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
-	val, ok := s.Storage[string(key)]
+func (i *inMemoryStore) GetValue(_ context.Context, key []byte) ([]byte, error) {
+	val, ok := i.Storage[string(key)]
 	if !ok {
 		return nil, database.ErrNotFound
 	}
 	return val, nil
 }
 
-func (s *inMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
-	s.Storage[string(key)] = value
+func (i *inMemoryStore) Insert(_ context.Context, key []byte, value []byte) error {
+	i.Storage[string(key)] = value
 	return nil
 }
 
-func (s *inMemoryStore) Remove(_ context.Context, key []byte) error {
-	delete(s.Storage, string(key))
+func (i *inMemoryStore) Remove(_ context.Context, key []byte) error {
+	delete(i.Storage, string(key))
 	return nil
 }
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass.
 type ActionTest struct {
+	Name string
+
 	Action chain.Action
 
 	Rules     chain.Rules
@@ -64,14 +66,10 @@ type ActionTest struct {
 	Assertion func(state.Mutable) bool
 }
 
-type ActionTestSuite struct {
-	Tests map[string]ActionTest
-}
-
 // Run execute all tests from the test suite and make sure all assertions pass.
-func (suite *ActionTestSuite) Run(t *testing.T) {
-	for name, test := range suite.Tests {
-		t.Run(name, func(t *testing.T) {
+func Run(t *testing.T, tests []ActionTest) {
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
 			require := require.New(t)
 
 			output, err := test.Action.Execute(context.TODO(), test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)

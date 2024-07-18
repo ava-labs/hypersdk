@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/chaintesting"
+	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -28,8 +28,9 @@ func TestTransferAction(t *testing.T) {
 	oneAddr, err := codec.ToAddress(addrSlice)
 	require.NoError(err)
 
-	tests := map[string]chaintesting.ActionTest{
-		"ZeroTransfer": {
+	tests := []chaintest.ActionTest{
+		{
+			Name:  "ZeroTransfer",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
@@ -37,7 +38,8 @@ func TestTransferAction(t *testing.T) {
 			},
 			ExpectedErr: ErrOutputValueZero,
 		},
-		"InvalidStateKey": {
+		{
+			Name:  "InvalidStateKey",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
@@ -46,7 +48,8 @@ func TestTransferAction(t *testing.T) {
 			State:       ts.NewView(make(state.Keys), map[string][]byte{}),
 			ExpectedErr: tstate.ErrInvalidKeyOrPermission,
 		},
-		"NotEnoughBalance": {
+		{
+			Name:  "NotEnoughBalance",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
@@ -60,7 +63,8 @@ func TestTransferAction(t *testing.T) {
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
-		"SimpleZeroTransfer": {
+		{
+			Name:  "SimpleZeroTransfer",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
@@ -68,7 +72,7 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
-				store := chaintesting.NewInMemoryStore()
+				store := chaintest.NewInMemoryStore()
 				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				return ts.NewView(keys, store.Storage)
@@ -79,7 +83,8 @@ func TestTransferAction(t *testing.T) {
 				return balance == 1
 			},
 		},
-		"OverflowBalance": {
+		{
+			Name:  "OverflowBalance",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    codec.EmptyAddress,
@@ -87,14 +92,15 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
-				store := chaintesting.NewInMemoryStore()
+				store := chaintest.NewInMemoryStore()
 				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
 			ExpectedErr: storage.ErrInvalidBalance,
 		},
-		"SimpleTransfer": {
+		{
+			Name:  "SimpleTransfer",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
 				To:    oneAddr,
@@ -102,7 +108,7 @@ func TestTransferAction(t *testing.T) {
 			},
 			State: func() state.Mutable {
 				keys := make(state.Keys)
-				store := chaintesting.NewInMemoryStore()
+				store := chaintest.NewInMemoryStore()
 				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				keys.Add(string(storage.BalanceKey(oneAddr)), state.All)
@@ -116,9 +122,5 @@ func TestTransferAction(t *testing.T) {
 		},
 	}
 
-	testSuite := chaintesting.ActionTestSuite{
-		Tests: tests,
-	}
-
-	testSuite.Run(t)
+	chaintest.Run(t, tests)
 }
