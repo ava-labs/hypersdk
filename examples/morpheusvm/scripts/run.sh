@@ -180,11 +180,6 @@ EOF
 
 ############################
 echo "building e2e.test"
-<<<<<<< HEAD
-# to install the ginkgo binary (required for test build and run)
-go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.13.1
-=======
->>>>>>> ab4170b3 (chore: rebase on top of master)
 
 prepare_ginkgo
 
