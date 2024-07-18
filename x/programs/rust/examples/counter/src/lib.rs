@@ -60,11 +60,13 @@ mod tests {
 
         let test_context = TestContext::from(counter_id);
 
-        simulator.execute(
-            "inc".into(),
-            vec![test_context.clone().into(), bob.into(), 10u64.into()],
-            1000000,
-        ).unwrap();
+        simulator
+            .execute(
+                "inc".into(),
+                vec![test_context.clone().into(), bob.into(), 10u64.into()],
+                1000000,
+            )
+            .unwrap();
 
         let value = simulator
             .read("get_value".into(), vec![test_context.into(), bob.into()])

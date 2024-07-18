@@ -118,7 +118,7 @@ where
         &mut self,
         method: String,
         params: Vec<Param>,
-        max_units: u64,
+        max_units: u64
     ) -> SimulatorResponseItem {
         self.writer.write_all(Self::RUN_COMMAND)?;
 
