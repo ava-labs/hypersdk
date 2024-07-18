@@ -111,7 +111,7 @@ func (c *Controller) Initialize(
 	} else {
 		c.txIndexer = indexer.NewNoOpTxIndexer()
 	}
-	c.acceptedSubscriber = indexer.NewCombinedAcceptedSubscriber(acceptedSubscribers...)
+	c.acceptedSubscriber = indexer.NewAcceptedSubscribers(acceptedSubscribers...)
 
 	// Create handlers
 	//

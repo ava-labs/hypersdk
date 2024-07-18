@@ -13,15 +13,15 @@ type AcceptedSubscriber interface {
 	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
 }
 
-type CombinedAcceptedSubscriber struct {
+type AcceptedSubscribers struct {
 	subscribers []AcceptedSubscriber
 }
 
-func NewCombinedAcceptedSubscriber(subscribers ...AcceptedSubscriber) *CombinedAcceptedSubscriber {
-	return &CombinedAcceptedSubscriber{subscribers: subscribers}
+func NewAcceptedSubscribers(subscribers ...AcceptedSubscriber) *AcceptedSubscribers {
+	return &AcceptedSubscribers{subscribers: subscribers}
 }
 
-func (c *CombinedAcceptedSubscriber) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+func (c *AcceptedSubscribers) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
 	for _, subscriber := range c.subscribers {
 		if err := subscriber.Accepted(ctx, blk); err != nil {
 			return err
