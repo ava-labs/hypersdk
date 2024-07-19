@@ -1,4 +1,8 @@
-use wasmlanche_sdk::{public, state_keys, Context};
+use std::cmp;
+use wasmlanche_sdk::Context;
+use wasmlanche_sdk::{public, state_keys, ExternalCallContext, Program};
+mod math;
+mod tests;
 
 #[state_keys]
 pub enum StateKeys {
@@ -27,6 +31,16 @@ pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liq
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
     assert!(token::transfer_ownership(&liquidity_context, *program.account()), "failed to transfer ownership of the liquidity token");
+
+    // Ideal flow for deploying a new token contract. Could also pass in the liquidity token id
+    // as a parameter but that would require the caller to know the id and its prob best to hardcode the version
+    // since newer versions could have different methods or state keys
+    // 
+    // The ID acts as the unique identifier of the program bytes we want to deploy
+    // declare this at the top of the file const TOKEN_ID : Id = "0xhardcoded_id";
+    // and then deploy the program with the ID
+    // context.program().deploy("liquidity_token_id", &[]);
+
 }
 
 
