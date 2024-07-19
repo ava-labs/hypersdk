@@ -1,8 +1,4 @@
-use std::cmp;
-use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, ExternalCallContext, Program};
-mod math;
-mod tests;
+use wasmlanche_sdk::{public, state_keys, Context};
 
 #[state_keys]
 pub enum StateKeys {

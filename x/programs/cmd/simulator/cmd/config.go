@@ -10,7 +10,6 @@ import (
 
 const (
 	ProgramCreate  = "program_create"
-	KeyCreate      = "key_create"
 	ProgramExecute = "execute"
 )
 
@@ -28,8 +27,6 @@ type Step struct {
 type Endpoint string
 
 const (
-	/// Perform an operation against the key api.
-	EndpointKey Endpoint = "key"
 	/// Make a read-only call to a program function and return the result.
 	EndpointReadOnly Endpoint = "readonly"
 	/// Create a transaction on-chain from a possible state changing program
@@ -78,10 +75,6 @@ func (r *Response) setResponse(response []byte) {
 	r.Result.Response = response
 }
 
-func (r *Response) setMsg(msg string) {
-	r.Result.Msg = msg
-}
-
 func (r *Response) setTimestamp(timestamp int64) {
 	r.Result.Timestamp = uint64(timestamp)
 }
@@ -93,8 +86,6 @@ type Result struct {
 	Balance uint64 `json:"balance,omitempty"`
 	// The response from the call.
 	Response []byte `json:"response"`
-	// An optional message.
-	Msg string `json:"msg,omitempty"`
 	// Timestamp of the response.
 	Timestamp uint64 `json:"timestamp,omitempty"`
 }
@@ -109,13 +100,11 @@ type Parameter struct {
 type Type string
 
 const (
-	String       Type = "string"
-	Path         Type = "path"
-	Address      Type = "address"
-	ID           Type = "id"
-	KeyEd25519   Type = "ed25519"
-	KeySecp256k1 Type = "secp256k1"
-	TestContext  Type = "testContext"
+	String      Type = "string"
+	Path        Type = "path"
+	Address     Type = "address"
+	ID          Type = "id"
+	TestContext Type = "testContext"
 )
 
 func unmarshalStep(bytes []byte) (*Step, error) {

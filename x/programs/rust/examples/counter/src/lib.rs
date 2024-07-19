@@ -1,6 +1,6 @@
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, types::Address};
+use wasmlanche_sdk::{public, state_keys, Address};
 
 #[state_keys]
 pub enum StateKeys {
@@ -16,8 +16,6 @@ pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
     let counter = amount + get_value_internal(&context, to);
 
     context
-        .program()
-        .state()
         .store_by_key(StateKeys::Counter(to), &counter)
         .expect("failed to store counter");
 
@@ -33,8 +31,6 @@ pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
 #[cfg(not(feature = "bindings"))]
 fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
     context
-        .program()
-        .state()
         .get(StateKeys::Counter(of))
         .expect("state corrupt")
         .unwrap_or_default()
@@ -42,24 +38,14 @@ fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Param, Step, TestContext};
+    use simulator::{Endpoint, Step, TestContext};
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn init_program() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
-
-        let owner = String::from("owner");
-        let alice = String::from("alice");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
-            .unwrap();
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(alice)))
-            .unwrap();
 
         simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
@@ -70,15 +56,7 @@ mod tests {
     fn increment() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner = String::from("owner");
-        let bob_key = Key::Ed25519(String::from("bob"));
-        let bob_key_param = Param::Key(bob_key.clone());
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner.clone())))
-            .unwrap();
-
-        simulator.run_step(&Step::create_key(bob_key)).unwrap();
+        let bob = Address::new([1; 33]);
 
         let counter_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
@@ -92,11 +70,7 @@ mod tests {
                 endpoint: Endpoint::Execute,
                 method: "inc".into(),
                 max_units: 1000000,
-                params: vec![
-                    test_context.clone().into(),
-                    bob_key_param.clone(),
-                    10u64.into(),
-                ],
+                params: vec![test_context.clone().into(), bob.into(), 10u64.into()],
             })
             .unwrap();
 
@@ -105,7 +79,7 @@ mod tests {
                 endpoint: Endpoint::ReadOnly,
                 method: "get_value".into(),
                 max_units: 0,
-                params: vec![test_context.into(), bob_key_param],
+                params: vec![test_context.into(), bob.into()],
             })
             .unwrap()
             .result

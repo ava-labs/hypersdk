@@ -6,6 +6,7 @@ package vm
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -129,7 +130,11 @@ type VM struct {
 }
 
 func New(c Controller, v *version.Semantic) *VM {
-	return &VM{c: c, v: v}
+	return &VM{
+		c:      c,
+		v:      v,
+		config: NewConfig(),
+	}
 }
 
 // implements "block.ChainVM.common.VM"
@@ -200,14 +205,23 @@ func (vm *VM) Initialize(
 		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
 	}
 
+	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	controllerConfigBytes, err := json.Marshal(vm.config.Config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal controller config: %w", err)
+	}
+
 	// Always initialize implementation first
-	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		controllerContext,
 		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
-		configBytes,
+		controllerConfigBytes,
 	)
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
@@ -272,12 +286,7 @@ func (vm *VM) Initialize(
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
-	vm.mempool = mempool.New[*chain.Transaction](
-		vm.tracer,
-		vm.config.MempoolSize,
-		vm.config.MempoolSponsorSize,
-		vm.config.MempoolExemptSponsors,
-	)
+	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -812,7 +821,7 @@ func (vm *VM) Submit(
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
+	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
 		return []error{err}
 	}

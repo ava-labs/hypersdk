@@ -221,7 +221,12 @@ var _ = ginkgo.BeforeSuite(func() {
 			genesisBytes,
 			nil,
 			[]byte(
-				`{"parallelism":3, "testMode":true, "logLevel":"debug"}`,
+				`{
+				  "config": {
+				    "testMode":true,
+				    "logLevel":"debug"
+				  }
+				}`,
 			),
 			toEngine,
 			nil,
@@ -324,8 +329,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	// read: 2 keys reads
 	// allocate: 1 key created with 1 chunk
 	// write: 2 keys modified
-	transferTxUnits := fees.Dimensions{188, 7, 14, 50, 26}
-	transferTxFee := uint64(285)
+	transferTxUnits := fees.Dimensions{192, 7, 14, 50, 26}
+	transferTxFee := uint64(289)
 
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
@@ -446,7 +451,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			require.NoError(err)
-			require.Equal(balance, uint64(9_899_715))
+			require.Equal(balance, uint64(9_899_711))
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			require.NoError(err)
 			require.Equal(balance2, uint64(100_000))
