@@ -110,17 +110,17 @@ func verifyEndpoint(i int, request *SimulatorRequest) error {
 	firstParamType := request.Params[0].Type
 
 	switch request.Endpoint {
-	case EndpointReadOnly:
+	case ReadOnly:
 		// verify the first param is a test context
 		if firstParamType != TestContext {
 			return fmt.Errorf("%w %d %w: %w", ErrInvalidRequest, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
-	case EndpointExecute:
+	case Execute:
 		// verify the first param is a test context
 		if request.Params[0].Type != TestContext {
 			return fmt.Errorf("%w %d %w: %w", ErrInvalidRequest, i, ErrInvalidParamType, ErrFirstParamRequiredContext)
 		}
-	case EndpointCreateProgram:
+	case CreateProgram:
 		// verify the first param is a string for the path
 		if request.Params[0].Type != Path {
 			return fmt.Errorf("%w %d %w: %w", ErrInvalidRequest, i, ErrInvalidParamType, ErrFirstParamRequiredPath)
@@ -171,7 +171,7 @@ func (c *runCmd) runRequestFunc(
 ) error {
 	defer resp.setTimestamp(time.Now().Unix())
 	switch endpoint {
-	case EndpointExecute: // for now the logic is the same for both Execute & ReadOnly: breakout readonly
+	case Execute: // for now the logic is the same for both Execute & ReadOnly: breakout readonly
 		var simulatorTestContext SimulatorTestContext
 		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
@@ -202,7 +202,7 @@ func (c *runCmd) runRequestFunc(
 		resp.setBalance(balance)
 
 		return nil
-	case EndpointReadOnly:
+	case ReadOnly:
 		var simulatorTestContext SimulatorTestContext
 		err := json.Unmarshal(params[0].Value, &simulatorTestContext)
 		if err != nil {
@@ -238,7 +238,7 @@ func (c *runCmd) runRequestFunc(
 		resp.setResponse(response)
 
 		return nil
-	case EndpointCreateProgram:
+	case CreateProgram:
 		// get program path from params
 		programPath := string(params[0].Value)
 		programAddress, err := programCreateFunc(ctx, db, programPath)

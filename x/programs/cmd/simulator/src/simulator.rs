@@ -218,7 +218,7 @@ enum Endpoint {
 }
 
 use std::path::Path;
-pub(crate) fn get_binary_path() -> &'static str {
+fn get_binary_path() -> &'static str {
     let path = env!("SIMULATOR_PATH");
 
     if !Path::new(path).exists() {

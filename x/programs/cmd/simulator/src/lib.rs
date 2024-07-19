@@ -5,7 +5,6 @@ mod context;
 mod id;
 mod param;
 mod simulator;
-mod util;
 
 pub use context::TestContext;
 pub use id::Id;

@@ -23,13 +23,13 @@ type Endpoint string
 
 const (
 	/// Make a read-only call to a program function and return the result.
-	EndpointReadOnly Endpoint = "readonly"
+	ReadOnly Endpoint = "readonly"
 	/// Create a transaction on-chain from a possible state changing program
 	/// function call. A program's function can internally optionally call other
 	/// functions including program to program.
-	EndpointExecute Endpoint = "execute"
+	Execute Endpoint = "execute"
 	/// Create a new program on-chain
-	EndpointCreateProgram Endpoint = "createprogram"
+	CreateProgram Endpoint = "createprogram"
 )
 
 func newResponse(id int) *Response {
