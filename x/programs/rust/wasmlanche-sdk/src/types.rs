@@ -1,5 +1,4 @@
-use borsh::BorshDeserialize;
-use serde::Serialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
@@ -10,8 +9,8 @@ pub type Gas = u64;
 
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]
-#[derive(Clone, Copy, PartialEq, Eq, borsh::BorshSerialize, BorshDeserialize, Serialize, Hash)]
-pub struct Address(#[serde(serialize_with = "<[_]>::serialize")] [u8; Self::LEN]);
+#[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
+pub struct Address([u8; Self::LEN]);
 
 impl Address {
     pub const LEN: usize = 33;
@@ -24,19 +23,6 @@ impl Address {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
-    }
-
-    #[allow(clippy::should_implement_trait)]
-    #[cfg(feature = "test-utils")]
-    #[must_use]
-    /// # Panics
-    /// Panics if the length of the bytes representation of the name is longer than [`Address::LEN`]
-    pub fn from_str(name: &str) -> Self {
-        let mut bytes = [0u8; Self::LEN];
-        let name_bytes = name.as_bytes();
-        assert!(name_bytes.len() <= Self::LEN, "passed name is too long");
-        bytes[0..name_bytes.len()].copy_from_slice(name_bytes);
-        Self::new(bytes)
     }
 }
 

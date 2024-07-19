@@ -248,7 +248,7 @@ mod tests {
                 endpoint: Endpoint::Execute,
                 method: "remove_liquidity".to_string(),
                 max_units: u64::MAX,
-                params: vec![test_context.into(), 1000u64.into()],
+                params: vec![test_context.into(), 1000.into()],
             })
             .unwrap()
             .result

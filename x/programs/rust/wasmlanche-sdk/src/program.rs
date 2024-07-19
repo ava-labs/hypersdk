@@ -25,13 +25,6 @@ impl DeferDeserialize {
     }
 }
 
-impl BorshSerialize for DeferDeserialize {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        writer.write_all(&self.0)?;
-        Ok(())
-    }
-}
-
 impl BorshDeserialize for DeferDeserialize {
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut inner = Vec::new();

@@ -60,9 +60,8 @@ impl Step {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
-#[non_exhaustive]
 pub struct TestContext {
-    program_id: Id,
+    pub program_id: Id,
     pub actor: Address,
     pub height: u64,
     pub timestamp: u64,
@@ -120,7 +119,6 @@ pub(crate) struct SimulatorTestContext {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
     U64(u64),
-    U32(u32),
     Bool(bool),
     String(String),
     Id(Id),
@@ -136,7 +134,6 @@ pub enum Param {
 #[serde(rename_all = "lowercase", tag = "type", content = "value")]
 enum StringParam {
     U64(String),
-    U32(String),
     Bool(String),
     String(String),
     Id(String),
@@ -149,12 +146,7 @@ enum StringParam {
 impl From<&Param> for StringParam {
     fn from(value: &Param) -> Self {
         match value {
-            Param::U64(num) => StringParam::U64(
-                b64.encode(borsh::to_vec(num).expect("the serialization should work")),
-            ),
-            Param::U32(num) => StringParam::U32(
-                b64.encode(borsh::to_vec(num).expect("the serialization should work")),
-            ),
+            Param::U64(num) => StringParam::U64(b64.encode(num.to_le_bytes())),
             Param::Bool(flag) => StringParam::Bool(b64.encode(vec![*flag as u8])),
             Param::String(text) => StringParam::String(
                 b64.encode(borsh::to_vec(text).expect("the serialization should work")),
@@ -189,12 +181,6 @@ impl Serialize for Param {
 impl From<u64> for Param {
     fn from(val: u64) -> Self {
         Param::U64(val)
-    }
-}
-
-impl From<u32> for Param {
-    fn from(val: u32) -> Self {
-        Param::U32(val)
     }
 }
 
@@ -357,7 +343,7 @@ impl ClientBuilder<'_> {
             .arg("interpreter")
             .arg("--cleanup")
             .arg("--log-level")
-            .arg("debug")
+            .arg("error")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
