@@ -25,7 +25,7 @@ pub struct Voter {
 pub enum ProposalError {
     AlreadyExecuted,
     AlreadyVoted,
-    InexistentProposal,
+    NonexistentProposal,
     QuorumNotReached,
     NotVoter,
     ExecutionFailed(ExternalCallError),
@@ -43,22 +43,25 @@ pub enum StateKeys {
 #[public]
 pub fn propose(
     context: Context<StateKeys>,
-    voters_addr: Vec<Address>,
+    voters: Vec<Address>,
     to: Program,
     method: String,
     args: Vec<u8>,
     value: u64,
 ) -> u64 {
-    let voters_len = voters_addr.len().try_into().expect("too much voters");
+    let voters_len = voters_addr.len().try_into().expect("too many voters");
     assert!(voters_len >= MIN_VOTES);
     assert!(_is_not_duplicate(&voters_addr));
+
     let mut voters: Vec<_> = voters_addr
         .iter()
+        .copied()
         .map(|address| Voter {
-            address: *address,
+            address,
             voted: false,
         })
         .collect();
+
     let i = _ensure_voter(&context.actor(), &voters).unwrap();
     voters[i as usize].voted = true;
 
@@ -162,6 +165,7 @@ pub fn execute(
 
     let yeas = context.get(StateKeys::Yeas(proposal_id)).unwrap().unwrap();
     let nays = context.get(StateKeys::Nays(proposal_id)).unwrap().unwrap();
+
     if !_quorum_reached(proposal.voters_len, yeas, nays) {
         return Err(ProposalError::QuorumNotReached);
     }
@@ -229,26 +233,19 @@ fn _is_not_duplicate(voters: &[Address]) -> bool {
     true
 }
 
-/// Check if the passed actor is part of the voters and return its index on success
+/// Check if the actor is a voter and return its index on success
 fn _ensure_voter(actor: &Address, voters: &[Voter]) -> Result<u64, ProposalError> {
-    let mut i = 0;
-    loop {
-        if i < voters.len() {
-            let voter = &voters[i];
+let voter = voters.iter().enumerate().find(|(_, voter)| voter.address == actor);
 
-            if &voter.address == actor {
-                if voter.voted {
-                    return Err(ProposalError::AlreadyVoted);
-                } else {
-                    break;
-                }
-            }
+let Some((index, voter)) = voter else {
+    return Err(ProposalError::NotVoter)
+};
 
-            i += 1;
-        } else {
-            return Err(ProposalError::NotVoter);
-        }
-    }
+if voter.voted {
+    return Err(ProposalError::AlreadyVoted);
+}
+
+Ok(index)
 
     Ok(i as u64)
 }
