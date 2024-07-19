@@ -127,5 +127,5 @@ func TestTransferAction(t *testing.T) {
 		},
 	}
 
-	chaintest.Run(t, tests)
+	chaintest.Run(context.Background(), t, tests)
 }

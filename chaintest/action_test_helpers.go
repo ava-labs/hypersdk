@@ -67,12 +67,13 @@ type ActionTest struct {
 }
 
 // Run execute all tests from the test suite and make sure all assertions pass.
-func Run(t *testing.T, tests []ActionTest) {
+func Run(ctx context.Context, t *testing.T, tests []ActionTest) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			require := require.New(t)
 
-			output, err := test.Action.Execute(context.TODO(), test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+			output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
+			require.NoError(ctx.Err())
 
 			require.ErrorIs(err, test.ExpectedErr)
 			require.Equal(output, test.ExpectedOutputs)
