@@ -43,7 +43,7 @@ pub enum StateKeys {
 #[public]
 pub fn propose(
     context: Context<StateKeys>,
-    voters_addr: Vec<Address>,
+    voters: Vec<Address>,
     to: Program,
     method: String,
     args: Vec<u8>,
