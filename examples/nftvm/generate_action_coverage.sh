@@ -1,7 +1,9 @@
 #!/bin/bash
 
+# Currently set up for checking unit test coverage
+
 # Run tests with coverage
-go test ./... -coverprofile=coverage.out
+go test ./actions -coverprofile=coverage.out -coverpkg=./actions 
 
 # Generate an HTML report
 go tool cover -html=coverage.out -o coverage.html
