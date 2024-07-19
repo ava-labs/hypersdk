@@ -33,13 +33,16 @@ pub enum ProposalError {
 
 #[state_keys]
 pub enum StateKeys {
-    LastProposalId,
+    NextProposalId,
     Proposals(u64),
     Voter(u64, usize),
     Yeas(u64),
     Nays(u64),
 }
 
+/// Add a new proposal with a permissioned set of voters.
+/// If the vote is in favor of the proposal, it will be possible to execute an arbitrary call to the passed program address.
+/// The caller is expected to be included in the set and should thus be the first voter.
 #[public]
 pub fn propose(
     context: Context<StateKeys>,
@@ -49,11 +52,16 @@ pub fn propose(
     args: Vec<u8>,
     value: u64,
 ) -> u64 {
-    let voters_len = voters_addr.len().try_into().expect("too many voters");
+    let voters_len = voters.len().try_into().expect("too many voters");
     assert!(voters_len >= MIN_VOTES);
-    assert!(_is_not_duplicate(&voters_addr));
 
-    let mut voters: Vec<_> = voters_addr
+    if voters[0] != context.actor() {
+        panic!("the proposer is expected to be the first in the voters set");
+    }
+
+    assert!(internal::is_not_duplicate(&voters));
+
+    let mut voters: Vec<_> = voters
         .iter()
         .copied()
         .map(|address| Voter {
@@ -62,14 +70,13 @@ pub fn propose(
         })
         .collect();
 
-    let i = _ensure_voter(&context.actor(), &voters).unwrap();
-    voters[i as usize].voted = true;
+    voters[0].voted = true;
 
-    let last_id = _last_proposal_id(&context);
+    let next_id = internal::next_proposal_id(&context);
 
     context
         .store_by_key(
-            StateKeys::Proposals(last_id),
+            StateKeys::Proposals(next_id),
             &Proposal {
                 to,
                 method,
@@ -79,77 +86,86 @@ pub fn propose(
                 voters_len,
             },
         )
-        .unwrap();
+        .expect("failed to store proposal");
 
     for (i, voter) in voters.into_iter().enumerate() {
         context
-            .store_by_key(StateKeys::Voter(last_id, i), &voter)
-            .unwrap();
+            .store_by_key(StateKeys::Voter(next_id, i), &voter)
+            .expect("failed to store voter");
     }
 
     context
         .store([
-            (StateKeys::Nays(last_id), &0u64),
-            (StateKeys::Yeas(last_id), &1),
+            (StateKeys::Nays(next_id), &0u64),
+            (StateKeys::Yeas(next_id), &1),
         ])
-        .unwrap();
+        .expect("failed to store nays and yeas");
 
     context
-        .store_by_key(StateKeys::LastProposalId, &(last_id + 1))
-        .unwrap();
+        .store_by_key(StateKeys::NextProposalId, &(next_id + 1))
+        .expect("failed to store last proposal id");
 
-    last_id
+    next_id
 }
 
+/// Cast a vote to the proposal with the given id.
 #[public]
-pub fn vote(context: Context<StateKeys>, id: u64, yea: bool) -> Result<(), ProposalError> {
-    let proposal = _proposal_at(&context, id).ok_or(ProposalError::InexistentProposal)?;
+pub fn vote(
+    context: Context<StateKeys>,
+    voter_id: u64,
+    proposal_id: u64,
+    yea: bool,
+) -> Result<(), ProposalError> {
+    let proposal =
+        internal::get_proposal(&context, proposal_id).ok_or(ProposalError::NonexistentProposal)?;
 
     if proposal.executed {
         return Err(ProposalError::AlreadyExecuted);
     }
 
-    let actor = context.actor();
-    let voters: Vec<_> = (0..proposal.voters_len)
-        .map(|i| {
-            context
-                .get(StateKeys::Voter(id, i as usize))
-                .unwrap()
-                .unwrap()
-        })
-        .collect();
+    let voter = context
+        .get::<Voter>(StateKeys::Voter(proposal_id, voter_id as usize))
+        .expect("failed to get voter")
+        .ok_or(ProposalError::NotVoter)?;
 
-    let i = _ensure_voter(&actor, &voters)?;
+    if voter.voted {
+        return Err(ProposalError::AlreadyVoted);
+    }
 
     if yea {
+        let yeas = context
+            .get::<u64>(StateKeys::Yeas(proposal_id))
+            .expect("failed to get yeas")
+            .expect("votes should be initialized");
+
         context
-            .store_by_key(
-                StateKeys::Yeas(id),
-                &(context.get::<u64>(StateKeys::Yeas(id)).unwrap().unwrap() + 1),
-            )
-            .unwrap();
+            .store_by_key(StateKeys::Yeas(proposal_id), &(yeas + 1))
+            .expect("failed to store yeas");
     } else {
+        let nays = context
+            .get::<u64>(StateKeys::Nays(proposal_id))
+            .expect("failed to get nays")
+            .expect("votes should be initialized");
+
         context
-            .store_by_key(
-                StateKeys::Nays(id),
-                &(context.get::<u64>(StateKeys::Nays(id)).unwrap().unwrap() + 1),
-            )
-            .unwrap();
+            .store_by_key(StateKeys::Nays(proposal_id), &(nays + 1))
+            .expect("failed to store nays");
     }
 
     context
         .store_by_key(
-            StateKeys::Voter(id, i as usize),
+            StateKeys::Voter(proposal_id, voter_id as usize),
             &Voter {
-                address: actor,
+                address: context.actor(),
                 voted: true,
             },
         )
-        .unwrap();
+        .expect("failed to store voter");
 
     Ok(())
 }
 
+/// Execute a proposal whose quorum has been reached.
 #[public]
 pub fn execute(
     context: Context<StateKeys>,
@@ -157,16 +173,22 @@ pub fn execute(
     max_units: u64,
 ) -> Result<DeferDeserialize, ProposalError> {
     let mut proposal =
-        _proposal_at(&context, proposal_id).ok_or(ProposalError::InexistentProposal)?;
+        internal::get_proposal(&context, proposal_id).ok_or(ProposalError::NonexistentProposal)?;
 
     if proposal.executed {
         return Err(ProposalError::AlreadyExecuted);
     }
 
-    let yeas = context.get(StateKeys::Yeas(proposal_id)).unwrap().unwrap();
-    let nays = context.get(StateKeys::Nays(proposal_id)).unwrap().unwrap();
+    let yeas = context
+        .get(StateKeys::Yeas(proposal_id))
+        .expect("failed to get yeas")
+        .expect("votes should be initialized");
+    let nays = context
+        .get(StateKeys::Nays(proposal_id))
+        .expect("failed to get nays")
+        .expect("votes should be initialized");
 
-    if !_quorum_reached(proposal.voters_len, yeas, nays) {
+    if !internal::quorum_reached(proposal.voters_len, yeas, nays) {
         return Err(ProposalError::QuorumNotReached);
     }
 
@@ -183,71 +205,64 @@ pub fn execute(
         .map_err(ProposalError::ExecutionFailed)
 }
 
+/// Return the id of the next proposal.
 #[public]
-pub fn last_proposal_id(context: Context<StateKeys>) -> u64 {
-    _last_proposal_id(&context)
+pub fn next_proposal_id(context: Context<StateKeys>) -> u64 {
+    internal::next_proposal_id(&context)
 }
 
+/// Return wether or not the quorum of the passed proposal id has been reached.
 #[public]
 pub fn quorum_reached(
     context: Context<StateKeys>,
     proposal_id: u64,
 ) -> Result<bool, ProposalError> {
-    let proposal = _proposal_at(&context, proposal_id).ok_or(ProposalError::InexistentProposal)?;
-    let yeas = context.get(StateKeys::Yeas(proposal_id)).unwrap().unwrap();
-    let nays = context.get(StateKeys::Nays(proposal_id)).unwrap().unwrap();
+    let proposal =
+        internal::get_proposal(&context, proposal_id).ok_or(ProposalError::NonexistentProposal)?;
 
-    Ok(_quorum_reached(proposal.voters_len, yeas, nays))
+    let yeas = context
+        .get(StateKeys::Yeas(proposal_id))
+        .expect("failed to get yeas")
+        .expect("votes should be initialized");
+    let nays = context
+        .get(StateKeys::Nays(proposal_id))
+        .expect("failed to get nays")
+        .expect("votes should be initialized");
+
+    Ok(internal::quorum_reached(proposal.voters_len, yeas, nays))
 }
 
-fn _proposal_at(context: &Context<StateKeys>, proposal_id: u64) -> Option<Proposal> {
-    context
-        .get(StateKeys::Proposals(proposal_id))
-        .expect("state corrupt")
-}
+mod internal {
+    use super::*;
 
-fn _last_proposal_id(context: &Context<StateKeys>) -> u64 {
-    context
-        .get(StateKeys::LastProposalId)
-        .expect("state corrupt")
-        .unwrap_or_default()
-}
-
-fn _quorum_reached(max_votes: u64, yeas: u64, nays: u64) -> bool {
-    yeas + nays >= MIN_VOTES && yeas > nays && yeas >= (max_votes + 1) / 2
-}
-
-fn _is_not_duplicate(voters: &[Address]) -> bool {
-    if voters.is_empty() {
-        panic!("there should be at least one voter");
+    pub fn get_proposal(context: &Context<StateKeys>, proposal_id: u64) -> Option<Proposal> {
+        context
+            .get(StateKeys::Proposals(proposal_id))
+            .expect("state corrupt")
     }
 
-    for (i, vi) in voters.iter().enumerate() {
-        for (j, vj) in voters[1..].iter().enumerate() {
-            if i != j + 1 && vi == vj {
-                return false;
+    pub fn next_proposal_id(context: &Context<StateKeys>) -> u64 {
+        context
+            .get(StateKeys::NextProposalId)
+            .expect("state corrupt")
+            .unwrap_or_default()
+    }
+
+    pub fn quorum_reached(max_votes: u64, yeas: u64, nays: u64) -> bool {
+        yeas + nays >= MIN_VOTES && yeas > nays && yeas >= (max_votes + 1) / 2
+    }
+
+    pub fn is_not_duplicate(voters: &[Address]) -> bool {
+        for (i, vi) in voters.iter().enumerate() {
+            for (j, vj) in voters[1..].iter().enumerate() {
+                if i != j + 1 && vi == vj {
+                    return false;
+                }
             }
         }
+
+        true
     }
-
-    true
-}
-
-/// Check if the actor is a voter and return its index on success
-fn _ensure_voter(actor: &Address, voters: &[Voter]) -> Result<u64, ProposalError> {
-let voter = voters.iter().enumerate().find(|(_, voter)| voter.address == actor);
-
-let Some((index, voter)) = voter else {
-    return Err(ProposalError::NotVoter)
-};
-
-if voter.voted {
-    return Err(ProposalError::AlreadyVoted);
-}
-
-Ok(index)
-
-    Ok(i as u64)
 }
 
 #[cfg(test)]
@@ -269,52 +284,48 @@ mod tests {
 
         let test_context = TestContext::from(program_id);
 
-        assert!(matches!(
-            simulator
-                .run_step(&Step {
-                    endpoint: Endpoint::Execute,
-                    method: "propose".to_string(),
-                    max_units: u64::MAX,
-                    params: vec![
-                        test_context.clone().into(),
-                        Vec::new().into(),
-                        program_id.into(),
-                        String::new().into(),
-                        Vec::new().into(),
-                        0u64.into(),
-                    ],
-                })
-                .unwrap()
-                .result
-                .response::<()>(),
-            Err(StepResponseError::ExternalCall(_))
-        ));
+        let response = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "propose".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    test_context.clone().into(),
+                    Vec::new().into(),
+                    program_id.into(),
+                    String::new().into(),
+                    Vec::new().into(),
+                    0u64.into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response::<()>();
+        assert!(matches!(response, Err(StepResponseError::ExternalCall(_))));
 
         let voters = vec![
             Address::new([1; Address::LEN]),
             Address::new([1; Address::LEN]),
         ];
 
-        assert!(matches!(
-            simulator
-                .run_step(&Step {
-                    endpoint: Endpoint::Execute,
-                    method: "propose".to_string(),
-                    max_units: u64::MAX,
-                    params: vec![
-                        test_context.clone().into(),
-                        Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
-                        program_id.into(),
-                        String::new().into(),
-                        Vec::new().into(),
-                        0u64.into(),
-                    ],
-                })
-                .unwrap()
-                .result
-                .response::<()>(),
-            Err(StepResponseError::ExternalCall(_))
-        ));
+        let response = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "propose".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    test_context.clone().into(),
+                    Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
+                    program_id.into(),
+                    String::new().into(),
+                    Vec::new().into(),
+                    0u64.into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response::<()>();
+        assert!(matches!(response, Err(StepResponseError::ExternalCall(_))));
     }
 
     #[test]
@@ -364,7 +375,12 @@ mod tests {
                 endpoint: Endpoint::Execute,
                 method: "vote".to_string(),
                 max_units: u64::MAX,
-                params: vec![voter_context.clone().into(), pid.into(), true.into()],
+                params: vec![
+                    voter_context.clone().into(),
+                    1.into(),
+                    pid.into(),
+                    true.into(),
+                ],
             })
             .unwrap()
             .result
@@ -378,7 +394,12 @@ mod tests {
                 endpoint: Endpoint::Execute,
                 method: "vote".to_string(),
                 max_units: u64::MAX,
-                params: vec![voter_context.clone().into(), pid.into(), true.into()],
+                params: vec![
+                    voter_context.clone().into(),
+                    1.into(),
+                    pid.into(),
+                    true.into(),
+                ],
             })
             .unwrap()
             .result
@@ -415,7 +436,7 @@ mod tests {
                     test_context.clone().into(),
                     Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
                     program_id.into(),
-                    String::from("last_proposal_id").into(),
+                    String::from("next_proposal_id").into(),
                     Vec::new().into(),
                     0u64.into(),
                 ],
@@ -449,7 +470,12 @@ mod tests {
                 endpoint: Endpoint::Execute,
                 method: "vote".to_string(),
                 max_units: u64::MAX,
-                params: vec![voter_context.clone().into(), pid.into(), true.into()],
+                params: vec![
+                    voter_context.clone().into(),
+                    1.into(),
+                    pid.into(),
+                    true.into(),
+                ],
             })
             .unwrap()
             .result
