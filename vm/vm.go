@@ -1157,7 +1157,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 
 	start := lastProcessedHeight + 1
 	end := vm.lastAccepted.Height()
-	if end > start {
+	if end < start {
 		return nil
 	}
 	acceptedToRestore := end - start
