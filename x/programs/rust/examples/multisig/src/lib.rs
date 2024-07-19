@@ -52,14 +52,15 @@ pub fn propose(
     let voters_len = voters_addr.len().try_into().expect("too much voters");
     assert!(voters_len >= MIN_VOTES);
     assert!(_is_not_duplicate(&voters_addr));
-    let voters: Vec<_> = voters_addr
+    let mut voters: Vec<_> = voters_addr
         .iter()
         .map(|address| Voter {
             address: *address,
             voted: false,
         })
         .collect();
-    _ensure_voter(&context.actor(), &voters).unwrap();
+    let i = _ensure_voter(&context.actor(), &voters).unwrap();
+    voters[i as usize].voted = true;
 
     let last_id = _last_proposal_id(&context);
 
