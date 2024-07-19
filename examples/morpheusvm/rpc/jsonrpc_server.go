@@ -43,10 +43,10 @@ type TxReply struct {
 }
 
 func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
-	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
+	_, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
 	defer span.End()
 
-	found, t, success, units, fee, err := j.c.GetTransaction(ctx, args.TxID)
+	found, t, success, units, fee, err := j.c.GetTransaction(args.TxID)
 	if err != nil {
 		return err
 	}
