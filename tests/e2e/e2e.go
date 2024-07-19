@@ -411,7 +411,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instances[0].lcli.Balance(context.TODO(), vmBackend.Sender())
 		require.NoError(err)
-		require.Equal(nativeBalance, startAmount)
+		require.Equal(startAmount, nativeBalance)
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
 		aother := auth.NewED25519Address(other.PublicKey())
@@ -473,7 +473,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 				// Check balance of recipient
 				balance, err := inst.lcli.Balance(context.Background(), aotherStr)
 				require.NoError(err)
-				require.Equal(balance, sendAmount)
+				require.Equal(sendAmount, balance)
 			}
 		})
 	})
@@ -493,6 +493,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 	// Ensure bootstrapping works
 	var syncClient *rpc.JSONRPCClient
 	var lsyncClient CustomClient
+	bcURIExtension := "/ext/bc/" + blockchainID
 	ginkgo.It("can bootstrap a new node", func() {
 		cluster, err := anrCli.AddNode(
 			context.Background(),
@@ -507,7 +508,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		uri := nodeURI + bcURIExtension
 		bid, err := ids.FromString(blockchainID)
 		require.NoError(err)
 		utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
@@ -541,7 +542,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 		// Update bootstrap info to latest in case it was assigned a new port
 		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		uri := nodeURI + bcURIExtension
 		bid, err := ids.FromString(blockchainID)
 		require.NoError(err)
 		utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
@@ -582,7 +583,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		uri := nodeURI + bcURIExtension
 		bid, err := ids.FromString(blockchainID)
 		require.NoError(err)
 		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
@@ -607,7 +608,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		awaitHealthy(anrCli)
 
 		ok, err := syncClient.Ping(context.Background())
-		require.Error(err)
+		require.Error(err) //nolint:forbidigo
 		require.False(ok)
 	})
 
@@ -656,7 +657,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 		awaitHealthy(anrCli)
 
 		nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+		uri := nodeURI + bcURIExtension
 		bid, err := ids.FromString(blockchainID)
 		require.NoError(err)
 		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)

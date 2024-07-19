@@ -7,16 +7,17 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/onsi/ginkgo"
+
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-
 	"github.com/ava-labs/hypersdk/tests/e2e"
-	"github.com/onsi/ginkgo"
+
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 var _ e2e.Backend = (*morpheusVM)(nil)
