@@ -32,4 +32,9 @@ var (
 	ErrOutputNFTInstanceNotOwner = errors.New("not NFT instance owner")
 	ErrOutputMarketplaceOrderOwnerInconsistency = errors.New("current instance owner and provided owner do not match")
 	ErrOutputMarketplaceOrderInstanceNumInconsistency = errors.New("current instance num and provided num do not match")
+	ErrOutputMarketplaceOrderAlreadyExists = errors.New("marketplace order already exists")
+	ErrOutputMarketplaceOrderInstanceAlreadyListed = errors.New("instance is already listed on marketplace")
+	ErrOutputMarketplaceOrderInstanceNotListed = errors.New("instance is not currently listed on marketplace")
+
+	ErrOutputInstanceOnMarketplace = errors.New("instance is on marketplace")
 )

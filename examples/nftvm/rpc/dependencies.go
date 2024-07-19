@@ -26,6 +26,6 @@ type Controller interface {
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
 	GetNFTCollection(context.Context, codec.Address) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, collectionOwner codec.Address, err error)
 	// GetAllNFTInstancesFromCollection(context.Context, codec.Address) ([]NFTInstanceDetails, error)
-	GetNFTInstance(context.Context, codec.Address, uint32) (owner codec.Address, metadata []byte, err error)
+	GetNFTInstance(context.Context, codec.Address, uint32) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error)
 	GetMarketplaceOrder(context.Context, ids.ID) (price uint64, err error)
 }

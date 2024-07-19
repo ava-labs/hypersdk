@@ -964,13 +964,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.Len(results, 1)
 			require.True(results[0].Success)
 
-			ownerFromChainOne, instanceMetadataFromChainOne, err := instances[0].lcli.GetNFTInstance(context.Background(), readableFirstCollectionAddress, 0)
+			ownerFromChainOne, instanceMetadataFromChainOne, isListedOnMarketplace, err := instances[0].lcli.GetNFTInstance(context.Background(), readableFirstCollectionAddress, 0)
 
 			require.NoError(err)
 
 			// Check that instance details match
 			require.Equal(codec.MustAddressBech32(lconsts.HRP, addr), ownerFromChainOne)
 			require.Equal(InstanceMetadataOne, instanceMetadataFromChainOne)
+			require.False(isListedOnMarketplace)
 		})
 		ginkgo.By("Failing when state parent collection does not exist", func() {
 			parser, err := instances[0].lcli.Parser(context.Background())

@@ -8,3 +8,4 @@ import "errors"
 var ErrInvalidBalance = errors.New("invalid balance")
 
 var ErrOrderAlreadyExists = errors.New("order already exists")
+var CorruptInstanceMarketplaceIndicator = errors.New("instance marketplace indicator is corrupt")

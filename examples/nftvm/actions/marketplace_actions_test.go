@@ -25,6 +25,89 @@ func TestMarketplace(t *testing.T) {
 
 	marketplaceTests := []chaintest.ActionTest{
 		{
+			Name: "Only orders with existing instances can be placed",
+			Action: &CreateMarketplaceOrder{
+				ParentCollection: collectionOneAddress,
+				InstanceNum: instanceOneNum,
+				Price: instanceOneOrderPrice,
+			},
+			ExpectedErr: ErrOutputNFTInstanceNotFound,
+			ExpectedOutputs: [][]byte(nil),
+			State: func() state.Mutable {
+				stateKeys := make(state.Keys)
+				stateKeys.Add(string(instanceOneStateKey), state.Read)
+				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
+			}(),
+		},
+		{
+			Name: "No duplicate orders are allowed",
+			Action: &CreateMarketplaceOrder{
+				ParentCollection: collectionOneAddress,
+				InstanceNum: instanceOneNum,
+				Price: instanceOneOrderPrice + 1,
+			},
+			SetupActions: []chain.Action{
+				&CreateNFTCollection{
+					Name: []byte(CollectionNameOne),
+					Symbol: []byte(CollectionSymbolOne),
+					Metadata: []byte(CollectionMetadataOne),
+				},
+				&CreateNFTInstance{
+					Owner: onesAddr,
+					ParentCollection: collectionOneAddress,
+					Metadata: []byte(InstanceMetadataOne),
+				},
+			},
+			ExpectedErr: ErrOutputMarketplaceOrderAlreadyExists,
+			ExpectedOutputs: [][]byte(nil),
+			State: func() state.Mutable {
+				stateKeys := make(state.Keys)
+				mu := chaintest.NewInMemoryStore()
+				stateKeys.Add(string(instanceOneStateKey), state.All)
+				stateKeys.Add(string(collectionOneStateKey), state.All)
+				stateKeys.Add(string(instanceOneOrderStateKey), state.All)
+				_, err := storage.CreateMarketplaceOrder(context.TODO(), mu, collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
+				require.NoError(err)
+				return ts.NewView(stateKeys, mu.Storage)
+			}(),
+			Actor: onesAddr,
+		},
+		{
+			Name: "Instance can only belong to at most one order at a time",
+			Action: &CreateMarketplaceOrder{
+				ParentCollection: collectionOneAddress,
+				InstanceNum: instanceOneNum,
+				Price: instanceOneOrderPrice - 1,
+			},
+			SetupActions: []chain.Action {
+				&CreateNFTCollection{
+					Name: []byte(CollectionNameOne),
+					Symbol: []byte(CollectionSymbolOne),
+					Metadata: []byte(CollectionMetadataOne),
+				},
+				&CreateNFTInstance{
+					Owner: onesAddr,
+					ParentCollection: collectionOneAddress,
+					Metadata: []byte(InstanceMetadataOne),
+				},
+				&CreateMarketplaceOrder{
+					ParentCollection: collectionOneAddress,
+					InstanceNum: instanceOneNum,
+					Price: instanceOneOrderPrice,
+				},
+			},
+			Actor: onesAddr,
+			State: func() state.Mutable {
+				stateKeys := make(state.Keys)
+				stateKeys.Add(string(instanceOneStateKey), state.All)
+				stateKeys.Add(string(collectionOneStateKey), state.All)
+				stateKeys.Add(string(instanceOneOrderStateKey), state.All)
+				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
+			}(),
+			ExpectedOutputs: [][]byte(nil),
+			ExpectedErr: ErrOutputMarketplaceOrderInstanceAlreadyListed,
+		},
+		{
 			Name: "No free instance orders",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
@@ -114,11 +197,6 @@ func TestMarketplace(t *testing.T) {
 					Symbol: []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
-				&CreateNFTInstance{
-					Owner: onesAddr,
-					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
-				},
 			},
 			ExpectedOutputs: [][]byte(nil),
 			ExpectedErr: nil,
@@ -130,9 +208,10 @@ func TestMarketplace(t *testing.T) {
 				stateKeys.Add(string(instanceOneOrderStateKey), state.All)
 				stateKeys.Add(string(storage.BalanceKey(onesAddr)), state.All)
 				stateKeys.Add(string(storage.BalanceKey(twosAddr)), state.All)
-				require.NoError(storage.SetBalance(context.TODO(), st, twosAddr, 2000))
+				require.NoError(storage.SetNFTInstance(context.TODO(), st, collectionOneAddress, instanceOneNum, onesAddr, []byte(InstanceMetadataOne), true))
 				_, err := storage.CreateMarketplaceOrder(context.TODO(), st, collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
 				require.NoError(err)
+				require.NoError(storage.SetBalance(context.TODO(), st, twosAddr, 2000))
 				return ts.NewView(stateKeys, st.Storage)
 			}(),
 			Assertion: func(m state.Mutable) bool {
@@ -141,9 +220,9 @@ func TestMarketplace(t *testing.T) {
 				require.NoError(err)
 				sellerBalance, err := storage.GetBalance(context.TODO(), m, onesAddr)
 				require.NoError(err)
-				newOwner, metadata, err := storage.GetNFTInstanceNoController(context.TODO(), m, collectionOneAddress, instanceOneNum)
+				newOwner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(context.TODO(), m, collectionOneAddress, instanceOneNum)
 				require.NoError(err)
-				return (buyerBalance == 1995) && (sellerBalance == 5) && (newOwner == twosAddr) && (string(metadata) == InstanceMetadataOne)
+				return (buyerBalance == 1995) && (sellerBalance == 5) && (newOwner == twosAddr) && (string(metadata) == InstanceMetadataOne) && !isListedOnMarketplace
 			},
 			Actor: twosAddr,
 		},
@@ -202,6 +281,11 @@ func TestMarketplace(t *testing.T) {
 					ParentCollection: collectionOneAddress,
 					Metadata: []byte(InstanceMetadataOne),
 				},
+				&CreateMarketplaceOrder{
+					ParentCollection: collectionOneAddress,
+					InstanceNum: instanceOneNum,
+					Price: instanceOneOrderPrice,
+				},
 			},
 			ExpectedOutputs: [][]byte(nil),
 			ExpectedErr: ErrOutputMarketplaceOrderOwnerInconsistency,
@@ -211,10 +295,10 @@ func TestMarketplace(t *testing.T) {
 				stateKeys.Add(string(collectionOneStateKey), state.All)
 				stateKeys.Add(string(instanceOneStateKey), state.All)
 				stateKeys.Add(string(instanceOneOrderStateKey), state.All)
-				_, err := storage.CreateMarketplaceOrder(context.TODO(), st, collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
 				require.NoError(err)
 				return ts.NewView(stateKeys, st.Storage)
 			}(),
+			Actor: onesAddr,
 		},
 		{
 			Name: "Handle insufficient buyer balance",
@@ -230,11 +314,6 @@ func TestMarketplace(t *testing.T) {
 					Symbol: []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
-				&CreateNFTInstance{
-					Owner: onesAddr,
-					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
-				},
 			},
 			ExpectedOutputs: [][]byte(nil),
 			ExpectedErr: ErrOutputMarketplaceOrderInsufficientBalance,
@@ -246,6 +325,7 @@ func TestMarketplace(t *testing.T) {
 				stateKeys.Add(string(instanceOneOrderStateKey), state.All)
 				stateKeys.Add(string(storage.BalanceKey(onesAddr)), state.All)
 				stateKeys.Add(string(storage.BalanceKey(twosAddr)), state.All)
+				require.NoError(storage.SetNFTInstance(context.TODO(), st, collectionOneAddress, instanceOneNum, onesAddr, []byte(InstanceMetadataOne), true))
 				_, err := storage.CreateMarketplaceOrder(context.TODO(), st, collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
 				require.NoError(err)
 				return ts.NewView(stateKeys, st.Storage)

@@ -29,7 +29,7 @@ func (t *TransferNFTInstance) ComputeUnits(chain.Rules) uint64 {
 // Execute implements chain.Action.
 func (t *TransferNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
 	// Assert that collection exists
-	owner, metadata, err := storage.GetNFTInstanceNoController(ctx, mu, t.CollectionAddress, t.InstanceNum)
+	owner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(ctx, mu, t.CollectionAddress, t.InstanceNum)
 	if err != nil {
 		return nil, ErrOutputNFTInstanceNotFound
 	}
@@ -37,8 +37,12 @@ func (t *TransferNFTInstance) Execute(ctx context.Context, r chain.Rules, mu sta
 	if owner != actor {
 		return nil, ErrOutputNFTInstanceNotOwner
 	}
+	// Assert that instance is not listed on marketplace
+	if isListedOnMarketplace {
+		return nil, ErrOutputInstanceOnMarketplace
+	}
 	// Finish transfer by updating NFT instance in state
-	if err = storage.SetNFTInstance(ctx, mu, t.CollectionAddress, t.InstanceNum, t.To, metadata); err != nil {
+	if err = storage.SetNFTInstance(ctx, mu, t.CollectionAddress, t.InstanceNum, t.To, metadata, isListedOnMarketplace); err != nil {
 		return nil, err
 	}
 

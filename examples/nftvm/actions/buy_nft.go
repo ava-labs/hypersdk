@@ -41,11 +41,13 @@ func (b *BuyNFT) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, t
 	}
 
 	// Order exists, confirm owners are same
-	owner, metadata, err := storage.GetNFTInstanceNoController(ctx, mu, b.ParentCollection, b.InstanceNum)
+	owner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(ctx, mu, b.ParentCollection, b.InstanceNum)
 	if err != nil {
 		return nil, ErrOutputNFTInstanceNotFound
 	}
-
+	if !isListedOnMarketplace {
+		return nil,ErrOutputMarketplaceOrderInstanceNotListed
+	}
 	if owner != b.CurrentOwner {
 		return nil, ErrOutputMarketplaceOrderOwnerInconsistency
 	}
@@ -61,7 +63,8 @@ func (b *BuyNFT) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, t
 	}
 
 	// Finally, transfer NFT instance by modifying state
-	if err := storage.SetNFTInstance(ctx, mu, b.ParentCollection, b.InstanceNum, actor, metadata); err != nil {
+	// Marketplace indicator for instance is set to false
+	if err := storage.SetNFTInstance(ctx, mu, b.ParentCollection, b.InstanceNum, actor, metadata, false); err != nil {
 		return nil, err
 	}
 

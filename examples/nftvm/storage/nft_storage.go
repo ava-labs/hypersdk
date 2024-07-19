@@ -183,7 +183,7 @@ func CreateNFTInstance(
 	}
 	
 	// Write instance to state
-	if err = SetNFTInstance(ctx, mu, collectionAddress, numOfInstances, owner, metadata); err != nil {
+	if err = SetNFTInstance(ctx, mu, collectionAddress, numOfInstances, owner, metadata, false); err != nil {
 		return 0, err
 	}
 
@@ -203,12 +203,13 @@ func SetNFTInstance(
 	instanceNum uint32,
 	owner codec.Address,
 	metadata []byte,
+	isListedOnMarketplace bool,
 ) error {
 
 	instanceStateKey := InstanceStateKey(collectionAddress, instanceNum)
 
 	metadataLen := len(metadata)
-	v := make([]byte, codec.AddressLen + consts.Uint16Len + metadataLen)
+	v := make([]byte, codec.AddressLen + consts.Uint16Len + metadataLen + consts.Uint16Len)
 
 	// Insert instance owner
 	copy(v, owner[:])
@@ -216,6 +217,13 @@ func SetNFTInstance(
 	// Insert metadata
 	binary.BigEndian.PutUint16(v[codec.AddressLen:], uint16(metadataLen))
 	copy(v[codec.AddressLen + consts.Uint16Len:], metadata)
+
+	// Insert marketplace indicator
+	if isListedOnMarketplace {
+		binary.BigEndian.PutUint16(v[codec.AddressLen + consts.Uint16Len + metadataLen:], 1)
+	} else {
+		binary.BigEndian.PutUint16(v[codec.AddressLen + consts.Uint16Len + metadataLen:], 0)
+	}
 
 	return mu.Insert(ctx, instanceStateKey, v)
 }
@@ -225,7 +233,7 @@ func GetNFTInstance(
 	f ReadState,
 	collectionAddress codec.Address, 
 	instanceNum uint32,
-) (owner codec.Address, metadata []byte, err error) {
+) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error) {
 	k := InstanceStateKey(collectionAddress, instanceNum)
 	values, errs := f(ctx, [][]byte{k})
 	return innerGetNFTInstance(values[0], errs[0])
@@ -236,10 +244,10 @@ func GetNFTInstanceNoController(
 	mu state.Mutable,
 	collectionAddress codec.Address,
 	instanceNum uint32,
-) (owner codec.Address, metadata []byte, err error) {
+) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error) {
 	value, err := mu.GetValue(ctx, InstanceStateKey(collectionAddress, instanceNum))
 	if err != nil {
-		return codec.EmptyAddress, []byte{}, err 
+		return codec.EmptyAddress, []byte{}, false, err 
 	}
 	return innerGetNFTInstance(value, err)
 }
@@ -247,16 +255,24 @@ func GetNFTInstanceNoController(
 func innerGetNFTInstance(
 	v []byte,
 	err error,
-) (owner codec.Address, metadata []byte, e error) {
+) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, e error) {
 	if err != nil {
-		return codec.EmptyAddress, []byte{}, err
+		return codec.EmptyAddress, []byte{}, false, err
 	}
-
 	// Extract owner
 	owner = codec.Address(v[:codec.AddressLen])
 	// Extract metadata
 	metadataLen := binary.BigEndian.Uint16(v[codec.AddressLen:])
 	metadata = v[codec.AddressLen + consts.Uint16Len: codec.AddressLen + consts.Uint16Len + metadataLen]
+	// Extract marketplace indicator
+	marketplaceIndicator := binary.BigEndian.Uint16(v[codec.AddressLen + consts.Uint16Len + metadataLen:])
+	if marketplaceIndicator == uint16(1) {
+		isListedOnMarketplace = true
+	} else if marketplaceIndicator == uint16(0) {
+		isListedOnMarketplace = false
+	} else {
+		return codec.EmptyAddress, []byte{}, false, CorruptInstanceMarketplaceIndicator
+	}
 
 	e = nil
 	return

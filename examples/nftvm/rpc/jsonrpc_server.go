@@ -127,6 +127,7 @@ type GetNFTInstanceArgs struct {
 type GetNFTInstanceReply struct {
 	Owner string `json:"owner"`
 	Metadata string `json:"metadata"`
+	IsListedOnMarketplace bool `json:"isListedOnMarketplace"`
 }
 
 // Address returned in Bech32 format
@@ -139,13 +140,14 @@ func (j *JSONRPCServer) GetNFTInstance(req *http.Request, args *GetNFTInstanceAr
 		return err
 	}
 
-	owner, metadata, err := j.c.GetNFTInstance(ctx, addr, args.InstanceNum)
+	owner, metadata, isListedOnMarketplace, err := j.c.GetNFTInstance(ctx, addr, args.InstanceNum)
 	if err != nil {
 		return err
 	}
 
 	reply.Owner = codec.MustAddressBech32(consts.HRP, owner)
 	reply.Metadata = string(metadata)
+	reply.IsListedOnMarketplace = isListedOnMarketplace
 	return nil
 } 
 

@@ -54,7 +54,7 @@ func (c *Controller) GetNFTInstance(
 	ctx context.Context,
 	collectionAddress codec.Address,
 	instanceNum uint32,
-) (owner codec.Address, metadata []byte, err error) {
+) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error) {
 	return storage.GetNFTInstance(ctx, c.inner.ReadState, collectionAddress, instanceNum)
 }
 

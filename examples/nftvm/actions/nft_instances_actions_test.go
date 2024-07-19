@@ -66,11 +66,11 @@ func TestNFTInstances(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			Assertion: func(m state.Mutable) bool {
-				instanceOwner, metadata, err := storage.GetNFTInstanceNoController(context.TODO(), m, collectionOneAddress, 0)
+				instanceOwner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(context.TODO(), m, collectionOneAddress, 0)
 				require.NoError(err)
 				instanceOwnersMatch := (instanceOwner == onesAddr)
 				metadataMatch := (string(metadata) == InstanceMetadataOne)
-				return instanceOwnersMatch && metadataMatch
+				return instanceOwnersMatch && metadataMatch && !isListedOnMarketplace
 			},
 		},
 		{
@@ -161,11 +161,11 @@ func TestNFTInstances(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			Assertion: func(m state.Mutable) bool {
-				owner, metadata, err := storage.GetNFTInstanceNoController(context.TODO(), m, collectionOneAddress, instanceOneNum)
+				owner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(context.TODO(), m, collectionOneAddress, instanceOneNum)
 				require.NoError(err)
 				newOwnersMatch := (owner == codec.EmptyAddress)
 				metadataMatch := (string(metadata) == InstanceMetadataOne)
-				return newOwnersMatch && metadataMatch
+				return newOwnersMatch && metadataMatch && !isListedOnMarketplace
 			},
 			Actor: onesAddr,
 		},

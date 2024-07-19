@@ -182,7 +182,7 @@ func (cli *JSONRPCClient) GetNFTCollection(ctx context.Context, collectionAddres
 	return
 }
 
-func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress string, instanceNum uint32) (owner string, metadata string, err error) {
+func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress string, instanceNum uint32) (owner string, metadata string, isListedOnMarketplace bool, err error) {
 
 	resp := new(GetNFTInstanceReply)
 	err = cli.requester.SendRequest(
@@ -197,6 +197,7 @@ func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress 
 
 	owner = resp.Owner
 	metadata = resp.Metadata
+	isListedOnMarketplace = resp.IsListedOnMarketplace
 
 	return
 

@@ -35,23 +35,25 @@ func (c *CreateMarketplaceOrder) Execute(ctx context.Context, r chain.Rules, mu 
 		return nil, ErrOutputMarketplaceOrderPriceZero
 	}
 
-	// Check that NFT Instance exists in state
-	instanceStateKey := storage.InstanceStateKey(c.ParentCollection, c.InstanceNum)
-	if _, err := mu.GetValue(ctx, instanceStateKey); err != nil {
-		return nil, err
-	}
-
-	// Instance exists, make sure that actor owns the instance
-	owner, _, err := storage.GetNFTInstanceNoController(ctx, mu, c.ParentCollection, c.InstanceNum)
+	// Check that instance exists and that actor is owner
+	owner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(ctx, mu, c.ParentCollection, c.InstanceNum)
 	if err != nil {
-		return [][]byte{}, err
+		return nil, ErrOutputNFTInstanceNotFound
 	}
 	if owner != actor {
 		return nil, ErrOutputMarketplaceOrderNotOwner
 	}
+	if isListedOnMarketplace {
+		return nil, ErrOutputMarketplaceOrderInstanceAlreadyListed
+	}
 
+	// Create order
 	orderID, err := storage.CreateMarketplaceOrder(ctx, mu, c.ParentCollection, c.InstanceNum, c.Price)
 	if err != nil {
+		return nil, ErrOutputMarketplaceOrderAlreadyExists
+	}
+	// Update instance marketplace identifier
+	if err = storage.SetNFTInstance(ctx, mu, c.ParentCollection, c.InstanceNum, owner, metadata, true); err != nil {
 		return nil, err
 	}
 
