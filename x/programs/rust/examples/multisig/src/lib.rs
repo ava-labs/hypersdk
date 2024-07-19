@@ -1,7 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use wasmlanche_sdk::{
-    public, state_keys, Address, Context, DeferDeserialize, ExternalCallError, Program,
-};
+use wasmlanche_sdk::{public, state_keys, Address, Context, DeferDeserialize, Program};
 
 pub const MIN_VOTES: u64 = 2;
 
@@ -11,7 +9,7 @@ pub struct Proposal {
     method: String,
     args: Vec<u8>,
     value: u64,
-    executed: bool,
+    executed_result: Option<DeferDeserialize>,
     voters_len: u64,
 }
 
@@ -28,7 +26,6 @@ pub enum ProposalError {
     NonexistentProposal,
     QuorumNotReached,
     NotVoter,
-    ExecutionFailed(ExternalCallError),
 }
 
 #[state_keys]
@@ -82,7 +79,7 @@ pub fn propose(
                 method,
                 args,
                 value,
-                executed: false,
+                executed_result: None,
                 voters_len,
             },
         )
@@ -119,7 +116,7 @@ pub fn vote(
     let proposal =
         internal::get_proposal(&context, proposal_id).ok_or(ProposalError::NonexistentProposal)?;
 
-    if proposal.executed {
+    if proposal.executed_result.is_some() {
         return Err(ProposalError::AlreadyExecuted);
     }
 
@@ -171,11 +168,11 @@ pub fn execute(
     context: Context<StateKeys>,
     proposal_id: u64,
     max_units: u64,
-) -> Result<DeferDeserialize, ProposalError> {
+) -> Result<(), ProposalError> {
     let mut proposal =
         internal::get_proposal(&context, proposal_id).ok_or(ProposalError::NonexistentProposal)?;
 
-    if proposal.executed {
+    if proposal.executed_result.is_some() {
         return Err(ProposalError::AlreadyExecuted);
     }
 
@@ -192,9 +189,7 @@ pub fn execute(
         return Err(ProposalError::QuorumNotReached);
     }
 
-    proposal.executed = true;
-
-    proposal
+    let result = proposal
         .to
         .call_function::<DeferDeserialize>(
             &proposal.method,
@@ -202,7 +197,11 @@ pub fn execute(
             max_units,
             proposal.value,
         )
-        .map_err(ProposalError::ExecutionFailed)
+        .expect("the external execution failed");
+
+    proposal.executed_result = Some(result);
+
+    Ok(())
 }
 
 /// Return the id of the next proposal.
