@@ -1160,7 +1160,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	if end < start {
 		return nil
 	}
-	acceptedToRestore := end - start
+	acceptedToRestore := end - start + 1
 	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
