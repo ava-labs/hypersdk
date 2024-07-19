@@ -87,41 +87,89 @@ func TestMalformedKey(t *testing.T) {
 
 func TestHasPermissions(t *testing.T) {
 	tests := []struct {
-		name      string
-		perm      Permissions
-		contained Permissions
-		failing   bool
+		name     string
+		perm     Permissions
+		contains Permissions
+		failing  bool
 	}{
 		{
-			name:      "all has read",
-			perm:      All,
-			contained: Read,
-			failing:   false,
+			name:     "read has read",
+			perm:     Read,
+			contains: Read,
+			failing:  false,
 		},
 		{
-			name:      "read not all",
-			perm:      Read,
-			contained: All,
-			failing:   true,
+			name:     "read not all",
+			perm:     Read,
+			contains: All,
+			failing:  true,
 		},
 		{
-			name:      "all is all",
-			perm:      All,
-			contained: All,
-			failing:   false,
+			name:     "read not write",
+			perm:     Read,
+			contains: Write,
+			failing:  true,
 		},
 		{
-			name:      "rw has read",
-			perm:      Read | Write,
-			contained: Read,
-			failing:   false,
+			name:     "rw has read",
+			perm:     Read | Write,
+			contains: Read,
+			failing:  false,
+		},
+		{
+			name:     "allocate has read",
+			perm:     Allocate,
+			contains: Read,
+			failing:  false,
+		},
+		{
+			name:     "allocate not write",
+			perm:     Allocate,
+			contains: Write,
+			failing:  true,
+		},
+		{
+			name:     "write has read",
+			perm:     Write,
+			contains: Read,
+			failing:  false,
+		},
+		{
+			name:     "none has none",
+			perm:     None,
+			contains: None,
+			failing:  false,
+		},
+		{
+			name:     "none not all",
+			perm:     None,
+			contains: All,
+			failing:  true,
+		},
+		{
+			name:     "all has read",
+			perm:     All,
+			contains: Read,
+			failing:  false,
+		},
+		{
+			name:     "all is all",
+			perm:     All,
+			contains: All,
+			failing:  false,
+		},
+		{
+			name:     "all has none",
+			perm:     All,
+			contains: None,
+			failing:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			sample := tt.perm.Has(tt.contained)
+			sample := tt.perm.Has(tt.contains)
 
 			if tt.failing {
 				require.False(sample)
