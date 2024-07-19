@@ -84,3 +84,50 @@ func TestMalformedKey(t *testing.T) {
 	keys := make(Keys)
 	require.False(keys.Add("", Read))
 }
+
+func TestHasPermissions(t *testing.T) {
+	tests := []struct {
+		name      string
+		perm      Permissions
+		contained Permissions
+		failing   bool
+	}{
+		{
+			name:      "all has read",
+			perm:      All,
+			contained: Read,
+			failing:   false,
+		},
+		{
+			name:      "read not all",
+			perm:      Read,
+			contained: All,
+			failing:   true,
+		},
+		{
+			name:      "all is all",
+			perm:      All,
+			contained: All,
+			failing:   false,
+		},
+		{
+			name:      "rw has read",
+			perm:      Read | Write,
+			contained: Read,
+			failing:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			sample := tt.perm.Has(tt.contained)
+
+			if tt.failing {
+				require.False(sample)
+			} else {
+				require.True(sample)
+			}
+		})
+	}
+}
