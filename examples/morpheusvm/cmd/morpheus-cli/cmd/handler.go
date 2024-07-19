@@ -8,13 +8,13 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/auth"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -47,11 +47,11 @@ func (h *Handler) DefaultActor() (
 	}
 	var factory chain.AuthFactory
 	switch addr[0] {
-	case consts.ED25519ID:
+	case auth.ED25519ID:
 		factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
-	case consts.SECP256R1ID:
+	case auth.SECP256R1ID:
 		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
-	case consts.BLSID:
+	case auth.BLSID:
 		p, err := bls.PrivateKeyFromBytes(priv)
 		if err != nil {
 			return ids.Empty, nil, nil, nil, nil, nil, err

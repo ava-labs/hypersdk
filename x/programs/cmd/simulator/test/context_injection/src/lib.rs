@@ -1,4 +1,4 @@
-use wasmlanche_sdk::{public, types::Address, Context};
+use wasmlanche_sdk::{public, Address, Context};
 
 #[public]
 pub fn get_timestamp(context: Context) -> u64 {
@@ -18,7 +18,7 @@ pub fn get_actor(context: Context) -> Address {
 #[cfg(test)]
 mod tests {
     use simulator::{ClientBuilder, Endpoint, Step, TestContext};
-    use wasmlanche_sdk::types::Address;
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -88,7 +88,7 @@ mod tests {
             .id;
 
         let mut test_context = TestContext::from(program_id);
-        test_context.actor = Address::from_str("actor");
+        test_context.actor = Address::new([1; 33]);
 
         let response = simulator
             .run_step(&Step {

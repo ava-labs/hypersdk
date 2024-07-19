@@ -5,4 +5,7 @@ package actions
 
 import "errors"
 
-var ErrOutputValueZero = errors.New("value is zero")
+var (
+	ErrOutputValueZero    = errors.New("value is zero")
+	ErrOutputMemoTooLarge = errors.New("memo is too large")
+)

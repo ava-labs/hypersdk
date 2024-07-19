@@ -1,21 +1,21 @@
-use wasmlanche_sdk::{public, types::Address, Context, ExternalCallContext, Program};
+use wasmlanche_sdk::{public, Address, Context, ExternalCallContext, Program};
 
 #[public]
 pub fn inc(_: Context, external: Program, address: Address) {
     let ctx = ExternalCallContext::new(external, 1_000_000, 0);
-    counter::inc(ctx, address, 1);
+    counter::inc(&ctx, address, 1);
 }
 
 #[public]
 pub fn get_value(_: Context, external: Program, address: Address) -> u64 {
     let ctx = ExternalCallContext::new(external, 1_000_000, 0);
-    counter::get_value(ctx, address)
+    counter::get_value(&ctx, address)
 }
 
 #[cfg(test)]
 mod tests {
     use simulator::{ClientBuilder, Endpoint, Param, Step, TestContext};
-    use wasmlanche_sdk::types::Address;
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -27,7 +27,7 @@ mod tests {
             .replace("counter-external", "counter")
             .replace("counter_external", "counter");
 
-        let owner = Address::from_str("owner");
+        let owner = Address::new([1; 33]);
 
         let counter_external = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))

@@ -3,4 +3,7 @@
 
 package actions
 
-const TransferComputeUnits = 1
+const (
+	TransferComputeUnits = 1
+	MaxMemoSize          = 256
+)

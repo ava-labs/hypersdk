@@ -12,7 +12,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::{types::Address, ExternalCallError};
+use wasmlanche_sdk::{Address, ExternalCallError};
 
 mod id;
 
@@ -22,8 +22,6 @@ pub use id::Id;
 #[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Endpoint {
-    /// Perform an operation against the key api.
-    Key,
     /// Make a read-only call to a program function and return the result.
     ReadOnly,
     /// Create a transaction on-chain from a possible state changing program
@@ -61,24 +59,44 @@ impl Step {
     }
 }
 
-/// The algorithm used to generate the key along with a [`String`] identifier for the key.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-#[serde(tag = "type", content = "value")]
-pub enum Key {
-    #[serde(serialize_with = "base64_encode")]
-    Ed25519(String),
-    #[serde(serialize_with = "base64_encode")]
-    Secp256r1(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq, Default)]
+#[non_exhaustive]
 pub struct TestContext {
-    pub program_id: Id,
+    program_id: Id,
     pub actor: Address,
     pub height: u64,
     pub timestamp: u64,
+}
+
+impl Serialize for TestContext {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct BorrowedContext<'a> {
+            program_id: Id,
+            actor: &'a [u8],
+            height: u64,
+            timestamp: u64,
+        }
+
+        let Self {
+            program_id,
+            actor,
+            height,
+            timestamp,
+        } = self;
+
+        BorrowedContext {
+            program_id: *program_id,
+            actor: actor.as_ref(),
+            height: *height,
+            timestamp: *timestamp,
+        }
+        .serialize(serializer)
+    }
 }
 
 impl From<Id> for TestContext {
@@ -93,7 +111,7 @@ impl From<Id> for TestContext {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "type", rename = "testContext")]
 pub(crate) struct SimulatorTestContext {
-    #[serde(serialize_with = "base64_struct_encode")]
+    #[serde(serialize_with = "base64_encode")]
     value: TestContext,
 }
 
@@ -106,7 +124,6 @@ pub enum Param {
     Bool(bool),
     String(String),
     Id(Id),
-    Key(Key),
     #[allow(private_interfaces)]
     TestContext(SimulatorTestContext),
     Bytes(Vec<u8>),
@@ -152,7 +169,7 @@ impl From<&Param> for StringParam {
                 let num: &usize = id.into();
                 StringParam::Id(b64.encode(num.to_le_bytes()))
             }
-            Param::Key(_) | Param::TestContext(_) => unreachable!(),
+            Param::TestContext(_) => unreachable!(),
         }
     }
 }
@@ -163,7 +180,6 @@ impl Serialize for Param {
         S: serde::Serializer,
     {
         match self {
-            Param::Key(key) => Serialize::serialize(key, serializer),
             Param::TestContext(ctx) => Serialize::serialize(ctx, serializer),
             _ => StringParam::from(self).serialize(serializer),
         }
@@ -197,12 +213,6 @@ impl From<String> for Param {
 impl From<Id> for Param {
     fn from(val: Id) -> Self {
         Param::Id(val)
-    }
-}
-
-impl From<Key> for Param {
-    fn from(val: Key) -> Self {
-        Param::Key(val)
     }
 }
 
@@ -253,14 +263,7 @@ impl StepResult {
     }
 }
 
-fn base64_encode<S>(text: &str, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&b64.encode(text))
-}
-
-fn base64_struct_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
+fn base64_encode<S>(struc: &TestContext, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -458,27 +461,6 @@ mod tests {
         let id = Id::from(value);
         let param = Param::from(id);
         let expected_param = Param::Id(id);
-
-        assert_eq!(param, expected_param);
-
-        let output_json = serde_json::to_value(&param).unwrap();
-
-        assert_eq!(output_json, expected_json);
-    }
-
-    #[test]
-    fn convert_key_param() {
-        let expected_param_type = "ed25519";
-        let expected_value = "id";
-
-        let expected_json = json!({
-            "type": expected_param_type,
-            "value": &b64.encode(expected_value),
-        });
-
-        let key = Key::Ed25519(expected_value.to_string());
-        let param = Param::from(key.clone());
-        let expected_param = Param::Key(key);
 
         assert_eq!(param, expected_param);
 

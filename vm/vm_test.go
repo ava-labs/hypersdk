@@ -17,7 +17,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/config"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/trace"
@@ -43,9 +42,8 @@ func TestBlockCache(t *testing.T) {
 	controller := NewMockController(ctrl)
 	vm := VM{
 		snowCtx: &snow.Context{Log: logging.NoLog{}, Metrics: metrics.NewPrefixGatherer()},
-		config:  &config.Config{},
-
-		vmDB: memdb.New(),
+		config:  NewConfig(),
+		vmDB:    memdb.New(),
 
 		tracer:                 tracer,
 		acceptedBlocksByID:     bByID,
@@ -53,7 +51,7 @@ func TestBlockCache(t *testing.T) {
 
 		verifiedBlocks: make(map[ids.ID]*chain.StatelessBlock),
 		seen:           emap.NewEMap[*chain.Transaction](),
-		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32, nil),
+		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
 	}

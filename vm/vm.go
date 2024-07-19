@@ -6,8 +6,10 @@ package vm
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -33,8 +35,10 @@ import (
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
+	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/workers"
@@ -45,6 +49,12 @@ import (
 	avasync "github.com/ava-labs/avalanchego/x/sync"
 )
 
+const (
+	blockDB   = "blockdb"
+	stateDB   = "statedb"
+	vmDataDir = "vm"
+)
+
 type VM struct {
 	c Controller
 	v *version.Semantic
@@ -52,7 +62,6 @@ type VM struct {
 	snowCtx         *snow.Context
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
-	baseDB          database.Database
 
 	config         Config
 	genesis        Genesis
@@ -121,14 +130,18 @@ type VM struct {
 }
 
 func New(c Controller, v *version.Semantic) *VM {
-	return &VM{c: c, v: v}
+	return &VM{
+		c:      c,
+		v:      v,
+		config: NewConfig(),
+	}
 }
 
 // implements "block.ChainVM.common.VM"
 func (vm *VM) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
-	baseDB database.Database,
+	_ database.Database,
 	genesisBytes []byte,
 	upgradeBytes []byte,
 	configBytes []byte,
@@ -158,24 +171,64 @@ func (vm *VM) Initialize(
 	vm.proposerMonitor = NewProposerMonitor(vm)
 	vm.networkManager = network.NewManager(vm.snowCtx.Log, vm.snowCtx.NodeID, appSender)
 
-	vm.baseDB = baseDB
+	pebbleConfig := pebble.NewDefaultConfig()
+	vm.vmDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, blockDB, vm.snowCtx.Metrics)
+	if err != nil {
+		return err
+	}
+
+	vm.rawStateDB, err = storage.New(pebbleConfig, vm.snowCtx.ChainDataDir, stateDB, vm.snowCtx.Metrics)
+	if err != nil {
+		return err
+	}
+
+	// TODO do not expose entire context to the Controller
+	//
+	// Note: does not copy the consensus lock but this is safe because the
+	// consensus lock does not work over rpc anyways
+	controllerContext := &snow.Context{
+		NetworkID:      vm.snowCtx.NetworkID,
+		SubnetID:       vm.snowCtx.SubnetID,
+		ChainID:        vm.snowCtx.ChainID,
+		NodeID:         vm.snowCtx.NodeID,
+		PublicKey:      vm.snowCtx.PublicKey,
+		XChainID:       vm.snowCtx.XChainID,
+		CChainID:       vm.snowCtx.CChainID,
+		AVAXAssetID:    vm.snowCtx.AVAXAssetID,
+		Log:            vm.snowCtx.Log,
+		Keystore:       vm.snowCtx.Keystore,
+		SharedMemory:   vm.snowCtx.SharedMemory,
+		BCLookup:       vm.snowCtx.BCLookup,
+		Metrics:        vm.snowCtx.Metrics,
+		WarpSigner:     vm.snowCtx.WarpSigner,
+		ValidatorState: vm.snowCtx.ValidatorState,
+		ChainDataDir:   filepath.Join(vm.snowCtx.ChainDataDir, vmDataDir),
+	}
+
+	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	controllerConfigBytes, err := json.Marshal(vm.config.Config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal controller config: %w", err)
+	}
 
 	// Always initialize implementation first
-	vm.config, vm.genesis, vm.builder, vm.gossiper, vm.vmDB,
-		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
-		snowCtx,
-		vm.snowCtx.Metrics,
+		controllerContext,
+		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
-		configBytes,
+		controllerConfigBytes,
 	)
 	if err != nil {
 		return fmt.Errorf("implementation initialization failed: %w", err)
 	}
 
 	// Setup tracer
-	vm.tracer, err = trace.New(vm.config.GetTraceConfig())
+	vm.tracer, err = trace.New(&vm.config.TraceConfig)
 	if err != nil {
 		return err
 	}
@@ -183,7 +236,7 @@ func (vm *VM) Initialize(
 	defer span.End()
 
 	// Setup profiler
-	if cfg := vm.config.GetContinuousProfilerConfig(); cfg.Enabled {
+	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
 		vm.profiler = profiler.NewContinuous(cfg.Dir, cfg.Freq, cfg.MaxNumFiles)
 		go vm.profiler.Dispatch() //nolint:errcheck
 	}
@@ -193,13 +246,13 @@ func (vm *VM) Initialize(
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
 		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
-		// that will be used across all concurrent root generations.
-		RootGenConcurrency:          uint(vm.config.GetRootGenerationCores()),
-		HistoryLength:               uint(vm.config.GetStateHistoryLength()),
-		ValueNodeCacheSize:          uint(vm.config.GetValueNodeCacheSize()),
-		IntermediateNodeCacheSize:   uint(vm.config.GetIntermediateNodeCacheSize()),
-		IntermediateWriteBufferSize: uint(vm.config.GetStateIntermediateWriteBufferSize()),
-		IntermediateWriteBatchSize:  uint(vm.config.GetStateIntermediateWriteBatchSize()),
+		// that will be used across all concurrent root generations
+		RootGenConcurrency:          uint(vm.config.RootGenerationCores),
+		HistoryLength:               uint(vm.config.StateHistoryLength),
+		ValueNodeCacheSize:          uint(vm.config.ValueNodeCacheSize),
+		IntermediateNodeCacheSize:   uint(vm.config.IntermediateNodeCacheSize),
+		IntermediateWriteBufferSize: uint(vm.config.StateIntermediateWriteBufferSize),
+		IntermediateWriteBatchSize:  uint(vm.config.StateIntermediateWriteBatchSize),
 		Reg:                         merkleRegistry,
 		TraceLevel:                  merkledb.InfoTrace,
 		Tracer:                      vm.tracer,
@@ -215,30 +268,25 @@ func (vm *VM) Initialize(
 	//
 	// If [parallelism] is odd, we assign the extra
 	// core to signature verification.
-	vm.authVerifiers = workers.NewParallel(vm.config.GetAuthVerificationCores(), 100) // TODO: make job backlog a const
+	vm.authVerifiers = workers.NewParallel(vm.config.AuthVerificationCores, 100) // TODO: make job backlog a const
 
 	// Init channels before initializing other structs
 	vm.toEngine = toEngine
 
-	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.GetParsedBlockCacheSize()}
+	vm.parsedBlocks = &avacache.LRU[ids.ID, *chain.StatelessBlock]{Size: vm.config.ParsedBlockCacheSize}
 	vm.verifiedBlocks = make(map[ids.ID]*chain.StatelessBlock)
-	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.GetAcceptedBlockWindowCache())
+	vm.acceptedBlocksByID, err = cache.NewFIFO[ids.ID, *chain.StatelessBlock](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
-	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.GetAcceptedBlockWindowCache())
+	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
 	}
-	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.GetAcceptorSize())
+	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
 
-	vm.mempool = mempool.New[*chain.Transaction](
-		vm.tracer,
-		vm.config.GetMempoolSize(),
-		vm.config.GetMempoolSponsorSize(),
-		vm.config.GetMempoolExemptSponsors(),
-	)
+	vm.mempool = mempool.New[*chain.Transaction](vm.tracer, vm.config.MempoolSize, vm.config.MempoolSponsorSize)
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -352,7 +400,7 @@ func (vm *VM) Initialize(
 	vm.stateSyncNetworkClient, err = avasync.NewNetworkClient(
 		stateSyncSender,
 		vm.snowCtx.NodeID,
-		int64(vm.config.GetStateSyncParallelism()),
+		int64(vm.config.StateSyncParallelism),
 		vm.Logger(),
 		"",
 		syncRegistry,
@@ -391,7 +439,7 @@ func (vm *VM) Initialize(
 	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
 		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
 	}
-	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
+	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
@@ -444,11 +492,6 @@ func (vm *VM) isReady() bool {
 		vm.snowCtx.Log.Info("node is not ready yet")
 		return false
 	}
-}
-
-// TODO: remove?
-func (vm *VM) BaseDB() database.Database {
-	return vm.baseDB
 }
 
 func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
@@ -723,7 +766,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	vm.verifiedL.RLock()
 	processingBlocks := len(vm.verifiedBlocks)
 	vm.verifiedL.RUnlock()
-	if processingBlocks > vm.config.GetProcessingBuildSkip() {
+	if processingBlocks > vm.config.ProcessingBuildSkip {
 		vm.snowCtx.Log.Warn("not building block", zap.Error(ErrTooManyProcessing))
 		return nil, ErrTooManyProcessing
 	}
@@ -778,7 +821,7 @@ func (vm *VM) Submit(
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
-	nextFeeManager, err := feeManager.ComputeNext(blk.Tmstmp, now, r)
+	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
 		return []error{err}
 	}
@@ -815,7 +858,7 @@ func (vm *VM) Submit(
 		}
 
 		// Verify auth if not already verified by caller
-		if verifyAuth && vm.config.GetVerifyAuth() {
+		if verifyAuth && vm.config.VerifyAuth {
 			msg, err := tx.Digest()
 			if err != nil {
 				// Should never fail
@@ -1065,7 +1108,7 @@ func (vm *VM) backfillSeenTransactions() {
 
 func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
-	lookback := uint64(vm.config.GetAcceptedBlockWindowCache()) - 1 // include latest
+	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
 		start = vm.lastAccepted.Hght - lookback
 	}

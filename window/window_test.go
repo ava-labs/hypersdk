@@ -19,9 +19,9 @@ func testRollup(t *testing.T, uint64s []uint64, roll int) {
 	for i := 0; i < numUint64s; i++ {
 		binary.BigEndian.PutUint64(slice[8*i:], uint64s[i])
 	}
-
-	newSlice, err := Roll(slice, roll)
+	newSlice, err := Roll(slice, int64(roll))
 	require.NoError(err)
+
 	// numCopies is the number of uint64s that should have been copied over from the previous
 	// slice as opposed to being left empty.
 	numCopies := numUint64s - roll

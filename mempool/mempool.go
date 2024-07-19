@@ -50,20 +50,16 @@ type Mempool[T Item] struct {
 	streamedItems     set.Set[ids.ID]
 	nextStream        []T
 	nextStreamFetched bool
-
-	// sponsors that are exempt from [maxSponsorSize]
-	exemptSponsors set.Set[codec.Address]
 }
 
 // New creates a new [Mempool]. [maxSize] must be > 0 or else the
 // implementation may panic.
 func New[T Item](
 	tracer trace.Tracer,
-	maxSize int, // items
+	maxSize int,
 	maxSponsorSize int,
-	exemptSponsors []codec.Address,
 ) *Mempool[T] {
-	m := &Mempool[T]{
+	return &Mempool[T]{
 		tracer: tracer,
 
 		maxSize:        maxSize,
@@ -72,13 +68,8 @@ func New[T Item](
 		queue: &list.List[T]{},
 		eh:    eheap.New[*list.Element[T]](min(maxSize, maxPrealloc)),
 
-		owned:          map[codec.Address]int{},
-		exemptSponsors: set.Set[codec.Address]{},
+		owned: map[codec.Address]int{},
 	}
-	for _, sponsor := range exemptSponsors {
-		m.exemptSponsors.Add(sponsor)
-	}
-	return m
 }
 
 func (m *Mempool[T]) removeFromOwned(item T) {
@@ -135,8 +126,7 @@ func (m *Mempool[T]) add(items []T, front bool) {
 		}
 
 		// Ensure sender isn't abusing mempool
-		senderItems := m.owned[sender]
-		if !m.exemptSponsors.Contains(sender) && senderItems == m.maxSponsorSize {
+		if m.owned[sender] == m.maxSponsorSize {
 			continue // do nothing, wait for items to expire
 		}
 

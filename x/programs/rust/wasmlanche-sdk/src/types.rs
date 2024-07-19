@@ -14,7 +14,6 @@ pub type Gas = u64;
 pub struct Address(#[serde(serialize_with = "<[_]>::serialize")] [u8; Self::LEN]);
 
 impl Address {
-    // TODO: move to HyperSDK.Address which will be 33 bytes
     pub const LEN: usize = 33;
     // Constructor function for Address
     #[must_use]
