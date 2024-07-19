@@ -25,7 +25,7 @@ pub struct Voter {
 pub enum ProposalError {
     AlreadyExecuted,
     AlreadyVoted,
-    InexistentProposal,
+    NonexistentProposal,
     QuorumNotReached,
     NotVoter,
     ExecutionFailed(ExternalCallError),
