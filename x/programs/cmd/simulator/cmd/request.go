@@ -34,7 +34,7 @@ type runCmd struct {
 
 	// counts the number of requests made
 	numRequests *int
-	// the message send to the simulator
+	// the message sent to the simulator
 	requestMessage *string
 	// the simulator request
 	request *SimulatorRequest
