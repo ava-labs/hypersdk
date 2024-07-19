@@ -57,10 +57,10 @@ func (c *CreateNFTCollection) Execute(ctx context.Context, r chain.Rules, mu sta
 	collectionStateKey := storage.CollectionStateKey(collectionAddress)
 	// Assert that collection does not already exist
 	if _, err := mu.GetValue(ctx, collectionStateKey); err == nil {
-		return nil, err
+		return nil, ErrOutputNFTCollectionAlreadyExists
 	}
 	
-	if err := storage.SetNFTCollection(ctx, mu, collectionAddress, c.Name, c.Symbol, c.Metadata, 0); err != nil {
+	if err := storage.SetNFTCollection(ctx, mu, collectionAddress, c.Name, c.Symbol, c.Metadata, 0, actor); err != nil {
 		return nil, err
 	}
 

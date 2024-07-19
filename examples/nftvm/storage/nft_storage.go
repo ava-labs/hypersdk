@@ -19,6 +19,7 @@ import (
 const (
 	nftCollectionPrefix = 0x4
 	nftInstancePrefix = 0x5
+	marketplaceOrderPrefix = 0x6
 )
 
 // State storage limits
@@ -35,7 +36,7 @@ const (
 	// Limits on instances
 	MaxInstanceMetadataSize = 256
 
-	MaxInstanceSize = MaxCollectionMetadataSize
+	MaxInstanceSize = codec.AddressLen + MaxCollectionMetadataSize
 
 )
 
@@ -81,6 +82,7 @@ func SetNFTCollection(
 	symbol []byte,
 	metadata []byte,
 	numOfInstances uint32,
+	owner codec.Address,
 ) error {
 	collectionStateKey := CollectionStateKey(collectionAddress)
 	
@@ -88,7 +90,7 @@ func SetNFTCollection(
 	symbolLen := len(symbol)
 	metadataLen := len(metadata)
 
-	v := make([]byte, consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen + consts.Uint32Len)
+	v := make([]byte, consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen + consts.Uint32Len + codec.AddressLen)
 
 	// Insert name
 	binary.BigEndian.PutUint16(v, uint16(nameLen))
@@ -105,6 +107,9 @@ func SetNFTCollection(
 	// Insert number of instances
 	binary.BigEndian.PutUint32(v[consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen:], numOfInstances)
 
+	// Insert collection owner
+	copy(v[consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen + consts.Uint32Len:], owner[:])
+
 	return mu.Insert(ctx, collectionStateKey, v)
 	
 }
@@ -113,7 +118,7 @@ func GetNFTCollection(
 	ctx context.Context,
 	f ReadState,
 	collectionAddress codec.Address,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, err error) {
+) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, owner codec.Address, err error) {
 	k := CollectionStateKey(collectionAddress)
 	values, errs := f(ctx, [][]byte{k})
 	return innerGetNFTCollection(values[0], errs[0])
@@ -125,10 +130,10 @@ func GetNFTCollectionNoController(
 	ctx context.Context,
 	mu state.Mutable,
 	collectionAddress codec.Address,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, err error) {
+) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, owner codec.Address, err error) {
 	value, err := mu.GetValue(ctx, CollectionStateKey(collectionAddress))
 	if err != nil {
-		return []byte{}, []byte{}, []byte{}, 0, err 
+		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, err 
 	}
 	return innerGetNFTCollection(value, err)
 }
@@ -136,12 +141,12 @@ func GetNFTCollectionNoController(
 func innerGetNFTCollection(
 	v []byte,
 	err error,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, e error) {
+) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, owner codec.Address, e error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return []byte{}, []byte{}, []byte{}, 0, nil
+		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, nil
 	}
 	if err != nil {
-		return []byte{}, []byte{}, []byte{}, 0, err
+		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, err
 	}
 
 	// Extract name
@@ -155,7 +160,9 @@ func innerGetNFTCollection(
 	metadata = v[consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len:consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen]
 	// Extract numOfInstances
 	numOfInstances = binary.BigEndian.Uint32(v[consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen:])
-	return name, symbol, metadata, numOfInstances, nil
+	// Extract owner
+	owner = codec.Address(v[consts.Uint16Len + nameLen + consts.Uint16Len + symbolLen + consts.Uint16Len + metadataLen + consts.Uint32Len:])
+	return name, symbol, metadata, numOfInstances, owner, nil
 }
 
 // This function takes care of the following
@@ -170,7 +177,7 @@ func CreateNFTInstance(
 ) (instanceNum uint32, err error) {
 
 	// Get parent collection state
-	name, symbol, collectionMetadata, numOfInstances, err := GetNFTCollectionNoController(ctx, mu, collectionAddress)
+	name, symbol, collectionMetadata, numOfInstances, collectionOwner, err := GetNFTCollectionNoController(ctx, mu, collectionAddress)
 	if err != nil {
 		return 0, err
 	}
@@ -181,7 +188,7 @@ func CreateNFTInstance(
 	}
 
 	// Update parent collection in state
-	if err = SetNFTCollection(ctx, mu, collectionAddress, name, symbol, collectionMetadata, numOfInstances + 1); err != nil {
+	if err = SetNFTCollection(ctx, mu, collectionAddress, name, symbol, collectionMetadata, numOfInstances + 1, collectionOwner); err != nil {
 		return 0, nil
 	}
 
@@ -224,6 +231,19 @@ func GetNFTInstance(
 	return innerGetNFTInstance(values[0], errs[0])
 }
 
+func GetNFTInstanceNoController(
+	ctx context.Context,
+	mu state.Mutable,
+	collectionAddress codec.Address,
+	instanceNum uint32,
+) (owner codec.Address, metadata []byte, err error) {
+	value, err := mu.GetValue(ctx, InstanceStateKey(collectionAddress, instanceNum))
+	if err != nil {
+		return codec.EmptyAddress, []byte{}, err 
+	}
+	return innerGetNFTInstance(value, err)
+}
+
 func innerGetNFTInstance(
 	v []byte,
 	err error,
@@ -241,4 +261,3 @@ func innerGetNFTInstance(
 	e = nil
 	return
 }
-

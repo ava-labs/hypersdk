@@ -10,7 +10,10 @@ const (
 	// Custom NFT-VM Action Types
 	CreateNFTCollection uint8 = 1
 	CreateNFTInstance uint8 = 2
-	
+	CreateMarketplaceOrder uint8 = 3
+	BuyNFT uint8 = 4
+	TransferNFTCollectionOwnership uint8 = 5
+	TransferNFTInstance uint8 = 6
 
 	// Auth TypeIDs
 	ED25519ID   uint8 = 0

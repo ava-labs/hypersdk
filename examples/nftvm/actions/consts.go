@@ -8,4 +8,8 @@ const (
 	TransferComputeUnits = 1
 	CreateNFTCollectionComputeUnits = 1
 	CreateNFTInstanceComputeUnits = 1
+	CreateMarketplaceOrderComputeUnits = 1
+	BuyNFTComputeUnits = 1
+	TransferNFTCollectionComputeUnits = 1
+	TransferNFTInstanceComputeUnits = 1
 )

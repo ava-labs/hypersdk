@@ -93,6 +93,7 @@ type GetNFTCollectionReply struct {
 	Symbol string `json:"symbol"`
 	Metadata string `json:"metadata"`
 	NumOfInstances uint32 `json:"numOfInstances"`
+	CollectionOwner string `json:"collectionOwner"`
 }
 
 func (j *JSONRPCServer) GetNFTCollection(req *http.Request, args *GetNFTCollectionArgs, reply *GetNFTCollectionReply) error {
@@ -104,7 +105,7 @@ func (j *JSONRPCServer) GetNFTCollection(req *http.Request, args *GetNFTCollecti
 		return err
 	}
 
-	name, symbol, metadata, numOfInstances, err := j.c.GetNFTCollection(ctx, addr)
+	name, symbol, metadata, numOfInstances, collectionOwner, err := j.c.GetNFTCollection(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -113,6 +114,7 @@ func (j *JSONRPCServer) GetNFTCollection(req *http.Request, args *GetNFTCollecti
 	reply.Symbol = string(symbol)
 	reply.Metadata = string(metadata)
 	reply.NumOfInstances = numOfInstances
+	reply.CollectionOwner = codec.MustAddressBech32(consts.HRP, collectionOwner)
 
 	return err
 }
@@ -146,3 +148,29 @@ func (j *JSONRPCServer) GetNFTInstance(req *http.Request, args *GetNFTInstanceAr
 	reply.Metadata = string(metadata)
 	return nil
 } 
+
+type GetMarketplaceOrderArgs struct {
+	OrderID string `json:"orderID"`
+}
+
+type GetMarketplaceOrderReply struct {
+	Price uint64 `json:"price"`
+}
+
+func (j *JSONRPCServer) GetMarketplaceOrder(req *http.Request, args *GetMarketplaceOrderArgs, reply *GetMarketplaceOrderReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.GetMarketplaceOrder")
+	defer span.End()
+
+	orderID, err := ids.FromString(args.OrderID)
+	if err != nil {
+		return err
+	}
+
+	price, err := j.c.GetMarketplaceOrder(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	reply.Price = price
+	return nil
+}

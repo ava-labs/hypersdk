@@ -925,7 +925,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			firstCollectionAddress = codec.Address(results[0].Outputs[0][0])
 			readableFirstCollectionAddress = codec.MustAddressBech32(lconsts.HRP, firstCollectionAddress)
 
-			collectionNameOneFromChain, collectionSymbolOneFromChain, collectionMetadataOneFromChain, err := instances[0].lcli.GetNFTCollection(context.Background(), readableFirstCollectionAddress)
+			collectionNameOneFromChain, collectionSymbolOneFromChain, collectionMetadataOneFromChain, numOfInstancesFromChain, collectionOwnerFromChain, err := instances[0].lcli.GetNFTCollection(context.Background(), readableFirstCollectionAddress)
 			
 			require.NoError(err)
 
@@ -933,7 +933,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.Equal(CollectionNameOne, collectionNameOneFromChain)
 			require.Equal(CollectionSymbolOne, collectionSymbolOneFromChain)
 			require.Equal(CollectionMetadataOne, collectionMetadataOneFromChain)
-
+			require.Equal(uint32(0), numOfInstancesFromChain)
+			require.Equal(codec.MustAddressBech32(lconsts.HRP, addr), collectionOwnerFromChain)
 		})
 	})
 
@@ -958,8 +959,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
 
-			time.Sleep(500 * time.Millisecond)
-
 			accept := expectBlk(instances[0])
 			results := accept(false)
 			require.Len(results, 1)
@@ -970,8 +969,61 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 
 			// Check that instance details match
-			require.Equal(addr, ownerFromChainOne)
+			require.Equal(codec.MustAddressBech32(lconsts.HRP, addr), ownerFromChainOne)
 			require.Equal(InstanceMetadataOne, instanceMetadataFromChainOne)
+		})
+		ginkgo.By("Failing when state parent collection does not exist", func() {
+			parser, err := instances[0].lcli.Parser(context.Background())
+			require.NoError(err)
+
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				[]chain.Action{
+					&actions.CreateNFTInstance{
+						Owner: addr,
+						ParentCollection: addr,
+						Metadata: []byte(InstanceMetadataOne),
+					},
+				},
+				factory,
+			)
+
+			require.NoError(err)
+			require.NoError(submit(context.Background()))
+
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			require.Len(results, 1)
+			require.False(results[0].Success)
+		})
+	})
+
+	ginkgo.It("Has a marketplace", func() {
+		ginkgo.By("Submitting an order", func() {
+			parser, err := instances[0].lcli.Parser(context.Background())
+			require.NoError(err)
+
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				[]chain.Action{
+					&actions.CreateMarketplaceOrder{
+						ParentCollection: firstCollectionAddress,
+						InstanceNum: firstInstanceNum,
+						Price: 5,
+					},
+				},
+				factory,
+			)
+			require.NoError(err)
+			require.NoError(submit(context.Background()))
+
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			require.Len(results, 1)
+			fmt.Println("err is: ", string(results[0].Error))
+			require.True(results[0].Success)			
 		})
 	})
 })

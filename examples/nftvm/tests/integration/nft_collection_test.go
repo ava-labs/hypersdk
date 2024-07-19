@@ -9,10 +9,11 @@ const (
 	CollectionSymbolOne = "LVM"
 	CollectionMetadataOne = "The most famous museum in the world"
 
-	InstanceMetadataOne = "Mona Lisa: By Leonardo Da Vinci"
+	InstanceMetadataOne = "Mona Lisa by Leonardo Da Vinci"
 )
 
 var (
 	firstCollectionAddress codec.Address
 	readableFirstCollectionAddress string
+	firstInstanceNum uint32 = 0
 )

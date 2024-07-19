@@ -42,12 +42,13 @@ func (c *CreateNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state
 	// Assert that collection exists
 	parentCollectionStateKey := storage.CollectionStateKey(c.ParentCollection)
 	if _, err := mu.GetValue(ctx, parentCollectionStateKey); err != nil {
-		return [][]byte{}, err
+		return nil, ErrOutputNFTCollectionDoesNotExist
 	}
 
+	// Parent collection exists, finish executing
 	instanceNum, err := storage.CreateNFTInstance(ctx, mu, c.ParentCollection, c.Owner, c.Metadata)
 	if err != nil {
-		return [][]byte{}, err
+		return nil, err
 	}
 
 	v := make([]byte, mconsts.Uint32Len)
@@ -79,7 +80,7 @@ func (c *CreateNFTInstance) StateKeys(actor codec.Address, actionID ids.ID) stat
 	// Action creates new instance in state while also modifying parent
 	// collection
 	parentCollectionStateKey := storage.CollectionStateKey(c.ParentCollection)
-	// TODO: INSTANCE NUMBER MUST NOT BE STATICALLY SET!
+	// TODO: Remove hardcoded instance number
 	instanceStateKey := storage.InstanceStateKey(c.ParentCollection, 0)
 	return state.Keys{
 		string(parentCollectionStateKey): state.All,
@@ -89,7 +90,7 @@ func (c *CreateNFTInstance) StateKeys(actor codec.Address, actionID ids.ID) stat
 
 // StateKeysMaxChunks implements chain.Action.
 func (c *CreateNFTInstance) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.MaxInstanceSize}
+	return []uint16{storage.MaxCollectionSize, storage.MaxInstanceSize}
 }
 
 // ValidRange implements chain.Action.

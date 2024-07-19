@@ -24,6 +24,9 @@ func init() {
 		consts.ActionRegistry.Register((&actions.Transfer{}).GetTypeID(), actions.UnmarshalTransfer),
 		consts.ActionRegistry.Register((&actions.CreateNFTCollection{}).GetTypeID(), actions.UnmarshalCreateNFTCollection),
 		consts.ActionRegistry.Register((&actions.CreateNFTInstance{}).GetTypeID(), actions.UnmarshalCreateNFTInstance),
+		consts.ActionRegistry.Register((&actions.CreateMarketplaceOrder{}).GetTypeID(), actions.UnmarshalCreateMarketplaceOrder),
+		consts.ActionRegistry.Register((&actions.TransferNFTCollectionOwnership{}).GetTypeID(), actions.UnmarshalTransferNFTCollectionOwnership),
+		consts.ActionRegistry.Register((&actions.TransferNFTInstance{}).GetTypeID(), actions.UnmarshalTransferNFTInstance),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
 		consts.AuthRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519),

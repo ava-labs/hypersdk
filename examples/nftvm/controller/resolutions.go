@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/nftvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/nftvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 )
@@ -45,7 +46,7 @@ func (c *Controller) GetBalanceFromState(
 func (c *Controller) GetNFTCollection(
 	ctx context.Context,
 	collectionAddress codec.Address,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, err error) {
+) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, collectionOwner codec.Address, err error) {
 	return storage.GetNFTCollection(ctx, c.inner.ReadState, collectionAddress)
 }
 
@@ -55,4 +56,18 @@ func (c *Controller) GetNFTInstance(
 	instanceNum uint32,
 ) (owner codec.Address, metadata []byte, err error) {
 	return storage.GetNFTInstance(ctx, c.inner.ReadState, collectionAddress, instanceNum)
+}
+
+func (c *Controller) GetMarketplaceOrder(
+	ctx context.Context,
+	orderID ids.ID,
+) (price uint64, err error) {
+	return storage.GetMarketplaceOrder(ctx, c.inner.ReadState, orderID)
+}
+
+func (c *Controller) GetAllNFTInstancesFromCollection(
+	ctx context.Context,
+	collectionAddress codec.Address,
+) ([]rpc.NFTInstanceDetails, error) {
+	panic("unimplemented")
 }
