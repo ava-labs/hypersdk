@@ -135,6 +135,12 @@ func TestHasPermissions(t *testing.T) {
 			failing:  false,
 		},
 		{
+			name:     "write not allocate",
+			perm:     Write,
+			contains: Allocate,
+			failing:  true,
+		},
+		{
 			name:     "none has none",
 			perm:     None,
 			contains: None,
