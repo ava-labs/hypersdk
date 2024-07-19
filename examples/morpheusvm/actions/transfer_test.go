@@ -77,9 +77,9 @@ func TestTransferAction(t *testing.T) {
 				keys.Add(string(emptyBalanceKey), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
-			Assertion: func(t *testing.T, store state.Mutable) {
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				require := require.New(t)
-				balance, err := storage.GetBalance(context.Background(), store, codec.EmptyAddress)
+				balance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
 				require.NoError(err)
 				require.Equal(balance, uint64(1))
 			},
@@ -115,11 +115,11 @@ func TestTransferAction(t *testing.T) {
 				keys.Add(string(storage.BalanceKey(oneAddr)), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
-			Assertion: func(t *testing.T, store state.Mutable) {
+			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				require := require.New(t)
-				receiverBalance, err := storage.GetBalance(context.Background(), store, oneAddr)
+				receiverBalance, err := storage.GetBalance(ctx, store, oneAddr)
 				require.NoError(err)
-				senderBalance, err := storage.GetBalance(context.Background(), store, codec.EmptyAddress)
+				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
 				require.NoError(err)
 				require.Equal(receiverBalance, uint64(1))
 				require.Equal(senderBalance, uint64(0))
