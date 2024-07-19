@@ -93,7 +93,7 @@ func TestHasPermissions(t *testing.T) {
 		failing  bool
 	}{
 		{
-			name:     "read has read",
+			name:     "read is read",
 			perm:     Read,
 			contains: Read,
 			failing:  false,
@@ -117,6 +117,12 @@ func TestHasPermissions(t *testing.T) {
 			failing:  false,
 		},
 		{
+			name:     "allocate is allocate",
+			perm:     Allocate,
+			contains: Allocate,
+			failing:  false,
+		},
+		{
 			name:     "allocate has read",
 			perm:     Allocate,
 			contains: Read,
@@ -127,6 +133,12 @@ func TestHasPermissions(t *testing.T) {
 			perm:     Allocate,
 			contains: Write,
 			failing:  true,
+		},
+		{
+			name:     "write is write",
+			perm:     Write,
+			contains: Write,
+			failing:  false,
 		},
 		{
 			name:     "write has read",
@@ -141,7 +153,7 @@ func TestHasPermissions(t *testing.T) {
 			failing:  true,
 		},
 		{
-			name:     "none has none",
+			name:     "none is none",
 			perm:     None,
 			contains: None,
 			failing:  false,
@@ -153,15 +165,15 @@ func TestHasPermissions(t *testing.T) {
 			failing:  true,
 		},
 		{
-			name:     "all has read",
-			perm:     All,
-			contains: Read,
-			failing:  false,
-		},
-		{
 			name:     "all is all",
 			perm:     All,
 			contains: All,
+			failing:  false,
+		},
+		{
+			name:     "all has read",
+			perm:     All,
+			contains: Read,
 			failing:  false,
 		},
 		{
