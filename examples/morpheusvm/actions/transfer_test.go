@@ -127,5 +127,7 @@ func TestTransferAction(t *testing.T) {
 		},
 	}
 
-	chaintest.Run(context.Background(), t, tests)
+	for _, tt := range tests {
+		tt.Run(context.Background(), t)
+	}
 }
