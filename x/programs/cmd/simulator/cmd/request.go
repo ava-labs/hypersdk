@@ -80,7 +80,7 @@ func (c *runCmd) Happened() bool {
 func (c *runCmd) Init() (err error) {
 	var marshaledBytes []byte
 	if c.requestMessage == nil || *c.requestMessage == "" {
-		return errors.New("please specify either a valid run command")
+		return errors.New("please specify a valid request")
 	}
 
 	marshaledBytes = []byte(*c.requestMessage)
