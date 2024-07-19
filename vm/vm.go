@@ -1161,7 +1161,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 		return nil
 	}
 	acceptedToRestore := end - start
-	vm.snowCtx.Log.Info("accepted blocks have to be restored", zap.Uint64("n", acceptedToRestore))
+	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
 		var blk *chain.StatelessBlock
@@ -1170,13 +1170,13 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 		} else {
 			blk, err = vm.GetDiskBlock(ctx, height)
 			if err != nil {
-				return fmt.Errorf("could not find block at height %d on disk", height)
+				return fmt.Errorf("could not find accepted block at height %d on disk", height)
 			}
 		}
 
 		vm.acceptedQueue <- blk
 	}
-	vm.snowCtx.Log.Info("accepted blocks have been added to the queue")
+	vm.snowCtx.Log.Info("finished restoring accepted queue")
 
 	return nil
 }
