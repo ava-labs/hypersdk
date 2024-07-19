@@ -1144,7 +1144,7 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	has, err := vm.HasLastProcessed()
 	if err != nil {
-		return errors.New("could not determine if have last processed")
+		return fmt.Errorf("could not determine if have last processed: %w", err)
 	}
 	if !has {
 		return nil
@@ -1157,7 +1157,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 
 	start := lastProcessedHeight + 1
 	end := vm.lastAccepted.Height()
-	if end >= start {
+	if end > start {
 		return nil
 	}
 	acceptedToRestore := end - start
