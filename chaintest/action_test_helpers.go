@@ -63,7 +63,7 @@ type ActionTest struct {
 	ExpectedOutputs [][]byte
 	ExpectedErr     error
 
-	Assertion func(state.Mutable) bool
+	Assertion func(*testing.T, state.Mutable)
 }
 
 // Run execute all tests from the test suite and make sure all assertions pass.
@@ -78,7 +78,7 @@ func Run(t *testing.T, tests []ActionTest) {
 			require.Equal(output, test.ExpectedOutputs)
 
 			if test.Assertion != nil {
-				require.True(test.Assertion(test.State))
+				test.Assertion(t, test.State)
 			}
 		})
 	}

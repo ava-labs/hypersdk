@@ -18,7 +18,7 @@ import (
 )
 
 func TestTransferAction(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
 	addrSlice := make([]byte, codec.AddressLen)
@@ -26,7 +26,7 @@ func TestTransferAction(t *testing.T) {
 		addrSlice[i] = 1
 	}
 	oneAddr, err := codec.ToAddress(addrSlice)
-	require.NoError(err)
+	req.NoError(err)
 
 	tests := []chaintest.ActionTest{
 		{
@@ -73,14 +73,15 @@ func TestTransferAction(t *testing.T) {
 			State: func() state.Mutable {
 				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
-				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
-			Assertion: func(store state.Mutable) bool {
+			Assertion: func(t *testing.T, store state.Mutable) {
+				require := require.New(t)
 				balance, err := storage.GetBalance(context.Background(), store, codec.EmptyAddress)
 				require.NoError(err)
-				return balance == 1
+				require.Equal(balance, uint64(1))
 			},
 		},
 		{
@@ -93,7 +94,7 @@ func TestTransferAction(t *testing.T) {
 			State: func() state.Mutable {
 				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
-				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
@@ -109,17 +110,19 @@ func TestTransferAction(t *testing.T) {
 			State: func() state.Mutable {
 				keys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
-				require.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
+				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
 				keys.Add(string(storage.BalanceKey(oneAddr)), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
-			Assertion: func(store state.Mutable) bool {
+			Assertion: func(t *testing.T, store state.Mutable) {
+				require := require.New(t)
 				receiverBalance, err := storage.GetBalance(context.Background(), store, oneAddr)
 				require.NoError(err)
 				senderBalance, err := storage.GetBalance(context.Background(), store, codec.EmptyAddress)
 				require.NoError(err)
-				return receiverBalance == 1 && senderBalance == 0
+				require.Equal(receiverBalance, uint64(1))
+				require.Equal(senderBalance, uint64(0))
 			},
 		},
 	}
