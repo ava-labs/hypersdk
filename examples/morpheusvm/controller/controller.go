@@ -15,13 +15,13 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
+	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
@@ -43,7 +43,9 @@ type Controller struct {
 
 	metrics *metrics
 
-	db database.Database
+	txDB               database.Database
+	txIndexer          indexer.TxIndexer
+	acceptedSubscriber indexer.AcceptedSubscriber
 }
 
 func New() *vm.VM {
@@ -96,10 +98,20 @@ func (c *Controller) Initialize(
 	}
 	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	c.db, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
+	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
+	acceptedSubscribers := []indexer.AcceptedSubscriber{
+		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
+	}
+	if c.config.StoreTransactions {
+		c.txIndexer = indexer.NewTxDBIndexer(c.txDB)
+		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
+	} else {
+		c.txIndexer = indexer.NewNoOpTxIndexer()
+	}
+	c.acceptedSubscriber = indexer.NewAcceptedSubscribers(acceptedSubscribers...)
 
 	// Create handlers
 	//
@@ -145,40 +157,10 @@ func (c *Controller) StateManager() chain.StateManager {
 }
 
 func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	batch := c.db.NewBatch()
-	defer batch.Reset()
-
-	results := blk.Results()
-	for i, tx := range blk.Txs {
-		result := results[i]
-		if c.config.StoreTransactions {
-			err := storage.StoreTransaction(
-				ctx,
-				batch,
-				tx.ID(),
-				blk.GetTimestamp(),
-				result.Success,
-				result.Units,
-				result.Fee,
-			)
-			if err != nil {
-				return err
-			}
-		}
-		if result.Success {
-			for _, action := range tx.Actions {
-				switch action.(type) { //nolint:gocritic
-				case *actions.Transfer:
-					c.metrics.transfer.Inc()
-				}
-			}
-		}
-	}
-	return batch.Write()
+	return c.acceptedSubscriber.Accepted(ctx, blk)
 }
 
-func (*Controller) Shutdown(context.Context) error {
-	// Do not close any databases provided during initialization. The VM will
-	// close any databases your provided.
-	return nil
+func (c *Controller) Shutdown(context.Context) error {
+	// Close any databases created during initialization
+	return c.txDB.Close()
 }
