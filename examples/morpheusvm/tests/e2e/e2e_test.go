@@ -25,6 +25,8 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/rpc"
+	"github.com/ava-labs/hypersdk/tests/e2e"
+	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
 
 	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
@@ -298,6 +300,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	require.NoError(err)
 
 	blockchainID = sresp.ChainIds[0]
+	networkID := sresp.ClusterInfo.NetworkId
 	subnetID := sresp.ClusterInfo.CustomChains[blockchainID].SubnetId
 	utils.Outf(
 		"{{green}}successfully added chain:{{/}} %s {{green}}subnet:{{/}} %s {{green}}participants:{{/}} %+v\n",
@@ -320,6 +323,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	nodeInfos := status.GetClusterInfo().GetNodeInfos()
 
 	instances = []instance{}
+	uris := make([]string, 0, len(subnet))
 	for _, nodeName := range subnet {
 		info := nodeInfos[nodeName]
 		u := fmt.Sprintf("%s/ext/bc/%s", info.Uri, blockchainID)
@@ -342,6 +346,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		}
 		require.NoError(err)
 
+		uris = append(uris, u)
 		instances = append(instances, instance{
 			nodeID: nodeID,
 			uri:    u,
@@ -349,6 +354,12 @@ var _ = ginkgo.BeforeSuite(func() {
 			lcli:   lrpc.NewJSONRPCClient(u, networkID, bid),
 		})
 	}
+
+	e2e.SetNetwork(&embeddedVMNetwork{
+		uris:      uris,
+		networkID: networkID,
+		chainID:   ids.FromStringOrPanic(blockchainID),
+	})
 })
 
 var (
@@ -358,7 +369,26 @@ var (
 	sender  string
 
 	instances []instance
+
+	_ workload.Network = (*embeddedVMNetwork)(nil)
 )
+
+type embeddedVMNetwork struct {
+	uris      []string
+	networkID uint32
+	chainID   ids.ID
+}
+
+func (e *embeddedVMNetwork) URIs() []string {
+	return e.uris
+}
+
+func (e *embeddedVMNetwork) Description() workload.Description {
+	return workload.Description{
+		NetworkID: e.networkID,
+		ChainID:   e.chainID,
+	}
+}
 
 type instance struct {
 	nodeID ids.NodeID
@@ -386,32 +416,6 @@ var _ = ginkgo.AfterSuite(func() {
 		}
 	}
 	require.NoError(anrCli.Close())
-})
-
-var _ = ginkgo.Describe("[Ping]", func() {
-	require := require.New(ginkgo.GinkgoT())
-
-	ginkgo.It("can ping A", func() {
-		for _, inst := range instances {
-			cli := inst.cli
-			ok, err := cli.Ping(context.Background())
-			require.NoError(err)
-			require.True(ok)
-		}
-	})
-})
-
-var _ = ginkgo.Describe("[Network]", func() {
-	require := require.New(ginkgo.GinkgoT())
-
-	ginkgo.It("can get network", func() {
-		for _, inst := range instances {
-			cli := inst.cli
-			_, _, chainID, err := cli.Network(context.Background())
-			require.NoError(err)
-			require.NotEqual(chainID, ids.Empty)
-		}
-	})
 })
 
 var _ = ginkgo.Describe("[Test]", func() {
