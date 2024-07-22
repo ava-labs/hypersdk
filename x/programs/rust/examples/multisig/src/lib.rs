@@ -9,7 +9,7 @@ pub struct Proposal {
     method: String,
     args: Vec<u8>,
     value: u64,
-    executed_result: Option<DeferDeserialize>,
+    executed_result: Option<Vec<u8>>,
     voters_len: u64,
 }
 
@@ -199,9 +199,18 @@ pub fn execute(
         )
         .expect("the external execution failed");
 
-    proposal.executed_result = Some(result);
+    proposal.executed_result = Some(result.into());
+
+    context
+        .store_by_key(StateKeys::Proposals(proposal_id), &proposal)
+        .expect("failed to store proposal");
 
     Ok(())
+}
+
+#[public]
+pub fn get_proposal(context: Context<StateKeys>, proposal_id: u64) -> Proposal {
+    internal::get_proposal(&context, proposal_id).expect("nonexistent proposal")
 }
 
 /// Return the id of the next proposal.
@@ -266,9 +275,9 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
-    use super::ProposalError;
+    use super::{Proposal, ProposalError};
     use simulator::{Endpoint, Param, Step, StepResponseError, TestContext};
-    use wasmlanche_sdk::{Address, DeferDeserialize};
+    use wasmlanche_sdk::{Address, ExternalCallError};
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
@@ -304,6 +313,35 @@ mod tests {
 
         let voters = vec![
             Address::new([1; Address::LEN]),
+            Address::new([1; Address::LEN]),
+        ];
+
+        let response = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "propose".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    test_context.clone().into(),
+                    Param::FixedBytes(borsh::to_vec(&voters).unwrap()),
+                    program_id.into(),
+                    String::new().into(),
+                    Vec::new().into(),
+                    0u64.into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response::<()>();
+        assert!(matches!(response, Err(StepResponseError::ExternalCall(_))));
+
+        let test_context = TestContext {
+            actor: Address::new([1; Address::LEN]),
+            ..test_context.clone()
+        };
+
+        let voters = vec![
+            Address::new([2; Address::LEN]),
             Address::new([1; Address::LEN]),
         ];
 
@@ -506,11 +544,25 @@ mod tests {
             })
             .unwrap()
             .result
-            .response::<Result<DeferDeserialize, ProposalError>>()
-            .unwrap()
+            .response::<Result<(), ProposalError>>()
             .unwrap();
 
-        let id: u64 = res.deserialize().unwrap();
+        assert!(res.is_ok());
+
+        let result = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "get_proposal".to_string(),
+                max_units: 0,
+                params: vec![voter_context.into(), pid.into()],
+            })
+            .unwrap()
+            .result
+            .response::<Proposal>()
+            .unwrap();
+
+        let executed_result = result.executed_result.expect("not executed proposal");
+        let id: u64 = borsh::from_slice(&executed_result).expect("deserialization failed");
 
         assert_eq!(id, 1);
     }

@@ -33,6 +33,12 @@ impl BorshDeserialize for DeferDeserialize {
     }
 }
 
+impl Into<Vec<u8>> for DeferDeserialize {
+    fn into(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 /// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
 #[repr(u8)]
