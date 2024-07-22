@@ -18,9 +18,7 @@ const MAX_GAS: u64 = 10000000;
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
 pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liquidity_token: Program) {
-    let program = context.program();
-
-    program.state().store([
+    context.store([
         (StateKeys::TokenX, &token_x),
         (StateKeys::TokenY, &token_y),
         (StateKeys::LiquidityToken, &liquidity_token),
@@ -30,11 +28,11 @@ pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liq
 
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
-    assert!(token::transfer_ownership(&liquidity_context, *program.account()), "failed to transfer ownership of the liquidity token");
+    assert!(token::transfer_ownership(&liquidity_context, *context.program().account()), "failed to transfer ownership of the liquidity token");
 
     // Ideal flow for deploying a new token contract. Could also pass in the liquidity token id
     // as a parameter but that would require the caller to know the id and its prob best to hardcode the version
-    // since newer versions could have different methods or state keys
+    // since newer versions could have different functions or state keys
     // 
     // The ID acts as the unique identifier of the program bytes we want to deploy
     // declare this at the top of the file const TOKEN_ID : Id = "0xhardcoded_id";
@@ -52,9 +50,9 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     let program = context.program();
 
     // ensure the token_program_in is one of the tokens
-    _check_token(program, &token_program_in);
+    internal::check_token(&context, &token_program_in);
 
-    let (token_in, token_out) = external_token_contracts(program);
+    let (token_in, token_out) = external_token_contracts(&context);
 
     // make sure token_in matches the token_program_in
     let (token_in, token_out) = if token_program_in.account() == token_in.program().account() {
@@ -99,8 +97,8 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
 #[public]
 pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) -> u64 {
     let program = context.program();
-    let (token_x, token_y) = external_token_contracts(program);
-    let lp_token = external_liquidity_token(program);
+    let (token_x, token_y) = external_token_contracts(&context);
+    let lp_token = external_liquidity_token(&context);
    
     // calculate the amount of tokens in the pool
     let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
@@ -144,13 +142,13 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
 #[public]
 pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) {
     let program = context.program();
-    let lp_token = external_liquidity_token(program);
+    let lp_token = external_liquidity_token(&context);
     // assert that the actor has enough shares
     let actor_total_shares = token::balance_of(&lp_token, context.actor());
     assert!(actor_total_shares >= shares, "insufficient shares");
 
     let total_shares = token::total_supply(&lp_token);
-    let (token_x, token_y) = external_token_contracts(program);
+    let (token_x, token_y) = external_token_contracts(&context);
     let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
 
     let amount_x = (shares * reserve_x) / total_shares;
@@ -171,8 +169,7 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
 /// Removes all LP shares from the pool and returns the amount of token_x and token_y received.
 #[public]
 pub fn remove_all_liquidity(context: Context<StateKeys>) -> (u64, u64) {
-    let program = context.program();
-    let lp_token = external_liquidity_token(program);
+    let lp_token = external_liquidity_token(&context);
     let lp_balance = token::balance_of(&lp_token, context.actor());
     remove_liquidity(context, lp_balance)
 }
@@ -193,29 +190,18 @@ fn reserves(token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (u6
     (balance_x, balance_y)
 }
 
-/// Checks if `token_program` is one of the tokens supported by the pool
-fn _check_token(program: &Program<StateKeys>, token_program: &Program) {
-    let (token_x, token_y) = token_programs(program);
-
-    assert!(
-        token_program.account() == token_x.account()
-            || token_program.account() == token_y.account(),
-        "token program is not one of the tokens supported by this pool"
-    );
-}
-
 /// Returns the tokens in the pool
-fn token_programs(program: &Program<StateKeys>) -> (Program, Program) {
+fn token_programs(context: &Context<StateKeys>) -> (Program, Program) {
     (
-        program.state().get(StateKeys::TokenX).unwrap().expect("token x not initialized"),
-        program.state().get(StateKeys::TokenY).unwrap().expect("token y not initialized"),
+        context.get(StateKeys::TokenX).unwrap().expect("token x not initialized"),
+        context.get(StateKeys::TokenY).unwrap().expect("token y not initialized"),
     )
 }
 /// Returns the external call contexts for the tokens in the pool
 fn external_token_contracts(
-    program: &Program<StateKeys>,
+    context: &Context<StateKeys>,
 ) -> (ExternalCallContext, ExternalCallContext) {
-    let (token_x, token_y) = token_programs(program);
+    let (token_x, token_y) = token_programs(context);
 
     (
         ExternalCallContext::new(token_x, MAX_GAS, 0),
@@ -224,14 +210,27 @@ fn external_token_contracts(
 }
 
 /// Returns the external call context for the liquidity token
-fn external_liquidity_token(program: &Program<StateKeys>) -> ExternalCallContext {
+fn external_liquidity_token(context: &Context<StateKeys>) -> ExternalCallContext {
     ExternalCallContext::new(
-        program
-            .state()
+        context
             .get(StateKeys::LiquidityToken)
             .unwrap()
             .unwrap(),
         MAX_GAS,
         0,
     )
+}
+
+mod internal {
+    use crate::{token_programs, Context, Program, StateKeys};
+    /// Checks if `token_program` is one of the tokens supported by the pool
+    pub(crate) fn check_token(context: &Context<StateKeys>, token_program: &Program) {
+        let (token_x, token_y) = token_programs(context);
+
+        assert!(
+            token_program.account() == token_x.account()
+                || token_program.account() == token_y.account(),
+            "token program is not one of the tokens supported by this pool"
+        );
+    }
 }
