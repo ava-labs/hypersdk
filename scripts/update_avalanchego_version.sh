@@ -57,7 +57,3 @@ update_avalanchego_mod_version "$PWD" "$VERSION"
 # Update AvalancheGo version in examples/morpheusvm
 update_avalanchego_mod_version "$PWD/examples/morpheusvm" "$VERSION"
 update_avalanchego_run_version "$PWD/examples/morpheusvm/scripts/run.sh" "$VERSION"
-
-# Update AvalancheGo version in examples/tokenvm
-update_avalanchego_mod_version "$PWD/examples/tokenvm" "$VERSION"
-update_avalanchego_run_version "$PWD/examples/tokenvm/scripts/run.sh" "$VERSION"  
