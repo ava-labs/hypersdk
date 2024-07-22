@@ -21,10 +21,9 @@ import (
 )
 
 var (
-	_         e2e.Backend = (*tokenVM)(nil)
-	factory   *auth.ED25519Factory
-	addr      codec.Address
-	senderStr string
+	_       e2e.Backend = (*tokenVM)(nil)
+	factory *auth.ED25519Factory
+	addr    codec.Address
 )
 
 func init() {
