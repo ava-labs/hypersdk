@@ -277,7 +277,7 @@ mod internal {
 mod tests {
     use super::{Proposal, ProposalError};
     use simulator::{Endpoint, Param, Step, StepResponseError, TestContext};
-    use wasmlanche_sdk::{Address, ExternalCallError};
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
