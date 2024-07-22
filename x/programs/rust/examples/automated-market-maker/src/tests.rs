@@ -1,13 +1,35 @@
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Key, Step, StepResponseError, TestContext, Param};
-    use wasmlanche_sdk::ExternalCallError;
+    use simulator::{Endpoint, Param, Step, TestContext};
+    use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
+    fn create_program() {
+        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap();
+    }
+
+
+    #[test]
     fn amm_init() {
+         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+
+        let amm_program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        let 
+
+        let context = TestContext::new(program_id);
+
+
         
     }
 
