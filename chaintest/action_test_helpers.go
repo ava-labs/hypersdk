@@ -63,24 +63,21 @@ type ActionTest struct {
 	ExpectedOutputs [][]byte
 	ExpectedErr     error
 
-	Assertion func(*testing.T, state.Mutable)
+	Assertion func(context.Context, *testing.T, state.Mutable)
 }
 
-// Run execute all tests from the test suite and make sure all assertions pass.
-func Run(ctx context.Context, t *testing.T, tests []ActionTest) {
-	for _, test := range tests {
-		t.Run(test.Name, func(t *testing.T) {
-			require := require.New(t)
+// Run executes the [ActionTest] and make sure all assertions pass.
+func (test *ActionTest) Run(ctx context.Context, t *testing.T) {
+	t.Run(test.Name, func(t *testing.T) {
+		require := require.New(t)
 
-			output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
-			require.NoError(ctx.Err())
+		output, err := test.Action.Execute(ctx, test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 
-			require.ErrorIs(err, test.ExpectedErr)
-			require.Equal(output, test.ExpectedOutputs)
+		require.ErrorIs(err, test.ExpectedErr)
+		require.Equal(output, test.ExpectedOutputs)
 
-			if test.Assertion != nil {
-				test.Assertion(t, test.State)
-			}
-		})
-	}
+		if test.Assertion != nil {
+			test.Assertion(ctx, t, test.State)
+		}
+	})
 }
