@@ -46,7 +46,7 @@ func (*ED25519) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (d *ED25519) Verify(_ context.Context, tx *chain.Transaction) error {
+func (d *ED25519) Verify(_ context.Context, tx chain.DigestProvider) error {
 	msg, err := tx.Digest()
 	if err != nil {
 		return err
@@ -94,8 +94,8 @@ type ED25519Factory struct {
 	priv ed25519.PrivateKey
 }
 
-func (d *ED25519Factory) Sign(tx *chain.Transaction) (chain.Auth, error) {
-	msg, err := tx.Digest()
+func (d *ED25519Factory) Sign(digestProvider chain.DigestProvider) (chain.Auth, error) {
+	msg, err := digestProvider.Digest()
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +131,8 @@ type ED25519Batch struct {
 	batch        *ed25519.Batch
 }
 
-func (b *ED25519Batch) Add(tx *chain.Transaction, rauth chain.Auth) func() error {
-	msg, err := tx.Digest()
+func (b *ED25519Batch) Add(digestProvider chain.DigestProvider, rauth chain.Auth) func() error {
+	msg, err := digestProvider.Digest()
 	if err != nil {
 		return func() error { return err }
 	}

@@ -46,8 +46,8 @@ func (*SECP256R1) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (d *SECP256R1) Verify(_ context.Context, tx *chain.Transaction) error {
-	msg, err := tx.Digest()
+func (d *SECP256R1) Verify(_ context.Context, digestProvider chain.DigestProvider) error {
+	msg, err := digestProvider.Digest()
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func NewSECP256R1Factory(priv secp256r1.PrivateKey) *SECP256R1Factory {
 	return &SECP256R1Factory{priv}
 }
 
-func (d *SECP256R1Factory) Sign(tx *chain.Transaction) (chain.Auth, error) {
+func (d *SECP256R1Factory) Sign(tx chain.DigestProvider) (chain.Auth, error) {
 	msg, err := tx.Digest()
 	if err != nil {
 		return nil, err

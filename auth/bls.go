@@ -46,8 +46,8 @@ func (*BLS) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 
-func (b *BLS) Verify(_ context.Context, tx *chain.Transaction) error {
-	msg, err := tx.Digest()
+func (b *BLS) Verify(_ context.Context, digestProvider chain.DigestProvider) error {
+	msg, err := digestProvider.Digest()
 	if err != nil {
 		return err
 	}
@@ -108,8 +108,8 @@ func NewBLSFactory(priv *bls.PrivateKey) *BLSFactory {
 	return &BLSFactory{priv}
 }
 
-func (b *BLSFactory) Sign(tx *chain.Transaction) (chain.Auth, error) {
-	msg, err := tx.Digest()
+func (b *BLSFactory) Sign(digestProvider chain.DigestProvider) (chain.Auth, error) {
+	msg, err := digestProvider.Digest()
 	if err != nil {
 		return nil, err
 	}
