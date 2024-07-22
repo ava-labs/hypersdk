@@ -208,3 +208,12 @@ func (o Option[T]) None() bool {
 }
 
 type Unit struct{}
+
+type KeyValueInput struct {
+	Key   []byte
+	Value []byte
+}
+
+func (k KeyValueInput) customDeserialize() {
+	//
+}

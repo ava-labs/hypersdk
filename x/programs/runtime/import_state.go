@@ -6,6 +6,8 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/ava-labs/avalanchego/database"
 )
@@ -18,11 +20,6 @@ const (
 	putManyCost = 10000
 )
 
-type keyValueInput struct {
-	Key   []byte
-	Value []byte
-}
-
 func NewStateAccessModule() *ImportModule {
 	return &ImportModule{
 		Name: "state",
@@ -31,6 +28,9 @@ func NewStateAccessModule() *ImportModule {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				val, err := callInfo.State.GetProgramState(callInfo.Program).GetValue(ctx, input)
+				fmt.Fprintln(os.Stderr, input)
+				fmt.Fprintln(os.Stderr, val)
+				fmt.Fprintln(os.Stderr, err)
 				if err != nil {
 					if errors.Is(err, database.ErrNotFound) {
 						return nil, nil
@@ -42,8 +42,11 @@ func NewStateAccessModule() *ImportModule {
 			"put": {FuelCost: putManyCost, Function: FunctionNoOutput[[]keyValueInput](func(callInfo *CallInfo, input []keyValueInput) error {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+				fmt.Fprintln(os.Stderr, "asdcasdcascd")
 				programState := callInfo.State.GetProgramState(callInfo.Program)
 				for _, entry := range input {
+					fmt.Fprintln(os.Stderr, entry.Key)
+					fmt.Fprintln(os.Stderr, entry.Value)
 					if len(entry.Value) == 0 {
 						if err := programState.Remove(ctx, entry.Key); err != nil {
 							return err
