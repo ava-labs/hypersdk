@@ -32,7 +32,7 @@ type JSONRPCClient struct {
 	assets    map[ids.ID]*AssetReply
 }
 
-// New creates a new client object.
+// NewJSONRPCClient creates a new client object.
 func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
