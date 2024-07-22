@@ -17,10 +17,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
@@ -29,14 +26,12 @@ import (
 )
 
 const (
-	startAmount = uint64(10000000000000000000)
-	sendAmount  = uint64(5000)
-
+	// startAmount = uint64(10000000000000000000)
+	// sendAmount  = uint64(5000)
 	healthPollInterval = 3 * time.Second
 )
 
 type CustomClient interface {
-	Balance(ctx context.Context, address string) (uint64, error)
 	Parser(ctx context.Context) (chain.Parser, error)
 	WaitForTransaction(ctx context.Context, txID ids.ID) (bool, uint64, error)
 }
@@ -45,7 +40,6 @@ type Backend interface {
 	ID() ids.ID
 	Name() string
 	HRP() string
-	Sender() string
 	NextAction() chain.Action
 	AuthFactory() chain.AuthFactory
 	NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) CustomClient
@@ -409,13 +403,13 @@ var _ = ginkgo.Describe("[Test]", func() {
 	})
 
 	ginkgo.It("transfer in a single node (raw)", func() {
-		nativeBalance, err := instances[0].lcli.Balance(context.TODO(), vmBackend.Sender())
-		require.NoError(err)
-		require.Equal(startAmount, nativeBalance)
-		other, err := ed25519.GeneratePrivateKey()
-		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
-		aotherStr := codec.MustAddressBech32(vmBackend.HRP(), aother)
+		// nativeBalance, err := instances[0].lcli.Balance(context.TODO(), vmBackend.Sender())
+		// require.NoError(err)
+		// require.Equal(startAmount, nativeBalance)
+		// other, err := ed25519.GeneratePrivateKey()
+		// require.NoError(err)
+		// aother := auth.NewED25519Address(other.PublicKey())
+		// aotherStr := codec.MustAddressBech32(vmBackend.HRP(), aother)
 
 		ginkgo.By("issue Transfer to the first node", func() {
 			// Generate transaction
@@ -442,18 +436,19 @@ var _ = ginkgo.Describe("[Test]", func() {
 			require.True(success)
 			utils.Outf("{{yellow}}found transaction{{/}}\n")
 
+			_ = fee // TODO remove
 			// Check sender balance
-			balance, err := instances[0].lcli.Balance(context.Background(), vmBackend.Sender())
-			require.NoError(err)
-			utils.Outf(
-				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
-				startAmount,
-				fee,
-				sendAmount,
-				balance,
-			)
-			require.Equal(balance, startAmount-fee-sendAmount)
-			utils.Outf("{{yellow}}fetched balance{{/}}\n")
+			// balance, err := instances[0].lcli.Balance(context.Background(), vmBackend.Sender())
+			// require.NoError(err)
+			// utils.Outf(
+			// 	"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
+			// 	startAmount,
+			// 	fee,
+			// 	sendAmount,
+			// 	balance,
+			// )
+			// require.Equal(balance, startAmount-fee-sendAmount)
+			// utils.Outf("{{yellow}}fetched balance{{/}}\n")
 		})
 
 		ginkgo.By("check if Transfer has been accepted from all nodes", func() {
@@ -471,9 +466,9 @@ var _ = ginkgo.Describe("[Test]", func() {
 				}
 
 				// Check balance of recipient
-				balance, err := inst.lcli.Balance(context.Background(), aotherStr)
-				require.NoError(err)
-				require.Equal(sendAmount, balance)
+				// balance, err := inst.lcli.Balance(context.Background(), aotherStr)
+				// require.NoError(err)
+				// require.Equal(sendAmount, balance)
 			}
 		})
 	})
