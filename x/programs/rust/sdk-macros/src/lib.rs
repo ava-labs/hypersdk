@@ -56,25 +56,25 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             arg => {
                 let err = match arg {
-                Some(FnArg::Typed(PatType { ty, .. })) => {
-                    Error::new(
-                        ty.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                Some(_) => {
-                    Error::new(
-                        arg.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                None => {
-                    Error::new(
-                        input.sig.paren_token.span.join(),
-                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-            };
+                    Some(FnArg::Typed(PatType { ty, .. })) => {
+                        Error::new(
+                            ty.span(),
+                            format!("The first parameter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                    Some(_) => {
+                        Error::new(
+                            arg.span(),
+                            format!("The first parameter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                    None => {
+                        Error::new(
+                            input.sig.paren_token.span.join(),
+                            format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                };
 
                 Some(err)
             }
@@ -267,12 +267,9 @@ pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
     const MAX_VARIANTS: usize = u8::MAX as usize + 1;
 
     if variants.len() > MAX_VARIANTS {
-        return Error::new(
-            variants[MAX_VARIANTS].span(),
-            "Cannot exceed `u8::MAX` variants",
-        )
-        .into_compile_error()
-        .into();
+        return Error::new(variants[MAX_VARIANTS].span(), "Cannot exceed 256 variants")
+            .into_compile_error()
+            .into();
     }
 
     let match_arms: Result<Vec<_>, _> = variants

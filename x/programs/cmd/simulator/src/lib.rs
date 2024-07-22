@@ -340,8 +340,7 @@ impl ClientBuilder<'_> {
         let Child { stdin, stdout, .. } = Command::new(self.path)
             .arg("interpreter")
             .arg("--cleanup")
-            .arg("--log-level")
-            .arg("error")
+            .args(["--log-level", "error"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()?;
