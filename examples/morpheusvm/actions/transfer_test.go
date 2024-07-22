@@ -21,11 +21,7 @@ func TestTransferAction(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
-	addrSlice := make([]byte, codec.AddressLen)
-	for i := range addrSlice {
-		addrSlice[i] = 1
-	}
-	oneAddr, err := codec.ToAddress(addrSlice)
+	oneAddr, err := createAddressWithByte(1)
 	req.NoError(err)
 
 	tests := []chaintest.ActionTest{
@@ -130,4 +126,12 @@ func TestTransferAction(t *testing.T) {
 	for _, tt := range tests {
 		tt.Run(context.Background(), t)
 	}
+}
+
+func createAddressWithByte(b byte) (codec.Address, error) {
+	addrSlice := make([]byte, codec.AddressLen)
+	for i := range addrSlice {
+		addrSlice[i] = b
+	}
+	return codec.ToAddress(addrSlice)
 }
