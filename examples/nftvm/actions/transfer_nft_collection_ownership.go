@@ -48,12 +48,6 @@ func (t *TransferNFTCollectionOwnership) GetTypeID() uint8 {
 	return consts.TransferNFTCollectionOwnership
 }
 
-// Marshal implements chain.Action.
-func (t *TransferNFTCollectionOwnership) Marshal(p *codec.Packer) {
-	p.PackAddress(t.CollectionAddress)
-	p.PackAddress(t.To)
-}
-
 // Size implements chain.Action.
 func (t *TransferNFTCollectionOwnership) Size() int {
 	return codec.AddressLen + codec.AddressLen
@@ -75,6 +69,12 @@ func (t *TransferNFTCollectionOwnership) StateKeysMaxChunks() []uint16 {
 func (t *TransferNFTCollectionOwnership) ValidRange(chain.Rules) (start int64, end int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// Marshal implements chain.Action.
+func (t *TransferNFTCollectionOwnership) Marshal(p *codec.Packer) {
+	p.PackAddress(t.CollectionAddress)
+	p.PackAddress(t.To)
 }
 
 func UnmarshalTransferNFTCollectionOwnership(p *codec.Packer) (chain.Action, error) {

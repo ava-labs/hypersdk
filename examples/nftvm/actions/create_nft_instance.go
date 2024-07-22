@@ -11,7 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
-	mconsts "github.com/ava-labs/hypersdk/consts"
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*CreateNFTInstance)(nil)
@@ -40,18 +40,23 @@ func (c *CreateNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state
 	}
 
 	// Assert that collection exists
-	parentCollectionStateKey := storage.CollectionStateKey(c.ParentCollection)
-	if _, err := mu.GetValue(ctx, parentCollectionStateKey); err != nil {
+	_, _, _, _, collectionOwner, err := storage.GetNFTCollectionNoController(ctx, mu, c.ParentCollection)
+	if err != nil {
 		return nil, ErrOutputNFTCollectionDoesNotExist
 	}
 
-	// Parent collection exists, finish executing
+	// Only collection owners can mint NFTs
+	if collectionOwner != actor {
+		return nil, ErrOutputNFTCollectionNotOwner
+	}
+
+	// Finish execute
 	instanceNum, err := storage.CreateNFTInstance(ctx, mu, c.ParentCollection, c.Owner, c.Metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	v := make([]byte, mconsts.Uint32Len)
+	v := make([]byte, lconsts.Uint32Len)
 	binary.BigEndian.PutUint32(v, instanceNum)
 
 	// Collection exists, delegate to storage
@@ -61,13 +66,6 @@ func (c *CreateNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state
 // GetTypeID implements chain.Action.
 func (c *CreateNFTInstance) GetTypeID() uint8 {
 	return consts.CreateNFTInstance
-}
-
-// Marshal implements chain.Action.
-func (c *CreateNFTInstance) Marshal(p *codec.Packer) {
-	p.PackAddress(c.Owner)
-	p.PackAddress(c.ParentCollection)
-	p.PackBytes(c.Metadata)
 }
 
 // Size implements chain.Action.
@@ -84,7 +82,7 @@ func (c *CreateNFTInstance) StateKeys(actor codec.Address, actionID ids.ID) stat
 	instanceStateKey := storage.InstanceStateKey(c.ParentCollection, 0)
 	return state.Keys{
 		string(parentCollectionStateKey): state.All,
-		string(instanceStateKey): state.All,
+		string(instanceStateKey):         state.All,
 	}
 }
 
@@ -97,6 +95,13 @@ func (c *CreateNFTInstance) StateKeysMaxChunks() []uint16 {
 func (c *CreateNFTInstance) ValidRange(chain.Rules) (start int64, end int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// Marshal implements chain.Action.
+func (c *CreateNFTInstance) Marshal(p *codec.Packer) {
+	p.PackAddress(c.Owner)
+	p.PackAddress(c.ParentCollection)
+	p.PackBytes(c.Metadata)
 }
 
 func UnmarshalCreateNFTInstance(p *codec.Packer) (chain.Action, error) {

@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	CollectionNameOne = "The Louvre Museum"
-	CollectionSymbolOne = "LVM"
+	CollectionNameOne     = "The Louvre Museum"
+	CollectionSymbolOne   = "LVM"
 	CollectionMetadataOne = "The most famous museum in the world"
 
 	InstanceMetadataOne = "Mona Lisa: Leonardo Da Vinci"
 
-	TooLargeCollectionName = "Lorem ipsum dolor sit amet, consectetur adipiscing elit volutpat." // 65 bytes
-	TooLargeCollectionSymbol = "Avalanche"
+	TooLargeCollectionName     = "Lorem ipsum dolor sit amet, consectetur adipiscing elit volutpat." // 65 bytes
+	TooLargeCollectionSymbol   = "Avalanche"
 	TooLargeCollectionMetadata = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras enim enim, vestibulum quis sapien sed, sagittis tempor justo. Sed nec placerat nisi. Suspendisse vitae ligula sed enim maximus ultrices. Sed blandit ac velit tempus volutpat. Cras id nulla donec." // 257 bytes
 
 )
@@ -25,13 +25,13 @@ const (
 var (
 	ts *tstate.TState
 
-	collectionOneAddress = storage.GenerateNFTCollectionAddress([]byte(CollectionNameOne), []byte(CollectionSymbolOne), []byte(CollectionMetadataOne))
+	collectionOneAddress  = storage.GenerateNFTCollectionAddress([]byte(CollectionNameOne), []byte(CollectionSymbolOne), []byte(CollectionMetadataOne))
 	collectionOneStateKey = storage.CollectionStateKey(collectionOneAddress)
 
-	instanceOneStateKey = storage.InstanceStateKey(collectionOneAddress, 0)
-	instanceOneNum = uint32(0)
-	instanceOneOrderPrice = uint64(5)
-	instanceOneOrderID, _ = storage.GenerateOrderID(collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
+	instanceOneStateKey      = storage.InstanceStateKey(collectionOneAddress, 0)
+	instanceOneNum           = uint32(0)
+	instanceOneOrderPrice    = uint64(5)
+	instanceOneOrderID, _    = storage.GenerateOrderID(collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
 	instanceOneOrderStateKey = storage.MarketplaceOrderStateKey(instanceOneOrderID)
 )
 

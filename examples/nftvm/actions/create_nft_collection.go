@@ -14,11 +14,10 @@ import (
 var _ chain.Action = (*CreateNFTCollection)(nil)
 
 type CreateNFTCollection struct {
-
 	Name []byte `json:"name"`
 
-	Symbol   []byte `json:"symbol"`
-	
+	Symbol []byte `json:"symbol"`
+
 	// Supplementary information about the collection
 	Metadata []byte `json:"metadata"`
 }
@@ -31,7 +30,6 @@ func (c *CreateNFTCollection) ComputeUnits(chain.Rules) uint64 {
 // Execute implements chain.Action.
 func (c *CreateNFTCollection) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
 	// Enforce size invariants
-	// TODO: put assertions into separate function
 	if len(c.Name) == 0 {
 		return nil, ErrOutputCollectionNameEmpty
 	}
@@ -59,7 +57,7 @@ func (c *CreateNFTCollection) Execute(ctx context.Context, r chain.Rules, mu sta
 	if _, err := mu.GetValue(ctx, collectionStateKey); err == nil {
 		return nil, ErrOutputNFTCollectionAlreadyExists
 	}
-	
+
 	if err := storage.SetNFTCollection(ctx, mu, collectionAddress, c.Name, c.Symbol, c.Metadata, 0, actor); err != nil {
 		return nil, err
 	}
@@ -70,13 +68,6 @@ func (c *CreateNFTCollection) Execute(ctx context.Context, r chain.Rules, mu sta
 // GetTypeID implements chain.Action.
 func (c *CreateNFTCollection) GetTypeID() uint8 {
 	return consts.CreateNFTCollection
-}
-
-// Marshal implements chain.Action.
-func (c *CreateNFTCollection) Marshal(p *codec.Packer) {
-	p.PackBytes(c.Name)
-	p.PackBytes(c.Symbol)
-	p.PackBytes(c.Metadata)
 }
 
 // Size implements chain.Action.
@@ -101,6 +92,13 @@ func (c *CreateNFTCollection) StateKeysMaxChunks() []uint16 {
 func (c *CreateNFTCollection) ValidRange(chain.Rules) (start int64, end int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// Marshal implements chain.Action.
+func (c *CreateNFTCollection) Marshal(p *codec.Packer) {
+	p.PackBytes(c.Name)
+	p.PackBytes(c.Symbol)
+	p.PackBytes(c.Metadata)
 }
 
 func UnmarshalCreateNFTCollection(p *codec.Packer) (chain.Action, error) {

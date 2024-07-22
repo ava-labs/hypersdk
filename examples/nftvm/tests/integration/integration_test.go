@@ -51,7 +51,6 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-
 var (
 	logFactory logging.Factory
 	log        logging.Logger
@@ -907,8 +906,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				[]chain.Action{
 					&actions.CreateNFTCollection{
-						Name: []byte(CollectionNameOne),
-						Symbol: []byte(CollectionSymbolOne),
+						Name:     []byte(CollectionNameOne),
+						Symbol:   []byte(CollectionSymbolOne),
 						Metadata: []byte(CollectionMetadataOne),
 					},
 				},
@@ -926,7 +925,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			readableFirstCollectionAddress = codec.MustAddressBech32(lconsts.HRP, firstCollectionAddress)
 
 			collectionNameOneFromChain, collectionSymbolOneFromChain, collectionMetadataOneFromChain, numOfInstancesFromChain, collectionOwnerFromChain, err := instances[0].lcli.GetNFTCollection(context.Background(), readableFirstCollectionAddress)
-			
+
 			require.NoError(err)
 
 			// Check that NFT collection creation worked
@@ -948,9 +947,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				[]chain.Action{
 					&actions.CreateNFTInstance{
-						Owner: addr,
+						Owner:            addr,
 						ParentCollection: firstCollectionAddress,
-						Metadata: []byte(InstanceMetadataOne),
+						Metadata:         []byte(InstanceMetadataOne),
 					},
 				},
 				factory,
@@ -982,9 +981,9 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				parser,
 				[]chain.Action{
 					&actions.CreateNFTInstance{
-						Owner: addr,
+						Owner:            addr,
 						ParentCollection: addr,
-						Metadata: []byte(InstanceMetadataOne),
+						Metadata:         []byte(InstanceMetadataOne),
 					},
 				},
 				factory,
@@ -1011,8 +1010,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				[]chain.Action{
 					&actions.CreateMarketplaceOrder{
 						ParentCollection: firstCollectionAddress,
-						InstanceNum: firstInstanceNum,
-						Price: 5,
+						InstanceNum:      firstInstanceNum,
+						Price:            5,
 					},
 				},
 				factory,
@@ -1024,7 +1023,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := accept(false)
 			require.Len(results, 1)
 			fmt.Println("err is: ", string(results[0].Error))
-			require.True(results[0].Success)			
+			require.True(results[0].Success)
 		})
 	})
 })

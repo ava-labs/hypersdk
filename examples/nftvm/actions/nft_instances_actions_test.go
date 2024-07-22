@@ -16,22 +16,24 @@ import (
 )
 
 func TestNFTInstances(t *testing.T) {
-
 	require := require.New(t)
 	ts := tstate.New(1)
 
 	onesAddr, err := createAddressWithSameDigits(1)
 	require.NoError(err)
 
+	twosAddr, err := createAddressWithSameDigits(2)
+	require.NoError(err)
+
 	nftInstanceTests := []chaintest.ActionTest{
 		{
 			Name: "Not allowing instance creation without an existing parent collection",
 			Action: &CreateNFTInstance{
-						Owner: onesAddr,
-						ParentCollection: collectionOneAddress,
-						Metadata: []byte(InstanceMetadataOne),
-					},
-			ExpectedErr: ErrOutputNFTCollectionDoesNotExist,
+				Owner:            onesAddr,
+				ParentCollection: collectionOneAddress,
+				Metadata:         []byte(InstanceMetadataOne),
+			},
+			ExpectedErr:     ErrOutputNFTCollectionDoesNotExist,
 			ExpectedOutputs: [][]uint8(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -42,14 +44,14 @@ func TestNFTInstances(t *testing.T) {
 		{
 			Name: "Correct instance is generated",
 			Action: &CreateNFTInstance{
-						Owner: onesAddr,
-						ParentCollection: collectionOneAddress,
-						Metadata: []byte(InstanceMetadataOne),
-					},
+				Owner:            onesAddr,
+				ParentCollection: collectionOneAddress,
+				Metadata:         []byte(InstanceMetadataOne),
+			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 			},
@@ -76,14 +78,14 @@ func TestNFTInstances(t *testing.T) {
 		{
 			Name: "Parent Collection is Updated",
 			Action: &CreateNFTInstance{
-				Owner: onesAddr,
+				Owner:            onesAddr,
 				ParentCollection: collectionOneAddress,
-				Metadata: []byte(InstanceMetadataOne),
+				Metadata:         []byte(InstanceMetadataOne),
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 			},
@@ -106,25 +108,25 @@ func TestNFTInstances(t *testing.T) {
 			},
 		},
 		{
-			Name: "Only owner can transfer instances",
+			Name: "Only instance owner can transfer instances",
 			Action: &TransferNFTInstance{
 				CollectionAddress: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				To: codec.EmptyAddress,
+				InstanceNum:       instanceOneNum,
+				To:                codec.EmptyAddress,
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 			},
-			ExpectedErr: ErrOutputNFTInstanceNotOwner,
+			ExpectedErr:     ErrOutputNFTInstanceNotOwner,
 			ExpectedOutputs: [][]byte(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -137,22 +139,22 @@ func TestNFTInstances(t *testing.T) {
 			Name: "Correct instance transfer can occur",
 			Action: &TransferNFTInstance{
 				CollectionAddress: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				To: codec.EmptyAddress,
+				InstanceNum:       instanceOneNum,
+				To:                codec.EmptyAddress,
 			},
-			SetupActions: []chain.Action {
+			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 			},
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			ExpectedOutputs: [][]byte(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -173,17 +175,17 @@ func TestNFTInstances(t *testing.T) {
 			Name: "Only allow transfer of existing instances",
 			Action: &TransferNFTInstance{
 				CollectionAddress: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				To: codec.EmptyAddress,
+				InstanceNum:       instanceOneNum,
+				To:                codec.EmptyAddress,
 			},
-			SetupActions: []chain.Action {
+			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 			},
-			ExpectedErr: ErrOutputNFTInstanceNotFound,
+			ExpectedErr:     ErrOutputNFTInstanceNotFound,
 			ExpectedOutputs: [][]byte(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -191,6 +193,26 @@ func TestNFTInstances(t *testing.T) {
 				stateKeys.Add(string(instanceOneStateKey), state.Read)
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
+		},
+		{
+			Name: "Only owner of collection can mint instances",
+			Action: &CreateNFTInstance{
+				Owner:            twosAddr,
+				ParentCollection: collectionOneAddress,
+				Metadata:         []byte(InstanceMetadataOne),
+			},
+			ExpectedErr:     ErrOutputNFTCollectionNotOwner,
+			ExpectedOutputs: [][]byte(nil),
+			State: func() state.Mutable {
+				stateKeys := make(state.Keys)
+				mu := chaintest.NewInMemoryStore()
+				stateKeys.Add(string(collectionOneStateKey), state.All)
+				stateKeys.Add(string(instanceOneStateKey), state.Read)
+
+				require.NoError(storage.SetNFTCollection(context.TODO(), mu, collectionOneAddress, []byte(CollectionNameOne), []byte(CollectionSymbolOne), []byte(CollectionMetadataOne), 0, twosAddr))
+				return ts.NewView(stateKeys, mu.Storage)
+			}(),
+			Actor: onesAddr,
 		},
 	}
 

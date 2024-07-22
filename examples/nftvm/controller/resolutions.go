@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/nftvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/nftvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 )
@@ -63,11 +62,4 @@ func (c *Controller) GetMarketplaceOrder(
 	orderID ids.ID,
 ) (price uint64, err error) {
 	return storage.GetMarketplaceOrder(ctx, c.inner.ReadState, orderID)
-}
-
-func (c *Controller) GetAllNFTInstancesFromCollection(
-	ctx context.Context,
-	collectionAddress codec.Address,
-) ([]rpc.NFTInstanceDetails, error) {
-	panic("unimplemented")
 }

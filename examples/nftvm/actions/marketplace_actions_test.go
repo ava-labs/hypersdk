@@ -13,7 +13,6 @@ import (
 )
 
 func TestMarketplace(t *testing.T) {
-
 	require := require.New(t)
 	ts := tstate.New(1)
 
@@ -28,10 +27,10 @@ func TestMarketplace(t *testing.T) {
 			Name: "Only orders with existing instances can be placed",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				Price: instanceOneOrderPrice,
+				InstanceNum:      instanceOneNum,
+				Price:            instanceOneOrderPrice,
 			},
-			ExpectedErr: ErrOutputNFTInstanceNotFound,
+			ExpectedErr:     ErrOutputNFTInstanceNotFound,
 			ExpectedOutputs: [][]byte(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -43,22 +42,23 @@ func TestMarketplace(t *testing.T) {
 			Name: "No duplicate orders are allowed",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				Price: instanceOneOrderPrice + 1,
+				InstanceNum:      instanceOneNum,
+				Price:            instanceOneOrderPrice + 1,
 			},
+
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 			},
-			ExpectedErr: ErrOutputMarketplaceOrderAlreadyExists,
+			ExpectedErr:     ErrOutputMarketplaceOrderAlreadyExists,
 			ExpectedOutputs: [][]byte(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -76,24 +76,24 @@ func TestMarketplace(t *testing.T) {
 			Name: "Instance can only belong to at most one order at a time",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				Price: instanceOneOrderPrice - 1,
+				InstanceNum:      instanceOneNum,
+				Price:            instanceOneOrderPrice - 1,
 			},
-			SetupActions: []chain.Action {
+			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 				&CreateMarketplaceOrder{
 					ParentCollection: collectionOneAddress,
-					InstanceNum: instanceOneNum,
-					Price: instanceOneOrderPrice,
+					InstanceNum:      instanceOneNum,
+					Price:            instanceOneOrderPrice,
 				},
 			},
 			Actor: onesAddr,
@@ -105,41 +105,41 @@ func TestMarketplace(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMarketplaceOrderInstanceAlreadyListed,
+			ExpectedErr:     ErrOutputMarketplaceOrderInstanceAlreadyListed,
 		},
 		{
 			Name: "No free instance orders",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				Price: uint64(0),
+				InstanceNum:      instanceOneNum,
+				Price:            uint64(0),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMarketplaceOrderPriceZero,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputMarketplaceOrderPriceZero,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Only owners are allowed to sell their NFT instances",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				Price: instanceOneOrderPrice,
+				InstanceNum:      instanceOneNum,
+				Price:            instanceOneOrderPrice,
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMarketplaceOrderNotOwner,
-			Actor: twosAddr,
+			ExpectedErr:     ErrOutputMarketplaceOrderNotOwner,
+			Actor:           twosAddr,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(collectionOneStateKey), state.All)
@@ -152,24 +152,24 @@ func TestMarketplace(t *testing.T) {
 			Name: "Correct orders are placed",
 			Action: &CreateMarketplaceOrder{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				Price: instanceOneOrderPrice,
+				InstanceNum:      instanceOneNum,
+				Price:            instanceOneOrderPrice,
 			},
 			Actor: onesAddr,
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 			},
 			ExpectedOutputs: [][]byte{instanceOneOrderID[:]},
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(collectionOneStateKey), state.All)
@@ -187,19 +187,19 @@ func TestMarketplace(t *testing.T) {
 			Name: "Correct purchases are allowed",
 			Action: &BuyNFT{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				OrderID: instanceOneOrderID,
-				CurrentOwner: onesAddr,
+				InstanceNum:      instanceOneNum,
+				OrderID:          instanceOneOrderID,
+				CurrentOwner:     onesAddr,
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				st := chaintest.NewInMemoryStore()
@@ -230,12 +230,12 @@ func TestMarketplace(t *testing.T) {
 			Name: "Handle nonexistent orders",
 			Action: &BuyNFT{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				OrderID: instanceOneOrderID,
-				CurrentOwner: onesAddr,
+				InstanceNum:      instanceOneNum,
+				OrderID:          instanceOneOrderID,
+				CurrentOwner:     onesAddr,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMarketplaceOrderNotFound,
+			ExpectedErr:     ErrOutputMarketplaceOrderNotFound,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				st := chaintest.NewInMemoryStore()
@@ -247,13 +247,13 @@ func TestMarketplace(t *testing.T) {
 			Name: "Handle nonexistent instances",
 			Action: &BuyNFT{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				OrderID: instanceOneOrderID,
-				CurrentOwner: onesAddr,
+				InstanceNum:      instanceOneNum,
+				OrderID:          instanceOneOrderID,
+				CurrentOwner:     onesAddr,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputNFTInstanceNotFound,
-			State: func () state.Mutable {
+			ExpectedErr:     ErrOutputNFTInstanceNotFound,
+			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				st := chaintest.NewInMemoryStore()
 				_, err := storage.CreateMarketplaceOrder(context.TODO(), st, collectionOneAddress, instanceOneNum, instanceOneOrderPrice)
@@ -266,29 +266,29 @@ func TestMarketplace(t *testing.T) {
 			Name: "Handle owner inconsistencies",
 			Action: &BuyNFT{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				OrderID: instanceOneOrderID,
-				CurrentOwner: twosAddr,
+				InstanceNum:      instanceOneNum,
+				OrderID:          instanceOneOrderID,
+				CurrentOwner:     twosAddr,
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 				&CreateNFTInstance{
-					Owner: onesAddr,
+					Owner:            onesAddr,
 					ParentCollection: collectionOneAddress,
-					Metadata: []byte(InstanceMetadataOne),
+					Metadata:         []byte(InstanceMetadataOne),
 				},
 				&CreateMarketplaceOrder{
 					ParentCollection: collectionOneAddress,
-					InstanceNum: instanceOneNum,
-					Price: instanceOneOrderPrice,
+					InstanceNum:      instanceOneNum,
+					Price:            instanceOneOrderPrice,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMarketplaceOrderOwnerInconsistency,
+			ExpectedErr:     ErrOutputMarketplaceOrderOwnerInconsistency,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				st := chaintest.NewInMemoryStore()
@@ -304,19 +304,19 @@ func TestMarketplace(t *testing.T) {
 			Name: "Handle insufficient buyer balance",
 			Action: &BuyNFT{
 				ParentCollection: collectionOneAddress,
-				InstanceNum: instanceOneNum,
-				OrderID: instanceOneOrderID,
-				CurrentOwner: onesAddr,
+				InstanceNum:      instanceOneNum,
+				OrderID:          instanceOneOrderID,
+				CurrentOwner:     onesAddr,
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMarketplaceOrderInsufficientBalance,
+			ExpectedErr:     ErrOutputMarketplaceOrderInsufficientBalance,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				st := chaintest.NewInMemoryStore()

@@ -9,13 +9,14 @@ import (
 	"github.com/ava-labs/hypersdk/examples/nftvm/consts"
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*BuyNFT)(nil)
 
 // TODO: make buy orders more precise to avoid issues such as purchasing stale orders
 type BuyNFT struct {
-
 	ParentCollection codec.Address `json:"parentCollection"`
 
 	InstanceNum uint32 `json:"instanceNum"`
@@ -23,7 +24,6 @@ type BuyNFT struct {
 	OrderID ids.ID `json:"orderID"`
 
 	CurrentOwner codec.Address `json:"currentOwner"`
-
 }
 
 // ComputeUnits implements chain.Action.
@@ -33,7 +33,6 @@ func (b *BuyNFT) ComputeUnits(chain.Rules) uint64 {
 
 // Execute implements chain.Action.
 func (b *BuyNFT) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
-
 	// Check that order exists
 	price, err := storage.GetMarketplaceOrderNoController(ctx, mu, b.OrderID)
 	if err != nil {
@@ -46,7 +45,7 @@ func (b *BuyNFT) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, t
 		return nil, ErrOutputNFTInstanceNotFound
 	}
 	if !isListedOnMarketplace {
-		return nil,ErrOutputMarketplaceOrderInstanceNotListed
+		return nil, ErrOutputMarketplaceOrderInstanceNotListed
 	}
 	if owner != b.CurrentOwner {
 		return nil, ErrOutputMarketplaceOrderOwnerInconsistency
@@ -76,17 +75,9 @@ func (b *BuyNFT) GetTypeID() uint8 {
 	return consts.BuyNFT
 }
 
-// Marshal implements chain.Action.
-func (b *BuyNFT) Marshal(p *codec.Packer) {
-	p.PackAddress(b.ParentCollection)
-	p.PackUint64(uint64(b.InstanceNum))
-	p.PackID(b.OrderID)
-	p.PackAddress(b.CurrentOwner)
-}
-
 // Size implements chain.Action.
 func (b *BuyNFT) Size() int {
-	return ids.IDLen
+	return codec.AddressLen + lconsts.Uint32Len + ids.IDLen + codec.AddressLen
 }
 
 // StateKeys implements chain.Action.
@@ -96,10 +87,10 @@ func (b *BuyNFT) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	orderStateKey := storage.MarketplaceOrderStateKey(b.OrderID)
 	nftInstanceStateKey := storage.InstanceStateKey(b.ParentCollection, b.InstanceNum)
 	return state.Keys{
-		string(orderStateKey): state.All,
-		string(nftInstanceStateKey): state.All,
-		string(storage.BalanceKey(actor)): state.All,
-		string(storage.BalanceKey(b.CurrentOwner)):  state.All,
+		string(orderStateKey):                      state.All,
+		string(nftInstanceStateKey):                state.All,
+		string(storage.BalanceKey(actor)):          state.All,
+		string(storage.BalanceKey(b.CurrentOwner)): state.All,
 	}
 }
 
@@ -112,6 +103,14 @@ func (b *BuyNFT) StateKeysMaxChunks() []uint16 {
 func (b *BuyNFT) ValidRange(chain.Rules) (start int64, end int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// Marshal implements chain.Action.
+func (b *BuyNFT) Marshal(p *codec.Packer) {
+	p.PackAddress(b.ParentCollection)
+	p.PackUint64(uint64(b.InstanceNum))
+	p.PackID(b.OrderID)
+	p.PackAddress(b.CurrentOwner)
 }
 
 func UnmarshalBuyNFT(p *codec.Packer) (chain.Action, error) {

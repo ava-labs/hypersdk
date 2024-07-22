@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
-	mconsts "github.com/ava-labs/hypersdk/consts"
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*CreateMarketplaceOrder)(nil)
@@ -65,16 +65,9 @@ func (c *CreateMarketplaceOrder) GetTypeID() uint8 {
 	return consts.CreateMarketplaceOrder
 }
 
-// Marshal implements chain.Action.
-func (c *CreateMarketplaceOrder) Marshal(p *codec.Packer) {
-	p.PackAddress(c.ParentCollection)
-	p.PackUint64(uint64(c.InstanceNum))
-	p.PackUint64(c.Price)
-}
-
 // Size implements chain.Action.
 func (c *CreateMarketplaceOrder) Size() int {
-	return codec.AddressLen + mconsts.Uint32Len + mconsts.Uint64Len
+	return codec.AddressLen + lconsts.Uint32Len + lconsts.Uint64Len
 }
 
 // StateKeys implements chain.Action.
@@ -85,7 +78,7 @@ func (c *CreateMarketplaceOrder) StateKeys(actor codec.Address, actionID ids.ID)
 	orderStateKey := storage.MarketplaceOrderStateKey(potentialOrderID)
 	return state.Keys{
 		string(instanceStateKey): state.All,
-		string(orderStateKey): state.All,
+		string(orderStateKey):    state.All,
 	}
 }
 
@@ -98,6 +91,13 @@ func (c *CreateMarketplaceOrder) StateKeysMaxChunks() []uint16 {
 func (c *CreateMarketplaceOrder) ValidRange(chain.Rules) (start int64, end int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// Marshal implements chain.Action.
+func (c *CreateMarketplaceOrder) Marshal(p *codec.Packer) {
+	p.PackAddress(c.ParentCollection)
+	p.PackUint64(uint64(c.InstanceNum))
+	p.PackUint64(c.Price)
 }
 
 func UnmarshalCreateMarketplaceOrder(p *codec.Packer) (chain.Action, error) {

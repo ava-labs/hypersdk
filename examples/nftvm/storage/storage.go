@@ -45,7 +45,6 @@ const (
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
 	feePrefix       = 0x3
-
 )
 
 const BalanceChunks uint16 = 1

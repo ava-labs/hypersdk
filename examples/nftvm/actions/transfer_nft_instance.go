@@ -54,13 +54,6 @@ func (t *TransferNFTInstance) GetTypeID() uint8 {
 	return consts.TransferNFTInstance
 }
 
-// Marshal implements chain.Action.
-func (t *TransferNFTInstance) Marshal(p *codec.Packer) {
-	p.PackAddress(t.CollectionAddress)
-	p.PackInt(int(t.InstanceNum))
-	p.PackAddress(t.To)
-}
-
 // Size implements chain.Action.
 func (t *TransferNFTInstance) Size() int {
 	return codec.AddressLen + lconsts.Uint32Len + codec.AddressLen
@@ -82,6 +75,13 @@ func (t *TransferNFTInstance) StateKeysMaxChunks() []uint16 {
 func (t *TransferNFTInstance) ValidRange(chain.Rules) (start int64, end int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
+}
+
+// Marshal implements chain.Action.
+func (t *TransferNFTInstance) Marshal(p *codec.Packer) {
+	p.PackAddress(t.CollectionAddress)
+	p.PackInt(int(t.InstanceNum))
+	p.PackAddress(t.To)
 }
 
 func UnmarshalTransferNFTInstance(p *codec.Packer) (chain.Action, error) {

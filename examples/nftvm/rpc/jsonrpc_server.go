@@ -89,10 +89,10 @@ type GetNFTCollectionArgs struct {
 }
 
 type GetNFTCollectionReply struct {
-	Name string `json:"name"`
-	Symbol string `json:"symbol"`
-	Metadata string `json:"metadata"`
-	NumOfInstances uint32 `json:"numOfInstances"`
+	Name            string `json:"name"`
+	Symbol          string `json:"symbol"`
+	Metadata        string `json:"metadata"`
+	NumOfInstances  uint32 `json:"numOfInstances"`
 	CollectionOwner string `json:"collectionOwner"`
 }
 
@@ -121,13 +121,13 @@ func (j *JSONRPCServer) GetNFTCollection(req *http.Request, args *GetNFTCollecti
 
 type GetNFTInstanceArgs struct {
 	ParentCollectionAddress string `json:"parentCollectionAddress"`
-	InstanceNum uint32 `json:"instanceNum"`
+	InstanceNum             uint32 `json:"instanceNum"`
 }
 
 type GetNFTInstanceReply struct {
-	Owner string `json:"owner"`
-	Metadata string `json:"metadata"`
-	IsListedOnMarketplace bool `json:"isListedOnMarketplace"`
+	Owner                 string `json:"owner"`
+	Metadata              string `json:"metadata"`
+	IsListedOnMarketplace bool   `json:"isListedOnMarketplace"`
 }
 
 // Address returned in Bech32 format
@@ -149,7 +149,7 @@ func (j *JSONRPCServer) GetNFTInstance(req *http.Request, args *GetNFTInstanceAr
 	reply.Metadata = string(metadata)
 	reply.IsListedOnMarketplace = isListedOnMarketplace
 	return nil
-} 
+}
 
 type GetMarketplaceOrderArgs struct {
 	OrderID string `json:"orderID"`

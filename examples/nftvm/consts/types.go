@@ -8,12 +8,12 @@ const (
 	TransferID uint8 = 0
 
 	// Custom NFT-VM Action Types
-	CreateNFTCollection uint8 = 1
-	CreateNFTInstance uint8 = 2
-	CreateMarketplaceOrder uint8 = 3
-	BuyNFT uint8 = 4
+	CreateNFTCollection            uint8 = 1
+	CreateNFTInstance              uint8 = 2
+	CreateMarketplaceOrder         uint8 = 3
+	BuyNFT                         uint8 = 4
 	TransferNFTCollectionOwnership uint8 = 5
-	TransferNFTInstance uint8 = 6
+	TransferNFTInstance            uint8 = 6
 
 	// Auth TypeIDs
 	ED25519ID   uint8 = 0
@@ -21,5 +21,5 @@ const (
 	BLSID       uint8 = 2
 
 	// Relating to NFT Address generation
-	NFTCOLLECTIONID uint8  = 3
+	NFTCOLLECTIONID uint8 = 3
 )

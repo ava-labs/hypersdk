@@ -13,16 +13,17 @@ import (
 )
 
 const MarketplaceOrderStateChunks = consts.Uint64Len
+
 // TODO: tune this
 const BuyNFTStateChunks = 50
 
 func MarketplaceOrderStateKey(
 	orderID ids.ID,
 ) (k []byte) {
-	k = make([]byte, consts.Uint16Len + ids.IDLen + consts.Uint16Len)
+	k = make([]byte, consts.Uint16Len+ids.IDLen+consts.Uint16Len)
 	k[0] = marketplaceOrderPrefix
 	copy(k[1:], orderID[:])
-	binary.BigEndian.PutUint16(k[1 + ids.IDLen:], MarketplaceOrderStateChunks)
+	binary.BigEndian.PutUint16(k[1+ids.IDLen:], MarketplaceOrderStateChunks)
 	return
 }
 
@@ -31,7 +32,7 @@ func GenerateOrderID(
 	instanceNum uint32,
 	price uint64,
 ) (ids.ID, error) {
-	v := make([]byte, codec.AddressLen + consts.Uint32Len + consts.Uint64Len)
+	v := make([]byte, codec.AddressLen+consts.Uint32Len+consts.Uint64Len)
 	// TODO: Check that this is OK
 	id := hashing.ComputeHash256Array(v)
 	return id, nil
@@ -44,7 +45,6 @@ func CreateMarketplaceOrder(
 	instanceNum uint32,
 	price uint64,
 ) (orderID ids.ID, err error) {
-
 	// Generate orderID + state key
 	orderID, err = GenerateOrderID(parentCollection, instanceNum, price)
 	if err != nil {

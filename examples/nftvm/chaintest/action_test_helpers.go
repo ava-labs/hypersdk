@@ -47,12 +47,19 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
+// SetupAction allows for users to prepare a particular testing environment by
+// executing a set of setupup actions prior to the action to be tested
+type SetupAction struct {
+	Action chain.Action
+	Actor codec.Address
+}
+
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
 // and checks that all assertions pass.
 type ActionTest struct {
 	Name string
 
-	Action chain.Action
+	Action       chain.Action
 	SetupActions []chain.Action
 
 	Rules     chain.Rules
@@ -74,7 +81,7 @@ func Run(t *testing.T, tests []ActionTest) {
 			require := require.New(t)
 
 			if test.SetupActions != nil {
-				for _, setupAction := range(test.SetupActions) {
+				for _, setupAction := range test.SetupActions {
 					_, err := setupAction.Execute(context.TODO(), test.Rules, test.State, test.Timestamp, test.Actor, test.ActionID)
 					require.NoError(err)
 				}

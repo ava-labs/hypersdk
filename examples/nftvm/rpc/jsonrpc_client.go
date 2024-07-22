@@ -159,10 +159,7 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 }
 
 // Functions related to NFT-VM
-
-
 func (cli *JSONRPCClient) GetNFTCollection(ctx context.Context, collectionAddress string) (name string, symbol string, metadata string, numOfInstances uint32, collectionOwner string, err error) {
-
 	resp := new(GetNFTCollectionReply)
 	err = cli.requester.SendRequest(
 		ctx,
@@ -178,19 +175,18 @@ func (cli *JSONRPCClient) GetNFTCollection(ctx context.Context, collectionAddres
 	metadata = resp.Metadata
 	numOfInstances = resp.NumOfInstances
 	collectionOwner = resp.CollectionOwner
-	
+
 	return
 }
 
 func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress string, instanceNum uint32) (owner string, metadata string, isListedOnMarketplace bool, err error) {
-
 	resp := new(GetNFTInstanceReply)
 	err = cli.requester.SendRequest(
 		ctx,
 		"getNFTInstance",
 		&GetNFTInstanceArgs{
 			ParentCollectionAddress: collectionAddress,
-			InstanceNum: instanceNum,
+			InstanceNum:             instanceNum,
 		},
 		resp,
 	)
@@ -204,7 +200,6 @@ func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress 
 }
 
 func (cli *JSONRPCClient) GetMarketplaceOrder(ctx context.Context, orderID string) (price uint64, err error) {
-
 	resp := new(GetMarketplaceOrderReply)
 	err = cli.requester.SendRequest(
 		ctx,
@@ -217,4 +212,4 @@ func (cli *JSONRPCClient) GetMarketplaceOrder(ctx context.Context, orderID strin
 
 	price = resp.Price
 	return
-} 
+}

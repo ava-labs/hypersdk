@@ -14,7 +14,6 @@ import (
 )
 
 func TestNFTCollections(t *testing.T) {
-
 	require := require.New(t)
 	ts := tstate.New(1)
 
@@ -31,77 +30,77 @@ func TestNFTCollections(t *testing.T) {
 		{
 			Name: "Not allowing empty name collections",
 			Action: &CreateNFTCollection{
-					Name: []byte{},
-					Symbol: []byte(CollectionSymbolOne),
-					Metadata: []byte(CollectionMetadataOne),
-				},
-			ExpectedErr: ErrOutputCollectionNameEmpty,
+				Name:     []byte{},
+				Symbol:   []byte(CollectionSymbolOne),
+				Metadata: []byte(CollectionMetadataOne),
+			},
+			ExpectedErr:     ErrOutputCollectionNameEmpty,
 			ExpectedOutputs: [][]uint8(nil),
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Not allowing empty symbol collections",
 			Action: &CreateNFTCollection{
-						Name: []byte(CollectionNameOne),
-						Symbol: []byte{},
-						Metadata: []byte(CollectionMetadataOne),
-				},
-			ExpectedErr: ErrOutputCollectionSymbolEmpty,
+				Name:     []byte(CollectionNameOne),
+				Symbol:   []byte{},
+				Metadata: []byte(CollectionMetadataOne),
+			},
+			ExpectedErr:     ErrOutputCollectionSymbolEmpty,
 			ExpectedOutputs: [][]byte(nil),
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Not allowing empty metadata collections",
 			Action: &CreateNFTCollection{
-						Name: []byte(CollectionNameOne),
-						Symbol: []byte(CollectionSymbolOne),
-						Metadata: []byte{},
-					},
-			ExpectedErr: ErrOutputCollectionMetadataEmpty,
+				Name:     []byte(CollectionNameOne),
+				Symbol:   []byte(CollectionSymbolOne),
+				Metadata: []byte{},
+			},
+			ExpectedErr:     ErrOutputCollectionMetadataEmpty,
 			ExpectedOutputs: [][]byte(nil),
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Not allowing too large collection name",
 			Action: &CreateNFTCollection{
-					Name: []byte(TooLargeCollectionName),
-					Symbol: []byte(CollectionSymbolOne),
-					Metadata: []byte(CollectionMetadataOne),
-				},
-			ExpectedErr: ErrOutputCollectionNameTooLarge,
+				Name:     []byte(TooLargeCollectionName),
+				Symbol:   []byte(CollectionSymbolOne),
+				Metadata: []byte(CollectionMetadataOne),
+			},
+			ExpectedErr:     ErrOutputCollectionNameTooLarge,
 			ExpectedOutputs: [][]byte(nil),
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Not allowing too large symbol name",
 			Action: &CreateNFTCollection{
-						Name: []byte(CollectionNameOne),
-						Symbol: []byte(TooLargeCollectionSymbol),
-						Metadata: []byte(CollectionMetadataOne),
-					},
-			ExpectedErr: ErrOutputCollectionSymbolTooLarge,
+				Name:     []byte(CollectionNameOne),
+				Symbol:   []byte(TooLargeCollectionSymbol),
+				Metadata: []byte(CollectionMetadataOne),
+			},
+			ExpectedErr:     ErrOutputCollectionSymbolTooLarge,
 			ExpectedOutputs: [][]byte(nil),
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Not allowing too large collection metadata",
 			Action: &CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
-					Metadata: []byte(TooLargeCollectionMetadata),
-				},
-			ExpectedErr: ErrOutputCollectionMetadataTooLarge,
+				Name:     []byte(CollectionNameOne),
+				Symbol:   []byte(CollectionSymbolOne),
+				Metadata: []byte(TooLargeCollectionMetadata),
+			},
+			ExpectedErr:     ErrOutputCollectionMetadataTooLarge,
 			ExpectedOutputs: [][]byte(nil),
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Correct collection is generated",
 			Action: &CreateNFTCollection{
-				Name: []byte(CollectionNameOne),
-				Symbol: []byte(CollectionSymbolOne),
+				Name:     []byte(CollectionNameOne),
+				Symbol:   []byte(CollectionSymbolOne),
 				Metadata: []byte(CollectionMetadataOne),
 			},
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			ExpectedOutputs: [][]byte{collectionOneAddress[:]},
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -123,11 +122,11 @@ func TestNFTCollections(t *testing.T) {
 		{
 			Name: "Does not allow overwriting of an existing NFT collection",
 			Action: &CreateNFTCollection{
-				Name: []byte(CollectionNameOne),
-				Symbol: []byte(CollectionSymbolOne),
+				Name:     []byte(CollectionNameOne),
+				Symbol:   []byte(CollectionSymbolOne),
 				Metadata: []byte(CollectionMetadataOne),
 			},
-			ExpectedErr: ErrOutputNFTCollectionAlreadyExists,
+			ExpectedErr:     ErrOutputNFTCollectionAlreadyExists,
 			ExpectedOutputs: [][]byte(nil),
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -142,10 +141,10 @@ func TestNFTCollections(t *testing.T) {
 			Name: "Only current owner can transfer ownership of collection",
 			Action: &TransferNFTCollectionOwnership{
 				CollectionAddress: collectionOneAddress,
-				To: codec.EmptyAddress,
+				To:                codec.EmptyAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputNFTCollectionNotOwner,
+			ExpectedErr:     ErrOutputNFTCollectionNotOwner,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				store := chaintest.NewInMemoryStore()
@@ -159,10 +158,10 @@ func TestNFTCollections(t *testing.T) {
 			Name: "Only transfer of existing collections can occur",
 			Action: &TransferNFTCollectionOwnership{
 				CollectionAddress: collectionOneAddress,
-				To: codec.EmptyAddress,
+				To:                codec.EmptyAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputNFTCollectionDoesNotExist,
+			ExpectedErr:     ErrOutputNFTCollectionDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(collectionOneStateKey), state.Read)
@@ -173,17 +172,17 @@ func TestNFTCollections(t *testing.T) {
 			Name: "Correct transfer of NFT collection can occur",
 			Action: &TransferNFTCollectionOwnership{
 				CollectionAddress: collectionOneAddress,
-				To: codec.EmptyAddress,
+				To:                codec.EmptyAddress,
 			},
 			SetupActions: []chain.Action{
 				&CreateNFTCollection{
-					Name: []byte(CollectionNameOne),
-					Symbol: []byte(CollectionSymbolOne),
+					Name:     []byte(CollectionNameOne),
+					Symbol:   []byte(CollectionSymbolOne),
 					Metadata: []byte(CollectionMetadataOne),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(collectionOneStateKey), state.All)
