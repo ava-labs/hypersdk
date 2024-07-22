@@ -63,8 +63,13 @@ func (morpheusVM) AuthFactory() chain.AuthFactory {
 }
 
 func (morpheusVM) NextAction() chain.Action {
+	other, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		panic(err)
+	}
+	otherAddr := auth.NewED25519Address(other.PublicKey())
 	return &actions.Transfer{
-		To:    addr,
+		To:    otherAddr,
 		Value: 1,
 	}
 }
