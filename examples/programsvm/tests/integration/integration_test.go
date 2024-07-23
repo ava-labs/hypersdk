@@ -36,7 +36,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/examples/programsvm/auth"
 	"github.com/ava-labs/hypersdk/examples/programsvm/controller"
 	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
@@ -44,6 +43,7 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/vm"
 
+	auth "github.com/ava-labs/hypersdk/auth"
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/programsvm/rpc"

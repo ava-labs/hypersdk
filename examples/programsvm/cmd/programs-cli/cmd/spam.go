@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -16,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/examples/programsvm/auth"
 	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -27,11 +27,11 @@ import (
 
 func getFactory(priv *cli.PrivateKey) (chain.AuthFactory, error) {
 	switch priv.Address[0] {
-	case consts.ED25519ID:
+	case auth.ED25519ID:
 		return auth.NewED25519Factory(ed25519.PrivateKey(priv.Bytes)), nil
-	case consts.SECP256R1ID:
+	case auth.SECP256R1ID:
 		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv.Bytes)), nil
-	case consts.BLSID:
+	case auth.BLSID:
 		p, err := bls.PrivateKeyFromBytes(priv.Bytes)
 		if err != nil {
 			return nil, err

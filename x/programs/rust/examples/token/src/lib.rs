@@ -162,7 +162,6 @@ pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
 mod tests {
     use crate::INITIAL_SUPPLY;
     use simulator::{Endpoint, Key, Param, Step, TestContext};
-
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
@@ -181,6 +180,7 @@ mod tests {
 
     #[test]
     fn init_token() {
+        wasmlanche_sdk::dbg!("XXXXXXXXXXXXXXXXX\n");
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
         let owner_key = String::from("owner");

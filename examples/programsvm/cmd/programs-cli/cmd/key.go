@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/auth"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
@@ -15,7 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/programsvm/auth"
 	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
 	"github.com/ava-labs/hypersdk/utils"
 
