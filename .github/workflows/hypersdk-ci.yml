@@ -33,9 +33,6 @@ jobs:
         working-directory: ./examples/morpheusvm
         run: go mod tidy
       - shell: bash
-        working-directory: ./examples/tokenvm
-        run: go mod tidy
-      - shell: bash
         run: git diff
       - shell: bash
         run: scripts/tests.clean.sh
@@ -99,109 +96,6 @@ jobs:
             echo "cannot skip tests"
             echo "only_programs_changed=false" >> "$GITHUB_OUTPUT"
           fi
-
-  # TokenVM
-  tokenvm-lint:
-    needs: [hypersdk-tests]
-    if: ${{ needs.hypersdk-tests.outputs.only_programs_changed != 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-        with:
-          cache-dependency-path: |
-            go.sum
-            examples/tokenvm/go.sum
-      - name: Run static analysis tests
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: scripts/tests.lint.sh
-      - name: Build vm, cli, faucet, feed
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: scripts/build.sh
-
-  tokenvm-unit-tests:
-    needs: [hypersdk-tests]
-    if: ${{ needs.hypersdk-tests.outputs.only_programs_changed != 'true' }}
-    runs-on: ubuntu-20.04-32
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-        with:
-          cache-dependency-path: |
-            go.sum
-            examples/tokenvm/go.sum
-      - name: Run unit tests
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: scripts/tests.unit.sh
-      - name: Run integration tests
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: scripts/tests.integration.sh
-      # - name: Archive code coverage results (text)
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: code-coverage-out
-      #     path: ./examples/tokenvm/integration.coverage.out
-      # - name: Archive code coverage results (html)
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: code-coverage-html
-      #     path: ./examples/tokenvm/integration.coverage.html
-      - name: Run e2e tests
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: scripts/run.sh
-        env:
-          MODE: 'test'
-
-  tokenvm-sync-tests:
-    needs: [tokenvm-lint, tokenvm-unit-tests]
-    runs-on: ubuntu-20.04-32
-    timeout-minutes: 25
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: ./.github/actions/install-go
-        with:
-          cache-dependency-path: |
-            go.sum
-            examples/tokenvm/go.sum
-      - name: Run sync tests
-        working-directory: ./examples/tokenvm
-        shell: bash
-        run: scripts/run.sh
-        env:
-          MODE: 'full-test'
-
-  token-wallet-release:
-    needs: [tokenvm-sync-tests]
-    runs-on: macos-latest-xl
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: ./.github/actions/token-wallet-release
-
-  tokenvm-release:
-    needs: [tokenvm-sync-tests]
-    # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
-    runs-on: ubuntu-20.04-32
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: ./.github/actions/vm-release
-        with:
-          vm-name: tokenvm
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # MorpheusVM
   morpheusvm-lint:

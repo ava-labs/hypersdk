@@ -54,6 +54,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for line in String::from_utf8_lossy(&go_build_output.stderr).lines() {
             println!("cargo:warning={line}");
         }
+
+        panic!("simulator build failed");
     }
 
     println!("cargo:rustc-env=SIMULATOR_PATH={simulator_path}");
