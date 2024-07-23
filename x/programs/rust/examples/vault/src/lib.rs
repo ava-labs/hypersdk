@@ -1,7 +1,7 @@
 use borsh::BorshSerialize;
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, Address};
+use wasmlanche_sdk::{public, state_keys, Address, ExternalCallContext};
 
 #[state_keys]
 pub enum StateKeys {
@@ -36,6 +36,9 @@ enum Rounding {
 pub fn deposit(ctx: Context<StateKeys>, assets: u64, receiver: Address) -> Result<u64, VaultError> {
     let shares = internal::accounting::convert_to_shares(&ctx, assets, Some(Rounding::Down))?;
 
+    let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
+    token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), assets);
+
     internal::accounting::add(&ctx, shares, assets, receiver)?;
 
     Ok(shares)
@@ -45,6 +48,9 @@ pub fn deposit(ctx: Context<StateKeys>, assets: u64, receiver: Address) -> Resul
 #[public]
 pub fn mint(ctx: Context<StateKeys>, shares: u64, receiver: Address) -> Result<u64, VaultError> {
     let assets = internal::accounting::convert_to_assets(&ctx, shares, Some(Rounding::Down))?;
+
+    let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
+    token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), assets);
 
     internal::accounting::add(&ctx, shares, assets, receiver)?;
 
@@ -63,6 +69,9 @@ pub fn withdraw(
 
     internal::accounting::sub(&ctx, shares, assets, owner)?;
 
+    let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
+    token::transfer(&ext_ctx, receiver, assets);
+
     Ok(assets)
 }
 
@@ -78,13 +87,18 @@ pub fn redeem(
 
     internal::accounting::sub(&ctx, shares, assets, owner)?;
 
+    let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
+    token::transfer(&ext_ctx, receiver, assets);
+
     Ok(assets)
 }
 
 mod internal {
     use super::*;
 
-    pub mod shares {
+    pub mod assets {
+        use wasmlanche_sdk::Program;
+
         use super::*;
 
         pub fn total_assets(ctx: &Context<StateKeys>) -> u64 {
@@ -104,6 +118,12 @@ mod internal {
                 .expect("failed to get balance of")
                 .unwrap_or_default()
         }
+
+        pub fn asset(ctx: &Context<StateKeys>) -> Program {
+            ctx.get(StateKeys::Asset)
+                .expect("failed to get asset")
+                .expect("asset was not registered")
+        }
     }
 
     pub mod accounting {
@@ -114,8 +134,8 @@ mod internal {
             assets: u64,
             rounding: Option<Rounding>,
         ) -> Result<u64, VaultError> {
-            let total_supply = self::shares::total_supply(ctx);
-            let total_assets = self::shares::total_assets(ctx);
+            let total_supply = self::assets::total_supply(ctx);
+            let total_assets = self::assets::total_assets(ctx);
 
             muldiv(assets, total_supply, total_assets, rounding).map_err(|err| match err {
                 MathError::NumOverflow => VaultError::TotalSupplyOverflow,
@@ -131,8 +151,8 @@ mod internal {
             shares: u64,
             rounding: Option<Rounding>,
         ) -> Result<u64, VaultError> {
-            let total_supply = self::shares::total_supply(ctx);
-            let total_assets = self::shares::total_assets(ctx);
+            let total_supply = self::assets::total_supply(ctx);
+            let total_assets = self::assets::total_assets(ctx);
 
             muldiv(shares, total_assets, total_supply, rounding).map_err(|err| match err {
                 MathError::NumOverflow => VaultError::TotalAssetsOverflow,
@@ -181,7 +201,7 @@ mod internal {
             assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            let total_assets = self::shares::total_assets(&ctx);
+            let total_assets = self::assets::total_assets(&ctx);
 
             // # Safety
             // It is okay to only check the add of assets because the ratio of shares/assets is <= 1
@@ -189,9 +209,9 @@ mod internal {
             let new_total_assets = total_assets
                 .checked_add(assets)
                 .ok_or(VaultError::TotalAssetsOverflow)?;
-            let total_supply = internal::shares::total_supply(&ctx);
+            let total_supply = internal::assets::total_supply(&ctx);
             let new_total_supply = total_supply + shares;
-            let balance = internal::shares::balance_of(&ctx, receiver);
+            let balance = internal::assets::balance_of(&ctx, receiver);
             let new_balance = balance + shares;
 
             ctx.store([
@@ -210,7 +230,7 @@ mod internal {
             assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            let total_assets = self::shares::total_assets(&ctx);
+            let total_assets = self::assets::total_assets(&ctx);
 
             // # Safety
             // It is okay to only check the sub of assets because the ratio of shares/assets is <= 1
@@ -218,9 +238,9 @@ mod internal {
             let new_total_assets = total_assets
                 .checked_sub(assets)
                 .ok_or(VaultError::TotalAssetsOverflow)?;
-            let total_supply = internal::shares::total_supply(&ctx);
+            let total_supply = internal::assets::total_supply(&ctx);
             let new_total_supply = total_supply - shares;
-            let balance = internal::shares::balance_of(&ctx, receiver);
+            let balance = internal::assets::balance_of(&ctx, receiver);
             let new_balance = balance - shares;
 
             ctx.store([
