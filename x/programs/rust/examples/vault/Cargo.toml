@@ -1,0 +1,20 @@
+[package]
+name = "vault"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+bindings = []
+
+[dependencies]
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
+borsh = { workspace = true }
+
+[dev-dependencies]
+simulator = { workspace = true }
+
+[build-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["build"] }
