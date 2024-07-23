@@ -5,9 +5,9 @@ package state
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,44 +88,27 @@ func TestMalformedKey(t *testing.T) {
 }
 
 func TestHasPermissions(t *testing.T) {
-	allPerms := set.NewSet[Permissions](5)
-	allPerms.Add(Read, Allocate, Write, None, All)
+	allPerms := []Permissions{Read, Allocate, Write, None, All}
 
 	tests := []struct {
 		perm Permissions
-		has  set.Set[Permissions]
+		has  []Permissions
 	}{
 		{
 			perm: Read,
-			has: func() set.Set[Permissions] {
-				permSet := set.NewSet[Permissions](2)
-				permSet.Add(Read, None)
-				return permSet
-			}(),
+			has:  []Permissions{Read, None},
 		},
 		{
 			perm: Allocate,
-			has: func() set.Set[Permissions] {
-				permSet := set.NewSet[Permissions](3)
-				permSet.Add(Read, Allocate, None)
-				return permSet
-			}(),
+			has:  []Permissions{Read, Allocate, None},
 		},
 		{
 			perm: Write,
-			has: func() set.Set[Permissions] {
-				permSet := set.NewSet[Permissions](3)
-				permSet.Add(Read, Write, None)
-				return permSet
-			}(),
+			has:  []Permissions{Read, Write, None},
 		},
 		{
 			perm: None,
-			has: func() set.Set[Permissions] {
-				permSet := set.NewSet[Permissions](1)
-				permSet.Add(None)
-				return permSet
-			}(),
+			has:  []Permissions{None},
 		},
 		{
 			perm: All,
@@ -134,7 +117,7 @@ func TestHasPermissions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for perm := range allPerms {
+		for _, perm := range allPerms {
 			permString := permToString(tt.perm)
 			ofPermString := permToString(perm)
 			has := tt.perm.Has(perm)
@@ -148,7 +131,7 @@ func TestHasPermissions(t *testing.T) {
 
 			t.Run(name, func(t *testing.T) {
 				require := require.New(t)
-				contains := tt.has.Contains(perm)
+				contains := slices.Contains(tt.has, perm)
 				require.Equal(contains, has)
 			})
 		}
