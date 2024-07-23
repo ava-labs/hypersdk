@@ -4,6 +4,7 @@
 package state
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -91,12 +92,10 @@ func TestHasPermissions(t *testing.T) {
 	allPerms.Add(Read, Allocate, Write, None, All)
 
 	tests := []struct {
-		name string
 		perm Permissions
 		has  set.Set[Permissions]
 	}{
 		{
-			name: "read",
 			perm: Read,
 			has: func() set.Set[Permissions] {
 				permSet := set.NewSet[Permissions](2)
@@ -105,7 +104,6 @@ func TestHasPermissions(t *testing.T) {
 			}(),
 		},
 		{
-			name: "allocate",
 			perm: Allocate,
 			has: func() set.Set[Permissions] {
 				permSet := set.NewSet[Permissions](3)
@@ -114,7 +112,6 @@ func TestHasPermissions(t *testing.T) {
 			}(),
 		},
 		{
-			name: "write",
 			perm: Write,
 			has: func() set.Set[Permissions] {
 				permSet := set.NewSet[Permissions](3)
@@ -123,7 +120,6 @@ func TestHasPermissions(t *testing.T) {
 			}(),
 		},
 		{
-			name: "none",
 			perm: None,
 			has: func() set.Set[Permissions] {
 				permSet := set.NewSet[Permissions](1)
@@ -132,24 +128,46 @@ func TestHasPermissions(t *testing.T) {
 			}(),
 		},
 		{
-			name: "all",
 			perm: All,
-			has: func() set.Set[Permissions] {
-				permSet := set.NewSet[Permissions](5)
-				permSet.Add(Read, Allocate, Write, None, All)
-				return permSet
-			}(),
+			has:  allPerms,
 		},
 	}
 
 	for _, tt := range tests {
 		for perm := range allPerms {
-			t.Run(tt.name, func(t *testing.T) {
+			permString := permToString(tt.perm)
+			ofPermString := permToString(perm)
+			has := tt.perm.Has(perm)
+
+			var name string
+			if has {
+				name = fmt.Sprintf("%s has %s", permString, ofPermString)
+			} else {
+				name = fmt.Sprintf("%s does not have %s", permString, ofPermString)
+			}
+
+			t.Run(name, func(t *testing.T) {
 				require := require.New(t)
 				contains := tt.has.Contains(perm)
-				has := tt.perm.Has(perm)
 				require.Equal(contains, has)
 			})
 		}
+	}
+}
+
+func permToString(perm Permissions) string {
+	switch perm {
+	case Read:
+		return "read"
+	case Allocate:
+		return "allocate"
+	case Write:
+		return "write"
+	case None:
+		return "none"
+	case All:
+		return "all"
+	default:
+		return "unknown"
 	}
 }
