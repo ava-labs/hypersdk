@@ -118,8 +118,8 @@ func TestHasPermissions(t *testing.T) {
 
 	for _, tt := range tests {
 		for _, perm := range allPerms {
-			permString := permToString(tt.perm)
-			ofPermString := permToString(perm)
+			permString := tt.perm.String()
+			ofPermString := perm.String()
 			has := tt.perm.Has(perm)
 
 			var name string
@@ -138,8 +138,8 @@ func TestHasPermissions(t *testing.T) {
 	}
 }
 
-func permToString(perm Permissions) string {
-	switch perm {
+func (p Permissions) String() string {
+	switch p {
 	case Read:
 		return "read"
 	case Allocate:
