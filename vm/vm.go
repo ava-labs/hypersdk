@@ -286,11 +286,13 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if vm.config.AcceptorSize > MaxAcceptorSize {
-		return fmt.Errorf("AcceptorSize should be less than or equal to %d", MaxAcceptorSize)
+	acceptorSize := vm.config.AcceptorSize
+	if acceptorSize > MaxAcceptorSize {
+		return fmt.Errorf("AcceptorSize should be less than or equal to %d. Provided: %d", MaxAcceptorSize, acceptorSize)
 	}
-	if vm.config.AcceptedBlockWindow < 1024 {
-		return fmt.Errorf("AcceptedBlockWindow should be greater than or equal to %d", MinAcceptedBlockWindow)
+	acceptedBlockWindow := vm.config.AcceptedBlockWindow
+	if acceptedBlockWindow < 1024 {
+		return fmt.Errorf("AcceptedBlockWindow should be greater than or equal to %d. Provided: %d", MinAcceptedBlockWindow, acceptedBlockWindow)
 	}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
