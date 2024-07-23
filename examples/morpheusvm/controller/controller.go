@@ -38,7 +38,7 @@ var (
 
 type factory struct{}
 
-func (f *factory) New(
+func (*factory) New(
 	inner *vm.VM,
 	snowCtx *snow.Context,
 	gatherer ametrics.MultiGatherer,
