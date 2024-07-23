@@ -1,6 +1,42 @@
 use crate::{memory::HostPtr, types::Address, types::Id, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::io::Read;
 use thiserror::Error;
+
+/// Defer deserialization from bytes
+/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
+#[cfg_attr(feature = "debug", derive(Debug))]
+pub struct DeferDeserialize(u32, Vec<u8>);
+
+impl BorshSerialize for DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue writing
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.0.to_le_bytes())?;
+        writer.write_all(&self.1)
+    }
+}
+
+impl DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
+    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+        let Self(_, bytes) = self;
+        borsh::from_slice(&bytes)
+    }
+}
+
+impl BorshDeserialize for DeferDeserialize {
+    /// Deserialize a length prefixed source
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut len_buf = [0; 4];
+        reader.read_exact(&mut len_buf)?;
+        let len = dbg!(u32::from_le_bytes(len_buf));
+        let mut buf = vec![0; len as usize];
+        reader.read_exact(&mut buf)?;
+        Ok(Self(len, buf))
+    }
+}
 
 /// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
@@ -142,4 +178,24 @@ struct CallProgramArgs<'a> {
     args: &'a [u8],
     max_units: Gas,
     max_value: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeferDeserialize;
+
+    #[test]
+    fn defer_bytes() {
+        type ExpectedType = u64;
+
+        let expected: ExpectedType = 42;
+        let serialized = borsh::to_vec(&expected).unwrap();
+        let serialized_vec = borsh::to_vec(&serialized).unwrap();
+        let deferred: DeferDeserialize = borsh::from_slice(&serialized_vec).unwrap();
+        let DeferDeserialize(len, ref bytes) = deferred;
+        assert_eq!(len, 8);
+        assert_eq!(bytes, &serialized);
+        let actual = deferred.deserialize::<ExpectedType>().unwrap();
+        assert_eq!(actual, expected);
+    }
 }
