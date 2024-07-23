@@ -36,6 +36,10 @@ var (
 	_ vm.ControllerFactory = (*factory)(nil)
 )
 
+func New() *vm.VM {
+	return vm.New(&factory{}, version.Version)
+}
+
 type factory struct{}
 
 func (*factory) New(
@@ -148,10 +152,6 @@ type Controller struct {
 	txDB               database.Database
 	txIndexer          indexer.TxIndexer
 	acceptedSubscriber indexer.AcceptedSubscriber
-}
-
-func New() *vm.VM {
-	return vm.New(&factory{}, version.Version)
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
