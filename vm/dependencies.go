@@ -97,8 +97,8 @@ type AuthEngine interface {
 	Cache(auth chain.Auth)
 }
 
-type Controller interface {
-	Initialize(
+type ControllerFactory interface {
+	New(
 		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
 		gatherer avametrics.MultiGatherer,
@@ -106,16 +106,19 @@ type Controller interface {
 		upgradeBytes []byte,
 		configBytes []byte,
 	) (
-		genesis Genesis,
-		builder builder.Builder,
-		gossiper gossiper.Gossiper,
-		handler Handlers,
-		actionRegistry chain.ActionRegistry,
-		authRegistry chain.AuthRegistry,
-		authEngines map[uint8]AuthEngine,
-		err error,
+		Controller,
+		Genesis,
+		builder.Builder,
+		gossiper.Gossiper,
+		Handlers,
+		chain.ActionRegistry,
+		chain.AuthRegistry,
+		map[uint8]AuthEngine,
+		error,
 	)
+}
 
+type Controller interface {
 	Rules(t int64) chain.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required
