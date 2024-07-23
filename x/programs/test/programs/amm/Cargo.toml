@@ -1,0 +1,15 @@
+[package]
+name = "amm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
+borsh = { workspace = true }
+erc20_token = { path = "../erc20_token", features = ["bindings"] }
+
+[build-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
