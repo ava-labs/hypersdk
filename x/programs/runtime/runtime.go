@@ -40,10 +40,16 @@ type BalanceManager interface {
 }
 
 type ProgramManager interface {
+	// GetProgramState returns the state of the program at the given address.
 	GetProgramState(address codec.Address) state.Mutable
+	// GetAccountProgram returns the program ID associated with the given account.
+	// An account represents a specific instance of a program.
 	GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error)
+	// GetProgramBytes returns the compiled WASM bytes of the program with the given ID.
 	GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error)
+	// NewAccountWithProgram creates a new account that represents a specific instance of a program.
 	NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error)
+	// SetAccountProgram associates the given program ID with the given account.
 	SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error
 }
 
