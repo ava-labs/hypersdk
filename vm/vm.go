@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -54,6 +53,9 @@ const (
 	blockDB   = "blockdb"
 	stateDB   = "statedb"
 	vmDataDir = "vm"
+
+	MaxAcceptorSize        = 256
+	MinAcceptedBlockWindow = 1024
 )
 
 type VM struct {
@@ -284,11 +286,11 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return err
 	}
-	if vm.config.AcceptorSize > 256 {
-		return errors.New("AcceptorSize should be less than 256")
+	if vm.config.AcceptorSize > MaxAcceptorSize {
+		return fmt.Errorf("AcceptorSize should be less than or equal to %d", MaxAcceptorSize)
 	}
 	if vm.config.AcceptedBlockWindow < 1024 {
-		return errors.New("AcceptedBlockWindow should be greater or equal than 1024")
+		return fmt.Errorf("AcceptedBlockWindow should be greater than or equal to %d", MinAcceptedBlockWindow)
 	}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
