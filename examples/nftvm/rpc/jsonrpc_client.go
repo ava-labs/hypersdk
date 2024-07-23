@@ -159,9 +159,9 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 }
 
 // Functions related to NFT-VM
-func (cli *JSONRPCClient) GetNFTCollection(ctx context.Context, collectionAddress string) (name string, symbol string, metadata string, numOfInstances uint32, collectionOwner string, err error) {
+func (cli *JSONRPCClient) GetNFTCollection(ctx context.Context, collectionAddress string) (string, string, string, uint32, string, error) {
 	resp := new(GetNFTCollectionReply)
-	err = cli.requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"getNFTCollection",
 		&GetNFTCollectionArgs{
@@ -170,18 +170,18 @@ func (cli *JSONRPCClient) GetNFTCollection(ctx context.Context, collectionAddres
 		resp,
 	)
 
-	name = resp.Name
-	symbol = resp.Symbol
-	metadata = resp.Metadata
-	numOfInstances = resp.NumOfInstances
-	collectionOwner = resp.CollectionOwner
+	name := resp.Name
+	symbol := resp.Symbol
+	metadata := resp.Metadata
+	numOfInstances := resp.NumOfInstances
+	collectionOwner := resp.CollectionOwner
 
-	return
+	return name, symbol, metadata, numOfInstances, collectionOwner, err
 }
 
-func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress string, instanceNum uint32) (owner string, metadata string, isListedOnMarketplace bool, err error) {
+func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress string, instanceNum uint32) (string, string, bool, error) {
 	resp := new(GetNFTInstanceReply)
-	err = cli.requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"getNFTInstance",
 		&GetNFTInstanceArgs{
@@ -191,17 +191,17 @@ func (cli *JSONRPCClient) GetNFTInstance(ctx context.Context, collectionAddress 
 		resp,
 	)
 
-	owner = resp.Owner
-	metadata = resp.Metadata
-	isListedOnMarketplace = resp.IsListedOnMarketplace
+	owner := resp.Owner
+	metadata := resp.Metadata
+	isListedOnMarketplace := resp.IsListedOnMarketplace
 
-	return
+	return owner, metadata, isListedOnMarketplace, err
 
 }
 
-func (cli *JSONRPCClient) GetMarketplaceOrder(ctx context.Context, orderID string) (price uint64, err error) {
+func (cli *JSONRPCClient) GetMarketplaceOrder(ctx context.Context, orderID string) (uint64, error) {
 	resp := new(GetMarketplaceOrderReply)
-	err = cli.requester.SendRequest(
+	err := cli.requester.SendRequest(
 		ctx,
 		"getMarketplaceOrder",
 		&GetMarketplaceOrderArgs{
@@ -210,6 +210,6 @@ func (cli *JSONRPCClient) GetMarketplaceOrder(ctx context.Context, orderID strin
 		resp,
 	)
 
-	price = resp.Price
-	return
+	price := resp.Price
+	return price, err
 }

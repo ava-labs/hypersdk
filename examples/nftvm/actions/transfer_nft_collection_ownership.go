@@ -24,7 +24,7 @@ func (t *TransferNFTCollectionOwnership) ComputeUnits(chain.Rules) uint64 {
 }
 
 // Execute implements chain.Action.
-func (t *TransferNFTCollectionOwnership) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (t *TransferNFTCollectionOwnership) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
 	// Assert that collection exists
 	name, symbol, metadata, numOfInstances, owner, err := storage.GetNFTCollectionNoController(ctx, mu, t.CollectionAddress)
 	if err != nil {
@@ -66,7 +66,7 @@ func (t *TransferNFTCollectionOwnership) StateKeysMaxChunks() []uint16 {
 }
 
 // ValidRange implements chain.Action.
-func (t *TransferNFTCollectionOwnership) ValidRange(chain.Rules) (start int64, end int64) {
+func (t *TransferNFTCollectionOwnership) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

@@ -51,6 +51,20 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
+const (
+	CollectionNameOne     = "The Louvre Museum"
+	CollectionSymbolOne   = "LVM"
+	CollectionMetadataOne = "The most famous museum in the world"
+
+	InstanceMetadataOne = "Mona Lisa by Leonardo Da Vinci"
+)
+
+var (
+	firstCollectionAddress         codec.Address
+	readableFirstCollectionAddress string
+	firstInstanceNum               uint32 = 0
+)
+
 var (
 	logFactory logging.Factory
 	log        logging.Logger

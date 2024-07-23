@@ -21,42 +21,6 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/nftvm/consts"
 )
 
-type ReadState func(context.Context, [][]byte) ([][]byte, []error)
-
-// Metadata
-// 0x0/ (tx)
-//   -> [txID] => timestamp
-//
-// State
-// / (height) => store in root
-//   -> [heightPrefix] => height
-// 0x0/ (balance)
-//   -> [owner] => balance
-// 0x1/ (hypersdk-height)
-// 0x2/ (hypersdk-timestamp)
-// 0x3/ (hypersdk-fee)
-
-const (
-	// metaDB
-	txPrefix = 0x0
-
-	// stateDB
-	balancePrefix   = 0x0
-	heightPrefix    = 0x1
-	timestampPrefix = 0x2
-	feePrefix       = 0x3
-)
-
-const BalanceChunks uint16 = 1
-
-var (
-	failureByte  = byte(0x0)
-	successByte  = byte(0x1)
-	heightKey    = []byte{heightPrefix}
-	timestampKey = []byte{timestampPrefix}
-	feeKey       = []byte{feePrefix}
-)
-
 // [txPrefix] + [txID]
 func TxKey(id ids.ID) (k []byte) {
 	k = make([]byte, 1+ids.IDLen)

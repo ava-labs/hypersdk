@@ -30,7 +30,7 @@ func (c *CreateNFTInstance) ComputeUnits(chain.Rules) uint64 {
 }
 
 // Execute implements chain.Action.
-func (c *CreateNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (c *CreateNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
 	// Enforce size invariants
 	if len(c.Metadata) == 0 {
 		return nil, ErrOutputInstanceMetadataEmpty
@@ -92,7 +92,7 @@ func (c *CreateNFTInstance) StateKeysMaxChunks() []uint16 {
 }
 
 // ValidRange implements chain.Action.
-func (c *CreateNFTInstance) ValidRange(chain.Rules) (start int64, end int64) {
+func (c *CreateNFTInstance) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

@@ -12,19 +12,14 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 )
 
-const MarketplaceOrderStateChunks = consts.Uint64Len
-
-// TODO: tune this
-const BuyNFTStateChunks = 50
-
 func MarketplaceOrderStateKey(
 	orderID ids.ID,
-) (k []byte) {
-	k = make([]byte, consts.Uint16Len+ids.IDLen+consts.Uint16Len)
+) ([]byte) {
+	k := make([]byte, consts.Uint16Len+ids.IDLen+consts.Uint16Len)
 	k[0] = marketplaceOrderPrefix
 	copy(k[1:], orderID[:])
 	binary.BigEndian.PutUint16(k[1+ids.IDLen:], MarketplaceOrderStateChunks)
-	return
+	return k
 }
 
 func GenerateOrderID(
@@ -33,7 +28,9 @@ func GenerateOrderID(
 	price uint64,
 ) (ids.ID, error) {
 	v := make([]byte, codec.AddressLen+consts.Uint32Len+consts.Uint64Len)
-	// TODO: Check that this is OK
+	copy(v, parentCollection[:])
+	binary.BigEndian.PutUint32(v[codec.AddressLen:], instanceNum)
+	binary.BigEndian.PutUint64(v[codec.AddressLen+consts.Uint32Len:], price)
 	id := hashing.ComputeHash256Array(v)
 	return id, nil
 }
@@ -44,9 +41,9 @@ func CreateMarketplaceOrder(
 	parentCollection codec.Address,
 	instanceNum uint32,
 	price uint64,
-) (orderID ids.ID, err error) {
+) (ids.ID, error) {
 	// Generate orderID + state key
-	orderID, err = GenerateOrderID(parentCollection, instanceNum, price)
+	orderID, err := GenerateOrderID(parentCollection, instanceNum, price)
 	if err != nil {
 		return ids.Empty, err
 	}
@@ -67,28 +64,25 @@ func GetMarketplaceOrder(
 	ctx context.Context,
 	f ReadState,
 	orderID ids.ID,
-) (price uint64, err error) {
+) (uint64, error) {
 	k := MarketplaceOrderStateKey(orderID)
 	values, errs := f(ctx, [][]byte{k})
-	return innerGetMarketplaceOrder(values[0], errs[0])
+	if errs[0] != nil {
+		return 0, errs[0]
+	}
+	return binary.BigEndian.Uint64(values[0]), nil
 }
 
 func GetMarketplaceOrderNoController(
 	ctx context.Context,
 	mu state.Mutable,
 	orderID ids.ID,
-) (price uint64, err error) {
+) (uint64, error) {
 	k := MarketplaceOrderStateKey(orderID)
 	v, err := mu.GetValue(ctx, k)
-	return innerGetMarketplaceOrder(v, err)
-}
-
-func innerGetMarketplaceOrder(
-	v []byte,
-	e error,
-) (price uint64, err error) {
-	if e != nil {
-		return 0, e
+	if err != nil {
+		return 0, err
 	}
 	return binary.BigEndian.Uint64(v), nil
 }
+

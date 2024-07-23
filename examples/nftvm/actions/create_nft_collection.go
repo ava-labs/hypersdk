@@ -28,7 +28,7 @@ func (c *CreateNFTCollection) ComputeUnits(chain.Rules) uint64 {
 }
 
 // Execute implements chain.Action.
-func (c *CreateNFTCollection) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (c *CreateNFTCollection) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
 	// Enforce size invariants
 	if len(c.Name) == 0 {
 		return nil, ErrOutputCollectionNameEmpty
@@ -89,7 +89,7 @@ func (c *CreateNFTCollection) StateKeysMaxChunks() []uint16 {
 }
 
 // ValidRange implements chain.Action.
-func (c *CreateNFTCollection) ValidRange(chain.Rules) (start int64, end int64) {
+func (c *CreateNFTCollection) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

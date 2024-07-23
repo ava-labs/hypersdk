@@ -24,7 +24,7 @@ type Controller interface {
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
-	GetNFTCollection(context.Context, codec.Address) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, collectionOwner codec.Address, err error)
-	GetNFTInstance(context.Context, codec.Address, uint32) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error)
-	GetMarketplaceOrder(context.Context, ids.ID) (price uint64, err error)
+	GetNFTCollection(context.Context, codec.Address) ([]byte, []byte, []byte, uint32, codec.Address, error)
+	GetNFTInstance(context.Context, codec.Address, uint32) (codec.Address, []byte, bool, error)
+	GetMarketplaceOrder(context.Context, ids.ID) (uint64, error)
 }

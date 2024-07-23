@@ -15,12 +15,12 @@ import (
 )
 
 // [balancePrefix] + [address]
-func ProfessorStateKey(addr codec.Address) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+func ProfessorStateKey(addr codec.Address) ([]byte) {
+	k := make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = professorStatePrefix
 	copy(k[1:], addr[:])
 	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], ProfessorStateChunks)
-	return
+	return k
 }
 
 // Returns the associated professor ID, generated from a name
@@ -82,7 +82,7 @@ func GetProfessorFromStateComplex(
 	ctx context.Context,
 	f ReadState,
 	professorID codec.Address,
-) (success bool, name string, year uint16, university string, students []codec.Address, err error) {
+) (bool, string, uint16, string, []codec.Address, error) {
 	k := ProfessorStateKey(professorID)
 	values, errs := f(ctx, [][]byte{k})
 	return innerGetProfessorFromState(values[0], errs[0])
@@ -91,7 +91,7 @@ func GetProfessorFromStateComplex(
 func innerGetProfessorFromState(
 	v []byte,
 	err error,
-) (success bool, name string, year uint16, university string, students []codec.Address, e error) {
+) (bool, string, uint16, string, []codec.Address, error) {
 	if errors.Is(err, database.ErrNotFound) {
 		return false, "", 0, "", []codec.Address{}, nil
 	}
@@ -100,16 +100,16 @@ func innerGetProfessorFromState(
 	}
 	// Extracting name
 	nameLen := binary.BigEndian.Uint16(v)
-	name = string(v[getNameIndex() : getYearIndex(int(nameLen))])
+	name := string(v[getNameIndex() : getYearIndex(int(nameLen))])
 	// Extracting year
-	year = binary.BigEndian.Uint16(v[getYearIndex(int(nameLen)):])
+	year := binary.BigEndian.Uint16(v[getYearIndex(int(nameLen)):])
 	// Extracting university
 	universityLen := binary.BigEndian.Uint16(v[getUniversityLengthIndex(int(nameLen)):])
-	university = string(v[getUniversityIndex(int(nameLen)):getNumOfStudentsIndex(int(nameLen), int(universityLen))])
+	university := string(v[getUniversityIndex(int(nameLen)):getNumOfStudentsIndex(int(nameLen), int(universityLen))])
 
 	numOfStudents := binary.BigEndian.Uint16(v[getNumOfStudentsIndex(int(nameLen), int(universityLen)):])
 
-	students = []codec.Address{}
+	students := []codec.Address{}
 
 	// Range over each student and add to students array
 	for i := 0; i < int(numOfStudents); i++ {
@@ -119,9 +119,8 @@ func innerGetProfessorFromState(
 		students = append(students, codec.Address(currStudent))
 	}
 
-	success = true
-	e = nil
-	return
+	success := true
+	return success, name, year, university, students, nil
 }
 
 func AddStudentToState(

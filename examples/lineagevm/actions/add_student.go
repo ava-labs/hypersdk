@@ -19,7 +19,6 @@ import (
 var _ chain.Action = (*AddStudent)(nil)
 
 type AddStudent struct {
-
 	// Name of the professor
 	ProfessorName string `json:"professorName"`
 
@@ -34,9 +33,9 @@ func (a *AddStudent) ComputeUnits(chain.Rules) uint64 {
 }
 
 // Execute implements chain.Action.
-func (a *AddStudent) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (a *AddStudent) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
 	
-	err = storage.AddStudentToState(ctx, mu, a.ProfessorName, a.StudentName)
+	err := storage.AddStudentToState(ctx, mu, a.ProfessorName, a.StudentName)
 
 	if err != nil {
 		return nil, err
@@ -90,7 +89,7 @@ func (a *AddStudent) StateKeysMaxChunks() []uint16 {
 }
 
 // ValidRange implements chain.Action.
-func (a *AddStudent) ValidRange(chain.Rules) (start int64, end int64) {
+func (a *AddStudent) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

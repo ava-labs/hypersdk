@@ -5,9 +5,9 @@ package actions
 
 import "errors"
 
-var ErrOutputValueZero = errors.New("value is zero")
-
 var (
+	ErrOutputValueZero = errors.New("value is zero")
+
 	ErrOutputCollectionNameEmpty     = errors.New("collection name is empty")
 	ErrOutputCollectionSymbolEmpty   = errors.New("collection symbol is empty")
 	ErrOutputCollectionMetadataEmpty = errors.New("collection metdata is empty")

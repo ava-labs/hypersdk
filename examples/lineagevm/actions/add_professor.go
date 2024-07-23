@@ -21,7 +21,6 @@ import (
 var _ chain.Action = (*AddProfessor)(nil)
 
 type AddProfessor struct {
-
 	// Name of the Professor
 	Name string `json:"name"`
 

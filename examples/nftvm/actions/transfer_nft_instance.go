@@ -27,7 +27,7 @@ func (t *TransferNFTInstance) ComputeUnits(chain.Rules) uint64 {
 }
 
 // Execute implements chain.Action.
-func (t *TransferNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (t *TransferNFTInstance) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
 	// Assert that collection exists
 	owner, metadata, isListedOnMarketplace, err := storage.GetNFTInstanceNoController(ctx, mu, t.CollectionAddress, t.InstanceNum)
 	if err != nil {
@@ -72,7 +72,7 @@ func (t *TransferNFTInstance) StateKeysMaxChunks() []uint16 {
 }
 
 // ValidRange implements chain.Action.
-func (t *TransferNFTInstance) ValidRange(chain.Rules) (start int64, end int64) {
+func (t *TransferNFTInstance) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }

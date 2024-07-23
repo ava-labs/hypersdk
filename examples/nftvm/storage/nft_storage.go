@@ -4,9 +4,7 @@ package storage
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
@@ -15,50 +13,22 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/nftvm/consts"
 )
 
-// PREFIXES MUST START AFTER 0x3 TO AVOID CONFLICTS
-const (
-	nftCollectionPrefix    = 0x4
-	nftInstancePrefix      = 0x5
-	marketplaceOrderPrefix = 0x6
-)
-
-// State storage limits
-const (
-	// Limits on collections
-	MaxCollectionNameSize     = 64
-	MaxCollectionSymbolSize   = 8
-	MaxCollectionMetadataSize = 256
-
-	// TODO: tune this
-	MaxCollectionSize = MaxCollectionNameSize + MaxCollectionSymbolSize + MaxCollectionMetadataSize + consts.Uint32Len
-
-	// Limits on instances
-	MaxInstanceMetadataSize = 256
-
-	MaxInstanceSize = codec.AddressLen + MaxCollectionMetadataSize
-)
-
-// Denominated in bytes
-const nftCollectionStateChunks uint16 = MaxCollectionNameSize + MaxCollectionSymbolSize + MaxCollectionMetadataSize + consts.Uint16Len
-
-const nftInstanceStateChunks uint16 = codec.AddressLen + MaxInstanceMetadataSize
-
 // [Collection Prefix] + [Collection Address] + [Collection Chunks]
-func CollectionStateKey(addr codec.Address) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint16Len)
+func CollectionStateKey(addr codec.Address) ([]byte) {
+	k := make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = nftCollectionPrefix
 	copy(k[1:], addr[:])
 	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], nftCollectionStateChunks)
-	return
+	return k
 }
 
-func InstanceStateKey(collectionAddr codec.Address, instanceNum uint32) (k []byte) {
-	k = make([]byte, 1+codec.AddressLen+consts.Uint32Len+consts.Uint16Len)
+func InstanceStateKey(collectionAddr codec.Address, instanceNum uint32) ([]byte) {
+	k := make([]byte, 1+codec.AddressLen+consts.Uint32Len+consts.Uint16Len)
 	k[0] = nftInstancePrefix
 	copy(k[1:], collectionAddr[:])
 	binary.BigEndian.PutUint32(k[1+codec.AddressLen:], instanceNum)
 	binary.BigEndian.PutUint16(k[1+codec.AddressLen+consts.Uint32Len:], nftInstanceStateChunks)
-	return
+	return k
 }
 
 func GenerateNFTCollectionAddress(name []byte, symbol []byte, metadata []byte) codec.Address {
@@ -114,9 +84,12 @@ func GetNFTCollection(
 	ctx context.Context,
 	f ReadState,
 	collectionAddress codec.Address,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, owner codec.Address, err error) {
+) ([]byte, []byte, []byte, uint32, codec.Address, error) {
 	k := CollectionStateKey(collectionAddress)
 	values, errs := f(ctx, [][]byte{k})
+	if errs[0] != nil {
+		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, errs[0]
+	}
 	return innerGetNFTCollection(values[0], errs[0])
 }
 
@@ -126,7 +99,7 @@ func GetNFTCollectionNoController(
 	ctx context.Context,
 	mu state.Mutable,
 	collectionAddress codec.Address,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, owner codec.Address, err error) {
+) ([]byte, []byte, []byte, uint32, codec.Address, error) {
 	value, err := mu.GetValue(ctx, CollectionStateKey(collectionAddress))
 	if err != nil {
 		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, err
@@ -137,27 +110,20 @@ func GetNFTCollectionNoController(
 func innerGetNFTCollection(
 	v []byte,
 	err error,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, owner codec.Address, e error) {
-	if errors.Is(err, database.ErrNotFound) {
-		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, nil
-	}
-	if err != nil {
-		return []byte{}, []byte{}, []byte{}, 0, codec.EmptyAddress, err
-	}
-
+) ([]byte, []byte, []byte, uint32, codec.Address, error) {
 	// Extract name
 	nameLen := binary.BigEndian.Uint16(v)
-	name = v[consts.Uint16Len : consts.Uint16Len+nameLen]
+	name := v[consts.Uint16Len : consts.Uint16Len+nameLen]
 	// Extract symbol
 	symbolLen := binary.BigEndian.Uint16(v[consts.Uint16Len+nameLen:])
-	symbol = v[consts.Uint16Len+nameLen+consts.Uint16Len : consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen]
+	symbol := v[consts.Uint16Len+nameLen+consts.Uint16Len : consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen]
 	// Extract metadata
 	metadataLen := binary.BigEndian.Uint16(v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen:])
-	metadata = v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len : consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len+metadataLen]
+	metadata := v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len : consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len+metadataLen]
 	// Extract numOfInstances
-	numOfInstances = binary.BigEndian.Uint32(v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len+metadataLen:])
+	numOfInstances := binary.BigEndian.Uint32(v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len+metadataLen:])
 	// Extract owner
-	owner = codec.Address(v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len+metadataLen+consts.Uint32Len:])
+	owner := codec.Address(v[consts.Uint16Len+nameLen+consts.Uint16Len+symbolLen+consts.Uint16Len+metadataLen+consts.Uint32Len:])
 	return name, symbol, metadata, numOfInstances, owner, nil
 }
 
@@ -170,7 +136,7 @@ func CreateNFTInstance(
 	collectionAddress codec.Address,
 	owner codec.Address,
 	metadata []byte,
-) (instanceNum uint32, err error) {
+) (uint32, error) {
 	// Get parent collection state
 	name, symbol, collectionMetadata, numOfInstances, collectionOwner, err := GetNFTCollectionNoController(ctx, mu, collectionAddress)
 	if err != nil {
@@ -214,9 +180,9 @@ func SetNFTInstance(
 
 	// Insert marketplace indicator
 	if isListedOnMarketplace {
-		binary.BigEndian.PutUint16(v[codec.AddressLen+consts.Uint16Len+metadataLen:], 1)
+		binary.BigEndian.PutUint16(v[codec.AddressLen+consts.Uint16Len+metadataLen:], ListedOnMarketplace)
 	} else {
-		binary.BigEndian.PutUint16(v[codec.AddressLen+consts.Uint16Len+metadataLen:], 0)
+		binary.BigEndian.PutUint16(v[codec.AddressLen+consts.Uint16Len+metadataLen:], NotListedOnMarketplace)
 	}
 
 	return mu.Insert(ctx, instanceStateKey, v)
@@ -227,9 +193,12 @@ func GetNFTInstance(
 	f ReadState,
 	collectionAddress codec.Address,
 	instanceNum uint32,
-) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error) {
+) (codec.Address, []byte, bool, error) {
 	k := InstanceStateKey(collectionAddress, instanceNum)
 	values, errs := f(ctx, [][]byte{k})
+	if errs[0] != nil {
+		return codec.EmptyAddress, []byte{}, false, errs[0]
+	}
 	return innerGetNFTInstance(values[0], errs[0])
 }
 
@@ -238,7 +207,7 @@ func GetNFTInstanceNoController(
 	mu state.Mutable,
 	collectionAddress codec.Address,
 	instanceNum uint32,
-) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error) {
+) (codec.Address, []byte, bool, error) {
 	value, err := mu.GetValue(ctx, InstanceStateKey(collectionAddress, instanceNum))
 	if err != nil {
 		return codec.EmptyAddress, []byte{}, false, err
@@ -249,25 +218,24 @@ func GetNFTInstanceNoController(
 func innerGetNFTInstance(
 	v []byte,
 	err error,
-) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, e error) {
-	if err != nil {
-		return codec.EmptyAddress, []byte{}, false, err
-	}
+) (codec.Address, []byte, bool, error) {
 	// Extract owner
-	owner = codec.Address(v[:codec.AddressLen])
+	owner := codec.Address(v[:codec.AddressLen])
 	// Extract metadata
 	metadataLen := binary.BigEndian.Uint16(v[codec.AddressLen:])
-	metadata = v[codec.AddressLen+consts.Uint16Len : codec.AddressLen+consts.Uint16Len+metadataLen]
+	metadata := v[codec.AddressLen+consts.Uint16Len : codec.AddressLen+consts.Uint16Len+metadataLen]
 	// Extract marketplace indicator
 	marketplaceIndicator := binary.BigEndian.Uint16(v[codec.AddressLen+consts.Uint16Len+metadataLen:])
-	if marketplaceIndicator == uint16(1) {
-		isListedOnMarketplace = true
-	} else if marketplaceIndicator == uint16(0) {
-		isListedOnMarketplace = false
-	} else {
-		return codec.EmptyAddress, []byte{}, false, ErrCorruptInstanceMarketplaceIndicator
-	}
+	var isListedOnMarketplace bool
 
-	e = nil
-	return
+	switch marketplaceIndicator {
+	case ListedOnMarketplace:
+		isListedOnMarketplace = true
+	case NotListedOnMarketplace:
+		isListedOnMarketplace = false
+	default:
+		return codec.EmptyAddress, []byte{}, false, ErrCorruptInstanceMarketplaceIndicator
+	} 
+
+	return owner, metadata, isListedOnMarketplace, nil
 }

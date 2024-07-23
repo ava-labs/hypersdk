@@ -45,7 +45,7 @@ func (c *Controller) GetBalanceFromState(
 func (c *Controller) GetNFTCollection(
 	ctx context.Context,
 	collectionAddress codec.Address,
-) (name []byte, symbol []byte, metadata []byte, numOfInstances uint32, collectionOwner codec.Address, err error) {
+) ([]byte, []byte, []byte, uint32, codec.Address, error) {
 	return storage.GetNFTCollection(ctx, c.inner.ReadState, collectionAddress)
 }
 
@@ -53,13 +53,13 @@ func (c *Controller) GetNFTInstance(
 	ctx context.Context,
 	collectionAddress codec.Address,
 	instanceNum uint32,
-) (owner codec.Address, metadata []byte, isListedOnMarketplace bool, err error) {
+) (codec.Address, []byte, bool, error) {
 	return storage.GetNFTInstance(ctx, c.inner.ReadState, collectionAddress, instanceNum)
 }
 
 func (c *Controller) GetMarketplaceOrder(
 	ctx context.Context,
 	orderID ids.ID,
-) (price uint64, err error) {
+)  (uint64, error) {
 	return storage.GetMarketplaceOrder(ctx, c.inner.ReadState, orderID)
 }
