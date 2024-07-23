@@ -90,97 +90,97 @@ func TestHasPermissions(t *testing.T) {
 		name     string
 		perm     Permissions
 		contains Permissions
-		failing  bool
+		has      bool
 	}{
 		{
-			name:     "read is read",
+			name:     "read has read",
 			perm:     Read,
 			contains: Read,
-			failing:  false,
+			has:      true,
 		},
 		{
-			name:     "read not all",
+			name:     "read does not have all",
 			perm:     Read,
 			contains: All,
-			failing:  true,
+			has:      false,
 		},
 		{
-			name:     "read not write",
+			name:     "read does not have write",
 			perm:     Read,
 			contains: Write,
-			failing:  true,
+			has:      false,
 		},
 		{
 			name:     "rw has read",
 			perm:     Read | Write,
 			contains: Read,
-			failing:  false,
+			has:      true,
 		},
 		{
-			name:     "allocate is allocate",
+			name:     "allocate has allocate",
 			perm:     Allocate,
 			contains: Allocate,
-			failing:  false,
+			has:      true,
 		},
 		{
 			name:     "allocate has read",
 			perm:     Allocate,
 			contains: Read,
-			failing:  false,
+			has:      true,
 		},
 		{
-			name:     "allocate not write",
+			name:     "allocate does not have write",
 			perm:     Allocate,
 			contains: Write,
-			failing:  true,
+			has:      false,
 		},
 		{
-			name:     "write is write",
+			name:     "write has write",
 			perm:     Write,
 			contains: Write,
-			failing:  false,
+			has:      true,
 		},
 		{
 			name:     "write has read",
 			perm:     Write,
 			contains: Read,
-			failing:  false,
+			has:      true,
 		},
 		{
-			name:     "write not allocate",
+			name:     "write does not have allocate",
 			perm:     Write,
 			contains: Allocate,
-			failing:  true,
+			has:      false,
 		},
 		{
-			name:     "none is none",
+			name:     "none has none",
 			perm:     None,
 			contains: None,
-			failing:  false,
+			has:      true,
 		},
 		{
-			name:     "none not all",
+			name:     "none does not have all",
 			perm:     None,
 			contains: All,
-			failing:  true,
+			has:      false,
 		},
 		{
-			name:     "all is all",
+			name:     "all has all",
 			perm:     All,
 			contains: All,
-			failing:  false,
+			has:      true,
 		},
 		{
 			name:     "all has read",
 			perm:     All,
 			contains: Read,
-			failing:  false,
+			has:      true,
 		},
 		{
 			name:     "all has none",
 			perm:     All,
 			contains: None,
-			failing:  false,
+			has:      true,
 		},
 	}
 
