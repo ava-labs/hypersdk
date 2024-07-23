@@ -8,7 +8,7 @@ import (
 )
 
 type Recorder struct {
-	State         state.Immutable
+	State         database.Database
 	changedValues map[string][]byte
 	ReadState     set.Set[string]
 	WriteState    set.Set[string]
@@ -28,7 +28,7 @@ func (r *Recorder) Remove(_ context.Context, key []byte) error {
 	return nil
 }
 
-func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+func (r *Recorder) GetValue(_ context.Context, key []byte) (value []byte, err error) {
 	stringKey := string(key)
 	r.ReadState.Add(stringKey)
 	if value, ok := r.changedValues[stringKey]; ok {
@@ -37,7 +37,7 @@ func (r *Recorder) GetValue(ctx context.Context, key []byte) (value []byte, err 
 		}
 		return value, nil
 	}
-	return r.State.GetValue(ctx, key)
+	return r.State.Get(key)
 }
 
 func (r *Recorder) GetStateKeys() state.Keys {
