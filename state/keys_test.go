@@ -127,7 +127,7 @@ func TestHasPermissions(t *testing.T) {
 
 	for _, tt := range tests {
 		if (tt.has == nil) == (tt.missing == nil) {
-			t.Fatal("please specify either `has` or `missing`")
+			require.Fail(t, "please specify either `has` or `missing`")
 		}
 
 		for _, perm := range allPerms {
