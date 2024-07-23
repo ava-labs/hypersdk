@@ -102,6 +102,8 @@ func (c *Controller) Initialize(
 		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
+	consts.StateKeysDB = c.db
+
 	// Create handlers
 	//
 	// hypersdk handler are initiatlized automatically, you just need to
@@ -134,7 +136,6 @@ func (c *Controller) Initialize(
 		}
 	}
 	consts.ProgramRuntime = runtime.NewRuntime(runtime.NewConfig(), c.inner.Logger())
-
 	return c.config, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
 

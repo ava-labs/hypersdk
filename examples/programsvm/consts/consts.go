@@ -5,6 +5,7 @@ package consts
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -35,5 +36,9 @@ func init() {
 var (
 	ActionRegistry *codec.TypeParser[chain.Action]
 	AuthRegistry   *codec.TypeParser[chain.Auth]
+
+	// shameless hacks to make program call action have access to the runtime and db for execution and statekey queries
+
 	ProgramRuntime *runtime.WasmRuntime
+	StateKeysDB    state.Immutable
 )
