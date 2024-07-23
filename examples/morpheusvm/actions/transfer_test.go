@@ -115,9 +115,9 @@ func TestTransferAction(t *testing.T) {
 				require := require.New(t)
 				receiverBalance, err := storage.GetBalance(ctx, store, oneAddr)
 				require.NoError(err)
+				require.Equal(receiverBalance, uint64(1))
 				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
 				require.NoError(err)
-				require.Equal(receiverBalance, uint64(1))
 				require.Equal(senderBalance, uint64(0))
 			},
 		},
