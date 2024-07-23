@@ -6,6 +6,7 @@ package state
 import (
 	"testing"
 
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,109 +87,69 @@ func TestMalformedKey(t *testing.T) {
 }
 
 func TestHasPermissions(t *testing.T) {
+	allPerms := set.NewSet[Permissions](5)
+	allPerms.Add(Read, Allocate, Write, None, All)
+
 	tests := []struct {
-		name     string
-		perm     Permissions
-		contains Permissions
-		has      bool
+		name string
+		perm Permissions
+		has  set.Set[Permissions]
 	}{
 		{
-			name:     "read has read",
-			perm:     Read,
-			contains: Read,
-			has:      true,
+			name: "read",
+			perm: Read,
+			has: func() set.Set[Permissions] {
+				permSet := set.NewSet[Permissions](2)
+				permSet.Add(Read, None)
+				return permSet
+			}(),
 		},
 		{
-			name:     "read does not have all",
-			perm:     Read,
-			contains: All,
-			has:      false,
+			name: "allocate",
+			perm: Allocate,
+			has: func() set.Set[Permissions] {
+				permSet := set.NewSet[Permissions](3)
+				permSet.Add(Read, Allocate, None)
+				return permSet
+			}(),
 		},
 		{
-			name:     "read does not have write",
-			perm:     Read,
-			contains: Write,
-			has:      false,
+			name: "write",
+			perm: Write,
+			has: func() set.Set[Permissions] {
+				permSet := set.NewSet[Permissions](3)
+				permSet.Add(Read, Write, None)
+				return permSet
+			}(),
 		},
 		{
-			name:     "rw has read",
-			perm:     Read | Write,
-			contains: Read,
-			has:      true,
+			name: "none",
+			perm: None,
+			has: func() set.Set[Permissions] {
+				permSet := set.NewSet[Permissions](1)
+				permSet.Add(None)
+				return permSet
+			}(),
 		},
 		{
-			name:     "allocate has allocate",
-			perm:     Allocate,
-			contains: Allocate,
-			has:      true,
-		},
-		{
-			name:     "allocate has read",
-			perm:     Allocate,
-			contains: Read,
-			has:      true,
-		},
-		{
-			name:     "allocate does not have write",
-			perm:     Allocate,
-			contains: Write,
-			has:      false,
-		},
-		{
-			name:     "write has write",
-			perm:     Write,
-			contains: Write,
-			has:      true,
-		},
-		{
-			name:     "write has read",
-			perm:     Write,
-			contains: Read,
-			has:      true,
-		},
-		{
-			name:     "write does not have allocate",
-			perm:     Write,
-			contains: Allocate,
-			has:      false,
-		},
-		{
-			name:     "none has none",
-			perm:     None,
-			contains: None,
-			has:      true,
-		},
-		{
-			name:     "none does not have all",
-			perm:     None,
-			contains: All,
-			has:      false,
-		},
-		{
-			name:     "all has all",
-			perm:     All,
-			contains: All,
-			has:      true,
-		},
-		{
-			name:     "all has read",
-			perm:     All,
-			contains: Read,
-			has:      true,
-		},
-		{
-			name:     "all has none",
-			perm:     All,
-			contains: None,
-			has:      true,
+			name: "all",
+			perm: All,
+			has: func() set.Set[Permissions] {
+				permSet := set.NewSet[Permissions](5)
+				permSet.Add(Read, Allocate, Write, None, All)
+				return permSet
+			}(),
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
-			has := tt.perm.Has(tt.contains)
-			require.Equal(tt.has, has)
-		})
+		for perm := range allPerms {
+			t.Run(tt.name, func(t *testing.T) {
+				require := require.New(t)
+				contains := tt.has.Contains(perm)
+				has := tt.perm.Has(perm)
+				require.Equal(contains, has)
+			})
+		}
 	}
 }
