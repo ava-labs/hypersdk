@@ -18,7 +18,7 @@ import (
 
 var _ state.Mutable = (*InMemoryStore)(nil)
 
-// InMemoryStore is a storage that acts as a wrapper around a map and implements state.Mutable.
+// InMemoryStore is an in-memory implementation of `state.Mutable`
 type InMemoryStore struct {
 	Storage map[string][]byte
 }
