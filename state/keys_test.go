@@ -187,13 +187,8 @@ func TestHasPermissions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			sample := tt.perm.Has(tt.contains)
-
-			if tt.failing {
-				require.False(sample)
-			} else {
-				require.True(sample)
-			}
+			has := tt.perm.Has(tt.contains)
+			require.Equal(tt.has, has)
 		})
 	}
 }
