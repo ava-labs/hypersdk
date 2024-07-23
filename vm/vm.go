@@ -452,7 +452,7 @@ func (vm *VM) Initialize(
 
 	err = vm.restoreAcceptedQueue(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to restore the pending accepted blocks: %w", err)
+		return fmt.Errorf("failed to restore accepted blocks to the queue: %w", err)
 	}
 
 	return nil
