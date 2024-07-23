@@ -87,10 +87,10 @@ func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 
 func (vm *VM) shouldComapct(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
-		compactionOffset = rand.Intn(vm.config.GetBlockCompactionFrequency()) //nolint:gosec
+		compactionOffset = rand.Intn(vm.config.BlockCompactionFrequency) //nolint:gosec
 		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
 	}
-	return expiryHeight%uint64(vm.config.GetBlockCompactionFrequency()) == uint64(compactionOffset)
+	return expiryHeight%uint64(vm.config.BlockCompactionFrequency) == uint64(compactionOffset)
 }
 
 // UpdateLastAccepted updates the [lastAccepted] index, stores [blk] on-disk,
@@ -118,7 +118,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	if err := batch.Put(PrefixBlockHeightIDKey(blk.Height()), blkID[:]); err != nil {
 		return err
 	}
-	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
+	expiryHeight := blk.Height() - uint64(vm.config.AcceptedBlockWindow)
 	var expired bool
 	if expiryHeight > 0 && expiryHeight < blk.Height() { // ensure we don't free genesis
 		if err := batch.Delete(PrefixBlockKey(expiryHeight)); err != nil {

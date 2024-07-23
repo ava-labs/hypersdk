@@ -42,7 +42,7 @@ func (s *StateSyncHandler) AppRequest(
 	deadline time.Time,
 	request []byte,
 ) error {
-	if delay := s.vm.config.GetStateSyncServerDelay(); delay > 0 {
+	if delay := s.vm.config.StateSyncServerDelay; delay > 0 {
 		time.Sleep(delay)
 	}
 	return s.vm.stateSyncNetworkServer.AppRequest(ctx, nodeID, requestID, deadline, request)

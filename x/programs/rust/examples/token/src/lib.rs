@@ -1,9 +1,5 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, types::Address};
-
-const INITIAL_SUPPLY: u64 = 123456789;
+use wasmlanche_sdk::{public, state_keys, Address};
 
 /// The program state keys.
 #[state_keys]
@@ -16,86 +12,110 @@ pub enum StateKeys {
     Symbol,
     /// The balance of the token by address. Key prefix 0x3 + address.
     Balance(Address),
+    /// The allowance of the token by owner and spender. Key prefix 0x4 + owner + spender.
+    Allowance(Address, Address),
+    // Original owner of the token
+    Owner,
 }
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(context: Context<StateKeys>) {
-    let program = context.program();
+pub fn init(context: Context<StateKeys>, name: String, symbol: String) {
+    let actor = context.actor();
 
-    // set total supply
-    program
-        .state()
-        .store_by_key(StateKeys::TotalSupply, &INITIAL_SUPPLY)
-        .expect("failed to store total supply");
+    context
+        .store_by_key(StateKeys::Owner, &actor)
+        .expect("failed to store owner");
 
-    // set token name
-    program
-        .state()
-        .store_by_key(StateKeys::Name, b"WasmCoin")
-        .expect("failed to store coin name");
-
-    // set token symbol
-    program
-        .state()
-        .store_by_key(StateKeys::Symbol, b"WACK")
-        .expect("failed to store symbol");
+    context
+        .store([(StateKeys::Name, &name), (StateKeys::Symbol, &symbol)])
+        .expect("failed to store owner");
 }
 
 /// Returns the total supply of the token.
 #[public]
-pub fn get_total_supply(context: Context<StateKeys>) -> u64 {
-    context
-        .program()
-        .state()
-        .get(StateKeys::TotalSupply)
-        .expect("failed to get total supply")
-        .unwrap_or_default()
+pub fn total_supply(context: Context<StateKeys>) -> u64 {
+    _total_supply(&context)
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint_to(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
-    mint_to_internal(context, recipient, amount);
-    true
-}
+pub fn mint(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
+    let actor = context.actor();
 
-#[cfg(not(feature = "bindings"))]
-fn mint_to_internal(
-    context: Context<StateKeys>,
-    recipient: Address,
-    amount: u64,
-) -> Context<StateKeys> {
-    let program = context.program();
-
-    let balance = program
-        .state()
-        .get::<u64>(StateKeys::Balance(recipient))
-        .expect("state corrupt")
-        .unwrap_or_default();
-
-    program
-        .state()
-        .store_by_key(StateKeys::Balance(recipient), &(balance + amount))
+    check_owner(&context, actor);
+    let balance = _balance_of(&context, recipient);
+    let total_supply = _total_supply(&context);
+    context
+        .store([
+            (StateKeys::Balance(recipient), &(balance + amount)),
+            (StateKeys::TotalSupply, &(total_supply + amount)),
+        ])
         .expect("failed to store balance");
 
-    context
+    true
 }
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn_from(context: Context<StateKeys>, recipient: Address) -> u64 {
+pub fn burn(context: Context<StateKeys>, recipient: Address, value: u64) -> u64 {
+    let actor = context.actor();
+
+    check_owner(&context, actor);
+    let total = _balance_of(&context, recipient);
+
+    assert!(value <= total, "address doesn't have enough tokens to burn");
+    let new_amount = total - value;
+
     context
-        .program()
-        .state()
-        .delete::<u64>(StateKeys::Balance(recipient))
-        .expect("failed to burn recipient tokens")
-        .expect("recipient balance not found")
+        .store_by_key::<u64>(StateKeys::Balance(recipient), &new_amount)
+        .expect("failed to burn recipient tokens");
+
+    new_amount
+}
+
+/// Gets the balance of the recipient.
+#[public]
+pub fn balance_of(context: Context<StateKeys>, account: Address) -> u64 {
+    _balance_of(&context, account)
+}
+
+fn _balance_of(context: &Context<StateKeys>, account: Address) -> u64 {
+    context
+        .get(StateKeys::Balance(account))
+        .expect("failed to get balance")
+        .unwrap_or_default()
+}
+
+/// Returns the allowance of the spender for the owner's tokens.
+#[public]
+pub fn allowance(context: Context<StateKeys>, owner: Address, spender: Address) -> u64 {
+    _allowance(&context, owner, spender)
+}
+
+/// Approves the spender to spend the owner's tokens.
+/// Returns true if the approval was successful.
+#[public]
+pub fn approve(context: Context<StateKeys>, spender: Address, amount: u64) -> bool {
+    let actor = context.actor();
+
+    context
+        .store_by_key(StateKeys::Allowance(actor, spender), &amount)
+        .expect("failed to store allowance");
+    true
+}
+
+/// Transfers balance from the sender to the the recipient.
+#[public]
+pub fn transfer(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
+    let actor = context.actor();
+    _transfer(&context, actor, recipient, amount)
 }
 
 /// Transfers balance from the sender to the recipient.
+/// The caller must have an allowance to spend the senders tokens.
 #[public]
-pub fn transfer(
+pub fn transfer_from(
     context: Context<StateKeys>,
     sender: Address,
     recipient: Address,
@@ -103,91 +123,128 @@ pub fn transfer(
 ) -> bool {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
-    let program = context.program();
+    let actor = context.actor();
+
+    let total_allowance = _allowance(&context, sender, actor);
+    assert!(total_allowance >= amount, "insufficient allowance");
+
+    context
+        .store_by_key(
+            StateKeys::Allowance(sender, actor),
+            &(total_allowance - amount),
+        )
+        .expect("failed to store allowance");
+
+    _transfer(&context, sender, recipient, amount)
+}
+
+#[public]
+pub fn transfer_ownership(context: Context<StateKeys>, new_owner: Address) -> bool {
+    let actor = context.actor();
+
+    check_owner(&context, actor);
+    context
+        .store_by_key(StateKeys::Owner, &new_owner)
+        .expect("failed to store owner");
+
+    true
+}
+
+#[public]
+// grab the symbol of the token
+pub fn symbol(context: Context<StateKeys>) -> String {
+    context
+        .get::<String>(StateKeys::Symbol)
+        .expect("failed to get symbol")
+        .expect("symbol not initialized")
+}
+
+#[public]
+// grab the name of the token
+pub fn name(context: Context<StateKeys>) -> String {
+    context
+        .get::<String>(StateKeys::Name)
+        .expect("failed to get name")
+        .expect("name not initialized")
+}
+
+// Checks if the caller is the owner of the token
+// If the caller is not the owner, the program will panic
+#[cfg(not(feature = "bindings"))]
+fn check_owner(context: &Context<StateKeys>, actor: Address) {
+    assert_eq!(get_owner(context), actor, "caller is required to be owner")
+}
+
+// Returns the owner of the token
+#[cfg(not(feature = "bindings"))]
+fn get_owner(context: &Context<StateKeys>) -> Address {
+    context
+        .get::<Address>(StateKeys::Owner)
+        .expect("failed to get owner")
+        .expect("owner not initialized")
+}
+
+fn _transfer(
+    context: &Context<StateKeys>,
+    sender: Address,
+    recipient: Address,
+    amount: u64,
+) -> bool {
+    assert_ne!(sender, recipient, "sender and recipient must be different");
 
     // ensure the sender has adequate balance
-    let sender_balance = program
-        .state()
-        .get::<u64>(StateKeys::Balance(sender))
-        .expect("state corrupt")
-        .unwrap_or_default();
+    let sender_balance = _balance_of(context, sender);
 
-    assert!(sender_balance >= amount, "invalid input");
+    assert!(sender_balance >= amount, "sender has insufficient balance");
 
-    let recipient_balance = program
-        .state()
-        .get::<u64>(StateKeys::Balance(recipient))
-        .expect("state corrupt")
-        .unwrap_or_default();
+    let recipient_balance = _balance_of(context, recipient);
 
     // update balances
-    program
-        .state()
+    context
         .store([
             (StateKeys::Balance(sender), &(sender_balance - amount)),
             (StateKeys::Balance(recipient), &(recipient_balance + amount)),
         ])
-        .expect("failed to store balance");
+        .expect("failed to update balances");
 
     true
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct Minter {
-    to: Address,
-    amount: u64,
-}
-
-/// Mints tokens to multiple recipients.
-#[public]
-pub fn mint_to_many(context: Context<StateKeys>, minters: Vec<Minter>) -> bool {
-    minters.into_iter().fold(context, |context, minter| {
-        mint_to_internal(context, minter.to, minter.amount)
-    });
-    true
-}
-
-/// Gets the balance of the recipient.
-#[public]
-pub fn get_balance(context: Context<StateKeys>, recipient: Address) -> i64 {
+pub fn _allowance(context: &Context<StateKeys>, owner: Address, spender: Address) -> u64 {
     context
-        .program()
-        .state()
-        .get(StateKeys::Balance(recipient))
-        .expect("state corrupt")
+        .get::<u64>(StateKeys::Allowance(owner, spender))
+        .expect("failed to get allowance")
+        .unwrap_or_default()
+}
+
+fn _total_supply(context: &Context<StateKeys>) -> u64 {
+    context
+        .get(StateKeys::TotalSupply)
+        .expect("failed to get total supply")
         .unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::INITIAL_SUPPLY;
-    use simulator::{Endpoint, Key, Param, Step, TestContext};
+    use simulator::{Endpoint, Param, Step, TestContext};
+    use wasmlanche_sdk::Address;
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn create_program() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
         simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap();
     }
 
     #[test]
+    // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
         wasmlanche_sdk::dbg!("XXXXXXXXXXXXXXXXX\n");
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
@@ -199,7 +256,11 @@ mod tests {
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "init".into(),
-                params: vec![test_context.clone().into()],
+                params: vec![
+                    test_context.clone().into(),
+                    Param::String("Test".into()),
+                    Param::String("TST".into()),
+                ],
                 max_units: 1000000,
             })
             .unwrap();
@@ -207,37 +268,54 @@ mod tests {
         let supply = simulator
             .run_step(&Step {
                 endpoint: Endpoint::ReadOnly,
-                method: "get_total_supply".into(),
+                method: "total_supply".into(),
                 max_units: 0,
-                params: vec![test_context.into()],
+                params: vec![test_context.clone().into()],
             })
             .unwrap()
             .result
             .response::<u64>()
             .unwrap();
+        assert_eq!(supply, 0);
 
-        assert_eq!(supply, INITIAL_SUPPLY);
+        let symbol = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "symbol".into(),
+                max_units: 0,
+                params: vec![test_context.clone().into()],
+            })
+            .unwrap()
+            .result
+            .response::<String>()
+            .unwrap();
+        assert_eq!(symbol, "TST");
+
+        let name = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "name".into(),
+                max_units: 0,
+                params: vec![test_context.into()],
+            })
+            .unwrap()
+            .result
+            .response::<String>()
+            .unwrap();
+        assert_eq!(name, "Test");
     }
 
     #[test]
     fn mint() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-        let alice_key = Key::Ed25519(String::from("alice"));
-        let alice_key_param = Param::Key(alice_key.clone());
+        let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
 
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator.run_step(&Step::create_key(alice_key)).unwrap();
 
         let test_context = TestContext::from(program_id);
 
@@ -245,7 +323,11 @@ mod tests {
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "init".into(),
-                params: vec![test_context.clone().into()],
+                params: vec![
+                    test_context.clone().into(),
+                    Param::String("Test".into()),
+                    Param::String("TST".into()),
+                ],
                 max_units: 1000000,
             })
             .unwrap();
@@ -253,10 +335,10 @@ mod tests {
         simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
-                method: "mint_to".into(),
+                method: "mint".into(),
                 params: vec![
                     test_context.clone().into(),
-                    alice_key_param.clone(),
+                    alice.into(),
                     Param::U64(alice_initial_balance),
                 ],
                 max_units: 1000000,
@@ -266,9 +348,9 @@ mod tests {
         let balance = simulator
             .run_step(&Step {
                 endpoint: Endpoint::ReadOnly,
-                method: "get_balance".into(),
+                method: "balance_of".into(),
                 max_units: 0,
-                params: vec![test_context.into(), alice_key_param],
+                params: vec![test_context.clone().into(), alice.into()],
             })
             .unwrap()
             .result
@@ -276,35 +358,33 @@ mod tests {
             .unwrap();
 
         assert_eq!(balance, alice_initial_balance);
+
+        let total_supply = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::ReadOnly,
+                method: "total_supply".into(),
+                max_units: 0,
+                params: vec![test_context.into()],
+            })
+            .unwrap()
+            .result
+            .response::<u64>()
+            .unwrap();
+        assert_eq!(total_supply, alice_initial_balance);
     }
 
     #[test]
-    fn mint_and_transfer() {
+    fn burn() {
         let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
 
-        let owner_key = String::from("owner");
-        let [alice_key, bob_key] = ["alice", "bob"].map(String::from).map(Key::Ed25519);
-        let [alice_key_param, bob_key_param] = [alice_key.clone(), bob_key.clone()].map(Param::Key);
+        let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
-        let transfer_amount = 100;
-        let post_transfer_balance = alice_initial_balance - transfer_amount;
-
-        simulator
-            .run_step(&Step::create_key(Key::Ed25519(owner_key.clone())))
-            .unwrap();
+        let alice_burn_amount = 100;
 
         let program_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
-
-        simulator
-            .run_step(&Step::create_key(alice_key.clone()))
-            .unwrap();
-
-        simulator
-            .run_step(&Step::create_key(bob_key.clone()))
-            .unwrap();
 
         let test_context = TestContext::from(program_id);
 
@@ -312,7 +392,11 @@ mod tests {
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "init".into(),
-                params: vec![test_context.clone().into()],
+                params: vec![
+                    test_context.clone().into(),
+                    Param::String("Test".into()),
+                    Param::String("TST".into()),
+                ],
                 max_units: 1000000,
             })
             .unwrap();
@@ -320,10 +404,10 @@ mod tests {
         simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
-                method: "mint_to".into(),
+                method: "mint".into(),
                 params: vec![
                     test_context.clone().into(),
-                    alice_key_param.clone(),
+                    alice.into(),
                     Param::U64(alice_initial_balance),
                 ],
                 max_units: 1000000,
@@ -333,80 +417,28 @@ mod tests {
         simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
-                method: "transfer".into(),
+                method: "burn".into(),
+                max_units: 1000000,
                 params: vec![
                     test_context.clone().into(),
-                    alice_key_param.clone(),
-                    bob_key_param.clone(),
-                    Param::U64(transfer_amount),
+                    alice.into(),
+                    Param::U64(alice_burn_amount),
                 ],
-                max_units: 1000000,
             })
             .unwrap();
-
-        let supply = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_total_supply".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
-            .unwrap();
-        assert_eq!(supply, INITIAL_SUPPLY);
 
         let balance = simulator
             .run_step(&Step {
                 endpoint: Endpoint::ReadOnly,
-                method: "get_balance".into(),
+                method: "balance_of".into(),
                 max_units: 0,
-                params: vec![test_context.clone().into(), alice_key_param.clone()],
+                params: vec![test_context.clone().into(), alice.into()],
             })
             .unwrap()
             .result
             .response::<u64>()
             .unwrap();
-        assert_eq!(balance, post_transfer_balance);
 
-        let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_balance".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into(), bob_key_param],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
-            .unwrap();
-        assert_eq!(balance, transfer_amount);
-
-        let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "burn_from".into(),
-                params: vec![test_context.clone().into(), alice_key_param.clone()],
-                max_units: 1000000,
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
-            .unwrap();
-        assert_eq!(balance, post_transfer_balance);
-
-        let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_balance".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into(), alice_key_param],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
-            .unwrap();
-        assert_eq!(balance, 0);
+        assert_eq!(balance, alice_initial_balance - alice_burn_amount);
     }
 }
