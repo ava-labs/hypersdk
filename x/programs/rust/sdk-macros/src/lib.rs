@@ -154,7 +154,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let inputs: Punctuated<FnArg, Token![,]> = binding_args_props
         .into_iter()
-        .map(|arg| FnArg::Typed(arg))
+        .map(FnArg::Typed)
         .collect();
     let args = inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
