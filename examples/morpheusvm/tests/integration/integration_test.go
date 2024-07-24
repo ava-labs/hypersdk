@@ -214,7 +214,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		db := memdb.New()
 
 		v := controller.New()
-		err = v.Initialize(
+		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,
 			db,
@@ -231,8 +231,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			toEngine,
 			nil,
 			app,
-		)
-		require.NoError(err)
+		))
 
 		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
@@ -286,8 +285,7 @@ var _ = ginkgo.AfterSuite(func() {
 		iv.JSONRPCServer.Close()
 		iv.BaseJSONRPCServer.Close()
 		iv.WebSocketServer.Close()
-		err := iv.vm.Shutdown(context.TODO())
-		require.NoError(err)
+		require.NoError(iv.vm.Shutdown(context.TODO()))
 	}
 })
 
@@ -375,8 +373,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
-			err := instances[0].vm.Gossiper().Force(context.TODO())
-			require.NoError(err)
+			require.NoError(instances[0].vm.Gossiper().Force(context.TODO()))
 		})
 
 		ginkgo.By("skip invalid time", func() {
@@ -429,8 +426,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(blk.Verify(ctx))
 			require.Equal(blk.Status(), choices.Processing)
 
-			err = instances[1].vm.SetPreference(ctx, blk.ID())
-			require.NoError(err)
+			require.NoError(instances[1].vm.SetPreference(ctx, blk.ID()))
 
 			require.NoError(blk.Accept(ctx))
 			require.Equal(blk.Status(), choices.Accepted)
@@ -619,8 +615,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
 
-			err = instances[1].vm.Gossiper().Force(context.TODO())
-			require.NoError(err)
+			require.NoError(instances[1].vm.Gossiper().Force(context.TODO()))
 
 			// mempool in 0 should be 1 (old amount), since gossip/submit failed
 			require.Equal(instances[0].vm.Mempool().Len(context.TODO()), 1)
@@ -636,8 +631,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			n := instances[2]
 			blk1, err := n.vm.ParseBlock(ctx, blocks[0].Bytes())
 			require.NoError(err)
-			err = blk1.Verify(ctx)
-			require.NoError(err)
+			require.NoError(blk1.Verify(ctx))
 
 			// Parse tip
 			blk2, err := n.vm.ParseBlock(ctx, blocks[1].Bytes())
@@ -646,26 +640,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 
 			// Verify tip
-			err = blk2.Verify(ctx)
-			require.NoError(err)
-			err = blk3.Verify(ctx)
-			require.NoError(err)
+			require.NoError(blk2.Verify(ctx))
+			require.NoError(blk3.Verify(ctx))
 
 			// Accept tip
-			err = blk1.Accept(ctx)
-			require.NoError(err)
-			err = blk2.Accept(ctx)
-			require.NoError(err)
-			err = blk3.Accept(ctx)
-			require.NoError(err)
+			require.NoError(blk1.Accept(ctx))
+			require.NoError(blk2.Accept(ctx))
+			require.NoError(blk3.Accept(ctx))
 
 			// Parse another
 			blk4, err := n.vm.ParseBlock(ctx, blocks[3].Bytes())
 			require.NoError(err)
-			err = blk4.Verify(ctx)
-			require.NoError(err)
-			err = blk4.Accept(ctx)
-			require.NoError(err)
+			require.NoError(blk4.Verify(ctx))
+			require.NoError(blk4.Accept(ctx))
 			require.NoError(n.vm.SetPreference(ctx, blk4.ID()))
 		})
 	})
@@ -706,7 +693,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		require.NoError(err)
 		require.NoError(submit(context.Background()))
 
-		require.NoError(err)
 		accept = expectBlk(instances[0])
 		results := accept(false)
 		require.Len(results, 1)
@@ -764,7 +750,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			hutils.Outf("{{yellow}}waiting for mempool to return non-zero txs{{/}}\n")
 			time.Sleep(500 * time.Millisecond)
 		}
-		require.NoError(err)
 		accept := expectBlk(instances[0])
 		results := accept(false)
 		require.Len(results, 1)
@@ -917,8 +902,7 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	require.NoError(blk.Verify(ctx))
 	require.Equal(blk.Status(), choices.Processing)
 
-	err = i.vm.SetPreference(ctx, blk.ID())
-	require.NoError(err)
+	require.NoError(i.vm.SetPreference(ctx, blk.ID()))
 
 	return func(add bool) []*chain.Result {
 		require.NoError(blk.Accept(ctx))
