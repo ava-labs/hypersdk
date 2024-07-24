@@ -58,10 +58,40 @@ const (
 	MinAcceptedBlockWindow = 1024
 )
 
+var _ Option = (*OptionFunc)(nil)
+
+type Options struct {
+	BlockBuilder builder.Builder
+	TxGossiper   gossiper.Gossiper
+}
+
+type Option interface {
+	Apply(vm *VM, options *Options)
+}
+
+type OptionFunc func(vm *VM, options *Options)
+
+func (o OptionFunc) Apply(vm *VM, options *Options) {
+	o(vm, options)
+}
+
+func WithBlockBuilder(blockBuilder builder.Builder) Option {
+	return OptionFunc(func(_ *VM, options *Options) {
+		options.BlockBuilder = blockBuilder
+	})
+}
+
+func WithTxGossiper(txGossiper gossiper.Gossiper) Option {
+	return OptionFunc(func(_ *VM, options *Options) {
+		options.TxGossiper = txGossiper
+	})
+}
+
 type VM struct {
 	factory ControllerFactory
 	c       Controller
 	v       *version.Semantic
+	options *Options
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
@@ -69,8 +99,6 @@ type VM struct {
 
 	config         Config
 	genesis        Genesis
-	builder        builder.Builder
-	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
 	vmDB           database.Database
@@ -133,12 +161,39 @@ type VM struct {
 	stop  chan struct{}
 }
 
-func New(factory ControllerFactory, v *version.Semantic) *VM {
-	return &VM{
-		factory: factory,
-		v:       v,
-		config:  NewConfig(),
+func New(
+	factory ControllerFactory,
+	v *version.Semantic,
+	actionRegistry chain.ActionRegistry,
+	authRegistry chain.AuthRegistry,
+	authEngine map[uint8]AuthEngine,
+	opts ...Option,
+) (*VM, error) {
+	vm := &VM{
+		factory:        factory,
+		v:              v,
+		config:         NewConfig(),
+		actionRegistry: actionRegistry,
+		authRegistry:   authRegistry,
+		authEngine:     authEngine,
 	}
+
+	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	// Set defaults
+	vm.options = &Options{
+		BlockBuilder: builder.NewTime(vm),
+		TxGossiper:   txGossiper,
+	}
+
+	for _, opt := range opts {
+		opt.Apply(vm, vm.options)
+	}
+
+	return vm, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -219,7 +274,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.c, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.factory.New(
+	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
 		controllerContext.NetworkID,
@@ -436,8 +491,8 @@ func (vm *VM) Initialize(
 	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
 
 	// Startup block builder and gossiper
-	go vm.builder.Run()
-	go vm.gossiper.Run(gossipSender)
+	go vm.options.BlockBuilder.Run()
+	go vm.options.TxGossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -467,8 +522,8 @@ func (vm *VM) Initialize(
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
-	vm.gossiper.Queue(ctx)
-	vm.builder.Queue(ctx)
+	vm.options.TxGossiper.Queue(ctx)
+	vm.options.BlockBuilder.Queue(ctx)
 }
 
 func (vm *VM) markReady() {
@@ -613,8 +668,8 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	<-vm.acceptorDone
 
 	// Shutdown other async VM mechanisms
-	vm.builder.Done()
-	vm.gossiper.Done()
+	vm.options.BlockBuilder.Done()
+	vm.options.TxGossiper.Done()
 	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()

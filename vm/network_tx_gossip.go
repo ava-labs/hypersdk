@@ -34,7 +34,7 @@ func (t *TxGossipHandler) AppGossip(ctx context.Context, nodeID ids.NodeID, msg 
 		return nil
 	}
 
-	return t.vm.gossiper.HandleAppGossip(ctx, nodeID, msg)
+	return t.vm.options.TxGossiper.HandleAppGossip(ctx, nodeID, msg)
 }
 
 func (*TxGossipHandler) AppRequest(

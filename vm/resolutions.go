@@ -106,7 +106,7 @@ func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
 	vm.verifiedL.Unlock()
 	vm.parsedBlocks.Evict(b.ID())
 	vm.mempool.Remove(ctx, b.Txs)
-	vm.gossiper.BlockVerified(b.Tmstmp)
+	vm.options.TxGossiper.BlockVerified(b.Tmstmp)
 	vm.checkActivity(ctx)
 
 	if b.Processed() {
@@ -324,11 +324,11 @@ func (vm *VM) EngineChan() chan<- common.Message {
 
 // Used for integration and load testing
 func (vm *VM) Builder() builder.Builder {
-	return vm.builder
+	return vm.options.BlockBuilder
 }
 
 func (vm *VM) Gossiper() gossiper.Gossiper {
-	return vm.gossiper
+	return vm.options.TxGossiper
 }
 
 func (vm *VM) AcceptedSyncableBlock(
