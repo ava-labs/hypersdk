@@ -2,7 +2,6 @@ package chain
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -264,7 +263,7 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 	require.Empty(t, restoredStruct.EmptyMapField)
 }
 
-func TestMarshalUnmarshalSpeed(t *testing.T) {
+func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 	type TestStruct struct {
 		Uint64Field uint64
 		StringField string
@@ -312,9 +311,6 @@ func TestMarshalUnmarshalSpeed(t *testing.T) {
 		require.NoError(t, r.Err())
 	}
 	manualTime := time.Since(start)
-
-	fmt.Printf("Reflection time: %v\n", reflectionTime)
-	fmt.Printf("Manual time: %v\n", manualTime)
 
 	// Compare bytes between the two methods
 	require.Equal(t, manualBytes, reflectionBytes, "Bytes from reflection and manual methods differ")
