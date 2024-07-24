@@ -53,11 +53,15 @@ const (
 	blockDB   = "blockdb"
 	stateDB   = "statedb"
 	vmDataDir = "vm"
+
+	MaxAcceptorSize        = 256
+	MinAcceptedBlockWindow = 1024
 )
 
 type VM struct {
-	c Controller
-	v *version.Semantic
+	factory ControllerFactory
+	c       Controller
+	v       *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
@@ -129,11 +133,11 @@ type VM struct {
 	stop  chan struct{}
 }
 
-func New(c Controller, v *version.Semantic) *VM {
+func New(factory ControllerFactory, v *version.Semantic) *VM {
 	return &VM{
-		c:      c,
-		v:      v,
-		config: NewConfig(),
+		factory: factory,
+		v:       v,
+		config:  NewConfig(),
 	}
 }
 
@@ -215,7 +219,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.c, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.factory.New(
 		vm,
 		controllerContext,
 		controllerContext.Metrics,
@@ -282,6 +286,14 @@ func (vm *VM) Initialize(
 	vm.acceptedBlocksByHeight, err = cache.NewFIFO[uint64, ids.ID](vm.config.AcceptedBlockWindowCache)
 	if err != nil {
 		return err
+	}
+	acceptorSize := vm.config.AcceptorSize
+	if acceptorSize > MaxAcceptorSize {
+		return fmt.Errorf("AcceptorSize should be less than or equal to %d. Provided: %d", MaxAcceptorSize, acceptorSize)
+	}
+	acceptedBlockWindow := vm.config.AcceptedBlockWindow
+	if acceptedBlockWindow < 1024 {
+		return fmt.Errorf("AcceptedBlockWindow should be greater than or equal to %d. Provided: %d", MinAcceptedBlockWindow, acceptedBlockWindow)
 	}
 	vm.acceptedQueue = make(chan *chain.StatelessBlock, vm.config.AcceptorSize)
 	vm.acceptorDone = make(chan struct{})
@@ -442,6 +454,12 @@ func (vm *VM) Initialize(
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
+
+	err = vm.restoreAcceptedQueue(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to restore accepted blocks to the queue: %w", err)
+	}
+
 	return nil
 }
 
@@ -1125,6 +1143,46 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		zap.Uint64("start", start),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
+	return nil
+}
+
+func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
+	has, err := vm.HasLastProcessed()
+	if err != nil {
+		return fmt.Errorf("could not load last processed block: %w", err)
+	}
+	if !has {
+		return nil
+	}
+
+	lastProcessedHeight, err := vm.GetLastProcessedHeight()
+	if err != nil {
+		return fmt.Errorf("could not get last processed height: %w", err)
+	}
+
+	start := lastProcessedHeight + 1
+	end := vm.lastAccepted.Height()
+	if end < start {
+		return nil
+	}
+	acceptedToRestore := end - start + 1
+	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
+
+	for height := start; height <= end; height++ {
+		var blk *chain.StatelessBlock
+		if height == vm.lastAccepted.Height() {
+			blk = vm.lastAccepted
+		} else {
+			blk, err = vm.GetDiskBlock(ctx, height)
+			if err != nil {
+				return fmt.Errorf("could not find accepted block at height %d on disk", height)
+			}
+		}
+
+		vm.acceptedQueue <- blk
+	}
+	vm.snowCtx.Log.Info("finished restoring accepted queue")
+
 	return nil
 }
 
