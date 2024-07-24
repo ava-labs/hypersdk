@@ -33,13 +33,6 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-const (
-	startAmount = uint64(10000000000000000000)
-	sendAmount  = uint64(5000)
-
-	healthPollInterval = 3 * time.Second
-)
-
 func TestE2e(t *testing.T) {
 	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
 }
@@ -402,7 +395,7 @@ func (f *workloadFactory) NewBasicTxWorkload() workload.TxWorkloadIterator {
 	return f.NewSizedTxWorkload(1)
 }
 
-func (f *workloadFactory) NewSizedTxWorkload(size int) workload.TxWorkloadIterator {
+func (*workloadFactory) NewSizedTxWorkload(size int) workload.TxWorkloadIterator {
 	return &simpleTxWorkload{
 		cli:   instances[0].cli,
 		lcli:  instances[0].lcli,
@@ -410,7 +403,7 @@ func (f *workloadFactory) NewSizedTxWorkload(size int) workload.TxWorkloadIterat
 	}
 }
 
-func (f *workloadFactory) Workloads() []workload.TxWorkloadIterator {
+func (*workloadFactory) Workloads() []workload.TxWorkloadIterator {
 	return nil
 }
 
