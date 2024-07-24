@@ -4,7 +4,6 @@
 package state
 
 import (
-	"fmt"
 	"slices"
 	"testing"
 
@@ -88,28 +87,24 @@ func TestMalformedKey(t *testing.T) {
 }
 
 func TestHasPermissions(t *testing.T) {
+	require := require.New(t)
 	allPerms := []Permissions{Read, Allocate, Write, None, All}
 
 	tests := []struct {
-		perm    Permissions
-		has     []Permissions
-		missing []Permissions
+		perm Permissions
+		has  []Permissions
 	}{
 		{
 			perm: Read,
 			has:  []Permissions{Read, None},
 		},
 		{
-			perm: Allocate,
-			has:  []Permissions{Read, Allocate, None},
-		},
-		{
 			perm: Write,
 			has:  []Permissions{Read, Write, None},
 		},
 		{
-			perm:    Write,
-			missing: []Permissions{Allocate, All},
+			perm: Allocate,
+			has:  []Permissions{Read, Allocate, None},
 		},
 		{
 			perm: None,
@@ -119,47 +114,12 @@ func TestHasPermissions(t *testing.T) {
 			perm: All,
 			has:  allPerms,
 		},
-		{
-			perm:    All,
-			missing: []Permissions{},
-		},
 	}
 
 	for _, tt := range tests {
-		if (tt.has == nil) == (tt.missing == nil) {
-			require.Fail(t, "please specify either `has` or `missing`")
-		}
-
 		for _, perm := range allPerms {
-			permString := tt.perm.String()
-			ofPermString := perm.String()
-			has := tt.perm.Has(perm)
-
-			var name string
-			if tt.has != nil {
-				if has {
-					name = fmt.Sprintf("%s has %s", permString, ofPermString)
-				} else {
-					name = fmt.Sprintf("%s does not have %s", permString, ofPermString)
-				}
-			} else {
-				if has {
-					name = fmt.Sprintf("%s is not missing %s", permString, ofPermString)
-				} else {
-					name = fmt.Sprintf("%s is missing %s", permString, ofPermString)
-				}
-			}
-
-			t.Run(name, func(t *testing.T) {
-				require := require.New(t)
-				if tt.has != nil {
-					contains := slices.Contains(tt.has, perm)
-					require.Equal(contains, has)
-				} else {
-					notContains := slices.Contains(tt.missing, perm)
-					require.NotEqual(notContains, has)
-				}
-			})
+			expectedHas := slices.Contains(tt.has, perm)
+			require.Equal(expectedHas, tt.perm.Has(perm), "expected %s has %s to be %t", tt.perm, perm, expectedHas)
 		}
 	}
 }

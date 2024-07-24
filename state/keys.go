@@ -46,14 +46,14 @@ func (p Permissions) String() string {
 	switch p {
 	case Read:
 		return "read"
-	case Allocate:
-		return "allocate"
 	case Write:
 		return "write"
-	case None:
-		return "none"
+	case Allocate:
+		return "allocate"
 	case All:
 		return "all"
+	case None:
+		return "none"
 	default:
 		return "unknown"
 	}
