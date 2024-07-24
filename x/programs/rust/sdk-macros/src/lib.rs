@@ -5,10 +5,9 @@ use proc_macro2::Span;
 use quote::quote;
 use syn::{
     parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
-    Fields, FnArg, Ident, ItemEnum, ItemFn, PatType, Path, ReturnType, Signature, Token, Type,
-    Visibility,
+    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatIdent, PatType, Path, ReturnType, Signature,
+    Token, Type, Visibility,
 };
-use syn::{Pat, PatIdent};
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 
@@ -31,6 +30,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = input;
     let user_specified_context_type = match input.sig.inputs.first_mut() {
         Some(FnArg::Typed(pat_type)) if is_context(&pat_type.ty) => {
+            // pass parameter if ignored with underscore
             if matches!(*pat_type.pat, Pat::Wild(_)) {
                 pat_type.pat = Box::new(Pat::Ident(PatIdent {
                     attrs: vec![],
@@ -40,7 +40,24 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                     subpat: None,
                 }))
             }
-            Ok(pat_type.clone())
+
+            let context_type: Type = parse_str(CONTEXT_TYPE).expect("parsing of a const should not fail");
+            let Type::Path(mut context_type) = context_type else {
+                unreachable!()
+            };
+
+            // replace first parameter by wasmlanche_sdk::Context to ensure that the sdk is used
+            let user_specified_context_type = pat_type.clone();
+            if let Type::Path(ref mut ty) = *pat_type.ty {
+                if let Some(seg) = ty.path.segments.last() {
+                    let last_context_segment = context_type.path.segments.last_mut().expect("should always have 2 segments");
+                    last_context_segment.arguments = seg.arguments.clone();
+                };
+
+                *ty = context_type.clone();
+            }
+
+            Ok(user_specified_context_type)
         }
 
         arg => {
