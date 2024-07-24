@@ -27,6 +27,7 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
+
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
 )
@@ -120,21 +121,11 @@ func (*factory) New(
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
 	// Create builder and gossiper
-	var (
-		build  builder.Builder
-		gossip gossiper.Gossiper
-	)
-	if c.config.TestMode {
-		c.inner.Logger().Info("running build and gossip in test mode")
-		build = builder.NewManual(inner)
-		gossip = gossiper.NewManual(inner)
-	} else {
-		build = builder.NewTime(inner)
-		gcfg := gossiper.DefaultProposerConfig()
-		gossip, err = gossiper.NewProposer(inner, gcfg)
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, err
-		}
+	build := builder.NewTime(inner)
+	gcfg := gossiper.DefaultProposerConfig()
+	gossip, err := gossiper.NewProposer(inner, gcfg)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	return c, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
 }
