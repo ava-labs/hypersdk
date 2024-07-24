@@ -2,12 +2,13 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{
     parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
-    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, ReturnType, Signature, Token, Type,
+    Fields, FnArg, Ident, ItemEnum, ItemFn, PatType, Path, ReturnType, Signature, Token, Type,
     Visibility,
 };
+use syn::{Pat, PatIdent};
 
 const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
 
@@ -19,73 +20,45 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
 
     let vis_err = if !matches!(input.vis, Visibility::Public(_)) {
-        let err = Error::new(
+        Err(Error::new(
             input.sig.span(),
             "Functions with the `#[public]` attribute must have `pub` visibility.",
-        );
-
-        Some(err)
+        ))
     } else {
-        None
+        Ok(())
     };
 
-    let (input, user_specified_context_type, first_arg_err) = {
-        let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
-        let FnArg::Typed(pat_type) = input.sig.inputs.first().unwrap() else {
-            panic!("todo");
-        };
-        let mut context_pat = pat_type.clone();
-        let mut input = input;
-
-        let first_arg_err = match input.sig.inputs.first_mut() {
-            Some(FnArg::Typed(pat)) if is_context(&pat.ty) => {
-                let types = (context_type.as_mut(), pat.ty.as_mut());
-
-                if let (Type::Path(context_type), Type::Path(ty)) = types {
-                    let args = [context_type, ty].map(|type_path| {
-                        type_path
-                            .path
-                            .segments
-                            .last_mut()
-                            .map(|segment| &mut segment.arguments)
-                    });
-
-                    if let [Some(context_type_args), Some(ty_args)] = args {
-                        *context_type_args = ty_args.clone();
-                    }
-                }
-
-                std::mem::swap(&mut context_pat, pat);
-                None
+    let mut input = input;
+    let user_specified_context_type = match input.sig.inputs.first_mut() {
+        Some(FnArg::Typed(pat_type)) if is_context(&pat_type.ty) => {
+            if matches!(*pat_type.pat, Pat::Wild(_)) {
+                pat_type.pat = Box::new(Pat::Ident(PatIdent {
+                    attrs: vec![],
+                    by_ref: None,
+                    mutability: None,
+                    ident: Ident::new("_ctx", Span::call_site()),
+                    subpat: None,
+                }))
             }
+            Ok(pat_type.clone())
+        }
 
-            arg => {
-                let err = match arg {
-                    Some(FnArg::Typed(PatType { ty, .. })) => {
-                        Error::new(
-                            ty.span(),
-                            format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                        )
-                    }
-                    Some(_) => {
-                        Error::new(
-                            arg.span(),
-                            format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                        )
-                    }
-                    None => {
-                        Error::new(
-                            input.sig.paren_token.span.join(),
-                            format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
-                        )
-                    }
-                };
-
-                Some(err)
+        arg => {
+            match arg {
+                Some(FnArg::Typed(PatType { ty, .. })) => Err(Error::new(
+                    ty.span(),
+                    format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
+                )),
+                Some(_) => Err(Error::new(
+                    arg.span(),
+                    format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
+                )),
+                None => Err(Error::new(
+                    input.sig.paren_token.span.join(),
+                    format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
+                ))
             }
-        };
-
-        (input, context_pat, first_arg_err)
+        }
     };
 
     let input_types_iter = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
@@ -93,20 +66,20 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             fn_arg.span(),
             "Functions with the `#[public]` attribute cannot have a `self` parameter.",
         )),
-        // FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
         FnArg::Typed(pat) => Ok(pat.clone()),
     });
 
-    let arg_props = std::iter::once(Ok(user_specified_context_type)).chain(input_types_iter);
-
-    let result = match (vis_err, first_arg_err) {
-        (None, None) => Ok(vec![]),
-        (Some(err), None) | (None, Some(err)) => Err(err),
-        (Some(mut vis_err), Some(first_arg_err)) => {
+    // TODO borrow user_specified_context_type
+    let result = match (vis_err, user_specified_context_type.clone()) {
+        (Ok(_), Ok(_)) => Ok(vec![]),
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
+        (Err(mut vis_err), Err(first_arg_err)) => {
             vis_err.combine(first_arg_err);
             Err(vis_err)
         }
     };
+
+    let arg_props = std::iter::once(user_specified_context_type).chain(input_types_iter);
 
     let arg_props_or_err = arg_props.fold(result, |result, param| match (result, param) {
         // ignore Ok or first error encountered
@@ -128,18 +101,18 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let binding_args_props = args_props.iter().cloned().map({
-        let mut first = true;
-
-        move |mut arg| {
-            if first {
-                first = false;
-                arg.ty = Box::new(parse_quote!(&wasmlanche_sdk::ExternalCallContext));
-            }
-
-            FnArg::Typed(arg)
-        }
-    });
+    let mut binding_args_props = args_props.clone();
+    let context_arg_prop = binding_args_props
+        .first_mut()
+        .expect("first arg context has been checked above");
+    let Pat::Ident(PatIdent {
+        ident: context_ident,
+        ..
+    }) = *context_arg_prop.pat.clone()
+    else {
+        unreachable!()
+    };
+    context_arg_prop.ty = Box::new(parse_quote!(&wasmlanche_sdk::ExternalCallContext));
 
     let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
         quote! {
@@ -178,7 +151,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
+    let inputs: Punctuated<FnArg, Token![,]> = binding_args_props
+        .into_iter()
+        .map(|arg| FnArg::Typed(arg))
+        .collect();
     let args = inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),
@@ -192,9 +168,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let block = Box::new(parse_quote! {{
         let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
-        ctx
+        #context_ident
             .program()
-            .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
+            .call_function::<#return_type>(#name, &args, #context_ident.max_units(), #context_ident.value())
             .expect("calling the external program failed")
     }});
 
@@ -219,10 +195,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         .attrs
         .push(parse_quote! { #[cfg(feature = #feature_name)] });
 
-    input
-        .block
-        .stmts
-        .insert(0, syn::parse2(external_call).unwrap());
+    let parsed = syn::parse2(external_call);
+    input.block.stmts.insert(0, parsed.unwrap());
 
     TokenStream::from(quote! {
         #binding
