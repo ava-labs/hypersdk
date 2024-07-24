@@ -320,7 +320,7 @@ func TestMarshalUnmarshalSpeed(t *testing.T) {
 	// Compare bytes between the two methods
 	require.Equal(t, manualBytes, reflectionBytes, "Bytes from reflection and manual methods differ")
 
-	// Check if reflection is more than 50% slower
+	// Check if reflection is more than 5x as slow
 	if float64(reflectionTime) > float64(manualTime)*5 {
 		percentage := (float64(reflectionTime)/float64(manualTime) - 1) * 100
 		t.Errorf("%d iterations reflection-based marshal/unmarshal is %.2f%% slower than manual packing, takes %v instead of %v", iterations, percentage, reflectionTime, manualTime)
