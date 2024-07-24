@@ -6,10 +6,11 @@ package workload
 import (
 	"context"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-	"github.com/stretchr/testify/require"
 )
 
 type TxWorkloadFactory interface {
