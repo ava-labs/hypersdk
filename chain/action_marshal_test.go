@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -208,6 +209,68 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 	require.Empty(t, restoredStruct.EmptyMapField)
 }
 
+func TestMarshalUnmarshalSpeed(t *testing.T) {
+	type TestStruct struct {
+		Uint64Field uint64
+		StringField string
+		BytesField  []byte
+	}
+
+	test := TestStruct{
+		Uint64Field: 42,
+		StringField: "Hello, World!",
+		BytesField:  []byte{1, 2, 3, 4, 5},
+	}
+
+	iterations := 100000
+
+	// Time MarshalAction and UnmarshalAction
+	start := time.Now()
+	var reflectionBytes []byte
+	for i := 0; i < iterations; i++ {
+		bytes, err := MarshalAction(test)
+		require.NoError(t, err)
+		reflectionBytes = bytes
+
+		var restored TestStruct
+		err = UnmarshalAction(bytes, &restored)
+		require.NoError(t, err)
+	}
+	reflectionTime := time.Since(start)
+
+	// Time manual packing
+	start = time.Now()
+	var manualBytes []byte
+	for i := 0; i < iterations; i++ {
+		p := codec.NewWriter(0, consts.NetworkSizeLimit)
+		p.PackUint64(test.Uint64Field)
+		p.PackString(test.StringField)
+		p.PackBytes(test.BytesField)
+		bytes := p.Bytes()
+		manualBytes = bytes
+
+		r := codec.NewReader(bytes, consts.NetworkSizeLimit)
+		var restored TestStruct
+		restored.Uint64Field = r.UnpackUint64(false)
+		restored.StringField = r.UnpackString(false)
+		r.UnpackBytes(-1, false, &restored.BytesField)
+		require.NoError(t, r.Err())
+	}
+	manualTime := time.Since(start)
+
+	fmt.Printf("Reflection time: %v\n", reflectionTime)
+	fmt.Printf("Manual time: %v\n", manualTime)
+
+	// Compare bytes between the two methods
+	require.Equal(t, manualBytes, reflectionBytes, "Bytes from reflection and manual methods differ")
+
+	// Check if reflection is more than 50% slower
+	if float64(reflectionTime) > float64(manualTime)*1.5 {
+		percentage := (float64(reflectionTime)/float64(manualTime) - 1) * 100
+		t.Errorf("%d iterations reflection-based marshal/unmarshal is %.2f%% slower than manual packing, takes %v instead of %v", iterations, percentage, reflectionTime, manualTime)
+	}
+}
+
 func MarshalAction(item interface{}) ([]byte, error) {
 	p := codec.NewWriter(0, consts.NetworkSizeLimit) // FIXME: size
 	v := reflect.ValueOf(item)
@@ -266,7 +329,7 @@ func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
 	case reflect.Uint64:
 		p.PackUint64(v.Uint())
 	case reflect.String:
-		p.PackBytes([]byte(v.String()))
+		p.PackString(v.String())
 	default:
 		if v.Type() == reflect.TypeOf(codec.Address{}) {
 			if v.Interface().(codec.Address) == codec.EmptyAddress {
@@ -344,9 +407,7 @@ func unmarshalValue(r *codec.Packer, v reflect.Value) error {
 	case reflect.Uint64:
 		v.SetUint(r.UnpackUint64(false))
 	case reflect.String:
-		var bytes []byte
-		r.UnpackBytes(-1, false, &bytes)
-		v.SetString(string(bytes))
+		v.SetString(r.UnpackString(false))
 	default:
 		if v.Type() == reflect.TypeOf(codec.Address{}) {
 			var addr codec.Address
