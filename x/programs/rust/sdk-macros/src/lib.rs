@@ -43,7 +43,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             let context_type: Type = parse_str(CONTEXT_TYPE).expect("parsing of a const should not fail");
             let Type::Path(mut context_type) = context_type else {
-                unreachable!()
+                panic!("context type should always be a path");
             };
 
             // replace first parameter by wasmlanche_sdk::Context to ensure that the sdk is used
@@ -128,7 +128,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         ..
     }) = *context_arg_prop.pat.clone()
     else {
-        unreachable!()
+        return Error::new(
+            context_arg_prop.pat.span(),
+            "This context pattern is unsupported",
+        )
+        .into_compile_error()
+        .into();
     };
     context_arg_prop.ty = Box::new(parse_quote!(&wasmlanche_sdk::ExternalCallContext));
 
@@ -211,8 +216,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         .attrs
         .push(parse_quote! { #[cfg(feature = #feature_name)] });
 
-    let parsed = syn::parse2(external_call);
-    input.block.stmts.insert(0, parsed.unwrap());
+    let parsed_external_call =
+        syn::parse2(external_call).expect("parsing of the external call failed");
+    input.block.stmts.insert(0, parsed_external_call);
 
     TokenStream::from(quote! {
         #binding
