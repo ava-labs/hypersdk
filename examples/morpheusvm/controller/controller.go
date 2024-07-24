@@ -31,28 +31,18 @@ import (
 	hstorage "github.com/ava-labs/hypersdk/storage"
 )
 
-var _ vm.Controller = (*Controller)(nil)
-
-type Controller struct {
-	inner *vm.VM
-
-	snowCtx      *snow.Context
-	genesis      *genesis.Genesis
-	config       *config.Config
-	stateManager *storage.StateManager
-
-	metrics *metrics
-
-	txDB               database.Database
-	txIndexer          indexer.TxIndexer
-	acceptedSubscriber indexer.AcceptedSubscriber
-}
+var (
+	_ vm.Controller        = (*Controller)(nil)
+	_ vm.ControllerFactory = (*factory)(nil)
+)
 
 func New() *vm.VM {
-	return vm.New(&Controller{}, version.Version)
+	return vm.New(&factory{}, version.Version)
 }
 
-func (c *Controller) Initialize(
+type factory struct{}
+
+func (*factory) New(
 	inner *vm.VM,
 	snowCtx *snow.Context,
 	gatherer ametrics.MultiGatherer,
@@ -60,6 +50,7 @@ func (c *Controller) Initialize(
 	upgradeBytes []byte, // subnets to allow for AWM
 	configBytes []byte,
 ) (
+	vm.Controller,
 	vm.Genesis,
 	builder.Builder,
 	gossiper.Gossiper,
@@ -69,6 +60,7 @@ func (c *Controller) Initialize(
 	map[uint8]vm.AuthEngine,
 	error,
 ) {
+	c := &Controller{}
 	c.inner = inner
 	c.snowCtx = snowCtx
 	c.stateManager = &storage.StateManager{}
@@ -77,13 +69,13 @@ func (c *Controller) Initialize(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = config.New(configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	c.snowCtx.Log.SetLevel(c.config.LogLevel)
@@ -91,7 +83,7 @@ func (c *Controller) Initialize(
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -100,7 +92,7 @@ func (c *Controller) Initialize(
 
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	acceptedSubscribers := []indexer.AcceptedSubscriber{
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
@@ -123,7 +115,7 @@ func (c *Controller) Initialize(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
@@ -141,10 +133,25 @@ func (c *Controller) Initialize(
 		gcfg := gossiper.DefaultProposerConfig()
 		gossip, err = gossiper.NewProposer(inner, gcfg)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	return c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+}
+
+type Controller struct {
+	inner *vm.VM
+
+	snowCtx      *snow.Context
+	genesis      *genesis.Genesis
+	config       *config.Config
+	stateManager *storage.StateManager
+
+	metrics *metrics
+
+	txDB               database.Database
+	txIndexer          indexer.TxIndexer
+	acceptedSubscriber indexer.AcceptedSubscriber
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
