@@ -36,8 +36,9 @@ const (
 )
 
 var (
-	isSyncing    = []byte("is_syncing")
-	lastAccepted = []byte("last_accepted")
+	isSyncing     = []byte("is_syncing")
+	lastAccepted  = []byte("last_accepted")
+	lastProcessed = []byte("last_processed")
 )
 
 func PrefixBlockKey(height uint64) []byte {
@@ -79,6 +80,22 @@ func (vm *VM) HasLastAccepted() (bool, error) {
 
 func (vm *VM) GetLastAcceptedHeight() (uint64, error) {
 	b, err := vm.vmDB.Get(lastAccepted)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(b), nil
+}
+
+func (vm *VM) SetLastProcessedHeight(height uint64) error {
+	return vm.vmDB.Put(lastProcessed, binary.BigEndian.AppendUint64(nil, height))
+}
+
+func (vm *VM) HasLastProcessed() (bool, error) {
+	return vm.vmDB.Has(lastProcessed)
+}
+
+func (vm *VM) GetLastProcessedHeight() (uint64, error) {
+	b, err := vm.vmDB.Get(lastProcessed)
 	if err != nil {
 		return 0, err
 	}
