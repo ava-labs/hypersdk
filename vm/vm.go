@@ -59,8 +59,9 @@ const (
 )
 
 type VM struct {
-	c Controller
-	v *version.Semantic
+	factory ControllerFactory
+	c       Controller
+	v       *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
@@ -132,11 +133,11 @@ type VM struct {
 	stop  chan struct{}
 }
 
-func New(c Controller, v *version.Semantic) *VM {
+func New(factory ControllerFactory, v *version.Semantic) *VM {
 	return &VM{
-		c:      c,
-		v:      v,
-		config: NewConfig(),
+		factory: factory,
+		v:       v,
+		config:  NewConfig(),
 	}
 }
 
@@ -218,7 +219,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
+	vm.c, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.factory.New(
 		vm,
 		controllerContext,
 		controllerContext.Metrics,
