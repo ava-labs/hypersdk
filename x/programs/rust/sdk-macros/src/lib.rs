@@ -31,14 +31,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let (input, user_specified_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
-        let mut context_pat = PatType {
-            attrs: vec![],
-            pat: Box::new(Pat::Verbatim(
-                Ident::new("ctx", Span::call_site()).into_token_stream(),
-            )),
-            colon_token: Default::default(),
-            ty: context_type.clone(),
+        let FnArg::Typed(pat_type) = input.sig.inputs.first().unwrap() else {
+            panic!("todo");
         };
+        let mut context_pat = pat_type.clone();
         let mut input = input;
 
         let first_arg_err = match input.sig.inputs.first_mut() {
@@ -65,25 +61,25 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
             arg => {
                 let err = match arg {
-                Some(FnArg::Typed(PatType { ty, .. })) => {
-                    Error::new(
-                        ty.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                Some(_) => {
-                    Error::new(
-                        arg.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                None => {
-                    Error::new(
-                        input.sig.paren_token.span.join(),
-                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-            };
+                    Some(FnArg::Typed(PatType { ty, .. })) => {
+                        Error::new(
+                            ty.span(),
+                            format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                    Some(_) => {
+                        Error::new(
+                            arg.span(),
+                            format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                    None => {
+                        Error::new(
+                            input.sig.paren_token.span.join(),
+                            format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                };
 
                 Some(err)
             }
