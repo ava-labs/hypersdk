@@ -81,7 +81,7 @@ pub extern "C" fn alloc(len: usize) -> HostPtr {
 
     ALLOCATIONS.with_borrow_mut(|s| s.insert(ptr, len));
 
-    HostPtr(ptr.cast_const())
+    HostPtr(ptr)
 }
 
 #[cfg(test)]
@@ -114,20 +114,4 @@ mod tests {
         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
         alloc(isize::MAX as usize + 1);
     }
-
-    // TODO these two tests make the code abort and not panic, it's hard to write an assertion here
-    // #[test]
-    // #[should_panic]
-    // fn two_big_allocation_fails() {
-    //     // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
-    //     alloc((isize::MAX / 2) as usize + 1);
-    //     alloc((isize::MAX / 2) as usize + 1);
-    // }
-
-    //     #[test]
-    //     #[should_panic]
-    //     fn null_pointer_allocation() {
-    //         // see https://doc.rust-lang.org/1.77.2/std/alloc/struct.Layout.html#method.array
-    //         alloc(isize::MAX as usize);
-    //     }
 }
