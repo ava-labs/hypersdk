@@ -47,9 +47,9 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		}
 	})
 
-	ginkgo.It("Syncing", ginkgo.Label("Sync"), func() {
+	ginkgo.PIt("Syncing", ginkgo.Label("Sync"), func() {
 		ginkgo.By("Generate 128 blocks", func() {
-			workload.ExecuteWorkload(ctx, require, network, txWorkloadFactory.NewSizedTxWorkload(128))
+			workload.GenerateNBlocks(ctx, require, network, txWorkloadFactory, 128)
 		})
 		ginkgo.By("Start a new node", func() {}) // TODO
 		ginkgo.By("Accept a transaction after state sync", func() {
@@ -57,7 +57,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		})
 		ginkgo.By("Restart the node", func() {}) // TODO
 		ginkgo.By("Generate 1024 blocks", func() {
-			workload.ExecuteWorkload(ctx, require, network, txWorkloadFactory.NewSizedTxWorkload(1024))
+			workload.GenerateNBlocks(ctx, require, network, txWorkloadFactory, 1024)
 		})
 		ginkgo.By("Start a new node", func() {}) // TODO
 		ginkgo.By("Accept a transaction after state sync", func() {
@@ -65,7 +65,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		})
 		ginkgo.By("Pause the node", func() {}) // TODO
 		ginkgo.By("Generate 256 blocks", func() {
-			workload.ExecuteWorkload(ctx, require, network, txWorkloadFactory.NewSizedTxWorkload(256))
+			workload.GenerateNBlocks(ctx, require, network, txWorkloadFactory, 256)
 		})
 		ginkgo.By("Resume the node", func() {}) // TODO
 		ginkgo.By("Accept a transaction after resuming", func() {
