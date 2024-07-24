@@ -54,8 +54,8 @@ import (
 )
 
 var (
-	_ vm.Option = (*testBlockBuilder)(nil)
-	_ vm.Option = (*testTxGossiper)(nil)
+	_ vm.Option = (*testBlockBuilderOption)(nil)
+	_ vm.Option = (*testTxGossiperOption)(nil)
 
 	logFactory logging.Factory
 	log        logging.Logger
@@ -218,7 +218,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v, err := controller.New(&testBlockBuilder{}, &testTxGossiper{})
+		v, err := controller.New(&testBlockBuilderOption{}, &testTxGossiperOption{})
 		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
@@ -963,14 +963,14 @@ func (*appSender) SendCrossChainAppError(context.Context, ids.ID, uint32, int32,
 	return nil
 }
 
-type testBlockBuilder struct{}
+type testBlockBuilderOption struct{}
 
-func (*testBlockBuilder) Apply(vm *vm.VM, options *vm.Options) {
+func (*testBlockBuilderOption) Apply(vm *vm.VM, options *vm.Options) {
 	options.BlockBuilder = builder.NewManual(vm)
 }
 
-type testTxGossiper struct{}
+type testTxGossiperOption struct{}
 
-func (*testTxGossiper) Apply(vm *vm.VM, options *vm.Options) {
+func (*testTxGossiperOption) Apply(vm *vm.VM, options *vm.Options) {
 	options.TxGossiper = gossiper.NewManual(vm)
 }
