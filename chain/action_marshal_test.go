@@ -401,3 +401,57 @@ func FuzzTestMarshalUnmarshal(f *testing.F) {
 		}
 	})
 }
+
+// go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
+// Reflection time: 91.224215ms
+// Manual time: 39.183159ms
+// goos: linux
+// goarch: amd64
+// pkg: github.com/ava-labs/hypersdk/chain
+// cpu: AMD EPYC 7763 64-Core Processor
+// BenchmarkMarshalUnmarshal/Reflection-4           1335832               900.8 ns/op           168 B/op          6 allocs/op
+// BenchmarkMarshalUnmarshal/Manual-4               3042572               396.5 ns/op            72 B/op          4 allocs/op
+// PASS
+// ok      github.com/ava-labs/hypersdk/chain      3.927s
+func BenchmarkMarshalUnmarshal(b *testing.B) {
+	type TestStruct struct {
+		Uint64Field uint64
+		StringField string
+		BytesField  []byte
+	}
+
+	test := TestStruct{
+		Uint64Field: 42,
+		StringField: "Hello, World!",
+		BytesField:  []byte{1, 2, 3, 4, 5},
+	}
+
+	b.Run("Reflection", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			bytes, err := MarshalAction(test)
+			require.NoError(b, err)
+			var restored TestStruct
+			err = UnmarshalAction(bytes, &restored)
+			require.NoError(b, err)
+		}
+	})
+
+	b.Run("Manual", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			p := codec.NewWriter(0, consts.NetworkSizeLimit)
+			p.PackUint64(test.Uint64Field)
+			p.PackString(test.StringField)
+			p.PackBytes(test.BytesField)
+			bytes := p.Bytes()
+
+			r := codec.NewReader(bytes, consts.NetworkSizeLimit)
+			var restored TestStruct
+			restored.Uint64Field = r.UnpackUint64(false)
+			restored.StringField = r.UnpackString(false)
+			r.UnpackBytes(-1, false, &restored.BytesField)
+			require.NoError(b, r.Err())
+		}
+	})
+}
