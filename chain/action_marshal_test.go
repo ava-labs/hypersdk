@@ -3,6 +3,7 @@ package chain
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -270,26 +271,37 @@ func TestMarshalUnmarshalSpeed(t *testing.T) {
 		t.Errorf("%d iterations reflection-based marshal/unmarshal is %.2f%% slower than manual packing, takes %v instead of %v", iterations, percentage, reflectionTime, manualTime)
 	}
 }
-
 func MarshalAction(item interface{}) ([]byte, error) {
 	p := codec.NewWriter(0, consts.NetworkSizeLimit) // FIXME: size
 	v := reflect.ValueOf(item)
+	t := v.Type()
 
-	return marshalValue(p, v)
+	info := getTypeInfo(t)
+
+	for _, fi := range info {
+		field := v.Field(fi.index)
+		_, err := marshalValue(p, field, fi.kind, fi.typ)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return p.Bytes(), nil
 }
 
-func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
-	switch v.Kind() {
+func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) ([]byte, error) {
+	switch kind {
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			field := v.Field(i)
-			_, err := marshalValue(p, field)
+		info := getTypeInfo(typ)
+		for _, fi := range info {
+			field := v.Field(fi.index)
+			_, err := marshalValue(p, field, fi.kind, fi.typ)
 			if err != nil {
 				return nil, err
 			}
 		}
 	case reflect.Slice:
-		if v.Type().Elem().Kind() == reflect.Uint8 {
+		if typ.Elem().Kind() == reflect.Uint8 {
 			if v.IsNil() || v.Len() == 0 {
 				p.PackBytes(nil)
 			} else {
@@ -298,7 +310,7 @@ func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
 		} else {
 			p.PackInt(v.Len())
 			for i := 0; i < v.Len(); i++ {
-				_, err := marshalValue(p, v.Index(i))
+				_, err := marshalValue(p, v.Index(i), typ.Elem().Kind(), typ.Elem())
 				if err != nil {
 					return nil, err
 				}
@@ -307,11 +319,11 @@ func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
 	case reflect.Map:
 		p.PackInt(v.Len())
 		for _, key := range v.MapKeys() {
-			_, err := marshalValue(p, key)
+			_, err := marshalValue(p, key, typ.Key().Kind(), typ.Key())
 			if err != nil {
 				return nil, err
 			}
-			_, err = marshalValue(p, v.MapIndex(key))
+			_, err = marshalValue(p, v.MapIndex(key), typ.Elem().Kind(), typ.Elem())
 			if err != nil {
 				return nil, err
 			}
@@ -331,13 +343,13 @@ func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
 	case reflect.String:
 		p.PackString(v.String())
 	default:
-		if v.Type() == reflect.TypeOf(codec.Address{}) {
+		if typ == reflect.TypeOf(codec.Address{}) {
 			if v.Interface().(codec.Address) == codec.EmptyAddress {
 				return nil, fmt.Errorf("packer does not support empty addresses")
 			}
 			p.PackAddress(v.Interface().(codec.Address))
 		} else {
-			return nil, fmt.Errorf("unsupported field type: %v", v.Kind())
+			return nil, fmt.Errorf("unsupported field type: %v", kind)
 		}
 	}
 
@@ -347,30 +359,42 @@ func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
 func UnmarshalAction(data []byte, item interface{}) error {
 	r := codec.NewReader(data, len(data))
 	v := reflect.ValueOf(item).Elem()
+	t := v.Type()
 
-	return unmarshalValue(r, v)
+	info := getTypeInfo(t)
+
+	for _, fi := range info {
+		field := v.Field(fi.index)
+		err := unmarshalValue(r, field, fi.kind, fi.typ)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func unmarshalValue(r *codec.Packer, v reflect.Value) error {
-	switch v.Kind() {
+func unmarshalValue(r *codec.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
+	switch kind {
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			field := v.Field(i)
-			err := unmarshalValue(r, field)
+		info := getTypeInfo(typ)
+		for _, fi := range info {
+			field := v.Field(fi.index)
+			err := unmarshalValue(r, field, fi.kind, fi.typ)
 			if err != nil {
 				return err
 			}
 		}
 	case reflect.Slice:
-		if v.Type().Elem().Kind() == reflect.Uint8 {
+		if typ.Elem().Kind() == reflect.Uint8 {
 			var bytes []byte
 			r.UnpackBytes(-1, false, &bytes)
 			v.SetBytes(bytes)
 		} else {
 			length := r.UnpackInt(false)
-			slice := reflect.MakeSlice(v.Type(), length, length)
+			slice := reflect.MakeSlice(typ, length, length)
 			for i := 0; i < length; i++ {
-				err := unmarshalValue(r, slice.Index(i))
+				err := unmarshalValue(r, slice.Index(i), typ.Elem().Kind(), typ.Elem())
 				if err != nil {
 					return err
 				}
@@ -379,15 +403,15 @@ func unmarshalValue(r *codec.Packer, v reflect.Value) error {
 		}
 	case reflect.Map:
 		length := r.UnpackInt(false)
-		m := reflect.MakeMap(v.Type())
+		m := reflect.MakeMap(typ)
 		for i := 0; i < length; i++ {
-			key := reflect.New(v.Type().Key()).Elem()
-			err := unmarshalValue(r, key)
+			key := reflect.New(typ.Key()).Elem()
+			err := unmarshalValue(r, key, typ.Key().Kind(), typ.Key())
 			if err != nil {
 				return err
 			}
-			value := reflect.New(v.Type().Elem()).Elem()
-			err = unmarshalValue(r, value)
+			value := reflect.New(typ.Elem()).Elem()
+			err = unmarshalValue(r, value, typ.Elem().Kind(), typ.Elem())
 			if err != nil {
 				return err
 			}
@@ -409,12 +433,12 @@ func unmarshalValue(r *codec.Packer, v reflect.Value) error {
 	case reflect.String:
 		v.SetString(r.UnpackString(false))
 	default:
-		if v.Type() == reflect.TypeOf(codec.Address{}) {
+		if typ == reflect.TypeOf(codec.Address{}) {
 			var addr codec.Address
 			r.UnpackAddress(&addr)
 			v.Set(reflect.ValueOf(addr))
 		} else {
-			return fmt.Errorf("unsupported field type: %v", v.Kind())
+			return fmt.Errorf("unsupported field type: %v", kind)
 		}
 	}
 
@@ -423,4 +447,39 @@ func unmarshalValue(r *codec.Packer, v reflect.Value) error {
 	}
 
 	return nil
+}
+
+type fieldInfo struct {
+	index int
+	kind  reflect.Kind
+	typ   reflect.Type
+}
+
+var (
+	typeInfoCache = make(map[reflect.Type][]fieldInfo)
+	cacheMutex    sync.RWMutex
+)
+
+func getTypeInfo(t reflect.Type) []fieldInfo {
+	cacheMutex.RLock()
+	info, ok := typeInfoCache[t]
+	cacheMutex.RUnlock()
+	if ok {
+		return info
+	}
+
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	info = make([]fieldInfo, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		info[i] = fieldInfo{
+			index: i,
+			kind:  field.Type.Kind(),
+			typ:   field.Type,
+		}
+	}
+	typeInfoCache[t] = info
+	return info
 }
