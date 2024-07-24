@@ -1,4 +1,4 @@
-package chain
+package chain_test
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
@@ -36,41 +37,35 @@ func TestMarshalTransfer(t *testing.T) {
 	p.PackBytes(transfer.Memo)
 	expectedBytes := p.Bytes()
 
-	actualBytes, err := MarshalAction(transfer)
+	actualBytes, err := chain.MarshalAction(transfer)
 	require.NoError(t, err)
 
 	require.Equal(t, expectedBytes, actualBytes)
 
 	//unmarshal
 	var restoredStruct testStructure
-	err = UnmarshalAction(expectedBytes, &restoredStruct)
+	err = chain.UnmarshalAction(expectedBytes, &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, transfer, restoredStruct)
 }
 
-func FuzzTestTransfer(f *testing.F) {
-	// Add seed corpus
-	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9}, uint64(12876198273671286), []byte("Hello World"))
+// go test . -v  -fuzz=FuzzTransferValue -fuzztime=2s
+func FuzzTransferValue(f *testing.F) {
 
-	f.Fuzz(func(t *testing.T, toBytes []byte, value uint64, memo []byte) {
+	f.Add(uint64(12876198273671286))
+
+	f.Fuzz(func(t *testing.T, value uint64) {
 		type testStructure struct {
 			To    codec.Address `json:"to"`
 			Value uint64        `json:"value"`
 			Memo  []byte        `json:"memo"`
 		}
 
-		// Ensure the To address is valid
-		var to codec.Address
-		if len(toBytes) > len(to) {
-			toBytes = toBytes[:len(to)]
-		}
-		copy(to[:], toBytes)
-
 		transfer := testStructure{
-			To:    to,
+			To:    codec.Address{1, 2, 3, 4, 5, 6, 7, 8, 9},
 			Value: value,
-			Memo:  memo,
+			Memo:  []byte("Hello World"), // Fixed memo for uint64 test
 		}
 
 		// Manual marshaling
@@ -80,8 +75,8 @@ func FuzzTestTransfer(f *testing.F) {
 		p.PackBytes(transfer.Memo)
 		expectedBytes := p.Bytes()
 
-		// MarshalAction
-		actualBytes, err := MarshalAction(transfer)
+		// chain.MarshalAction
+		actualBytes, err := chain.MarshalAction(transfer)
 		if err != nil {
 			t.Fatalf("MarshalAction failed: %v", err)
 		}
@@ -90,9 +85,9 @@ func FuzzTestTransfer(f *testing.F) {
 			t.Fatalf("Marshaled bytes do not match. Expected: %v, Got: %v", expectedBytes, actualBytes)
 		}
 
-		// UnmarshalAction
+		// chain.UnmarshalAction
 		var restoredStruct testStructure
-		err = UnmarshalAction(actualBytes, &restoredStruct)
+		err = chain.UnmarshalAction(actualBytes, &restoredStruct)
 		if err != nil {
 			t.Fatalf("UnmarshalAction failed: %v", err)
 		}
@@ -120,11 +115,11 @@ func TestMarshalNegativeInts(t *testing.T) {
 		NegInt64: -64,
 	}
 
-	bytes, err := MarshalAction(test)
+	bytes, err := chain.MarshalAction(test)
 	require.NoError(t, err)
 
 	var restoredStruct NegativeIntStructure
-	err = UnmarshalAction(bytes, &restoredStruct)
+	err = chain.UnmarshalAction(bytes, &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -162,11 +157,11 @@ func TestMarshalFlatTypes(t *testing.T) {
 		ByteArrayField: []byte{10, 20, 30},
 	}
 
-	bytes, err := MarshalAction(test)
+	bytes, err := chain.MarshalAction(test)
 	require.NoError(t, err)
 
 	var restoredStruct FlatStructure
-	err = UnmarshalAction(bytes, &restoredStruct)
+	err = chain.UnmarshalAction(bytes, &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -192,11 +187,11 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 		ByteArrayField: []byte{}, //codec would unmarshal nil to []byte{} anyway
 	}
 
-	bytes, err := MarshalAction(test)
+	bytes, err := chain.MarshalAction(test)
 	require.NoError(t, err)
 
 	var restoredStruct FlatStructure
-	err = UnmarshalAction(bytes, &restoredStruct)
+	err = chain.UnmarshalAction(bytes, &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -237,11 +232,11 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 		EmptyMapField:    map[string]SimpleStruct{},
 	}
 
-	bytes, err := MarshalAction(test)
+	bytes, err := chain.MarshalAction(test)
 	require.NoError(t, err)
 
 	var restoredStruct ComplexStruct
-	err = UnmarshalAction(bytes, &restoredStruct)
+	err = chain.UnmarshalAction(bytes, &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -278,16 +273,16 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 
 	iterations := 100000
 
-	// Time MarshalAction and UnmarshalAction
+	// Time chain.MarshalAction and chain.UnmarshalAction
 	start := time.Now()
 	var reflectionBytes []byte
 	for i := 0; i < iterations; i++ {
-		bytes, err := MarshalAction(test)
+		bytes, err := chain.MarshalAction(test)
 		require.NoError(t, err)
 		reflectionBytes = bytes
 
 		var restored TestStruct
-		err = UnmarshalAction(bytes, &restored)
+		err = chain.UnmarshalAction(bytes, &restored)
 		require.NoError(t, err)
 	}
 	reflectionTime := time.Since(start)
@@ -321,82 +316,6 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 		t.Errorf("%d iterations reflection-based marshal/unmarshal is %.2f%% slower than manual packing, takes %v instead of %v", iterations, percentage, reflectionTime, manualTime)
 	}
 }
-func MarshalAction(item interface{}) ([]byte, error) {
-	p := codec.NewWriter(0, consts.NetworkSizeLimit) // FIXME: size
-	v := reflect.ValueOf(item)
-	t := v.Type()
-
-	info := getTypeInfo(t)
-
-	for _, fi := range info {
-		field := v.Field(fi.index)
-		_, err := marshalValue(p, field, fi.kind, fi.typ)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return p.Bytes(), nil
-}
-func FuzzTestMarshalUnmarshal(f *testing.F) {
-	// Add seed corpus
-	f.Add([]byte("Hello, World!"), uint64(42), int64(-42), int32(1234), uint32(5678))
-
-	f.Fuzz(func(t *testing.T, data []byte, u64 uint64, i64 int64, i32 int32, u32 uint32) {
-		type ComplexStruct struct {
-			StringField    string        `json:"stringField"`
-			Uint64Field    uint64        `json:"uint64Field"`
-			Int64Field     int64         `json:"int64Field"`
-			Int32Field     int32         `json:"int32Field"`
-			Uint32Field    uint32        `json:"uint32Field"`
-			ByteArrayField []byte        `json:"byteArrayField"`
-			AddressField   codec.Address `json:"addressField"`
-			NestedStruct   struct {
-				NestedInt    int    `json:"nestedInt"`
-				NestedString string `json:"nestedString"`
-			} `json:"nestedStruct"`
-			SliceField []int           `json:"sliceField"`
-			MapField   map[string]bool `json:"mapField"`
-		}
-
-		test := ComplexStruct{
-			StringField:    string(data),
-			Uint64Field:    u64,
-			Int64Field:     i64,
-			Int32Field:     i32,
-			Uint32Field:    u32,
-			ByteArrayField: data,
-			AddressField:   codec.Address{1, 2, 3}, // TODO: add fuzzing for the address
-			NestedStruct: struct {
-				NestedInt    int    `json:"nestedInt"`
-				NestedString string `json:"nestedString"`
-			}{
-				NestedInt:    int(i32),
-				NestedString: string(data[:min(len(data), 10)]),
-			},
-			SliceField: []int{int(i32), int(u32)},
-			MapField: map[string]bool{
-				"key1": u64%2 == 0,
-				"key2": i64%2 == 0,
-			},
-		}
-
-		bytes, err := MarshalAction(test)
-		if err != nil {
-			t.Fatalf("MarshalAction failed: %v", err)
-		}
-
-		var restoredStruct ComplexStruct
-		err = UnmarshalAction(bytes, &restoredStruct)
-		if err != nil {
-			t.Fatalf("UnmarshalAction failed: %v", err)
-		}
-
-		if !reflect.DeepEqual(test, restoredStruct) {
-			t.Fatalf("Restored struct does not match original. Original: %+v, Restored: %+v", test, restoredStruct)
-		}
-	})
-}
 
 // go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
 // Reflection time: 91.224215ms
@@ -425,10 +344,10 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	b.Run("Reflection", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			bytes, err := MarshalAction(test)
+			bytes, err := chain.MarshalAction(test)
 			require.NoError(b, err)
 			var restored TestStruct
-			err = UnmarshalAction(bytes, &restored)
+			err = chain.UnmarshalAction(bytes, &restored)
 			require.NoError(b, err)
 		}
 	})

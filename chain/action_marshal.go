@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 func min(a, b int) int {
@@ -217,4 +218,22 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	}
 	typeInfoCache[t] = info
 	return info
+}
+
+func MarshalAction(item interface{}) ([]byte, error) {
+	p := codec.NewWriter(0, consts.NetworkSizeLimit) // FIXME: size
+	v := reflect.ValueOf(item)
+	t := v.Type()
+
+	info := getTypeInfo(t)
+
+	for _, fi := range info {
+		field := v.Field(fi.index)
+		_, err := marshalValue(p, field, fi.kind, fi.typ)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return p.Bytes(), nil
 }
