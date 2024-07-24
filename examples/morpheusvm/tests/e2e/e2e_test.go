@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/fatih/color"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -174,9 +173,8 @@ func init() {
 }
 
 const (
-	modeTest     = "test"
-	modeFullTest = "full-test" // runs state sync
-	modeRun      = "run"
+	modeTest = "test"
+	modeRun  = "run"
 )
 
 var anrCli runner_sdk.Client
@@ -184,7 +182,7 @@ var anrCli runner_sdk.Client
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
-	require.Contains([]string{modeTest, modeFullTest, modeRun}, mode)
+	require.Contains([]string{modeTest, modeRun}, mode)
 	require.Greater(numValidators, uint(0))
 	logLevel, err := logging.ToLevel(networkRunnerLogLevel)
 	require.NoError(err)
@@ -355,11 +353,14 @@ var _ = ginkgo.BeforeSuite(func() {
 		})
 	}
 
-	e2e.SetNetwork(&embeddedVMNetwork{
-		uris:      uris,
-		networkID: networkID,
-		chainID:   ids.FromStringOrPanic(blockchainID),
-	})
+	e2e.SetNetwork(
+		&embeddedVMNetwork{
+			uris:      uris,
+			networkID: networkID,
+			chainID:   ids.FromStringOrPanic(blockchainID),
+		},
+		&workloadFactory{},
+	)
 })
 
 var (
@@ -390,6 +391,90 @@ func (e *embeddedVMNetwork) Description() workload.Description {
 	}
 }
 
+var (
+	_ workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+	_ workload.TxWorkloadFactory  = (*workloadFactory)(nil)
+)
+
+type workloadFactory struct{}
+
+func (f *workloadFactory) NewBasicTxWorkload() workload.TxWorkloadIterator {
+	return f.NewSizedTxWorkload(1)
+}
+
+func (f *workloadFactory) NewSizedTxWorkload(size int) workload.TxWorkloadIterator {
+	return &simpleTxWorkload{
+		cli:   instances[0].cli,
+		lcli:  instances[0].lcli,
+		count: size,
+	}
+}
+
+func (f *workloadFactory) Workloads() []workload.TxWorkloadIterator {
+	return nil
+}
+
+type simpleTxWorkload struct {
+	cli       *rpc.JSONRPCClient
+	lcli      *lrpc.JSONRPCClient
+	networkID uint32
+	chainID   ids.ID
+	count     int
+}
+
+func (g *simpleTxWorkload) Next() bool {
+	return g.count >= 0
+}
+
+func (g *simpleTxWorkload) GenerateTxWithAssertion() (*chain.Transaction, func(ctx context.Context, uri string) error, error) {
+	g.count++
+	other, err := ed25519.GeneratePrivateKey()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	aother := auth.NewED25519Address(other.PublicKey())
+	aotherStr := codec.MustAddressBech32(consts.HRP, aother)
+	parser, err := g.lcli.Parser(context.TODO())
+	if err != nil {
+		return nil, nil, err
+	}
+	_, tx, _, err := g.cli.GenerateTransaction(
+		context.TODO(),
+		parser,
+		[]chain.Action{&actions.Transfer{
+			To:    aother,
+			Value: 1,
+		}},
+		factory,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return tx, func(ctx context.Context, uri string) error {
+		ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+		defer cancel()
+
+		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return err
+		}
+		if !success {
+			return fmt.Errorf("tx %s not accepted", tx.ID())
+		}
+		balance, err := lcli.Balance(context.TODO(), aotherStr)
+		if err != nil {
+			return err
+		}
+		if balance != 1 {
+			return fmt.Errorf("expected balance of 1, got %d", balance)
+		}
+		return nil
+	}, nil
+}
+
 type instance struct {
 	nodeID ids.NodeID
 	uri    string
@@ -401,7 +486,7 @@ var _ = ginkgo.AfterSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
 	switch mode {
-	case modeTest, modeFullTest:
+	case modeTest:
 		utils.Outf("{{red}}shutting down cluster{{/}}\n")
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		_, err := anrCli.Stop(ctx)
@@ -417,418 +502,3 @@ var _ = ginkgo.AfterSuite(func() {
 	}
 	require.NoError(anrCli.Close())
 })
-
-var _ = ginkgo.Describe("[Test]", func() {
-	require := require.New(ginkgo.GinkgoT())
-
-	switch mode {
-	case modeRun:
-		utils.Outf("{{yellow}}skipping tests{{/}}\n")
-		return
-	}
-
-	ginkgo.It("transfer in a single node (raw)", func() {
-		nativeBalance, err := instances[0].lcli.Balance(context.TODO(), sender)
-		require.NoError(err)
-		require.Equal(nativeBalance, startAmount)
-
-		other, err := ed25519.GeneratePrivateKey()
-		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
-		aotherStr := codec.MustAddressBech32(consts.HRP, aother)
-
-		ginkgo.By("issue Transfer to the first node", func() {
-			// Generate transaction
-			parser, err := instances[0].lcli.Parser(context.TODO())
-			require.NoError(err)
-			submit, tx, _, err := instances[0].cli.GenerateTransaction(
-				context.Background(),
-				parser,
-				[]chain.Action{&actions.Transfer{
-					To:    aother,
-					Value: sendAmount,
-				}},
-				factory,
-			)
-			require.NoError(err)
-			utils.Outf("{{yellow}}generated transaction{{/}}\n")
-
-			// Broadcast and wait for transaction
-			require.NoError(submit(context.Background()))
-			utils.Outf("{{yellow}}submitted transaction{{/}}\n")
-			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, fee, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
-			cancel()
-			require.NoError(err)
-			require.True(success)
-			utils.Outf("{{yellow}}found transaction{{/}}\n")
-
-			// Check sender balance
-			balance, err := instances[0].lcli.Balance(context.Background(), sender)
-			require.NoError(err)
-			utils.Outf(
-				"{{yellow}}start=%d fee=%d send=%d balance=%d{{/}}\n",
-				startAmount,
-				fee,
-				sendAmount,
-				balance,
-			)
-			require.Equal(balance, startAmount-fee-sendAmount)
-			utils.Outf("{{yellow}}fetched balance{{/}}\n")
-		})
-
-		ginkgo.By("check if Transfer has been accepted from all nodes", func() {
-			for _, inst := range instances {
-				color.Blue("checking %q", inst.uri)
-
-				// Ensure all blocks processed
-				for {
-					_, h, _, err := inst.cli.Accepted(context.Background())
-					require.NoError(err)
-					if h > 0 {
-						break
-					}
-					time.Sleep(1 * time.Second)
-				}
-
-				// Check balance of recipient
-				balance, err := inst.lcli.Balance(context.Background(), aotherStr)
-				require.NoError(err)
-				require.Equal(balance, sendAmount)
-			}
-		})
-	})
-
-	switch mode {
-	case modeTest:
-		utils.Outf("{{yellow}}skipping bootstrap and state sync tests{{/}}\n")
-		return
-	}
-
-	// Create blocks before bootstrapping starts
-	count := 0
-	ginkgo.It("supports issuance of 128 blocks", func() {
-		count += generateBlocks(context.Background(), count, 128, instances, true)
-	})
-
-	// Ensure bootstrapping works
-	var syncClient *rpc.JSONRPCClient
-	var lsyncClient *lrpc.JSONRPCClient
-	ginkgo.It("can bootstrap a new node", func() {
-		cluster, err := anrCli.AddNode(
-			context.Background(),
-			"bootstrap",
-			execPath,
-			trackSubnetsOpt,
-			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainID: vmConfig,
-			}),
-		)
-		require.NoError(err)
-		awaitHealthy(anrCli)
-
-		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
-		bid, err := ids.FromString(blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
-		c := rpc.NewJSONRPCClient(uri)
-		syncClient = c
-		networkID, _, _, err := syncClient.Network(context.TODO())
-		require.NoError(err)
-		tc := lrpc.NewJSONRPCClient(uri, networkID, bid)
-		lsyncClient = tc
-		instances = append(instances, instance{
-			uri:  uri,
-			cli:  c,
-			lcli: tc,
-		})
-	})
-
-	ginkgo.It("accepts transaction after it bootstraps", func() {
-		acceptTransaction(syncClient, lsyncClient)
-	})
-
-	ginkgo.It("becomes ready quickly after restart", func() {
-		cluster, err := anrCli.RestartNode(context.Background(), "bootstrap")
-		require.NoError(err)
-
-		// Upon restart, the node should be able to read blocks from disk
-		// to initialize its [seen] index and become ready in less than
-		// [ValidityWindow].
-		start := time.Now()
-		awaitHealthy(anrCli)
-		require.WithinDuration(time.Now(), start, 20*time.Second)
-
-		// Update bootstrap info to latest in case it was assigned a new port
-		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
-		bid, err := ids.FromString(blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
-		c := rpc.NewJSONRPCClient(uri)
-		syncClient = c
-		networkID, _, _, err := syncClient.Network(context.TODO())
-		require.NoError(err)
-		tc := lrpc.NewJSONRPCClient(uri, networkID, bid)
-		lsyncClient = tc
-		instances[len(instances)-1] = instance{
-			uri:  uri,
-			cli:  c,
-			lcli: tc,
-		}
-	})
-
-	// Create blocks before state sync starts (state sync requires at least 1024
-	// blocks)
-	//
-	// We do 1024 so that there are a number of ranges of data to fetch.
-	ginkgo.It("supports issuance of at least 1024 more blocks", func() {
-		count += generateBlocks(context.Background(), count, 1024, instances, true)
-		// TODO: verify all roots are equal
-	})
-
-	ginkgo.It("can state sync a new node when no new blocks are being produced", func() {
-		cluster, err := anrCli.AddNode(
-			context.Background(),
-			"sync",
-			execPath,
-			trackSubnetsOpt,
-			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainID: vmConfig,
-			}),
-		)
-		require.NoError(err)
-
-		awaitHealthy(anrCli)
-
-		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
-		bid, err := ids.FromString(blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
-		syncClient = rpc.NewJSONRPCClient(uri)
-		networkID, _, _, err := syncClient.Network(context.TODO())
-		require.NoError(err)
-		lsyncClient = lrpc.NewJSONRPCClient(uri, networkID, bid)
-	})
-
-	ginkgo.It("accepts transaction after state sync", func() {
-		acceptTransaction(syncClient, lsyncClient)
-	})
-
-	ginkgo.It("can pause a node", func() {
-		// shuts down the node and keeps all db/conf data for a proper restart
-		_, err := anrCli.PauseNode(
-			context.Background(),
-			"sync",
-		)
-		require.NoError(err)
-
-		awaitHealthy(anrCli)
-
-		ok, err := syncClient.Ping(context.Background())
-		require.Error(err)
-		require.False(ok)
-	})
-
-	ginkgo.It("supports issuance of 256 more blocks", func() {
-		count += generateBlocks(context.Background(), count, 256, instances, true)
-		// TODO: verify all roots are equal
-	})
-
-	ginkgo.It("can re-sync the restarted node", func() {
-		_, err := anrCli.ResumeNode(
-			context.Background(),
-			"sync",
-		)
-		require.NoError(err)
-
-		awaitHealthy(anrCli)
-	})
-
-	ginkgo.It("accepts transaction after restarted node state sync", func() {
-		acceptTransaction(syncClient, lsyncClient)
-	})
-
-	ginkgo.It("state sync while broadcasting transactions", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			// Recover failure if exits
-			defer ginkgo.GinkgoRecover()
-
-			count += generateBlocks(ctx, count, 0, instances, false)
-		}()
-
-		// Give time for transactions to start processing
-		time.Sleep(5 * time.Second)
-
-		// Start syncing node
-		cluster, err := anrCli.AddNode(
-			context.Background(),
-			"sync_concurrent",
-			execPath,
-			trackSubnetsOpt,
-			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainID: vmConfig,
-			}),
-		)
-		require.NoError(err)
-		awaitHealthy(anrCli)
-
-		nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
-		uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
-		bid, err := ids.FromString(blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
-		syncClient = rpc.NewJSONRPCClient(uri)
-		networkID, _, _, err := syncClient.Network(context.TODO())
-		require.NoError(err)
-		lsyncClient = lrpc.NewJSONRPCClient(uri, networkID, bid)
-		cancel()
-	})
-
-	ginkgo.It("accepts transaction after state sync concurrent", func() {
-		acceptTransaction(syncClient, lsyncClient)
-	})
-
-	// TODO: restart all nodes (crisis simulation)
-})
-
-func awaitHealthy(cli runner_sdk.Client) {
-	for {
-		time.Sleep(healthPollInterval)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_, err := cli.Health(ctx)
-		cancel() // by default, health will wait to return until healthy
-		if err == nil {
-			return
-		}
-		utils.Outf(
-			"{{yellow}}waiting for health check to pass:{{/}} %v\n",
-			err,
-		)
-	}
-}
-
-// generate blocks until either ctx is cancelled or the specified (!= 0) number of blocks is generated.
-// if 0 blocks are specified, will just wait until ctx is cancelled.
-func generateBlocks(
-	ctx context.Context,
-	cumulativeTxs int,
-	blocksToGenerate uint64,
-	instances []instance,
-	failOnError bool,
-) int {
-	require := require.New(ginkgo.GinkgoT())
-
-	_, lastHeight, _, err := instances[0].cli.Accepted(context.Background())
-	require.NoError(err)
-	parser, err := instances[0].lcli.Parser(context.Background())
-	require.NoError(err)
-	var targetHeight uint64
-	if blocksToGenerate != 0 {
-		targetHeight = lastHeight + blocksToGenerate
-	}
-	for ctx.Err() == nil {
-		// Generate transaction
-		other, err := ed25519.GeneratePrivateKey()
-		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
-		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			[]chain.Action{&actions.Transfer{
-				To:    aother,
-				Value: 1,
-			}},
-			factory,
-		)
-		if failOnError {
-			require.NoError(err)
-		} else if err != nil {
-			utils.Outf(
-				"{{yellow}}unable to generate transaction:{{/}} %v\n",
-				err,
-			)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		// Broadcast transactions
-		err = submit(context.Background())
-		if failOnError {
-			require.NoError(err)
-		} else if err != nil {
-			utils.Outf(
-				"{{yellow}}tx broadcast failed:{{/}} %v\n",
-				err,
-			)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		cumulativeTxs++
-		_, height, _, err := instances[0].cli.Accepted(context.Background())
-		if failOnError {
-			require.NoError(err)
-		} else if err != nil {
-			utils.Outf(
-				"{{yellow}}height lookup failed:{{/}} %v\n",
-				err,
-			)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		if targetHeight != 0 && height > targetHeight {
-			break
-		} else if height > lastHeight {
-			lastHeight = height
-			utils.Outf("{{yellow}}height=%d count=%d{{/}}\n", height, cumulativeTxs)
-		}
-
-		// Sleep for a very small amount of time to avoid overloading the
-		// network with transactions (can generate very fast)
-		time.Sleep(10 * time.Millisecond)
-	}
-	return cumulativeTxs
-}
-
-func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
-	require := require.New(ginkgo.GinkgoT())
-
-	parser, err := lcli.Parser(context.Background())
-	require.NoError(err)
-	for {
-		// Generate transaction
-		other, err := ed25519.GeneratePrivateKey()
-		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
-		unitPrices, err := cli.UnitPrices(context.Background(), false)
-		require.NoError(err)
-		submit, tx, maxFee, err := cli.GenerateTransaction(
-			context.Background(),
-			parser,
-			[]chain.Action{&actions.Transfer{
-				To:    aother,
-				Value: 1,
-			}},
-			factory,
-		)
-		require.NoError(err)
-		utils.Outf("{{yellow}}generated transaction{{/}} prices: %+v maxFee: %d\n", unitPrices, maxFee)
-
-		// Broadcast and wait for transaction
-		require.NoError(submit(context.Background()))
-		utils.Outf("{{yellow}}submitted transaction{{/}}\n")
-		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
-		cancel()
-		if err != nil {
-			utils.Outf("{{red}}cannot find transaction: %v{{/}}\n", err)
-			continue
-		}
-		require.True(success)
-		utils.Outf("{{yellow}}found transaction{{/}}\n")
-		break
-	}
-}
