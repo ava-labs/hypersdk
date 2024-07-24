@@ -1,7 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use proc_macro2::Span;
+use quote::{quote, ToTokens};
 use syn::{
     parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
     Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, ReturnType, Signature, Token, Type,
@@ -30,11 +31,19 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let (input, user_specified_context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
+        let mut context_pat = PatType {
+            attrs: vec![],
+            pat: Box::new(Pat::Verbatim(
+                Ident::new("ctx", Span::call_site()).into_token_stream(),
+            )),
+            colon_token: Default::default(),
+            ty: context_type.clone(),
+        };
         let mut input = input;
 
         let first_arg_err = match input.sig.inputs.first_mut() {
-            Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
-                let types = (context_type.as_mut(), ty.as_mut());
+            Some(FnArg::Typed(pat)) if is_context(&pat.ty) => {
+                let types = (context_type.as_mut(), pat.ty.as_mut());
 
                 if let (Type::Path(context_type), Type::Path(ty)) = types {
                     let args = [context_type, ty].map(|type_path| {
@@ -50,7 +59,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
 
-                std::mem::swap(&mut context_type, ty);
+                std::mem::swap(&mut context_pat, pat);
                 None
             }
 
@@ -80,7 +89,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             }
         };
 
-        (input, context_type, first_arg_err)
+        (input, context_pat, first_arg_err)
     };
 
     let input_types_iter = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
@@ -88,22 +97,11 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             fn_arg.span(),
             "Functions with the `#[public]` attribute cannot have a `self` parameter.",
         )),
-        FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
+        // FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
+        FnArg::Typed(pat) => Ok(pat.clone()),
     });
 
-    let arg_props = std::iter::once(Ok(user_specified_context_type))
-        .chain(input_types_iter)
-        .enumerate()
-        .map(|(i, ty)| {
-            ty.map(|ty| PatType {
-                attrs: vec![],
-                pat: Box::new(Pat::Verbatim(
-                    format_ident!("param_{}", i).into_token_stream(),
-                )),
-                colon_token: Default::default(),
-                ty,
-            })
-        });
+    let arg_props = std::iter::once(Ok(user_specified_context_type)).chain(input_types_iter);
 
     let result = match (vis_err, first_arg_err) {
         (None, None) => Ok(vec![]),
@@ -198,9 +196,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let block = Box::new(parse_quote! {{
         let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
-        param_0
+        ctx
             .program()
-            .call_function::<#return_type>(#name, &args, param_0.max_units(), param_0.value())
+            .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
             .expect("calling the external program failed")
     }});
 
