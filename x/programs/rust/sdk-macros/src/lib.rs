@@ -69,12 +69,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         FnArg::Typed(pat) => Ok(pat.clone()),
     });
 
-    // TODO borrow user_specified_context_type
-    let result = match (vis_err, user_specified_context_type.clone()) {
+    let result = match (&vis_err, &user_specified_context_type) {
         (Ok(_), Ok(_)) => Ok(vec![]),
-        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err),
-        (Err(mut vis_err), Err(first_arg_err)) => {
-            vis_err.combine(first_arg_err);
+        (Err(err), Ok(_)) | (Ok(_), Err(err)) => Err(err.clone()),
+        (Err(vis_err), Err(first_arg_err)) => {
+            let mut vis_err = vis_err.clone();
+            vis_err.combine(first_arg_err.clone());
             Err(vis_err)
         }
     };
@@ -83,7 +83,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let arg_props_or_err = arg_props.fold(result, |result, param| match (result, param) {
         // ignore Ok or first error encountered
-        (Err(errors), Ok(_)) | (Ok(_), Err(errors)) => Err(errors),
+        (Err(errors), Ok(_)) => Err(errors.clone()),
+        (Ok(_), Err(errors)) => Err(errors),
         // combine errors
         (Err(mut errors), Err(e)) => {
             errors.combine(e);
