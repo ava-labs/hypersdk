@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,6 +29,7 @@ func TestMarshalTransfer(t *testing.T) {
 	}
 
 	p := codec.NewWriter(1000, 1000)
+	//copy of actions.Transfer.Marshal() logic
 	p.PackAddress(transfer.To)
 	p.PackUint64(transfer.Value)
 	p.PackBytes(transfer.Memo)
@@ -144,95 +146,219 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 
 	require.Equal(t, test, restoredStruct)
 }
+func TestMarshalStructWithArrayOfStructs(t *testing.T) {
+	type SimpleStruct struct {
+		ID    int    `json:"id"`
+		Name  string `json:"name"`
+		Value uint64 `json:"value"`
+	}
+
+	type ComplexStruct struct {
+		Title            string                  `json:"title"`
+		Description      string                  `json:"description"`
+		Items            []SimpleStruct          `json:"items"`
+		MapField         map[string]SimpleStruct `json:"mapField"`
+		EmptyTitle       string                  `json:"emptyTitle"`
+		EmptyDescription string                  `json:"emptyDescription"`
+		EmptyItems       []SimpleStruct          `json:"emptyItems"`
+		EmptyMapField    map[string]SimpleStruct `json:"emptyMapField"`
+	}
+
+	test := ComplexStruct{
+		Title:       "Test Complex Struct",
+		Description: "This is a test of a struct containing an array of other structs",
+		Items: []SimpleStruct{
+			{ID: 1, Name: "Item 1", Value: 100},
+			{ID: 2, Name: "Item 2", Value: 200},
+			{ID: 3, Name: "Item 3", Value: 300},
+		},
+		MapField: map[string]SimpleStruct{
+			"key1": {ID: 4, Name: "Item 4", Value: 400},
+			"key2": {ID: 5, Name: "Item 5", Value: 500},
+		},
+		EmptyTitle:       "",
+		EmptyDescription: "",
+		EmptyItems:       []SimpleStruct{},
+		EmptyMapField:    map[string]SimpleStruct{},
+	}
+
+	bytes, err := MarshalAction(test)
+	require.NoError(t, err)
+
+	var restoredStruct ComplexStruct
+	err = UnmarshalAction(bytes, &restoredStruct)
+	require.NoError(t, err)
+
+	require.Equal(t, test, restoredStruct)
+
+	// Additional checks for nested structures
+	require.Equal(t, len(test.Items), len(restoredStruct.Items))
+	for i, item := range test.Items {
+		require.Equal(t, item, restoredStruct.Items[i])
+	}
+
+	require.Equal(t, len(test.MapField), len(restoredStruct.MapField))
+	for key, value := range test.MapField {
+		require.Equal(t, value, restoredStruct.MapField[key])
+	}
+
+	require.Empty(t, restoredStruct.EmptyTitle)
+	require.Empty(t, restoredStruct.EmptyDescription)
+	require.Empty(t, restoredStruct.EmptyItems)
+	require.Empty(t, restoredStruct.EmptyMapField)
+}
+
 func MarshalAction(item interface{}) ([]byte, error) {
-	p := codec.NewWriter(1000, 1000) // FIXME: size
+	p := codec.NewWriter(0, consts.NetworkSizeLimit) // FIXME: size
 	v := reflect.ValueOf(item)
 
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		switch field.Kind() {
-		case reflect.Int:
-			p.PackInt64(int64(field.Int()))
-		case reflect.Int8:
-			p.PackByte(byte(field.Int()))
-		case reflect.Int16, reflect.Int32:
-			p.PackInt(int(field.Int()))
-		case reflect.Int64:
-			p.PackInt64(field.Int())
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-			p.PackInt(int(field.Uint()))
-		case reflect.Uint64:
-			p.PackUint64(field.Uint())
-		case reflect.String:
-			p.PackBytes([]byte(field.String()))
-		case reflect.Slice:
-			if field.Type().Elem().Kind() == reflect.Uint8 {
-				if field.IsNil() || field.Len() == 0 {
-					p.PackBytes(nil)
-				} else {
-					p.PackBytes(field.Bytes())
-				}
-			} else {
-				return nil, fmt.Errorf("unsupported slice element type: %v", field.Kind())
-			}
-		default:
-			if field.Type() == reflect.TypeOf(codec.Address{}) {
-				if field.Interface().(codec.Address) == codec.EmptyAddress {
-					return nil, fmt.Errorf("packer does not support empty addresses")
-				}
-				p.PackAddress(field.Interface().(codec.Address))
+	return marshalValue(p, v)
+}
 
-			} else {
-				return nil, fmt.Errorf("unsupported field type: %v", field.Kind())
+func marshalValue(p *codec.Packer, v reflect.Value) ([]byte, error) {
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Field(i)
+			_, err := marshalValue(p, field)
+			if err != nil {
+				return nil, err
 			}
+		}
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			if v.IsNil() || v.Len() == 0 {
+				p.PackBytes(nil)
+			} else {
+				p.PackBytes(v.Bytes())
+			}
+		} else {
+			p.PackInt(v.Len())
+			for i := 0; i < v.Len(); i++ {
+				_, err := marshalValue(p, v.Index(i))
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	case reflect.Map:
+		p.PackInt(v.Len())
+		for _, key := range v.MapKeys() {
+			_, err := marshalValue(p, key)
+			if err != nil {
+				return nil, err
+			}
+			_, err = marshalValue(p, v.MapIndex(key))
+			if err != nil {
+				return nil, err
+			}
+		}
+	case reflect.Int:
+		p.PackInt64(int64(v.Int()))
+	case reflect.Int8:
+		p.PackByte(byte(v.Int()))
+	case reflect.Int16, reflect.Int32:
+		p.PackInt(int(v.Int()))
+	case reflect.Int64:
+		p.PackInt64(v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		p.PackInt(int(v.Uint()))
+	case reflect.Uint64:
+		p.PackUint64(v.Uint())
+	case reflect.String:
+		p.PackBytes([]byte(v.String()))
+	default:
+		if v.Type() == reflect.TypeOf(codec.Address{}) {
+			if v.Interface().(codec.Address) == codec.EmptyAddress {
+				return nil, fmt.Errorf("packer does not support empty addresses")
+			}
+			p.PackAddress(v.Interface().(codec.Address))
+		} else {
+			return nil, fmt.Errorf("unsupported field type: %v", v.Kind())
 		}
 	}
 
 	return p.Bytes(), nil
 }
+
 func UnmarshalAction(data []byte, item interface{}) error {
 	r := codec.NewReader(data, len(data))
 	v := reflect.ValueOf(item).Elem()
 
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		switch field.Kind() {
-		case reflect.Int:
-			field.SetInt(r.UnpackInt64(false))
-		case reflect.Int8:
-			field.SetInt(int64(r.UnpackByte()))
-		case reflect.Int16, reflect.Int32:
-			field.SetInt(int64(r.UnpackInt(false)))
-		case reflect.Int64:
-			field.SetInt(r.UnpackInt64(false))
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-			field.SetUint(uint64(r.UnpackInt(false)))
-		case reflect.Uint64:
-			field.SetUint(r.UnpackUint64(false))
-		case reflect.String:
+	return unmarshalValue(r, v)
+}
+
+func unmarshalValue(r *codec.Packer, v reflect.Value) error {
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			field := v.Field(i)
+			err := unmarshalValue(r, field)
+			if err != nil {
+				return err
+			}
+		}
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
 			var bytes []byte
-			r.UnpackBytes(-1, false, &bytes) // Added support for string
-			field.SetString(string(bytes))
-		case reflect.Slice:
-			if field.Type().Elem().Kind() == reflect.Uint8 {
-				var bytes []byte
-				r.UnpackBytes(-1, false, &bytes)
-				field.SetBytes(bytes)
-			} else {
-				return fmt.Errorf("unsupported slice element type: %v", field.Kind())
+			r.UnpackBytes(-1, false, &bytes)
+			v.SetBytes(bytes)
+		} else {
+			length := r.UnpackInt(false)
+			slice := reflect.MakeSlice(v.Type(), length, length)
+			for i := 0; i < length; i++ {
+				err := unmarshalValue(r, slice.Index(i))
+				if err != nil {
+					return err
+				}
 			}
-		default:
-			if field.Type() == reflect.TypeOf(codec.Address{}) {
-				var addr codec.Address
-				r.UnpackAddress(&addr)
-				field.Set(reflect.ValueOf(addr))
-			} else {
-				return fmt.Errorf("unsupported field type: %v", field.Kind())
+			v.Set(slice)
+		}
+	case reflect.Map:
+		length := r.UnpackInt(false)
+		m := reflect.MakeMap(v.Type())
+		for i := 0; i < length; i++ {
+			key := reflect.New(v.Type().Key()).Elem()
+			err := unmarshalValue(r, key)
+			if err != nil {
+				return err
 			}
+			value := reflect.New(v.Type().Elem()).Elem()
+			err = unmarshalValue(r, value)
+			if err != nil {
+				return err
+			}
+			m.SetMapIndex(key, value)
 		}
-		if r.Err() != nil {
-			return r.Err()
+		v.Set(m)
+	case reflect.Int:
+		v.SetInt(r.UnpackInt64(false))
+	case reflect.Int8:
+		v.SetInt(int64(r.UnpackByte()))
+	case reflect.Int16, reflect.Int32:
+		v.SetInt(int64(r.UnpackInt(false)))
+	case reflect.Int64:
+		v.SetInt(r.UnpackInt64(false))
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		v.SetUint(uint64(r.UnpackInt(false)))
+	case reflect.Uint64:
+		v.SetUint(r.UnpackUint64(false))
+	case reflect.String:
+		var bytes []byte
+		r.UnpackBytes(-1, false, &bytes)
+		v.SetString(string(bytes))
+	default:
+		if v.Type() == reflect.TypeOf(codec.Address{}) {
+			var addr codec.Address
+			r.UnpackAddress(&addr)
+			v.Set(reflect.ValueOf(addr))
+		} else {
+			return fmt.Errorf("unsupported field type: %v", v.Kind())
 		}
+	}
+
+	if r.Err() != nil {
+		return r.Err()
 	}
 
 	return nil
