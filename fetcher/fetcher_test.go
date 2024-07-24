@@ -20,7 +20,7 @@ import (
 const keyBase = "blah" // key must be long enough to be valid
 
 // Setup parent immutable state
-var _ state.Immutable = &testDB{}
+var _ state.Immutable = (*testDB)(nil)
 
 type testDB struct {
 	storage map[string][]byte

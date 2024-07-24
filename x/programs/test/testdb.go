@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	_ state.Mutable   = &DB{}
-	_ state.Immutable = &DB{}
+	_ state.Mutable   = (*DB)(nil)
+	_ state.Immutable = (*DB)(nil)
 )
 
 func NewTestDB() *DB {
