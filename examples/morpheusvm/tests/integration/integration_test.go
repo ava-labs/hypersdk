@@ -935,7 +935,7 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	}
 }
 
-var _ common.AppSender = &appSender{}
+var _ common.AppSender = (*appSender)(nil)
 
 type appSender struct {
 	next      int
