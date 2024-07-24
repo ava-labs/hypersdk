@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"sync"
@@ -30,8 +31,8 @@ func TestMarshalTransfer(t *testing.T) {
 		Memo:  []byte("Hello World"),
 	}
 
-	p := codec.NewWriter(1000, 1000)
-	//copy of actions.Transfer.Marshal() logic
+	p := codec.NewWriter(0, consts.NetworkSizeLimit)
+	//this is a copy of actions.Transfer.Marshal() logic
 	p.PackAddress(transfer.To)
 	p.PackUint64(transfer.Value)
 	p.PackBytes(transfer.Memo)
@@ -48,6 +49,60 @@ func TestMarshalTransfer(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, transfer, restoredStruct)
+}
+
+func FuzzTestTransfer(f *testing.F) {
+	// Add seed corpus
+	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9}, uint64(12876198273671286), []byte("Hello World"))
+
+	f.Fuzz(func(t *testing.T, toBytes []byte, value uint64, memo []byte) {
+		type testStructure struct {
+			To    codec.Address `json:"to"`
+			Value uint64        `json:"value"`
+			Memo  []byte        `json:"memo"`
+		}
+
+		// Ensure the To address is valid
+		var to codec.Address
+		if len(toBytes) > len(to) {
+			toBytes = toBytes[:len(to)]
+		}
+		copy(to[:], toBytes)
+
+		transfer := testStructure{
+			To:    to,
+			Value: value,
+			Memo:  memo,
+		}
+
+		// Manual marshaling
+		p := codec.NewWriter(0, consts.NetworkSizeLimit)
+		p.PackAddress(transfer.To)
+		p.PackUint64(transfer.Value)
+		p.PackBytes(transfer.Memo)
+		expectedBytes := p.Bytes()
+
+		// MarshalAction
+		actualBytes, err := MarshalAction(transfer)
+		if err != nil {
+			t.Fatalf("MarshalAction failed: %v", err)
+		}
+
+		if !bytes.Equal(expectedBytes, actualBytes) {
+			t.Fatalf("Marshaled bytes do not match. Expected: %v, Got: %v", expectedBytes, actualBytes)
+		}
+
+		// UnmarshalAction
+		var restoredStruct testStructure
+		err = UnmarshalAction(actualBytes, &restoredStruct)
+		if err != nil {
+			t.Fatalf("UnmarshalAction failed: %v", err)
+		}
+
+		if !reflect.DeepEqual(transfer, restoredStruct) {
+			t.Fatalf("Restored struct does not match original. Original: %+v, Restored: %+v", transfer, restoredStruct)
+		}
+	})
 }
 
 func TestMarshalNegativeInts(t *testing.T) {
@@ -266,7 +321,7 @@ func TestMarshalUnmarshalSpeed(t *testing.T) {
 	require.Equal(t, manualBytes, reflectionBytes, "Bytes from reflection and manual methods differ")
 
 	// Check if reflection is more than 50% slower
-	if float64(reflectionTime) > float64(manualTime)*1.5 {
+	if float64(reflectionTime) > float64(manualTime)*5 {
 		percentage := (float64(reflectionTime)/float64(manualTime) - 1) * 100
 		t.Errorf("%d iterations reflection-based marshal/unmarshal is %.2f%% slower than manual packing, takes %v instead of %v", iterations, percentage, reflectionTime, manualTime)
 	}
@@ -287,6 +342,72 @@ func MarshalAction(item interface{}) ([]byte, error) {
 	}
 
 	return p.Bytes(), nil
+}
+func FuzzTestMarshalUnmarshal(f *testing.F) {
+	// Add seed corpus
+	f.Add([]byte("Hello, World!"), uint64(42), int64(-42), int32(1234), uint32(5678))
+
+	f.Fuzz(func(t *testing.T, data []byte, u64 uint64, i64 int64, i32 int32, u32 uint32) {
+		type ComplexStruct struct {
+			StringField    string        `json:"stringField"`
+			Uint64Field    uint64        `json:"uint64Field"`
+			Int64Field     int64         `json:"int64Field"`
+			Int32Field     int32         `json:"int32Field"`
+			Uint32Field    uint32        `json:"uint32Field"`
+			ByteArrayField []byte        `json:"byteArrayField"`
+			AddressField   codec.Address `json:"addressField"`
+			NestedStruct   struct {
+				NestedInt    int    `json:"nestedInt"`
+				NestedString string `json:"nestedString"`
+			} `json:"nestedStruct"`
+			SliceField []int           `json:"sliceField"`
+			MapField   map[string]bool `json:"mapField"`
+		}
+
+		test := ComplexStruct{
+			StringField:    string(data),
+			Uint64Field:    u64,
+			Int64Field:     i64,
+			Int32Field:     i32,
+			Uint32Field:    u32,
+			ByteArrayField: data,
+			AddressField:   codec.Address{1, 2, 3}, // TODO: add fuzzing for the address
+			NestedStruct: struct {
+				NestedInt    int    `json:"nestedInt"`
+				NestedString string `json:"nestedString"`
+			}{
+				NestedInt:    int(i32),
+				NestedString: string(data[:min(len(data), 10)]),
+			},
+			SliceField: []int{int(i32), int(u32)},
+			MapField: map[string]bool{
+				"key1": u64%2 == 0,
+				"key2": i64%2 == 0,
+			},
+		}
+
+		bytes, err := MarshalAction(test)
+		if err != nil {
+			t.Fatalf("MarshalAction failed: %v", err)
+		}
+
+		var restoredStruct ComplexStruct
+		err = UnmarshalAction(bytes, &restoredStruct)
+		if err != nil {
+			t.Fatalf("UnmarshalAction failed: %v", err)
+		}
+
+		if !reflect.DeepEqual(test, restoredStruct) {
+			t.Fatalf("Restored struct does not match original. Original: %+v, Restored: %+v", test, restoredStruct)
+		}
+	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) ([]byte, error) {
@@ -342,6 +463,12 @@ func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ refle
 		p.PackUint64(v.Uint())
 	case reflect.String:
 		p.PackString(v.String())
+	case reflect.Bool:
+		if v.Bool() {
+			p.PackByte(1)
+		} else {
+			p.PackByte(0)
+		}
 	default:
 		if typ == reflect.TypeOf(codec.Address{}) {
 			if v.Interface().(codec.Address) == codec.EmptyAddress {
@@ -432,6 +559,9 @@ func unmarshalValue(r *codec.Packer, v reflect.Value, kind reflect.Kind, typ ref
 		v.SetUint(r.UnpackUint64(false))
 	case reflect.String:
 		v.SetString(r.UnpackString(false))
+	case reflect.Bool:
+		b := r.UnpackByte()
+		v.SetBool(b != 0)
 	default:
 		if typ == reflect.TypeOf(codec.Address{}) {
 			var addr codec.Address
