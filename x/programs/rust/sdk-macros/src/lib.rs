@@ -1,13 +1,13 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input, parse_quote, parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, ReturnType,
+    token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, PatType, ReturnType,
     Signature, Token, Type, TypeReference, Visibility,
 };
 
@@ -91,24 +91,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let input_types_iter = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
+    let arg_props = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
         FnArg::Receiver(_) => Err(Error::new(
             fn_arg.span(),
             "Functions with the `#[public]` attribute cannot have a `self` parameter.",
         )),
-        FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
-    });
-
-    // don't use the context type here, treat the special case direclty in the `quote!`s below
-    let arg_props = input_types_iter.enumerate().map(|(i, ty)| {
-        ty.map(|ty| PatType {
-            attrs: vec![],
-            pat: Box::new(Pat::Verbatim(
-                format_ident!("param_{}", i).into_token_stream(),
-            )),
-            colon_token: Default::default(),
-            ty,
-        })
+        FnArg::Typed(pat_type) => Ok(pat_type),
     });
 
     let result = match (vis_err, first_arg_err) {
@@ -140,7 +128,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let binding_args_props = args_props.iter().cloned().map(|arg| FnArg::Typed(arg));
+    let binding_args_props = args_props.iter().map(|&arg| FnArg::Typed(arg.clone()));
 
     let args_names = args_props
         .iter()
