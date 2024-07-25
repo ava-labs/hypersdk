@@ -61,9 +61,9 @@ export class MetamaskSnapSigner implements SignerIface {
             method: 'wallet_getSnaps',
         })) as Record<string, unknown>;
 
-        if (!Object.keys(snaps).includes(SNAP_ID)) {
-            await this.reinstallSnap();
-        }
+        // if (!Object.keys(snaps).includes(SNAP_ID)) {
+        await this.reinstallSnap();
+        // }
 
         // Cache the public key during connection
         const pubKey = await this.invokeSnap({ method: 'getPublicKey', params: { derivationPath: ["0'"], confirm: false } }) as string | undefined;

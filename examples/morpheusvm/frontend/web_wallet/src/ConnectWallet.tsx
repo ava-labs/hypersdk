@@ -1,14 +1,20 @@
 import { KeyIcon, BackspaceIcon } from '@heroicons/react/20/solid'
-import { EphemeralSigner, MetamaskSnapSigner, SignerIface } from './Signer'
+import { EphemeralSigner, SignerIface } from './Signer'
 import { SNAP_ID } from './const'
 import { metamaskLib } from './metamaskLib'
+import { MetamaskSnapSigner } from './MetamaskSnapSigner'
 
 
 export default function ConnectWalletWindow({ onWalletInitComplete }: { onWalletInitComplete: (wallet: SignerIface) => void }) {
 
     async function selectMetamaskSnap() {
-        const provider = await metamaskLib.getProvider()
-
+        try {
+            const signer = new MetamaskSnapSigner(SNAP_ID)
+            await signer.connect()
+            onWalletInitComplete(signer)
+        } catch (e) {
+            console.error(e)
+        }
     }
 
     return (
@@ -21,7 +27,7 @@ export default function ConnectWalletWindow({ onWalletInitComplete }: { onWallet
                     <button
                         type="button"
                         className="w-full sm:w-1/2 inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                        onClick={() => onWalletInitComplete(new MetamaskSnapSigner(SNAP_ID))}
+                        onClick={() => selectMetamaskSnap()}
                     >
                         <KeyIcon aria-hidden="true" className="-ml-0.5 mr-1.5 h-5 w-5" />
                         Metamask Snap

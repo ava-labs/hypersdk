@@ -1,6 +1,9 @@
 import type { OnRpcRequestHandler } from '@metamask/snaps-sdk';
 import { panel, text } from '@metamask/snaps-sdk';
 import { transferDigest } from "../../web_wallet/src/Transfer"
+import nacl from 'tweetnacl';
+import bs58 from 'bs58';
+
 /**
  * Handle incoming JSON-RPC requests, sent through `wallet_invokeSnap`.
  *
@@ -30,7 +33,78 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
           ]),
         },
       });
+    case 'getPublicKey':
+      const keyPair = await deriveKeyPair([]);
+
+      const pubkey = bs58.encode(keyPair.publicKey);
+
+      return pubkey;
     default:
       throw new Error('Method not found.');
   }
 };
+
+import { SLIP10Node } from '@metamask/key-tree';
+
+async function deriveKeyPair(path: string[]) {
+  assertIsArray(path);
+  assertInput(path.every((segment) => isValidSegment(segment)));
+
+  const rootNode = await snap.request({
+    method: 'snap_getBip32Entropy',
+    params: {
+      path: [`m`, `44'`, `9000'`],
+      curve: 'ed25519'
+    }
+  });
+
+  const node = await SLIP10Node.fromJSON(rootNode);
+
+  const keypair = await node.derive(path.map((segment) => `slip10:${segment}`) as `slip10:${number}'`[]);
+  if (!keypair.privateKeyBytes) {
+    throw {
+      code: -32000,
+      message: 'error deriving key pair'
+    };
+  }
+
+  return nacl.sign.keyPair.fromSeed(Uint8Array.from(keypair.privateKeyBytes));
+}
+
+
+export function assertIsArray(input: any[]) {
+  if (!Array.isArray(input)) {
+    throw {
+      code: -32000,
+      message: 'assertIsArray: Invalid input.'
+    };
+  }
+}
+
+function assertInput(path: any) {
+  if (!path) {
+    throw {
+      code: -32000,
+      message: 'assertInput: Invalid input.'
+    };
+  }
+}
+
+
+function isValidSegment(segment: string) {
+  if (typeof segment !== 'string') {
+    return false;
+  }
+
+  if (!segment.match(/^[0-9]+'$/)) {
+    return false;
+  }
+
+  const index = segment.slice(0, -1);
+
+  if (parseInt(index).toString() !== index) {
+    return false;
+  }
+
+  return true;
+}
