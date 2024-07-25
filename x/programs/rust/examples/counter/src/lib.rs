@@ -4,6 +4,13 @@ use wasmlanche_sdk::{public, state_schema, Address};
 
 type Count = u64;
 
+// TODO:
+// make sure that you can return a tuple (as the value)
+// parsing might be weird with the comma
+// also make sure that you can have multiple keys
+//
+// Maybe it's not clear that you effectively have to name the keys
+// Aaron asked, why can't you just do `Address => Count`
 state_schema! {
     Counter(Address) => Count,
 }
