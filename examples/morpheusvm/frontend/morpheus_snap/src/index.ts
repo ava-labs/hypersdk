@@ -1,6 +1,6 @@
 import type { OnRpcRequestHandler } from '@metamask/snaps-sdk';
 import { panel, text } from '@metamask/snaps-sdk';
-
+import { transferDigest } from "../../web_wallet/src/Transfer"
 /**
  * Handle incoming JSON-RPC requests, sent through `wallet_invokeSnap`.
  *

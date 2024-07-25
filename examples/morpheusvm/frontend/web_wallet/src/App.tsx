@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import ConnectWallet from './ConnectWallet'
-import { WalletIface } from './Wallet'
+import { SignerIface } from './Signer'
 
 function App() {
-  const [wallet, setWallet] = useState<WalletIface | null>(null)
+  const [wallet, setWallet] = useState<SignerIface | null>(null)
 
   return (
     <>
-      {wallet === null && <ConnectWallet onWalletSelected={setWallet} />}
+      {wallet === null && <ConnectWallet onWalletInitComplete={setWallet} />}
     </>
   )
 }

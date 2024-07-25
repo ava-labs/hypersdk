@@ -1,9 +1,16 @@
 import { KeyIcon, BackspaceIcon } from '@heroicons/react/20/solid'
-import { EphemeralWallet, MetamaskSnapWallet, WalletIface } from './Wallet'
+import { EphemeralSigner, MetamaskSnapSigner, SignerIface } from './Signer'
 import { SNAP_ID } from './const'
+import { metamaskLib } from './metamaskLib'
 
 
-export default function ConnectWalletWindow({ onWalletSelected }: { onWalletSelected: (wallet: WalletIface) => void }) {
+export default function ConnectWalletWindow({ onWalletInitComplete }: { onWalletInitComplete: (wallet: SignerIface) => void }) {
+
+    async function selectMetamaskSnap() {
+        const provider = await metamaskLib.getProvider()
+
+    }
+
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-200">
             {/* Really needs a Morpheus reference */}
@@ -14,7 +21,7 @@ export default function ConnectWalletWindow({ onWalletSelected }: { onWalletSele
                     <button
                         type="button"
                         className="w-full sm:w-1/2 inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                        onClick={() => onWalletSelected(new MetamaskSnapWallet(SNAP_ID))}
+                        onClick={() => onWalletInitComplete(new MetamaskSnapSigner(SNAP_ID))}
                     >
                         <KeyIcon aria-hidden="true" className="-ml-0.5 mr-1.5 h-5 w-5" />
                         Metamask Snap
@@ -22,7 +29,7 @@ export default function ConnectWalletWindow({ onWalletSelected }: { onWalletSele
                     <button
                         type="button"
                         className="w-full sm:w-1/2 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                        onClick={() => onWalletSelected(new EphemeralWallet())}
+                        onClick={() => onWalletInitComplete(new EphemeralSigner())}
                     >
                         <BackspaceIcon aria-hidden="true" className="-ml-0.5 mr-1.5 h-5 w-5" />
                         Ephemeral wallet
