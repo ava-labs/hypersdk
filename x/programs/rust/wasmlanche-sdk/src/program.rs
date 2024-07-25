@@ -1,44 +1,6 @@
 use crate::{memory::HostPtr, types::Address, types::Id, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::io::Read;
 use thiserror::Error;
-
-/// Defer deserialization from bytes
-/// <div class="warning">It is possible that this type performs multiple allocations during deserialization. It should be used sparingly.</div>
-#[cfg_attr(feature = "debug", derive(Debug))]
-pub struct DeferDeserialize(Vec<u8>);
-
-impl BorshSerialize for DeferDeserialize {
-    /// # Errors
-    /// Returns a [`std::io::Error`] if there was an issue writing
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        writer.write_all(&self.0)
-    }
-}
-
-impl DeferDeserialize {
-    /// # Errors
-    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
-    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
-        let Self(bytes) = self;
-        borsh::from_slice(&bytes)
-    }
-}
-
-impl BorshDeserialize for DeferDeserialize {
-    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
-        let mut inner = Vec::new();
-        reader.read_to_end(&mut inner)?;
-        Ok(Self(inner))
-    }
-}
-
-#[allow(clippy::from_over_into)]
-impl Into<Vec<u8>> for DeferDeserialize {
-    fn into(self) -> Vec<u8> {
-        self.0
-    }
-}
 
 /// An error that is returned from call to public functions.
 #[derive(Error, Debug, BorshSerialize, BorshDeserialize)]
@@ -180,21 +142,4 @@ struct CallProgramArgs<'a> {
     args: &'a [u8],
     max_units: Gas,
     max_value: u64,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::DeferDeserialize;
-
-    #[test]
-    fn defer_bytes() {
-        type ExpectedType = u64;
-
-        let expected: ExpectedType = 42;
-        let serialized = borsh::to_vec(&expected).unwrap();
-        let deferred: DeferDeserialize = borsh::from_slice(&serialized).unwrap();
-        assert_eq!(deferred.0, serialized);
-        let actual = deferred.deserialize::<ExpectedType>().unwrap();
-        assert_eq!(actual, expected);
-    }
 }

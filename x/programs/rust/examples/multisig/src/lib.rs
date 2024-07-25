@@ -1,5 +1,39 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use wasmlanche_sdk::{public, state_keys, Address, Context, DeferDeserialize, Program};
+use std::io::Read;
+use wasmlanche_sdk::{public, state_keys, Address, Context, Program};
+
+/// Defer deserialization from bytes
+/// <div class="warning">This type is highly unsafe to use in the storage because it reads all bytes it's handed out.
+/// For instance, it should not be placed inside the fields of a struct in any position other than the last one,
+/// because there won't be enough bytes for the last element and will create a DOS on deserializaton.
+/// For this reason, we will not use it in the storage but instead serialize the data again as a good practice.</div>
+#[cfg_attr(feature = "debug", derive(Debug))]
+pub struct DeferDeserialize(Vec<u8>);
+
+impl BorshSerialize for DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue writing
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.0)
+    }
+}
+
+impl DeferDeserialize {
+    /// # Errors
+    /// Returns a [`std::io::Error`] if there was an issue deserializing the value
+    pub fn deserialize<T: BorshDeserialize>(self) -> Result<T, std::io::Error> {
+        let Self(bytes) = self;
+        borsh::from_slice(&bytes)
+    }
+}
+
+impl BorshDeserialize for DeferDeserialize {
+    fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut inner = Vec::new();
+        reader.read_to_end(&mut inner)?;
+        Ok(Self(inner))
+    }
+}
 
 pub const MIN_VOTES: u64 = 2;
 
@@ -199,7 +233,8 @@ pub fn execute(
         )
         .expect("the external execution failed");
 
-    proposal.executed_result = Some(result.into());
+    let executed_result = borsh::to_vec(&result).expect("serialization failed");
+    proposal.executed_result = Some(executed_result);
 
     context
         .store_by_key(StateKeys::Proposals(proposal_id), &proposal)
