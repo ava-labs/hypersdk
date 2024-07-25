@@ -43,7 +43,9 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/vm"
 
-	auth "github.com/ava-labs/hypersdk/auth"
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
@@ -60,19 +62,19 @@ var (
 
 	priv    ed25519.PrivateKey
 	pk      ed25519.PublicKey
-	factory *auth.ED25519Factory
+	factory *authed25519.ED25519Factory
 	addr    codec.Address
 	addrStr string
 
 	priv2    ed25519.PrivateKey
 	pk2      ed25519.PublicKey
-	factory2 *auth.ED25519Factory
+	factory2 *authed25519.ED25519Factory
 	addr2    codec.Address
 	addrStr2 string
 
 	priv3    ed25519.PrivateKey
 	pk3      ed25519.PublicKey
-	factory3 *auth.ED25519Factory
+	factory3 *authed25519.ED25519Factory
 	addr3    codec.Address
 	addrStr3 string
 
@@ -137,8 +139,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv, err = ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	pk = priv.PublicKey()
-	factory = auth.NewED25519Factory(priv)
-	addr = auth.NewED25519Address(pk)
+	factory = authed25519.NewED25519Factory(priv)
+	addr = authed25519.NewED25519Address(pk)
 	addrStr = codec.MustAddressBech32(lconsts.HRP, addr)
 	log.Debug(
 		"generated key",
@@ -149,8 +151,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv2, err = ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	pk2 = priv2.PublicKey()
-	factory2 = auth.NewED25519Factory(priv2)
-	addr2 = auth.NewED25519Address(pk2)
+	factory2 = authed25519.NewED25519Factory(priv2)
+	addr2 = authed25519.NewED25519Address(pk2)
 	addrStr2 = codec.MustAddressBech32(lconsts.HRP, addr2)
 	log.Debug(
 		"generated key",
@@ -161,8 +163,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv3, err = ed25519.GeneratePrivateKey()
 	require.NoError(err)
 	pk3 = priv3.PublicKey()
-	factory3 = auth.NewED25519Factory(priv3)
-	addr3 = auth.NewED25519Address(pk3)
+	factory3 = authed25519.NewED25519Factory(priv3)
+	addr3 = authed25519.NewED25519Address(pk3)
 	addrStr3 = codec.MustAddressBech32(lconsts.HRP, addr3)
 	log.Debug(
 		"generated key",
@@ -678,7 +680,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
 		transfer := []chain.Action{&actions.Transfer{
-			To:    auth.NewED25519Address(other.PublicKey()),
+			To:    authed25519.NewED25519Address(other.PublicKey()),
 			Value: 1,
 		}}
 
@@ -725,7 +727,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
 		transfer := []chain.Action{&actions.Transfer{
-			To:    auth.NewED25519Address(other.PublicKey()),
+			To:    authed25519.NewED25519Address(other.PublicKey()),
 			Value: 1,
 		}}
 		parser, err := instances[0].lcli.Parser(context.Background())
@@ -771,8 +773,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		r1priv, err := secp256r1.GeneratePrivateKey()
 		require.NoError(err)
 		r1pk := r1priv.PublicKey()
-		r1factory := auth.NewSECP256R1Factory(r1priv)
-		r1addr := auth.NewSECP256R1Address(r1pk)
+		r1factory := authsecp256r1.NewSECP256R1Factory(r1priv)
+		r1addr := authsecp256r1.NewSECP256R1Address(r1pk)
 
 		ginkgo.By("send to secp256r1", func() {
 			parser, err := instances[0].lcli.Parser(context.Background())
@@ -823,8 +825,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		r1priv, err := hbls.GeneratePrivateKey()
 		require.NoError(err)
 		r1pk := hbls.PublicFromPrivateKey(r1priv)
-		r1factory := auth.NewBLSFactory(r1priv)
-		r1addr := auth.NewBLSAddress(r1pk)
+		r1factory := authbls.NewBLSFactory(r1priv)
+		r1addr := authbls.NewBLSAddress(r1pk)
 
 		ginkgo.By("send to bls", func() {
 			parser, err := instances[0].lcli.Parser(context.Background())

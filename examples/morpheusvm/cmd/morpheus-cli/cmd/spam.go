@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/auth"
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -38,15 +41,15 @@ func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
 func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	switch pk.Address[0] {
 	case auth.ED25519ID:
-		return auth.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
+		return authed25519.NewED25519Factory(ed25519.PrivateKey(pk.Bytes)), nil
 	case auth.SECP256R1ID:
-		return auth.NewSECP256R1Factory(secp256r1.PrivateKey(pk.Bytes)), nil
+		return authsecp256r1.NewSECP256R1Factory(secp256r1.PrivateKey(pk.Bytes)), nil
 	case auth.BLSID:
 		p, err := bls.PrivateKeyFromBytes(pk.Bytes)
 		if err != nil {
 			return nil, err
 		}
-		return auth.NewBLSFactory(p), nil
+		return authbls.NewBLSFactory(p), nil
 	default:
 		return nil, ErrInvalidKeyType
 	}

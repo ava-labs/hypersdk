@@ -18,7 +18,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/auth"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -206,8 +206,8 @@ var _ = ginkgo.BeforeSuite(func() {
 	)
 	require.NoError(err)
 	priv = ed25519.PrivateKey(privBytes)
-	factory = auth.NewED25519Factory(priv)
-	rsender = auth.NewED25519Address(priv.PublicKey())
+	factory = authed25519.NewED25519Factory(priv)
+	rsender = authed25519.NewED25519Address(priv.PublicKey())
 	sender = codec.MustAddressBech32(consts.HRP, rsender)
 	utils.Outf("\n{{yellow}}$ loaded address:{{/}} %s\n\n", sender)
 
@@ -353,7 +353,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 var (
 	priv    ed25519.PrivateKey
-	factory *auth.ED25519Factory
+	factory *authed25519.ED25519Factory
 	rsender codec.Address
 	sender  string
 
@@ -430,7 +430,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
+		aother := authed25519.NewED25519Address(other.PublicKey())
 		aotherStr := codec.MustAddressBech32(consts.HRP, aother)
 
 		ginkgo.By("issue Transfer to the first node", func() {
@@ -730,7 +730,7 @@ func generateBlocks(
 		// Generate transaction
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
+		aother := authed25519.NewED25519Address(other.PublicKey())
 		submit, _, _, err := instances[cumulativeTxs%len(instances)].cli.GenerateTransaction(
 			context.Background(),
 			parser,
@@ -798,7 +798,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 		// Generate transaction
 		other, err := ed25519.GeneratePrivateKey()
 		require.NoError(err)
-		aother := auth.NewED25519Address(other.PublicKey())
+		aother := authed25519.NewED25519Address(other.PublicKey())
 		unitPrices, err := cli.UnitPrices(context.Background(), false)
 		require.NoError(err)
 		submit, tx, maxFee, err := cli.GenerateTransaction(

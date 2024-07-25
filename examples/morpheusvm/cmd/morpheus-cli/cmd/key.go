@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/auth"
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/bls"
@@ -58,7 +61,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 			return nil, err
 		}
 		return &cli.PrivateKey{
-			Address: auth.NewED25519Address(p.PublicKey()),
+			Address: authed25519.NewED25519Address(p.PublicKey()),
 			Bytes:   p[:],
 		}, nil
 	case secp256r1Key:
@@ -67,7 +70,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 			return nil, err
 		}
 		return &cli.PrivateKey{
-			Address: auth.NewSECP256R1Address(p.PublicKey()),
+			Address: authsecp256r1.NewSECP256R1Address(p.PublicKey()),
 			Bytes:   p[:],
 		}, nil
 	case blsKey:
@@ -76,7 +79,7 @@ func generatePrivateKey(k string) (*cli.PrivateKey, error) {
 			return nil, err
 		}
 		return &cli.PrivateKey{
-			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(p)),
+			Address: authbls.NewBLSAddress(bls.PublicFromPrivateKey(p)),
 			Bytes:   bls.PrivateKeyToBytes(p),
 		}, nil
 	default:
@@ -93,7 +96,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		}
 		pk := ed25519.PrivateKey(p)
 		return &cli.PrivateKey{
-			Address: auth.NewED25519Address(pk.PublicKey()),
+			Address: authed25519.NewED25519Address(pk.PublicKey()),
 			Bytes:   p,
 		}, nil
 	case secp256r1Key:
@@ -103,7 +106,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 		}
 		pk := secp256r1.PrivateKey(p)
 		return &cli.PrivateKey{
-			Address: auth.NewSECP256R1Address(pk.PublicKey()),
+			Address: authsecp256r1.NewSECP256R1Address(pk.PublicKey()),
 			Bytes:   p,
 		}, nil
 	case blsKey:
@@ -117,7 +120,7 @@ func loadPrivateKey(k string, path string) (*cli.PrivateKey, error) {
 			return nil, err
 		}
 		return &cli.PrivateKey{
-			Address: auth.NewBLSAddress(bls.PublicFromPrivateKey(privKey)),
+			Address: authbls.NewBLSAddress(bls.PublicFromPrivateKey(privKey)),
 			Bytes:   p,
 		}, nil
 	default:

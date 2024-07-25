@@ -6,7 +6,9 @@ package registry
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	"github.com/ava-labs/hypersdk/auth"
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -24,9 +26,9 @@ func init() {
 		consts.ActionRegistry.Register((&actions.Transfer{}).GetTypeID(), actions.UnmarshalTransfer),
 
 		// When registering new auth, ALWAYS make sure to append at the end.
-		consts.AuthRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519),
-		consts.AuthRegistry.Register((&auth.SECP256R1{}).GetTypeID(), auth.UnmarshalSECP256R1),
-		consts.AuthRegistry.Register((&auth.BLS{}).GetTypeID(), auth.UnmarshalBLS),
+		consts.AuthRegistry.Register((&authed25519.ED25519{}).GetTypeID(), authed25519.UnmarshalED25519),
+		consts.AuthRegistry.Register((&authsecp256r1.SECP256R1{}).GetTypeID(), authsecp256r1.UnmarshalSECP256R1),
+		consts.AuthRegistry.Register((&authbls.BLS{}).GetTypeID(), authbls.UnmarshalBLS),
 	)
 	if errs.Errored() {
 		panic(errs.Err)

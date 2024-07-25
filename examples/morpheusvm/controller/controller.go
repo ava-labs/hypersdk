@@ -12,7 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/auth/common"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
@@ -136,7 +136,7 @@ func (*factory) New(
 			return nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	return c, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, common.Engines(), nil
 }
 
 type Controller struct {
