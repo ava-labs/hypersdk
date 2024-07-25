@@ -183,8 +183,11 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
-    let args = inputs.iter().map(|arg| match arg {
+    let inputs: Punctuated<FnArg, Token![,]> =
+        std::iter::once(parse_str("ctx: &wasmlanche_sdk::ExternalCallContext").unwrap())
+            .chain(binding_args_props)
+            .collect();
+    let args = inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),
     });
@@ -197,9 +200,9 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let block = Box::new(parse_quote! {{
         let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
-        param_0
+        ctx
             .program()
-            .call_function::<#return_type>(#name, &args, param_0.max_units(), param_0.value())
+            .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
             .expect("calling the external program failed")
     }});
 
