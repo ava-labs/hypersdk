@@ -1,11 +1,12 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package auth
+package bls
 
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -35,7 +36,7 @@ func (b *BLS) address() codec.Address {
 }
 
 func (*BLS) GetTypeID() uint8 {
-	return BLSID
+	return auth.BLSID
 }
 
 func (*BLS) ComputeUnits(chain.Rules) uint64 {
@@ -112,5 +113,5 @@ func (*BLSFactory) MaxUnits() (uint64, uint64) {
 }
 
 func NewBLSAddress(pk *bls.PublicKey) codec.Address {
-	return codec.CreateAddress(BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
+	return codec.CreateAddress(auth.BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
 }
