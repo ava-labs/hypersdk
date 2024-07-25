@@ -1,7 +1,6 @@
 import { KeyIcon, BackspaceIcon } from '@heroicons/react/20/solid'
 import { EphemeralSigner, SignerIface } from './Signer'
 import { SNAP_ID } from './const'
-import { metamaskLib } from './metamaskLib'
 import { MetamaskSnapSigner } from './MetamaskSnapSigner'
 
 
