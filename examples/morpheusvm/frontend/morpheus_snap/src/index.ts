@@ -34,7 +34,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
         },
       });
     case 'getPublicKey':
-      const keyPair = await deriveKeyPair([]);
+      const keyPair = await deriveKeyPairDefaultPath();
 
       const pubkey = bs58.encode(keyPair.publicKey);
 
@@ -46,8 +46,13 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
 
 import { SLIP10Node } from '@metamask/key-tree';
 
+async function deriveKeyPairDefaultPath() {
+  return deriveKeyPair(["0'"]);
+}
+
 async function deriveKeyPair(path: string[]) {
   assertIsArray(path);
+  assertInput(path.length);
   assertInput(path.every((segment) => isValidSegment(segment)));
 
   const rootNode = await snap.request({
