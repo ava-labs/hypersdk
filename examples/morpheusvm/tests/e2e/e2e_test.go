@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -172,6 +173,13 @@ var _ = ginkgo.BeforeSuite(func() {
 	priv := ed25519.PrivateKey(privBytes)
 	factory := auth.NewED25519Factory(priv)
 
+	// Read the VM config in, so it can be passed in as JSON.
+	// ANR sometimes takes the param as a file path or JSON string
+	// and other times only a JSON string.
+	vmConfigData, err := os.ReadFile(vmConfigPath)
+	require.NoError(err)
+	vmConfig := string(vmConfigData)
+
 	e2e.CreateE2ENetwork(
 		context.Background(),
 		e2e.Config{
@@ -184,7 +192,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			AvalanchegoLogLevel:        avalanchegoLogLevel,
 			AvalanchegoLogDisplayLevel: avalanchegoLogDisplayLevel,
 			VMGenesisPath:              vmGenesisPath,
-			VMConfigPath:               vmConfigPath,
+			VMConfig:                   vmConfig,
 			SubnetConfigPath:           subnetConfigPath,
 			PluginDir:                  pluginDir,
 		},

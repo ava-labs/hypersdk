@@ -72,7 +72,7 @@ type Config struct {
 	AvalanchegoLogLevel        string
 	AvalanchegoLogDisplayLevel string
 	VMGenesisPath              string
-	VMConfigPath               string
+	VMConfig                   string
 	SubnetConfigPath           string
 	PluginDir                  string
 }
@@ -155,7 +155,7 @@ func CreateE2ENetwork(
 		{
 			VmName:      networkConfig.Name,
 			Genesis:     networkConfig.VMGenesisPath,
-			ChainConfig: networkConfig.VMConfigPath,
+			ChainConfig: networkConfig.VMConfig,
 			SubnetSpec: &rpcpb.SubnetSpec{
 				SubnetConfig: networkConfig.SubnetConfigPath,
 				Participants: subnet,
@@ -253,7 +253,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 				networkConfig.ExecPath,
 				trackSubnetsOpt,
 				runner_sdk.WithChainConfigs(map[string]string{
-					blockchainID: networkConfig.VMConfigPath,
+					blockchainID: networkConfig.VMConfig,
 				}),
 			)
 			require.NoError(err)
@@ -304,7 +304,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 				networkConfig.ExecPath,
 				trackSubnetsOpt,
 				runner_sdk.WithChainConfigs(map[string]string{
-					blockchainID: networkConfig.VMConfigPath,
+					blockchainID: networkConfig.VMConfig,
 				}),
 			)
 			require.NoError(err)
@@ -387,7 +387,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 				networkConfig.ExecPath,
 				trackSubnetsOpt,
 				runner_sdk.WithChainConfigs(map[string]string{
-					blockchainID: networkConfig.VMConfigPath,
+					blockchainID: networkConfig.VMConfig,
 				}),
 			)
 			require.NoError(err)
