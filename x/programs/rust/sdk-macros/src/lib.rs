@@ -8,10 +8,10 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned,
     token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path,
-    ReturnType, Signature, Token, Type, Visibility,
+    ReturnType, Signature, Token, Type, TypePath, TypeReference, Visibility,
 };
 
-const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
+const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by creating an `extern "C" fn` that handles all pointer resolution and deserialization.
@@ -31,21 +31,27 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let (input, user_specified_context_type, first_arg_err) = {
+    let (input, _context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
         let first_arg_err = match input.sig.inputs.first_mut() {
-            Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
+            Some(FnArg::Typed(PatType { ty, .. })) if is_mutable_context_ref(ty) => {
                 let types = (context_type.as_mut(), ty.as_mut());
 
-                if let (Type::Path(context_type), Type::Path(ty)) = types {
+                if let (Type::Reference(context_type), Type::Reference(ty)) = types {
+                    context_type.lifetime = ty.lifetime.clone();
+
                     let args = [context_type, ty].map(|type_path| {
-                        type_path
-                            .path
-                            .segments
-                            .last_mut()
-                            .map(|segment| &mut segment.arguments)
+                        if let Type::Path(type_path) = type_path.elem.as_mut() {
+                            type_path
+                                .path
+                                .segments
+                                .last_mut()
+                                .map(|segment| &mut segment.arguments)
+                        } else {
+                            None
+                        }
                     });
 
                     if let [Some(context_type_args), Some(ty_args)] = args {
@@ -57,27 +63,26 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
                 None
             }
 
-            arg => {
-                let err = match arg {
-                Some(FnArg::Typed(PatType { ty, .. })) => {
-                    Error::new(
-                        ty.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                Some(_) => {
-                    Error::new(
-                        arg.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                None => {
-                    Error::new(
-                        input.sig.paren_token.span.join(),
-                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-            };
+            first_arg => {
+                let err = match first_arg {
+                    Some(fn_arg) => {
+                        let message = format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`");
+
+                        let span = match fn_arg {
+                            FnArg::Typed(PatType { ty, .. }) => ty.span(),
+                            _ => fn_arg.span(),
+                        };
+
+                        Error::new(span, message)
+                    }
+
+                    None => {
+                        Error::new(
+                            input.sig.paren_token.span.join(),
+                            format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                };
 
                 Some(err)
             }
@@ -94,19 +99,17 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
     });
 
-    let arg_props = std::iter::once(Ok(user_specified_context_type))
-        .chain(input_types_iter)
-        .enumerate()
-        .map(|(i, ty)| {
-            ty.map(|ty| PatType {
-                attrs: vec![],
-                pat: Box::new(Pat::Verbatim(
-                    format_ident!("param_{}", i).into_token_stream(),
-                )),
-                colon_token: Default::default(),
-                ty,
-            })
-        });
+    // don't use the context type here, treat the special case direclty in the `quote!`s below
+    let arg_props = input_types_iter.enumerate().map(|(i, ty)| {
+        ty.map(|ty| PatType {
+            attrs: vec![],
+            pat: Box::new(Pat::Verbatim(
+                format_ident!("param_{}", i).into_token_stream(),
+            )),
+            colon_token: Default::default(),
+            ty,
+        })
+    });
 
     let result = match (vis_err, first_arg_err) {
         (None, None) => Ok(vec![]),
@@ -137,24 +140,12 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let binding_args_props = args_props.iter().cloned().map({
-        let mut first = true;
+    let binding_args_props = args_props.iter().cloned().map(|arg| FnArg::Typed(arg));
 
-        move |mut arg| {
-            if first {
-                first = false;
-                arg.ty = Box::new(parse_quote!(&wasmlanche_sdk::ExternalCallContext));
-            }
-
-            FnArg::Typed(arg)
-        }
-    });
-
-    let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
-        quote! {
-           args.#name
-        }
-    });
+    let args_names = args_props
+        .iter()
+        .map(|PatType { pat: name, .. }| quote! {#name});
+    let args_names_2 = args_names.clone();
 
     let name = &input.sig.ident;
 
@@ -163,6 +154,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             use super::*;
             #[derive(borsh::BorshDeserialize)]
             struct Args {
+                ctx: wasmlanche_sdk::Context,
                 #(#args_props),*
             }
 
@@ -176,19 +168,22 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
                 wasmlanche_sdk::register_panic();
 
-                let args: Args = unsafe {
-                    borsh::from_slice(&args).expect("error fetching serialized args")
-                };
+                let args: Args = borsh::from_slice(&args).expect("error fetching serialized args");
 
-                let result = super::#name(#(#converted_params),*);
+                // using converted_params twice here (need to clone)
+                // would help to give a specific name to context
+                let Args { mut ctx, #(#args_names),* } = args;
+
+                let result = super::#name(&mut ctx, #(#args_names_2),*);
                 let result = borsh::to_vec(&result).expect("error serializing result");
+
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
         }
     };
 
     let inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
-    let args = inputs.iter().skip(1).map(|arg| match arg {
+    let args = inputs.iter().map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),
     });
@@ -427,12 +422,44 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
 }
 
 /// Returns whether the type_path represents a Program type.
-fn is_context(type_path: &Type) -> bool {
-    if let Type::Path(type_path) = type_path {
-        let context_path = parse_str::<Path>(CONTEXT_TYPE).unwrap();
-        let context_ident = context_path.segments.last().map(|segment| &segment.ident);
+fn is_mutable_context_ref(type_path: &Type) -> bool {
+    let Type::Reference(TypeReference {
+        mutability: Some(mutability),
+        elem,
+        ..
+    }) = type_path
+    else {
+        return false;
+    };
+
+    // span is ignored in the comparison
+    if mutability != &Token![mut](mutability.span()) {
+        return false;
+    }
+
+    if let Type::Path(type_path) = elem.as_ref() {
+        let context_path = parse_str::<TypeReference>(CONTEXT_TYPE).unwrap();
+        let Type::Path(context_path) = context_path.elem.as_ref() else {
+            return false;
+        };
+
+        let context_ident = context_path
+            .path
+            .segments
+            .last()
+            .map(|segment| &segment.ident);
         type_path.path.segments.last().map(|segment| &segment.ident) == context_ident
     } else {
         false
     }
+}
+
+fn path_reference(ty: &Type) -> Option<&Path> {
+    if let Type::Reference(TypeReference { elem, .. }) = ty {
+        if let Type::Path(TypePath { path, .. }) = elem.as_ref() {
+            return Some(path);
+        }
+    }
+
+    None
 }
