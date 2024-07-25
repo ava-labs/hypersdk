@@ -14,22 +14,35 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 )
 
+// TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
+// and a sized sequence of transactions to test on a given environment and reach a particular state
 type TxWorkloadFactory interface {
-	NewBasicTxWorkload() TxWorkloadIterator
-	NewSizedTxWorkload(size int) TxWorkloadIterator
-	Workloads() []TxWorkloadIterator
+	// Generate a new TxWorkloadIterator that generates a single sequence of transactions
+	// and corresponding assertions.
+	NewBasicTxWorkload(uri string) (TxWorkloadIterator, error)
+	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
+	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 }
 
+// TxWorkloadIterator provides an interface for generating a sequence of transactions and corresponding assertions.
+// The caller must proceed in the following sequence:
+// 1. Next
+// 2. GenerateTxWithAssertion
+// 3. (Optional) execute the returned assertion on an arbitrary number of URIs
 type TxWorkloadIterator interface {
+	// Next returns true iff there are more transactions to generate.
 	Next() bool
-	GenerateTxWithAssertion() (*chain.Transaction, func(ctx context.Context, uri string) error, error)
+	// GenerateTxWithAssertion generates a new transaction and an assertion function that confirms
+	// 1. The tx was accepted on the provided URI
+	// 2. The state was updated as expected according to the provided URI
+	GenerateTxWithAssertion(context.Context) (*chain.Transaction, func(ctx context.Context, uri string) error, error)
 }
 
 func ExecuteWorkload(ctx context.Context, require *require.Assertions, network Network, generator TxWorkloadIterator) {
 	submitClient := rpc.NewJSONRPCClient(network.URIs()[0])
 
 	for generator.Next() {
-		tx, confirm, err := generator.GenerateTxWithAssertion()
+		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
 		require.NoError(err)
 
 		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
@@ -43,7 +56,8 @@ func ExecuteWorkload(ctx context.Context, require *require.Assertions, network N
 }
 
 func GenerateNBlocks(ctx context.Context, require *require.Assertions, network Network, factory TxWorkloadFactory, n uint64) {
-	generator := factory.NewSizedTxWorkload(int(n))
+	generator, err := factory.NewSizedTxWorkload(network.URIs()[0], int(n))
+	require.NoError(err)
 	uri := network.URIs()[0]
 	client := rpc.NewJSONRPCClient(uri)
 
@@ -53,7 +67,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, network N
 	targetheight := startHeight + n
 
 	for generator.Next() && height < targetheight {
-		tx, confirm, err := generator.GenerateTxWithAssertion()
+		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
 		require.NoError(err)
 
 		_, err = client.SubmitTx(ctx, tx.Bytes())
