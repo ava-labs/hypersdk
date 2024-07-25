@@ -140,7 +140,7 @@ func TestMarshalUnmarshalSpec(t *testing.T) {
 				Map:     map[string]uint32{"one": 1, "two": 2},
 				Flag:    true,
 			},
-			expected: "0000000300000001000000020000000300000002000374776f0000000200036f6e650000000101",
+			expected: "000000030000000100000002000000030000000200036f6e6500000001000374776f0000000201",
 			unpackTarget: &struct {
 				Numbers []uint16          `json:"numbers"`
 				Map     map[string]uint32 `json:"map"`

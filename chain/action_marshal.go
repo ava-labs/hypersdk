@@ -9,13 +9,6 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) ([]byte, error) {
 	switch kind {
 	case reflect.Struct:
