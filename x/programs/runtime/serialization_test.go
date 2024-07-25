@@ -18,8 +18,7 @@ func TestSerializationRawBytes(t *testing.T) {
 	require.Equal(([]byte)(testBytes), serializedBytes)
 
 	b := new(bytes.Buffer)
-	err = testBytes.customSerialize(b)
-	require.NoError(err)
+	require.NoError(testBytes.customSerialize(b))
 	require.Equal(([]byte)(testBytes), b.Bytes())
 
 	deserialized, err := RawBytes{}.customDeserialize(b.Bytes())
@@ -40,8 +39,7 @@ func TestSerializationResult(t *testing.T) {
 	require.Equal([]byte{1, 1}, serializedBytes)
 
 	b := new(bytes.Buffer)
-	err = testResult.customSerialize(b)
-	require.NoError(err)
+	require.NoError(testResult.customSerialize(b))
 	require.Equal([]byte{1, 1}, b.Bytes())
 
 	deserialized, err := Result[byte, byte]{}.customDeserialize(b.Bytes())
@@ -62,8 +60,7 @@ func TestSerializationOption(t *testing.T) {
 	require.Equal([]byte{optionSomePrefix, 1}, serializedBytes)
 
 	b := new(bytes.Buffer)
-	err = testOption.customSerialize(b)
-	require.NoError(err)
+	require.NoError(testOption.customSerialize(b))
 	require.Equal([]byte{optionSomePrefix, 1}, b.Bytes())
 
 	deserialized, err := Option[byte]{}.customDeserialize(b.Bytes())

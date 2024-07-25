@@ -10,7 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 )
 
-var _ vms.Factory = &Factory{}
+var _ vms.Factory = (*Factory)(nil)
 
 type Factory struct{}
 

@@ -29,8 +29,8 @@ import (
 )
 
 var (
-	_ snowman.Block      = &StatelessBlock{}
-	_ block.StateSummary = &SyncableBlock{}
+	_ snowman.Block      = (*StatelessBlock)(nil)
+	_ block.StateSummary = (*SyncableBlock)(nil)
 )
 
 type StatefulBlock struct {

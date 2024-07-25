@@ -176,7 +176,8 @@ func TestJobGo(t *testing.T) {
 		if n == 1 {
 			require.NoError(response(), "Incorrect error message.")
 		} else {
-			require.ErrorIs(testError, response(), "Incorrect error message.")
+			err := response()
+			require.ErrorIs(err, testError, "Incorrect error message.")
 		}
 		n += 1
 	}
