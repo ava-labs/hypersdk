@@ -27,10 +27,6 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-func TestE2e(t *testing.T) {
-	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
-}
-
 var (
 	// TODO
 	// These vars are set via CLI flags from the run script to support the e2e tests and running
@@ -157,6 +153,10 @@ func init() {
 		5,
 		"number of validators per blockchain",
 	)
+}
+
+func TestE2e(t *testing.T) {
+	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
 }
 
 var _ = ginkgo.BeforeSuite(func() {

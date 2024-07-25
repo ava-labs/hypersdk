@@ -8,17 +8,18 @@ import (
 	"fmt"
 	"time"
 
-	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/stretchr/testify/require"
-
-	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
 	"github.com/ava-labs/avalanche-network-runner/rpcpb"
 	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
+
+	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 const (
@@ -239,7 +240,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		workload.ExecuteWorkload(ctx, require, network, txs)
 	})
 
-	ginkgo.PIt("Syncing", ginkgo.Serial, func() {
+	ginkgo.It("Syncing", ginkgo.Serial, func() {
 		ginkgo.By("Generate 128 blocks", func() {
 			workload.GenerateNBlocks(ctx, require, network, txWorkloadFactory, 128)
 		})
@@ -256,10 +257,10 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 				}),
 			)
 			require.NoError(err)
-			awaitHealthy(anrCli)
+			awaitHealthy(require, anrCli)
 
 			nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-			uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+			uri := formatURI(nodeURI, blockchainID)
 			utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
 			bootstrapNodeURI = uri
 			network.uris = append(network.uris, bootstrapNodeURI)
@@ -278,12 +279,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 			// to initialize its [seen] index and become ready in less than
 			// [ValidityWindow].
 			start := time.Now()
-			awaitHealthy(anrCli)
+			awaitHealthy(require, anrCli)
 			require.WithinDuration(time.Now(), start, 20*time.Second)
 
 			// Update bootstrap info to latest in case it was assigned a new port
 			nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-			uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+			uri := formatURI(nodeURI, blockchainID)
 			require.NoError(err)
 			utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
 			c := rpc.NewJSONRPCClient(uri)
@@ -308,10 +309,10 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 			)
 			require.NoError(err)
 
-			awaitHealthy(anrCli)
+			awaitHealthy(require, anrCli)
 
 			nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-			uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+			uri := formatURI(nodeURI, blockchainID)
 			require.NoError(err)
 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 			c := rpc.NewJSONRPCClient(uri)
@@ -332,11 +333,11 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 			)
 			require.NoError(err)
 
-			awaitHealthy(anrCli)
+			awaitHealthy(require, anrCli)
 
 			c := rpc.NewJSONRPCClient(syncNodeURI)
 			ok, err := c.Ping(ctx)
-			require.Error(err)
+			require.Error(err) //nolint:forbidigo
 			require.False(ok)
 		})
 		ginkgo.By("Generate 256 blocks", func() {
@@ -349,11 +350,11 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 			)
 			require.NoError(err)
 
-			awaitHealthy(anrCli)
+			awaitHealthy(require, anrCli)
 
 			// Update sync info to latest in case it was assigned a new port
 			nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-			uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+			uri := formatURI(nodeURI, blockchainID)
 			require.NoError(err)
 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 			c := rpc.NewJSONRPCClient(uri)
@@ -390,10 +391,10 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 				}),
 			)
 			require.NoError(err)
-			awaitHealthy(anrCli)
+			awaitHealthy(require, anrCli)
 
 			nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
-			uri := nodeURI + fmt.Sprintf("/ext/bc/%s", blockchainID)
+			uri := formatURI(nodeURI, blockchainID)
 			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
 			c := rpc.NewJSONRPCClient(uri)
 			_, _, _, err = c.Network(ctx)
@@ -428,12 +429,17 @@ var _ = ginkgo.AfterSuite(func() {
 	require.NoError(anrCli.Close())
 })
 
-func awaitHealthy(cli runner_sdk.Client) {
+func awaitHealthy(require *require.Assertions, cli runner_sdk.Client) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+	err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 		_, err := cli.Health(ctx)
 		return err == nil, nil
 	})
+	require.NoError(err)
+}
+
+func formatURI(baseURI string, blockchainID string) string {
+	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
 }
