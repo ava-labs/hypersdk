@@ -93,8 +93,7 @@ pub fn propose(
     assert!(internal::is_not_duplicate(&voters));
 
     let mut voters: Vec<_> = voters
-        .iter()
-        .copied()
+        .into_iter()
         .map(|address| Voter {
             address,
             voted: false,
@@ -134,7 +133,7 @@ pub fn propose(
 
     context
         .store_by_key(StateKeys::NextProposalId, &(next_id + 1))
-        .expect("failed to store last proposal id");
+        .expect("failed to store next proposal id");
 
     next_id
 }
@@ -154,10 +153,14 @@ pub fn vote(
         return Err(ProposalError::AlreadyExecuted);
     }
 
-    let voter = context
+    let mut voter = context
         .get::<Voter>(StateKeys::Voter(proposal_id, voter_id as usize))
         .expect("failed to get voter")
         .ok_or(ProposalError::NotVoter)?;
+
+    if voter.address != context.actor() {
+        return Err(ProposalError::NotVoter);
+    }
 
     if voter.voted {
         return Err(ProposalError::AlreadyVoted);
@@ -183,14 +186,10 @@ pub fn vote(
             .expect("failed to store nays");
     }
 
+    voter.voted = true;
+
     context
-        .store_by_key(
-            StateKeys::Voter(proposal_id, voter_id as usize),
-            &Voter {
-                address: context.actor(),
-                voted: true,
-            },
-        )
+        .store_by_key(StateKeys::Voter(proposal_id, voter_id as usize), &voter)
         .expect("failed to store voter");
 
     Ok(())
