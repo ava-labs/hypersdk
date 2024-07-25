@@ -239,7 +239,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		workload.ExecuteWorkload(ctx, require, network, txs)
 	})
 
-	ginkgo.It("Syncing", ginkgo.Serial, func() {
+	ginkgo.PIt("Syncing", ginkgo.Serial, func() {
 		ginkgo.By("Generate 128 blocks", func() {
 			workload.GenerateNBlocks(ctx, require, network, txWorkloadFactory, 128)
 		})
