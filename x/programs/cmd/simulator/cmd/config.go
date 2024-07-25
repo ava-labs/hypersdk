@@ -6,6 +6,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/near/borsh-go"
 )
 
 type SimulatorRequest struct {
@@ -34,7 +36,8 @@ const (
 
 func newResponse(id int) *Response {
 	return &Response{
-		ID: id,
+		ID: int(id),
+		Error: "",
 		Result: &Result{
 			Response: []byte{},
 		},
@@ -43,19 +46,20 @@ func newResponse(id int) *Response {
 
 type Response struct {
 	// The index of the request that generated this response.
-	ID int `json:"id"`
+	ID int
 	// The result of the request.
-	Result *Result `json:"result,omitempty"`
+	Result *Result
 	// The error message if available.
-	Error string `json:"error,omitempty"`
+	Error string
 }
 
 func (r *Response) Print() error {
-	jsonBytes, err := json.Marshal(r)
+	// jsonBytes, err := json.Marshal(r)
+	borshBytes, err := borsh.Serialize(r)
 	if err != nil {
 		return fmt.Errorf("failed to marshal response: %w", err)
 	}
-	fmt.Println(string(jsonBytes))
+	fmt.Println(string(borshBytes))
 	return nil
 }
 

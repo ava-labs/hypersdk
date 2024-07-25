@@ -226,7 +226,7 @@ fn _total_supply(context: &Context<StateKeys>) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{build_simulator, Param, TestContext};
+    use simulator::{build_simulator, Id, Param, TestContext};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -243,7 +243,7 @@ mod tests {
     fn init_token() {
         let mut simulator = build_simulator();
 
-        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
+        let program_id : Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
 
         simulator
@@ -292,8 +292,7 @@ mod tests {
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
-
+        let program_id : Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
 
         simulator
@@ -350,8 +349,7 @@ mod tests {
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
-
+        let program_id : Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
 
         simulator

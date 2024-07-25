@@ -3,8 +3,8 @@ use crate::{
     param::Param,
     Id,
 };
-use borsh::BorshDeserialize;
-use serde::{Deserialize, Serialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::Serialize;
 use std::{
     io::{BufRead, BufReader, Write},
     process::{Child, Command, Stdio},
@@ -64,8 +64,8 @@ pub fn build_simulator() -> Simulator<impl Write, impl Iterator<Item = Simulator
     let reader = stdout.expect("unable to get stdout");
 
     let responses = BufReader::new(reader)
-        .lines()
-        .map(|line| serde_json::from_str(&line?).map_err(SimulatorError::Serde));
+    .lines()
+    .map(|line| borsh::from_slice(line?.as_bytes()).map_err(SimulatorError::BorshDeserialization));
 
     Simulator { writer, responses }
 }
@@ -172,15 +172,14 @@ impl SimulatorRequest {
 
 type SimulatorResponseItem = Result<SimulatorResponse, SimulatorError>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub struct SimulatorResult {
     /// The ID created from the program execution.
     pub action_id: Option<String>,
     /// The timestamp of the function call response.
     pub timestamp: u64,
     /// The result of the function call.
-    #[serde(deserialize_with = "base64_decode")]
-    response: Vec<u8>,
+    pub response: Vec<u8>,
 }
 
 impl SimulatorResult {
@@ -193,13 +192,12 @@ impl SimulatorResult {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub struct SimulatorResponse {
-    /// The numeric id of the response.
-    #[serde(deserialize_with = "id_from_usize")]
-    pub id: Id, // TODO override of the Id Deserialize before removing the prefix
+    // #[serde(deserialize_with = "id_from_usize")]
+    pub id: usize, // TODO override of the Id Deserialize before removing the prefix
     /// An optional error message.
-    pub error: Option<String>,
+    pub error: String,
     pub result: SimulatorResult,
 }
 

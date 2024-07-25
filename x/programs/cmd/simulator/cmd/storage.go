@@ -118,7 +118,6 @@ func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) sta
 //
 // Program
 //
-
 func accountStateKey(key []byte) (k []byte) {
 	k = make([]byte, 2+len(key))
 	k[0] = accountPrefix

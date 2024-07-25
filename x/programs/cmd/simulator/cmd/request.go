@@ -62,7 +62,7 @@ func (c *runCmd) Run(ctx context.Context, log logging.Logger, db *state.SimpleMu
 	var err error
 	if err = c.Init(); err != nil {
 		return newResponse(0), err
-	}
+	} 
 	if err = c.Verify(); err != nil {
 		return newResponse(0), err
 	}
@@ -77,6 +77,7 @@ func (c *runCmd) Happened() bool {
 	return c.cmd.Happened()
 }
 
+// initialized the run command by putting the request message into the request struct.
 func (c *runCmd) Init() (err error) {
 	var marshaledBytes []byte
 	if c.requestMessage == nil || *c.requestMessage == "" {
@@ -92,6 +93,7 @@ func (c *runCmd) Init() (err error) {
 	return nil
 }
 
+// Verify checks if the cmd was initialized correctly.
 func (c *runCmd) Verify() error {
 	request := c.request
 	if request == nil {
@@ -108,7 +110,7 @@ func (c *runCmd) Verify() error {
 
 func verifyEndpoint(i int, request *SimulatorRequest) error {
 	firstParamType := request.Params[0].Type
-
+ 
 	switch request.Endpoint {
 	case ReadOnly:
 		// verify the first param is a test context
