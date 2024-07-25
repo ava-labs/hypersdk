@@ -420,7 +420,7 @@ func (g *simpleTxWorkload) Next() bool {
 }
 
 func (g *simpleTxWorkload) GenerateTxWithAssertion() (*chain.Transaction, func(ctx context.Context, uri string) error, error) {
-	g.count++
+	g.count--
 	other, err := ed25519.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, err
@@ -446,20 +446,17 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion() (*chain.Transaction, func(c
 	}
 
 	return tx, func(ctx context.Context, uri string) error {
-		ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-		defer cancel()
-
 		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
 		}
 		if !success {
 			return fmt.Errorf("tx %s not accepted", tx.ID())
 		}
-		balance, err := lcli.Balance(context.TODO(), aotherStr)
+		balance, err := lcli.Balance(ctx, aotherStr)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get balance of %s: %w", aotherStr, err)
 		}
 		if balance != 1 {
 			return fmt.Errorf("expected balance of 1, got %d", balance)
