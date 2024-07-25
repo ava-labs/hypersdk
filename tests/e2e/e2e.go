@@ -79,7 +79,6 @@ type Config struct {
 func CreateE2ENetwork(
 	ctx context.Context,
 	c Config,
-
 ) {
 	networkConfig = c
 	require := require.New(ginkgo.GinkgoT())
