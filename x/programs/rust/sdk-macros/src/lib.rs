@@ -7,8 +7,8 @@ use syn::{
     parse_macro_input, parse_quote, parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path,
-    ReturnType, Signature, Token, Type, TypePath, TypeReference, Visibility,
+    token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, ReturnType,
+    Signature, Token, Type, TypeReference, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
@@ -31,7 +31,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let (input, _context_type, first_arg_err) = {
+    let (input, context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
@@ -148,13 +148,14 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let args_names_2 = args_names.clone();
 
     let name = &input.sig.ident;
+    let context_type = type_from_reference(&context_type);
 
     let external_call = quote! {
         mod private {
             use super::*;
             #[derive(borsh::BorshDeserialize)]
             struct Args {
-                ctx: wasmlanche_sdk::Context,
+                ctx: #context_type,
                 #(#args_props),*
             }
 
@@ -454,12 +455,10 @@ fn is_mutable_context_ref(type_path: &Type) -> bool {
     }
 }
 
-fn path_reference(ty: &Type) -> Option<&Path> {
-    if let Type::Reference(TypeReference { elem, .. }) = ty {
-        if let Type::Path(TypePath { path, .. }) = elem.as_ref() {
-            return Some(path);
-        }
+fn type_from_reference(type_path: &Type) -> &Type {
+    if let Type::Reference(TypeReference { elem, .. }) = type_path {
+        elem.as_ref()
+    } else {
+        type_path
     }
-
-    None
 }
