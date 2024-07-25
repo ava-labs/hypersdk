@@ -5,6 +5,6 @@ use sdk_macros::public;
 struct Context;
 
 #[public]
-pub fn test(_: Context) {}
+pub fn test(_: &mut Context) {}
 
 fn main() {}
