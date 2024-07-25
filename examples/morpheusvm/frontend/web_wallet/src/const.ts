@@ -1,0 +1,1 @@
+export const SNAP_ID = 'local:http://localhost:8080'
