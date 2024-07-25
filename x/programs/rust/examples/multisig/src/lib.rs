@@ -275,6 +275,8 @@ pub fn quorum_reached(
     Ok(internal::quorum_reached(proposal.voters_len, yeas, nays))
 }
 
+// https://github.com/rust-lang/rust/issues/108695
+#[allow(unused)]
 mod internal {
     use super::*;
 
