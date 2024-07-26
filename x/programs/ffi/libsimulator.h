@@ -23,7 +23,6 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 
 
 #include "types.h"
-#include "types.cc"
 
 #line 1 "cgo-generated-wrapper"
 
@@ -81,7 +80,6 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern Response Execute(SimpleMutable* db, SimulatorContext* ctx, ExecutionRequest* p);
 extern void TriggerCallback(RustCallback callback);
 
 #ifdef __cplusplus

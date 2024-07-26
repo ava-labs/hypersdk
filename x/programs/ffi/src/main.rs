@@ -6,10 +6,10 @@ mod types;
 mod state;
 use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Address};
 
-#[link(name = "simulator", kind = "dylib")]
-extern "C" {
-    fn Execute(db: *const SimpleMutable, ctx: *const SimulatorContext, request: *const ExecutionRequest) -> Response;
-}
+// #[link(name = "simulator", kind = "dylib")]
+// extern "C" {
+//     fn Execute(db: *const SimpleMutable, ctx: *const SimulatorContext, request: *const ExecutionRequest) -> Response;
+// }
 
 // fn main() {
 //     let method = CString::new("myMethod").expect("CString::new failed");
@@ -41,11 +41,9 @@ extern "C" {
 //     println!("The response id is: {}", response.id);
 // }
 
-type AddFn = unsafe extern "C" fn(i32, i32) -> i32;
-
 #[link(name = "simulator", kind = "dylib")]
 extern "C" {
-    fn TriggerCallback(cb: extern fn());
+    fn TriggerCallback(cb: extern fn(i: i32));
 }
 
 
@@ -54,21 +52,16 @@ pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
-
 struct RustObject {
     a: i32
+
 }
 
-// extern "C" fn callback(target: *mut RustObject, a: i32) -> i32 {
-//     println!("Im called from C with value: {}", a);
-//     unsafe {
-//         (*target).a = a;
-//     };
-//     100
-// }
-extern "C" fn callback() {
-    println!("Im called from C with value: {}", 100);
+
+extern "C" fn callback(i : i32) {
+    println!("Im called from C with value: {}", i);
 }
+
 
 
 
