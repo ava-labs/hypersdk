@@ -4,26 +4,34 @@
 package cache
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestFIFOCache(t *testing.T) {
-	limit := 10
-
 	tests := []struct {
-		name   string
-		maxVal int
-		check  func(t *testing.T, cache *FIFO[int, int])
+		name     string
+		limit    int
+		maxVal   int
+		expected error
+		check    func(t *testing.T, cache *FIFO[int, int])
 	}{
 		{
+			name:     "empty cache fails",
+			limit:    0,
+			expected: errors.New("maxSize must be greater than 0"),
+		},
+		{
 			name:   "inserting up to limit works",
-			maxVal: limit - 1,
+			limit:  10,
+			maxVal: 9,
 		},
 		{
 			name:   "inserting after limit cleans first",
-			maxVal: limit,
+			limit:  10,
+			maxVal: 10,
 			check: func(t *testing.T, cache *FIFO[int, int]) {
 				require := require.New(t)
 				_, ok := cache.Get(0)
@@ -35,12 +43,13 @@ func TestFIFOCache(t *testing.T) {
 		},
 		{
 			name:   "inserting before limit can insert again",
-			maxVal: limit - 2,
+			limit:  10,
+			maxVal: 8,
 			check: func(t *testing.T, cache *FIFO[int, int]) {
 				require := require.New(t)
-				exists := cache.Put(limit-1, limit-1)
+				exists := cache.Put(9, 9)
 				require.False(exists)
-				exists = cache.Put(limit, limit)
+				exists = cache.Put(10, 10)
 				require.False(exists)
 				_, ok := cache.Get(0)
 				require.False(ok)
@@ -48,7 +57,8 @@ func TestFIFOCache(t *testing.T) {
 		},
 		{
 			name:   "inserting existing value doesn't free value",
-			maxVal: limit - 1,
+			limit:  10,
+			maxVal: 9,
 			check: func(t *testing.T, cache *FIFO[int, int]) {
 				require := require.New(t)
 				v, ok := cache.Get(0)
@@ -67,8 +77,11 @@ func TestFIFOCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 
-			cache, err := NewFIFO[int, int](limit)
-			require.NoError(err)
+			cache, err := NewFIFO[int, int](tt.limit)
+			require.Equal(tt.expected, err)
+			if err != nil {
+				return
+			}
 
 			for i := 0; i <= tt.maxVal; i++ {
 				exists := cache.Put(i, i)
