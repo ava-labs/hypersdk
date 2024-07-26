@@ -42,7 +42,7 @@ This will build and run all tests for the project.
 To run the linters, simply run:
 
 ```go
-./scripts/tests.lint.sh
+./scripts/lint.sh
 ```
 
 This will run the linters on all code in the project.
