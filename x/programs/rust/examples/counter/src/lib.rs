@@ -21,7 +21,7 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
     let counter = amount + get_value(context, to);
 
     context
-        .store_by_key(Counter(to), &counter)
+        .store_by_key(Counter(to), counter)
         .expect("serialization failed");
 
     true
