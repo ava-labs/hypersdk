@@ -18,11 +18,11 @@ state_schema! {
 /// Increments the count at the address by the amount.
 #[public]
 pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
-    let counter = amount + internal::get_value(context, to);
+    let counter = amount + get_value(context, to);
 
     context
         .store_by_key(Counter(to), &counter)
-        .expect("failed to store counter");
+        .expect("serialization failed");
 
     true
 }
@@ -30,19 +30,10 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
 /// Gets the count at the address.
 #[public]
 pub fn get_value(context: &mut Context, of: Address) -> Count {
-    internal::get_value(context, of)
-}
-
-#[cfg(not(feature = "bindings"))]
-mod internal {
-    use super::*;
-
-    pub fn get_value(context: &mut Context, of: Address) -> Count {
-        context
-            .get(Counter(of))
-            .expect("state corrupt")
-            .unwrap_or_default()
-    }
+    context
+        .get(Counter(of))
+        .expect("state corrupt")
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

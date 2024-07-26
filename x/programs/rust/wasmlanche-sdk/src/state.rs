@@ -6,6 +6,7 @@ use crate::{
 };
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
+use sdk_macros::impl_to_pairs;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -94,21 +95,14 @@ impl<'a> State<'a> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (&'b [u8], &'b V)>>(
-        self,
-        pairs: Pairs,
-    ) -> Result<(), Error> {
+    pub fn store<Pairs: IntoPairs>(self, pairs: Pairs) -> Result<(), Error> {
         let cache = &mut self.cache.borrow_mut();
 
-        pairs
-            .into_iter()
-            .map(|(k, v)| borsh::to_vec(&v).map(|bytes| (k, Some(bytes))))
-            .try_for_each(|result| {
-                result.map(|(k, v)| {
-                    cache.insert(CacheKey::from(k), v);
-                })
+        pairs.into_pairs().into_iter().try_for_each(|result| {
+            result.map(|(k, v)| {
+                cache.insert(k, Some(v));
             })
-            .map_err(|_| Error::Serialization)?;
+        })?;
 
         Ok(())
     }
@@ -118,12 +112,12 @@ impl<'a> State<'a> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store_by_key<K, V>(self, key: K, value: &V) -> Result<(), Error>
+    pub fn store_by_key<K, V>(self, key: K, value: V) -> Result<(), Error>
     where
         K: Schema,
         V: BorshSerialize,
     {
-        self.store([(to_key(key).as_ref(), value)])
+        self.store(((key, value),))
     }
 
     /// Get a value from the host's storage.
@@ -257,3 +251,21 @@ fn get_bytes(key: &[u8]) -> Option<CacheValue> {
         Some(ptr.into())
     }
 }
+
+trait Sealed {}
+
+#[allow(private_bounds)]
+pub trait IntoPairs: Sealed {
+    fn into_pairs(self) -> impl IntoIterator<Item = Result<(CacheKey, CacheValue), Error>>;
+}
+
+impl_to_pairs!(10, Schema, BorshSerialize);
+impl_to_pairs!(9, Schema, BorshSerialize);
+impl_to_pairs!(8, Schema, BorshSerialize);
+impl_to_pairs!(7, Schema, BorshSerialize);
+impl_to_pairs!(6, Schema, BorshSerialize);
+impl_to_pairs!(5, Schema, BorshSerialize);
+impl_to_pairs!(4, Schema, BorshSerialize);
+impl_to_pairs!(3, Schema, BorshSerialize);
+impl_to_pairs!(2, Schema, BorshSerialize);
+impl_to_pairs!(1, Schema, BorshSerialize);

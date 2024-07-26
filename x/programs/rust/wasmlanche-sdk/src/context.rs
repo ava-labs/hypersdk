@@ -1,5 +1,5 @@
 use crate::{
-    state::{self, Error, Schema, State},
+    state::{self, Error, IntoPairs, Schema, State},
     types::Address,
     Gas, Id, Program,
 };
@@ -87,7 +87,7 @@ impl Context {
     /// See [`State::store_by_key`].
     /// # Errors
     /// See [`State::store_by_key`].
-    pub fn store_by_key<K, V>(&self, key: K, value: &V) -> Result<(), state::Error>
+    pub fn store_by_key<K, V>(&self, key: K, value: V) -> Result<(), Error>
     where
         K: Schema,
         V: BorshSerialize,
@@ -98,10 +98,7 @@ impl Context {
     /// See [`State::store`].
     /// # Errors
     /// See [`State::store`].    
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (&'b [u8], &'b V)>>(
-        &self,
-        pairs: Pairs,
-    ) -> Result<(), Error> {
+    pub fn store<Pairs: IntoPairs>(&self, pairs: Pairs) -> Result<(), Error> {
         State::new(&self.state_cache).store(pairs)
     }
 

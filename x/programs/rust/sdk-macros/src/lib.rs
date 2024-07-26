@@ -1,14 +1,17 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
+use proc_macro2::{Literal, Span};
+use quote::{quote, ToTokens};
+use std::str::FromStr;
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input, parse_quote, parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Fields, FnArg, Ident, ItemEnum, ItemFn, PatType, ReturnType,
-    Signature, Token, Type, TypeReference, Visibility,
+    token, Attribute, Error, Expr, Fields, FnArg, GenericParam, Ident, ItemEnum, ItemFn, LitInt,
+    PatType, Path, ReturnType, Signature, Token, Type, TypeParam, TypeParamBound, TypePath,
+    TypeReference, TypeTuple, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
@@ -411,6 +414,108 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
             },
         )
         .into()
+}
+
+type CommaSeparated<T> = Punctuated<T, Token![,]>;
+
+fn create_n_suffixed_types<S>(ident: &str, n: usize, span: S) -> CommaSeparated<Type>
+where
+    S: Into<Option<Span>>,
+{
+    let span = span.into().unwrap_or_else(Span::call_site);
+
+    (0..n)
+        .map(|i| Ident::new(&format!("{ident}{i}"), span))
+        .map(|ident| Path::from(ident))
+        .map(|path| TypePath { qself: None, path })
+        .map(Type::Path)
+        .collect()
+}
+
+fn create_n_suffixed_generic_params<S>(
+    ident: &str,
+    n: usize,
+    span: S,
+    bounds: Punctuated<TypeParamBound, Token![+]>,
+) -> CommaSeparated<GenericParam>
+where
+    S: Into<Option<Span>>,
+{
+    let span = span.into().unwrap_or_else(Span::call_site);
+
+    (0..n)
+        .map(|i| Ident::new(&format!("{ident}{i}"), span))
+        .map(TypeParam::from)
+        .map(|param| (bounds.clone(), param))
+        .map(|(bounds, param)| TypeParam { bounds, ..param })
+        .map(GenericParam::Type)
+        .collect()
+}
+
+fn create_tuple_of_tuples(a: CommaSeparated<Type>, b: CommaSeparated<Type>) -> Type {
+    let paren_token = Default::default();
+
+    let elems = a
+        .into_iter()
+        .zip(b.into_iter())
+        .map(|(a, b)| TypeTuple {
+            paren_token,
+            elems: [a, b].into_iter().collect(),
+        })
+        .map(Type::Tuple)
+        .collect();
+
+    Type::Tuple(TypeTuple { paren_token, elems })
+}
+
+#[proc_macro]
+pub fn impl_to_pairs(inputs: TokenStream) -> TokenStream {
+    let mut inputs =
+        parse_macro_input!(inputs with Punctuated::<Expr, Token![,]>::parse_terminated).into_iter();
+
+    let n: TokenStream = inputs.next().unwrap().into_token_stream().into();
+    let n = parse_macro_input!(n as LitInt)
+        .base10_parse::<usize>()
+        .unwrap();
+
+    let key_generic_bounds = inputs.next().unwrap().into_token_stream().into();
+    let key_generic_bounds = parse_macro_input!(key_generic_bounds with Punctuated::<TypeParamBound, Token![+]>::parse_terminated);
+
+    let value_generic_bounds = inputs.next().unwrap().into_token_stream().into();
+    let value_generic_bounds = parse_macro_input!(value_generic_bounds with Punctuated::<TypeParamBound, Token![+]>::parse_terminated);
+
+    let keys = create_n_suffixed_types("K", n, None);
+    let values = create_n_suffixed_types("V", n, None);
+
+    let tuple_of_key_value_pairs = create_tuple_of_tuples(keys, values);
+
+    let mut key_generic_params = create_n_suffixed_generic_params("K", n, None, key_generic_bounds);
+    let value_generic_params = create_n_suffixed_generic_params("V", n, None, value_generic_bounds);
+
+    key_generic_params.extend(value_generic_params);
+
+    let generic_params = key_generic_params;
+
+    let accessors = (0..n)
+        .map(|i| i.to_string())
+        .map(|i| <Literal as FromStr>::from_str(&i).unwrap());
+
+    quote! {
+        impl<#generic_params> Sealed for #tuple_of_key_value_pairs {}
+
+        impl<#generic_params> IntoPairs for #tuple_of_key_value_pairs {
+            fn into_pairs(self) -> impl IntoIterator<Item = Result<(CacheKey, CacheValue), Error>> {
+                [
+                    #(
+                        borsh::to_vec(&self.#accessors.1)
+                            .map(|value| (Box::from(to_key(self.#accessors.0).as_ref()), value))
+                            .map_err(|_| Error::Serialization)
+                    ),*
+                ]
+            }
+        }
+    }
+    .into()
 }
 
 /// Returns whether the type_path represents a Program type.
