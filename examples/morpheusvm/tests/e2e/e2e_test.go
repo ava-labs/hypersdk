@@ -285,6 +285,7 @@ var _ = ginkgo.BeforeSuite(func() {
 				SubnetConfig: subnetConfigPath,
 				Participants: subnet,
 			},
+			BlockchainAlias: consts.Name,
 		},
 	}
 
