@@ -35,7 +35,8 @@ func NewSimulatorState(statePtr unsafe.Pointer, getFunc bridge.GetStateCallbackT
 }
 
 func (s *SimulatorState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
-	fmt.Println("Calling GetValue")
+	val := bridge.GetCallbackWrapper(s.getFunc, s.statePtr, key)
+	fmt.Println("Value returned*******: ", val)
    return []byte{}, nil
 }
 

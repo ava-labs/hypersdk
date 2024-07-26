@@ -49,7 +49,11 @@ extern "C" {
 }
 
 fn main () {
-    let obj = Simulator::new();
+    let mut obj = Simulator::new();
+    unsafe {
+        CallProgram(get_state_callback, &obj as *const Simulator as *mut Simulator);
+    }
+    obj.insert(vec![1, 2, 3], vec![4, 5, 6]);
     unsafe {
         CallProgram(get_state_callback, &obj as *const Simulator as *mut Simulator);
     }

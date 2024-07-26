@@ -21,16 +21,16 @@ func CallProgram(getStateCb C.GetStateCallback, statePtr unsafe.Pointer) {
    // form db from params
    db := simulator.NewSimulatorState(statePtr, bridge.GetStateCallbackType(getStateCb))
    fmt.Println("Calling CallProgram")
-   db.GetValue(context.TODO(), nil)
+   db.GetValue(context.TODO(), []byte{1,2,3})
 
 
 
    fmt.Println("Triggering callback")
    // create a reference to the Rust callback
-   refFun := unsafe.Pointer(C.GetStateCallback(getStateCb))
-   val := bridge.BridgeCallback(refFun, statePtr)
-   fmt.Println("Calling Rust method from Go")
-   fmt.Println("Rust callback returned: ", val)
+   // refFun := unsafe.Pointer(C.GetStateCallback(getStateCb))
+   // val := bridge.BridgeCallback(refFun, statePtr)
+   // fmt.Println("Calling Rust method from Go")
+   // fmt.Println("Rust callback returned: ", val)
 }
 
 
