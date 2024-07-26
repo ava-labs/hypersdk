@@ -120,8 +120,11 @@ function run {
 }
 
 echo "Running '$TESTS' at: $(date)"
+RUN=
 for test in $TESTS; do
-  run "${test}" "${TARGET}"
+  RUN="${RUN} run ${test} &"
 done
 
-echo "ALL SUCCESS!"
+RUN=${RUN%&}
+
+(trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT; eval ${RUN} wait)
