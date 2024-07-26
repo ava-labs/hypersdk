@@ -212,6 +212,7 @@ $BIN server \
 --log-level=verbo \
 --port=":12352" \
 --grpc-gateway-port=":12353" &
+SERVER_PID=$!
 
 ############################
 # By default, it runs all e2e test cases!
@@ -225,13 +226,18 @@ function cleanup() {
     echo ""
     echo "use the following command to terminate:"
     echo ""
-    echo "./scripts/stop.sh;"
+    echo "kill $SERVER_PID"
     echo ""
+    echo "or"
+    echo ""
+    echo "killall avalanche-network-runner"
     exit
   fi
 
-  echo "avalanche-network-runner shutting down..."
-  ./scripts/stop.sh;
+  echo "Shutting down avalanche-network-runner..."
+  kill $SERVER_PID
+  wait $SERVER_PID
+  echo "avalanche-network-runner server terminated"
 }
 trap cleanup EXIT
 

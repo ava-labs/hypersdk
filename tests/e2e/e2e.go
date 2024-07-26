@@ -417,8 +417,8 @@ var _ = ginkgo.AfterSuite(func() {
 	switch mode {
 	case modeTest:
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
 		_, err := anrCli.Stop(ctx)
+		cancel()
 		require.NoError(err)
 
 	case modeRun:

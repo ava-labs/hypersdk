@@ -28,7 +28,7 @@ The first step to running this demo is to launch your own `morpheusvm` Subnet. Y
 can do so by running the following command from this location (may take a few
 minutes):
 ```bash
-./scripts/run.sh;
+killall avalanche-network-runner
 ```
 
 When the Subnet is running, you'll see the following logs emitted:
