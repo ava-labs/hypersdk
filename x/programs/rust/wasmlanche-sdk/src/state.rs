@@ -112,10 +112,9 @@ impl<'a> State<'a> {
     /// # Errors
     /// Returns an [`Error`] if the key or value cannot be
     /// serialized or if the host fails to handle the operation.
-    pub fn store_by_key<K, V>(self, key: K, value: V) -> Result<(), Error>
+    pub fn store_by_key<K>(self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
-        V: BorshSerialize,
     {
         self.store(((key, value),))
     }
@@ -130,10 +129,7 @@ impl<'a> State<'a> {
     /// the host fails to read the key and value.
     /// # Panics
     /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<K: NoUninit, V>(self, key: &K) -> Result<Option<V>, Error>
-    where
-        V: BorshDeserialize,
-    {
+    pub fn get<K: Schema>(self, key: K) -> Result<Option<K::Value>, Error> {
         self.get_mut_with(key, |x| from_slice(x))
     }
 
@@ -167,21 +163,20 @@ impl<'a> State<'a> {
     /// Returns an [Error] if the value is inexistent
     /// or if the key cannot be serialized
     /// or if the host fails to delete the key and the associated value
-    pub fn delete<K: NoUninit, V: BorshDeserialize>(self, key: &K) -> Result<Option<V>, Error> {
+    pub fn delete<K: Schema>(self, key: K) -> Result<Option<K::Value>, Error> {
         self.get_mut_with(key, |val| from_slice(&std::mem::take(val)))
     }
 
     /// Only used internally
     /// The closure is only called if the key already exists in the cache
     /// The closure may mutate the value and return anything it likes for deserializaiton
-    fn get_mut_with<K: NoUninit, V, F>(self, key: &K, f: F) -> Result<Option<V>, Error>
+    fn get_mut_with<K: Schema, F>(self, key: K, f: F) -> Result<Option<K::Value>, Error>
     where
-        V: BorshDeserialize,
-        F: FnOnce(&mut CacheValue) -> borsh::io::Result<V>,
+        F: FnOnce(&mut CacheValue) -> borsh::io::Result<K::Value>,
     {
         let mut cache = self.cache.borrow_mut();
         // TODO: should only need to allocate on cache-miss
-        let key = CacheKey::from(bytemuck::bytes_of(key));
+        let key = CacheKey::from(to_key(key).as_ref());
 
         let cache_entry = match cache.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),

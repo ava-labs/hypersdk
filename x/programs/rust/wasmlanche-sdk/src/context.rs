@@ -3,8 +3,7 @@ use crate::{
     types::Address,
     Gas, Id, Program,
 };
-use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::NoUninit;
+use borsh::BorshDeserialize;
 use std::{cell::RefCell, collections::HashMap};
 
 pub type CacheKey = Box<[u8]>;
@@ -87,10 +86,9 @@ impl Context {
     /// See [`State::store_by_key`].
     /// # Errors
     /// See [`State::store_by_key`].
-    pub fn store_by_key<K, V>(&self, key: K, value: V) -> Result<(), Error>
+    pub fn store_by_key<K>(&self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
-        V: BorshSerialize,
     {
         State::new(&self.state_cache).store_by_key(key, value)
     }
@@ -105,7 +103,7 @@ impl Context {
     /// See [`State::delete`].
     /// # Errors
     /// See [`State::delete`].
-    pub fn delete<K: NoUninit, V: BorshDeserialize>(&self, key: &K) -> Result<Option<V>, Error> {
+    pub fn delete<K: Schema>(&self, key: K) -> Result<Option<K::Value>, Error> {
         State::new(&self.state_cache).delete(key)
     }
 }

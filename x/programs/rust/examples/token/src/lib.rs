@@ -24,11 +24,11 @@ pub fn init(context: &mut Context, name: String, symbol: String) {
     let actor = context.actor();
 
     context
-        .store_by_key(Owner, &actor)
+        .store_by_key(Owner, actor)
         .expect("failed to store owner");
 
     context
-        .store(((Name, &name), (Symbol, &symbol)))
+        .store(((Name, name), (Symbol, symbol)))
         .expect("failed to store owner");
 }
 
@@ -53,8 +53,8 @@ pub fn mint(context: &mut Context, recipient: Address, amount: u64) -> bool {
 
     context
         .store((
-            (Balance(recipient), &(balance + amount)),
-            (TotalSupply, &(total_supply + amount)),
+            (Balance(recipient), (balance + amount)),
+            (TotalSupply, (total_supply + amount)),
         ))
         .expect("failed to store balance");
 
@@ -106,7 +106,7 @@ pub fn approve(context: &mut Context, spender: Address, amount: u64) -> bool {
     let actor = context.actor();
 
     context
-        .store_by_key(Allowance(actor, spender), &amount)
+        .store_by_key(Allowance(actor, spender), amount)
         .expect("failed to store allowance");
 
     true
@@ -139,7 +139,7 @@ pub fn transfer_from(
     assert!(total_allowance >= amount, "insufficient allowance");
 
     context
-        .store_by_key(Allowance(sender, actor), &(total_allowance - amount))
+        .store_by_key(Allowance(sender, actor), total_allowance - amount)
         .expect("failed to store allowance");
 
     internal::transfer(context, sender, recipient, amount);
@@ -152,7 +152,7 @@ pub fn transfer_ownership(context: &mut Context, new_owner: Address) -> bool {
     check_owner(context, context.actor());
 
     context
-        .store_by_key(Owner, &new_owner)
+        .store_by_key(Owner, new_owner)
         .expect("failed to store owner");
 
     true
@@ -205,8 +205,8 @@ mod internal {
 
         context
             .store((
-                (Balance(sender), &(sender_balance - amount)),
-                (Balance(recipient), &(recipient_balance + amount)),
+                (Balance(sender), (sender_balance - amount)),
+                (Balance(recipient), (recipient_balance + amount)),
             ))
             .expect("failed to update balances");
     }

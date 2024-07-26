@@ -8,7 +8,7 @@ pub struct ComplexReturn {
 }
 
 #[public]
-pub fn get_value(ctx: Context) -> ComplexReturn {
+pub fn get_value(ctx: &mut Context) -> ComplexReturn {
     let account = *ctx.program().account();
     ComplexReturn {
         account,
