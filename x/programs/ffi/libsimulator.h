@@ -80,7 +80,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern void TriggerCallback(RustCallback callback);
+extern void TriggerCallback(RustCallback callback, void* callbackData);
 
 #ifdef __cplusplus
 }

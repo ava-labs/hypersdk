@@ -15,11 +15,11 @@ import (
 )
 
 //export TriggerCallback
-func TriggerCallback(callback C.RustCallback) {
+func TriggerCallback(callback C.RustCallback, callbackData unsafe.Pointer) {
    fmt.Println("Triggering callback")
    // create a reference to the Rust callback
    refFun := unsafe.Pointer(C.RustCallback(callback))
-   bridge.BridgeCallback(refFun)
+   bridge.BridgeCallback(refFun, callbackData)
    fmt.Println("Calling Rust method from Go")
 }
 

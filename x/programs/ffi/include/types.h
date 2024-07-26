@@ -34,5 +34,5 @@ typedef struct {
     uint8_t* result;
 } Response;
 
-typedef void (*RustCallback)(int num);
+typedef void (*RustCallback)(void *data);
 

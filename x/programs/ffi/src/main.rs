@@ -41,9 +41,12 @@ use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Add
 //     println!("The response id is: {}", response.id);
 // }
 
+
+type Callback = extern fn(*mut RustObject);
+
 #[link(name = "simulator", kind = "dylib")]
 extern "C" {
-    fn TriggerCallback(cb: extern fn(i: i32));
+    fn TriggerCallback(cb: Callback, callData: *mut RustObject);
 }
 
 
@@ -52,22 +55,31 @@ pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
+#[repr(C)]
 struct RustObject {
     a: i32
-
 }
 
+impl RustObject {
+    fn new(a: i32) -> RustObject {
+        RustObject { a }
+    }
+    fn callback(&self) {
+        println!("Im called from C with value: {}", self.a);
+    }
+}
 
-extern "C" fn callback(i : i32) {
-    println!("Im called from C with value: {}", i);
+extern "C" fn callback(obj_ptr: *mut RustObject) {
+    let obj = unsafe { &mut *obj_ptr };
+    println!("Im called from C with value: {}", obj.a);
 }
 
 
 
 
 fn main () {
-    // let mut rust_object = Box::new(RustObject { a: 5 });
+    let obj = RustObject::new(1002);
     unsafe {
-        TriggerCallback(callback);
+        TriggerCallback(callback, &obj as *const RustObject as *mut RustObject);
     }
 }
