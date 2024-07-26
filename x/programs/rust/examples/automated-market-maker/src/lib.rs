@@ -1,8 +1,7 @@
 use std::cmp;
-use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, ExternalCallContext, Program};
+use wasmlanche_sdk::{public, state_keys, ExternalCallContext, Program, Context};
+
 mod math;
-mod tests;
 
 #[state_keys]
 pub enum StateKeys {
@@ -33,17 +32,13 @@ pub fn init(
 
     let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
 
+    let transfer_reuslt = token::transfer_ownership(&liquidity_context, *context.program().account());
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
     assert!(
-        token::transfer_ownership(&liquidity_context, *context.program().account()),
+        transfer_reuslt,
         "failed to transfer ownership of the liquidity token"
     );
-
-    // The ID acts as the unique identifier of the program bytes we want to deploy
-    // declare this at the top of the file const TOKEN_ID : Id = "0xhardcoded_id";
-    // and then deploy the program with the ID
-    // context.program().deploy("liquidity_token_id", &[]);
 }
 
 /// Swaps 'amount' of `token_program_in` with the other token in the pool
@@ -83,11 +78,15 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     token::transfer_from(&token_out, *program.account(), context.actor(), amount_out);
 
     // update the allowance for token_in
-    assert!(token::approve(
+    let token_approved = token::approve(
         &token_in,
         *program.account(),
         reserve_token_in + amount
-    ));
+    );
+    assert!(
+        token_approved,
+        "failed to update the allowance for the token"
+    );
 
     amount_out
 }
@@ -119,6 +118,7 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
 
     // calculate the amount of shares to mint
     let total_shares = token::total_supply(&lp_token);
+
     let shares = if total_shares == 0 {
         // if the pool is empty, mint the shares
         math::sqrt(amount_x * amount_y)
@@ -136,9 +136,11 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     token::mint(&lp_token, context.actor(), shares);
 
     // update the amm's allowances
+    let approved =  token::approve(&token_x, *program.account(), reserve_x + amount_x)
+    && token::approve(&token_y, *program.account(), reserve_y + amount_y);
     assert!(
-        token::approve(&token_x, *program.account(), reserve_x + amount_x)
-            && token::approve(&token_y, *program.account(), reserve_y + amount_y)
+       approved,
+         "failed to update the allowances for the tokens"
     );
 
     shares
@@ -235,14 +237,15 @@ fn external_liquidity_token(context: &Context<StateKeys>) -> ExternalCallContext
 }
 
 mod internal {
-    use crate::{token_programs, Context, Program, StateKeys};
-    /// Checks if `token_program` is one of the tokens supported by the pool
-    pub(crate) fn check_token(context: &Context<StateKeys>, token_program: &Program) {
-        let (token_x, token_y) = token_programs(context);
+    use super::*;
 
+    /// Checks if `token_program` is one of the tokens supported by the pool
+    pub fn check_token(context: &Context<StateKeys>, token_program: &Program) {
+        let (token_x, token_y) = token_programs(context);
+        let supported = token_program.account() == token_x.account()
+        || token_program.account() == token_y.account();
         assert!(
-            token_program.account() == token_x.account()
-                || token_program.account() == token_y.account(),
+            supported,
             "token program is not one of the tokens supported by this pool"
         );
     }
