@@ -223,8 +223,11 @@ fn external_token_contracts(
 
 /// Returns the external call context for the liquidity token
 fn external_liquidity_token(context: &Context<StateKeys>) -> ExternalCallContext {
-    let liquidity_token = context.get(StateKeys::LiquidityToken).unwrap().expect("liquidity token not initialized");
-    ExternalCallContext::new(liquidity_token, MAX_GAS, 0)
+    ExternalCallContext::new(
+        context.get(StateKeys::LiquidityToken).unwrap().unwrap(),
+        MAX_GAS,
+        0,
+    )
 }
 
 mod internal {
