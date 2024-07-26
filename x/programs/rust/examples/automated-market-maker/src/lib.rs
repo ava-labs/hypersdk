@@ -17,7 +17,7 @@ const MAX_GAS: u64 = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liquidity_token: Id) {
+pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liquidity_token: Program) {
     context.store([
         (StateKeys::TokenX, &token_x),
         (StateKeys::TokenY, &token_y),
