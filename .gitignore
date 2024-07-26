@@ -76,3 +76,24 @@ x/programs/runtime/.rustc_info.json
 
 # Relating to NFT-VM
 *coverage.html
+
+# Only actions + dependencies should be pushed
+examples/cfmmvm/assets/
+examples/cfmmvm/auth/
+examples/cfmmvm/cmd/
+examples/cfmmvm/config/
+examples/cfmmvm/controller/
+examples/cfmmvm/genesis/
+examples/cfmmvm/rpc/
+examples/cfmmvm/scripts/
+examples/cfmmvm/version/
+
+examples/nftvm/assets/
+examples/nftvm/auth/
+examples/nftvm/cmd/
+examples/nftvm/config/
+examples/nftvm/controller/
+examples/nftvm/genesis/
+examples/nftvm/rpc/
+examples/nftvm/scripts/
+examples/nftvm/version/
