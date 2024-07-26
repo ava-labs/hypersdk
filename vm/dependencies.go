@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -100,7 +101,10 @@ type AuthEngine interface {
 type ControllerFactory interface {
 	New(
 		inner *VM, // hypersdk VM
-		snowCtx *snow.Context,
+		log logging.Logger,
+		networkID uint32,
+		chainID ids.ID,
+		chainDataDir string,
 		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,

@@ -9,7 +9,8 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -44,7 +45,10 @@ type factory struct{}
 
 func (*factory) New(
 	inner *vm.VM,
-	snowCtx *snow.Context,
+	log logging.Logger,
+	networkID uint32,
+	chainID ids.ID,
+	chainDataDir string,
 	gatherer ametrics.MultiGatherer,
 	genesisBytes []byte,
 	upgradeBytes []byte, // subnets to allow for AWM
@@ -62,7 +66,9 @@ func (*factory) New(
 ) {
 	c := &Controller{}
 	c.inner = inner
-	c.snowCtx = snowCtx
+	c.log = log
+	c.networkID = networkID
+	c.chainID = chainID
 	c.stateManager = &storage.StateManager{}
 
 	// Instantiate metrics
@@ -78,8 +84,7 @@ func (*factory) New(
 		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
-	c.snowCtx.Log.SetLevel(c.config.LogLevel)
-	snowCtx.Log.Info("initialized config", zap.Any("contents", c.config))
+	log.Info("initialized config", zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
@@ -88,9 +93,9 @@ func (*factory) New(
 			err,
 		)
 	}
-	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
+	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
+	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
@@ -140,9 +145,11 @@ func (*factory) New(
 }
 
 type Controller struct {
-	inner *vm.VM
+	inner     *vm.VM
+	log       logging.Logger
+	networkID uint32
+	chainID   ids.ID
 
-	snowCtx      *snow.Context
 	genesis      *genesis.Genesis
 	config       *config.Config
 	stateManager *storage.StateManager
@@ -156,7 +163,7 @@ type Controller struct {
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(t, c.snowCtx.NetworkID, c.snowCtx.ChainID)
+	return c.genesis.Rules(t, c.networkID, c.chainID)
 }
 
 func (c *Controller) StateManager() chain.StateManager {

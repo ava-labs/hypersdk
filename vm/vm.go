@@ -221,7 +221,10 @@ func (vm *VM) Initialize(
 	// Always initialize implementation first
 	vm.c, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.factory.New(
 		vm,
-		controllerContext,
+		controllerContext.Log,
+		controllerContext.NetworkID,
+		controllerContext.ChainID,
+		controllerContext.ChainDataDir,
 		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
