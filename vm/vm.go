@@ -58,40 +58,10 @@ const (
 	MinAcceptedBlockWindow = 1024
 )
 
-var _ Option = (*OptionFunc)(nil)
-
-type Options struct {
-	BlockBuilder builder.Builder
-	TxGossiper   gossiper.Gossiper
-}
-
-type Option interface {
-	Apply(vm *VM, options *Options)
-}
-
-type OptionFunc func(vm *VM, options *Options)
-
-func (o OptionFunc) Apply(vm *VM, options *Options) {
-	o(vm, options)
-}
-
-func WithBlockBuilder(blockBuilder builder.Builder) Option {
-	return OptionFunc(func(_ *VM, options *Options) {
-		options.BlockBuilder = blockBuilder
-	})
-}
-
-func WithTxGossiper(txGossiper gossiper.Gossiper) Option {
-	return OptionFunc(func(_ *VM, options *Options) {
-		options.TxGossiper = txGossiper
-	})
-}
-
 type VM struct {
 	factory ControllerFactory
 	c       Controller
 	v       *version.Semantic
-	options *Options
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
