@@ -122,7 +122,7 @@ function run {
 echo "Running '$TESTS' at: $(date)"
 RUN=
 for test in $TESTS; do
-  RUN="${RUN} run ${test} &"
+  RUN="${RUN} run ${test} ${TARGET} &"
 done
 
 RUN=${RUN%&}
