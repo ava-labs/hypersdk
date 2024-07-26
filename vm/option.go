@@ -21,3 +21,21 @@ func WithManualGossiper() Option {
 		vm.gossiper = gossiper.NewManual(vm)
 	}
 }
+
+func WithHeightKey(key []byte) Option {
+	return func(vm *VM) {
+		vm.stateKeys.heightKey = key
+	}
+}
+
+func WithTimestampKey(key []byte) Option {
+	return func(vm *VM) {
+		vm.stateKeys.timestampKey = key
+	}
+}
+
+func WithFeeKey(key []byte) Option {
+	return func(vm *VM) {
+		vm.stateKeys.feeKey = key
+	}
+}

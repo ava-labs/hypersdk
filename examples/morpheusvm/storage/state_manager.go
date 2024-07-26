@@ -15,18 +15,6 @@ var _ (chain.StateManager) = (*StateManager)(nil)
 
 type StateManager struct{}
 
-func (*StateManager) HeightKey() []byte {
-	return HeightKey()
-}
-
-func (*StateManager) TimestampKey() []byte {
-	return TimestampKey()
-}
-
-func (*StateManager) FeeKey() []byte {
-	return FeeKey()
-}
-
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
 		string(BalanceKey(addr)): state.Read | state.Write,
