@@ -1,6 +1,5 @@
 import type { OnRpcRequestHandler } from '@metamask/snaps-sdk';
 import { panel, text } from '@metamask/snaps-sdk';
-import { transferDigest } from "../../web_wallet/src/Transfer"
 import nacl from 'tweetnacl';
 import { base58 } from '@scure/base';
 
