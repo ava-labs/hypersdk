@@ -30,7 +30,7 @@ func TestFIFOCache(t *testing.T) {
 				require.False(ok)
 				v, ok := cache.Get(1)
 				require.True(ok)
-				require.Equal(v, 1)
+				require.Equal(1, v)
 			},
 		},
 		{
@@ -53,12 +53,12 @@ func TestFIFOCache(t *testing.T) {
 				require := require.New(t)
 				v, ok := cache.Get(0)
 				require.True(ok)
-				require.Equal(v, 0)
+				require.Equal(0, v)
 				exists := cache.Put(0, 10)
 				require.True(exists)
 				v, ok = cache.Get(0)
 				require.True(ok)
-				require.Equal(v, 10)
+				require.Equal(10, v)
 			},
 		},
 	}
@@ -75,7 +75,7 @@ func TestFIFOCache(t *testing.T) {
 				require.False(exists)
 				v, ok := cache.Get(i)
 				require.True(ok)
-				require.Equal(v, i)
+				require.Equal(i, v)
 			}
 
 			if tt.check != nil {
