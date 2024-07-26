@@ -17,30 +17,34 @@ const MAX_GAS: u64 = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: Context<StateKeys>, token_x: Program, token_y: Program, liquidity_token: Program) {
-    context.store([
-        (StateKeys::TokenX, &token_x),
-        (StateKeys::TokenY, &token_y),
-        (StateKeys::LiquidityToken, &liquidity_token),
-    ]).expect("failed to set state");
+pub fn init(
+    context: Context<StateKeys>,
+    token_x: Program,
+    token_y: Program,
+    liquidity_token: Program,
+) {
+    context
+        .store([
+            (StateKeys::TokenX, &token_x),
+            (StateKeys::TokenY, &token_y),
+            (StateKeys::LiquidityToken, &liquidity_token),
+        ])
+        .expect("failed to set state");
 
     let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
 
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
-    assert!(token::transfer_ownership(&liquidity_context, *context.program().account()), "failed to transfer ownership of the liquidity token");
+    assert!(
+        token::transfer_ownership(&liquidity_context, *context.program().account()),
+        "failed to transfer ownership of the liquidity token"
+    );
 
-    // Ideal flow for deploying a new token contract. Could also pass in the liquidity token id
-    // as a parameter but that would require the caller to know the id and its prob best to hardcode the version
-    // since newer versions could have different functions or state keys
-    // 
     // The ID acts as the unique identifier of the program bytes we want to deploy
     // declare this at the top of the file const TOKEN_ID : Id = "0xhardcoded_id";
     // and then deploy the program with the ID
     // context.program().deploy("liquidity_token_id", &[]);
-
 }
-
 
 /// Swaps 'amount' of `token_program_in` with the other token in the pool
 /// Returns the amount of tokens received from the swap
@@ -57,16 +61,13 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     // make sure token_in matches the token_program_in
     let (token_in, token_out) = if token_program_in.account() == token_in.program().account() {
         (token_in, token_out)
-    } else {   
+    } else {
         (token_out, token_in)
     };
 
     // calculate the amount of tokens in the pool
     let (reserve_token_in, reserve_token_out) = reserves(&token_in, &token_out);
-    assert!(
-        reserve_token_out > 0,
-        "insufficient liquidity"
-    );
+    assert!(reserve_token_out > 0, "insufficient liquidity");
 
     // x * y = k
     // (x + dx) * (y - dy) = k
@@ -82,9 +83,11 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     token::transfer_from(&token_out, *program.account(), context.actor(), amount_out);
 
     // update the allowance for token_in
-    assert!(
-        token::approve(&token_in, *program.account(), reserve_token_in + amount)
-    );
+    assert!(token::approve(
+        &token_in,
+        *program.account(),
+        reserve_token_in + amount
+    ));
 
     amount_out
 }
@@ -99,12 +102,16 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     let program = context.program();
     let (token_x, token_y) = external_token_contracts(&context);
     let lp_token = external_liquidity_token(&context);
-   
+
     // calculate the amount of tokens in the pool
     let (reserve_x, reserve_y) = reserves(&token_x, &token_y);
 
     // ensure the proper ratio
-    assert_eq!(reserve_x * amount_y, reserve_y * amount_x, "invalid token amounts provided");
+    assert_eq!(
+        reserve_x * amount_y,
+        reserve_y * amount_x,
+        "invalid token amounts provided"
+    );
 
     // transfer tokens from the actor to the pool
     token::transfer_from(&token_x, context.actor(), *program.account(), amount_x);
@@ -154,7 +161,10 @@ pub fn remove_liquidity(context: Context<StateKeys>, shares: u64) -> (u64, u64) 
     let amount_x = (shares * reserve_x) / total_shares;
     let amount_y = (shares * reserve_y) / total_shares;
 
-    assert!(amount_x > 0 && amount_y > 0, "amounts must be greater than 0");
+    assert!(
+        amount_x > 0 && amount_y > 0,
+        "amounts must be greater than 0"
+    );
 
     // burn the shares
     token::burn(&lp_token, context.actor(), shares);
@@ -193,8 +203,14 @@ fn reserves(token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (u6
 /// Returns the tokens in the pool
 fn token_programs(context: &Context<StateKeys>) -> (Program, Program) {
     (
-        context.get(StateKeys::TokenX).unwrap().expect("token x not initialized"),
-        context.get(StateKeys::TokenY).unwrap().expect("token y not initialized"),
+        context
+            .get(StateKeys::TokenX)
+            .unwrap()
+            .expect("token x not initialized"),
+        context
+            .get(StateKeys::TokenY)
+            .unwrap()
+            .expect("token y not initialized"),
     )
 }
 /// Returns the external call contexts for the tokens in the pool
@@ -212,10 +228,7 @@ fn external_token_contracts(
 /// Returns the external call context for the liquidity token
 fn external_liquidity_token(context: &Context<StateKeys>) -> ExternalCallContext {
     ExternalCallContext::new(
-        context
-            .get(StateKeys::LiquidityToken)
-            .unwrap()
-            .unwrap(),
+        context.get(StateKeys::LiquidityToken).unwrap().unwrap(),
         MAX_GAS,
         0,
     )
