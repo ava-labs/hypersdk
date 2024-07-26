@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@metamask/snaps-sdk": "^4.0.0",
-    "bs58": "^6.0.0",
+    "@scure/base": "^1.1.7",
     "buffer": "^6.0.3"
   },
   "devDependencies": {

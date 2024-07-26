@@ -1,7 +1,8 @@
 import { KeyIcon, BackspaceIcon } from '@heroicons/react/20/solid'
-import { EphemeralSigner, SignerIface } from './Signer'
-import { SNAP_ID } from './const'
-import { MetamaskSnapSigner } from './MetamaskSnapSigner'
+import { SignerIface } from '../signers/SignerIface'
+import { SNAP_ID } from '../const'
+import { MetamaskSnapSigner } from '../signers/MetamaskSnapSigner'
+import { EphemeralSigner } from '../signers/EphemeralSigner'
 
 
 export default function ConnectWalletWindow({ onWalletInitComplete }: { onWalletInitComplete: (wallet: SignerIface) => void }) {

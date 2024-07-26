@@ -2,7 +2,7 @@ import type { OnRpcRequestHandler } from '@metamask/snaps-sdk';
 import { panel, text } from '@metamask/snaps-sdk';
 import { transferDigest } from "../../web_wallet/src/Transfer"
 import nacl from 'tweetnacl';
-import bs58 from 'bs58';
+import { base58 } from '@scure/base';
 
 /**
  * Handle incoming JSON-RPC requests, sent through `wallet_invokeSnap`.
@@ -36,7 +36,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     case 'getPublicKey':
       const keyPair = await deriveKeyPairDefaultPath();
 
-      const pubkey = bs58.encode(keyPair.publicKey);
+      const pubkey = base58.encode(keyPair.publicKey);
 
       return pubkey;
     default:

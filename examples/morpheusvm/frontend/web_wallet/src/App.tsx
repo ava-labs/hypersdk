@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import ConnectWallet from './ConnectWallet'
-import { SignerIface } from './Signer'
+import ConnectWallet from './components/ConnectWallet'
+import { SignerIface } from './signers/SignerIface'
 
 function App() {
   const [wallet, setWallet] = useState<SignerIface | null>(null)

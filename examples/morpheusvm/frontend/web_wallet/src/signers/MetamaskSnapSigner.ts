@@ -1,7 +1,6 @@
 import MetaMaskSDK, { SDKProvider } from "@metamask/sdk"
-import { SignerIface } from "./Signer";
-import { transferParams } from "./Transfer";
-import { SNAP_ID } from "./const";
+import { ED25519_AUTH_ID, SignerIface } from "./SignerIface";
+import { SNAP_ID } from "../const";
 import { base58 } from '@scure/base';
 
 type InvokeSnapParams = {
@@ -15,6 +14,9 @@ export class MetamaskSnapSigner implements SignerIface {
     constructor(private snapId: string) {
 
     }
+    getAuthId(): number {
+        return ED25519_AUTH_ID
+    }
 
     getPublicKey(): Uint8Array {
         if (!this.cachedPublicKey) {
@@ -23,13 +25,11 @@ export class MetamaskSnapSigner implements SignerIface {
         return this.cachedPublicKey;
     }
 
-    async signTransfer(params: transferParams): Promise<Uint8Array> {
-        const sig58 = await this.invokeSnap({ method: 'signTransaction_Transfer', params }) as string | undefined;
-
+    async signTx(binary: Uint8Array): Promise<Uint8Array> {
+        const sig58 = await this.invokeSnap({ method: 'signTransaction', params: { binary } }) as string | undefined;
         if (!sig58) {
             throw new Error("Failed to sign transaction");
         }
-
         return base58.decode(sig58);
     }
 
