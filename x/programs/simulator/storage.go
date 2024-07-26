@@ -9,6 +9,8 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/bridge"
 )
 
+import "C"
+
 // ensure SimulatorState implements state.Mutable
 var _ state.Mutable = &SimulatorState{}
 

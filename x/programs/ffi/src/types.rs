@@ -42,3 +42,15 @@ pub struct SimulatorContext {
     pub height: c_uint,
     pub timestamp: c_uint,
 }
+
+#[repr(C)]
+pub struct Bytes {
+    data: *mut u8,
+    len: usize,
+}
+
+impl Bytes {
+    pub fn get_slice(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.data, self.len) }
+    }
+}

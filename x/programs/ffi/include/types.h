@@ -34,5 +34,10 @@ typedef struct {
     uint8_t* result;
 } Response;
 
-typedef int (*GetStateCallback)(void *data, char *key, int keyLen);
+typedef struct {
+    uint8_t* data;
+    unsigned int length;
+} Bytes;
+
+typedef int (*GetStateCallback)(void *data, Bytes key);
 
