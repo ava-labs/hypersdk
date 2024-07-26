@@ -7,5 +7,7 @@ import "errors"
 
 var ErrInvalidBalance = errors.New("invalid balance")
 
-var ErrOrderAlreadyExists = errors.New("order already exists")
-var ErrCorruptInstanceMarketplaceIndicator = errors.New("instance marketplace indicator neither one nor zero")
+var (
+	ErrOrderAlreadyExists                  = errors.New("order already exists")
+	ErrCorruptInstanceMarketplaceIndicator = errors.New("instance marketplace indicator neither one nor zero")
+)

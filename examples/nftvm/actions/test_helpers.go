@@ -1,10 +1,9 @@
 package actions
 
 import (
-	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
-
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/nftvm/chaintest"
+	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
 )

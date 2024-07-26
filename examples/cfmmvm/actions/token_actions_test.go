@@ -1,15 +1,19 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/chaintest"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCreateToken(t *testing.T) {
@@ -19,113 +23,113 @@ func TestCreateToken(t *testing.T) {
 	onesAddr, err := createAddressWithSameDigits(1)
 	require.NoError(err)
 
-	createTokenTests := []chaintest.ActionTest {
+	createTokenTests := []chaintest.ActionTest{
 		{
 			Name: "No token with empty name",
 			Action: &CreateToken{
-				Name: []byte{},
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte{},
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenNameEmpty,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenNameEmpty,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with empty symbol",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte{},
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte{},
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenSymbolEmpty,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenSymbolEmpty,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with empty metadata",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte{},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenMetadataEmpty,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenMetadataEmpty,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with zero decimals",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: 0,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenDecimalsZero,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenDecimalsZero,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with too large name",
 			Action: &CreateToken{
-				Name: []byte(TooLargeTokenName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TooLargeTokenName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenNameTooLarge,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenNameTooLarge,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with too large symbol",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TooLargeTokenSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TooLargeTokenSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenSymbolTooLarge,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenSymbolTooLarge,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with too large metadata",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TooLargeTokenMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenMetadataTooLarge,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenMetadataTooLarge,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "No token with too precise decimals",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TooPreciseTokenDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenDecimalsTooPrecise,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTokenDecimalsTooPrecise,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Correct token creation is allowed",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte{tokenOneAddress[:]},
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -147,21 +151,21 @@ func TestCreateToken(t *testing.T) {
 		{
 			Name: "No overwriting existing tokens",
 			Action: &CreateToken{
-				Name: []byte(TokenOneName),
-				Symbol: []byte(TokenOneSymbol),
+				Name:     []byte(TokenOneName),
+				Symbol:   []byte(TokenOneSymbol),
 				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			SetupActions: []chain.Action{
-				&CreateToken {
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+				&CreateToken{
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenAlreadyExists,
+			ExpectedErr:     ErrOutputTokenAlreadyExists,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -172,11 +176,9 @@ func TestCreateToken(t *testing.T) {
 	}
 
 	chaintest.Run(t, createTokenTests)
-
 }
 
 func TestMintToken(t *testing.T) {
-
 	require := require.New(t)
 	ts := tstate.New(1)
 
@@ -186,24 +188,24 @@ func TestMintToken(t *testing.T) {
 	twosAddr, err := createAddressWithSameDigits(2)
 	require.NoError(err)
 
-	mintTokenTests := []chaintest.ActionTest {
+	mintTokenTests := []chaintest.ActionTest{
 		{
 			Name: "Mint value must be positive",
 			Action: &MintToken{
-				To: onesAddr,
+				To:    onesAddr,
 				Token: tokenOneAddress,
 				Value: 0,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputMintValueZero,
+			ExpectedErr:     ErrOutputMintValueZero,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -213,12 +215,12 @@ func TestMintToken(t *testing.T) {
 		{
 			Name: "Only owner can mint",
 			Action: &MintToken{
-				To: onesAddr,
+				To:    onesAddr,
 				Token: tokenOneAddress,
 				Value: InitialTokenMintValue,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenNotOwner,
+			ExpectedErr:     ErrOutputTokenNotOwner,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
@@ -231,12 +233,12 @@ func TestMintToken(t *testing.T) {
 		{
 			Name: "Can only mint existing tokens",
 			Action: &MintToken{
-				To: onesAddr,
+				To:    onesAddr,
 				Token: tokenOneAddress,
 				Value: InitialTokenMintValue,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenDoesNotExist,
+			ExpectedErr:     ErrOutputTokenDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.Read)
@@ -246,20 +248,20 @@ func TestMintToken(t *testing.T) {
 		{
 			Name: "Correct mints can occur",
 			Action: &MintToken{
-				To: onesAddr,
+				To:    onesAddr,
 				Token: tokenOneAddress,
 				Value: InitialTokenMintValue,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -280,11 +282,9 @@ func TestMintToken(t *testing.T) {
 	}
 
 	chaintest.Run(t, mintTokenTests)
-
 }
 
 func TestBurnToken(t *testing.T) {
-
 	require := require.New(t)
 	ts := tstate.New(1)
 
@@ -296,7 +296,7 @@ func TestBurnToken(t *testing.T) {
 			Name: "Can only burn existing tokens",
 			Action: &BurnToken{
 				TokenAddress: tokenOneAddress,
-				Value: InitialTokenBurnValue,
+				Value:        InitialTokenBurnValue,
 			},
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
@@ -304,28 +304,28 @@ func TestBurnToken(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenDoesNotExist,
+			ExpectedErr:     ErrOutputTokenDoesNotExist,
 		},
 		{
 			Name: "Burn value must be greater than 0",
 			Action: &BurnToken{
 				TokenAddress: tokenOneAddress,
-				Value: 0,
+				Value:        0,
 			},
-			State: GenerateEmptyState(),
+			State:           GenerateEmptyState(),
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputBurnValueZero,
+			ExpectedErr:     ErrOutputBurnValueZero,
 		},
 		{
 			Name: "Burn value must be greater or equal to than actor balance",
 			Action: &BurnToken{
 				TokenAddress: tokenOneAddress,
-				Value: InitialTokenBurnValue,
+				Value:        InitialTokenBurnValue,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
@@ -337,24 +337,24 @@ func TestBurnToken(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputInsufficientTokenBalance,
-			Actor: onesAddr,
+			ExpectedErr:     ErrOutputInsufficientTokenBalance,
+			Actor:           onesAddr,
 		},
 		{
 			Name: "Correct burns can occur",
 			Action: &BurnToken{
 				TokenAddress: tokenOneAddress,
-				Value: InitialTokenBurnValue,
+				Value:        InitialTokenBurnValue,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Token: tokenOneAddress,
 					Value: InitialTokenMintValue,
 				},
@@ -366,8 +366,8 @@ func TestBurnToken(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
-			Actor: onesAddr,
+			ExpectedErr:     nil,
+			Actor:           onesAddr,
 		},
 	}
 
@@ -375,7 +375,6 @@ func TestBurnToken(t *testing.T) {
 }
 
 func TestTransferToken(t *testing.T) {
-
 	require := require.New(t)
 	ts := tstate.New(1)
 
@@ -385,16 +384,16 @@ func TestTransferToken(t *testing.T) {
 	twosAddr, err := createAddressWithSameDigits(2)
 	require.NoError(err)
 
-	transferTokenTests := []chaintest.ActionTest {
+	transferTokenTests := []chaintest.ActionTest{
 		{
 			Name: "Can only transfer existing tokens",
 			Action: &TransferToken{
-				To: onesAddr,
+				To:           onesAddr,
 				TokenAddress: tokenOneAddress,
-				Value: TokenTransferValue,
+				Value:        TokenTransferValue,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenDoesNotExist,
+			ExpectedErr:     ErrOutputTokenDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.Read)
@@ -404,31 +403,31 @@ func TestTransferToken(t *testing.T) {
 		{
 			Name: "Tranfer value must be greater than 0",
 			Action: &TransferToken{
-				To: onesAddr,
+				To:           onesAddr,
 				TokenAddress: tokenOneAddress,
-				Value: 0,
+				Value:        0,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTransferValueZero,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputTransferValueZero,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Transfer value must be greater or equal to than sender balance",
 			Action: &TransferToken{
-				To: onesAddr,
+				To:           onesAddr,
 				TokenAddress: tokenOneAddress,
-				Value: TokenTransferValue,
+				Value:        TokenTransferValue,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputInsufficientTokenBalance,
+			ExpectedErr:     ErrOutputInsufficientTokenBalance,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -440,25 +439,25 @@ func TestTransferToken(t *testing.T) {
 		{
 			Name: "Correct transfers can occur",
 			Action: &TransferToken{
-				To: twosAddr,
+				To:           twosAddr,
 				TokenAddress: tokenOneAddress,
-				Value: TokenTransferValue,
+				Value:        TokenTransferValue,
 			},
-			SetupActions: []chain.Action {
+			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Token: tokenOneAddress,
 					Value: InitialTokenMintValue,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)

@@ -10,10 +10,10 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/lineagevm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/lineagevm/consts"
-	"github.com/ava-labs/hypersdk/examples/lineagevm/storage"
 )
 
 var _ chain.Action = (*AddStudent)(nil)
@@ -34,15 +34,12 @@ func (a *AddStudent) ComputeUnits(chain.Rules) uint64 {
 
 // Execute implements chain.Action.
 func (a *AddStudent) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
-	
 	err := storage.AddStudentToState(ctx, mu, a.ProfessorName, a.StudentName)
-
 	if err != nil {
 		return nil, err
 	}
 
 	return [][]byte{}, nil
-
 }
 
 // GetTypeID implements chain.Action.
@@ -77,8 +74,8 @@ func (a *AddStudent) StateKeys(actor codec.Address, actionID ids.ID) state.Keys 
 	studentID := storage.GenerateProfessorID(a.StudentName)
 
 	return state.Keys{
-		string(storage.ProfessorStateKey(professorID)) : state.All,
-		string(storage.ProfessorStateKey(studentID)) : state.Read,
+		string(storage.ProfessorStateKey(professorID)): state.All,
+		string(storage.ProfessorStateKey(studentID)):   state.Read,
 	}
 }
 

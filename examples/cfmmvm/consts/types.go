@@ -18,12 +18,12 @@ const (
 
 const (
 	// Auth TypeIDs
-	ED25519ID   uint8 = iota
+	ED25519ID uint8 = iota
 	SECP256R1ID
 	BLSID
 
 	// Relating to various CFMM-VM address generation
 	TOKENID
 	LIQUIDITYPOOLID
-	LIQUIDITYPOOLTOKENID 
+	LIQUIDITYPOOLTOKENID
 )

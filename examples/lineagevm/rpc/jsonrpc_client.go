@@ -9,10 +9,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	"github.com/ava-labs/hypersdk/codec"
 	_ "github.com/ava-labs/hypersdk/examples/lineagevm/registry" // ensure registry populated
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/consts"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/genesis"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/storage"
@@ -179,7 +179,7 @@ func (cli *JSONRPCClient) DoesLineageExist(ctx context.Context, professorName st
 		"lineageCheck",
 		&LineageCheckArgs{
 			ProfessorName: professorName,
-			StudentName: studentName,
+			StudentName:   studentName,
 		},
 		resp,
 	)

@@ -8,6 +8,6 @@ const (
 
 	// Related to AddProfessor Action
 	// TODO: tune this
-	MaxProfessorNameSize = 64
+	MaxProfessorNameSize  = 64
 	MaxUniversityNameSize = 64
 )

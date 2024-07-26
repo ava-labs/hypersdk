@@ -14,7 +14,7 @@ import (
 )
 
 // [Collection Prefix] + [Collection Address] + [Collection Chunks]
-func CollectionStateKey(addr codec.Address) ([]byte) {
+func CollectionStateKey(addr codec.Address) []byte {
 	k := make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = nftCollectionPrefix
 	copy(k[1:], addr[:])
@@ -22,7 +22,7 @@ func CollectionStateKey(addr codec.Address) ([]byte) {
 	return k
 }
 
-func InstanceStateKey(collectionAddr codec.Address, instanceNum uint32) ([]byte) {
+func InstanceStateKey(collectionAddr codec.Address, instanceNum uint32) []byte {
 	k := make([]byte, 1+codec.AddressLen+consts.Uint32Len+consts.Uint16Len)
 	k[0] = nftInstancePrefix
 	copy(k[1:], collectionAddr[:])
@@ -235,7 +235,7 @@ func innerGetNFTInstance(
 		isListedOnMarketplace = false
 	default:
 		return codec.EmptyAddress, []byte{}, false, ErrCorruptInstanceMarketplaceIndicator
-	} 
+	}
 
 	return owner, metadata, isListedOnMarketplace, nil
 }

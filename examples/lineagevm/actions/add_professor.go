@@ -36,7 +36,6 @@ func (*AddProfessor) GetTypeID() uint8 {
 }
 
 func (t *AddProfessor) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
-
 	professorID := storage.GenerateProfessorID(t.Name)
 
 	return state.Keys{
@@ -87,7 +86,7 @@ func (t *AddProfessor) Marshal(p *codec.Packer) {
 
 func UnmarshalAddProfessor(p *codec.Packer) (chain.Action, error) {
 	var action AddProfessor
-	
+
 	// Unpack name
 	action.Name = p.UnpackString(false)
 	var yearBytes []byte = make([]byte, 2)
@@ -104,4 +103,3 @@ func (*AddProfessor) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
-

@@ -1,9 +1,13 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
@@ -17,10 +21,10 @@ import (
 var _ chain.Action = (*CreateLiquidityPool)(nil)
 
 type CreateLiquidityPool struct {
-	FunctionID uint64 `json:"functionID"`
-	TokenX codec.Address `json:"tokenX"`
-	TokenY codec.Address `json:"tokenY"`
-	Fee uint64 `json:"fee"`
+	FunctionID uint64        `json:"functionID"`
+	TokenX     codec.Address `json:"tokenX"`
+	TokenY     codec.Address `json:"tokenY"`
+	Fee        uint64        `json:"fee"`
 }
 
 // ComputeUnits implements chain.Action.
@@ -43,11 +47,11 @@ func (c *CreateLiquidityPool) Execute(ctx context.Context, r chain.Rules, mu sta
 	_, _, _, _, _, _, err = storage.GetTokenInfoNoController(ctx, mu, c.TokenY)
 	if err != nil {
 		return nil, ErrOutputTokenYDoesNotExist
-	}	
+	}
 	if !isValidConstantFunction(c.FunctionID) {
 		return nil, ErrOutputFunctionDoesNotExist
 	}
-	
+
 	poolAddress, err := storage.LiquidityPoolAddress(c.TokenX, c.TokenY)
 	if err != nil {
 		return nil, ErrOutputIdenticalTokens
@@ -89,9 +93,9 @@ func (c *CreateLiquidityPool) StateKeys(actor codec.Address, actionID ids.ID) st
 	lpKey := storage.LiquidityPoolKey(lpAddress)
 	lpTokenKey := storage.TokenInfoKey(storage.LiqudityPoolTokenAddress(lpAddress))
 	return state.Keys{
-		string(tokenXKey): state.Read,
-		string(tokenYKey): state.Read,
-		string(lpKey): state.All,
+		string(tokenXKey):  state.Read,
+		string(tokenYKey):  state.Read,
+		string(lpKey):      state.All,
 		string(lpTokenKey): state.All,
 	}
 }
@@ -128,7 +132,7 @@ func isValidFee(fee uint64) bool {
 }
 
 func isValidConstantFunction(functionID uint64) bool {
-	if _, err := functions.GetConstantFunction(functionID); err != nil{
+	if _, err := functions.GetConstantFunction(functionID); err != nil {
 		return false
 	}
 	return true

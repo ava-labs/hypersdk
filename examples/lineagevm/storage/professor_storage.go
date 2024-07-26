@@ -7,15 +7,17 @@ import (
 	"errors"
 
 	"github.com/ava-labs/avalanchego/database"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	lconsts "github.com/ava-labs/hypersdk/examples/lineagevm/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	lconsts "github.com/ava-labs/hypersdk/examples/lineagevm/consts"
 )
 
 // [balancePrefix] + [address]
-func ProfessorStateKey(addr codec.Address) ([]byte) {
+func ProfessorStateKey(addr codec.Address) []byte {
 	k := make([]byte, 1+codec.AddressLen+consts.Uint16Len)
 	k[0] = professorStatePrefix
 	copy(k[1:], addr[:])
@@ -55,7 +57,7 @@ func AddProfessorComplex(
 	universityLength := len(university)
 
 	// TODO: handle chunk sizing rules
-	// nameLength | name | yearLength | universityLength | university 
+	// nameLength | name | yearLength | universityLength | university
 	valueLength := consts.Uint16Len + nameLength + consts.Uint16Len + consts.Uint16Len + universityLength + consts.Uint16Len
 
 	v := make([]byte, valueLength)
@@ -66,11 +68,11 @@ func AddProfessorComplex(
 	binary.BigEndian.PutUint16(v[getYearIndex(nameLength):], year)
 	// Inserting university
 	binary.BigEndian.PutUint16(v[getUniversityLengthIndex(nameLength):], uint16(universityLength))
-	copy(v[getUniversityIndex(nameLength): ], []byte(university))
+	copy(v[getUniversityIndex(nameLength):], []byte(university))
 	// Inserting number of students
 	binary.BigEndian.PutUint16(v[getNumOfStudentsIndex(nameLength, universityLength):], 0)
 
-	err = mu.Insert(ctx, professorStateKey, v) 
+	err = mu.Insert(ctx, professorStateKey, v)
 	if err != nil {
 		return codec.EmptyAddress, err
 	}
@@ -96,11 +98,11 @@ func innerGetProfessorFromState(
 		return false, "", 0, "", []codec.Address{}, nil
 	}
 	if err != nil {
-		return false, "" , 0, "", []codec.Address{}, err
+		return false, "", 0, "", []codec.Address{}, err
 	}
 	// Extracting name
 	nameLen := binary.BigEndian.Uint16(v)
-	name := string(v[getNameIndex() : getYearIndex(int(nameLen))])
+	name := string(v[getNameIndex():getYearIndex(int(nameLen))])
 	// Extracting year
 	year := binary.BigEndian.Uint16(v[getYearIndex(int(nameLen)):])
 	// Extracting university
@@ -114,7 +116,7 @@ func innerGetProfessorFromState(
 	// Range over each student and add to students array
 	for i := 0; i < int(numOfStudents); i++ {
 		startIndex, endIndex := getStudentIndices(int(nameLen), int(universityLen), i)
-		currStudent := v[startIndex: endIndex]
+		currStudent := v[startIndex:endIndex]
 
 		students = append(students, codec.Address(currStudent))
 	}
@@ -128,8 +130,7 @@ func AddStudentToState(
 	mu state.Mutable,
 	professorName string,
 	studentName string,
-) (error) {
-
+) error {
 	professorID := GenerateProfessorID(professorName)
 	studentID := GenerateProfessorID(studentName)
 	kp := ProfessorStateKey(professorID)
@@ -140,7 +141,7 @@ func AddStudentToState(
 	// TODO: handle case where database does not exist
 	if err != nil {
 		return err
-	} 
+	}
 
 	// Check that Student exists
 	_, err = mu.GetValue(ctx, ks)
@@ -156,11 +157,10 @@ func innerAddStudentToState(
 	mu state.Mutable,
 	professorID codec.Address,
 	studentID codec.Address,
-) (error) {
-
+) error {
 	// First, read professor state
 	v, _ := mu.GetValue(ctx, ProfessorStateKey(professorID))
-	nv := make([]byte, len(v) + codec.AddressLen)
+	nv := make([]byte, len(v)+codec.AddressLen)
 	copy(nv, v)
 
 	// Get name, university lengths
@@ -169,39 +169,39 @@ func innerAddStudentToState(
 	universityLen := binary.BigEndian.Uint16(v[getUniversityLengthIndex(int(nameLen)):])
 
 	numOfStudents := binary.BigEndian.Uint16(v[getNumOfStudentsIndex(int(nameLen), int(universityLen)):])
-	// Get index for new student (i.e. we are appending) 
+	// Get index for new student (i.e. we are appending)
 	newStudentIndex, _ := getStudentIndices(int(nameLen), int(universityLen), int(numOfStudents))
 	// Write student to professor state and add back to DB
 	copy(nv[newStudentIndex:], studentID[:])
 	// Update number of students
 	numOfStudents += 1
-	binary.BigEndian.PutUint16(nv[getNumOfStudentsIndex(int(nameLen), int(universityLen)) :], numOfStudents)
+	binary.BigEndian.PutUint16(nv[getNumOfStudentsIndex(int(nameLen), int(universityLen)):], numOfStudents)
 	mu.Insert(ctx, ProfessorStateKey(professorID), nv)
 
 	return nil
 }
 
-func getNameIndex() (int) {
+func getNameIndex() int {
 	return consts.Uint16Len
 }
 
-func getYearIndex(nameLength int) (int) {
+func getYearIndex(nameLength int) int {
 	return getNameIndex() + nameLength
 }
 
-func getUniversityLengthIndex(nameLength int) (int) {
+func getUniversityLengthIndex(nameLength int) int {
 	return getYearIndex(nameLength) + consts.Uint16Len
 }
 
-func getUniversityIndex(nameLength int) (int) {
+func getUniversityIndex(nameLength int) int {
 	return getUniversityLengthIndex(nameLength) + consts.Uint16Len
 }
 
-func getNumOfStudentsIndex(nameLength int, universityLength int) (int) {
+func getNumOfStudentsIndex(nameLength int, universityLength int) int {
 	return getUniversityIndex(nameLength) + universityLength
 }
 
-func getStartOfStudentListIndex(nameLength int, universityLength int) (int) {
+func getStartOfStudentListIndex(nameLength int, universityLength int) int {
 	return getNumOfStudentsIndex(nameLength, universityLength) + consts.Uint16Len
 }
 
@@ -218,7 +218,6 @@ func DoesLineageExist(
 	professorName string,
 	studentName string,
 ) (existsPath bool, err error) {
-
 	// First, check that Professor, Student exist in state
 	professorID := GenerateProfessorID(professorName)
 	studentID := GenerateProfessorID(studentName)
@@ -241,7 +240,7 @@ func DoesLineageExist(
 	for q.Len() != 0 {
 		e := q.Front()
 		if e.Value == studentID {
-			return true, nil 
+			return true, nil
 		}
 		// Remove e from list, add students
 		q.Remove(e)
@@ -259,4 +258,3 @@ func DoesLineageExist(
 
 	return
 }
-

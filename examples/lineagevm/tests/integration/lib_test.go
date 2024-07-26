@@ -18,24 +18,26 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/fatih/color"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/auth"
-	lconsts "github.com/ava-labs/hypersdk/examples/lineagevm/consts"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/controller"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/genesis"
-	lrpc "github.com/ava-labs/hypersdk/examples/lineagevm/rpc"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/fatih/color"
+
+	lconsts "github.com/ava-labs/hypersdk/examples/lineagevm/consts"
+	lrpc "github.com/ava-labs/hypersdk/examples/lineagevm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type prepareResult struct {
 	instance instance
-	factory *auth.ED25519Factory
+	factory  *auth.ED25519Factory
 }
 
 func prepare(t *testing.T) prepareResult {
@@ -183,9 +185,9 @@ func prepare(t *testing.T) prepareResult {
 
 	app.instances = instances
 	color.Blue("created %d VMs", vms)
-	
+
 	return prepareResult{
 		instance: instances[0],
-		factory: factory,
+		factory:  factory,
 	}
 }

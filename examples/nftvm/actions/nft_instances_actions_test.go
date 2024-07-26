@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -12,7 +14,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNFTInstances(t *testing.T) {
@@ -217,5 +218,4 @@ func TestNFTInstances(t *testing.T) {
 	}
 
 	chaintest.Run(t, nftInstanceTests)
-
 }

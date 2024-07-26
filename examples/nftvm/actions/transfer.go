@@ -11,10 +11,10 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
 	mconsts "github.com/ava-labs/hypersdk/examples/nftvm/consts"
-	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 )
 
 var _ chain.Action = (*Transfer)(nil)

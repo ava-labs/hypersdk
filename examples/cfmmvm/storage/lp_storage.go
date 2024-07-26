@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package storage
 
 import (
@@ -23,8 +26,8 @@ const (
 func LiquidityPoolKey(liquidityPoolAddress codec.Address) []byte {
 	k := make([]byte, 1+codec.AddressLen+lconsts.Uint16Len)
 	k[0] = liquidityPoolPrefix
-	copy(k[1: 1 + codec.AddressLen], liquidityPoolAddress[:])
-	binary.BigEndian.PutUint16(k[1 + codec.AddressLen:], LiquidityPoolChunks)
+	copy(k[1:1+codec.AddressLen], liquidityPoolAddress[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], LiquidityPoolChunks)
 	return k
 }
 
@@ -42,7 +45,7 @@ func LiquidityPoolAddress(tokenX codec.Address, tokenY codec.Address) (codec.Add
 	default:
 		return codec.EmptyAddress, ErrIdenticalAddresses
 	}
-	v := make([]byte, codec.AddressLen + codec.AddressLen)
+	v := make([]byte, codec.AddressLen+codec.AddressLen)
 	copy(v, firstAddress[:])
 	copy(v[codec.AddressLen:], secondAddress[:])
 	id := utils.ToID(v)
@@ -67,11 +70,11 @@ func SetLiquidityPool(
 	liquidityToken codec.Address,
 ) error {
 	k := LiquidityPoolKey(liquidityPoolAddress)
-	v := make([]byte, lconsts.Uint64Len + codec.AddressLen + codec.AddressLen + lconsts.Uint64Len + lconsts.Uint64Len + lconsts.Uint64Len + codec.AddressLen)
+	v := make([]byte, lconsts.Uint64Len+codec.AddressLen+codec.AddressLen+lconsts.Uint64Len+lconsts.Uint64Len+lconsts.Uint64Len+codec.AddressLen)
 	binary.BigEndian.PutUint64(v, functionID)
 	copy(v[lconsts.Uint64Len:], tokenX[:])
 	copy(v[lconsts.Uint64Len+codec.AddressLen:], tokenY[:])
-	binary.BigEndian.PutUint64(v[lconsts.Uint64Len + codec.AddressLen + codec.AddressLen:], fee)
+	binary.BigEndian.PutUint64(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen:], fee)
 	binary.BigEndian.PutUint64(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen+lconsts.Uint64Len:], reserveX)
 	binary.BigEndian.PutUint64(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen+lconsts.Uint64Len+lconsts.Uint64Len:], reserveY)
 	copy(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen+lconsts.Uint64Len+lconsts.Uint64Len+lconsts.Uint64Len:], liquidityToken[:])
@@ -91,12 +94,12 @@ func GetLiquidityPoolNoController(
 	return innerGetLiquidityPool(v)
 }
 
-func innerGetLiquidityPool (
+func innerGetLiquidityPool(
 	v []byte,
 ) (uint64, codec.Address, codec.Address, uint64, uint64, uint64, codec.Address, error) {
 	functionID := binary.BigEndian.Uint64(v)
-	tokenX := codec.Address(v[lconsts.Uint64Len: lconsts.Uint64Len+codec.AddressLen])
-	tokenY := codec.Address(v[lconsts.Uint64Len+codec.AddressLen:lconsts.Uint64Len+codec.AddressLen+codec.AddressLen])
+	tokenX := codec.Address(v[lconsts.Uint64Len : lconsts.Uint64Len+codec.AddressLen])
+	tokenY := codec.Address(v[lconsts.Uint64Len+codec.AddressLen : lconsts.Uint64Len+codec.AddressLen+codec.AddressLen])
 	fee := binary.BigEndian.Uint64(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen:])
 	reserveX := binary.BigEndian.Uint64(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen+lconsts.Uint64Len:])
 	reserveY := binary.BigEndian.Uint64(v[lconsts.Uint64Len+codec.AddressLen+codec.AddressLen+lconsts.Uint64Len+lconsts.Uint64Len:])
@@ -106,8 +109,8 @@ func innerGetLiquidityPool (
 
 func CompareAddress(a codec.Address, b codec.Address) ComparisonValue {
 	// TODO: make more idiomatic
-	var x = make([]int, codec.AddressLen)
-	for i := range(x) {
+	x := make([]int, codec.AddressLen)
+	for i := range x {
 		if a[i] < b[i] {
 			return LessThan
 		} else if a[i] > b[i] {

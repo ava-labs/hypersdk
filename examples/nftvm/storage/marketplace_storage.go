@@ -7,6 +7,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
@@ -14,7 +15,7 @@ import (
 
 func MarketplaceOrderStateKey(
 	orderID ids.ID,
-) ([]byte) {
+) []byte {
 	k := make([]byte, consts.Uint16Len+ids.IDLen+consts.Uint16Len)
 	k[0] = marketplaceOrderPrefix
 	copy(k[1:], orderID[:])
@@ -85,4 +86,3 @@ func GetMarketplaceOrderNoController(
 	}
 	return binary.BigEndian.Uint64(v), nil
 }
-

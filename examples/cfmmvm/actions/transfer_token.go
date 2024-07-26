@@ -1,23 +1,28 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	lconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*TransferToken)(nil)
 
 type TransferToken struct {
-	To codec.Address `json:"to"`
+	To           codec.Address `json:"to"`
 	TokenAddress codec.Address `json:"tokenAddress"`
-	Value uint64 `json:"value"`
+	Value        uint64        `json:"value"`
 }
 
 // ComputeUnits implements chain.Action.
@@ -65,7 +70,7 @@ func (t *TransferToken) Size() int {
 // StateKeys implements chain.Action.
 func (t *TransferToken) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.TokenInfoKey(t.TokenAddress)): state.All,
+		string(storage.TokenInfoKey(t.TokenAddress)):           state.All,
 		string(storage.TokenAccountKey(t.TokenAddress, actor)): state.All,
 	}
 }

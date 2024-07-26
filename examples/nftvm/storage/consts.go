@@ -27,10 +27,10 @@ const (
 	txPrefix = 0x0
 
 	// stateDB
-	balancePrefix   = 0x0
-	heightPrefix    = 0x1
-	timestampPrefix = 0x2
-	feePrefix       = 0x3
+	balancePrefix          = 0x0
+	heightPrefix           = 0x1
+	timestampPrefix        = 0x2
+	feePrefix              = 0x3
 	nftCollectionPrefix    = 0x4
 	nftInstancePrefix      = 0x5
 	marketplaceOrderPrefix = 0x6
@@ -47,7 +47,7 @@ var (
 )
 
 const (
-	ListedOnMarketplace = uint16(iota)
+	ListedOnMarketplace    = uint16(iota)
 	NotListedOnMarketplace = uint16(iota)
 )
 

@@ -15,5 +15,5 @@ const (
 
 	// Custom Action Types
 	AddProfessorID uint8 = 1
-	AddStudentID uint8 = 2
+	AddStudentID   uint8 = 2
 )

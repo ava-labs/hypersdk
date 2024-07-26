@@ -1,21 +1,26 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	lconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*CreateToken)(nil)
 
 type CreateToken struct {
-	Name []byte `json:"name"`
+	Name     []byte `json:"name"`
 	Symbol   []byte `json:"symbol"`
 	Decimals uint8  `json:"decimals"`
 	Metadata []byte `json:"metadata"`
@@ -59,11 +64,11 @@ func (c *CreateToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutab
 	// Continue only if address doesn't exist
 	tokenAddress := storage.TokenAddress(c.Name, c.Symbol, c.Decimals, c.Metadata)
 	tokenInfoKey := storage.TokenInfoKey(tokenAddress)
-	
+
 	if _, err := mu.GetValue(ctx, tokenInfoKey); err == nil {
 		return nil, ErrOutputTokenAlreadyExists
 	}
-	
+
 	// Invariants met; create and return
 	if err := storage.SetTokenInfo(ctx, mu, tokenAddress, c.Name, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
 		return nil, err

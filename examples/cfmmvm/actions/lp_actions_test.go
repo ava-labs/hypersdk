@@ -1,8 +1,13 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -11,14 +16,12 @@ import (
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/stretchr/testify/require"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
 	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 func TestCreateLiquidityPool(t *testing.T) {
-	
 	require := require.New(t)
 	ts := tstate.New(1)
 
@@ -30,24 +33,24 @@ func TestCreateLiquidityPool(t *testing.T) {
 			Name: "Invalid fee not allowed",
 			Action: &CreateLiquidityPool{
 				FunctionID: InitialFunctionID,
-				TokenX: tokenOneAddress,
-				TokenY: tokenTwoAddress,
-				Fee: 0,
+				TokenX:     tokenOneAddress,
+				TokenY:     tokenTwoAddress,
+				Fee:        0,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputInvalidFee,
-			State: GenerateEmptyState(),
+			ExpectedErr:     ErrOutputInvalidFee,
+			State:           GenerateEmptyState(),
 		},
 		{
 			Name: "Token X must exist",
 			Action: &CreateLiquidityPool{
 				FunctionID: InitialFunctionID,
-				TokenX: codec.EmptyAddress,
-				TokenY: tokenTwoAddress,
-				Fee: InitialFee,
+				TokenX:     codec.EmptyAddress,
+				TokenY:     tokenTwoAddress,
+				Fee:        InitialFee,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenXDoesNotExist,
+			ExpectedErr:     ErrOutputTokenXDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.Read)
@@ -58,20 +61,20 @@ func TestCreateLiquidityPool(t *testing.T) {
 			Name: "Token Y must exist",
 			Action: &CreateLiquidityPool{
 				FunctionID: InitialFunctionID,
-				TokenX: tokenOneAddress,
-				TokenY: codec.EmptyAddress,
-				Fee: InitialFee,
+				TokenX:     tokenOneAddress,
+				TokenY:     codec.EmptyAddress,
+				Fee:        InitialFee,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenYDoesNotExist,
+			ExpectedErr:     ErrOutputTokenYDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -84,26 +87,26 @@ func TestCreateLiquidityPool(t *testing.T) {
 			Name: "No invalid constant function IDs",
 			Action: &CreateLiquidityPool{
 				FunctionID: functions.InvalidFormulaID,
-				TokenX: tokenOneAddress,
-				TokenY: tokenTwoAddress,
-				Fee: InitialFee,
+				TokenX:     tokenOneAddress,
+				TokenY:     tokenTwoAddress,
+				Fee:        InitialFee,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputFunctionDoesNotExist,
+			ExpectedErr:     ErrOutputFunctionDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -116,20 +119,20 @@ func TestCreateLiquidityPool(t *testing.T) {
 			Name: "Correct liquidity pool creations are allowed",
 			Action: &CreateLiquidityPool{
 				FunctionID: InitialFunctionID,
-				TokenX: tokenOneAddress,
-				TokenY: tokenTwoAddress,
-				Fee: InitialFee,
+				TokenX:     tokenOneAddress,
+				TokenY:     tokenTwoAddress,
+				Fee:        InitialFee,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
@@ -172,32 +175,32 @@ func TestCreateLiquidityPool(t *testing.T) {
 			Name: "Duplicate pools are not allowed",
 			Action: &CreateLiquidityPool{
 				FunctionID: InitialFunctionID,
-				TokenX: tokenOneAddress,
-				TokenY: tokenTwoAddress,
-				Fee: InitialFee,
+				TokenX:     tokenOneAddress,
+				TokenY:     tokenTwoAddress,
+				Fee:        InitialFee,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputLiquidityPoolAlreadyExists,
+			ExpectedErr:     ErrOutputLiquidityPoolAlreadyExists,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				lpAddress, err := storage.LiquidityPoolAddress(tokenOneAddress, tokenTwoAddress)
@@ -214,20 +217,20 @@ func TestCreateLiquidityPool(t *testing.T) {
 			Name: "TokenX cannot be the same as TokenY",
 			Action: &CreateLiquidityPool{
 				FunctionID: InitialFunctionID,
-				TokenX: tokenOneAddress,
-				TokenY: tokenOneAddress,
-				Fee: InitialFee,
+				TokenX:     tokenOneAddress,
+				TokenY:     tokenOneAddress,
+				Fee:        InitialFee,
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputIdenticalTokens,
+			ExpectedErr:     ErrOutputIdenticalTokens,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -238,7 +241,6 @@ func TestCreateLiquidityPool(t *testing.T) {
 	}
 
 	chaintest.Run(t, createLiquidityPoolTests)
-
 }
 
 func TestDepositLiquidity(t *testing.T) {
@@ -253,7 +255,7 @@ func TestDepositLiquidity(t *testing.T) {
 
 	lpTokenAddress := storage.LiqudityPoolTokenAddress(lpAddress)
 
-	depositLiquidityTests := []chaintest.ActionTest {
+	depositLiquidityTests := []chaintest.ActionTest{
 		{
 			Name: "Basic liquidity deposit works",
 			Action: &DepositLiquidity{
@@ -261,47 +263,47 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenTwoAddress,
 				},
 			},
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			ExpectedOutputs: [][]byte(nil),
-			Actor: onesAddr,
+			Actor:           onesAddr,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -344,7 +346,7 @@ func TestDepositLiquidity(t *testing.T) {
 				LiquidityPool: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputLiquidityPoolDoesNotExist,
+			ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.LiquidityPoolKey(lpAddress)), state.Read)
@@ -358,20 +360,20 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputTokenDoesNotExist,
+			ExpectedErr:     ErrOutputTokenDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
@@ -393,20 +395,20 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: smath.ErrUnderflow,
+			ExpectedErr:     smath.ErrUnderflow,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
@@ -429,26 +431,26 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&MintToken{
-					To: lpAddress,
+					To:    lpAddress,
 					Token: tokenOneAddress,
 					Value: 2,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: smath.ErrUnderflow,
-			State: func () state.Mutable  {
+			ExpectedErr:     smath.ErrUnderflow,
+			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -470,59 +472,59 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 15_000,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 15_000,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenTwoAddress,
 				},
 				&DepositLiquidity{
 					LiquidityPool: lpAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 5_000,
+					To:           lpAddress,
+					Value:        5_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 5_000,
+					To:           lpAddress,
+					Value:        5_000,
 					TokenAddress: tokenTwoAddress,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -551,41 +553,41 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 15_000,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 15_000,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenTwoAddress,
 				},
 				&DepositLiquidity{
@@ -593,7 +595,7 @@ func TestDepositLiquidity(t *testing.T) {
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputInsufficientLiquidityMinted,
+			ExpectedErr:     ErrOutputInsufficientLiquidityMinted,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -617,46 +619,46 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: lconsts.MaxUint64,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: lconsts.MaxUint64,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: lconsts.MaxUint64,
+					To:           lpAddress,
+					Value:        lconsts.MaxUint64,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: lconsts.MaxUint64,
+					To:           lpAddress,
+					Value:        lconsts.MaxUint64,
 					TokenAddress: tokenTwoAddress,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: smath.ErrOverflow,
+			ExpectedErr:     smath.ErrOverflow,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -680,46 +682,46 @@ func TestDepositLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 15_000,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 15_000,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 1,
+					To:           lpAddress,
+					Value:        1,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 1,
+					To:           lpAddress,
+					Value:        1,
 					TokenAddress: tokenTwoAddress,
 				},
 			},
 			ExpectedOutputs: nil,
-			ExpectedErr: smath.ErrUnderflow,
+			ExpectedErr:     smath.ErrUnderflow,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -760,7 +762,7 @@ func TestRemoveLiquidity(t *testing.T) {
 				LiquidityPool: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputLiquidityPoolDoesNotExist,
+			ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.LiquidityPoolKey(lpAddress)), state.Read)
@@ -774,54 +776,54 @@ func TestRemoveLiquidity(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenTwoAddress,
 				},
 				&DepositLiquidity{
 					LiquidityPool: lpAddress,
 				},
 				&TransferToken{
-					To:lpAddress,
-					Value: 1_000,
+					To:           lpAddress,
+					Value:        1_000,
 					TokenAddress: lpTokenAddress,
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -867,8 +869,8 @@ func TestSwap(t *testing.T) {
 	require.NoError(err)
 
 	lpTokenAddress := storage.LiqudityPoolTokenAddress(lpAddress)
-	
-	swapTests := []chaintest.ActionTest {
+
+	swapTests := []chaintest.ActionTest{
 		{
 			Name: "Basic swap",
 			Action: &Swap{
@@ -878,41 +880,41 @@ func TestSwap(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000 + InitialSwapValue,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenTwoAddress,
 				},
 				&DepositLiquidity{
@@ -920,7 +922,7 @@ func TestSwap(t *testing.T) {
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -951,41 +953,41 @@ func TestSwap(t *testing.T) {
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
-					Name: []byte(TokenOneName),
-					Symbol: []byte(TokenOneSymbol),
+					Name:     []byte(TokenOneName),
+					Symbol:   []byte(TokenOneSymbol),
 					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
-					Name: []byte(TokenTwoName),
-					Symbol: []byte(TokenTwoSymbol),
+					Name:     []byte(TokenTwoName),
+					Symbol:   []byte(TokenTwoSymbol),
 					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
 					FunctionID: InitialFunctionID,
-					TokenX: tokenOneAddress,
-					TokenY: tokenTwoAddress,
-					Fee: InitialFee,
+					TokenX:     tokenOneAddress,
+					TokenY:     tokenTwoAddress,
+					Fee:        InitialFee,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000,
 					Token: tokenOneAddress,
 				},
 				&MintToken{
-					To: onesAddr,
+					To:    onesAddr,
 					Value: 10_000 + InitialSwapValue,
 					Token: tokenTwoAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenOneAddress,
 				},
 				&TransferToken{
-					To: lpAddress,
-					Value: 10_000,
+					To:           lpAddress,
+					Value:        10_000,
 					TokenAddress: tokenTwoAddress,
 				},
 				&DepositLiquidity{
@@ -993,7 +995,7 @@ func TestSwap(t *testing.T) {
 				},
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: nil,
+			ExpectedErr:     nil,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
@@ -1023,7 +1025,7 @@ func TestSwap(t *testing.T) {
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputLiquidityPoolDoesNotExist,
+			ExpectedErr:     ErrOutputLiquidityPoolDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.LiquidityPoolKey(lpAddress)), state.Read)
@@ -1038,7 +1040,7 @@ func TestSwap(t *testing.T) {
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: ErrOutputFunctionDoesNotExist,
+			ExpectedErr:     ErrOutputFunctionDoesNotExist,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				stateKeys.Add(string(storage.LiquidityPoolKey(lpAddress)), state.Read)
@@ -1055,7 +1057,7 @@ func TestSwap(t *testing.T) {
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: functions.ErrBothDeltasZero,
+			ExpectedErr:     functions.ErrBothDeltasZero,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
@@ -1072,7 +1074,7 @@ func TestSwap(t *testing.T) {
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: functions.ErrNoClearDeltaToCompute,
+			ExpectedErr:     functions.ErrNoClearDeltaToCompute,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
@@ -1089,7 +1091,7 @@ func TestSwap(t *testing.T) {
 				LPAddress: lpAddress,
 			},
 			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr: functions.ErrReservesZero,
+			ExpectedErr:     functions.ErrReservesZero,
 			State: func() state.Mutable {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()

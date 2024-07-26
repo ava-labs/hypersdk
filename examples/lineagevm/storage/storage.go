@@ -49,10 +49,12 @@ const (
 	professorStatePrefix = 0x4
 )
 
-const BalanceChunks uint16 = 1
-// Assuming each UTF-8 character is 1 byte
-// TODO: tune this
-const ProfessorStateChunks uint16 = 3
+const (
+	BalanceChunks uint16 = 1
+	// Assuming each UTF-8 character is 1 byte
+	// TODO: tune this
+	ProfessorStateChunks uint16 = 3
+)
 
 var (
 	failureByte  = byte(0x0)

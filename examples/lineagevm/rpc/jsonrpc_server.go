@@ -89,10 +89,10 @@ type GetProfessorDetailsArgs struct {
 }
 
 type GetProfessorDetailsReply struct {
-	Name string `json:"name"`
-	Year uint16 `json:"year"`
-	University string `json:"university"`
-	Students []codec.Address `json:"students"`
+	Name       string          `json:"name"`
+	Year       uint16          `json:"year"`
+	University string          `json:"university"`
+	Students   []codec.Address `json:"students"`
 }
 
 func (j *JSONRPCServer) GetProfessorDetails(req *http.Request, args *GetProfessorDetailsArgs, reply *GetProfessorDetailsReply) error {
@@ -107,7 +107,7 @@ func (j *JSONRPCServer) GetProfessorDetails(req *http.Request, args *GetProfesso
 	if err != nil {
 		return err
 	}
-	
+
 	reply.Name = name
 	reply.Year = year
 	reply.University = university
@@ -117,7 +117,7 @@ func (j *JSONRPCServer) GetProfessorDetails(req *http.Request, args *GetProfesso
 
 type LineageCheckArgs struct {
 	ProfessorName string `json:"professorName"`
-	StudentName string `json:"studentName"`
+	StudentName   string `json:"studentName"`
 }
 
 type LineageCheckReply struct {

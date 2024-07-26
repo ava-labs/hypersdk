@@ -51,7 +51,7 @@ func (i *InMemoryStore) Remove(_ context.Context, key []byte) error {
 // executing a set of setupup actions prior to the action to be tested
 type SetupAction struct {
 	Action chain.Action
-	Actor codec.Address
+	Actor  codec.Address
 }
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters

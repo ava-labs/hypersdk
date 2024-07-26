@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/nftvm/chaintest"
 	"github.com/ava-labs/hypersdk/examples/nftvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMarketplace(t *testing.T) {
@@ -334,5 +335,4 @@ func TestMarketplace(t *testing.T) {
 		},
 	}
 	chaintest.Run(t, marketplaceTests)
-
 }

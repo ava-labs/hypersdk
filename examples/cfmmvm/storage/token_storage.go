@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package storage
 
 import (
@@ -5,45 +8,47 @@ import (
 	"encoding/binary"
 
 	"github.com/ava-labs/avalanchego/database"
-	smath "github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/ava-labs/hypersdk/codec"
-	lconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
+
+	smath "github.com/ava-labs/avalanchego/utils/math"
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 const (
-	MaxTokenNameSize = 64
-	MaxTokenSymbolSize = 8
+	MaxTokenNameSize     = 64
+	MaxTokenSymbolSize   = 8
 	MaxTokenMetadataSize = 256
-	MaxTokenDecimals = 18
+	MaxTokenDecimals     = 18
 )
 
 func TokenInfoKey(tokenAddress codec.Address) []byte {
 	k := make([]byte, 1+codec.AddressLen+lconsts.Uint16Len)
 	k[0] = tokenInfoPrefix
-	copy(k[1: 1 + codec.AddressLen], tokenAddress[:])
-	binary.BigEndian.PutUint16(k[1 + codec.AddressLen:], TokenInfoChunks)
+	copy(k[1:1+codec.AddressLen], tokenAddress[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen:], TokenInfoChunks)
 	return k
 }
 
 func TokenAddress(name []byte, symbol []byte, decimals uint8, metadata []byte) codec.Address {
-	v := make([]byte, len(name) + len(symbol) + lconsts.ByteLen + len(metadata))
+	v := make([]byte, len(name)+len(symbol)+lconsts.ByteLen+len(metadata))
 	copy(v, name)
 	copy(v[len(name):], symbol)
-	v[len(name) + len(symbol)] = decimals
-	copy(v[len(name) + len(symbol) + lconsts.ByteLen:], metadata)
+	v[len(name)+len(symbol)] = decimals
+	copy(v[len(name)+len(symbol)+lconsts.ByteLen:], metadata)
 	id := utils.ToID(v)
 	return codec.CreateAddress(consts.TOKENID, id)
 }
 
-func TokenAccountKey(token codec.Address, account codec.Address) ([]byte) {
-	k := make([]byte, 1 + codec.AddressLen + codec.AddressLen + lconsts.Uint16Len)
+func TokenAccountKey(token codec.Address, account codec.Address) []byte {
+	k := make([]byte, 1+codec.AddressLen+codec.AddressLen+lconsts.Uint16Len)
 	k[0] = tokenAccountInfoPrefix
 	copy(k[1:], token[:])
-	copy(k[1 + codec.AddressLen:], account[:])
-	binary.BigEndian.PutUint16(k[1 + codec.AddressLen + codec.AddressLen:], TokenAccountInfoChunks)
+	copy(k[1+codec.AddressLen:], account[:])
+	binary.BigEndian.PutUint16(k[1+codec.AddressLen+codec.AddressLen:], TokenAccountInfoChunks)
 	return k
 }
 
@@ -68,12 +73,12 @@ func SetTokenInfo(
 
 	// Insert name
 	binary.BigEndian.PutUint16(v, uint16(nameLen))
-	copy(v[lconsts.Uint16Len:lconsts.Uint16Len + nameLen], name)
+	copy(v[lconsts.Uint16Len:lconsts.Uint16Len+nameLen], name)
 	// Insert symbol
-	binary.BigEndian.PutUint16(v[lconsts.Uint16Len + nameLen:], uint16(symbolLen))
-	copy(v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len:lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen], symbol)
+	binary.BigEndian.PutUint16(v[lconsts.Uint16Len+nameLen:], uint16(symbolLen))
+	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len:lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen], symbol)
 	// Insert decimals
-	v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen] = decimals
+	v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen] = decimals
 	// Insert metadata
 	binary.BigEndian.PutUint16(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen:], uint16(metadataLen))
 	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len:lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen], metadata)
@@ -87,7 +92,7 @@ func SetTokenInfo(
 func GetTokenInfo(
 	ctx context.Context,
 	f ReadState,
-	tokenAddress codec.Address,	
+	tokenAddress codec.Address,
 ) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
 	k := TokenInfoKey(tokenAddress)
 	values, errs := f(ctx, [][]byte{k})
@@ -116,19 +121,19 @@ func innerGetTokenInfo(
 ) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
 	// Extract name
 	nameLen := binary.BigEndian.Uint16(v)
-	name := v[lconsts.Uint16Len: lconsts.Uint16Len + nameLen]
+	name := v[lconsts.Uint16Len : lconsts.Uint16Len+nameLen]
 	// Extract symbol
-	symbolLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len + nameLen:])
-	symbol := v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len: lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen]
+	symbolLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len+nameLen:])
+	symbol := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len : lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen]
 	// Extract decimals
-	decimals := v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen]
+	decimals := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen]
 	// Extract metadata
-	metadataLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.ByteLen:])
-	metadata := v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.ByteLen + lconsts.Uint16Len: lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.ByteLen + lconsts.Uint16Len + metadataLen]
+	metadataLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen:])
+	metadata := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len : lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen]
 	// Extract totalSupply
-	totalSupply := binary.BigEndian.Uint64(v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.ByteLen + lconsts.Uint16Len + metadataLen:])
+	totalSupply := binary.BigEndian.Uint64(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen:])
 	// Extract owner
-	owner := codec.Address(v[lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.ByteLen + lconsts.Uint16Len + metadataLen + lconsts.Uint64Len:])
+	owner := codec.Address(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen+lconsts.Uint64Len:])
 
 	return name, symbol, decimals, metadata, totalSupply, owner, nil
 }

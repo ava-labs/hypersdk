@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package storage
 
 import "math"
@@ -20,26 +23,26 @@ const (
 	txPrefix = 0x0
 
 	// stateDB
-	balancePrefix   = 0x0
-	heightPrefix    = 0x1
-	timestampPrefix = 0x2
-	feePrefix       = 0x3
-	tokenInfoPrefix = 0x4
+	balancePrefix          = 0x0
+	heightPrefix           = 0x1
+	timestampPrefix        = 0x2
+	feePrefix              = 0x3
+	tokenInfoPrefix        = 0x4
 	tokenAccountInfoPrefix = 0x5
-	liquidityPoolPrefix = 0x6
+	liquidityPoolPrefix    = 0x6
 )
 
 const (
 	BalanceChunks uint16 = 1
 	// TODO: tune this
-	TokenInfoChunks uint16 = 2
+	TokenInfoChunks        uint16 = 2
 	TokenAccountInfoChunks uint16 = 2
-	LiquidityPoolChunks uint16 = 4
+	LiquidityPoolChunks    uint16 = 4
 )
 
 const (
-	LiquidityPoolTokenName = "CFMM-Pair"
-	LiquidityPoolTokenSymbol = "CFMMP"
+	LiquidityPoolTokenName     = "CFMM-Pair"
+	LiquidityPoolTokenSymbol   = "CFMMP"
 	LiquidityPoolTokenDecimals = 18
 	LiquidityPoolTokenMetadata = "A liquidity pool"
 )

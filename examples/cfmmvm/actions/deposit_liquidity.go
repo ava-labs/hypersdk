@@ -1,9 +1,13 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
@@ -69,13 +73,13 @@ func (d *DepositLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.
 		liquidity, err = smath.Sub(liquidity, uint64(storage.MinimumLiquidity))
 		if err != nil {
 			return nil, err
-		} 
+		}
 		// Mint initial liquidity to zero address
 		if err := storage.MintToken(ctx, mu, lpTokenAddress, codec.EmptyAddress, uint64(storage.MinimumLiquidity)); err != nil {
 			return nil, err
 		}
 	} else {
-		tokenXChange, err := smath.Mul64(amountX ,tSupply)
+		tokenXChange, err := smath.Mul64(amountX, tSupply)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +91,6 @@ func (d *DepositLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.
 		tokenYChange = tokenYChange / reserveY
 		liquidity = min(tokenXChange, tokenYChange)
 	}
-
 
 	if liquidity == 0 {
 		return nil, ErrOutputInsufficientLiquidityMinted

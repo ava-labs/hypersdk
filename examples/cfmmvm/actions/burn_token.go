@@ -1,15 +1,20 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	lconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/state"
+
+	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*BurnToken)(nil)
@@ -65,7 +70,7 @@ func (b *BurnToken) Size() int {
 // StateKeys implements chain.Action.
 func (b *BurnToken) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.TokenInfoKey(b.TokenAddress)): state.All,
+		string(storage.TokenInfoKey(b.TokenAddress)):           state.All,
 		string(storage.TokenAccountKey(b.TokenAddress, actor)): state.All,
 	}
 }

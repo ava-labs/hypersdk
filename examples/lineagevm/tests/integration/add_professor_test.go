@@ -4,59 +4,59 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/actions"
 	"github.com/ava-labs/hypersdk/examples/lineagevm/storage"
-	"github.com/stretchr/testify/require"
 )
 
 const (
 	// First sample professor
-	nameOne = "Leonhard Euler"
-	yearOne = uint16(1726)
+	nameOne       = "Leonhard Euler"
+	yearOne       = uint16(1726)
 	universityOne = "Universitat Basel"
 
 	// Second sample professor
-	nameTwo = "Joseph Louis Lagrange"
-	yearTwo = uint16(1754)
+	nameTwo       = "Joseph Louis Lagrange"
+	yearTwo       = uint16(1754)
 	universityTwo = "Universita di Torino"
 
 	// Third sample professor
-	nameThree = "Johann Friedrich Hennert"
-	yearThree = uint16(1766)
+	nameThree       = "Johann Friedrich Hennert"
+	yearThree       = uint16(1766)
 	universityThree = "Konigliche Akademie der Wissenschaften zu Berlin"
 
 	// Fourth sample professor
-	nameFour = "Jean-Baptiste Joseph Fourier"
-	yearFour = uint16(1817)
+	nameFour       = "Jean-Baptiste Joseph Fourier"
+	yearFour       = uint16(1817)
 	universityFour = "Ecole Normale Superieure"
 
 	// Fifth sample professor
-	nameFive = "Simeon Denis Poisson"
-	yearFive = uint16(1800)
+	nameFive       = "Simeon Denis Poisson"
+	yearFive       = uint16(1800)
 	universityFive = "Ecole Polytechnique"
 
 	// Sixth sample professor
-	nameSix = "Gustav Peter Lejeune Dirichlet"
-	yearSix = uint16(1827)
+	nameSix       = "Gustav Peter Lejeune Dirichlet"
+	yearSix       = uint16(1827)
 	universitySix = "Rheinische Friedrich-Wilhelms-Universitat Bonn"
 )
 
 func TestAddProfessor(t *testing.T) {
-
 	prep := prepare(t)
 
 	parser, err := prep.instance.lcli.Parser(context.Background())
 	require.NoError(t, err)
-	
+
 	submit, _, _, err := prep.instance.cli.GenerateTransaction(
 		context.Background(),
 		parser,
 		[]chain.Action{
-			&actions.AddProfessor{ 
-				Name: nameOne,
-				Year: yearOne,
+			&actions.AddProfessor{
+				Name:       nameOne,
+				Year:       yearOne,
 				University: universityOne,
 			},
 		},
@@ -82,50 +82,48 @@ func TestAddProfessor(t *testing.T) {
 	require.Equal(t, yearOne, yearFromChainOne)
 	require.Equal(t, universityOne, universityFromChainOne)
 	require.Equal(t, []codec.Address{}, studentsFromChainOne)
-
 }
 
 // Adds all professors to database
 // Passes if all professors were added and their information is correct
 func TestMultipleProfessors(t *testing.T) {
-
 	prep := prepare(t)
 
 	parser, err := prep.instance.lcli.Parser(context.Background())
 	require.NoError(t, err)
-	
+
 	submit, _, _, err := prep.instance.cli.GenerateTransaction(
 		context.Background(),
 		parser,
 		[]chain.Action{
-			&actions.AddProfessor{ 
-				Name: nameOne,
-				Year: yearOne,
+			&actions.AddProfessor{
+				Name:       nameOne,
+				Year:       yearOne,
 				University: universityOne,
 			},
 			&actions.AddProfessor{
-				Name: nameTwo,
-				Year: yearTwo,
+				Name:       nameTwo,
+				Year:       yearTwo,
 				University: universityTwo,
 			},
 			&actions.AddProfessor{
-				Name: nameThree,
-				Year: yearThree,
+				Name:       nameThree,
+				Year:       yearThree,
 				University: universityThree,
 			},
 			&actions.AddProfessor{
-				Name: nameFour,
-				Year: yearFour,
+				Name:       nameFour,
+				Year:       yearFour,
 				University: universityFour,
 			},
 			&actions.AddProfessor{
-				Name: nameFive,
-				Year: yearFive,
+				Name:       nameFive,
+				Year:       yearFive,
 				University: universityFive,
 			},
 			&actions.AddProfessor{
-				Name: nameSix,
-				Year: yearSix,
+				Name:       nameSix,
+				Year:       yearSix,
 				University: universitySix,
 			},
 		},
@@ -205,38 +203,36 @@ func TestMultipleProfessors(t *testing.T) {
 	require.Equal(t, yearSix, yearFromChainSix)
 	require.Equal(t, universitySix, universityFromChainSix)
 	require.Equal(t, []codec.Address{}, studentsFromChainSix)
-
 }
 
 func TestAddStudents(t *testing.T) {
-
 	prep := prepare(t)
 
 	parser, err := prep.instance.lcli.Parser(context.Background())
 	require.NoError(t, err)
-	
+
 	submit, _, _, err := prep.instance.cli.GenerateTransaction(
 		context.Background(),
 		parser,
 		[]chain.Action{
-			&actions.AddProfessor{ 
-				Name: nameOne,
-				Year: yearOne,
+			&actions.AddProfessor{
+				Name:       nameOne,
+				Year:       yearOne,
 				University: universityOne,
 			},
 			&actions.AddProfessor{
-				Name: nameTwo,
-				Year: yearTwo,
+				Name:       nameTwo,
+				Year:       yearTwo,
 				University: universityTwo,
 			},
 			&actions.AddProfessor{
-				Name: nameThree,
-				Year: yearThree,
+				Name:       nameThree,
+				Year:       yearThree,
 				University: universityThree,
 			},
 			&actions.AddProfessor{
-				Name: nameFour,
-				Year: yearFour,
+				Name:       nameFour,
+				Year:       yearFour,
 				University: universityFour,
 			},
 		},
@@ -258,11 +254,11 @@ func TestAddStudents(t *testing.T) {
 		[]chain.Action{
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameTwo,
+				StudentName:   nameTwo,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameThree,
+				StudentName:   nameThree,
 			},
 		},
 		factory,
@@ -278,7 +274,6 @@ func TestAddStudents(t *testing.T) {
 	_, _, _, newStudents, _ := prep.instance.lcli.GetProfessorDetails(context.Background(), professorOneID)
 	require.Equal(t, storage.GenerateProfessorID(nameTwo), newStudents[0])
 	require.Equal(t, storage.GenerateProfessorID(nameThree), newStudents[1])
-
 }
 
 func TestThreeLayerTree(t *testing.T) {
@@ -286,42 +281,42 @@ func TestThreeLayerTree(t *testing.T) {
 
 	parser, err := prep.instance.lcli.Parser(context.Background())
 	require.NoError(t, err)
-	
+
 	submit, _, _, err := prep.instance.cli.GenerateTransaction(
 		context.Background(),
 		parser,
 		[]chain.Action{
-			&actions.AddProfessor{ 
-				Name: nameOne,
-				Year: yearOne,
+			&actions.AddProfessor{
+				Name:       nameOne,
+				Year:       yearOne,
 				University: universityOne,
 			},
 			&actions.AddProfessor{
-				Name: nameTwo,
-				Year: yearTwo,
+				Name:       nameTwo,
+				Year:       yearTwo,
 				University: universityTwo,
 			},
 			&actions.AddProfessor{
-				Name: nameThree,
-				Year: yearThree,
+				Name:       nameThree,
+				Year:       yearThree,
 				University: universityThree,
 			},
 			&actions.AddProfessor{
-				Name: nameFour,
-				Year: yearFour,
+				Name:       nameFour,
+				Year:       yearFour,
 				University: universityFour,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameTwo,
+				StudentName:   nameTwo,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameThree,
+				StudentName:   nameThree,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameTwo,
-				StudentName: nameFour,
+				StudentName:   nameFour,
 			},
 		},
 		factory,
@@ -348,42 +343,42 @@ func TestLineageSearch(t *testing.T) {
 
 	parser, err := prep.instance.lcli.Parser(context.Background())
 	require.NoError(t, err)
-	
+
 	submit, _, _, err := prep.instance.cli.GenerateTransaction(
 		context.Background(),
 		parser,
 		[]chain.Action{
-			&actions.AddProfessor{ 
-				Name: nameOne,
-				Year: yearOne,
+			&actions.AddProfessor{
+				Name:       nameOne,
+				Year:       yearOne,
 				University: universityOne,
 			},
 			&actions.AddProfessor{
-				Name: nameTwo,
-				Year: yearTwo,
+				Name:       nameTwo,
+				Year:       yearTwo,
 				University: universityTwo,
 			},
 			&actions.AddProfessor{
-				Name: nameThree,
-				Year: yearThree,
+				Name:       nameThree,
+				Year:       yearThree,
 				University: universityThree,
 			},
 			&actions.AddProfessor{
-				Name: nameFour,
-				Year: yearFour,
+				Name:       nameFour,
+				Year:       yearFour,
 				University: universityFour,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameTwo,
+				StudentName:   nameTwo,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameThree,
+				StudentName:   nameThree,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameTwo,
-				StudentName: nameFour,
+				StudentName:   nameFour,
 			},
 		},
 		factory,
@@ -407,73 +402,71 @@ func TestLineageSearch(t *testing.T) {
 	doesLineageExist, err = prep.instance.lcli.DoesLineageExist(context.Background(), nameThree, nameFour)
 	require.NoError(t, err)
 	require.False(t, doesLineageExist)
-
 }
 
 func TestMultilayerTree(t *testing.T) {
-
 	prep := prepare(t)
 
 	parser, err := prep.instance.lcli.Parser(context.Background())
 	require.NoError(t, err)
-	
+
 	submit, _, _, err := prep.instance.cli.GenerateTransaction(
 		context.Background(),
 		parser,
 		[]chain.Action{
-			&actions.AddProfessor{ 
-				Name: nameOne,
-				Year: yearOne,
+			&actions.AddProfessor{
+				Name:       nameOne,
+				Year:       yearOne,
 				University: universityOne,
 			},
 			&actions.AddProfessor{
-				Name: nameTwo,
-				Year: yearTwo,
+				Name:       nameTwo,
+				Year:       yearTwo,
 				University: universityTwo,
 			},
 			&actions.AddProfessor{
-				Name: nameThree,
-				Year: yearThree,
+				Name:       nameThree,
+				Year:       yearThree,
 				University: universityThree,
 			},
 			&actions.AddProfessor{
-				Name: nameFour,
-				Year: yearFour,
+				Name:       nameFour,
+				Year:       yearFour,
 				University: universityFour,
 			},
 			&actions.AddProfessor{
-				Name: nameFive,
-				Year: yearFive,
+				Name:       nameFive,
+				Year:       yearFive,
 				University: universityFive,
 			},
 			&actions.AddProfessor{
-				Name: nameSix,
-				Year: yearSix,
+				Name:       nameSix,
+				Year:       yearSix,
 				University: universitySix,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameTwo,
+				StudentName:   nameTwo,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameOne,
-				StudentName: nameThree,
+				StudentName:   nameThree,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameTwo,
-				StudentName: nameFour,
+				StudentName:   nameFour,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameTwo,
-				StudentName: nameFive,
+				StudentName:   nameFive,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameFour,
-				StudentName: nameSix,
+				StudentName:   nameSix,
 			},
 			&actions.AddStudent{
 				ProfessorName: nameFive,
-				StudentName: nameSix,
+				StudentName:   nameSix,
 			},
 		},
 		factory,
@@ -489,6 +482,4 @@ func TestMultilayerTree(t *testing.T) {
 	doesLineageExist, err := prep.instance.lcli.DoesLineageExist(context.Background(), nameOne, nameSix)
 	require.NoError(t, err)
 	require.True(t, doesLineageExist)
-
-
 }

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package actions
 
 import (
@@ -9,28 +12,28 @@ import (
 )
 
 const (
-	TokenOneName = "LuigiCoin"
-	TokenOneSymbol = "LC"
+	TokenOneName     = "LuigiCoin"
+	TokenOneSymbol   = "LC"
 	TokenOneDecimals = 18
 	TokenOneMetadata = "A coin that represents Luigi"
 
-	TokenTwoName = "Martin"
-	TokenTwoSymbol = "MC"
+	TokenTwoName     = "Martin"
+	TokenTwoSymbol   = "MC"
 	TokenTwoDecimals = 8
 	TokenTwoMetadata = "A coin that represents Martin"
 
-	TooLargeTokenName = "Lorem ipsum dolor sit amet, consectetur adipiscing elit pharetra."
-	TooLargeTokenSymbol = "AAAAAAAAA"
-	TooLargeTokenMetadata = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam gravida mauris vitae tortor vehicula dictum. Maecenas rhoncus magna sed justo euismod, eu cursus nunc dapibus. Nunc vestibulum metus sit amet eros pellentesque blandit non at lacus. Ut at donec."
+	TooLargeTokenName       = "Lorem ipsum dolor sit amet, consectetur adipiscing elit pharetra."
+	TooLargeTokenSymbol     = "AAAAAAAAA"
+	TooLargeTokenMetadata   = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam gravida mauris vitae tortor vehicula dictum. Maecenas rhoncus magna sed justo euismod, eu cursus nunc dapibus. Nunc vestibulum metus sit amet eros pellentesque blandit non at lacus. Ut at donec."
 	TooPreciseTokenDecimals = 19
 
 	InitialTokenMintValue = 1
 	InitialTokenBurnValue = 1
-	TokenTransferValue = 1
+	TokenTransferValue    = 1
 
 	InitialFunctionID = 1
-	InitialFee = 100
-	InitialSwapValue = 100
+	InitialFee        = 100
+	InitialSwapValue  = 100
 )
 
 var (

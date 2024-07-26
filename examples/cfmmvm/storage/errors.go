@@ -6,6 +6,6 @@ package storage
 import "errors"
 
 var (
-	ErrInvalidBalance = errors.New("invalid balance")
+	ErrInvalidBalance     = errors.New("invalid balance")
 	ErrIdenticalAddresses = errors.New("address provided are identical")
 )
