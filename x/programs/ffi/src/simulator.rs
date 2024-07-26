@@ -22,19 +22,26 @@ impl Simulator {
     }
 }
 
-pub extern "C" fn get_state_callback(obj_ptr: *mut Simulator, key: Bytes) -> i32 {
+pub extern "C" fn get_state_callback(obj_ptr: *mut Simulator, key: Bytes) -> Bytes {
     let obj = unsafe { &mut *obj_ptr };
     let key = key.get_slice();
     let value = obj.get_value(&key.to_vec());
 
     match value {
         Some(v) => {
-            println!("Value: {:?}", v);
-            0
+            Bytes {
+                data: v.as_ptr() as *mut u8,
+                len: v.len(),
+            }
         },
         None => {
-            println!("Value not found");
-            1
+            println!("ERRROR* Value not found");
+            // this should error
+            // could add an extra field to bytes to indicate error
+            Bytes {
+                data: std::ptr::null_mut(),
+                len: 0,
+            }
         }
     }
 }
@@ -42,7 +49,7 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut Simulator, key: Bytes) -> i32
 
 // could have one callback function that multiplexes to different functions
 // or pass in multiple function pointers
-pub type GetStateCallback = extern fn(simObjectPtr: *mut Simulator, key: Bytes) -> i32;
+pub type GetStateCallback = extern fn(simObjectPtr: *mut Simulator, key: Bytes) -> Bytes;
 pub type InsertStateCallback = extern fn(*mut Simulator) -> i32;
 pub type RemoveStateCallback = extern fn(*mut Simulator) -> i32;
 

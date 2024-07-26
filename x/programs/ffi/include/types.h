@@ -39,5 +39,5 @@ typedef struct {
     unsigned int length;
 } Bytes;
 
-typedef int (*GetStateCallback)(void *data, Bytes key);
+typedef Bytes (*GetStateCallback)(void *data, Bytes key);
 

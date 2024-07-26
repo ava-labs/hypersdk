@@ -20,7 +20,7 @@ type GetStateCallbackType = C.GetStateCallback
 // pointer to the first element of the array. C compilers are aware of this calling 
 // convention and adjust the call accordingly, but Go cannot. In Go, you must pass
 // the pointer to the first element explicitly: C.f(&C.x[0]).
-func GetCallbackWrapper(getFuncPtr GetStateCallbackType, dbPtr unsafe.Pointer, key []byte) int {
+func GetCallbackWrapper(getFuncPtr GetStateCallbackType, dbPtr unsafe.Pointer, key []byte) []byte {
 	bytesPtr := C.CBytes(key)
 	defer C.free(bytesPtr)
 
@@ -28,5 +28,7 @@ func GetCallbackWrapper(getFuncPtr GetStateCallbackType, dbPtr unsafe.Pointer, k
 		data: (*C.uint8_t)(bytesPtr),
 		length: C.uint(len(key)),
 	}
-	return int(C.bridge_get_callback(getFuncPtr, dbPtr, bytesStruct))
+
+	valueBytes := C.bridge_get_callback(getFuncPtr, dbPtr, bytesStruct)
+	return C.GoBytes(unsafe.Pointer(valueBytes.data), C.int(valueBytes.length))
 }

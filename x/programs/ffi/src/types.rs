@@ -45,8 +45,8 @@ pub struct SimulatorContext {
 
 #[repr(C)]
 pub struct Bytes {
-    data: *mut u8,
-    len: usize,
+    pub data: *mut u8,
+    pub len: usize,
 }
 
 impl Bytes {
