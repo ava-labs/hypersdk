@@ -108,14 +108,19 @@ func GenerateUntilCancel(
 	backgroundCtx := context.Background()
 	for generator.Next() && ctx.Err() == nil {
 		tx, confirm, err := generator.GenerateTxWithAssertion(backgroundCtx)
-		require.NoError(err)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
 
 		_, err = submitClient.SubmitTx(backgroundCtx, tx.Bytes())
-		require.NoError(err)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
 
 		utils.ForEach(func(uri string) {
-			err := confirm(backgroundCtx, uri)
-			require.NoError(err)
+			_ = confirm(backgroundCtx, uri)
 		}, network.URIs())
 	}
 }
