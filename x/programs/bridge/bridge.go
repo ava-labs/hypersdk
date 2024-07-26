@@ -1,16 +1,15 @@
 package bridge
 
 /*
-  typedef void (*RustCallback)(void *data);
-
-  void bridge_callback(RustCallback cbFunc, void *data) {
-    return cbFunc(data);
-  }
+#cgo CFLAGS: -I../ffi/include
+#include "callbacks.h"
 */
 import "C"
 import "unsafe"
 
-func BridgeCallback(cbFuncPtr unsafe.Pointer, cbData unsafe.Pointer) {
-	cbFunc := C.RustCallback(cbFuncPtr)
-	C.bridge_callback(cbFunc, cbData)
+type GetStateCallbackType = C.GetStateCallback
+
+func BridgeCallback(cbFuncPtr unsafe.Pointer, cbData unsafe.Pointer) int {
+	cbFunc := C.GetStateCallback(cbFuncPtr)
+	return int(C.bridge_callback(cbFunc, cbData))
 }

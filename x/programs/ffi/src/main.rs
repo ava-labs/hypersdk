@@ -1,11 +1,12 @@
-use std::ffi::CString;
+use std::{collections::HashMap, ffi::CString};
 
 use libc::{c_char, c_int, c_uchar, c_uint, c_void};
 
 mod types;
 mod state;
+mod simulator;
 use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Address};
-
+use simulator::{get_state_callback, GetStateCallback, Simulator};
 // #[link(name = "simulator", kind = "dylib")]
 // extern "C" {
 //     fn Execute(db: *const SimpleMutable, ctx: *const SimulatorContext, request: *const ExecutionRequest) -> Response;
@@ -42,44 +43,14 @@ use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Add
 // }
 
 
-type Callback = extern fn(*mut RustObject);
-
 #[link(name = "simulator", kind = "dylib")]
 extern "C" {
-    fn TriggerCallback(cb: Callback, callData: *mut RustObject);
+    fn CallProgram(cb: GetStateCallback, callData: *mut Simulator);
 }
-
-
-#[no_mangle]
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-#[repr(C)]
-struct RustObject {
-    a: i32
-}
-
-impl RustObject {
-    fn new(a: i32) -> RustObject {
-        RustObject { a }
-    }
-    fn callback(&self) {
-        println!("Im called from C with value: {}", self.a);
-    }
-}
-
-extern "C" fn callback(obj_ptr: *mut RustObject) {
-    let obj = unsafe { &mut *obj_ptr };
-    println!("Im called from C with value: {}", obj.a);
-}
-
-
-
 
 fn main () {
-    let obj = RustObject::new(1002);
+    let obj = Simulator::new();
     unsafe {
-        TriggerCallback(callback, &obj as *const RustObject as *mut RustObject);
+        CallProgram(get_state_callback, &obj as *const Simulator as *mut Simulator);
     }
 }

@@ -8,19 +8,29 @@ package main
 import "C"
 
 import (
+	"context"
 	"fmt"
 	"unsafe"
 
 	"github.com/ava-labs/hypersdk/x/programs/bridge"
+	"github.com/ava-labs/hypersdk/x/programs/simulator"
 )
 
-//export TriggerCallback
-func TriggerCallback(callback C.RustCallback, callbackData unsafe.Pointer) {
+//export CallProgram
+func CallProgram(getStateCb C.GetStateCallback, statePtr unsafe.Pointer) {
+   // form db from params
+   db := simulator.NewSimulatorState(statePtr, bridge.GetStateCallbackType(getStateCb))
+   fmt.Println("Calling CallProgram")
+   db.GetValue(context.TODO(), nil)
+
+
+
    fmt.Println("Triggering callback")
    // create a reference to the Rust callback
-   refFun := unsafe.Pointer(C.RustCallback(callback))
-   bridge.BridgeCallback(refFun, callbackData)
+   refFun := unsafe.Pointer(C.GetStateCallback(getStateCb))
+   val := bridge.BridgeCallback(refFun, statePtr)
    fmt.Println("Calling Rust method from Go")
+   fmt.Println("Rust callback returned: ", val)
 }
 
 
