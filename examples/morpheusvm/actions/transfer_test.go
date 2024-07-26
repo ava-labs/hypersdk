@@ -13,7 +13,8 @@ import (
 
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
+	consts "github.com/ava-labs/hypersdk/consts"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -23,7 +24,8 @@ func TestTransferAction(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
-	oneAddr := createAddressWithByte(t, 1)
+	oneAddr, err := createAddressWithByte(1)
+	req.NoError(err)
 
 	tests := []chaintest.ActionTest{
 		{
@@ -129,16 +131,27 @@ func TestTransferAction(t *testing.T) {
 	}
 }
 
-func createAddressWithByte(t *testing.T, b byte) codec.Address {
+func createAddressWithByte(b byte) (codec.Address, error) {
 	addrSlice := make([]byte, codec.AddressLen)
 	for i := range addrSlice {
 		addrSlice[i] = b
 	}
-	addr, err := codec.ToAddress(addrSlice)
-	require.NoError(t, err)
-	return addr
+	return codec.ToAddress(addrSlice)
 }
+
 func TestTransferMarshalSpec(t *testing.T) {
+	// These specification tests provide hexadecimal representations of serialized Transfer objects.
+	// The hex strings are used to ensure byte-perfect consistency between Go and TypeScript implementations.
+	// This helps verify that both implementations serialize Transfer objects identically.
+	addr1, err := codec.ParseAddressBech32(mconsts.HRP, "morpheus1qqds2l0ryq5hc2ddps04384zz6rfeuvn3kyvn77hp4n5sv3ahuh6wgkt57y")
+	require.NoError(t, err)
+
+	addr2, err := codec.ParseAddressBech32(mconsts.HRP, "morpheus1q8rc050907hx39vfejpawjydmwe6uujw0njx9s6skzdpp3cm2he5s036p07")
+	require.NoError(t, err)
+
+	emptyAddrString := "morpheus1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqxez33a"
+	require.Equal(t, emptyAddrString, codec.MustAddressBech32(mconsts.HRP, codec.EmptyAddress))
+
 	tests := []struct {
 		name     string
 		transfer Transfer
@@ -147,20 +160,20 @@ func TestTransferMarshalSpec(t *testing.T) {
 		{
 			name: "Zero value",
 			transfer: Transfer{
-				To:    createAddressWithByte(t, 7),
+				To:    addr1,
 				Value: 0,
 				Memo:  []byte("test memo"),
 			},
-			expected: "07070707070707070707070707070707070707070707070707070707070707070700000000000000000000000974657374206d656d6f",
+			expected: "001b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa700000000000000000000000974657374206d656d6f",
 		},
 		{
 			name: "Max uint64 value",
 			transfer: Transfer{
-				To:    createAddressWithByte(t, 7),
+				To:    addr1,
 				Value: math.MaxUint64,
 				Memo:  []byte("another memo"),
 			},
-			expected: "070707070707070707070707070707070707070707070707070707070707070707ffffffffffffffff0000000c616e6f74686572206d656d6f",
+			expected: "001b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7ffffffffffffffff0000000c616e6f74686572206d656d6f",
 		},
 		{
 			name: "Empty address",
@@ -174,11 +187,11 @@ func TestTransferMarshalSpec(t *testing.T) {
 		{
 			name: "Empty memo",
 			transfer: Transfer{
-				To:    createAddressWithByte(t, 5),
+				To:    addr2,
 				Value: 456,
 				Memo:  []byte{},
 			},
-			expected: "05050505050505050505050505050505050505050505050505050505050505050500000000000001c800000000",
+			expected: "01c787d1e57fae689589cc83d7488ddbb3ae724e7ce462c350b09a10c71b55f34800000000000001c800000000",
 		},
 	}
 

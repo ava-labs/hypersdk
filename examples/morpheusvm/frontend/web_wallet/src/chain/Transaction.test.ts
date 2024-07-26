@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { Transaction } from './Transaction'
 import { bytesToHex } from '@noble/hashes/utils'
-import { idStringToBigInt } from '../actions/TransferAction.test'
+import { idStringToBigInt } from '../lib/cb58'
 
 test('Empty transaction', () => {
     const chainId = idStringToBigInt("2c7iUW3kCDwRA9ZFd5bjZZc8iDy68uAsFSBahjqSZGttiTDSNH")

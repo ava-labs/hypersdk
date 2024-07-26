@@ -21,6 +21,10 @@ export class MiniPacker {
         this.packUintGeneric(value, 8);
     }
 
+    packUint32(value: bigint): void {
+        this.packUintGeneric(value, 4);
+    }
+
     packUint256(value: bigint): void {
         this.packUintGeneric(value, 32);
     }
@@ -31,6 +35,11 @@ export class MiniPacker {
 
     packFixedBytes(value: Uint8Array | number[]): void {
         this._bytes = new Uint8Array([...this._bytes, ...value]);
+    }
+
+    packBytes(value: string): void {
+        this.packUint32(BigInt(value.length))
+        this.packFixedBytes(new TextEncoder().encode(value))
     }
 
     bytes(): Uint8Array {

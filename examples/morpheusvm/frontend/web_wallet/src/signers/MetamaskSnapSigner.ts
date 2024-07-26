@@ -1,6 +1,6 @@
 import MetaMaskSDK, { SDKProvider } from "@metamask/sdk"
 import { ED25519_AUTH_ID, SignerIface } from "./SignerIface";
-import { SNAP_ID } from "../const";
+import { DEVELOPMENT_MODE, SNAP_ID } from "../const";
 import { base58 } from '@scure/base';
 
 type InvokeSnapParams = {
@@ -14,6 +14,7 @@ export class MetamaskSnapSigner implements SignerIface {
     constructor(private snapId: string) {
 
     }
+
     getAuthId(): number {
         return ED25519_AUTH_ID
     }
@@ -26,7 +27,7 @@ export class MetamaskSnapSigner implements SignerIface {
     }
 
     async signTx(binary: Uint8Array): Promise<Uint8Array> {
-        const sig58 = await this.invokeSnap({ method: 'signTransaction', params: { binary } }) as string | undefined;
+        const sig58 = await this._invokeSnap({ method: 'signTransaction', params: { binary } }) as string | undefined;
         if (!sig58) {
             throw new Error("Failed to sign transaction");
         }
@@ -61,12 +62,11 @@ export class MetamaskSnapSigner implements SignerIface {
             method: 'wallet_getSnaps',
         })) as Record<string, unknown>;
 
-        // if (!Object.keys(snaps).includes(SNAP_ID)) {
-        await this.reinstallSnap();
-        // }
+        if (!Object.keys(snaps).includes(SNAP_ID) || DEVELOPMENT_MODE) {
+            await this.reinstallSnap();
+        }
 
-        // Cache the public key during connection
-        const pubKey = await this.invokeSnap({ method: 'getPublicKey', params: { derivationPath: ["0'"], confirm: false } }) as string | undefined;
+        const pubKey = await this._invokeSnap({ method: 'getPublicKey', params: { derivationPath: ["0'"], confirm: false } }) as string | undefined;
 
         if (!pubKey) {
             throw new Error("Failed to get public key");
@@ -78,11 +78,11 @@ export class MetamaskSnapSigner implements SignerIface {
     async reinstallSnap() {
         const provider = await this.getProvider();
 
-        console.log('Installing snap...'); // Using console.log instead of logMessage
+        console.log('Installing snap...');
         await provider.request({
             method: 'wallet_requestSnaps',
             params: {
-                [SNAP_ID]: {}, // Using SNAP_ID instead of hardcoded localhost URL
+                [SNAP_ID]: {},
             },
         });
         console.log('Snap installed');
@@ -99,7 +99,7 @@ export class MetamaskSnapSigner implements SignerIface {
         }
     }
 
-    async invokeSnap({ method, params }: InvokeSnapParams): Promise<unknown> {
+    private async _invokeSnap({ method, params }: InvokeSnapParams): Promise<unknown> {
         const provider = await this.getProvider();
         return await provider.request({
             method: 'wallet_invokeSnap',
