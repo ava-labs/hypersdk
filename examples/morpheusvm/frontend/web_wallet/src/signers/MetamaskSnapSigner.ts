@@ -8,10 +8,24 @@ type InvokeSnapParams = {
     params?: Record<string, unknown>;
 };
 
+let cachedProvider: SDKProvider | null = null;
+async function getProvider(): Promise<SDKProvider> {
+    if (!cachedProvider) {
+        const metamaskSDK = new MetaMaskSDK();
+        await metamaskSDK.connect();
+        const provider = metamaskSDK.getProvider();
+        if (!provider) {
+            throw new Error("Failed to get provider");
+        }
+        cachedProvider = provider;
+    }
+    return cachedProvider;
+}
+
 export class MetamaskSnapSigner implements SignerIface {
     private cachedPublicKey: Uint8Array | null = null;
 
-    constructor(private snapId: string) {
+    constructor(private snapId: string, private lastDerivationSection: number = 0) {
 
     }
 
@@ -34,24 +48,8 @@ export class MetamaskSnapSigner implements SignerIface {
         return base58.decode(sig58);
     }
 
-    private providerPromise: Promise<SDKProvider> | null = null;
-    async getProvider(): Promise<SDKProvider> {
-        if (!this.providerPromise) {
-            this.providerPromise = (async () => {
-                const metamaskSDK = new MetaMaskSDK();
-                await metamaskSDK.connect();
-                const provider = metamaskSDK.getProvider();
-                if (!provider) {
-                    throw new Error("Failed to get provider");
-                }
-                return provider;
-            })();
-        }
-        return this.providerPromise;
-    }
-
     async connect() {
-        const provider = await this.getProvider();
+        const provider = await getProvider();
 
         const providerVersion = (await provider?.request({ method: "web3_clientVersion" })) as string || "";
         if (!providerVersion.includes("flask")) {
@@ -66,7 +64,12 @@ export class MetamaskSnapSigner implements SignerIface {
             await this.reinstallSnap();
         }
 
-        const pubKey = await this._invokeSnap({ method: 'getPublicKey', params: { derivationPath: ["0'"], confirm: false } }) as string | undefined;
+        const pubKey = await this._invokeSnap({
+            method: 'getPublicKey',
+            params: {
+                derivationPath: [`${this.lastDerivationSection}'`]
+            }
+        }) as string | undefined;
 
         if (!pubKey) {
             throw new Error("Failed to get public key");
@@ -76,7 +79,7 @@ export class MetamaskSnapSigner implements SignerIface {
     }
 
     async reinstallSnap() {
-        const provider = await this.getProvider();
+        const provider = await getProvider();
 
         console.log('Installing snap...');
         await provider.request({
@@ -100,7 +103,7 @@ export class MetamaskSnapSigner implements SignerIface {
     }
 
     private async _invokeSnap({ method, params }: InvokeSnapParams): Promise<unknown> {
-        const provider = await this.getProvider();
+        const provider = await getProvider();
         return await provider.request({
             method: 'wallet_invokeSnap',
             params: {

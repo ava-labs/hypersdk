@@ -3,10 +3,10 @@ import { ArrowRightIcon } from '@heroicons/react/20/solid'
 import { COIN_SYMBOL, DECIMAL_PLACES } from '../const'
 import { getBalance } from '../lib/api'
 import { formatBalance } from '../lib/numberFormat'
-import Errors from './Errors'
-import Loading from './Loading'
+import FullScreenError from '../screens/FullScreenError'
+import Loading from '../screens/Loading'
 
-export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
+export default function Balance({ myAddress }: { myAddress: string }) {
     const [loading, setLoading] = useState(0)
     const [errors, setErrors] = useState<string[]>([])
 
@@ -40,7 +40,7 @@ export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
     if (loading > 0) {
         return <Loading text="Contacting the blockchain..." />
     } else if (errors.length > 0) {
-        return <Errors errors={errors} />
+        return <FullScreenError errors={errors} />
     }
 
     return (
@@ -69,7 +69,7 @@ export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
                     />
                     <button
                         type="button"
-                        className="disabled:bg-gray-500 mt-4 w-full inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                        className="disabled:bg-gray-500 mt-4 w-full inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                         disabled={transferButtonDisabled}
                     >
                         <ArrowRightIcon aria-hidden="true" className="-ml-0.5 mr-1.5 h-5 w-5" />
