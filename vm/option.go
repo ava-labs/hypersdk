@@ -10,14 +10,14 @@ import (
 
 type Option func(*VM)
 
-func WithBlockBuilder(blockBuilder builder.Builder) Option {
+func WithManualBuilder() Option {
 	return func(vm *VM) {
-		vm.
+		vm.builder = builder.NewManual(vm)
 	}
 }
 
-func WithTxGossiper(txGossiper gossiper.Gossiper) Option {
-	return OptionFunc(func(_ *VM, options *Options) {
-		options.TxGossiper = txGossiper
-	})
+func WithManualGossiper() Option {
+	return func(vm *VM) {
+		vm.gossiper = gossiper.NewManual(vm)
+	}
 }

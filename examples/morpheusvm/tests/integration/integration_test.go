@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -40,7 +39,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/vm"
@@ -54,9 +52,6 @@ import (
 )
 
 var (
-	_ vm.Option = (*testBlockBuilderOption)(nil)
-	_ vm.Option = (*testTxGossiperOption)(nil)
-
 	logFactory logging.Factory
 	log        logging.Logger
 
@@ -218,7 +213,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v, err := controller.New(&testBlockBuilderOption{}, &testTxGossiperOption{})
+		v, err := controller.New(vm.WithManualGossiper(), vm.WithManualBuilder())
 		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
@@ -236,7 +231,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			toEngine,
 			nil,
 			app,
-		)))
+		))
 
 		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
@@ -961,16 +956,4 @@ func (*appSender) SendCrossChainAppResponse(context.Context, ids.ID, uint32, []b
 
 func (*appSender) SendCrossChainAppError(context.Context, ids.ID, uint32, int32, string) error {
 	return nil
-}
-
-type testBlockBuilderOption struct{}
-
-func (*testBlockBuilderOption) Apply(vm *vm.VM, options *vm.Options) {
-	options.BlockBuilder = builder.NewManual(vm)
-}
-
-type testTxGossiperOption struct{}
-
-func (*testTxGossiperOption) Apply(vm *vm.VM, options *vm.Options) {
-	options.TxGossiper = gossiper.NewManual(vm)
 }

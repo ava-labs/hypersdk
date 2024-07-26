@@ -69,6 +69,8 @@ type VM struct {
 
 	config         Config
 	genesis        Genesis
+	builder        builder.Builder
+	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
 	vmDB           database.Database
@@ -137,7 +139,7 @@ func New(
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
-	opts ...Option,
+	options ...Option,
 ) (*VM, error) {
 	vm := &VM{
 		factory:        factory,
@@ -154,13 +156,11 @@ func New(
 	}
 
 	// Set defaults
-	vm.options = &Options{
-		BlockBuilder: builder.NewTime(vm),
-		TxGossiper:   txGossiper,
-	}
+	vm.builder = builder.NewTime(vm)
+	vm.gossiper = txGossiper
 
-	for _, opt := range opts {
-		opt.Apply(vm, vm.options)
+	for _, option := range options {
+		option(vm)
 	}
 
 	return vm, nil
@@ -461,8 +461,8 @@ func (vm *VM) Initialize(
 	vm.networkManager.SetHandler(gossipHandler, NewTxGossipHandler(vm))
 
 	// Startup block builder and gossiper
-	go vm.options.BlockBuilder.Run()
-	go vm.options.TxGossiper.Run(gossipSender)
+	go vm.builder.Run()
+	go vm.gossiper.Run(gossipSender)
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -492,8 +492,8 @@ func (vm *VM) Initialize(
 }
 
 func (vm *VM) checkActivity(ctx context.Context) {
-	vm.options.TxGossiper.Queue(ctx)
-	vm.options.BlockBuilder.Queue(ctx)
+	vm.gossiper.Queue(ctx)
+	vm.builder.Queue(ctx)
 }
 
 func (vm *VM) markReady() {
@@ -638,8 +638,8 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 	<-vm.acceptorDone
 
 	// Shutdown other async VM mechanisms
-	vm.options.BlockBuilder.Done()
-	vm.options.TxGossiper.Done()
+	vm.builder.Done()
+	vm.gossiper.Done()
 	vm.authVerifiers.Stop()
 	if vm.profiler != nil {
 		vm.profiler.Shutdown()
