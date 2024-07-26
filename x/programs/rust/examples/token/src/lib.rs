@@ -28,7 +28,7 @@ pub fn init(context: &mut Context, name: String, symbol: String) {
         .expect("failed to store owner");
 
     context
-        .store([(Name, &name), (Symbol, &symbol)])
+        .store(((Name, &name), (Symbol, &symbol)))
         .expect("failed to store owner");
 }
 
@@ -46,14 +46,16 @@ pub fn total_supply(context: &mut Context) -> u64 {
 pub fn mint(context: &mut Context, recipient: Address, amount: u64) -> bool {
     let actor = context.actor();
 
-    check_owner(&context, actor);
-    let balance = _balance_of(&context, recipient);
+    check_owner(context, actor);
+
+    let balance = balance_of(context, recipient);
     let total_supply = total_supply(context);
+
     context
-        .store([
+        .store((
             (Balance(recipient), &(balance + amount)),
             (TotalSupply, &(total_supply + amount)),
-        ])
+        ))
         .expect("failed to store balance");
 
     true
@@ -64,14 +66,16 @@ pub fn mint(context: &mut Context, recipient: Address, amount: u64) -> bool {
 pub fn burn(context: &mut Context, recipient: Address, value: u64) -> u64 {
     let actor = context.actor();
 
-    check_owner(&context, actor);
-    let total = _balance_of(&context, recipient);
+    check_owner(context, actor);
+
+    let total = balance_of(context, recipient);
 
     assert!(value <= total, "address doesn't have enough tokens to burn");
+
     let new_amount = total - value;
 
     context
-        .store_by_key::<u64>(Balance(recipient), &new_amount)
+        .store_by_key(Balance(recipient), new_amount)
         .expect("failed to burn recipient tokens");
 
     new_amount
@@ -90,7 +94,7 @@ pub fn balance_of(context: &mut Context, account: Address) -> u64 {
 #[public]
 pub fn allowance(context: &mut Context, owner: Address, spender: Address) -> u64 {
     context
-        .get::<u64>(Allowance(owner, spender))
+        .get(Allowance(owner, spender))
         .expect("failed to get allowance")
         .unwrap_or_default()
 }
@@ -113,22 +117,7 @@ pub fn approve(context: &mut Context, spender: Address, amount: u64) -> bool {
 pub fn transfer(context: &mut Context, recipient: Address, amount: u64) -> bool {
     let sender = context.actor();
 
-    assert_ne!(sender, recipient, "sender and recipient must be different");
-
-    // ensure the sender has adequate balance
-    let sender_balance = balance_of(context, sender);
-
-    assert!(sender_balance >= amount, "sender has insufficient balance");
-
-    let recipient_balance = _balance_of(context, recipient);
-
-    // update balances
-    context
-        .store([
-            (Balance(sender), &(sender_balance - amount)),
-            (Balance(recipient), &(recipient_balance + amount)),
-        ])
-        .expect("failed to update balances");
+    internal::transfer(context, sender, recipient, amount);
 
     true
 }
@@ -153,14 +142,14 @@ pub fn transfer_from(
         .store_by_key(Allowance(sender, actor), &(total_allowance - amount))
         .expect("failed to store allowance");
 
-    transfer(context, sender, recipient, amount)
+    internal::transfer(context, sender, recipient, amount);
+
+    true
 }
 
 #[public]
 pub fn transfer_ownership(context: &mut Context, new_owner: Address) -> bool {
-    let actor = context.actor();
-
-    check_owner(&context, actor);
+    check_owner(context, context.actor());
 
     context
         .store_by_key(Owner, &new_owner)
@@ -173,7 +162,7 @@ pub fn transfer_ownership(context: &mut Context, new_owner: Address) -> bool {
 // grab the symbol of the token
 pub fn symbol(context: &mut Context) -> String {
     context
-        .get::<String>(Symbol)
+        .get(Symbol)
         .expect("failed to get symbol")
         .expect("symbol not initialized")
 }
@@ -182,7 +171,7 @@ pub fn symbol(context: &mut Context) -> String {
 // grab the name of the token
 pub fn name(context: &mut Context) -> String {
     context
-        .get::<String>(Name)
+        .get(Name)
         .expect("failed to get name")
         .expect("name not initialized")
 }
@@ -190,17 +179,37 @@ pub fn name(context: &mut Context) -> String {
 // Checks if the caller is the owner of the token
 // If the caller is not the owner, the program will panic
 #[cfg(not(feature = "bindings"))]
-fn check_owner(context: &Context, actor: Address) {
+fn check_owner(context: &mut Context, actor: Address) {
     assert_eq!(get_owner(context), actor, "caller is required to be owner")
 }
 
 // Returns the owner of the token
 #[cfg(not(feature = "bindings"))]
-fn get_owner(context: &Context) -> Address {
+fn get_owner(context: &mut Context) -> Address {
     context
-        .get::<Address>(Owner)
+        .get(Owner)
         .expect("failed to get owner")
         .expect("owner not initialized")
+}
+
+mod internal {
+    use super::*;
+
+    pub fn transfer(context: &mut Context, sender: Address, recipient: Address, amount: u64) {
+        // ensure the sender has adequate balance
+        let sender_balance = balance_of(context, sender);
+
+        assert!(sender_balance >= amount, "sender has insufficient balance");
+
+        let recipient_balance = balance_of(context, recipient);
+
+        context
+            .store((
+                (Balance(sender), &(sender_balance - amount)),
+                (Balance(recipient), &(recipient_balance + amount)),
+            ))
+            .expect("failed to update balances");
+    }
 }
 
 #[cfg(test)]
