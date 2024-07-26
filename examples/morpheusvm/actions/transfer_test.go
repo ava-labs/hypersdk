@@ -5,6 +5,7 @@ package actions
 
 import (
 	"context"
+	"encoding/hex"
 	"math"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -21,8 +23,7 @@ func TestTransferAction(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
-	oneAddr, err := createAddressWithByte(1)
-	req.NoError(err)
+	oneAddr := createAddressWithByte(t, 1)
 
 	tests := []chaintest.ActionTest{
 		{
@@ -128,10 +129,64 @@ func TestTransferAction(t *testing.T) {
 	}
 }
 
-func createAddressWithByte(b byte) (codec.Address, error) {
+func createAddressWithByte(t *testing.T, b byte) codec.Address {
 	addrSlice := make([]byte, codec.AddressLen)
 	for i := range addrSlice {
 		addrSlice[i] = b
 	}
-	return codec.ToAddress(addrSlice)
+	addr, err := codec.ToAddress(addrSlice)
+	require.NoError(t, err)
+	return addr
+}
+func TestTransferMarshalSpec(t *testing.T) {
+	tests := []struct {
+		name     string
+		transfer Transfer
+		expected string
+	}{
+		{
+			name: "Zero value",
+			transfer: Transfer{
+				To:    createAddressWithByte(t, 7),
+				Value: 0,
+				Memo:  []byte("test memo"),
+			},
+			expected: "07070707070707070707070707070707070707070707070707070707070707070700000000000000000000000974657374206d656d6f",
+		},
+		{
+			name: "Max uint64 value",
+			transfer: Transfer{
+				To:    createAddressWithByte(t, 7),
+				Value: math.MaxUint64,
+				Memo:  []byte("another memo"),
+			},
+			expected: "070707070707070707070707070707070707070707070707070707070707070707ffffffffffffffff0000000c616e6f74686572206d656d6f",
+		},
+		{
+			name: "Empty address",
+			transfer: Transfer{
+				To:    codec.EmptyAddress,
+				Value: 123,
+				Memo:  []byte("memo"),
+			},
+			expected: "000000000000000000000000000000000000000000000000000000000000000000000000000000007b000000046d656d6f",
+		},
+		{
+			name: "Empty memo",
+			transfer: Transfer{
+				To:    createAddressWithByte(t, 5),
+				Value: 456,
+				Memo:  []byte{},
+			},
+			expected: "05050505050505050505050505050505050505050505050505050505050505050500000000000001c800000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := codec.NewWriter(0, consts.NetworkSizeLimit)
+			tt.transfer.Marshal(p)
+			require.Equal(t, tt.expected, hex.EncodeToString(p.Bytes()))
+		})
+	}
 }
