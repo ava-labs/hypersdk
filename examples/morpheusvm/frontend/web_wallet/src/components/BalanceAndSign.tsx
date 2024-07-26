@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowRightIcon } from '@heroicons/react/20/solid'
-import { COIN_SYMBOL, HRP } from '../const'
+import { COIN_SYMBOL } from '../const'
 
 export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
     const [address, setAddress] = useState('morpheus1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqxez33a')
@@ -19,7 +19,7 @@ export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
                         {parseFloat(userBalance)} {COIN_SYMBOL}
                     </h2>
                 </div>
-                <div className="mt-8 p-4 border border-gray-300 rounded-md  ">
+                <div className="mt-8 p-4 border border-gray-300 rounded-md  bg-gray-100">
                     <input
                         type="text"
                         className="text-sm w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

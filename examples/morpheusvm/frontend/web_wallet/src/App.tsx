@@ -7,12 +7,12 @@ import { pubKeyToED25519Addr } from './lib/bech32'
 function App() {
   const [wallet, setWallet] = useState<SignerIface | null>(null)
 
-  return (
-    <>
-      {wallet === null && <ConnectWallet onWalletInitComplete={setWallet} />}
-      {wallet !== null && <BalanceAndSign myAddress={pubKeyToED25519Addr(wallet.getPublicKey())} />}
-    </>
-  )
+
+  if (wallet === null) {
+    return <ConnectWallet onWalletInitComplete={setWallet} />
+  }
+
+  return <BalanceAndSign myAddress={pubKeyToED25519Addr(wallet.getPublicKey())} />
 }
 
 export default App

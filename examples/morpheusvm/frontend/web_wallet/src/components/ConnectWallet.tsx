@@ -3,18 +3,36 @@ import { SignerIface } from '../signers/SignerIface'
 import { SNAP_ID } from '../const'
 import { MetamaskSnapSigner } from '../signers/MetamaskSnapSigner'
 import { EphemeralSigner } from '../signers/EphemeralSigner'
+import { useState } from 'react'
+import Loading from './Loading'
+import Errors from './Errors'
 
 
 export default function ConnectWalletWindow({ onWalletInitComplete }: { onWalletInitComplete: (wallet: SignerIface) => void }) {
 
+    const [loading, setLoading] = useState(0)
+    const [errors, setErrors] = useState<string[]>([])
+
     async function selectMetamaskSnap() {
         try {
+            setLoading(loading + 1)
             const signer = new MetamaskSnapSigner(SNAP_ID)
             await signer.connect()
             onWalletInitComplete(signer)
         } catch (e) {
             console.error(e)
+            setErrors(errors => [...errors, (e as Error)?.message || String(e)])
+        } finally {
+            setLoading(loading - 1)
         }
+    }
+
+    if (loading > 0) {
+        return <Loading text="Please confirm the connection in Metamask Flask wallet" />
+    }
+
+    if (errors.length > 0) {
+        return <Errors errors={errors} />
     }
 
     return (
