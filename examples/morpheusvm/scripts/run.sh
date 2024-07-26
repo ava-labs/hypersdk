@@ -235,8 +235,8 @@ function cleanup() {
   fi
 
   echo "Shutting down avalanche-network-runner..."
-  kill $SERVER_PID
-  wait $SERVER_PID
+  kill "$SERVER_PID"
+  wait "$SERVER_PID"
   echo "avalanche-network-runner server terminated"
 }
 trap cleanup EXIT
