@@ -19,10 +19,8 @@ var privateKey = []byte{
 }
 
 func TestBLSSignVerify(t *testing.T) {
-	require := require.New(t)
-
 	priv, err := bls.PrivateKeyFromBytes(privateKey)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	factory := NewBLSFactory(priv)
 
@@ -117,6 +115,8 @@ func TestBLSSignVerify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
 			auth, err := factory.Sign(tt.message)
 			require.NoError(err)
 			b := auth.(*BLS)
