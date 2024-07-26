@@ -376,7 +376,7 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 
 				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
 				require.NoError(err)
-				workload.GenerateUntilCancel(ctx, require, network, txWorkload)
+				workload.GenerateUntilCancel(ctx, network, txWorkload)
 			}()
 
 			// Give time for transactions to start processing

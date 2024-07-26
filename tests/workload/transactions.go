@@ -97,7 +97,6 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, network N
 
 func GenerateUntilCancel(
 	ctx context.Context,
-	require *require.Assertions,
 	network Network,
 	generator TxWorkloadIterator,
 ) {
