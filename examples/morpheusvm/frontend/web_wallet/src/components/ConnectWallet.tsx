@@ -34,12 +34,10 @@ export default function ConnectWalletWindow({ onWalletInitComplete }: { onWallet
     if (errors.length > 0) {
         return <Errors errors={errors} />
     }
-
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-200">
-            {/* Really needs a Morpheus reference */}
-            <div className="text-center w-full max-w-md px-4">
-                <h3 className="text-4xl font-semibold text-gray-900">Morpheus Demo</h3>
+        <div className="flex items-center justify-center min-h-screen">
+            <div className="bg-white px-16 py-12 rounded-lg shadow-md max-w-xl w-full text-center">
+                <h3 className="text-4xl font-semibold text-gray-900 mb-5 ">HyperSDK e2e demo</h3>
                 <p className="mt-4 text-lg text-gray-500">Connect with Metamask Flask development wallet via a Snap, or create a wallet in memory.</p>
                 <div className="mt-8 flex flex-col sm:flex-row justify-between space-y-4 sm:space-y-0 sm:space-x-4">
                     <button

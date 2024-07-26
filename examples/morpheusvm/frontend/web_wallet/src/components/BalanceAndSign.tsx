@@ -1,22 +1,55 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRightIcon } from '@heroicons/react/20/solid'
-import { COIN_SYMBOL } from '../const'
+import { COIN_SYMBOL, DECIMAL_PLACES } from '../const'
+import { getBalance } from '../lib/api'
+import { formatBalance } from '../lib/numberFormat'
+import Errors from './Errors'
+import Loading from './Loading'
 
 export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
-    const [address, setAddress] = useState('morpheus1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqxez33a')
-    const [amount, setAmount] = useState(0.0)
+    const [loading, setLoading] = useState(0)
+    const [errors, setErrors] = useState<string[]>([])
 
-    const userBalance = 'TODO:'
+    async function refreshBalance(): Promise<boolean> {
+        setLoading(loading + 1)
+        try {
+            const balanceBigNumber = await getBalance(myAddress)
+            const oldBalance = myBalance
+            const newBalance = formatBalance(balanceBigNumber, DECIMAL_PLACES)
+            setMyBalance(newBalance)
+            return oldBalance !== newBalance
+        } catch (e) {
+            setErrors([...errors, (e as Error)?.message || String(e)])
+            throw e
+        } finally {
+            setLoading(loading - 1)
+        }
+    }
+
+    useEffect(() => {
+        refreshBalance()
+    }, [])
+
+    const [myBalance, setMyBalance] = useState('...')
+
+    const [addressTo, setAddressTo] = useState('morpheus1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqxez33a')
+    const [amount, setAmount] = useState(0.0)
 
     const transferButtonDisabled = amount <= 0
 
+    if (loading > 0) {
+        return <Loading text="Contacting the blockchain..." />
+    } else if (errors.length > 0) {
+        return <Errors errors={errors} />
+    }
+
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-200">
+        <div className="flex items-center justify-center min-h-screen">
             <div className="text-center w-full max-w-2xl px-4">
                 <p className="mt-2 text-sm text-gray-500">{myAddress}</p>
                 <div className="mt-2">
                     <h2 className="text-5xl font-bold text-gray-900">
-                        {parseFloat(userBalance)} {COIN_SYMBOL}
+                        {parseFloat(myBalance)} {COIN_SYMBOL}
                     </h2>
                 </div>
                 <div className="mt-8 p-4 border border-gray-300 rounded-md  bg-gray-100">
@@ -24,8 +57,8 @@ export default function BalanceAndSign({ myAddress }: { myAddress: string }) {
                         type="text"
                         className="text-sm w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Enter recipient address"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
+                        value={addressTo}
+                        onChange={(e) => setAddressTo(e.target.value)}
                     />
                     <input
                         type="number"

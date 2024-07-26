@@ -2,7 +2,7 @@
 
 export default function Errors({ errors }: { errors: string[] }) {
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-200">
+        <div className="flex items-center justify-center min-h-screen">
             <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full ">
                 <div className="text-lg font-bold  mb-4">Errors:</div>
                 <ol className="text-lg list-disc pl-5 mb-5">
