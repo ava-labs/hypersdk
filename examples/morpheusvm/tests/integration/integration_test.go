@@ -223,7 +223,6 @@ var _ = ginkgo.BeforeSuite(func() {
 			[]byte(
 				`{
 				  "config": {
-				    "testMode":true,
 				    "logLevel":"debug"
 				  }
 				}`,
