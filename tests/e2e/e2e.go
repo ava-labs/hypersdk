@@ -374,7 +374,9 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 				// Recover failure if exits
 				defer ginkgo.GinkgoRecover()
 
-				workload.GenerateNBlocks(ctx, require, network, txWorkloadFactory, 128)
+				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
+				require.NoError(err)
+				workload.GenerateUntilCancel(ctx, require, network, txWorkload)
 			}()
 
 			// Give time for transactions to start processing

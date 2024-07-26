@@ -94,3 +94,28 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, network N
 		require.NoError(err)
 	}, network.URIs())
 }
+
+func GenerateUntilCancel(
+	ctx context.Context,
+	require *require.Assertions,
+	network Network,
+	generator TxWorkloadIterator,
+) {
+	submitClient := rpc.NewJSONRPCClient(network.URIs()[0])
+
+	// Use backgroundCtx within the loop to avoid erroring due to an expected
+	// context cancellation.
+	backgroundCtx := context.Background()
+	for generator.Next() && ctx.Err() == nil {
+		tx, confirm, err := generator.GenerateTxWithAssertion(backgroundCtx)
+		require.NoError(err)
+
+		_, err = submitClient.SubmitTx(backgroundCtx, tx.Bytes())
+		require.NoError(err)
+
+		utils.ForEach(func(uri string) {
+			err := confirm(backgroundCtx, uri)
+			require.NoError(err)
+		}, network.URIs())
+	}
+}
