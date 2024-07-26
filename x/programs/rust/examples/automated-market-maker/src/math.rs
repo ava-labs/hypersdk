@@ -15,5 +15,3 @@ pub(crate) fn sqrt(y: u64) -> u64 {
         0
     }
 }
-
-

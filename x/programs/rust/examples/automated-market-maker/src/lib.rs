@@ -1,5 +1,5 @@
 use std::cmp;
-use wasmlanche_sdk::{public, state_keys, ExternalCallContext, Program, Context};
+use wasmlanche_sdk::{public, state_keys, Context, ExternalCallContext, Program};
 
 mod math;
 
@@ -32,7 +32,8 @@ pub fn init(
 
     let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
 
-    let transfer_reuslt = token::transfer_ownership(&liquidity_context, *context.program().account());
+    let transfer_reuslt =
+        token::transfer_ownership(&liquidity_context, *context.program().account());
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
     assert!(
@@ -78,11 +79,7 @@ pub fn swap(context: Context<StateKeys>, token_program_in: Program, amount: u64)
     token::transfer_from(&token_out, *program.account(), context.actor(), amount_out);
 
     // update the allowance for token_in
-    let token_approved = token::approve(
-        &token_in,
-        *program.account(),
-        reserve_token_in + amount
-    );
+    let token_approved = token::approve(&token_in, *program.account(), reserve_token_in + amount);
     assert!(
         token_approved,
         "failed to update the allowance for the token"
@@ -137,12 +134,9 @@ pub fn add_liquidity(context: Context<StateKeys>, amount_x: u64, amount_y: u64) 
     token::mint(&lp_token, context.actor(), shares);
 
     // update the amm's allowances
-    let approved =  token::approve(&token_x, *program.account(), reserve_x + amount_x)
-    && token::approve(&token_y, *program.account(), reserve_y + amount_y);
-    assert!(
-       approved,
-         "failed to update the allowances for the tokens"
-    );
+    let approved = token::approve(&token_x, *program.account(), reserve_x + amount_x)
+        && token::approve(&token_y, *program.account(), reserve_y + amount_y);
+    assert!(approved, "failed to update the allowances for the tokens");
 
     shares
 }
@@ -241,7 +235,7 @@ mod internal {
     pub fn check_token(context: &Context<StateKeys>, token_program: &Program) {
         let (token_x, token_y) = token_programs(context);
         let supported = token_program.account() == token_x.account()
-        || token_program.account() == token_y.account();
+            || token_program.account() == token_y.account();
         assert!(
             supported,
             "token program is not one of the tokens supported by this pool"
