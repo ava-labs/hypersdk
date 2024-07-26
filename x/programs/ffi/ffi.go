@@ -2,46 +2,14 @@
 package main
 
 /*
-#include <stdint.h>
-
-typedef struct {
-   // View v; maybe we could use a view here but not sure?
-   int state;
-} SimpleMutable;
-
-typedef struct {
-    char* method;
-    uint8_t* params;
-    unsigned int paramLength;
-    unsigned int maxGas;
-} ExecutionRequest;
-
-typedef struct {
-   char address[33];
-} Address;
-
-typedef struct {
-   char id[32];
-} ID;
-
-typedef struct {
-   Address programAddress;
-   Address actorAddress;
-   unsigned int height;
-   unsigned int timestamp;
-} SimulatorContext;
-
-typedef struct {
-      int id;
-      char* error;
-      uint8_t* result;
-} Response;
-
+#cgo CFLAGS: -I./include
+#include "types.cc"
 */
 import "C"
 
 import (
 	"fmt"
+	"time"
 	"unsafe"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -49,19 +17,31 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
+//export TriggerCallback
+func TriggerCallback(callback C.RustCallback) {
+   fmt.Println("Calling Rust method from Go")
+   C.Docallback(callback)
+   // fmt.Println("Rust callback returned: ", val)
+}
+
 type ExecuteCtx struct {
    method string;
    paramBytes []byte;
    gas uint64;
 }
 
+
 //export Execute
 func Execute(db *C.SimpleMutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.Response {
    // TODO: error checking making sure the params are not nil
-
    // db 
    state := db.state;
 
+   go func() {
+      fmt.Println("Running Go routine")
+   }()
+
+   time.Sleep(1 * time.Second)
 	// ctx
    // testContext := createRuntimeContext(ctx);
    
@@ -131,12 +111,10 @@ type programStateManager struct {
 
 
 
-// func Deserialize
-
-// func SerializeResponse(resp C.Response) []byte {
-//    // serialize the response
-//    return nil
+// //export CallbackHandler
+// func CallbackHandler(cb C.RustCallback) {
+//    fmt.Println("Callback handler")
+//    C.RustCallback(cb)
 // }
-
 
 func main() {}
