@@ -241,6 +241,13 @@ function cleanup() {
 }
 trap cleanup EXIT
 
+additional_args=("$@")
+
+if [[ ${MODE} == "run" ]]; then
+  echo "applying ginkgo.focus=Ping to limit test cases on network setup"
+  additional_args+=("--ginkgo.focus=Ping")
+fi
+
 echo "running e2e tests"
 ./tests/e2e/e2e.test \
 --ginkgo.v \
@@ -255,7 +262,9 @@ echo "running e2e tests"
 --vm-config-path="${TMPDIR}"/morpheusvm.config \
 --subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
 --output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
---mode="${MODE}"
+--mode="${MODE}" \
+"${args[@]}"
+
 
 ############################
 if [[ ${MODE} == "run" ]]; then
