@@ -263,7 +263,7 @@ echo "running e2e tests"
 --subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
 --output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
 --mode="${MODE}" \
-"${args[@]}"
+"${additional_args[@]}"
 
 
 ############################
