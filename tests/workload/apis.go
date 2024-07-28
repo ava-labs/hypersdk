@@ -8,12 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
-func Ping(ctx context.Context, require *require.Assertions, network Network) {
-	clients := utils.Map(rpc.NewJSONRPCClient, network.URIs())
+func Ping(ctx context.Context, require *require.Assertions, uris []string) {
+	clients := utils.Map(rpc.NewJSONRPCClient, uris)
 
 	utils.ForEach(func(client *rpc.JSONRPCClient) {
 		ok, err := client.Ping(ctx)
@@ -22,12 +23,9 @@ func Ping(ctx context.Context, require *require.Assertions, network Network) {
 	}, clients)
 }
 
-func GetNetwork(ctx context.Context, require *require.Assertions, network Network) {
-	clients := utils.Map(rpc.NewJSONRPCClient, network.URIs())
+func GetNetwork(ctx context.Context, require *require.Assertions, uris []string, expectedNetworkID uint32, expectedChainID ids.ID) {
+	clients := utils.Map(rpc.NewJSONRPCClient, uris)
 
-	description := network.Description()
-	expectedNetworkID := description.NetworkID
-	expectedChainID := description.ChainID
 	utils.ForEach(func(client *rpc.JSONRPCClient) {
 		networkID, _, chainID, err := client.Network(ctx)
 		require.NoError(err)

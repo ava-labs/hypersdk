@@ -38,8 +38,8 @@ type TxWorkloadIterator interface {
 	GenerateTxWithAssertion(context.Context) (*chain.Transaction, func(ctx context.Context, uri string) error, error)
 }
 
-func ExecuteWorkload(ctx context.Context, require *require.Assertions, network Network, generator TxWorkloadIterator) {
-	submitClient := rpc.NewJSONRPCClient(network.URIs()[0])
+func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
+	submitClient := rpc.NewJSONRPCClient(uris[0])
 
 	for generator.Next() {
 		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
@@ -51,14 +51,14 @@ func ExecuteWorkload(ctx context.Context, require *require.Assertions, network N
 		utils.ForEach(func(uri string) {
 			err := confirm(ctx, uri)
 			require.NoError(err)
-		}, network.URIs())
+		}, uris)
 	}
 }
 
-func GenerateNBlocks(ctx context.Context, require *require.Assertions, network Network, factory TxWorkloadFactory, n uint64) {
-	generator, err := factory.NewSizedTxWorkload(network.URIs()[0], int(n))
+func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []string, factory TxWorkloadFactory, n uint64) {
+	uri := uris[0]
+	generator, err := factory.NewSizedTxWorkload(uri, int(n))
 	require.NoError(err)
-	uri := network.URIs()[0]
 	client := rpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
@@ -92,15 +92,15 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, network N
 			return acceptedHeight >= targetheight, nil
 		})
 		require.NoError(err)
-	}, network.URIs())
+	}, uris)
 }
 
 func GenerateUntilCancel(
 	ctx context.Context,
-	network Network,
+	uris []string,
 	generator TxWorkloadIterator,
 ) {
-	submitClient := rpc.NewJSONRPCClient(network.URIs()[0])
+	submitClient := rpc.NewJSONRPCClient(uris[0])
 
 	// Use backgroundCtx within the loop to avoid erroring due to an expected
 	// context cancellation.
@@ -120,6 +120,6 @@ func GenerateUntilCancel(
 
 		utils.ForEach(func(uri string) {
 			_ = confirm(backgroundCtx, uri)
-		}, network.URIs())
+		}, uris)
 	}
 }
