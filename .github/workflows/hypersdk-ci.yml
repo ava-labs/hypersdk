@@ -144,7 +144,7 @@ jobs:
         shell: bash
         run: scripts/tests.integration.sh
 
-    morpheusvm-e2e-tests:
+  morpheusvm-e2e-tests:
     needs: [hypersdk-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
