@@ -11,9 +11,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
 	consts "github.com/ava-labs/hypersdk/consts"
+	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -202,4 +206,62 @@ func TestTransferMarshalSpec(t *testing.T) {
 			require.Equal(t, tt.expected, hex.EncodeToString(p.Bytes()))
 		})
 	}
+}
+
+func TestSignleTransferTxSignAndMarshalSpec(t *testing.T) {
+	chainIdStr := "2c7iUW3kCDwRA9ZFd5bjZZc8iDy68uAsFSBahjqSZGttiTDSNH"
+	chainId, err := ids.FromString(chainIdStr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addr1, err := codec.ParseAddressBech32(mconsts.HRP, "morpheus1qqds2l0ryq5hc2ddps04384zz6rfeuvn3kyvn77hp4n5sv3ahuh6wgkt57y")
+	require.NoError(t, err)
+
+	tx := chain.Transaction{
+		Base: &chain.Base{
+			Timestamp: 1717111222000,
+			ChainID:   chainId,
+			MaxFee:    uint64(10 * math.Pow(10, 9)),
+		},
+		Actions: []chain.Action{
+			&Transfer{
+				To:    addr1,
+				Value: 123,
+				Memo:  []byte("memo"),
+			},
+		},
+		Auth: nil,
+	}
+
+	digest, err := tx.Digest()
+	require.NoError(t, err)
+
+	require.Equal(t, hex.EncodeToString(digest), "0000018fcbcdeef0d36e467c73e2840140cc41b3d72f8a5a7446b2399c39b9c74d4cf077d250902400000002540be4000100001b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7000000000000007b000000046d656d6f")
+
+	privBytes, err := codec.LoadHex(
+		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7",
+		ed25519.PrivateKeyLen,
+	)
+	require.NoError(t, err)
+
+	priv := ed25519.PrivateKey(privBytes)
+	factory := auth.NewED25519Factory(priv)
+
+	authRegistry := codec.NewTypeParser[chain.Auth]()
+	authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
+
+	actionRegistry := codec.NewTypeParser[chain.Action]()
+	actionRegistry.Register((&Transfer{}).GetTypeID(), UnmarshalTransfer)
+
+	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
+	require.NoError(t, err)
+
+	p := codec.NewWriter(0, consts.NetworkSizeLimit)
+	err = signedTx.Marshal(p)
+	require.NoError(t, err)
+
+	signedTxBytes := p.Bytes()
+
+	require.Equal(t, hex.EncodeToString(signedTxBytes), "0000018fcbcdeef0d36e467c73e2840140cc41b3d72f8a5a7446b2399c39b9c74d4cf077d250902400000002540be4000100001b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7000000000000007b000000046d656d6f001b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa739bc9d7a4e74beafcb45cd8fe12200beeb4dac5569407426315eb382d8d11024c5f73200da58f24d8fe9467d86ec0a0c8c2ccb3c15d78e14fd93c66f4a73d802")
 }
