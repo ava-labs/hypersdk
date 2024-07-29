@@ -143,6 +143,35 @@ func TestFIFOCacheInsertion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "elements removed in FIFO order and not LRU",
+			ops: []interface{}{
+				put{
+					kv:     0,
+					exists: false,
+				},
+				put{
+					kv:     1,
+					exists: false,
+				},
+				put{
+					kv:     0,
+					exists: true,
+				},
+				get{
+					k:  0,
+					ok: true,
+				},
+				put{
+					kv:     2,
+					exists: false,
+				},
+				get{
+					k:  0,
+					ok: false,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
