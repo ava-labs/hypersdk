@@ -55,7 +55,7 @@ export default function ConnectWalletWindow({ onSignerInitComplete }: { onSigner
                         className="w-48 px-4 py-2 bg-white text-black font-bold rounded border border-black hover:bg-gray-100 transition-colors duration-200 transform hover:scale-105"
                         onClick={() => onSignerInitComplete({ signer1: new EphemeralSigner(), signer2: new EphemeralSigner() })}
                     >
-                        Ephemeral signer
+                        Temporary key
                     </button>
                 </div>
             </div>
