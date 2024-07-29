@@ -9,19 +9,20 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
-	consts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
+
+	consts "github.com/ava-labs/hypersdk/consts"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 func TestTransferAction(t *testing.T) {
@@ -209,8 +210,8 @@ func TestTransferMarshalSpec(t *testing.T) {
 }
 
 func TestSignleTransferTxSignAndMarshalSpec(t *testing.T) {
-	chainIdStr := "2c7iUW3kCDwRA9ZFd5bjZZc8iDy68uAsFSBahjqSZGttiTDSNH"
-	chainId, err := ids.FromString(chainIdStr)
+	chainIDStr := "2c7iUW3kCDwRA9ZFd5bjZZc8iDy68uAsFSBahjqSZGttiTDSNH"
+	chainID, err := ids.FromString(chainIDStr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +222,7 @@ func TestSignleTransferTxSignAndMarshalSpec(t *testing.T) {
 	tx := chain.Transaction{
 		Base: &chain.Base{
 			Timestamp: 1717111222000,
-			ChainID:   chainId,
+			ChainID:   chainID,
 			MaxFee:    uint64(10 * math.Pow(10, 9)),
 		},
 		Actions: []chain.Action{
@@ -249,10 +250,12 @@ func TestSignleTransferTxSignAndMarshalSpec(t *testing.T) {
 	factory := auth.NewED25519Factory(priv)
 
 	authRegistry := codec.NewTypeParser[chain.Auth]()
-	authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
+	err = authRegistry.Register((&auth.ED25519{}).GetTypeID(), auth.UnmarshalED25519)
+	require.NoError(t, err)
 
 	actionRegistry := codec.NewTypeParser[chain.Action]()
-	actionRegistry.Register((&Transfer{}).GetTypeID(), UnmarshalTransfer)
+	err = actionRegistry.Register((&Transfer{}).GetTypeID(), UnmarshalTransfer)
+	require.NoError(t, err)
 
 	signedTx, err := tx.Sign(factory, actionRegistry, authRegistry)
 	require.NoError(t, err)

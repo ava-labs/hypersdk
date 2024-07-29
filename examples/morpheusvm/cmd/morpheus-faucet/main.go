@@ -1,29 +1,30 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package main
 
 import (
+	"context"
+	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"golang.org/x/time/rate"
 
-	"context"
-	"fmt"
-	"log"
-
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
-	"github.com/ava-labs/hypersdk/rpc"
-
+	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+
+	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 const amtStr = "10.00"
@@ -34,7 +35,7 @@ func transferCoins(to string) (string, error) {
 		return "", fmt.Errorf("failed to parse to address: %w", err)
 	}
 
-	amt, err := utils.ParseBalance(amtStr, consts.Decimals)
+	amt, err := utils.ParseBalance(amtStr, lconsts.Decimals)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse amount: %w", err)
 	}
@@ -53,21 +54,21 @@ func transferCoins(to string) (string, error) {
 	url := "http://localhost:9650/ext/bc/morpheusvm"
 	cli := rpc.NewJSONRPCClient(url)
 
-	networkId, subnetId, chainId, err := cli.Network(context.TODO())
+	networkID, subnetID, chainID, err := cli.Network(context.TODO())
 	if err != nil {
 		return "", fmt.Errorf("failed to get network info: %w", err)
 	}
-	fmt.Println(networkId, subnetId, chainId)
+	fmt.Println(networkID, subnetID, chainID)
 
-	lcli := lrpc.NewJSONRPCClient(url, networkId, chainId)
+	lcli := lrpc.NewJSONRPCClient(url, networkID, chainID)
 	balanceBefore, err := lcli.Balance(context.TODO(), to)
 	if err != nil {
 		return "", fmt.Errorf("failed to get balance: %w", err)
 	}
-	fmt.Printf("Balance before: %s\n", utils.FormatBalance(balanceBefore, consts.Decimals))
+	fmt.Printf("Balance before: %s\n", utils.FormatBalance(balanceBefore, lconsts.Decimals))
 
 	// Check if balance is greater than 1.000
-	threshold, _ := utils.ParseBalance("1.000", consts.Decimals)
+	threshold, _ := utils.ParseBalance("1.000", lconsts.Decimals)
 	if balanceBefore > threshold {
 		fmt.Printf("Balance is already greater than 1.000, no transfer needed\n")
 		return "Balance is already greater than 1.000, no transfer needed", nil
@@ -119,7 +120,16 @@ func main() {
 	handler := c.Handler(r)
 
 	fmt.Println("Starting faucet server on http://localhost:8765")
-	if err := http.ListenAndServe(":8765", handler); err != nil {
+
+	srv := &http.Server{
+		Addr:         ":8765",
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
