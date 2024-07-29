@@ -426,7 +426,7 @@ where
 
     (0..n)
         .map(|i| Ident::new(&format!("{ident}{i}"), span))
-        .map(|ident| Path::from(ident))
+        .map(Path::from)
         .map(|path| TypePath { qself: None, path })
         .map(Type::Path)
         .collect()
@@ -457,7 +457,7 @@ fn create_tuple_of_tuples(a: CommaSeparated<Type>, b: CommaSeparated<Type>) -> T
 
     let elems = a
         .into_iter()
-        .zip(b.into_iter())
+        .zip(b)
         .map(|(a, b)| TypeTuple {
             paren_token,
             elems: [a, b].into_iter().collect(),

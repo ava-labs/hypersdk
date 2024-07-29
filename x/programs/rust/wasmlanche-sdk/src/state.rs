@@ -183,7 +183,7 @@ impl<'a> State<'a> {
             Entry::Vacant(entry) => {
                 let bytes = {
                     let key = entry.key();
-                    get_bytes(&key)
+                    get_bytes(key)
                 };
                 entry.insert(bytes)
             }
