@@ -342,7 +342,7 @@ struct KeyPair {
     key_vis: Visibility,
     key_type_name: Ident,
     key_fields: Fields,
-    value_type: Ident,
+    value_type: Type,
 }
 
 impl Parse for KeyPair {
@@ -370,7 +370,7 @@ impl Parse for KeyPair {
         }
 
         input.parse::<Token![=>]>()?;
-        let value_type: Ident = input.parse()?;
+        let value_type = input.parse()?;
 
         Ok(Self {
             key_comments,
