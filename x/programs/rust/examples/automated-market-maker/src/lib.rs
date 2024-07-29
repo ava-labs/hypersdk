@@ -1,5 +1,6 @@
 use std::cmp;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Program};
+use token::Units;
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
 
 mod math;
 
@@ -11,7 +12,7 @@ state_schema! {
     LiquidityToken => Program,
 }
 
-const MAX_GAS: u64 = 10000000;
+const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
@@ -40,7 +41,7 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
 /// Returns the amount of tokens received from the swap
 /// Requires `amount` of `token_program_in` to be approved by the actor beforehand
 #[public]
-pub fn swap(context: &mut Context, token_program_in: Program, amount: u64) -> u64 {
+pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> Units {
     // ensure the token_program_in is one of the tokens
     internal::check_token(context, &token_program_in);
 
@@ -88,7 +89,7 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: u64) -> u6
 /// Both tokens must be approved by the actor before calling this function
 /// Returns the amount of LP shares minted
 #[public]
-pub fn add_liquidity(context: &mut Context, amount_x: u64, amount_y: u64) -> u64 {
+pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) -> Units {
     let (token_x, token_y) = external_token_contracts(context);
     let lp_token = external_liquidity_token(context);
 
@@ -139,7 +140,7 @@ pub fn add_liquidity(context: &mut Context, amount_x: u64, amount_y: u64) -> u64
 /// Removes 'shares' of LP shares from the pool and returns the amount of token_x and token_y received.
 /// The actor must have enough LP shares before calling this function.
 #[public]
-pub fn remove_liquidity(context: &mut Context, shares: u64) -> (u64, u64) {
+pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) {
     let lp_token = external_liquidity_token(context);
 
     // assert that the actor has enough shares
@@ -172,14 +173,14 @@ pub fn remove_liquidity(context: &mut Context, shares: u64) -> (u64, u64) {
 
 /// Removes all LP shares from the pool and returns the amount of token_x and token_y received.
 #[public]
-pub fn remove_all_liquidity(context: &mut Context) -> (u64, u64) {
+pub fn remove_all_liquidity(context: &mut Context) -> (Units, Units) {
     let lp_token = external_liquidity_token(context);
     let lp_balance = token::balance_of(&lp_token, context.actor());
     remove_liquidity(context, lp_balance)
 }
 
 /// Returns the token reserves in the pool
-fn reserves(token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (u64, u64) {
+fn reserves(token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (Units, Units) {
     let balance_x = token::allowance(
         token_x,
         *token_x.program().account(),

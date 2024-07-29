@@ -2,19 +2,19 @@
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_schema, Address};
 
-type CurrencyAmount = u64;
+pub type Units = u64;
 
 state_schema! {
     /// The total supply of the token. Key prefix 0x0.
-    TotalSupply => CurrencyAmount,
+    TotalSupply => Units,
     /// The name of the token. Key prefix 0x1.
     Name => String,
     /// The symbol of the token. Key prefix 0x2.
     Symbol => String,
     /// The balance of the token by address. Key prefix 0x3 + address.
-    Balance(Address) => CurrencyAmount,
+    Balance(Address) => Units,
     /// The allowance of the token by owner and spender. Key prefix 0x4 + owner + spender.
-    Allowance(Address, Address) => CurrencyAmount,
+    Allowance(Address, Address) => Units,
     // Original owner of the token
     Owner => Address,
 }
@@ -35,7 +35,7 @@ pub fn init(context: &mut Context, name: String, symbol: String) {
 
 /// Returns the total supply of the token.
 #[public]
-pub fn total_supply(context: &mut Context) -> u64 {
+pub fn total_supply(context: &mut Context) -> Units {
     context
         .get(TotalSupply)
         .expect("failed to get total supply")
@@ -44,7 +44,7 @@ pub fn total_supply(context: &mut Context) -> u64 {
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint(context: &mut Context, recipient: Address, amount: u64) -> bool {
+pub fn mint(context: &mut Context, recipient: Address, amount: Units) -> bool {
     let actor = context.actor();
 
     check_owner(context, actor);
@@ -64,7 +64,7 @@ pub fn mint(context: &mut Context, recipient: Address, amount: u64) -> bool {
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn(context: &mut Context, recipient: Address, value: u64) -> u64 {
+pub fn burn(context: &mut Context, recipient: Address, value: Units) -> Units {
     let actor = context.actor();
 
     check_owner(context, actor);
@@ -84,7 +84,7 @@ pub fn burn(context: &mut Context, recipient: Address, value: u64) -> u64 {
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn balance_of(context: &mut Context, account: Address) -> u64 {
+pub fn balance_of(context: &mut Context, account: Address) -> Units {
     context
         .get(Balance(account))
         .expect("failed to get balance")
@@ -93,7 +93,7 @@ pub fn balance_of(context: &mut Context, account: Address) -> u64 {
 
 /// Returns the allowance of the spender for the owner's tokens.
 #[public]
-pub fn allowance(context: &mut Context, owner: Address, spender: Address) -> u64 {
+pub fn allowance(context: &mut Context, owner: Address, spender: Address) -> Units {
     context
         .get(Allowance(owner, spender))
         .expect("failed to get allowance")
@@ -103,7 +103,7 @@ pub fn allowance(context: &mut Context, owner: Address, spender: Address) -> u64
 /// Approves the spender to spend the owner's tokens.
 /// Returns true if the approval was successful.
 #[public]
-pub fn approve(context: &mut Context, spender: Address, amount: u64) -> bool {
+pub fn approve(context: &mut Context, spender: Address, amount: Units) -> bool {
     let actor = context.actor();
 
     context
@@ -115,7 +115,7 @@ pub fn approve(context: &mut Context, spender: Address, amount: u64) -> bool {
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(context: &mut Context, recipient: Address, amount: u64) -> bool {
+pub fn transfer(context: &mut Context, recipient: Address, amount: Units) -> bool {
     let sender = context.actor();
 
     internal::transfer(context, sender, recipient, amount);
@@ -130,7 +130,7 @@ pub fn transfer_from(
     context: &mut Context,
     sender: Address,
     recipient: Address,
-    amount: u64,
+    amount: Units,
 ) -> bool {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
@@ -197,7 +197,7 @@ fn get_owner(context: &mut Context) -> Address {
 mod internal {
     use super::*;
 
-    pub fn transfer(context: &mut Context, sender: Address, recipient: Address, amount: u64) {
+    pub fn transfer(context: &mut Context, sender: Address, recipient: Address, amount: Units) {
         // ensure the sender has adequate balance
         let sender_balance = balance_of(context, sender);
 
@@ -216,6 +216,7 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
+    use super::Units;
     use simulator::{Endpoint, Param, Step, TestContext};
     use wasmlanche_sdk::Address;
 
@@ -264,7 +265,7 @@ mod tests {
             })
             .unwrap()
             .result
-            .response::<u64>()
+            .response::<Units>()
             .unwrap();
         assert_eq!(supply, 0);
 
@@ -344,7 +345,7 @@ mod tests {
             })
             .unwrap()
             .result
-            .response::<u64>()
+            .response::<Units>()
             .unwrap();
 
         assert_eq!(balance, alice_initial_balance);
@@ -358,7 +359,7 @@ mod tests {
             })
             .unwrap()
             .result
-            .response::<u64>()
+            .response::<Units>()
             .unwrap();
         assert_eq!(total_supply, alice_initial_balance);
     }
@@ -426,7 +427,7 @@ mod tests {
             })
             .unwrap()
             .result
-            .response::<u64>()
+            .response::<Units>()
             .unwrap();
 
         assert_eq!(balance, alice_initial_balance - alice_burn_amount);
