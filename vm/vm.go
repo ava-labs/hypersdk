@@ -1200,7 +1200,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 		var blk *chain.StatelessBlock
 		blk, err := vm.GetCachedBlock(ctx, height)
 		if err != nil {
-			return fmt.Errorf("failed to find accepted block at height %d", height)
+			return fmt.Errorf("failed to find accepted block at height %d, err: %w", height)
 		}
 
 		vm.acceptedQueue <- blk
