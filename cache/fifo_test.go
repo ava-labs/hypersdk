@@ -12,12 +12,12 @@ import (
 
 func TestFIFOCacheInsertion(t *testing.T) {
 	type put struct {
-		i      int
+		kv     int
 		exists bool
 	}
 
 	type get struct {
-		i  int
+		k  int
 		ok bool
 	}
 
@@ -29,11 +29,11 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			name: "inserting up to limit works",
 			ops: []interface{}{
 				put{
-					i:      0,
+					kv:     0,
 					exists: false,
 				},
 				put{
-					i:      1,
+					kv:     1,
 					exists: false,
 				},
 			},
@@ -42,24 +42,20 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			name: "inserting after limit cleans first",
 			ops: []interface{}{
 				put{
-					i:      0,
+					kv:     0,
 					exists: false,
 				},
 				put{
-					i:      1,
+					kv:     1,
 					exists: false,
 				},
 				put{
-					i:      2,
+					kv:     2,
 					exists: false,
 				},
 				get{
-					i:  0,
+					k:  0,
 					ok: false,
-				},
-				get{
-					i:  1,
-					ok: true,
 				},
 			},
 		},
@@ -67,19 +63,19 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			name: "no elements removed when cache is exactly full",
 			ops: []interface{}{
 				put{
-					i:      0,
+					kv:     0,
 					exists: false,
 				},
 				put{
-					i:      1,
+					kv:     1,
 					exists: false,
 				},
 				get{
-					i:  0,
+					k:  0,
 					ok: true,
 				},
 				get{
-					i:  1,
+					k:  1,
 					ok: true,
 				},
 			},
@@ -88,11 +84,11 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			name: "no elements removed when the cache is less than full",
 			ops: []interface{}{
 				put{
-					i:      0,
+					kv:     0,
 					exists: false,
 				},
 				get{
-					i:  0,
+					k:  0,
 					ok: true,
 				},
 			},
@@ -101,15 +97,19 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			name: "inserting existing value when full doesn't free value",
 			ops: []interface{}{
 				put{
-					i:      0,
+					kv:     0,
 					exists: false,
 				},
 				put{
-					i:      0,
+					kv:     1,
+					exists: false,
+				},
+				put{
+					kv:     0,
 					exists: true,
 				},
 				get{
-					i:  0,
+					k:  0,
 					ok: true,
 				},
 			},
@@ -118,27 +118,27 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			name: "elements removed in FIFO order when cache overfills",
 			ops: []interface{}{
 				put{
-					i:      0,
+					kv:     0,
 					exists: false,
 				},
 				put{
-					i:      1,
+					kv:     1,
 					exists: false,
 				},
 				put{
-					i:      2,
+					kv:     2,
 					exists: false,
 				},
 				get{
-					i:  0,
+					k:  0,
 					ok: false,
 				},
 				put{
-					i:      3,
+					kv:     3,
 					exists: false,
 				},
 				get{
-					i:  1,
+					k:  1,
 					ok: false,
 				},
 			},
@@ -154,13 +154,13 @@ func TestFIFOCacheInsertion(t *testing.T) {
 
 			for _, op := range tt.ops {
 				if put, ok := op.(put); ok {
-					exists := cache.Put(put.i, put.i)
+					exists := cache.Put(put.kv, put.kv)
 					require.Equal(put.exists, exists)
 				} else if get, ok := op.(get); ok {
-					val, ok := cache.Get(get.i)
+					val, ok := cache.Get(get.k)
 					require.Equal(get.ok, ok)
 					if ok {
-						require.Equal(get.i, val)
+						require.Equal(get.k, val)
 					}
 				} else {
 					require.Fail("op can only be a put or a get")
