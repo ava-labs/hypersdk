@@ -201,7 +201,7 @@ mod internal {
             assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            let total_assets = self::assets::total_assets(&ctx);
+            let total_assets = self::assets::total_assets(ctx);
 
             // # Safety
             // It is okay to only check the add of assets because the ratio of shares/assets is <= 1
@@ -209,9 +209,9 @@ mod internal {
             let new_total_assets = total_assets
                 .checked_add(assets)
                 .ok_or(VaultError::TotalAssetsOverflow)?;
-            let total_supply = internal::assets::total_supply(&ctx);
+            let total_supply = internal::assets::total_supply(ctx);
             let new_total_supply = total_supply + shares;
-            let balance = internal::assets::balance_of(&ctx, receiver);
+            let balance = internal::assets::balance_of(ctx, receiver);
             let new_balance = balance + shares;
 
             ctx.store([
@@ -230,7 +230,7 @@ mod internal {
             assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            let total_assets = self::assets::total_assets(&ctx);
+            let total_assets = self::assets::total_assets(ctx);
 
             // # Safety
             // It is okay to only check the sub of assets because the ratio of shares/assets is <= 1
@@ -238,9 +238,9 @@ mod internal {
             let new_total_assets = total_assets
                 .checked_sub(assets)
                 .ok_or(VaultError::TotalAssetsOverflow)?;
-            let total_supply = internal::assets::total_supply(&ctx);
+            let total_supply = internal::assets::total_supply(ctx);
             let new_total_supply = total_supply - shares;
-            let balance = internal::assets::balance_of(&ctx, receiver);
+            let balance = internal::assets::balance_of(ctx, receiver);
             let new_balance = balance - shares;
 
             ctx.store([
