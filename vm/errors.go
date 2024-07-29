@@ -3,9 +3,7 @@
 
 package vm
 
-import (
-	"errors"
-)
+import "errors"
 
 var (
 	ErrNotAdded            = errors.New("not added")

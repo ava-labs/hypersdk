@@ -4,6 +4,7 @@
 package state
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -83,4 +84,42 @@ func TestMalformedKey(t *testing.T) {
 	require := require.New(t)
 	keys := make(Keys)
 	require.False(keys.Add("", Read))
+}
+
+func TestHasPermissions(t *testing.T) {
+	require := require.New(t)
+	allPerms := []Permissions{Read, Allocate, Write, None, All}
+
+	tests := []struct {
+		perm Permissions
+		has  []Permissions
+	}{
+		{
+			perm: Read,
+			has:  []Permissions{Read, None},
+		},
+		{
+			perm: Write,
+			has:  []Permissions{Read, Write, None},
+		},
+		{
+			perm: Allocate,
+			has:  []Permissions{Read, Allocate, None},
+		},
+		{
+			perm: None,
+			has:  []Permissions{None},
+		},
+		{
+			perm: All,
+			has:  allPerms,
+		},
+	}
+
+	for _, tt := range tests {
+		for _, perm := range allPerms {
+			expectedHas := slices.Contains(tt.has, perm)
+			require.Equal(expectedHas, tt.perm.Has(perm), "expected %s has %s to be %t", tt.perm, perm, expectedHas)
+		}
+	}
 }

@@ -8,14 +8,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
@@ -97,25 +96,26 @@ type AuthEngine interface {
 	Cache(auth chain.Auth)
 }
 
-type Controller interface {
-	Initialize(
+type ControllerFactory interface {
+	New(
 		inner *VM, // hypersdk VM
-		snowCtx *snow.Context,
+		log logging.Logger,
+		networkID uint32,
+		chainID ids.ID,
+		chainDataDir string,
 		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,
 		configBytes []byte,
 	) (
-		genesis Genesis,
-		builder builder.Builder,
-		gossiper gossiper.Gossiper,
-		handler Handlers,
-		actionRegistry chain.ActionRegistry,
-		authRegistry chain.AuthRegistry,
-		authEngines map[uint8]AuthEngine,
-		err error,
+		Controller,
+		Genesis,
+		Handlers,
+		error,
 	)
+}
 
+type Controller interface {
 	Rules(t int64) chain.Rules // ms
 
 	// StateManager is used by the VM to request keys to store required

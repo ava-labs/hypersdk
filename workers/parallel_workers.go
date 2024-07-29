@@ -3,9 +3,7 @@
 
 package workers
 
-import (
-	"sync"
-)
+import "sync"
 
 var (
 	_ Workers = (*ParallelWorkers)(nil)
