@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 borsh = { workspace = true }
-bytemuck = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }
 sdk-macros = { workspace = true }
 thiserror = { workspace = true }
 

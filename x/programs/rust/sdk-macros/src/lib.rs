@@ -9,9 +9,9 @@ use syn::{
     parse_macro_input, parse_quote, parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Expr, Fields, FnArg, GenericParam, Ident, ItemEnum, ItemFn, LitInt,
-    PatType, Path, ReturnType, Signature, Token, Type, TypeParam, TypeParamBound, TypePath,
-    TypeReference, TypeTuple, Visibility,
+    token, Attribute, Error, Expr, Fields, FnArg, GenericParam, Ident, ItemFn, LitInt, PatType,
+    Path, ReturnType, Signature, Token, Type, TypeParam, TypeParamBound, TypePath, TypeReference,
+    TypeTuple, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
@@ -144,7 +144,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let external_call = quote! {
         mod private {
             use super::*;
-            #[derive(borsh::BorshDeserialize)]
+            #[derive(wasmlanche_sdk::borsh::BorshDeserialize)]
+            #[borsh(crate = "wasmlanche_sdk::borsh")]
             struct Args {
                 ctx: #context_type,
                 #(#args_props),*
@@ -160,14 +161,14 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
                 wasmlanche_sdk::register_panic();
 
-                let args: Args = borsh::from_slice(&args).expect("error fetching serialized args");
+                let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
 
                 // using converted_params twice here (need to clone)
                 // would help to give a specific name to context
                 let Args { mut ctx, #(#args_names),* } = args;
 
                 let result = super::#name(&mut ctx, #(#args_names_2),*);
-                let result = borsh::to_vec(&result).expect("error serializing result");
+                let result = wasmlanche_sdk::borsh::to_vec(&result).expect("error serializing result");
 
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
@@ -190,7 +191,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let block = Box::new(parse_quote! {{
-        let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
+        let args = wasmlanche_sdk::borsh::to_vec(&(#(#args),*)).expect("error serializing args");
         ctx
             .program()
             .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
@@ -227,113 +228,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         #binding
         #input
     })
-}
-
-/// This macro assists in defining the schema for a program's state.  A user can
-/// simply define an enum with the desired state keys and the macro will
-/// generate the necessary code to convert the enum to a byte vector.
-/// The enum will automatically derive the Copy and Clone traits. As well as the
-/// repr(u8) attribute.
-///
-/// Note: The enum variants with named fields are not supported.
-#[proc_macro_attribute]
-pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut item_enum = parse_macro_input!(item as ItemEnum);
-
-    if !matches!(item_enum.vis, Visibility::Public(_)) {
-        return Error::new(
-            item_enum.span(),
-            "`enum`s with the `#[state_keys]` attribute must have `pub` visibility.",
-        )
-        .to_compile_error()
-        .into();
-    }
-
-    // add default attributes
-    item_enum.attrs.push(parse_quote! {
-         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, wasmlanche_sdk::bytemuck::NoUninit)]
-    });
-
-    let name = &item_enum.ident;
-    let variants = &item_enum.variants;
-
-    const MAX_VARIANTS: usize = u8::MAX as usize + 1;
-
-    if variants.len() > MAX_VARIANTS {
-        return Error::new(
-            variants[MAX_VARIANTS].span(),
-            "Cannot exceed `u8::MAX` variants",
-        )
-        .into_compile_error()
-        .into();
-    }
-
-    let match_arms: Result<Vec<_>, _> = variants
-        .iter()
-        .enumerate()
-        .map(|(idx, variant)| {
-            let variant_ident = &variant.ident;
-            let idx = idx as u8;
-
-            match &variant.fields {
-                // TODO:
-                // use bytemuck to represent the raw bytes of the key
-                // and figure out way to enforce backwards compatibility
-                Fields::Unnamed(fields) => {
-                    let fields = &fields.unnamed;
-
-                    let fields = fields
-                        .iter()
-                        .enumerate()
-                        .map(|(i, field)| Ident::new(&format!("field_{i}"), field.span()));
-                    let fields_2 = fields.clone();
-
-                    Ok(quote! {
-                        Self::#variant_ident(#(#fields),*) => {
-                            borsh::to_vec(&(#idx, #(#fields_2),*))?.serialize(writer)?;
-                        }
-                    })
-                }
-
-                Fields::Unit => Ok(quote! {
-                    Self::#variant_ident => {
-                        let len = 1u32;
-                        writer.write_all(&len.to_le_bytes())?;
-                        writer.write_all(&[#idx])?;
-                    }
-                }),
-
-                Fields::Named(_) => Err(Error::new(
-                    variant_ident.span(),
-                    "enums with named fields are not supported".to_string(),
-                )
-                .into_compile_error()),
-            }
-        })
-        .collect();
-
-    let match_arms = match match_arms {
-        Ok(match_arms) => match_arms,
-        Err(err) => return err.into(),
-    };
-
-    let trait_implementation_body = if !variants.is_empty() {
-        quote! { match self { #(#match_arms),* } }
-    } else {
-        quote! {}
-    };
-
-    quote! {
-        #item_enum
-        impl borsh::BorshSerialize for #name {
-            fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-                #trait_implementation_body
-                Ok(())
-            }
-        }
-        unsafe impl wasmlanche_sdk::state::Key for #name {}
-    }
-    .into()
 }
 
 #[derive(Debug)]
@@ -406,7 +300,8 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
             )| {
                 token_stream.extend(Some(quote! {
                     #(#key_comments)*
-                    #[derive(Copy, Clone, bytemuck::NoUninit)]
+                    #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::Pod, wasmlanche_sdk::bytemuck::Zeroable)]
+                    #[bytemuck(crate = "wasmlanche_sdk::bytemuck")]
                     #[repr(C)]
                     #key_vis struct #key_type_name #key_fields;
 
@@ -521,7 +416,7 @@ pub fn impl_to_pairs(inputs: TokenStream) -> TokenStream {
             fn into_pairs(self) -> impl IntoIterator<Item = Result<(CacheKey, CacheValue), Error>> {
                 [
                     #(
-                        borsh::to_vec(&self.#accessors.1)
+                        crate::borsh::to_vec(&self.#accessors.1)
                             .map(|value| (Box::from(to_key(self.#accessors.0).as_ref()), value))
                             .map_err(|_| Error::Serialization)
                     ),*
