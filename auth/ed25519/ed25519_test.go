@@ -10,11 +10,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ced25519 "crypto/ed25519"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/crypto"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+
+	ced25519 "crypto/ed25519"
 )
 
 var seed = []byte{

@@ -6,13 +6,14 @@ package registry
 import (
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
-	authbls "github.com/ava-labs/hypersdk/auth/bls"
-	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
-	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 )
 
 // Setup types

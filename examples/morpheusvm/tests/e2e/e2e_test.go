@@ -18,7 +18,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/require"
 
-	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
@@ -28,6 +27,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 
 	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )

@@ -10,9 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/auth"
-	authbls "github.com/ava-labs/hypersdk/auth/bls"
-	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
-	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
@@ -25,6 +22,9 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	mrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
