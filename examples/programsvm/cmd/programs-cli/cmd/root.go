@@ -145,7 +145,8 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
-		publishProgramCmd,
+		publishProgramBytesCmd,
+		publishProgramFileCmd,
 		callProgramCmd,
 		deployProgramCmd,
 	)

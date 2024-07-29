@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -96,8 +97,8 @@ var deployProgramCmd = &cobra.Command{
 	},
 }
 
-var publishProgramCmd = &cobra.Command{
-	Use: "publishProgram",
+var publishProgramBytesCmd = &cobra.Command{
+	Use: "publishProgramBytes",
 	RunE: func(*cobra.Command, []string) error {
 		ctx := context.Background()
 		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
@@ -107,6 +108,39 @@ var publishProgramCmd = &cobra.Command{
 
 		// Select recipient
 		bytes, err := handler.Root().PromptBytes("program bytes")
+		if err != nil {
+			return err
+		}
+
+		// Confirm action
+		cont, err := handler.Root().PromptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		_, _, err = sendAndWait(ctx, []chain.Action{&actions.PublishProgram{
+			ProgramBytes: bytes,
+		}}, cli, bcli, ws, factory, true)
+		return err
+	},
+}
+
+var publishProgramFileCmd = &cobra.Command{
+	Use: "publishProgramFile",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+
+		// Select program bytes
+		path, err := handler.Root().PromptString("program file", 1, 1000)
+		if err != nil {
+			return err
+		}
+		bytes, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
