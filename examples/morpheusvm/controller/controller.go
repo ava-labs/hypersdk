@@ -26,7 +26,6 @@ import (
 	"github.com/ava-labs/hypersdk/vm"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-
 	hrpc "github.com/ava-labs/hypersdk/rpc"
 	hstorage "github.com/ava-labs/hypersdk/storage"
 )
