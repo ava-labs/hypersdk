@@ -49,6 +49,13 @@ pub struct Bytes {
     pub len: usize,
 }
 
+#[repr(C)]
+pub struct BytesWithError {
+    pub data: *mut u8,
+    pub len: usize,
+    pub error: *const c_char,
+}
+
 impl Bytes {
     pub fn get_slice(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.data, self.len) }

@@ -39,7 +39,13 @@ typedef struct {
     unsigned int length;
 } Bytes;
 
-typedef Bytes (*GetStateCallback)(void *data, Bytes key);
+typedef struct {
+    uint8_t* data;
+    unsigned int length;
+    const char* error;
+} BytesWithError;
+
+typedef BytesWithError (*GetStateCallback)(void *data, Bytes key);
 typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
 typedef char *(*RemoveStateCallback)(void *data, Bytes key);
 

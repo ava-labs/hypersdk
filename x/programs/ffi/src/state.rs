@@ -2,7 +2,7 @@ use std::{collections::HashMap, ffi::{CStr, CString}};
 
 use libc::c_char;
 
-use crate::types::Bytes;
+use crate::types::{Bytes, BytesWithError};
 
 #[repr(C)]
 pub struct SimpleState {
@@ -38,26 +38,27 @@ pub struct Mutable {
 }
 
 
-pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> Bytes {
+pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> BytesWithError {
     let obj = unsafe { &mut *obj_ptr };
     let key = key.get_slice();
     let value = obj.get_value(&key.to_vec());
 
     match value {
         Some(v) => {
-            Bytes {
+            BytesWithError {
                 data: v.as_ptr() as *mut u8,
                 len: v.len(),
+                error: std::ptr::null(),
             }
         },
         None => {
-            println!("ERRROR* Value not found");
             // this should error
             // could add an extra field to bytes to indicate error, or 
             // update a pointer to an error message
-            Bytes {
+            BytesWithError {
                 data: std::ptr::null_mut(),
                 len: 0,
+                error: CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
             }
         }
     }
@@ -65,7 +66,7 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
 
 // define constant error messages
 pub const ERR_NONE: &str = "None";
-pub const ERR_NOT_FOUND: &str = "NotFound";
+pub const ERR_NOT_FOUND: &str = "not found";
 
 pub extern "C" fn insert_state_callback(obj_ptr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char {
     println!("reaching the function");
@@ -91,7 +92,7 @@ pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -
 
 // could have one callback function that multiplexes to different functions
 // or pass in multiple function pointers
-pub type GetStateCallback = extern fn(simObjectPtr: *mut SimpleState, key: Bytes) -> Bytes;
+pub type GetStateCallback = extern fn(simObjectPtr: *mut SimpleState, key: Bytes) -> BytesWithError;
 pub type InsertStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
 pub type RemoveStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes) -> *const c_char;
 
