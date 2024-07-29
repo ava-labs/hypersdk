@@ -1,0 +1,5 @@
+error: enums with named fields are not supported
+ --> tests/ui/fail/named-fields-state-schema.rs:4:9
+  |
+4 |     Key { param: u8 } => u8,
+  |         ^^^^^^^^^^^^^

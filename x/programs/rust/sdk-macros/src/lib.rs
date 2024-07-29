@@ -356,9 +356,18 @@ impl Parse for KeyPair {
         let key_fields = if lookahead.peek(token::Paren) {
             let fields = input.parse()?;
             Fields::Unnamed(fields)
+        } else if lookahead.peek(token::Brace) {
+            Fields::Named(input.parse()?)
         } else {
             Fields::Unit
         };
+
+        if let Fields::Named(named) = key_fields {
+            return Err(Error::new(
+                named.span(),
+                "enums with named fields are not supported",
+            ));
+        }
 
         input.parse::<Token![=>]>()?;
         let value_type: Ident = input.parse()?;
