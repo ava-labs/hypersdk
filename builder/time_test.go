@@ -23,23 +23,23 @@ type FakeVM struct {
 	rules chain.Rules
 }
 
-func (f *FakeVM) StopChan() chan struct{} {
+func (_ *FakeVM) StopChan() chan struct{} {
 	return nil
 }
 
-func (f *FakeVM) EngineChan() chan<- common.Message {
+func (_ *FakeVM) EngineChan() chan<- common.Message {
 	return nil
 }
 
-func (f *FakeVM) PreferredBlock(context.Context) (*chain.StatelessBlock, error) {
+func (_ *FakeVM) PreferredBlock(context.Context) (*chain.StatelessBlock, error) {
 	return nil, nil
 }
 
-func (f *FakeVM) Logger() logging.Logger {
+func (_ *FakeVM) Logger() logging.Logger {
 	return nil
 }
 
-func (f *FakeVM) Mempool() chain.Mempool {
+func (_ *FakeVM) Mempool() chain.Mempool {
 	return nil
 }
 
@@ -64,14 +64,14 @@ func TestNextTime(t *testing.T) {
 			expected: minBuildGap,
 		},
 		{
-			name:        "next time is lastQueue plus minBuildGap",
+			name:        "nextTime is lastQueue plus minBuildGap",
 			lastQueue:   100,
 			preferred:   110,
 			minBlockGap: 14,
 			expected:    125,
 		},
 		{
-			name:        "next time is preferred time plus gap",
+			name:        "nextTime is preferred time plus gap",
 			now:         1000,
 			lastQueue:   800,
 			preferred:   1500,
@@ -79,7 +79,7 @@ func TestNextTime(t *testing.T) {
 			expected:    1700,
 		},
 		{
-			name:        "next time is in the past",
+			name:        "nextTime is in the past",
 			now:         2000,
 			lastQueue:   1400,
 			preferred:   1500,
@@ -87,7 +87,7 @@ func TestNextTime(t *testing.T) {
 			expected:    -1,
 		},
 		{
-			name:        "next time is exactly now",
+			name:        "nextTime is exactly now",
 			now:         2000,
 			lastQueue:   1500,
 			preferred:   1800,
@@ -95,7 +95,7 @@ func TestNextTime(t *testing.T) {
 			expected:    2000,
 		},
 		{
-			name:        "next time is higher than now",
+			name:        "nextTime is higher than now",
 			now:         500,
 			lastQueue:   300,
 			preferred:   600,
@@ -103,7 +103,7 @@ func TestNextTime(t *testing.T) {
 			expected:    700,
 		},
 		{
-			name:        "preferred time is far in the future",
+			name:        "preferred is far in the future",
 			now:         1000,
 			lastQueue:   900,
 			preferred:   5000,
@@ -174,7 +174,7 @@ func TestNextTimeIncreases(t *testing.T) {
 			expected:       1225,
 		},
 		{
-			name:           "next time is higher than now after gap increase",
+			name:           "nextTime is higher than now after gap increase",
 			now:            500,
 			lastQueue:      300,
 			minBlockGap:    25,
