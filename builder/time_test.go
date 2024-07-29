@@ -15,31 +15,29 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 )
 
-var (
-	_ VM = (*FakeVM)(nil)
-)
+var _ VM = (*FakeVM)(nil)
 
 type FakeVM struct {
 	rules chain.Rules
 }
 
-func (_ *FakeVM) StopChan() chan struct{} {
+func (*FakeVM) StopChan() chan struct{} {
 	return nil
 }
 
-func (_ *FakeVM) EngineChan() chan<- common.Message {
+func (*FakeVM) EngineChan() chan<- common.Message {
 	return nil
 }
 
-func (_ *FakeVM) PreferredBlock(context.Context) (*chain.StatelessBlock, error) {
+func (*FakeVM) PreferredBlock(context.Context) (*chain.StatelessBlock, error) {
 	return nil, nil
 }
 
-func (_ *FakeVM) Logger() logging.Logger {
+func (*FakeVM) Logger() logging.Logger {
 	return nil
 }
 
-func (_ *FakeVM) Mempool() chain.Mempool {
+func (*FakeVM) Mempool() chain.Mempool {
 	return nil
 }
 
