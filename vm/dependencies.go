@@ -14,9 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
@@ -112,12 +110,7 @@ type ControllerFactory interface {
 	) (
 		Controller,
 		Genesis,
-		builder.Builder,
-		gossiper.Gossiper,
 		Handlers,
-		chain.ActionRegistry,
-		chain.AuthRegistry,
-		map[uint8]AuthEngine,
 		error,
 	)
 }
