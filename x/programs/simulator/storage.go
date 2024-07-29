@@ -26,8 +26,8 @@ type SimulatorState struct {
    // this is ptr to the get function
    getFunc GetStateCallbackType
 
-//    // this is ptr to the insert function
-//    insertFunc C.CallbackInsertFunc
+   // this is ptr to the insert function
+   insertFunc InsertStateCallbackType
 
 //    // this is a ptr to the delete function
 //    deleteFunc C.CallbackDeleteFunc
@@ -35,11 +35,13 @@ type SimulatorState struct {
 
 func NewSimulatorState(db unsafe.Pointer) *SimulatorState {
 	// convert unsafe pointer to C.Mutable
-	mutable := (*C.Mutable)(db)
+	mutable := (*Mutable)(db)
    return &SimulatorState{
 	statePtr: mutable.stateObj,
 	  getFunc: mutable.get_value_callback,
+	insertFunc: mutable.insert_callback,
    }
+
 }
 
 func (s *SimulatorState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
@@ -49,6 +51,7 @@ func (s *SimulatorState) GetValue(ctx context.Context, key []byte) ([]byte, erro
 }
 
 func (s *SimulatorState) Insert(ctx context.Context, key []byte, value []byte) error {
+	InsertCallbackWrapper(s.insertFunc, s.statePtr, key, value)
 	return nil
 }
 
@@ -68,6 +71,7 @@ func (s *SimulatorState) Remove(ctx context.Context, key []byte) error {
 
 
 type GetStateCallbackType = C.GetStateCallback
+type InsertStateCallbackType = C.InsertStateCallback
 type Mutable = C.Mutable
 // In C, a function argument written as a fixed size array actually requires a 
 // pointer to the first element of the array. C compilers are aware of this calling 
@@ -88,4 +92,27 @@ func GetCallbackWrapper(getFuncPtr GetStateCallbackType, dbPtr unsafe.Pointer, k
 	}
 	valueBytes := C.bridge_get_callback(getFuncPtr, dbPtr, bytesStruct)
 	return C.GoBytes(unsafe.Pointer(valueBytes.data), C.int(valueBytes.length))
+}
+
+func InsertCallbackWrapper(insertFuncPtr InsertStateCallbackType, db unsafe.Pointer, key []byte, value []byte) {
+	// this will malloc
+	keyBytes := C.CBytes(key)
+	defer C.free(keyBytes)
+
+	valueBytes := C.CBytes(value)
+	defer C.free(valueBytes)
+
+	keyStruct := C.Bytes{
+		data: (*C.uint8_t)(keyBytes),
+		length: C.uint(len(key)),
+	}
+
+	valueStruct := C.Bytes{
+		data: (*C.uint8_t)(valueBytes),
+		length: C.uint(len(value)),
+	}
+	fmt.Println("Inserting key blinggg: ", key)
+	fmt.Println("Inserting key blinggg: ", value)
+	C.bridge_insert_callback(insertFuncPtr, db, keyStruct, valueStruct)
+	fmt.Println("Inserted key: ", key)
 }

@@ -40,10 +40,12 @@ typedef struct {
 } Bytes;
 
 typedef Bytes (*GetStateCallback)(void *data, Bytes key);
+typedef Bytes (*InsertStateCallback)(void *data, Bytes key, Bytes value);
 
 typedef struct {
     void *stateObj;
     GetStateCallback get_value_callback;
+    InsertStateCallback insert_callback;
 } Mutable;
 
 
