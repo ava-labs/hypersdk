@@ -41,7 +41,7 @@ fi
 # by default, "./scripts/lint.sh" runs all lint tests
 # to run only "license_header" test
 # TESTS='license_header' ./scripts/lint.sh
-TESTS=${TESTS:-"golangci_lint license_header"}
+TESTS=${TESTS:-"golangci_lint gci license_header require_error_is_no_funcs_as_params single_import interface_compliance_nil require_no_error_inline_func"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
@@ -71,6 +71,18 @@ function test_license_header {
   --config ./license.yml \
   ${_addlicense_flags} \
   "${files[@]}"
+}
+
+function test_gci {
+  go install -v github.com/daixiang0/gci@v0.12.1
+  FILES=$(gci list --skip-generated -s standard -s default -s blank -s dot -s "prefix(github.com/ava-labs/hypersdk)" -s alias --custom-order .)
+  if [[ "${FILES}" ]]; then
+    echo ""
+    echo "Some files need to be gci-ed:"
+    echo "${FILES}"
+    echo ""
+    return 1
+  fi
 }
 
 function test_single_import {
