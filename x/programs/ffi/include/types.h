@@ -41,3 +41,9 @@ typedef struct {
 
 typedef Bytes (*GetStateCallback)(void *data, Bytes key);
 
+typedef struct {
+    void *stateObj;
+    GetStateCallback get_value_callback;
+} Mutable;
+
+

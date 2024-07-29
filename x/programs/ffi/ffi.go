@@ -12,32 +12,18 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/ava-labs/hypersdk/x/programs/bridge"
 	"github.com/ava-labs/hypersdk/x/programs/simulator"
 )
 
 //export CallProgram
-func CallProgram(getStateCb C.GetStateCallback, statePtr unsafe.Pointer) {
+func CallProgram(db *C.Mutable) {
    // form db from params
-   db := simulator.NewSimulatorState(statePtr, bridge.GetStateCallbackType(getStateCb))
+   state := simulator.NewSimulatorState(unsafe.Pointer(db))
    fmt.Println("Calling CallProgram")
-   db.GetValue(context.TODO(), []byte{1,2,3})
-
-
-
-   fmt.Println("Triggering callback")
-   // create a reference to the Rust callback
-   // refFun := unsafe.Pointer(C.GetStateCallback(getStateCb))
-   // val := bridge.BridgeCallback(refFun, statePtr)
-   // fmt.Println("Calling Rust method from Go")
-   // fmt.Println("Rust callback returned: ", val)
+   state.GetValue(context.TODO(), []byte{1,2,3})
+   fmt.Println("Triggering callback") 
 }
 
-
-// this would work in c
-// void BridgeCallback(RustCallback cbFunc) {
-//    return cbFunc();
-// }
 
 //export TriggerCallback
 // func TriggerCallback(callback C.RustCallback) {
@@ -61,34 +47,28 @@ func CallProgram(getStateCb C.GetStateCallback, statePtr unsafe.Pointer) {
 //    // db 
 //    state := db.state;
 
-//    go func() {
-//       fmt.Println("Running Go routine")
-//    }()
-
-//    time.Sleep(1 * time.Second)
-// 	// ctx
-//    // testContext := createRuntimeContext(ctx);
+//    // ctx
+//    testContext := createRuntimeContext(ctx);
    
 //    // ExecutionRequest passed from the C code
 //    paramBytes := C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
 // 	methodName := C.GoString(p.method)
 //    gas := p.maxGas
 
-//    // executeCtx := ExecuteCtx{
-//    //    method: methodName,
-//    //    paramBytes: paramBytes,
-//    //    gas: uint64(gas),
-//    // }
+//    executeCtx := ExecuteCtx{
+//       method: methodName,
+//       paramBytes: paramBytes,
+//       gas: uint64(gas),
+//    }
 
+//    callInfo := createRuntimeCallInfo(nil, &testContext, &executeCtx);
 
-//    // callInfo := createRuntimeCallInfo(nil, &testContext, &executeCtx);
-
-// 	// rt := runtime.NewRuntime(runtime.NewConfig(), logging.NewLogger("test"))
-//    // result, err := rt.CallProgram(context.TODO(), callInfo)
-//    // if err != nil {
-//    //    fmt.Println("Error calling program: ", err)
-//    //    // also add to the response
-//    // }
+// 	rt := runtime.NewRuntime(runtime.NewConfig(), logging.NewLogger("test"))
+//    result, err := rt.CallProgram(context.TODO(), callInfo)
+//    if err != nil {
+//       fmt.Println("Error calling program: ", err)
+//       // also add to the response
+//    }
 
 //    // grab a response 
 //    response := C.Response{
@@ -115,18 +95,18 @@ func CallProgram(getStateCb C.GetStateCallback, statePtr unsafe.Pointer) {
 //    }
 // }
 
-// // func createRuntimeCallInfo(db *state.SimpleMutable, rctx *runtime.Context, e *ExecuteCtx) *runtime.CallInfo {
-// //    return &runtime.CallInfo{
-// //       State: &programStateManager{Mutable: db},
-// //       Actor: rctx.Actor,
-// //       FunctionName: e.method,
-// //       Program: rctx.Program,
-// //       Params: e.paramBytes,
-// //       Fuel: e.gas,
-// //       Height: rctx.Height,
-// //       Timestamp: rctx.Timestamp,
-// //    }
-// // }
+// func createRuntimeCallInfo(db *state.SimpleMutable, rctx *runtime.Context, e *ExecuteCtx) *runtime.CallInfo {
+//    return &runtime.CallInfo{
+//       State: &programStateManager{Mutable: db},
+//       Actor: rctx.Actor,
+//       FunctionName: e.method,
+//       Program: rctx.Program,
+//       Params: e.paramBytes,
+//       Fuel: e.gas,
+//       Height: rctx.Height,
+//       Timestamp: rctx.Timestamp,
+//    }
+// }
 
 
 // type programStateManager struct {

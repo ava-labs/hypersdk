@@ -80,7 +80,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern void CallProgram(GetStateCallback getStateCb, void* statePtr);
+extern void CallProgram(Mutable* db);
 
 #ifdef __cplusplus
 }

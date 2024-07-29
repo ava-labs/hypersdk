@@ -6,7 +6,30 @@ mod types;
 mod state;
 mod simulator;
 use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Address};
-use simulator::{get_state_callback, GetStateCallback, Simulator};
+use state::{get_state_callback, GetStateCallback, Mutable, SimpleState};
+
+#[link(name = "simulator", kind = "dylib")]
+extern "C" {
+    fn CallProgram(db: *mut Mutable);
+}
+
+fn main () {
+    // for now `simulator` is simple state. but later it will have additional fields + methods
+    let mut simulator = SimpleState::new();
+    let state = Mutable {
+        obj: &simulator as *const SimpleState as *mut SimpleState,
+        get_state: get_state_callback,
+    };
+    unsafe {
+        CallProgram(&state as *const Mutable as *mut Mutable);
+    }
+    simulator.insert(vec![1, 2, 3], vec![4, 5, 6]);
+    unsafe {
+        CallProgram(&state as *const Mutable as *mut Mutable);
+    }
+}
+
+
 // #[link(name = "simulator", kind = "dylib")]
 // extern "C" {
 //     fn Execute(db: *const SimpleMutable, ctx: *const SimulatorContext, request: *const ExecutionRequest) -> Response;
@@ -42,19 +65,3 @@ use simulator::{get_state_callback, GetStateCallback, Simulator};
 //     println!("The response id is: {}", response.id);
 // }
 
-
-#[link(name = "simulator", kind = "dylib")]
-extern "C" {
-    fn CallProgram(cb: GetStateCallback, callData: *mut Simulator);
-}
-
-fn main () {
-    let mut obj = Simulator::new();
-    unsafe {
-        CallProgram(get_state_callback, &obj as *const Simulator as *mut Simulator);
-    }
-    obj.insert(vec![1, 2, 3], vec![4, 5, 6]);
-    unsafe {
-        CallProgram(get_state_callback, &obj as *const Simulator as *mut Simulator);
-    }
-}

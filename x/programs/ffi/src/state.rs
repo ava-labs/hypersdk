@@ -1,134 +1,63 @@
+use std::collections::HashMap;
 
-use libc::{c_char, c_int, c_uchar, c_uint, c_void};
-use crate::types::{Response};
+use crate::types::Bytes;
+
 #[repr(C)]
-pub struct Mutable {
-    // stores three closures that implement 
-    pub get_value: extern "C" fn(key: *const c_uchar, key_length: c_uint) -> Response,
-    pub insert: extern "C" fn(key: *const c_uchar, key_length: c_uint, value: *const c_uchar, value_length: c_uint) -> Response,
-    pub delete: extern "C" fn(key: *const c_uchar, key_length: c_uint) -> Response,
-}
-
-
-// Wrapper function to be exported
-#[no_mangle]
-pub extern "C" fn get_value(state: *mut c_void, key: *const c_uchar, key_length: c_uint) -> Response {
-    let state = unsafe { &*(state as *const SimpleState) };
-    state._get_value(key, key_length)
-}
-
-
-
-// to implement state.Mutable we need to implement the following functions
-// - GetValue(key []byte) ([]byte, error)
-// - Insert(key []byte, value []byte) error
-// - Delete(key []byte) error
-
 pub struct SimpleState {
-    hashmap: std::collections::HashMap<Vec<u8>, Vec<u8>>,
+    state: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl SimpleState {
-    fn new() -> Self {
-        SimpleState {
-            hashmap: std::collections::HashMap::new(),
-        }
+   pub fn new() -> SimpleState {
+        SimpleState { 
+            state: HashMap::new(),
+         }
+    }
+    pub fn get_value(&self, key: &Vec<u8>) -> Option<&Vec<u8>> {
+        self.state.get(key)
     }
 
-    fn get_value(&self, key: &[u8]) -> Result<Vec<u8>, String> {
-        match self.hashmap.get(key) {
-            Some(value) => Ok(value.clone()),
-            None => Err("Key not found".to_string()),
-        }
+    pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) {
+        self.state.insert(key, value);
     }
-
-    // wrap in extern "C" functions
-    extern "C" fn _get_value(&self, key: *const c_uchar, key_length: c_uint) -> Response {
-        println!("get value called with key_length: {}", key_length);
-        Response {
-            id: 1000,
-            error: std::ptr::null(),
-            result: std::ptr::null(),
-        }
-    }
-
-
-
-    // fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<(), String> {
-    //     self.hashmap.insert(key, value);
-    //     Ok(())
-    // }
-
-    // fn delete(&mut self, key: Vec<u8>) -> Result<(), String> {
-    //     self.hashmap.remove(&key);
-    //     Ok(())
-    // }
-
-
-    // extern "C" fn _insert(&self, key: *const c_uchar, key_length: c_uint, value: *const c_uchar, value_length: c_uint) -> Response {
-     
-    //     println!("insert value called with key_length: {}", key_length);
-    //     Response {
-    //         id: 1000,
-    //         error: std::ptr::null(),
-    //         result: std::ptr::null(),
-    //     }
-    // }
-
-    // extern "C" fn _delete(&self, key: *const c_uchar, key_length: c_uint) -> Response {
-     
-    //     println!("delete called with key_length: {}", key_length);
-    //     Response {
-    //         id: 1000,
-    //         error: std::ptr::null(),
-    //         result: std::ptr::null(),
-    //     }
-    // }
 }
 
-// get
-// let key = unsafe { std::slice::from_raw_parts(key, key_length as usize) };
-// match self.get_value(key) {
-//     Ok(value) => Response {
-//         id: 0,
-//         error: std::ptr::null(),
-//         result: value.as_ptr(),
-//     },
-//     Err(e) => Response {
-//         id: 1,
-//         error: CString::new(e).unwrap().as_ptr(),
-//         result: std::ptr::null(),
-//     },
-// }
 
-// insert
-   // let key = unsafe { std::slice::from_raw_parts(key, key_length as usize) };
-        // let value = unsafe { std::slice::from_raw_parts(value, value_length as usize) };
-        // match self.insert(key.to_vec(), value.to_vec()) {
-        //     Ok(_) => Response {
-        //         id: 0,
-        //         error: std::ptr::null(),
-        //         result: std::ptr::null(),
-        //     },
-        //     Err(e) => Response {
-        //         id: 1,
-        //         error: CString::new(e).unwrap().as_ptr(),
-        //         result: std::ptr::null(),
-        //     },
-        // }
+#[repr(C)]
+pub struct Mutable {
+    pub obj: *mut SimpleState,
+    pub get_state: GetStateCallback,
+}
+
+pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> Bytes {
+    let obj = unsafe { &mut *obj_ptr };
+    let key = key.get_slice();
+    let value = obj.get_value(&key.to_vec());
+
+    match value {
+        Some(v) => {
+            Bytes {
+                data: v.as_ptr() as *mut u8,
+                len: v.len(),
+            }
+        },
+        None => {
+            println!("ERRROR* Value not found");
+            // this should error
+            // could add an extra field to bytes to indicate error, or 
+            // update a pointer to an error message
+            Bytes {
+                data: std::ptr::null_mut(),
+                len: 0,
+            }
+        }
+    }
+}
 
 
-// delete
-   // let key = unsafe { std::slice::from_raw_parts(key, key_length as usize) };
-        // match self.delete(key.to_vec()) {
-        //     Ok(_) => Response {
-        //         id: 0,
-        //         error: std::ptr::null(),
-        //         result: std::ptr::null(),
-        //     },
-        //     Err(e) => Response {
-        //         id: 1,
-        //         error: CString::new(e).unwrap().as_ptr(),
-        //         result: std::ptr::null(),
-        //     },
-        // }
+// could have one callback function that multiplexes to different functions
+// or pass in multiple function pointers
+pub type GetStateCallback = extern fn(simObjectPtr: *mut SimpleState, key: Bytes) -> Bytes;
+pub type InsertStateCallback = extern fn(*mut SimpleState) -> i32;
+pub type RemoveStateCallback = extern fn(*mut SimpleState) -> i32;
+
