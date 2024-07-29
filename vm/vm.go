@@ -133,12 +133,37 @@ type VM struct {
 	stop  chan struct{}
 }
 
-func New(factory ControllerFactory, v *version.Semantic) *VM {
-	return &VM{
-		factory: factory,
-		v:       v,
-		config:  NewConfig(),
+func New(
+	factory ControllerFactory,
+	v *version.Semantic,
+	actionRegistry chain.ActionRegistry,
+	authRegistry chain.AuthRegistry,
+	authEngine map[uint8]AuthEngine,
+	options ...Option,
+) (*VM, error) {
+	vm := &VM{
+		factory:        factory,
+		v:              v,
+		config:         NewConfig(),
+		actionRegistry: actionRegistry,
+		authRegistry:   authRegistry,
+		authEngine:     authEngine,
 	}
+
+	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	// Set defaults
+	vm.builder = builder.NewTime(vm)
+	vm.gossiper = txGossiper
+
+	for _, option := range options {
+		option(vm)
+	}
+
+	return vm, nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -219,7 +244,7 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.c, vm.genesis, vm.builder, vm.gossiper, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.factory.New(
+	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
 		controllerContext.NetworkID,

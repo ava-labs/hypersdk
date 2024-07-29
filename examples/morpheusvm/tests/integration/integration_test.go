@@ -213,7 +213,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v := controller.New()
+		v, err := controller.New(vm.WithManualGossiper(), vm.WithManualBuilder())
+		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,
@@ -223,7 +224,6 @@ var _ = ginkgo.BeforeSuite(func() {
 			[]byte(
 				`{
 				  "config": {
-				    "testMode":true,
 				    "logLevel":"debug"
 				  }
 				}`,
