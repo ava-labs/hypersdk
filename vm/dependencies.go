@@ -8,14 +8,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
@@ -100,7 +99,10 @@ type AuthEngine interface {
 type ControllerFactory interface {
 	New(
 		inner *VM, // hypersdk VM
-		snowCtx *snow.Context,
+		log logging.Logger,
+		networkID uint32,
+		chainID ids.ID,
+		chainDataDir string,
 		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,
@@ -108,12 +110,7 @@ type ControllerFactory interface {
 	) (
 		Controller,
 		Genesis,
-		builder.Builder,
-		gossiper.Gossiper,
 		Handlers,
-		chain.ActionRegistry,
-		chain.AuthRegistry,
-		map[uint8]AuthEngine,
 		error,
 	)
 }
