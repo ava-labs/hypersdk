@@ -123,6 +123,11 @@ func TestEd25519SignVerify(t *testing.T) {
 	}
 }
 
+const (
+	messagesCount = 4
+	verifCores    = 2
+)
+
 func TestEd25519BatchVerify(t *testing.T) {
 	require := require.New(t)
 
@@ -135,74 +140,75 @@ func TestEd25519BatchVerify(t *testing.T) {
 		Rauth chain.Auth
 	}
 
-	cores := 2
-	count := 10
-	batchSize := max(count/cores, ed25519.MinBatchSize)
-	signedMessages := make([]SignedMessage, count)
+	batchSize := max(messagesCount/verifCores, ed25519.MinBatchSize)
 
-	for i := 0; i < count; i++ {
-		message := []byte(fmt.Sprintf("Hello, world %d!", i))
-		ed25519, err := factory.Sign(message)
-		require.NoError(err)
-		signedMessages[i] = SignedMessage{
-			Msg:   message,
-			Rauth: ed25519,
-		}
+	tests := []struct {
+		name         string
+		messages     [messagesCount][]byte
+		signMessages *[messagesCount][]byte
+		expected     error
+	}{
+		{
+			name: "batch verify",
+			messages: func() [messagesCount][]byte {
+				messages := [messagesCount][]byte{}
+				for i := range messages {
+					messages[i] = []byte(fmt.Sprintf("Hello, world %d!", i))
+				}
+				return messages
+			}(),
+		},
+		{
+			name: "batch verify fails",
+			messages: func() [messagesCount][]byte {
+				messages := [messagesCount][]byte{}
+				for i := range messages {
+					messages[i] = []byte(fmt.Sprintf("Hello, world %d!", i))
+				}
+				return messages
+			}(),
+			signMessages: func() *[messagesCount][]byte {
+				messages := [messagesCount][]byte{}
+				for i := range messages {
+					messages[i] = []byte(fmt.Sprintf("Hello, world 1!"))
+				}
+				return &messages
+			}(),
+			expected: crypto.ErrInvalidSignature,
+		},
 	}
 
-	engine := &ED25519AuthEngine{}
-	verifier := engine.GetBatchVerifier(cores, count)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			signedMessages := make([]SignedMessage, messagesCount)
+			for i, message := range tt.messages {
+				var signMessage []byte
+				if tt.signMessages != nil {
+					signMessage = tt.signMessages[i]
+				} else {
+					signMessage = message
+				}
+				ed25519, err := factory.Sign(signMessage)
+				require.NoError(err)
+				signedMessages[i] = SignedMessage{
+					Msg:   message,
+					Rauth: ed25519,
+				}
+			}
 
-	for i, signedMessage := range signedMessages {
-		verifyFunc := verifier.Add(signedMessage.Msg, signedMessage.Rauth)
-		if (i+1)%batchSize == 0 {
-			require.NotNil(verifyFunc)
-			err := verifyFunc()
-			require.NoError(err)
-		} else {
-			require.Nil(verifyFunc)
-		}
-	}
-}
+			engine := &ED25519AuthEngine{}
+			verifier := engine.GetBatchVerifier(verifCores, messagesCount)
 
-func TestEd25519BatchVerifyFails(t *testing.T) {
-	require := require.New(t)
-
-	priv := ed25519.PrivateKey(ced25519.NewKeyFromSeed(seed))
-
-	factory := NewED25519Factory(priv)
-
-	type SignedMessage struct {
-		Msg   []byte
-		Rauth chain.Auth
-	}
-
-	cores := 2
-	count := 10
-	batchSize := max(count/cores, ed25519.MinBatchSize)
-	signedMessages := make([]SignedMessage, count)
-
-	for i := 0; i < count; i++ {
-		message := []byte(fmt.Sprintf("Hello, world %d!", i))
-		ed25519, err := factory.Sign(message)
-		require.NoError(err)
-		signedMessages[i] = SignedMessage{
-			Msg:   []byte("Hello, world 1!"),
-			Rauth: ed25519,
-		}
-	}
-
-	engine := &ED25519AuthEngine{}
-	verifier := engine.GetBatchVerifier(cores, count)
-
-	for i, signedMessage := range signedMessages {
-		verifyFunc := verifier.Add(signedMessage.Msg, signedMessage.Rauth)
-		if (i+1)%batchSize == 0 {
-			require.NotNil(verifyFunc)
-			err := verifyFunc()
-			require.ErrorIs(err, crypto.ErrInvalidSignature)
-		} else {
-			require.Nil(verifyFunc)
-		}
+			for i, signedMessage := range signedMessages {
+				verifyFunc := verifier.Add(signedMessage.Msg, signedMessage.Rauth)
+				if (i+1)%batchSize == 0 {
+					require.NotNil(verifyFunc)
+					err := verifyFunc()
+					require.ErrorIs(err, tt.expected)
+				} else {
+					require.Nil(verifyFunc)
+				}
+			}
+		})
 	}
 }
