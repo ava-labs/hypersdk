@@ -1,7 +1,7 @@
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, Address, ExternalCallContext};
+use wasmlanche_sdk::{public, state_keys, Address, ExternalCallContext, Program};
 
 #[state_keys]
 pub enum StateKeys {
@@ -17,7 +17,7 @@ pub enum StateKeys {
     Allowance(Address, Address),
 }
 
-#[derive(Debug, BorshSerialize)]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub enum VaultError {
     TotalAssetsOverflow,
     TotalAssetsUnderflow,
@@ -29,6 +29,25 @@ pub enum VaultError {
 enum Rounding {
     Down,
     Up,
+}
+
+#[public]
+pub fn init(ctx: Context<StateKeys>, asset: Program) {
+    if ctx
+        .get::<Program>(StateKeys::Asset)
+        .expect("failed to get asset")
+        .is_some()
+    {
+        panic!("already initialized");
+    }
+
+    ctx.store_by_key(StateKeys::Asset, &asset)
+        .expect("failed to store asset");
+
+    // lock tokens for defining the exchange rate
+    // TODO actually transfer them
+    internal::accounting::add(&ctx, 1000, 1000, Address::default())
+        .expect("failed to lock up tokens");
 }
 
 /// Deposit assets in the vault and return the amount of shares minted
@@ -257,8 +276,126 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Step, TestContext};
+    use super::VaultError;
+    use simulator::{ClientBuilder, Endpoint, Step, TestContext};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+
+    #[test]
+    fn cannot_initialize_twice() {
+        let mut simulator = ClientBuilder::new().try_build().unwrap();
+
+        let program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        let asset = Address::new([0; 33]);
+
+        let init_step = Step {
+            endpoint: Endpoint::Execute,
+            method: "init".to_string(),
+            max_units: 1000000,
+            params: vec![TestContext::from(program_id).into(), asset.into()],
+        };
+
+        simulator.run_step(&init_step).unwrap();
+
+        let res: Result<(), simulator::StepResponseError> =
+            simulator.run_step(&init_step).unwrap().result.response();
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn deposit_assets() {
+        let mut simulator = ClientBuilder::new().try_build().unwrap();
+
+        let program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        let (trimmed_program_path, _) = PROGRAM_PATH.rsplit_once('/').unwrap();
+        let (_, profile) = trimmed_program_path.rsplit_once('/').unwrap();
+
+        let token_program_path = [
+            trimmed_program_path,
+            &format!("/../../../../token/build/wasm32-unknown-unknown/{profile}/token.wasm"),
+        ]
+        .concat();
+
+        let asset_id = simulator
+            .run_step(&Step::create_program(token_program_path))
+            .unwrap()
+            .id;
+
+        let token_context = TestContext::from(asset_id);
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    "token".to_string().into(),
+                    "TOK".to_string().into(),
+                ],
+            })
+            .unwrap();
+
+        let token_amount = 100_000;
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "mint".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    Address::default().into(),
+                    token_amount.into(),
+                ],
+            })
+            .unwrap();
+
+        let vault_context = TestContext::from(program_id);
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".to_string(),
+                max_units: 1000000,
+                params: vec![vault_context.clone().into(), asset_id.into()],
+            })
+            .unwrap();
+
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "approve".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    program_id.into(),
+                    token_amount.into(),
+                ],
+            })
+            .unwrap();
+
+        let maybe_shares: Result<u64, VaultError> = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "deposit".to_string(),
+                max_units: 10000000,
+                params: vec![
+                    vault_context.into(),
+                    token_amount.into(),
+                    Address::default().into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+        assert!(dbg!(maybe_shares).is_ok());
+    }
 }
