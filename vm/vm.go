@@ -351,6 +351,7 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
 			return err
 		}
+		vm.CacheBlock(blk)
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
 		if err := vm.loadAcceptedBlocks(ctx); err != nil {
 			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
@@ -1159,13 +1160,12 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		start = vm.lastAccepted.Hght - lookback
 	}
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
-		blk, err := vm.GetDiskBlock(ctx, i)
+		blk, err := vm.GetCachedBlock(ctx, i)
 		if err != nil {
 			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
 			continue
 		}
-		vm.acceptedBlocksByID.Put(blk.ID(), blk)
-		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
+		vm.CacheBlock(blk)
 	}
 	vm.snowCtx.Log.Info("loaded blocks from disk",
 		zap.Uint64("start", start),
@@ -1198,13 +1198,9 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 
 	for height := start; height <= end; height++ {
 		var blk *chain.StatelessBlock
-		if height == vm.lastAccepted.Height() {
-			blk = vm.lastAccepted
-		} else {
-			blk, err = vm.GetDiskBlock(ctx, height)
-			if err != nil {
-				return fmt.Errorf("could not find accepted block at height %d on disk", height)
-			}
+		blk, err := vm.GetCachedBlock(ctx, height)
+		if err != nil {
+			return fmt.Errorf("failed to find accepted block at height %d", height)
 		}
 
 		vm.acceptedQueue <- blk
