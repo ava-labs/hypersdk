@@ -41,3 +41,20 @@ func (k Keys) Add(key string, permission Permissions) bool {
 func (p Permissions) Has(require Permissions) bool {
 	return require&^p == 0
 }
+
+func (p Permissions) String() string {
+	switch p {
+	case Read:
+		return "read"
+	case Write:
+		return "write"
+	case Allocate:
+		return "allocate"
+	case All:
+		return "all"
+	case None:
+		return "none"
+	default:
+		return "unknown"
+	}
+}

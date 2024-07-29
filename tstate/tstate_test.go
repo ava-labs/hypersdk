@@ -70,8 +70,10 @@ func TestScope(t *testing.T) {
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(ErrInvalidKeyOrPermission, err)
 	require.Nil(val)
-	require.ErrorIs(ErrInvalidKeyOrPermission, tsv.Insert(ctx, testKey, testVal))
-	require.ErrorIs(ErrInvalidKeyOrPermission, tsv.Remove(ctx, testKey))
+	err = tsv.Insert(ctx, testKey, testVal)
+	require.ErrorIs(err, ErrInvalidKeyOrPermission)
+	err = tsv.Remove(ctx, testKey)
+	require.ErrorIs(err, ErrInvalidKeyOrPermission)
 }
 
 func TestGetValue(t *testing.T) {
@@ -144,10 +146,11 @@ func TestInsertInvalid(t *testing.T) {
 	tsv := ts.NewView(state.Keys{string(key): state.Read | state.Write}, map[string][]byte{})
 
 	// Insert key
-	require.ErrorIs(tsv.Insert(ctx, key, []byte("cool")), ErrInvalidKeyValue)
+	err := tsv.Insert(ctx, key, []byte("cool"))
+	require.ErrorIs(err, ErrInvalidKeyValue)
 
 	// Get key value
-	_, err := tsv.GetValue(ctx, key)
+	_, err = tsv.GetValue(ctx, key)
 	require.ErrorIs(err, database.ErrNotFound)
 }
 
@@ -904,7 +907,8 @@ func TestInsertAllocate(t *testing.T) {
 
 			// Try to update key
 			if tt.shouldFail {
-				require.ErrorIs(tsv.Insert(ctx, []byte(tt.key), testVal), ErrInvalidKeyOrPermission)
+				err := tsv.Insert(ctx, []byte(tt.key), testVal)
+				require.ErrorIs(err, ErrInvalidKeyOrPermission)
 			} else {
 				require.NoError(tsv.Insert(ctx, []byte(tt.key), testVal))
 			}

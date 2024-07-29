@@ -3,9 +3,7 @@
 
 package codec
 
-import (
-	"github.com/ava-labs/hypersdk/consts"
-)
+import "github.com/ava-labs/hypersdk/consts"
 
 type decoder[T any] struct {
 	f func(*Packer) (T, error)
