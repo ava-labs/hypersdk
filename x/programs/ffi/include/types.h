@@ -40,8 +40,8 @@ typedef struct {
 } Bytes;
 
 typedef Bytes (*GetStateCallback)(void *data, Bytes key);
-typedef Bytes (*InsertStateCallback)(void *data, Bytes key, Bytes value);
-typedef Bytes (*RemoveStateCallback)(void *data, Bytes key);
+typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
+typedef char *(*RemoveStateCallback)(void *data, Bytes key);
 
 typedef struct {
     void *stateObj;

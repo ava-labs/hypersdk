@@ -9,6 +9,7 @@ import "C"
 
 import (
 	"context"
+	"fmt"
 	"unsafe"
 
 	"github.com/ava-labs/hypersdk/state"
@@ -95,7 +96,10 @@ func (s *SimulatorState) insert(key []byte, value []byte) error {
 		length: C.uint(len(value)),
 	}
 
-	C.bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
+	c_err := C.bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
+	if c_err != nil {
+		return fmt.Errorf("error inserting value: %s", C.GoString(c_err))
+	}
 	return nil
 }
 
@@ -108,6 +112,9 @@ func (s *SimulatorState) remove(key []byte) error {
 		length: C.uint(len(key)),
 	}
 
-	C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
+	c_err := C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
+	if c_err != nil {
+		return fmt.Errorf("error removing value: %s", C.GoString(c_err))
+	}
 	return nil
 }

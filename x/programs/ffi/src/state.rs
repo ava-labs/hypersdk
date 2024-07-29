@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ffi::{CStr, CString}};
+
+use libc::c_char;
 
 use crate::types::Bytes;
 
@@ -61,35 +63,35 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
     }
 }
 
-pub extern "C" fn insert_state_callback(obj_ptr: *mut SimpleState, key: Bytes, value: Bytes) -> Bytes {
+// define constant error messages
+pub const ERR_NONE: &str = "None";
+pub const ERR_NOT_FOUND: &str = "NotFound";
+
+pub extern "C" fn insert_state_callback(obj_ptr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char {
     println!("reaching the function");
     let obj = unsafe { &mut *obj_ptr };
     let key = key.get_slice();
     let value = value.get_slice();
     obj.insert(key.to_vec(), value.to_vec());
     // should be error message
-    Bytes {
-        data: std::ptr::null_mut(),
-        len: 0,
-    }
+    std::ptr::null()
+    // when is this freed?
+    // CString::new(ERR_NONE).unwrap().into_raw()
 }
 
-pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> Bytes {
+pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> *const c_char {
     println!("remove state!");
     let obj = unsafe { &mut *obj_ptr };
     let key = key.get_slice();
     obj.remove(key.to_vec());
     // should be error message
-    Bytes {
-        data: std::ptr::null_mut(),
-        len: 0,
-    }
+    std::ptr::null()
 }
 
 
 // could have one callback function that multiplexes to different functions
 // or pass in multiple function pointers
 pub type GetStateCallback = extern fn(simObjectPtr: *mut SimpleState, key: Bytes) -> Bytes;
-pub type InsertStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes, value: Bytes) -> Bytes;
-pub type RemoveStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes) -> Bytes;
+pub type InsertStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
+pub type RemoveStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes) -> *const c_char;
 
