@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import ConnectWallet from './screens/ConnectWallet'
 import { SignerIface } from './signers/SignerIface'
 import Wallet from './screens/Wallet'
-import { getBalance } from './lib/api'
+import { getBalance,requestFaucetTransfer } from './lib/api'
 import { pubKeyToED25519Addr } from './lib/bech32'
 import Loading from './screens/Loading'
 import FullScreenError from './screens/FullScreenError'
@@ -22,6 +22,8 @@ function App() {
     signers && refreshBalances();
   }, [signers]);
 
+  const [faucetRequested, setFaucetRequested] = useState<boolean>(false)
+
 
   async function refreshBalances(): Promise<void> {
     if (!signers) {
@@ -33,6 +35,11 @@ function App() {
     try {
       const addr1 = pubKeyToED25519Addr(signers.signer1.getPublicKey())
       const addr2 = pubKeyToED25519Addr(signers.signer2.getPublicKey())
+
+      if(!faucetRequested) {
+        await requestFaucetTransfer(addr1)
+        setFaucetRequested(true)
+      }
 
       await Promise.all([
         setBalance1(await getBalance(addr1)),
@@ -47,7 +54,7 @@ function App() {
   }
 
   if (balancesLoading > 0) {
-    return <Loading text="Refreshing balances..." />
+    return <Loading text="Contacting the faucet..." />
   }
 
   if (errors.length > 0) {

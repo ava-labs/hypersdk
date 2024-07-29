@@ -9,6 +9,16 @@ interface ApiResponse<T> {
     };
 }
 
+export async function requestFaucetTransfer(address: string): Promise<void> {
+    const response = await fetch(`http://localhost:8765/faucet/${address}`, {
+        method: 'POST',
+        body: JSON.stringify({})
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+}
+
 async function _makeApiRequest<T>(namespace: string, method: string, params: object = {}): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
