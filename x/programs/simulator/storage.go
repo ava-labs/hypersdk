@@ -29,17 +29,18 @@ type SimulatorState struct {
    // this is ptr to the insert function
    insertFunc InsertStateCallbackType
 
-//    // this is a ptr to the delete function
-//    deleteFunc C.CallbackDeleteFunc
+   // this is a ptr to the delete function
+   removeFunc RemoveStateCallbackType
 }
 
 func NewSimulatorState(db unsafe.Pointer) *SimulatorState {
 	// convert unsafe pointer to C.Mutable
 	mutable := (*Mutable)(db)
    return &SimulatorState{
-	statePtr: mutable.stateObj,
-	  getFunc: mutable.get_value_callback,
-	insertFunc: mutable.insert_callback,
+		statePtr: mutable.stateObj,
+		getFunc: mutable.get_value_callback,
+		insertFunc: mutable.insert_callback,
+		removeFunc: mutable.remove_callback,
    }
 
 }
@@ -56,6 +57,8 @@ func (s *SimulatorState) Insert(ctx context.Context, key []byte, value []byte) e
 }
 
 func (s *SimulatorState) Remove(ctx context.Context, key []byte) error {
+	fmt.Println("Removing key: ", key)
+	RemoveCallbackWrapper(s.removeFunc, s.statePtr, key)
 	return  nil
 }
 
@@ -72,6 +75,7 @@ func (s *SimulatorState) Remove(ctx context.Context, key []byte) error {
 
 type GetStateCallbackType = C.GetStateCallback
 type InsertStateCallbackType = C.InsertStateCallback
+type RemoveStateCallbackType = C.RemoveStateCallback
 type Mutable = C.Mutable
 // In C, a function argument written as a fixed size array actually requires a 
 // pointer to the first element of the array. C compilers are aware of this calling 
@@ -115,4 +119,16 @@ func InsertCallbackWrapper(insertFuncPtr InsertStateCallbackType, db unsafe.Poin
 	fmt.Println("Inserting key blinggg: ", value)
 	C.bridge_insert_callback(insertFuncPtr, db, keyStruct, valueStruct)
 	fmt.Println("Inserted key: ", key)
+}
+
+func RemoveCallbackWrapper(removeCallbackPtr RemoveStateCallbackType, db unsafe.Pointer, key []byte) {
+	keyBytes := C.CBytes(key)
+	defer C.free(keyBytes)
+
+	keyStruct := C.Bytes{
+		data: (*C.uint8_t)(keyBytes),
+		length: C.uint(len(key)),
+	}
+
+	C.bridge_remove_callback(removeCallbackPtr, db, keyStruct)
 }

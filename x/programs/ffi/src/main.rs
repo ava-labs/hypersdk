@@ -6,7 +6,7 @@ mod types;
 mod state;
 mod simulator;
 use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Address};
-use state::{get_state_callback, insert_state_callback, GetStateCallback, Mutable, SimpleState};
+use state::{get_state_callback, insert_state_callback, remove_state_callback, GetStateCallback, Mutable, SimpleState};
 
 #[link(name = "simulator", kind = "dylib")]
 extern "C" {
@@ -20,14 +20,15 @@ fn main () {
         obj: &simulator as *const SimpleState as *mut SimpleState,
         get_state: get_state_callback,
         insert_state: insert_state_callback,
+        remove_state: remove_state_callback,
     };
     unsafe {
         CallProgram(&state as *const Mutable as *mut Mutable);
     }
-    simulator.insert(vec![1, 2, 3], vec![4, 5, 6]);
-    unsafe {
-        CallProgram(&state as *const Mutable as *mut Mutable);
-    }
+    // simulator.insert(vec![1, 2, 3], vec![4, 5, 6]);
+    // unsafe {
+    //     CallProgram(&state as *const Mutable as *mut Mutable);
+    // }
 }
 
 

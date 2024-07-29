@@ -17,15 +17,17 @@ import (
 
 //export CallProgram
 func CallProgram(db *C.Mutable) {
-   // form db from params
-   state := simulator.NewSimulatorState(unsafe.Pointer(db))
-   fmt.Println("Calling CallProgram")
-   state.GetValue(context.TODO(), []byte{1,2,3})
-   state.Insert(context.TODO(), []byte{1,2,3}, []byte{6, 6, 9})
-   state.GetValue(context.TODO(), []byte{1,2,3})
-   fmt.Println("Triggering callback") 
-}
+	// form db from params
+	state := simulator.NewSimulatorState(unsafe.Pointer(db))
+	fmt.Println("Calling CallProgram")
+	state.GetValue(context.TODO(), []byte{1, 2, 3})
+	state.Insert(context.TODO(), []byte{1, 2, 3}, []byte{6, 6, 9})
+	state.GetValue(context.TODO(), []byte{1, 2, 3})
+	state.Remove(context.TODO(), []byte{1, 2, 3})
+	state.GetValue(context.TODO(), []byte{1, 2, 3})
 
+	fmt.Println("Triggering callback")
+}
 
 //export TriggerCallback
 // func TriggerCallback(callback C.RustCallback) {
@@ -42,16 +44,15 @@ func CallProgram(db *C.Mutable) {
 //    gas uint64;
 // }
 
-
 // //export Execute
 // func Execute(db *C.SimpleMutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.Response {
 //    // TODO: error checking making sure the params are not nil
-//    // db 
+//    // db
 //    state := db.state;
 
 //    // ctx
 //    testContext := createRuntimeContext(ctx);
-   
+
 //    // ExecutionRequest passed from the C code
 //    paramBytes := C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
 // 	methodName := C.GoString(p.method)
@@ -72,7 +73,7 @@ func CallProgram(db *C.Mutable) {
 //       // also add to the response
 //    }
 
-//    // grab a response 
+//    // grab a response
 //    response := C.Response{
 //       id: state,
 //       error: nil,
@@ -86,7 +87,6 @@ func CallProgram(db *C.Mutable) {
 // 	fmt.Println("Context height: ", ctx.height)
 // 	return response
 // }
-
 
 // func createRuntimeContext(ctx *C.SimulatorContext) runtime.Context {
 //    return runtime.Context{
@@ -110,12 +110,9 @@ func CallProgram(db *C.Mutable) {
 //    }
 // }
 
-
 // type programStateManager struct {
 //    state.Mutable
 // }
-
-
 
 // // //export CallbackHandler
 // // func CallbackHandler(cb C.RustCallback) {

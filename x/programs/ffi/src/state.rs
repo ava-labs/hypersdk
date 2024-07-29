@@ -20,6 +20,10 @@ impl SimpleState {
     pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) {
         self.state.insert(key, value);
     }
+
+    pub fn remove(&mut self, key: Vec<u8>) {
+        self.state.remove(&key);
+    }
 }
 
 
@@ -28,7 +32,9 @@ pub struct Mutable {
     pub obj: *mut SimpleState,
     pub get_state: GetStateCallback,
     pub insert_state: InsertStateCallback,
+    pub remove_state: RemoveStateCallback,
 }
+
 
 pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> Bytes {
     let obj = unsafe { &mut *obj_ptr };
@@ -68,10 +74,22 @@ pub extern "C" fn insert_state_callback(obj_ptr: *mut SimpleState, key: Bytes, v
     }
 }
 
+pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> Bytes {
+    println!("remove state!");
+    let obj = unsafe { &mut *obj_ptr };
+    let key = key.get_slice();
+    obj.remove(key.to_vec());
+    // should be error message
+    Bytes {
+        data: std::ptr::null_mut(),
+        len: 0,
+    }
+}
+
 
 // could have one callback function that multiplexes to different functions
 // or pass in multiple function pointers
 pub type GetStateCallback = extern fn(simObjectPtr: *mut SimpleState, key: Bytes) -> Bytes;
 pub type InsertStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes, value: Bytes) -> Bytes;
-pub type RemoveStateCallback = extern fn(*mut SimpleState) -> i32;
+pub type RemoveStateCallback = extern fn(objectPtr: *mut SimpleState, key: Bytes) -> Bytes;
 
