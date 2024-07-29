@@ -60,7 +60,7 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			},
 		},
 		{
-			name: "no elements removed when cache is exactly full",
+			name: "no element removed when cache is exactly full",
 			ops: []interface{}{
 				put{
 					kv:     0,
@@ -81,7 +81,7 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			},
 		},
 		{
-			name: "no elements removed when the cache is less than full",
+			name: "no element removed when the cache is less than full",
 			ops: []interface{}{
 				put{
 					kv:     0,
