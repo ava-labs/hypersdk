@@ -134,7 +134,7 @@ func TestBLSSignVerify(t *testing.T) {
 
 			ctx := context.Background()
 			err = auth.Verify(ctx, tt.message)
-			require.Equal(tt.err, err)
+			require.ErrorIs(tt.err, err)
 		})
 	}
 }

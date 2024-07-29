@@ -118,7 +118,7 @@ func TestEd25519SignVerify(t *testing.T) {
 
 			ctx := context.Background()
 			err = auth.Verify(ctx, tt.message)
-			require.Equal(tt.err, err)
+			require.ErrorIs(tt.err, err)
 		})
 	}
 }
@@ -200,7 +200,7 @@ func TestEd25519BatchVerifyFails(t *testing.T) {
 		if (i+1)%batchSize == 0 {
 			require.NotNil(verifyFunc)
 			err := verifyFunc()
-			require.Equal(err, crypto.ErrInvalidSignature)
+			require.ErrorIs(err, crypto.ErrInvalidSignature)
 		} else {
 			require.Nil(verifyFunc)
 		}
