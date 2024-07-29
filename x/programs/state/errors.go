@@ -1,4 +1,4 @@
-package simulator
+package state
 
 const (
 	ErrNone = "None"

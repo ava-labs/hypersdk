@@ -1,4 +1,4 @@
-package simulator
+package state
 
 /*
 #cgo CFLAGS: -I../ffi/include

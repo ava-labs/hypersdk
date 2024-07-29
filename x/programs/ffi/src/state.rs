@@ -66,6 +66,7 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
 
 // define constant error messages
 pub const ERR_NONE: &str = "None";
+// TODO: don't like how they need to be exactly like the go error messages. maybe can set up errors in the .h file?
 pub const ERR_NOT_FOUND: &str = "not found";
 
 pub extern "C" fn insert_state_callback(obj_ptr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char {
