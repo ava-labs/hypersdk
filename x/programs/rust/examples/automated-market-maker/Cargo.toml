@@ -7,10 +7,10 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-wasmlanche-sdk = { workspace = true, features = ["debug"] }
 borsh = { workspace = true }
-token = { path = "../token", features = ["bindings"]}
-bytemuck = { version = "1.16.1", features = ["derive"] }
+bytemuck = { workspace = true, features = ["derive"] }
+token = { path = "../token", features = ["bindings"] }
+wasmlanche-sdk = { workspace = true, features = ["debug"] }
 
 [dev-dependencies]
 simulator = { workspace = true }
