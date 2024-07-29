@@ -737,7 +737,12 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	// blocks we don't have yet at tip and we don't want
 	// to count that as a historical read.
 	vm.metrics.blocksFromDisk.Inc()
-	return vm.GetDiskBlock(ctx, blkHeight)
+	blk, err := vm.GetCachedBlock(ctx, blkHeight)
+	if err != nil {
+		return nil, err
+	}
+	vm.CacheBlock(blk)
+	return blk, nil
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
@@ -1200,7 +1205,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 		var blk *chain.StatelessBlock
 		blk, err := vm.GetCachedBlock(ctx, height)
 		if err != nil {
-			return fmt.Errorf("failed to find accepted block at height %d, err: %w", height)
+			return fmt.Errorf("failed to find accepted block at height %d, err: %w", height, err)
 		}
 
 		vm.acceptedQueue <- blk
