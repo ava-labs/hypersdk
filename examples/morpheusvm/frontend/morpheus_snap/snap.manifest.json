@@ -1,13 +1,13 @@
 {
   "version": "0.1.0",
   "description": "An example Snap written in TypeScript.",
-  "proposedName": "TypeScript Example",
+  "proposedName": "Morpheus Snap",
   "repository": {
     "type": "git",
     "url": "https://github.com/MetaMask/template-snap-monorepo.git"
   },
   "source": {
-    "shasum": "LeU66VU5eC0lQzll5rM1Q3BGu5SnyG1tTH6QT9hu8Oo=",
+    "shasum": "Mr0NN2dc58cK85gFee0LVPzWGBbcpAKUu3UDT6yfDFI=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",

@@ -43,8 +43,8 @@ async function _makeApiRequest<T>(namespace: string, method: string, params: obj
             throw new Error(json.error.message);
         }
         return json.result;
-    } catch (error: any) {
-        if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out after 3 seconds');
         }
         throw error;

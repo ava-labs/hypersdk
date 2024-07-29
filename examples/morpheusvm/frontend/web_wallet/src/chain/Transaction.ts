@@ -9,11 +9,15 @@ export class Transaction {
         public readonly maxFee: bigint,
         public readonly actions: AbstractAction[]
     ) {
-        if (timestamp < new Date(2020, 0, 1).getTime()) {
-            throw new Error("Timestamp must be greater than 2020-01-01")
-        } else if (timestamp > new Date(2030, 0, 1).getTime()) {
-            throw new Error("Timestamp must be less than 2030-01-01")
-        }
+        // if (timestamp < new Date(2020, 0, 1).getTime()) {
+        //     throw new Error("Timestamp must be greater than 2020-01-01")
+        // } else if (timestamp > new Date(2030, 0, 1).getTime()) {
+        //     throw new Error("Timestamp must be less than 2030-01-01")
+        // }
+
+
+        // Ensure the last 3 digits of the timestamp are 000
+        this.timestamp = this.timestamp / 1000n * 1000n
     }
 
     public digest(): Uint8Array {

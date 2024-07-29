@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import ConnectWallet from './screens/ConnectWallet'
 import { SignerIface } from './signers/SignerIface'
 import Wallet from './screens/Wallet'
-import { getBalance,requestFaucetTransfer } from './lib/api'
+import { getBalance, requestFaucetTransfer } from './lib/api'
 import { pubKeyToED25519Addr } from './lib/bech32'
 import Loading from './screens/Loading'
 import FullScreenError from './screens/FullScreenError'
@@ -36,7 +36,7 @@ function App() {
       const addr1 = pubKeyToED25519Addr(signers.signer1.getPublicKey())
       const addr2 = pubKeyToED25519Addr(signers.signer2.getPublicKey())
 
-      if(!faucetRequested) {
+      if (!faucetRequested) {
         await requestFaucetTransfer(addr1)
         setFaucetRequested(true)
       }
@@ -69,10 +69,12 @@ function App() {
   return (
     <div className="flex flex-col md:flex-row">
       <div className="w-full md:w-1/2 bg-white p-8">
-        <Wallet signer={signers.signer1} derivationPath="m/44'/9000'/0'" balanceBigNumber={balance1} onBalanceRefreshRequested={refreshBalances} walletName={'Address #1'} />
+        <Wallet signer={signers.signer1} derivationPath="m/44'/9000'/0'" balanceBigNumber={balance1} onBalanceRefreshRequested={refreshBalances} walletName={'Address #1'}
+          otherWalletAddress={pubKeyToED25519Addr(signers.signer2.getPublicKey())} />
       </div>
       <div className="w-full md:w-1/2 bg-gray-200 p-8 min-h-screen">
-        <Wallet signer={signers.signer2} derivationPath="m/44'/9000'/1'" balanceBigNumber={balance2} onBalanceRefreshRequested={refreshBalances} walletName={'Address #2'} />
+        <Wallet signer={signers.signer2} derivationPath="m/44'/9000'/1'" balanceBigNumber={balance2} onBalanceRefreshRequested={refreshBalances} walletName={'Address #2'}
+          otherWalletAddress={pubKeyToED25519Addr(signers.signer1.getPublicKey())} />
       </div>
     </div>
   )

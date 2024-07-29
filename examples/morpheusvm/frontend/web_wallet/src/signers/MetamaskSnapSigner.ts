@@ -41,7 +41,13 @@ export class MetamaskSnapSigner implements SignerIface {
     }
 
     async signTx(binary: Uint8Array): Promise<Uint8Array> {
-        const sig58 = await this._invokeSnap({ method: 'signTransaction', params: { binary } }) as string | undefined;
+        const bytesBase58 = base58.encode(binary);
+        const sig58 = await this._invokeSnap({
+            method: 'signBytes', params: {
+                bytesBase58: bytesBase58,
+                derivationPath: [`${this.lastDerivationSection}'`]
+            }
+        }) as string | undefined;
         if (!sig58) {
             throw new Error("Failed to sign transaction");
         }

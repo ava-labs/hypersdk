@@ -1,4 +1,3 @@
-import { KeyIcon, BackspaceIcon } from '@heroicons/react/20/solid'
 import { SignerIface } from '../signers/SignerIface'
 import { SNAP_ID } from '../const'
 import { MetamaskSnapSigner } from '../signers/MetamaskSnapSigner'

@@ -27,9 +27,11 @@
     "dev": "mm-snap watch"
   },
   "dependencies": {
+    "@metamask/key-tree": "^9.1.2",
     "@metamask/snaps-sdk": "^4.0.0",
     "@scure/base": "^1.1.7",
-    "buffer": "^6.0.3"
+    "buffer": "^6.0.3",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@jest/globals": "^29.2.3",

@@ -118,7 +118,7 @@ func main() {
 	// Wrap the router with the CORS handler
 	handler := c.Handler(r)
 
-	fmt.Println("Starting faucet server on :8765")
+	fmt.Println("Starting faucet server on http://localhost:8765")
 	if err := http.ListenAndServe(":8765", handler); err != nil {
 		log.Fatal(err)
 	}

@@ -1,7 +1,11 @@
+import { SLIP10Node } from '@metamask/key-tree';
 import type { OnRpcRequestHandler } from '@metamask/snaps-sdk';
-import { panel, text } from '@metamask/snaps-sdk';
-import nacl from 'tweetnacl';
 import { base58 } from '@scure/base';
+import nacl from 'tweetnacl';
+import { assertInput, assertIsString, assertConfirmation, assertIsArray } from './assert';
+import { isValidSegment } from './keys';
+import { renderSignBytes } from './ui';
+
 
 /**
  * Handle incoming JSON-RPC requests, sent through `wallet_invokeSnap`.
@@ -17,39 +21,39 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
   origin,
   request,
 }) => {
-  switch (request.method) {
-    case 'hello':
-      return snap.request({
-        method: 'snap_dialog',
-        params: {
-          type: 'confirmation',
-          content: panel([
-            text(`Hello, **${origin}**!`),
-            text('This custom confirmation is just for display purposes.'),
-            text(
-              'But you can edit the snap source code to make it do something, if you want to!',
-            ),
-          ]),
-        },
-      });
-    case 'getPublicKey':
-      const keyPair = await deriveKeyPairDefaultPath();
+  let keyPair: nacl.SignKeyPair;
 
-      const pubkey = base58.encode(keyPair.publicKey);
+  if (request.method === 'signBytes') {
+    // const dappHost = (new URL(origin))?.host;
 
-      return pubkey;
-    default:
-      throw new Error('Method not found.');
+    const { derivationPath, bytesBase58 } = (request.params || {}) as { derivationPath?: string[], bytesBase58?: string };
+
+    assertInput(bytesBase58);
+    const bytes = base58.decode(bytesBase58 || "");
+    assertInput(bytes.length);
+
+    keyPair = await deriveKeyPair(derivationPath || []);
+
+    const accepted = await renderSignBytes(bytesBase58 || "");
+    assertConfirmation(!!accepted);
+
+    const signature = nacl.sign.detached(bytes, keyPair.secretKey);
+
+    return base58.encode(signature)
+  } else if (request.method === 'getPublicKey') {
+    const { derivationPath } = (request.params || {}) as { derivationPath?: string[] };
+
+    keyPair = await deriveKeyPair(derivationPath || []);
+
+    const pubkey = base58.encode(keyPair.publicKey);
+
+    return pubkey;
+  } else {
+    throw new Error('Method not found.');
   }
 };
 
-import { SLIP10Node } from '@metamask/key-tree';
-
-async function deriveKeyPairDefaultPath() {
-  return deriveKeyPair(["0'"]);
-}
-
-async function deriveKeyPair(path: string[]) {
+async function deriveKeyPair(path: string[]): Promise<nacl.SignKeyPair> {
   assertIsArray(path);
   assertInput(path.length);
   assertInput(path.every((segment) => isValidSegment(segment)));
@@ -73,42 +77,4 @@ async function deriveKeyPair(path: string[]) {
   }
 
   return nacl.sign.keyPair.fromSeed(Uint8Array.from(keypair.privateKeyBytes));
-}
-
-
-export function assertIsArray(input: any[]) {
-  if (!Array.isArray(input)) {
-    throw {
-      code: -32000,
-      message: 'assertIsArray: Invalid input.'
-    };
-  }
-}
-
-function assertInput(path: any) {
-  if (!path) {
-    throw {
-      code: -32000,
-      message: 'assertInput: Invalid input.'
-    };
-  }
-}
-
-
-function isValidSegment(segment: string) {
-  if (typeof segment !== 'string') {
-    return false;
-  }
-
-  if (!segment.match(/^[0-9]+'$/)) {
-    return false;
-  }
-
-  const index = segment.slice(0, -1);
-
-  if (parseInt(index).toString() !== index) {
-    return false;
-  }
-
-  return true;
 }
