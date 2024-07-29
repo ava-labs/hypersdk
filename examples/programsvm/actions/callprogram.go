@@ -33,22 +33,16 @@ type CallProgram struct {
 
 	// CallData are the serialized parameters to be passed to the program.
 	CallData []byte `json:"calldata"`
+
+	SpecifiedStateKeys state.Keys `json:"statekeys"`
 }
 
 func (*CallProgram) GetTypeID() uint8 {
 	return pconsts.CallProgramID
 }
 
-func (t *CallProgram) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
-	recorder := &storage.Recorder{State: pconsts.StateKeysDB}
-	pconsts.ProgramRuntime.CallProgram(context.Background(), &runtime.CallInfo{
-		Program:      t.Program,
-		Actor:        actor,
-		State:        &storage.ProgramStateManager{Mutable: recorder},
-		FunctionName: t.Function,
-		Params:       t.CallData,
-	})
-	return recorder.GetStateKeys()
+func (t *CallProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
+	return t.SpecifiedStateKeys
 }
 
 func (*CallProgram) StateKeysMaxChunks() []uint16 {
@@ -87,6 +81,11 @@ func (t *CallProgram) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 	p.PackString(t.Function)
 	p.PackBytes(t.CallData)
+	p.PackInt(len(t.SpecifiedStateKeys))
+	for key, value := range t.SpecifiedStateKeys {
+		p.PackString(key)
+		p.PackByte(byte(value))
+	}
 }
 
 func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
@@ -98,7 +97,13 @@ func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
-
+	count := p.UnpackInt(true)
+	callProgram.SpecifiedStateKeys = make(state.Keys, count)
+	for i := 0; i < count; i++ {
+		key := p.UnpackString(true)
+		value := p.UnpackByte()
+		callProgram.SpecifiedStateKeys[key] = state.Permissions(value)
+	}
 	return &callProgram, nil
 }
 

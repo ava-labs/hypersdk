@@ -5,6 +5,9 @@ package rpc
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/state"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -34,6 +37,20 @@ func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClie
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
 	return &JSONRPCClient{req, networkID, chainID, nil}
+}
+
+func (cli *JSONRPCClient) Simulate(ctx context.Context, callProgramTx actions.CallProgram, actor codec.Address) (state.Keys, error) {
+	resp := new(SimulateCallProgramTxReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"simulateCallProgramTx",
+		&SimulateCallProgramTxArgs{CallProgramTx: callProgramTx, Actor: actor},
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return resp.StateKeys, nil
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {

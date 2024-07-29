@@ -4,7 +4,6 @@
 package consts
 
 import (
-	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 
@@ -40,5 +39,4 @@ var (
 	// shameless hacks to make program call action have access to the runtime and db for execution and statekey queries
 
 	ProgramRuntime *runtime.WasmRuntime
-	StateKeysDB    database.Database
 )

@@ -6,14 +6,18 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/snow"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/programsvm/config"
 	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
@@ -22,7 +26,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
 	"github.com/ava-labs/hypersdk/examples/programsvm/version"
 	"github.com/ava-labs/hypersdk/extension/indexer"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -31,79 +34,75 @@ import (
 	hstorage "github.com/ava-labs/hypersdk/storage"
 )
 
-var _ vm.Controller = (*Controller)(nil)
+var (
+	_ vm.Controller        = (*Controller)(nil)
+	_ vm.ControllerFactory = (*factory)(nil)
+)
 
-type Controller struct {
-	inner *vm.VM
-
-	snowCtx      *snow.Context
-	genesis      *genesis.Genesis
-	config       *config.Config
-	stateManager *storage.StateManager
-
-	metrics *metrics
-
-	txDB               database.Database
-	txIndexer          indexer.TxIndexer
-	acceptedSubscriber indexer.AcceptedSubscriber
+func New(options ...vm.Option) (*vm.VM, error) {
+	return vm.New(
+		&factory{},
+		version.Version,
+		consts.ActionRegistry,
+		consts.AuthRegistry,
+		auth.Engines(),
+		options...,
+	)
 }
 
-func New() *vm.VM {
-	return vm.New(&Controller{}, version.Version)
-}
+type factory struct{}
 
-func (c *Controller) Initialize(
+func (*factory) New(
 	inner *vm.VM,
-	snowCtx *snow.Context,
+	log logging.Logger,
+	networkID uint32,
+	chainID ids.ID,
+	chainDataDir string,
 	gatherer ametrics.MultiGatherer,
 	genesisBytes []byte,
 	upgradeBytes []byte, // subnets to allow for AWM
 	configBytes []byte,
 ) (
+	vm.Controller,
 	vm.Genesis,
-	builder.Builder,
-	gossiper.Gossiper,
 	vm.Handlers,
-	chain.ActionRegistry,
-	chain.AuthRegistry,
-	map[uint8]vm.AuthEngine,
 	error,
 ) {
+	c := &Controller{}
 	c.inner = inner
-	consts.StateKeysDB, _ = c.inner.State()
-	c.snowCtx = snowCtx
+	c.log = log
+	c.networkID = networkID
+	c.chainID = chainID
 	c.stateManager = &storage.StateManager{}
 
 	// Instantiate metrics
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = config.New(configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	c.snowCtx.Log.SetLevel(c.config.LogLevel)
-	snowCtx.Log.Info("initialized config", zap.Any("contents", c.config))
+	log.Info("initialized config", zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
 	}
-	snowCtx.Log.Info("loaded genesis", zap.Any("genesis", c.genesis))
+	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), snowCtx.ChainDataDir, "db", gatherer)
+	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
-
 	acceptedSubscribers := []indexer.AcceptedSubscriber{
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
 	}
@@ -125,33 +124,33 @@ func (c *Controller) Initialize(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
-	// Create builder and gossiper
-	var (
-		build  builder.Builder
-		gossip gossiper.Gossiper
-	)
-	if c.config.TestMode {
-		c.inner.Logger().Info("running build and gossip in test mode")
-		build = builder.NewManual(inner)
-		gossip = gossiper.NewManual(inner)
-	} else {
-		build = builder.NewTime(inner)
-		gcfg := gossiper.DefaultProposerConfig()
-		gossip, err = gossiper.NewProposer(inner, gcfg)
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, err
-		}
-	}
-	return c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c, c.genesis, apis, nil
+}
+
+type Controller struct {
+	inner     *vm.VM
+	log       logging.Logger
+	networkID uint32
+	chainID   ids.ID
+
+	genesis      *genesis.Genesis
+	config       *config.Config
+	stateManager *storage.StateManager
+
+	metrics *metrics
+
+	txDB               database.Database
+	txIndexer          indexer.TxIndexer
+	acceptedSubscriber indexer.AcceptedSubscriber
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(t, c.snowCtx.NetworkID, c.snowCtx.ChainID)
+	return c.genesis.Rules(t, c.networkID, c.chainID)
 }
 
 func (c *Controller) StateManager() chain.StateManager {
@@ -165,4 +164,20 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 func (c *Controller) Shutdown(context.Context) error {
 	// Close any databases created during initialization
 	return c.txDB.Close()
+}
+
+func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor codec.Address) (state.Keys, error) {
+	db, err := c.inner.State()
+	if err != nil {
+		return nil, err
+	}
+	recorder := &storage.Recorder{State: db}
+	_, err = consts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
+		Program:      t.Program,
+		Actor:        actor,
+		State:        &storage.ProgramStateManager{Mutable: recorder},
+		FunctionName: t.Function,
+		Params:       t.CallData,
+	})
+	return recorder.GetStateKeys(), err
 }

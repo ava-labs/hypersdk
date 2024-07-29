@@ -4,6 +4,9 @@
 package rpc
 
 import (
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/examples/programsvm/controller"
+	"github.com/ava-labs/hypersdk/state"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -15,10 +18,10 @@ import (
 )
 
 type JSONRPCServer struct {
-	c Controller
+	c *controller.Controller
 }
 
-func NewJSONRPCServer(c Controller) *JSONRPCServer {
+func NewJSONRPCServer(c *controller.Controller) *JSONRPCServer {
 	return &JSONRPCServer{c}
 }
 
@@ -29,6 +32,20 @@ type GenesisReply struct {
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
 	reply.Genesis = j.c.Genesis()
 	return nil
+}
+
+type SimulateCallProgramTxArgs struct {
+	CallProgramTx actions.CallProgram `json:"callProgramTx"`
+	Actor         codec.Address       `json:"actor"`
+}
+
+type SimulateCallProgramTxReply struct {
+	StateKeys state.Keys `json:"stateKeys"`
+}
+
+func (j *JSONRPCServer) SimulateCallProgramTx(req *http.Request, args *SimulateCallProgramTxArgs, reply *SimulateCallProgramTxReply) (err error) {
+	reply.StateKeys, err = j.c.Simulate(req.Context(), args.CallProgramTx, args.Actor)
+	return err
 }
 
 type TxArgs struct {
