@@ -129,8 +129,6 @@ const (
 )
 
 func TestEd25519BatchVerify(t *testing.T) {
-	require := require.New(t)
-
 	priv := ed25519.PrivateKey(ced25519.NewKeyFromSeed(seed))
 
 	factory := NewED25519Factory(priv)
@@ -170,7 +168,7 @@ func TestEd25519BatchVerify(t *testing.T) {
 			signMessages: func() *[messagesCount][]byte {
 				messages := [messagesCount][]byte{}
 				for i := range messages {
-					messages[i] = []byte(fmt.Sprintf("Hello, world 1!"))
+					messages[i] = []byte("Hello, world 1!")
 				}
 				return &messages
 			}(),
@@ -180,6 +178,8 @@ func TestEd25519BatchVerify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
 			signedMessages := make([]SignedMessage, messagesCount)
 			for i, message := range tt.messages {
 				var signMessage []byte
