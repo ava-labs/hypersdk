@@ -3,9 +3,7 @@
 
 package auth
 
-import (
-	"github.com/ava-labs/hypersdk/vm"
-)
+import "github.com/ava-labs/hypersdk/vm"
 
 // Note: Registry will error during initialization if a duplicate ID is assigned. We explicitly assign IDs to avoid accidental remapping.
 const (

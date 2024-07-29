@@ -72,7 +72,8 @@ func TestTypeParser(t *testing.T) {
 
 	t.Run("duplicate item", func(t *testing.T) {
 		require := require.New(t)
-		require.ErrorIs(tp.Register((&Blah1{}).GetTypeID(), nil), ErrDuplicateItem)
+		err := tp.Register((&Blah1{}).GetTypeID(), nil)
+		require.ErrorIs(err, ErrDuplicateItem)
 	})
 
 	t.Run("too many items", func(t *testing.T) {
@@ -83,6 +84,7 @@ func TestTypeParser(t *testing.T) {
 			require.NoError(tp.Register(uint8(index+2), nil))
 		}
 		// all possible uint8 value should already be store, using any return ErrTooManyItems
-		require.ErrorIs(tp.Register(uint8(4), nil), ErrTooManyItems)
+		err := tp.Register(uint8(4), nil)
+		require.ErrorIs(err, ErrTooManyItems)
 	})
 }

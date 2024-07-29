@@ -3,9 +3,7 @@
 
 package bls
 
-import (
-	"github.com/ava-labs/avalanchego/utils/crypto/bls"
-)
+import "github.com/ava-labs/avalanchego/utils/crypto/bls"
 
 const SignatureLen = bls.SignatureLen
 

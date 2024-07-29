@@ -46,7 +46,7 @@ jobs:
         uses: ./.github/actions/install-go
       - name: Run static analysis tests
         shell: bash
-        run: scripts/tests.lint.sh
+        run: scripts/lint.sh
       - name: Run shellcheck
         shell: bash
         run: scripts/tests.shellcheck.sh
@@ -115,7 +115,7 @@ jobs:
       - name: Run static analysis tests
         working-directory: ./examples/morpheusvm
         shell: bash
-        run: scripts/tests.lint.sh
+        run: scripts/lint.sh
       - name: Build vm, cli
         working-directory: ./examples/morpheusvm
         shell: bash

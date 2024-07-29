@@ -66,7 +66,7 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				newInfo := *callInfo
 
 				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
-					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil
+					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil //nolint:nilerr
 				}
 
 				newInfo.Actor = callInfo.Program

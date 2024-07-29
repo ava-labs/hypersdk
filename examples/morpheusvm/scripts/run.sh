@@ -16,7 +16,7 @@ source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
-VERSION=v1.11.8
+VERSION=v1.11.10
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOG_LEVEL=${LOG_LEVEL:-INFO}
