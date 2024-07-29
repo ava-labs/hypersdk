@@ -1,5 +1,6 @@
-use wasmlanche_sdk::{public, Address};
-use wasmlanche_sdk::{state_schema, Context};
+#[cfg(not(feature = "bindings"))]
+use wasmlanche_sdk::Context;
+use wasmlanche_sdk::{public, state_schema, Address};
 
 type CurrencyAmount = u64;
 
@@ -192,6 +193,7 @@ fn get_owner(context: &mut Context) -> Address {
         .expect("owner not initialized")
 }
 
+#[cfg(not(feature = "bindings"))]
 mod internal {
     use super::*;
 
