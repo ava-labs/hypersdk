@@ -7,7 +7,6 @@ use wasmlanche_sdk::{public, state_keys, Address, Context, Program};
 /// For instance, it should not be placed inside the fields of a struct in any position other than the last one,
 /// because there won't be enough bytes for the last element and will create a DOS on deserializaton.
 /// For this reason, we will not use it in the storage but instead serialize the data again as a good practice.</div>
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct DeferDeserialize(Vec<u8>);
 
 impl BorshSerialize for DeferDeserialize {
