@@ -7,4 +7,6 @@ export const MAX_TRANSFER_FEE = 10000000n
 export const FAUCET_HOST = DEVELOPMENT_MODE ? 'http://localhost:8765' : ''
 export const API_HOST = DEVELOPMENT_MODE ? 'http://localhost:9650' : ''
 
-export const SNAP_ID = DEVELOPMENT_MODE ? 'local:http://localhost:8080' : 'npm:sample-metamask-snap-for-hypersdk'
+
+import snapPkgJson from "../../morpheus_snap/package.json"
+export const SNAP_ID = DEVELOPMENT_MODE ? 'local:http://localhost:8080' : `npm:${snapPkgJson.name}`

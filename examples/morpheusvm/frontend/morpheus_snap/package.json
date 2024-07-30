@@ -1,5 +1,5 @@
 {
-  "name": "sample-metamask-snap-for-hypersdk",
+  "name": "sample-metamask-snap-for-hypersdk-v1",
   "version": "0.1.0",
   "description": "The 'Hello, world!' of MetaMask Snaps, now written in TypeScript.",
   "repository": {
@@ -24,7 +24,8 @@
     "serve": "mm-snap serve",
     "start": "mm-snap watch",
     "test": "jest",
-    "dev": "mm-snap watch"
+    "dev": "mm-snap watch",
+    "deploy": "npm run build && npm publish"
   },
   "dependencies": {
     "@metamask/key-tree": "^9.1.2",
