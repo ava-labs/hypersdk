@@ -22,6 +22,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -29,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -42,12 +45,12 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/vm"
 
-	auth "github.com/ava-labs/hypersdk/auth"
+	"github.com/onsi/ginkgo/v2"
+
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
@@ -117,7 +120,7 @@ func init() {
 type instance struct {
 	chainID           ids.ID
 	nodeID            ids.NodeID
-	vm                *vm.VM
+	vm                *vm.VM[*controller.Controller]
 	toEngine          chan common.Message
 	JSONRPCServer     *httptest.Server
 	BaseJSONRPCServer *httptest.Server
@@ -212,7 +215,44 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v, err := controller.New(vm.WithManualGossiper(), vm.WithManualBuilder())
+		txDBIndexer := indexer.NewTxDBIndexer(db)
+		indexerAPI := indexer.NewAPIFactory(txDBIndexer, "morpheusvm", "indexer")
+
+		server, handler := rpc.NewWebSocketServer(
+			l,
+			trace.Noop,
+			lconsts.ActionRegistry,
+			lconsts.AuthRegistry,
+			10000000,
+		)
+
+		webSocketFactory := rpc.NewPubSubFactory(handler)
+
+		removeTxSubscription := rpc.SubscriptionFunc[vm.TxRemovedEvent]{
+			AcceptF: func(event vm.TxRemovedEvent) error {
+				return server.RemoveTx(event.TxID, event.Err)
+			},
+		}
+
+		acceptBlockSubscription := &rpc.SubscriptionFunc[*chain.StatelessBlock]{
+			AcceptF: func(event *chain.StatelessBlock) error {
+				return server.AcceptBlock(event)
+			},
+		}
+
+		v, err := controller.New(
+			vm.WithManualGossiper[*controller.Controller](),
+			vm.WithManualBuilder[*controller.Controller](),
+			vm.WithBlockSubscriptions[*controller.Controller](txDBIndexer, acceptBlockSubscription),
+			vm.WithRemoveTxSubscriptions[*controller.Controller](removeTxSubscription),
+			vm.WithVMAPIs[*controller.Controller](
+				rpc.JSONRPCServerFactory{},
+				indexerAPI,
+				webSocketFactory,
+			),
+			vm.WithControllerAPIs[*controller.Controller](&lrpc.JSONRPCServerFactory{}),
+		)
+
 		require.NoError(err)
 		require.NoError(v.Initialize(
 			context.TODO(),
@@ -226,6 +266,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			app,
 		))
 
+		server.Initialize(v)
 		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
 		require.NoError(err)
@@ -275,6 +316,7 @@ var _ = ginkgo.AfterSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
 	for _, iv := range instances {
+		// TODO what are these for?
 		iv.JSONRPCServer.Close()
 		iv.BaseJSONRPCServer.Close()
 		iv.WebSocketServer.Close()

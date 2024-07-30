@@ -4,7 +4,6 @@
 package indexer
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 
@@ -14,30 +13,31 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/vm/event"
 )
 
 var (
-	_ AcceptedSubscriber = (*TxDBIndexer)(nil)
-	_ AcceptedSubscriber = (*NoOpTxIndexer)(nil)
-
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
+
+	_ event.Subscription[*chain.StatelessBlock] = (*TxDBIndexer)(nil)
 )
 
-type TxIndexer interface {
-	AcceptedSubscriber
-	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
+func NewTxDBIndexer(db database.Database) *TxDBIndexer {
+	return &TxDBIndexer{
+		db: db,
+	}
 }
 
 type TxDBIndexer struct {
 	db database.Database
 }
 
-func NewTxDBIndexer(db database.Database) *TxDBIndexer {
-	return &TxDBIndexer{db: db}
+func (t *TxDBIndexer) Close() error {
+	return t.db.Close()
 }
 
-func (t *TxDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
+func (t *TxDBIndexer) Accept(blk *chain.StatelessBlock) error {
 	batch := t.db.NewBatch()
 	defer batch.Reset()
 
@@ -99,18 +99,4 @@ func (t *TxDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimen
 	}
 	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
 	return true, timestamp, success, d, fee, nil
-}
-
-type NoOpTxIndexer struct{}
-
-func NewNoOpTxIndexer() *NoOpTxIndexer {
-	return &NoOpTxIndexer{}
-}
-
-func (*NoOpTxIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
-	return nil
-}
-
-func (*NoOpTxIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return false, 0, false, fees.Dimensions{}, 0, errors.New("tx indexer not enabled")
 }

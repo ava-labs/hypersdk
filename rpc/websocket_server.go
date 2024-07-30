@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
@@ -16,29 +17,80 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/emap"
 	"github.com/ava-labs/hypersdk/pubsub"
+	"github.com/ava-labs/hypersdk/vm/event"
 )
 
+var (
+	_ HandlerFactory[VM]           = (*PubSubFactory)(nil)
+	_ event.Subscription[struct{}] = (*SubscriptionFunc[struct{}])(nil)
+)
+
+type SubscriptionFunc[T any] struct {
+	AcceptF func(t T) error
+}
+
+func (s SubscriptionFunc[T]) Accept(t T) error {
+	return s.AcceptF(t)
+}
+
+func (SubscriptionFunc[_]) Close() error {
+	return nil
+}
+
+func NewPubSubFactory(server *pubsub.Server) *PubSubFactory {
+	return &PubSubFactory{
+		server: server,
+	}
+}
+
+type PubSubFactory struct {
+	server *pubsub.Server
+}
+
+func (p PubSubFactory) New(VM) (HTTPHandler, error) {
+	return HTTPHandler{
+		Path:    WebSocketEndpoint,
+		Handler: p.server,
+	}, nil
+}
+
 type WebSocketServer struct {
-	logger logging.Logger
-	s      *pubsub.Server
+	logger         logging.Logger
+	tracer         trace.Tracer
+	actionRegistry chain.ActionRegistry
+	authRegistry   chain.AuthRegistry
+
+	s *pubsub.Server
 
 	blockListeners *pubsub.Connections
 
 	txL         sync.Mutex
 	txListeners map[ids.ID]*pubsub.Connections
 	expiringTxs *emap.EMap[*chain.Transaction] // ensures all tx listeners are eventually responded to
+
+	lock sync.Mutex
+	vm   VM
 }
 
-func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsub.Server) {
+func NewWebSocketServer(
+	log logging.Logger,
+	tracer trace.Tracer,
+	actionRegistry chain.ActionRegistry,
+	authRegistry chain.AuthRegistry,
+	maxPendingMessages int,
+) (*WebSocketServer, *pubsub.Server) {
 	w := &WebSocketServer{
-		logger:         vm.Logger(),
+		logger:         log,
+		tracer:         tracer,
+		actionRegistry: actionRegistry,
+		authRegistry:   authRegistry,
 		blockListeners: pubsub.NewConnections(),
 		txListeners:    map[ids.ID]*pubsub.Connections{},
 		expiringTxs:    emap.NewEMap[*chain.Transaction](),
 	}
 	cfg := pubsub.NewDefaultServerConfig()
 	cfg.MaxPendingMessages = maxPendingMessages
-	w.s = pubsub.New(w.logger, cfg, w.MessageCallback(vm))
+	w.s = pubsub.New(w.logger, cfg, w.MessageCallback())
 	return w, w.s
 }
 
@@ -80,10 +132,7 @@ func (w *WebSocketServer) removeTx(txID ids.ID, err error) error {
 	return nil
 }
 
-func (w *WebSocketServer) SetMinTx(t int64) error {
-	w.txL.Lock()
-	defer w.txL.Unlock()
-
+func (w *WebSocketServer) setMinTx(t int64) error {
 	expired := w.expiringTxs.SetMin(t)
 	for _, id := range expired {
 		if err := w.removeTx(id, ErrExpired); err != nil {
@@ -126,24 +175,25 @@ func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 		delete(w.txListeners, txID)
 		// [expiringTxs] will be cleared eventually (does not support removal)
 	}
-	return nil
+	return w.setMinTx(b.Tmstmp)
 }
 
-func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
-	// Assumes controller is initialized before this is called
-	var (
-		actionRegistry, authRegistry = vm.Registry()
-		tracer                       = vm.Tracer()
-		log                          = vm.Logger()
-	)
-
+func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 	return func(msgBytes []byte, c *pubsub.Connection) {
-		ctx, span := tracer.Start(context.Background(), "WebSocketServer.Callback")
+		w.lock.Lock()
+		defer w.lock.Unlock()
+
+		if w.vm == nil {
+			w.logger.Debug("vm not initialized yet")
+			return
+		}
+
+		ctx, span := w.tracer.Start(context.Background(), "WebSocketServer.Callback")
 		defer span.End()
 
 		// Check empty messages
 		if len(msgBytes) == 0 {
-			log.Error("failed to unmarshal msg",
+			w.logger.Error("failed to unmarshal msg",
 				zap.Int("len", len(msgBytes)),
 			)
 			return
@@ -154,14 +204,14 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 		switch msgBytes[0] {
 		case BlockMode:
 			w.blockListeners.Add(c)
-			log.Debug("added block listener")
+			w.logger.Debug("added block listener")
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
 			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
-			tx, err := chain.UnmarshalTx(p, actionRegistry, authRegistry)
+			tx, err := chain.UnmarshalTx(p, w.actionRegistry, w.authRegistry)
 			if err != nil {
-				log.Error("failed to unmarshal tx",
+				w.logger.Error("failed to unmarshal tx",
 					zap.Int("len", len(msgBytes)),
 					zap.Error(err),
 				)
@@ -169,14 +219,14 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			}
 
 			// Verify tx
-			if vm.GetVerifyAuth() {
+			if w.vm.GetVerifyAuth() {
 				msg, err := tx.Digest()
 				if err != nil {
 					// Should never occur because populated during unmarshal
 					return
 				}
 				if err := tx.Auth.Verify(ctx, msg); err != nil {
-					log.Error("failed to verify sig",
+					w.logger.Error("failed to verify sig",
 						zap.Error(err),
 					)
 					return
@@ -186,19 +236,26 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 
 			// Submit will remove from [txWaiters] if it is not added
 			txID := tx.ID()
-			if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-				log.Error("failed to submit tx",
+			if err := w.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
+				w.logger.Error("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)
 				return
 			}
-			log.Debug("submitted tx", zap.Stringer("id", txID))
+			w.logger.Debug("submitted tx", zap.Stringer("id", txID))
 		default:
-			log.Error("unexpected message type",
+			w.logger.Error("unexpected message type",
 				zap.Int("len", len(msgBytes)),
 				zap.Uint8("mode", msgBytes[0]),
 			)
 		}
 	}
+}
+
+func (w *WebSocketServer) Initialize(vm VM) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	w.vm = vm
 }

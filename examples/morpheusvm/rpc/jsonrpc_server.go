@@ -5,27 +5,37 @@ package rpc
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
-	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/rpc"
 )
 
 const JSONRPCEndpoint = "/morpheusapi"
 
-var ErrTxNotFound = errors.New("tx not found")
+var (
+	_ rpc.HandlerFactory[*controller.Controller] = (*JSONRPCServerFactory)(nil)
+)
 
 type Controller interface {
 	Genesis() *genesis.Genesis
 	Tracer() trace.Tracer
-	GetTransaction(ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
+}
+
+type JSONRPCServerFactory struct{}
+
+func (J JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
+	handler, err := rpc.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(c))
+	return rpc.HTTPHandler{
+		Path:    JSONRPCEndpoint,
+		Handler: handler,
+	}, err
 }
 
 type JSONRPCServer struct {
@@ -42,35 +52,6 @@ type GenesisReply struct {
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
 	reply.Genesis = j.c.Genesis()
-	return nil
-}
-
-type TxArgs struct {
-	TxID ids.ID `json:"txId"`
-}
-
-type TxReply struct {
-	Timestamp int64           `json:"timestamp"`
-	Success   bool            `json:"success"`
-	Units     fees.Dimensions `json:"units"`
-	Fee       uint64          `json:"fee"`
-}
-
-func (j *JSONRPCServer) Tx(req *http.Request, args *TxArgs, reply *TxReply) error {
-	_, span := j.c.Tracer().Start(req.Context(), "Server.Tx")
-	defer span.End()
-
-	found, t, success, units, fee, err := j.c.GetTransaction(args.TxID)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return ErrTxNotFound
-	}
-	reply.Timestamp = t
-	reply.Success = success
-	reply.Units = units
-	reply.Fee = fee
 	return nil
 }
 
