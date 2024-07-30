@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use wasmlanche_sdk::{public, state_keys, Address, Program};
 #[cfg(not(feature = "bindings"))]
-use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, Address, ExternalCallContext, Program};
+use wasmlanche_sdk::{Context, ExternalCallContext};
 
 #[state_keys]
 pub enum StateKeys {
@@ -24,6 +24,7 @@ pub enum VaultError {
     DivByZero,
 }
 
+#[cfg(not(feature = "bindings"))]
 enum Rounding {
     Down,
     Up,
@@ -122,13 +123,13 @@ pub fn balance_of(ctx: Context<StateKeys>, who: Address) -> u64 {
     internal::assets::balance_of(&ctx, who)
 }
 
+#[cfg(not(feature = "bindings"))]
 mod internal {
     use super::*;
 
     pub mod assets {
-        use wasmlanche_sdk::Program;
-
         use super::*;
+        use wasmlanche_sdk::Program;
 
         pub fn total_assets(ctx: &Context<StateKeys>) -> u64 {
             let ext_ctx = ExternalCallContext::new(internal::assets::asset(ctx), 1000000, 0);
