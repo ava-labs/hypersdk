@@ -7,7 +7,7 @@ use crate::{
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
-use std::{cell::RefCell, collections::HashMap, hash::Hash};
+use std::{cell::RefCell, collections::HashMap};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -40,11 +40,6 @@ pub fn get_balance(account: Address) -> u64 {
 pub struct State<'a> {
     cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>,
 }
-
-/// Key trait for program state keys
-/// # Safety
-/// This trait should only be implemented using the [`state_keys`](crate::state_keys) macro.
-pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
 #[derive(Clone, Copy)]
 #[repr(C, packed)]

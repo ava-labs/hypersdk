@@ -76,9 +76,9 @@ impl Context {
         key.get(self)
     }
 
-    /// See [`State::get_with_raw_key`].
+    /// Should not use this function directly.
     /// # Errors
-    /// See [`State::get_with_raw_key`].
+    /// Errors when there's an issue deserializing.
     pub fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, state::Error>
     where
         V: BorshDeserialize,
