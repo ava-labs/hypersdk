@@ -9,7 +9,6 @@ crate-type = ["cdylib"]
 [dependencies]
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
 simulator = { workspace = true }
-borsh = { workspace = true }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }

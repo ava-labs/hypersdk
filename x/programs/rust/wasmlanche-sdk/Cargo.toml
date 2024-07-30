@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-borsh = { workspace = true }
-bytemuck = { workspace = true, features = ["derive"] }
+borsh = { version = "1.5.1", features = ["derive"] }
+bytemuck = { version = "1.16.1", features = ["derive"] }
 sdk-macros = { workspace = true }
 thiserror = { workspace = true }
 

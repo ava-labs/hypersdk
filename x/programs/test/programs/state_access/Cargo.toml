@@ -8,8 +8,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasmlanche-sdk = { workspace = true }
-borsh = { workspace = true }
-bytemuck = { workspace = true, features = ["derive"] }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
