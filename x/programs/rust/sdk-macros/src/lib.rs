@@ -311,6 +311,12 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
                     #[repr(C)]
                     #key_vis struct #key_type_name #key_fields;
 
+                    const _: fn() = || {
+                        #[doc(hidden)]
+                        struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<#key_type_name>()]);
+                        let _ = ::core::mem::transmute::<wasmlanche_sdk::state::PrefixedKey<#key_type_name>, TypeWithoutPadding>;
+                    };
+
                     unsafe impl wasmlanche_sdk::state::Schema for #key_type_name {
                         type Value = #value_type;
 

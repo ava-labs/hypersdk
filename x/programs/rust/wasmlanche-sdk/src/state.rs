@@ -52,7 +52,7 @@ pub unsafe trait Key: Copy + PartialEq + Eq + Hash + BorshSerialize {}
 
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
-pub(crate) struct PrefixedKey<K: NoUninit> {
+pub struct PrefixedKey<K: NoUninit> {
     prefix: u8,
     key: K,
 }
@@ -66,7 +66,6 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 // TODO: deal wiht padding?
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
-// TODO: use bytemuck::must_cast (behind feature flag)
 pub unsafe trait Schema: NoUninit {
     type Value: BorshSerialize + BorshDeserialize;
 
