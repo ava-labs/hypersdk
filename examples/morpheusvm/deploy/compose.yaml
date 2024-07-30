@@ -1,0 +1,38 @@
+services:
+  web:
+    build:
+      context: ../../..
+      dockerfile: examples/morpheusvm/deploy/Dockerfile.web
+    ports:
+      - "80:80"
+    depends_on:
+      nodes:
+        condition: service_healthy
+
+  faucet:
+    build:
+      context: ../../..
+      dockerfile: examples/morpheusvm/deploy/Dockerfile.faucet
+    depends_on:
+      nodes:
+        condition: service_healthy
+
+  nodes:
+    build:
+      context: ../../..
+      dockerfile: examples/morpheusvm/deploy/Dockerfile.nodes
+    environment:
+      - MODE=run
+    ports:
+      - "9650-9654:9650-9654"
+    volumes:
+      - type: volume
+        target: /go/pkg/mod
+      - type: volume
+        target: /root/.cache/go-build
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9650"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s

@@ -1,0 +1,14 @@
+FROM golang:1.22-bookworm
+
+WORKDIR /hypersdk
+
+RUN apt-get update && apt-get install -y wget tar psmisc
+
+# Set up Go module cache
+ENV GOMODCACHE /go/pkg/mod
+
+COPY . .
+
+WORKDIR /hypersdk/examples/morpheusvm
+
+ENTRYPOINT ["/bin/bash", "-c", "./scripts/run.sh && while pgrep -f avalanche-network-runner > /dev/null; do sleep 1; done"]

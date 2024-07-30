@@ -196,6 +196,13 @@ ANR_VERSION=v1.8.1
 # version set
 go install -v "${ANR_REPO_PATH}"@"${ANR_VERSION}"
 
+# Check if MODE is set to deps_only
+if [ "$MODE" = "deps_only" ]; then
+    echo "MODE is set to deps_only. Exiting..."
+    exit 0
+fi
+
+
 #################################
 # run "avalanche-network-runner" server
 GOPATH=$(go env GOPATH)
