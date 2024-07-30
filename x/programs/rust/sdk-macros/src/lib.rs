@@ -163,8 +163,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
                 let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
 
-                // using converted_params twice here (need to clone)
-                // would help to give a specific name to context
                 let Args { mut ctx, #(#args_names),* } = args;
 
                 let result = super::#name(&mut ctx, #(#args_names_2),*);
@@ -246,7 +244,6 @@ impl Parse for KeyPair {
         let key_type_name: Ident = input.parse()?;
         let lookahead = input.lookahead1();
 
-        // TODO: fail on named fields
         let key_fields = if lookahead.peek(token::Paren) {
             let fields = input.parse()?;
             Fields::Unnamed(fields)
