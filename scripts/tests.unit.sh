@@ -17,4 +17,5 @@ source "$HYPERSDK_PATH"/scripts/constants.sh
 
 # Provision of the list of tests requires word splitting, so disable the shellcheck
 # shellcheck disable=SC2046
-go test -race -timeout="3m" -coverprofile="coverage.out" -covermode="atomic" $(find . -name "*.go" | grep -v "./examples/morpheusvm" | grep -v "./examples/tokenvm" | xargs -n1 dirname | sort -u | xargs)
+# Add custom VMs here
+go test -race -timeout="3m" -coverprofile="coverage.out" -covermode="atomic" $(find . -name "*.go" | grep -v "./examples/morpheusvm" | grep -v "./examples/tokenvm" | grep -v "./examples/lineagevm" | grep -v "./examples/nftvm" | grep -v "./examples/cfmmvm" | xargs -n1 dirname | sort -u | xargs)
