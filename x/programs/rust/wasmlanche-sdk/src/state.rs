@@ -7,11 +7,7 @@ use crate::{
 use borsh::{from_slice, BorshDeserialize, BorshSerialize};
 use bytemuck::NoUninit;
 use sdk_macros::impl_to_pairs;
-use std::{
-    cell::RefCell,
-    collections::{hash_map::Entry, HashMap},
-    hash::Hash,
-};
+use std::{cell::RefCell, collections::HashMap, hash::Hash};
 
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
@@ -63,7 +59,9 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
     }
 }
 
-// TODO: deal wiht padding?
+// # Safety:
+// this is safe because we generate a compile type check for every Key
+// It's also fine as long as we use `repr(C, packed)` for the struct
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
 pub unsafe trait Schema: NoUninit {
@@ -174,18 +172,15 @@ impl<'a> State<'a> {
         F: FnOnce(&mut CacheValue) -> borsh::io::Result<K::Value>,
     {
         let mut cache = self.cache.borrow_mut();
-        // TODO: should only need to allocate on cache-miss
-        let key = CacheKey::from(to_key(key).as_ref());
 
-        let cache_entry = match cache.entry(key) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
-                let bytes = {
-                    let key = entry.key();
-                    get_bytes(key)
-                };
-                entry.insert(bytes)
-            }
+        let key = to_key(key);
+
+        let cache_entry = if let Some(value) = cache.get_mut(key.as_ref()) {
+            value
+        } else {
+            let key = CacheKey::from(key.as_ref());
+            let value_bytes = get_bytes(&key);
+            cache.entry(key).or_insert(value_bytes)
         };
 
         match cache_entry {
@@ -253,13 +248,13 @@ pub trait IntoPairs: Sealed {
     fn into_pairs(self) -> impl IntoIterator<Item = Result<(CacheKey, CacheValue), Error>>;
 }
 
-impl_to_pairs!(10, Schema, BorshSerialize);
-impl_to_pairs!(9, Schema, BorshSerialize);
-impl_to_pairs!(8, Schema, BorshSerialize);
-impl_to_pairs!(7, Schema, BorshSerialize);
-impl_to_pairs!(6, Schema, BorshSerialize);
-impl_to_pairs!(5, Schema, BorshSerialize);
-impl_to_pairs!(4, Schema, BorshSerialize);
-impl_to_pairs!(3, Schema, BorshSerialize);
-impl_to_pairs!(2, Schema, BorshSerialize);
-impl_to_pairs!(1, Schema, BorshSerialize);
+impl_to_pairs!(10, Schema);
+impl_to_pairs!(9, Schema);
+impl_to_pairs!(8, Schema);
+impl_to_pairs!(7, Schema);
+impl_to_pairs!(6, Schema);
+impl_to_pairs!(5, Schema);
+impl_to_pairs!(4, Schema);
+impl_to_pairs!(3, Schema);
+impl_to_pairs!(2, Schema);
+impl_to_pairs!(1, Schema);
