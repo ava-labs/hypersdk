@@ -256,7 +256,7 @@ impl Parse for KeyPair {
         if let Fields::Named(named) = key_fields {
             return Err(Error::new(
                 named.span(),
-                "enums with named fields are not supported",
+                "types with named fields are not supported",
             ));
         }
 
