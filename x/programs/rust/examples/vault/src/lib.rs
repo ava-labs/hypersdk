@@ -42,12 +42,11 @@ pub fn init(ctx: Context<StateKeys>, asset: Program, lock_amount: u64) {
     ctx.store_by_key(StateKeys::Asset, &asset)
         .expect("failed to store asset");
 
-    // lock tokens for defining the exchange rate
+    // lock tokens for defining the exchange rate (starting at 1:1)
     let ext_ctx = ExternalCallContext::new(asset, 1000000, 0);
     token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), lock_amount);
 
-    internal::accounting::add(&ctx, lock_amount, lock_amount, ctx.actor())
-        .expect("failed to lock up tokens");
+    internal::accounting::add(&ctx, lock_amount, ctx.actor()).expect("failed to lock up tokens");
 }
 
 /// Deposit assets in the vault and return the amount of shares minted
@@ -58,7 +57,7 @@ pub fn deposit(ctx: Context<StateKeys>, assets: u64, receiver: Address) -> Resul
     let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
     token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), assets);
 
-    internal::accounting::add(&ctx, shares, assets, receiver)?;
+    internal::accounting::add(&ctx, shares, receiver)?;
 
     Ok(shares)
 }
@@ -71,7 +70,7 @@ pub fn mint(ctx: Context<StateKeys>, shares: u64, receiver: Address) -> Result<u
     let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
     token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), assets);
 
-    internal::accounting::add(&ctx, shares, assets, receiver)?;
+    internal::accounting::add(&ctx, shares, receiver)?;
 
     Ok(shares)
 }
@@ -89,7 +88,7 @@ pub fn withdraw(
 
     let shares = internal::accounting::convert_to_shares(&ctx, assets, Some(Rounding::Up))?;
 
-    internal::accounting::sub(&ctx, shares, assets, owner)?;
+    internal::accounting::sub(&ctx, shares, owner)?;
 
     let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
     token::transfer(&ext_ctx, receiver, assets);
@@ -110,7 +109,7 @@ pub fn redeem(
 
     let assets = internal::accounting::convert_to_assets(&ctx, shares, Some(Rounding::Up))?;
 
-    internal::accounting::sub(&ctx, shares, assets, owner)?;
+    internal::accounting::sub(&ctx, shares, owner)?;
 
     let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
     token::transfer(&ext_ctx, receiver, assets);
@@ -132,7 +131,7 @@ mod internal {
         use super::*;
 
         pub fn total_assets(ctx: &Context<StateKeys>) -> u64 {
-            let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
+            let ext_ctx = ExternalCallContext::new(internal::assets::asset(ctx), 1000000, 0);
             token::balance_of(&ext_ctx, *ctx.program().account())
         }
 
@@ -227,24 +226,14 @@ mod internal {
         pub fn add(
             ctx: &Context<StateKeys>,
             shares: u64,
-            assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            // let total_assets = self::assets::total_assets(ctx);
-
-            // # Safety
-            // It is okay to only check the add of assets because the ratio of shares/assets is <= 1
-            // Thus, if TotalAssets does not overflow, so does not TotalSupply, and BalanceOf.
-            // let new_total_assets = total_assets
-            //     .checked_add(assets)
-            //     .ok_or(VaultError::TotalAssetsOverflow)?;
             let total_supply = internal::assets::total_supply(ctx);
             let new_total_supply = total_supply + shares;
             let balance = internal::assets::balance_of(ctx, receiver);
             let new_balance = balance + shares;
 
             ctx.store([
-                // (StateKeys::TotalAssets, &new_total_assets),
                 (StateKeys::TotalSupply, &new_total_supply),
                 (StateKeys::BalanceOf(receiver), &new_balance),
             ])
@@ -256,24 +245,14 @@ mod internal {
         pub fn sub(
             ctx: &Context<StateKeys>,
             shares: u64,
-            assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            // let total_assets = self::assets::total_assets(ctx);
-
-            // # Safety
-            // It is okay to only check the sub of assets because the ratio of shares/assets is <= 1
-            // Thus, if TotalAssets does not underflow, so does not TotalSupply, and BalanceOf.
-            // let new_total_assets = total_assets
-            //     .checked_sub(assets)
-            //     .ok_or(VaultError::TotalAssetsOverflow)?;
             let total_supply = internal::assets::total_supply(ctx);
             let new_total_supply = total_supply - shares;
             let balance = internal::assets::balance_of(ctx, receiver);
             let new_balance = balance - shares;
 
             ctx.store([
-                // (StateKeys::TotalAssets, &new_total_assets),
                 (StateKeys::TotalSupply, &new_total_supply),
                 (StateKeys::BalanceOf(receiver), &new_balance),
             ])
