@@ -5,6 +5,7 @@ package consts
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -34,4 +35,5 @@ func init() {
 var (
 	ActionRegistry *codec.TypeParser[chain.Action]
 	AuthRegistry   *codec.TypeParser[chain.Auth]
+	ProgramRuntime *runtime.WasmRuntime
 )

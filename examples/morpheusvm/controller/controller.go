@@ -6,6 +6,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	pconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -123,6 +125,8 @@ func (*factory) New(
 		return nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
+
+	pconsts.ProgramRuntime = runtime.NewRuntime(runtime.NewConfig(), c.Logger())
 
 	return c, c.genesis, apis, nil
 }
