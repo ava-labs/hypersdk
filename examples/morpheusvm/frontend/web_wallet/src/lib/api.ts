@@ -1,6 +1,7 @@
 import { base64 } from '@scure/base';
+import { API_HOST, FAUCET_HOST } from '../const';
 
-const API_BASE_URL = 'http://localhost:9650/ext/bc/morpheusvm';
+const API_BASE_URL = `${API_HOST}/ext/bc/morpheusvm`;
 
 interface ApiResponse<T> {
     result: T;
@@ -10,7 +11,7 @@ interface ApiResponse<T> {
 }
 
 export async function requestFaucetTransfer(address: string): Promise<void> {
-    const response = await fetch(`http://localhost:8765/faucet/${address}`, {
+    const response = await fetch(`${FAUCET_HOST}/faucet/${address}`, {
         method: 'POST',
         body: JSON.stringify({})
     });
