@@ -4,18 +4,16 @@ services:
       context: ../../..
       dockerfile: examples/morpheusvm/deploy/Dockerfile.web
     ports:
-      - "80:80"
-    depends_on:
-      nodes:
-        condition: service_healthy
+      - "3000:80"
 
   faucet:
     build:
       context: ../../..
       dockerfile: examples/morpheusvm/deploy/Dockerfile.faucet
-    depends_on:
-      nodes:
-        condition: service_healthy
+    environment:
+      - RPC_ENDPOINT=nodes:9650
+    ports:
+      - "8765:8765"
 
   nodes:
     build:

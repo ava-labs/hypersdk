@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -51,7 +52,11 @@ func transferCoins(to string) (string, error) {
 	priv := ed25519.PrivateKey(privBytes)
 	factory := auth.NewED25519Factory(priv)
 
-	url := "http://localhost:9650/ext/bc/morpheusvm"
+	rpcEndpoint := os.Getenv("RPC_ENDPOINT")
+	if rpcEndpoint == "" {
+		rpcEndpoint = "localhost:9650"
+	}
+	url := fmt.Sprintf("http://%s/ext/bc/morpheusvm", rpcEndpoint)
 	cli := rpc.NewJSONRPCClient(url)
 
 	networkID, subnetID, chainID, err := cli.Network(context.TODO())

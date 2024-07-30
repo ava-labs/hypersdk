@@ -2,7 +2,7 @@ FROM golang:1.22-bookworm
 
 WORKDIR /hypersdk
 
-RUN apt-get update && apt-get install -y wget tar psmisc
+RUN apt-get update && apt-get install -y wget tar psmisc netcat-openbsd
 
 # Set up Go module cache
 ENV GOMODCACHE /go/pkg/mod
