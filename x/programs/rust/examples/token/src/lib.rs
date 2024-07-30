@@ -124,8 +124,10 @@ pub fn transfer_from(
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     let actor = context.actor();
+    &actor;
 
     let total_allowance = _allowance(&context, sender, actor);
+    &total_allowance;
     assert!(total_allowance >= amount, "insufficient allowance");
 
     context

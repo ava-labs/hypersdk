@@ -46,7 +46,7 @@ pub fn init(ctx: Context<StateKeys>, asset: Program, lock_amount: u64) {
     let ext_ctx = ExternalCallContext::new(asset, 1000000, 0);
     token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), lock_amount);
 
-    internal::accounting::add(&ctx, 1000, 1000, Address::default())
+    internal::accounting::add(&ctx, lock_amount, lock_amount, ctx.actor())
         .expect("failed to lock up tokens");
 }
 
@@ -84,6 +84,7 @@ pub fn withdraw(
     receiver: Address,
     owner: Address,
 ) -> Result<u64, VaultError> {
+    assert_eq!(owner, ctx.actor());
     assert_eq!(receiver, owner);
 
     let shares = internal::accounting::convert_to_shares(&ctx, assets, Some(Rounding::Up))?;
@@ -104,6 +105,7 @@ pub fn redeem(
     receiver: Address,
     owner: Address,
 ) -> Result<u64, VaultError> {
+    assert_eq!(owner, ctx.actor());
     assert_eq!(receiver, owner);
 
     let assets = internal::accounting::convert_to_assets(&ctx, shares, Some(Rounding::Up))?;
@@ -114,6 +116,11 @@ pub fn redeem(
     token::transfer(&ext_ctx, receiver, assets);
 
     Ok(assets)
+}
+
+#[public]
+pub fn balance_of(ctx: Context<StateKeys>, who: Address) -> u64 {
+    internal::assets::balance_of(&ctx, who)
 }
 
 mod internal {
@@ -334,9 +341,6 @@ mod tests {
             .unwrap()
             .id;
 
-        let (trimmed_program_path, _) = PROGRAM_PATH.rsplit_once('/').unwrap();
-        let (_, profile) = trimmed_program_path.rsplit_once('/').unwrap();
-
         let token_program_path = token_program_path();
 
         let asset_id = simulator
@@ -423,7 +427,7 @@ mod tests {
     fn withdraw_all_assets() {
         let mut simulator = ClientBuilder::new().try_build().unwrap();
 
-        let program_id = simulator
+        let vault_id = simulator
             .run_step(&Step::create_program(PROGRAM_PATH))
             .unwrap()
             .id;
@@ -435,7 +439,11 @@ mod tests {
             .unwrap()
             .id;
 
-        let token_context = TestContext::from(asset_id);
+        let deployer = Address::new([1; 33]);
+        let depositor = Address::new([2; 33]);
+
+        let mut token_context = TestContext::from(asset_id);
+        token_context.actor = deployer;
         simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
@@ -457,13 +465,27 @@ mod tests {
                 max_units: 1000000,
                 params: vec![
                     token_context.clone().into(),
-                    Address::default().into(),
+                    deployer.into(),
                     token_amount.into(),
                 ],
             })
             .unwrap();
 
         let lock_amount = 1000;
+        let assets = token_amount - lock_amount;
+
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "transfer".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    depositor.into(),
+                    assets.into(),
+                ],
+            })
+            .unwrap();
 
         simulator
             .run_step(&Step {
@@ -472,13 +494,14 @@ mod tests {
                 max_units: 1000000,
                 params: vec![
                     token_context.clone().into(),
-                    program_id.into(),
-                    token_amount.into(),
+                    vault_id.into(),
+                    lock_amount.into(),
                 ],
             })
             .unwrap();
 
-        let vault_context = TestContext::from(program_id);
+        let mut vault_context = TestContext::from(vault_id);
+        vault_context.actor = deployer;
         simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
@@ -492,7 +515,24 @@ mod tests {
             })
             .unwrap();
 
-        let assets = token_amount - lock_amount;
+        let token_context = TestContext {
+            actor: depositor,
+            ..token_context.clone()
+        };
+
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "approve".to_string(),
+                max_units: 1000000,
+                params: vec![token_context.clone().into(), vault_id.into(), assets.into()],
+            })
+            .unwrap();
+
+        let vault_context = TestContext {
+            actor: depositor,
+            ..vault_context.clone()
+        };
 
         let maybe_shares: Result<u64, VaultError> = simulator
             .run_step(&Step {
@@ -502,7 +542,7 @@ mod tests {
                 params: vec![
                     vault_context.clone().into(),
                     assets.into(),
-                    Address::default().into(),
+                    depositor.into(),
                 ],
             })
             .unwrap()
@@ -521,8 +561,8 @@ mod tests {
                 params: vec![
                     vault_context.clone().into(),
                     shares.into(),
-                    Address::default().into(),
-                    Address::default().into(),
+                    depositor.into(),
+                    depositor.into(),
                 ],
             })
             .unwrap()
@@ -530,5 +570,19 @@ mod tests {
             .response()
             .unwrap();
         assert_eq!(maybe_assets.unwrap(), assets);
+
+        let user_shares: u64 = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "balance_of".to_string(),
+                max_units: u64::MAX,
+                params: vec![vault_context.into(), depositor.into()],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+
+        assert_eq!(user_shares, 0);
     }
 }

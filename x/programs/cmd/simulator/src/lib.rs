@@ -60,9 +60,8 @@ impl Step {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
-#[non_exhaustive]
 pub struct TestContext {
-    program_id: Id,
+    pub program_id: Id,
     pub actor: Address,
     pub height: u64,
     pub timestamp: u64,
