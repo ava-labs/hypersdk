@@ -34,3 +34,19 @@ services:
       timeout: 5s
       retries: 5
       start_period: 120s
+
+  caddy:
+    image: caddy:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - SERVE_DOMAIN
+
+volumes:
+  caddy_data:
+  caddy_config:
