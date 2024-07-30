@@ -64,11 +64,15 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 // It's also fine as long as we use `repr(C, packed)` for the struct
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
+/// # Safety
+/// Do not implement this trait manually. Use the [`state_schema`](crate::state_schema) macro instead.
 pub unsafe trait Schema: NoUninit {
     type Value: BorshSerialize + BorshDeserialize;
 
     fn prefix() -> u8;
 
+    /// # Errors
+    /// Will return an error when there's an issue with deserialization
     fn get(self, context: &mut Context) -> Result<Option<Self::Value>, Error> {
         let key = to_key(self);
         context.get_with_raw_key(key.as_ref())
