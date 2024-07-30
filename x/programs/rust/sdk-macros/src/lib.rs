@@ -275,7 +275,6 @@ impl Parse for KeyPair {
 
 #[proc_macro]
 pub fn state_schema(input: TokenStream) -> TokenStream {
-    // parse out the key-pairs
     let key_pairs =
         parse_macro_input!(input with Punctuated::<KeyPair, Token![,]>::parse_terminated);
     let result: Result<_, Error> = key_pairs
@@ -398,12 +397,8 @@ pub fn impl_to_pairs(inputs: TokenStream) -> TokenStream {
 
     let key_generic_bounds = inputs.next().unwrap().into_token_stream().into();
     let key_generic_bounds = parse_macro_input!(key_generic_bounds with Punctuated::<TypeParamBound, Token![+]>::parse_terminated);
-
-    // let value_generic_bounds = inputs.next().unwrap().into_token_stream().into();
-    // let value_generic_bounds = parse_macro_input!(value_generic_bounds with Punctuated::<TypeParamBound, Token![+]>::parse_terminated);
-
     let keys = create_n_suffixed_types("K", n, None);
-    // let values = create_n_suffixed_types("V", n, None);
+
     let values = keys
         .clone()
         .into_iter()
@@ -411,13 +406,7 @@ pub fn impl_to_pairs(inputs: TokenStream) -> TokenStream {
         .collect();
 
     let tuple_of_key_value_pairs = create_tuple_of_tuples(keys, values);
-
-    let key_generic_params = create_n_suffixed_generic_params("K", n, None, key_generic_bounds);
-    // let value_generic_params = create_n_suffixed_generic_params("V", n, None, value_generic_bounds);
-
-    // key_generic_params.extend(value_generic_params);
-
-    let generic_params = key_generic_params;
+    let generic_params = create_n_suffixed_generic_params("K", n, None, key_generic_bounds);
 
     let accessors = (0..n)
         .map(|i| i.to_string())
