@@ -281,11 +281,10 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
     // parse out the key-pairs
     let key_pairs =
         parse_macro_input!(input with Punctuated::<KeyPair, Token![,]>::parse_terminated);
-    key_pairs
+    let result: Result<_, Error> = key_pairs
         .into_iter()
         .enumerate()
-        .map(|(i, val)| (i as u8, val))
-        .fold(
+        .try_fold(
             quote! {},
             |mut token_stream,
              (
@@ -298,6 +297,13 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
                     value_type,
                 },
             )| {
+                let i = u8::try_from(i).map_err(|_| {
+                    Error::new(
+                        key_type_name.span(),
+                        "Cannot exceed `u8::MAX + 1` keys in a state-schema",
+                    )
+                })?;
+
                 token_stream.extend(Some(quote! {
                     #(#key_comments)*
                     #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::Pod, wasmlanche_sdk::bytemuck::Zeroable)]
@@ -314,10 +320,15 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
                     }
                 }));
 
-                token_stream
+                Ok(token_stream)
             },
-        )
-        .into()
+        );
+
+    match result {
+        Ok(token_stream) => token_stream,
+        Err(err) => err.to_compile_error(),
+    }
+    .into()
 }
 
 type CommaSeparated<T> = Punctuated<T, Token![,]>;
