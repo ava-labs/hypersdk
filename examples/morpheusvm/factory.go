@@ -15,5 +15,5 @@ var _ vms.Factory = (*Factory)(nil)
 type Factory struct{}
 
 func (*Factory) New(logging.Logger) (interface{}, error) {
-	return controller.New(), nil
+	return controller.New()
 }
