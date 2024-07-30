@@ -188,7 +188,7 @@ func getRateLimiter(ip string) *rate.Limiter {
 
 	limiter, exists := ipLimiters[ip]
 	if !exists {
-		limiter = rate.NewLimiter(rate.Every(30*time.Second), 5)
+		limiter = rate.NewLimiter(rate.Every(15*time.Second), 10)
 		ipLimiters[ip] = limiter
 	}
 
