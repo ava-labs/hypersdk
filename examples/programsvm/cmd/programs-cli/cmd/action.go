@@ -198,6 +198,17 @@ var callProgramCmd = &cobra.Command{
 			return err
 		}
 
+		action := &actions.CallProgram{
+			Program:  programAccount,
+			Value:    amount,
+			Function: function,
+			CallData: calldata,
+		}
+		action.SpecifiedStateKeys, err = bcli.Simulate(ctx, *action, priv.Address)
+		if err != nil {
+			return err
+		}
+
 		// Confirm action
 		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
@@ -205,12 +216,7 @@ var callProgramCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{&actions.CallProgram{
-			Program:  programAccount,
-			Value:    amount,
-			Function: function,
-			CallData: calldata,
-		}}, cli, bcli, ws, factory, true)
+		_, _, err = sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory, true)
 		return err
 	},
 }
