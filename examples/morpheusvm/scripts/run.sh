@@ -16,7 +16,7 @@ source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
 source ../../scripts/common/utils.sh
 
-AVALANCHEGO_VERSION=v1.11.10
+VERSION=v1.11.10
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -26,7 +26,7 @@ STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
-FUND_ADDRESS=${FUND_ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
+ADDRESS=${ADDRESS:-morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu}
 if [[ ${MODE} != "run" ]]; then
   LOG_LEVEL=DEBUG
   AGO_LOG_DISPLAY_LEVEL=INFO
@@ -48,14 +48,14 @@ echo "Running with:"
 echo LOG_LEVEL: "${LOG_LEVEL}"
 echo AGO_LOG_LEVEL: "${AGO_LOG_LEVEL}"
 echo AGO_LOG_DISPLAY_LEVEL: "${AGO_LOG_DISPLAY_LEVEL}"
-echo AVALANCHEGO_VERSION: "${AVALANCHEGO_VERSION}"
+echo VERSION: "${VERSION}"
 echo MODE: "${MODE}"
 echo STATESYNC_DELAY \(ns\): "${STATESYNC_DELAY}"
 echo MIN_BLOCK_GAP \(ms\): "${MIN_BLOCK_GAP}"
 echo STORE_TXS: "${STORE_TXS}"
 echo WINDOW_TARGET_UNITS: "${WINDOW_TARGET_UNITS}"
 echo MAX_BLOCK_UNITS: "${MAX_BLOCK_UNITS}"
-echo FUND_ADDRESS: "${FUND_ADDRESS}"
+echo ADDRESS: "${ADDRESS}"
 
 ############################
 # build avalanchego
@@ -64,23 +64,23 @@ TMPDIR=/tmp/hypersdk
 
 echo "working directory: $TMPDIR"
 
-AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${AVALANCHEGO_VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${AVALANCHEGO_VERSION}/plugins
+AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "downloading avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"
-  mkdir -p "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"
+  rm -rf "${TMPDIR}"/avalanchego-"${VERSION}"
+  mkdir -p "${TMPDIR}"/avalanchego-"${VERSION}"
 
   # Determine system architecture
   ARCH=$(uname -m)
   if [ "$ARCH" = "x86_64" ]; then
-    DOWNLOAD_URL="https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}/avalanchego-linux-amd64-${AVALANCHEGO_VERSION}.tar.gz"
+    DOWNLOAD_URL="https://github.com/ava-labs/avalanchego/releases/download/${VERSION}/avalanchego-linux-amd64-${VERSION}.tar.gz"
   elif [ "$ARCH" = "aarch64" ]; then
-    DOWNLOAD_URL="https://github.com/ava-labs/avalanchego/releases/download/${AVALANCHEGO_VERSION}/avalanchego-linux-arm64-${AVALANCHEGO_VERSION}.tar.gz"
+    DOWNLOAD_URL="https://github.com/ava-labs/avalanchego/releases/download/${VERSION}/avalanchego-linux-arm64-${VERSION}.tar.gz"
   else
     echo "Unsupported architecture: $ARCH"
     exit 1
@@ -88,10 +88,8 @@ if [ ! -f "$AVALANCHEGO_PATH" ]; then
 
   # Download and extract avalanchego
   wget -O avalanchego.tar.gz "$DOWNLOAD_URL"
-  tar -xzf avalanchego.tar.gz -C "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}" --strip-components=1
+  tar -xzf avalanchego.tar.gz -C "${TMPDIR}"/avalanchego-"${VERSION}" --strip-components=1
   rm avalanchego.tar.gz
-
-  cd "${CWD}"
 else
   echo "using previously downloaded avalanchego"
 fi
@@ -102,18 +100,18 @@ fi
 echo "building morpheusvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+-o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
 ./cmd/morpheusvm
 
 echo "building morpheus-cli"
 go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # log everything in the avalanchego directory
-find "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"
+find "${TMPDIR}"/avalanchego-"${VERSION}"
 
 ############################
 
@@ -123,7 +121,7 @@ find "${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"
 echo "creating allocations file"
 cat <<EOF > "${TMPDIR}"/allocations.json
 [
-  {"address":"${FUND_ADDRESS}", "balance":10000000000000000000}
+  {"address":"${ADDRESS}", "balance":10000000000000000000}
 ]
 EOF
 
@@ -252,7 +250,7 @@ echo "running e2e tests"
 --vm-genesis-path="${TMPDIR}"/morpheusvm.genesis \
 --vm-config-path="${TMPDIR}"/morpheusvm.config \
 --subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
---output-path="${TMPDIR}"/avalanchego-"${AVALANCHEGO_VERSION}"/output.yaml \
+--output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
 --mode="${MODE}"
 
 ############################
