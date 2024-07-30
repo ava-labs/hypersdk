@@ -1,6 +1,6 @@
 package state
 
 const (
-	ErrNone = "None"
+	ErrNone     = "None"
 	ErrNotFound = "NotFound"
 )

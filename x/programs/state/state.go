@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -76,10 +77,10 @@ func (s *SimulatorState) getValue(key []byte) ([]byte, error) {
 	}
 	valueBytes := C.bridge_get_callback(s.getFunc, s.statePtr, bytesStruct)
 
-	if (valueBytes.error != nil) {
+	if valueBytes.error != nil {
 		err := C.GoString(valueBytes.error)
 		// todo: create our own errors so no need for a dependecy to avalanche go here
-		if (err == database.ErrNotFound.Error()) {
+		if err == database.ErrNotFound.Error() {
 			fmt.Println("Key not found in state in state")
 			return nil, database.ErrNotFound
 		}
@@ -129,4 +130,32 @@ func (s *SimulatorState) remove(key []byte) error {
 		return fmt.Errorf("error removing value: %s", C.GoString(c_err))
 	}
 	return nil
+}
+
+type prefixedStateMutable struct {
+	inner  state.Mutable
+	prefix []byte
+}
+
+func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
+	k = make([]byte, len(s.prefix)+len(key))
+	copy(k, s.prefix)
+	copy(k[len(s.prefix):], key)
+	return
+}
+
+func (s *prefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
+	return s.inner.GetValue(ctx, s.prefixKey(key))
+}
+
+func (s *prefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
+	return s.inner.Insert(ctx, s.prefixKey(key), value)
+}
+
+func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
+	return s.inner.Remove(ctx, s.prefixKey(key))
+}
+
+func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
+	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
 }
