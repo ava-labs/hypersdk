@@ -7,8 +7,6 @@ use wasmlanche_sdk::{public, state_keys, Address, ExternalCallContext, Program};
 pub enum StateKeys {
     /// Address of the vault asset
     Asset,
-    /// Total amount of assets stored in the vault
-    TotalAssets,
     /// Shares of account
     BalanceOf(Address),
     /// Total amount of shares
@@ -32,7 +30,7 @@ enum Rounding {
 }
 
 #[public]
-pub fn init(ctx: Context<StateKeys>, asset: Program) {
+pub fn init(ctx: Context<StateKeys>, asset: Program, lock_amount: u64) {
     if ctx
         .get::<Program>(StateKeys::Asset)
         .expect("failed to get asset")
@@ -45,7 +43,9 @@ pub fn init(ctx: Context<StateKeys>, asset: Program) {
         .expect("failed to store asset");
 
     // lock tokens for defining the exchange rate
-    // TODO actually transfer them
+    let ext_ctx = ExternalCallContext::new(asset, 1000000, 0);
+    token::transfer_from(&ext_ctx, ctx.actor(), *ctx.program().account(), lock_amount);
+
     internal::accounting::add(&ctx, 1000, 1000, Address::default())
         .expect("failed to lock up tokens");
 }
@@ -84,6 +84,8 @@ pub fn withdraw(
     receiver: Address,
     owner: Address,
 ) -> Result<u64, VaultError> {
+    assert_eq!(receiver, owner);
+
     let shares = internal::accounting::convert_to_shares(&ctx, assets, Some(Rounding::Up))?;
 
     internal::accounting::sub(&ctx, shares, assets, owner)?;
@@ -102,6 +104,8 @@ pub fn redeem(
     receiver: Address,
     owner: Address,
 ) -> Result<u64, VaultError> {
+    assert_eq!(receiver, owner);
+
     let assets = internal::accounting::convert_to_assets(&ctx, shares, Some(Rounding::Up))?;
 
     internal::accounting::sub(&ctx, shares, assets, owner)?;
@@ -121,9 +125,8 @@ mod internal {
         use super::*;
 
         pub fn total_assets(ctx: &Context<StateKeys>) -> u64 {
-            ctx.get(StateKeys::TotalAssets)
-                .expect("failed to get total assets")
-                .unwrap_or_default()
+            let ext_ctx = ExternalCallContext::new(internal::assets::asset(&ctx), 1000000, 0);
+            token::balance_of(&ext_ctx, *ctx.program().account())
         }
 
         pub fn total_supply(ctx: &Context<StateKeys>) -> u64 {
@@ -220,21 +223,21 @@ mod internal {
             assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            let total_assets = self::assets::total_assets(ctx);
+            // let total_assets = self::assets::total_assets(ctx);
 
             // # Safety
             // It is okay to only check the add of assets because the ratio of shares/assets is <= 1
             // Thus, if TotalAssets does not overflow, so does not TotalSupply, and BalanceOf.
-            let new_total_assets = total_assets
-                .checked_add(assets)
-                .ok_or(VaultError::TotalAssetsOverflow)?;
+            // let new_total_assets = total_assets
+            //     .checked_add(assets)
+            //     .ok_or(VaultError::TotalAssetsOverflow)?;
             let total_supply = internal::assets::total_supply(ctx);
             let new_total_supply = total_supply + shares;
             let balance = internal::assets::balance_of(ctx, receiver);
             let new_balance = balance + shares;
 
             ctx.store([
-                (StateKeys::TotalAssets, &new_total_assets),
+                // (StateKeys::TotalAssets, &new_total_assets),
                 (StateKeys::TotalSupply, &new_total_supply),
                 (StateKeys::BalanceOf(receiver), &new_balance),
             ])
@@ -249,21 +252,21 @@ mod internal {
             assets: u64,
             receiver: Address,
         ) -> Result<(), VaultError> {
-            let total_assets = self::assets::total_assets(ctx);
+            // let total_assets = self::assets::total_assets(ctx);
 
             // # Safety
             // It is okay to only check the sub of assets because the ratio of shares/assets is <= 1
             // Thus, if TotalAssets does not underflow, so does not TotalSupply, and BalanceOf.
-            let new_total_assets = total_assets
-                .checked_sub(assets)
-                .ok_or(VaultError::TotalAssetsOverflow)?;
+            // let new_total_assets = total_assets
+            //     .checked_sub(assets)
+            //     .ok_or(VaultError::TotalAssetsOverflow)?;
             let total_supply = internal::assets::total_supply(ctx);
             let new_total_supply = total_supply - shares;
             let balance = internal::assets::balance_of(ctx, receiver);
             let new_balance = balance - shares;
 
             ctx.store([
-                (StateKeys::TotalAssets, &new_total_assets),
+                // (StateKeys::TotalAssets, &new_total_assets),
                 (StateKeys::TotalSupply, &new_total_supply),
                 (StateKeys::BalanceOf(receiver), &new_balance),
             ])
@@ -282,6 +285,17 @@ mod tests {
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
+    fn token_program_path() -> String {
+        let (trimmed_program_path, _) = PROGRAM_PATH.rsplit_once('/').unwrap();
+        let (_, profile) = trimmed_program_path.rsplit_once('/').unwrap();
+
+        [
+            trimmed_program_path,
+            &format!("/../../../../token/build/wasm32-unknown-unknown/{profile}/token.wasm"),
+        ]
+        .concat()
+    }
+
     #[test]
     fn cannot_initialize_twice() {
         let mut simulator = ClientBuilder::new().try_build().unwrap();
@@ -297,7 +311,11 @@ mod tests {
             endpoint: Endpoint::Execute,
             method: "init".to_string(),
             max_units: 1000000,
-            params: vec![TestContext::from(program_id).into(), asset.into()],
+            params: vec![
+                TestContext::from(program_id).into(),
+                asset.into(),
+                0u64.into(),
+            ],
         };
 
         simulator.run_step(&init_step).unwrap();
@@ -319,11 +337,7 @@ mod tests {
         let (trimmed_program_path, _) = PROGRAM_PATH.rsplit_once('/').unwrap();
         let (_, profile) = trimmed_program_path.rsplit_once('/').unwrap();
 
-        let token_program_path = [
-            trimmed_program_path,
-            &format!("/../../../../token/build/wasm32-unknown-unknown/{profile}/token.wasm"),
-        ]
-        .concat();
+        let token_program_path = token_program_path();
 
         let asset_id = simulator
             .run_step(&Step::create_program(token_program_path))
@@ -358,15 +372,7 @@ mod tests {
             })
             .unwrap();
 
-        let vault_context = TestContext::from(program_id);
-        simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".to_string(),
-                max_units: 1000000,
-                params: vec![vault_context.clone().into(), asset_id.into()],
-            })
-            .unwrap();
+        let lock_amount = 1000;
 
         simulator
             .run_step(&Step {
@@ -381,14 +387,28 @@ mod tests {
             })
             .unwrap();
 
+        let vault_context = TestContext::from(program_id);
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    vault_context.clone().into(),
+                    asset_id.into(),
+                    lock_amount.into(),
+                ],
+            })
+            .unwrap();
+
         let maybe_shares: Result<u64, VaultError> = simulator
             .run_step(&Step {
                 endpoint: Endpoint::Execute,
                 method: "deposit".to_string(),
-                max_units: 10000000,
+                max_units: u64::MAX,
                 params: vec![
                     vault_context.into(),
-                    token_amount.into(),
+                    (token_amount - lock_amount).into(),
                     Address::default().into(),
                 ],
             })
@@ -396,6 +416,119 @@ mod tests {
             .result
             .response()
             .unwrap();
-        assert!(dbg!(maybe_shares).is_ok());
+        assert!(maybe_shares.is_ok());
+    }
+
+    #[test]
+    fn withdraw_all_assets() {
+        let mut simulator = ClientBuilder::new().try_build().unwrap();
+
+        let program_id = simulator
+            .run_step(&Step::create_program(PROGRAM_PATH))
+            .unwrap()
+            .id;
+
+        let token_program_path = token_program_path();
+
+        let asset_id = simulator
+            .run_step(&Step::create_program(&token_program_path))
+            .unwrap()
+            .id;
+
+        let token_context = TestContext::from(asset_id);
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    "token".to_string().into(),
+                    "TOK".to_string().into(),
+                ],
+            })
+            .unwrap();
+
+        let token_amount = 100_000;
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "mint".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    Address::default().into(),
+                    token_amount.into(),
+                ],
+            })
+            .unwrap();
+
+        let lock_amount = 1000;
+
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "approve".to_string(),
+                max_units: 1000000,
+                params: vec![
+                    token_context.clone().into(),
+                    program_id.into(),
+                    token_amount.into(),
+                ],
+            })
+            .unwrap();
+
+        let vault_context = TestContext::from(program_id);
+        simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "init".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    vault_context.clone().into(),
+                    asset_id.into(),
+                    lock_amount.into(),
+                ],
+            })
+            .unwrap();
+
+        let assets = token_amount - lock_amount;
+
+        let maybe_shares: Result<u64, VaultError> = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "deposit".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    vault_context.clone().into(),
+                    assets.into(),
+                    Address::default().into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+        assert!(maybe_shares.is_ok());
+
+        let shares = maybe_shares.unwrap();
+
+        let maybe_assets: Result<u64, VaultError> = simulator
+            .run_step(&Step {
+                endpoint: Endpoint::Execute,
+                method: "redeem".to_string(),
+                max_units: u64::MAX,
+                params: vec![
+                    vault_context.clone().into(),
+                    shares.into(),
+                    Address::default().into(),
+                    Address::default().into(),
+                ],
+            })
+            .unwrap()
+            .result
+            .response()
+            .unwrap();
+        assert_eq!(maybe_assets.unwrap(), assets);
     }
 }
