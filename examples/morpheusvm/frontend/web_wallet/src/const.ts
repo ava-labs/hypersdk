@@ -1,5 +1,5 @@
 export const SNAP_ID = 'local:http://localhost:8080'
-export const DEVELOPMENT_MODE = window.location.hostname === 'localhost'
+export const DEVELOPMENT_MODE = typeof window === 'undefined' || window.location.hostname === 'localhost'
 export const HRP = 'morpheus'
 export const COIN_SYMBOL = "RED"
 export const DECIMAL_PLACES = 9
