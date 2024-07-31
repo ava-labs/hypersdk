@@ -1,4 +1,7 @@
+use std::mem::size_of;
+
 use borsh::{BorshDeserialize, BorshSerialize};
+use bytemuck::{Pod, Zeroable};
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
@@ -10,10 +13,15 @@ pub type Gas = u64;
 /// A struct that enforces a fixed length of 32 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
-pub struct Address([u8; Self::LEN]);
+#[repr(transparent)]
+pub struct Address([u8; 33]);
+
+// # Safety: Pod is safe to implement for arrays of bytes
+unsafe impl Zeroable for Address {}
+unsafe impl Pod for Address {}
 
 impl Address {
-    pub const LEN: usize = 33;
+    pub const LEN: usize = size_of::<Self>();
     // Constructor function for Address
     #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {

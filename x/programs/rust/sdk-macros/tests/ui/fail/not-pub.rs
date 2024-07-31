@@ -4,6 +4,6 @@ use sdk_macros::public;
 use wasmlanche_sdk::Context;
 
 #[public]
-fn test(_: Context) {}
+fn test(_: &mut Context) {}
 
 fn main() {}
