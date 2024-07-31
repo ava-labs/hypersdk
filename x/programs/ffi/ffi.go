@@ -52,9 +52,16 @@ func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.R
    // db
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
    // ctx
+   
    testContext := createRuntimeContext(ctx);
+   var paramBytes []byte
    // ExecutionRequest passed from the C code
-   paramBytes := C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
+   if p.params != nil {
+      paramBytes = C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
+   } else {
+      paramBytes = []byte{}
+   }
+
 	methodName := C.GoString(p.method)
    gas := p.maxGas
 
@@ -65,6 +72,7 @@ func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.R
    }
 
    callInfo := createRuntimeCallInfo(state, &testContext, &executeCtx);
+	fmt.Println("received method name from C: ", methodName)
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), logging.NewLogger("test"))
    result, err := rt.CallProgram(context.TODO(), callInfo)
@@ -85,7 +93,6 @@ func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.R
    }
 
 	fmt.Println("received bytes from C: ", paramBytes)
-	fmt.Println("received method name from C: ", methodName)
 	fmt.Println("Max gas: ", gas)
 	fmt.Println("DB State: ", state)
 	fmt.Println("Context height: ", ctx.height)

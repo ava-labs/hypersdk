@@ -246,7 +246,6 @@ mod tests {
 
         let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
-
         simulator
             .execute(
                 "init".into(),

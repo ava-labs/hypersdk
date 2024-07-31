@@ -43,8 +43,9 @@ struct ID {
     pub id: [c_uchar; 32],
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
-struct Address {
+pub struct Address {
     pub address: [c_uchar; 33],
 }
 
@@ -83,12 +84,18 @@ pub struct CreateProgramResponse {
 }
 
 impl CreateProgramResponse {
-    pub fn get_program_address(&self) -> Result<SdkAddress, SimulatorError> {
+    pub fn program(&self) -> Result<SdkAddress, SimulatorError> {
         if self.has_error() { return Err(SimulatorError::ResponseError) };
         Ok(SdkAddress::new(self.program_address.address))
     }
 
-    pub fn get_program_id(&self) -> Result<Id, SimulatorError> {
+    // TOOD: remove
+    pub fn program_c_address(&self) -> Result<Address, SimulatorError> {
+        if self.has_error() { return Err(SimulatorError::ResponseError) };
+        Ok(self.program_address)
+    }
+
+    pub fn program_id(&self) -> Result<Id, SimulatorError> {
         if self.has_error() { return Err(SimulatorError::ResponseError) };
         Ok(self.program_id.id)
     }
@@ -113,8 +120,8 @@ impl fmt::Debug for CreateProgramResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
         f.debug_struct("CreateProgramResponse")
-            .field("program_address", &self.get_program_address())
-            .field("program_id", &self.get_program_id())
+            .field("program_address", &self.program())
+            .field("program_id", &self.program_id())
             .field("error", &self.error())
             .finish()
     }

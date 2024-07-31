@@ -96,7 +96,7 @@ where
         self.writer.write_all(Self::RUN_COMMAND)?;
 
         let input = serde_json::to_vec(&SimulatorRequest::read(method, params))?;
-
+        
         self.writer.write_all(&input)?;
         self.writer.write_all(b"'\n")?;
         self.writer.flush()?;
