@@ -22,13 +22,13 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
 	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	lrpc "github.com/ava-labs/hypersdk/examples/programsvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 

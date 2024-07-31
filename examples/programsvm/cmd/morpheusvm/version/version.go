@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
+	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	"github.com/ava-labs/hypersdk/examples/programsvm/version"
 )
 
 func init() {

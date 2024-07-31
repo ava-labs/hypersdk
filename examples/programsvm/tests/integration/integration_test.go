@@ -34,9 +34,9 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/examples/programsvm/controller"
+	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -44,8 +44,8 @@ import (
 
 	auth "github.com/ava-labs/hypersdk/auth"
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
-	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	lconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	lrpc "github.com/ava-labs/hypersdk/examples/programsvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )

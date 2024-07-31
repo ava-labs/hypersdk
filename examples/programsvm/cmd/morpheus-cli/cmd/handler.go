@@ -15,12 +15,12 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	brpc "github.com/ava-labs/hypersdk/examples/programsvm/rpc"
 )
 
 var _ cli.Controller = (*Controller)(nil)

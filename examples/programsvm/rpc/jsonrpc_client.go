@@ -9,12 +9,12 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/registry" // ensure registry populated
+	_ "github.com/ava-labs/hypersdk/examples/programsvm/registry" // ensure registry populated
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"

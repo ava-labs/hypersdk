@@ -10,7 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
