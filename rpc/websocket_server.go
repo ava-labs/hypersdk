@@ -156,7 +156,6 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 			w.blockListeners.Add(c)
 			log.Debug("added block listener")
 		case TxMode:
-			log.Warn("seen TX")
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX
 			p := codec.NewReader(msgBytes, consts.NetworkSizeLimit) // will likely be much smaller
@@ -168,13 +167,11 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 				)
 				return
 			}
-			log.Warn("tx type id", zap.Int("type", int(tx.Actions[0].GetTypeID())))
+
 			// Verify tx
 			if vm.GetVerifyAuth() {
 				msg, err := tx.Digest()
 				if err != nil {
-					log.Error("failed to digest", zap.Error(err))
-					log.Warn("failed to digest", zap.Error(err))
 					// Should never occur because populated during unmarshal
 					return
 				}
@@ -182,7 +179,6 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 					log.Error("failed to verify sig",
 						zap.Error(err),
 					)
-					log.Warn("failed to verify")
 					return
 				}
 			}
@@ -190,16 +186,14 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 
 			// Submit will remove from [txWaiters] if it is not added
 			txID := tx.ID()
-			log.Warn("reached submit")
 			if err := vm.Submit(ctx, false, []*chain.Transaction{tx})[0]; err != nil {
-				log.Warn("failed submit")
 				log.Error("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),
 				)
 				return
 			}
-			log.Warn("submitted tx", zap.Stringer("id", txID))
+			log.Debug("submitted tx", zap.Stringer("id", txID))
 		default:
 			log.Error("unexpected message type",
 				zap.Int("len", len(msgBytes)),
