@@ -44,22 +44,6 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
                 if let (Type::Reference(context_type), Type::Reference(ty)) = types {
                     context_type.lifetime = ty.lifetime.clone();
-
-                    let args = [context_type, ty].map(|type_path| {
-                        if let Type::Path(type_path) = type_path.elem.as_mut() {
-                            type_path
-                                .path
-                                .segments
-                                .last_mut()
-                                .map(|segment| &mut segment.arguments)
-                        } else {
-                            None
-                        }
-                    });
-
-                    if let [Some(context_type_args), Some(ty_args)] = args {
-                        *context_type_args = ty_args.clone();
-                    }
                 }
 
                 std::mem::swap(&mut context_type, ty);
