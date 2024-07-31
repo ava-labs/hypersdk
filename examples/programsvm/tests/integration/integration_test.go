@@ -880,6 +880,32 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.Equal(balance, bbalance+100)
 		})
 	})
+
+	ginkgo.It("test publish program", func() {
+		ginkgo.By("issue publish to the first node", func() {
+
+			// Generate transaction
+			parser, err := instances[0].lcli.Parser(context.TODO())
+			require.NoError(err)
+			submit, tx, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				[]chain.Action{&actions.PublishProgram{
+					ProgramBytes: []byte{0, 1, 2, 3},
+				}},
+				factory,
+			)
+			require.NoError(err)
+
+			// Broadcast and wait for transaction
+			require.NoError(submit(context.Background()))
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, _, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			require.NoError(err)
+			require.True(success)
+		})
+	})
 })
 
 func expectBlk(i instance) func(bool) []*chain.Result {
