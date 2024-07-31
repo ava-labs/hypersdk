@@ -5,11 +5,12 @@ import (
 	reflect "reflect"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) ([]byte, error) {
+func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) ([]byte, error) {
 	switch kind {
 	case reflect.Struct:
 		info := getTypeInfo(typ)
@@ -23,12 +24,13 @@ func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ refle
 	case reflect.Slice:
 		if typ.Elem().Kind() == reflect.Uint8 {
 			if v.IsNil() || v.Len() == 0 {
-				p.PackBytes(nil)
+				p.PackShort(0)
 			} else {
-				p.PackBytes(v.Bytes())
+				p.PackShort(uint16(v.Len()))
+				p.PackFixedBytes(v.Bytes())
 			}
 		} else {
-			p.PackInt(v.Len())
+			p.PackInt(uint32(v.Len()))
 			for i := 0; i < v.Len(); i++ {
 				_, err := marshalValue(p, v.Index(i), typ.Elem().Kind(), typ.Elem())
 				if err != nil {
@@ -37,7 +39,7 @@ func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ refle
 			}
 		}
 	case reflect.Map:
-		p.PackInt(v.Len())
+		p.PackInt(uint32(v.Len()))
 		for _, key := range v.MapKeys() {
 			_, err := marshalValue(p, key, typ.Key().Kind(), typ.Key())
 			if err != nil {
@@ -48,42 +50,48 @@ func marshalValue(p *codec.Packer, v reflect.Value, kind reflect.Kind, typ refle
 				return nil, err
 			}
 		}
-	case reflect.Int:
-		p.PackInt64(int64(v.Int()))
 	case reflect.Int8:
 		p.PackByte(byte(v.Int()))
-	case reflect.Int16, reflect.Int32:
-		p.PackInt(int(v.Int()))
-	case reflect.Int64:
-		p.PackInt64(v.Int())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-		p.PackInt(int(v.Uint()))
+	case reflect.Int16:
+		p.PackShort(uint16(v.Int()))
+	case reflect.Int32:
+		p.PackInt(uint32(v.Int()))
+	case reflect.Int64, reflect.Int:
+		p.PackLong(uint64(v.Int()))
+	case reflect.Uint:
+		p.PackLong(v.Uint())
+	case reflect.Uint8:
+		p.PackByte(byte(v.Uint()))
+	case reflect.Uint16:
+		p.PackShort(uint16(v.Uint()))
+	case reflect.Uint32:
+		p.PackInt(uint32(v.Uint()))
 	case reflect.Uint64:
-		p.PackUint64(v.Uint())
+		p.PackLong(v.Uint())
 	case reflect.String:
-		p.PackString(v.String())
+		p.PackShort(uint16(v.Len()))
+		p.PackFixedBytes([]byte(v.String()))
 	case reflect.Bool:
-		if v.Bool() {
-			p.PackByte(1)
-		} else {
-			p.PackByte(0)
-		}
+		p.PackBool(v.Bool())
 	default:
 		if typ == reflect.TypeOf(codec.Address{}) {
 			if v.Interface().(codec.Address) == codec.EmptyAddress {
 				return nil, fmt.Errorf("packer does not support empty addresses")
 			}
-			p.PackAddress(v.Interface().(codec.Address))
+			addr := v.Interface().(codec.Address)
+			p.PackFixedBytes(addr[:])
 		} else {
 			return nil, fmt.Errorf("unsupported field type: %v", kind)
 		}
 	}
 
-	return p.Bytes(), nil
+	return p.Bytes, nil
 }
 
 func UnmarshalAction(data []byte, item interface{}) error {
-	r := codec.NewReader(data, len(data))
+	p := &wrappers.Packer{
+		Bytes: data,
+	}
 	v := reflect.ValueOf(item).Elem()
 	t := v.Type()
 
@@ -91,7 +99,7 @@ func UnmarshalAction(data []byte, item interface{}) error {
 
 	for _, fi := range info {
 		field := v.Field(fi.index)
-		err := unmarshalValue(r, field, fi.kind, fi.typ)
+		err := unmarshalValue(p, field, fi.kind, fi.typ)
 		if err != nil {
 			return err
 		}
@@ -100,88 +108,90 @@ func UnmarshalAction(data []byte, item interface{}) error {
 	return nil
 }
 
-func unmarshalValue(r *codec.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
+func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
 	switch kind {
 	case reflect.Struct:
 		info := getTypeInfo(typ)
 		for _, fi := range info {
 			field := v.Field(fi.index)
-			err := unmarshalValue(r, field, fi.kind, fi.typ)
-			if err != nil {
+			if err := unmarshalValue(p, field, fi.kind, fi.typ); err != nil {
 				return err
 			}
 		}
 	case reflect.Slice:
 		if typ.Elem().Kind() == reflect.Uint8 {
-			var bytes []byte
-			r.UnpackBytes(-1, false, &bytes)
-			v.SetBytes(bytes)
+			v.SetBytes(p.UnpackFixedBytes(int(p.UnpackShort())))
 		} else {
-			length := r.UnpackInt(false)
+			length := int(p.UnpackInt())
 			slice := reflect.MakeSlice(typ, length, length)
 			for i := 0; i < length; i++ {
-				err := unmarshalValue(r, slice.Index(i), typ.Elem().Kind(), typ.Elem())
-				if err != nil {
+				if err := unmarshalValue(p, slice.Index(i), typ.Elem().Kind(), typ.Elem()); err != nil {
 					return err
 				}
 			}
 			v.Set(slice)
 		}
 	case reflect.Map:
-		length := r.UnpackInt(false)
+		length := int(p.UnpackInt())
 		m := reflect.MakeMap(typ)
 		for i := 0; i < length; i++ {
 			key := reflect.New(typ.Key()).Elem()
-			err := unmarshalValue(r, key, typ.Key().Kind(), typ.Key())
-			if err != nil {
+			if err := unmarshalValue(p, key, typ.Key().Kind(), typ.Key()); err != nil {
 				return err
 			}
 			value := reflect.New(typ.Elem()).Elem()
-			err = unmarshalValue(r, value, typ.Elem().Kind(), typ.Elem())
-			if err != nil {
+			if err := unmarshalValue(p, value, typ.Elem().Kind(), typ.Elem()); err != nil {
 				return err
 			}
 			m.SetMapIndex(key, value)
 		}
 		v.Set(m)
 	case reflect.Int:
-		v.SetInt(r.UnpackInt64(false))
+		v.SetInt(int64(p.UnpackLong()))
 	case reflect.Int8:
-		v.SetInt(int64(r.UnpackByte()))
-	case reflect.Int16, reflect.Int32:
-		v.SetInt(int64(r.UnpackInt(false)))
+		v.SetInt(int64(p.UnpackByte()))
+	case reflect.Int16:
+		v.SetInt(int64(p.UnpackShort()))
+	case reflect.Int32:
+		v.SetInt(int64(p.UnpackInt()))
 	case reflect.Int64:
-		v.SetInt(r.UnpackInt64(false))
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-		v.SetUint(uint64(r.UnpackInt(false)))
+		v.SetInt(int64(p.UnpackLong()))
+	case reflect.Uint:
+		v.SetUint(uint64(p.UnpackLong()))
+	case reflect.Uint8:
+		v.SetUint(uint64(p.UnpackByte()))
+	case reflect.Uint16:
+		v.SetUint(uint64(p.UnpackShort()))
+	case reflect.Uint32:
+		v.SetUint(uint64(p.UnpackInt()))
 	case reflect.Uint64:
-		v.SetUint(r.UnpackUint64(false))
+		v.SetUint(uint64(p.UnpackLong()))
 	case reflect.String:
-		v.SetString(r.UnpackString(false))
+		v.SetString(string(p.UnpackFixedBytes(int(p.UnpackShort()))))
 	case reflect.Bool:
-		b := r.UnpackByte()
-		v.SetBool(b != 0)
+		v.SetBool(p.UnpackBool())
 	default:
 		if typ == reflect.TypeOf(codec.Address{}) {
 			var addr codec.Address
-			r.UnpackAddress(&addr)
+			copy(addr[:], p.UnpackFixedBytes(len(addr)))
 			v.Set(reflect.ValueOf(addr))
 		} else {
 			return fmt.Errorf("unsupported field type: %v", kind)
 		}
 	}
 
-	if r.Err() != nil {
-		return r.Err()
+	if p.Errs.Err != nil {
+		return p.Errs.Err
 	}
 
 	return nil
 }
 
 type fieldInfo struct {
-	index int
-	kind  reflect.Kind
-	typ   reflect.Type
+	index    int
+	kind     reflect.Kind
+	typ      reflect.Type
+	exported bool
 }
 
 var (
@@ -200,21 +210,23 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
 
-	info = make([]fieldInfo, t.NumField())
+	var exportedFields []fieldInfo
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		info[i] = fieldInfo{
-			index: i,
-			kind:  field.Type.Kind(),
-			typ:   field.Type,
+		if field.IsExported() {
+			exportedFields = append(exportedFields, fieldInfo{
+				index: i,
+				kind:  field.Type.Kind(),
+				typ:   field.Type,
+			})
 		}
 	}
-	typeInfoCache[t] = info
-	return info
+	typeInfoCache[t] = exportedFields
+	return exportedFields
 }
 
 func MarshalAction(item interface{}) ([]byte, error) {
-	p := codec.NewWriter(0, consts.NetworkSizeLimit) // FIXME: size
+	p := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
 	v := reflect.ValueOf(item)
 	t := v.Type()
 
@@ -228,5 +240,5 @@ func MarshalAction(item interface{}) ([]byte, error) {
 		}
 	}
 
-	return p.Bytes(), nil
+	return p.Bytes, nil
 }

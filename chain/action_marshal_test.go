@@ -1,6 +1,10 @@
 package chain_test
 
 import (
+	"fmt"
+	"math"
+	reflect "reflect"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -39,7 +43,7 @@ func TestMarshalTransfer(t *testing.T) {
 	//this is a copy of actions.Transfer.Marshal() logic
 	p.PackAddress(transfer.To)
 	p.PackUint64(transfer.Value)
-	p.PackBytes(transfer.Memo)
+	p.PackString(string(transfer.Memo))
 	expectedBytes := p.Bytes()
 
 	actualBytes, err := chain.MarshalAction(transfer)
@@ -54,28 +58,67 @@ func TestMarshalTransfer(t *testing.T) {
 
 	require.Equal(t, transfer, restoredStruct)
 }
-
-func TestMarshalNegativeInts(t *testing.T) {
-	type NegativeIntStructure struct {
-		NegInt   int   `json:"negInt"`
-		NegInt8  int8  `json:"negInt8"`
-		NegInt16 int16 `json:"negInt16"`
-		NegInt32 int32 `json:"negInt32"`
-		NegInt64 int64 `json:"negInt64"`
+func TestMarshalNumber(t *testing.T) {
+	type NumberStructure struct {
+		NegIntOne   int
+		NegInt8One  int8
+		NegInt16One int16
+		NegInt32One int32
+		NegInt64One int64
+		NegIntMin   int
+		NegInt8Min  int8
+		NegInt16Min int16
+		NegInt32Min int32
+		NegInt64Min int64
+		UintZero    uint
+		Uint8Zero   uint8
+		Uint16Zero  uint16
+		Uint32Zero  uint32
+		Uint64Zero  uint64
+		UintMax     uint
+		Uint8Max    uint8
+		Uint16Max   uint16
+		Uint32Max   uint32
+		Uint64Max   uint64
+		IntMax      int
+		Int8Max     int8
+		Int16Max    int16
+		Int32Max    int32
+		Int64Max    int64
 	}
 
-	test := NegativeIntStructure{
-		NegInt:   -42,
-		NegInt8:  -8,
-		NegInt16: -16,
-		NegInt32: -32,
-		NegInt64: -64,
+	test := NumberStructure{
+		NegIntOne:   -1,
+		NegInt8One:  -1,
+		NegInt16One: -1,
+		NegInt32One: -1,
+		NegInt64One: -1,
+		NegIntMin:   math.MinInt,
+		NegInt8Min:  math.MinInt8,
+		NegInt16Min: math.MinInt16,
+		NegInt32Min: math.MinInt32,
+		NegInt64Min: math.MinInt64,
+		UintZero:    0,
+		Uint8Zero:   0,
+		Uint16Zero:  0,
+		Uint32Zero:  0,
+		Uint64Zero:  0,
+		UintMax:     ^uint(0),
+		Uint8Max:    math.MaxUint8,
+		Uint16Max:   math.MaxUint16,
+		Uint32Max:   math.MaxUint32,
+		Uint64Max:   math.MaxUint64,
+		IntMax:      math.MaxInt,
+		Int8Max:     math.MaxInt8,
+		Int16Max:    math.MaxInt16,
+		Int32Max:    math.MaxInt32,
+		Int64Max:    math.MaxInt64,
 	}
 
 	bytes, err := chain.MarshalAction(test)
 	requireNoErrorFast(t, err)
 
-	var restoredStruct NegativeIntStructure
+	var restoredStruct NumberStructure
 	err = chain.UnmarshalAction(bytes, &restoredStruct)
 	requireNoErrorFast(t, err)
 
@@ -251,8 +294,29 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 	t.Logf("Reflection time: %v", reflectionTime)
 }
 
-// go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
-
+// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
+// goos: linux
+// goarch: amd64
+// pkg: github.com/ava-labs/hypersdk/chain
+// cpu: AMD EPYC 7763 64-Core Processor
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-1-8                     25          43537383 ns/op        35200222 B/op     500002 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-2-8                     44          27911118 ns/op        35200192 B/op     500003 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-4-8                     67          18641837 ns/op        35200585 B/op     500006 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-8-8                     73          15644815 ns/op        35200919 B/op     500011 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-1-8                         85          13315283 ns/op        14400048 B/op     200002 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-2-8                        135           8490382 ns/op        14400117 B/op     200003 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-4-8                        193           6162926 ns/op        14400171 B/op     200005 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-8-8                        230           5290315 ns/op        14400406 B/op     200009 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-1-8                       8         131688824 ns/op        62400130 B/op    1200002 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-2-8                      14          84294921 ns/op        62400249 B/op    1200003 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-4-8                      20          53936334 ns/op        62400397 B/op    1200005 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-8-8                      27          42685016 ns/op        62400487 B/op    1200009 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-1-8                          20          56797834 ns/op        40800104 B/op     900002 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-2-8                          38          34366410 ns/op        40800175 B/op     900003 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-4-8                          51          23726648 ns/op        40800266 B/op     900005 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-8-8                          57          18333733 ns/op        40800778 B/op     900010 allocs/op
+// PASS
+// ok      github.com/ava-labs/hypersdk/chain      22.327s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
 	type InnerStruct struct {
 		Field1 int32
@@ -309,9 +373,8 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	}
 
 	const iterationsInBatch = 100_000
-	const numWorkers = 8
 
-	runParallel := func(b *testing.B, f func()) {
+	runParallel := func(b *testing.B, numWorkers int, f func()) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			var wg sync.WaitGroup
@@ -328,50 +391,266 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		}
 	}
 
-	b.Run("Reflection-Manual-Complex", func(b *testing.B) {
-		runParallel(b, func() {
-			bytes, err := chain.MarshalAction(test)
-			requireNoErrorFast(b, err)
-			var restored TestStruct
-			err = chain.UnmarshalAction(bytes, &restored)
-			requireNoErrorFast(b, err)
+	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+		b.Run(fmt.Sprintf("Transfer-Reflection-%d", numWorkers), func(b *testing.B) {
+			runParallel(b, numWorkers, func() {
+				bytes, err := chain.MarshalAction(transfer)
+				requireNoErrorFast(b, err)
+				var restored Transfer
+				err = chain.UnmarshalAction(bytes, &restored)
+				requireNoErrorFast(b, err)
+			})
 		})
+	}
+
+	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+		b.Run(fmt.Sprintf("Transfer-Manual-%d", numWorkers), func(b *testing.B) {
+			runParallel(b, numWorkers, func() {
+				p := codec.NewWriter(0, consts.NetworkSizeLimit)
+				p.PackAddress(transfer.To)
+				p.PackUint64(transfer.Value)
+				p.PackBytes(transfer.Memo)
+				bytes := p.Bytes()
+
+				r := codec.NewReader(bytes, consts.NetworkSizeLimit)
+				var restored Transfer
+				r.UnpackAddress(&restored.To)
+				restored.Value = r.UnpackUint64(false)
+				r.UnpackBytes(-1, false, &restored.Memo)
+				requireNoErrorFast(b, r.Err())
+			})
+		})
+	}
+
+	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+		b.Run(fmt.Sprintf("Complex-Reflection-%d", numWorkers), func(b *testing.B) {
+			runParallel(b, numWorkers, func() {
+				bytes, err := chain.MarshalAction(test)
+				requireNoErrorFast(b, err)
+				var restored TestStruct
+				err = chain.UnmarshalAction(bytes, &restored)
+				requireNoErrorFast(b, err)
+			})
+		})
+	}
+
+	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+		b.Run(fmt.Sprintf("Complex-Manual-%d", numWorkers), func(b *testing.B) {
+			runParallel(b, numWorkers, func() {
+				p := codec.NewWriter(0, consts.NetworkSizeLimit)
+				p.PackUint64(test.Uint64Field)
+				p.PackString(test.StringField)
+				p.PackBytes(test.BytesField)
+				p.PackInt(test.IntField)
+				p.PackBool(test.BoolField)
+				p.PackInt(int(test.Uint16Field))
+				p.PackInt(int(test.Int8Field))
+				p.PackInt(len(test.InnerField))
+				for _, inner := range test.InnerField {
+					p.PackInt(int(inner.Field1))
+					p.PackString(inner.Field2)
+					p.PackBool(inner.Field3)
+					p.PackBytes(inner.Field5)
+				}
+				bytes := p.Bytes()
+
+				r := codec.NewReader(bytes, consts.NetworkSizeLimit)
+				var restored TestStruct
+				restored.Uint64Field = r.UnpackUint64(false)
+				restored.StringField = r.UnpackString(false)
+				r.UnpackBytes(-1, false, &restored.BytesField)
+				restored.IntField = r.UnpackInt(false)
+				restored.BoolField = r.UnpackBool()
+				restored.Uint16Field = uint16(r.UnpackInt(false))
+				restored.Int8Field = int8(r.UnpackInt(false))
+				restored.InnerField = make([]InnerStruct, r.UnpackInt(false))
+				for i := range restored.InnerField {
+					restored.InnerField[i].Field1 = int32(r.UnpackInt(false))
+					restored.InnerField[i].Field2 = r.UnpackString(false)
+					restored.InnerField[i].Field3 = r.UnpackBool()
+					r.UnpackBytes(-1, false, &restored.InnerField[i].Field5)
+				}
+				requireNoErrorFast(b, r.Err())
+			})
+		})
+
+	}
+}
+func TestMarshalSizes(t *testing.T) {
+	tests := []struct {
+		name         string
+		value        interface{}
+		expectedSize int
+	}{
+		{
+			name: "Basic types",
+			value: struct {
+				Uint8Field  uint8
+				Uint16Field uint16
+				Uint32Field uint32
+				Uint64Field uint64
+				Int8Field   int8
+				Int16Field  int16
+				Int32Field  int32
+				Int64Field  int64
+				BoolField   bool
+			}{
+				Uint8Field:  255,
+				Uint16Field: 65535,
+				Uint32Field: 4294967295,
+				Uint64Field: 18446744073709551615,
+				Int8Field:   -128,
+				Int16Field:  -32768,
+				Int32Field:  -2147483648,
+				Int64Field:  -9223372036854775808,
+				BoolField:   true,
+			},
+			expectedSize: 1 + 2 + 4 + 8 + 1 + 2 + 4 + 8 + 1,
+		},
+		{
+			name: "String fields",
+			value: struct {
+				EmptyString  string
+				ShortString  string
+				LongerString string
+			}{
+				EmptyString:  "",
+				ShortString:  "123",
+				LongerString: "Hello, World!",
+			},
+			expectedSize: (2 + 0) + (2 + 3) + (2 + 13),
+		},
+		{
+			name: "Byte slice fields",
+			value: struct {
+				EmptySlice  []byte
+				ShortSlice  []byte
+				LongerSlice []byte
+			}{
+				EmptySlice:  []byte{},
+				ShortSlice:  []byte{1, 2, 3},
+				LongerSlice: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			},
+			expectedSize: (0 + 2) + (3 + 2) + (10 + 2),
+		},
+		{
+			name: "Address field",
+			value: struct {
+				AddressField codec.Address
+			}{
+				AddressField: codec.Address{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			},
+			expectedSize: codec.AddressLen,
+		},
+		{
+			name: "Mixed fields",
+			value: struct {
+				IntField     int32
+				StringField  string
+				BytesField   []byte
+				BoolField    bool
+				AddressField codec.Address
+			}{
+				IntField:     42,
+				StringField:  "Test",
+				BytesField:   []byte{1, 2, 3},
+				BoolField:    true,
+				AddressField: codec.Address{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			},
+			expectedSize: 4 + (4 + 2) + (3 + 2) + 1 + codec.AddressLen,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bytes, err := chain.MarshalAction(tt.value)
+			requireNoErrorFast(t, err)
+
+			// Check size
+			require.Equal(t, tt.expectedSize, len(bytes), "Encoded size mismatch")
+
+			// Decode and compare
+			decoded := reflect.New(reflect.TypeOf(tt.value)).Interface()
+			err = chain.UnmarshalAction(bytes, decoded)
+			requireNoErrorFast(t, err)
+
+			require.Equal(t, tt.value, reflect.ValueOf(decoded).Elem().Interface(), "Decoded value mismatch")
+		})
+	}
+}
+
+func TestAdditionalCornerCases(t *testing.T) {
+	t.Run("NestedStructs", func(t *testing.T) {
+		type Inner struct {
+			Field int
+		}
+		type Middle struct {
+			Inner Inner
+		}
+		type Outer struct {
+			Middle Middle
+		}
+		test := Outer{Middle: Middle{Inner: Inner{Field: 42}}}
+
+		bytes, err := chain.MarshalAction(test)
+		requireNoErrorFast(t, err)
+
+		var restored Outer
+		err = chain.UnmarshalAction(bytes, &restored)
+		requireNoErrorFast(t, err)
+
+		require.Equal(t, test, restored)
 	})
 
-	b.Run("Reflection-Reflection-Complex", func(b *testing.B) {
-		runParallel(b, func() {
-			bytes, err := chain.MarshalAction(test)
-			requireNoErrorFast(b, err)
-			var restored TestStruct
-			err = chain.UnmarshalAction(bytes, &restored)
-			requireNoErrorFast(b, err)
-		})
+	t.Run("EmptyStruct", func(t *testing.T) {
+		type Empty struct{}
+		test := Empty{}
+
+		bytes, err := chain.MarshalAction(test)
+		requireNoErrorFast(t, err)
+
+		var restored Empty
+		err = chain.UnmarshalAction(bytes, &restored)
+		requireNoErrorFast(t, err)
+
+		require.Equal(t, test, restored)
 	})
 
-	b.Run("Reflection-Manual-Transfer", func(b *testing.B) {
-		runParallel(b, func() {
-			p := codec.NewWriter(0, consts.NetworkSizeLimit)
-			p.PackAddress(transfer.To)
-			p.PackUint64(transfer.Value)
-			p.PackBytes(transfer.Memo)
-			bytes := p.Bytes()
+	t.Run("UnexportedFields", func(t *testing.T) {
+		type Mixed struct {
+			Exported   int
+			unexported string
+		}
+		test := Mixed{Exported: 42, unexported: "should be ignored"}
 
-			r := codec.NewReader(bytes, consts.NetworkSizeLimit)
-			var restored Transfer
-			r.UnpackAddress(&restored.To)
-			restored.Value = r.UnpackUint64(false)
-			r.UnpackBytes(-1, false, &restored.Memo)
-			requireNoErrorFast(b, r.Err())
-		})
+		bytes, err := chain.MarshalAction(test)
+		requireNoErrorFast(t, err)
+
+		var restored Mixed
+		err = chain.UnmarshalAction(bytes, &restored)
+		requireNoErrorFast(t, err)
+
+		require.Equal(t, test.Exported, restored.Exported)
+		require.Empty(t, restored.unexported)
 	})
 
-	b.Run("Reflection-Reflection-Transfer", func(b *testing.B) {
-		runParallel(b, func() {
-			bytes, err := chain.MarshalAction(transfer)
-			requireNoErrorFast(b, err)
-			var restored Transfer
-			err = chain.UnmarshalAction(bytes, &restored)
-			requireNoErrorFast(b, err)
-		})
+	t.Run("StructWithPointers", func(t *testing.T) {
+		type PointerStruct struct {
+			IntPtr    *int
+			StringPtr *string
+		}
+		intVal := 42
+		strVal := "test"
+		test := PointerStruct{IntPtr: &intVal, StringPtr: &strVal}
+
+		_, err := chain.MarshalAction(test)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported field type: ptr")
+
+		bytes := []byte{0x00, 0x01, 0x02} // Some dummy bytes
+		var restored PointerStruct
+		err = chain.UnmarshalAction(bytes, &restored)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported field type: ptr")
 	})
 }
