@@ -4,26 +4,22 @@
 package rpc
 
 import (
-	"context"
-	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/state"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 )
 
 type JSONRPCServer struct {
-	c        Controller
-	simulate func(context.Context, actions.CallProgram, codec.Address) (state.Keys, error)
+	c Controller
 }
 
-func NewJSONRPCServer(c Controller, simulate func(context.Context, actions.CallProgram, codec.Address) (state.Keys, error)) *JSONRPCServer {
-	return &JSONRPCServer{c, simulate}
+func NewJSONRPCServer(c Controller) *JSONRPCServer {
+	return &JSONRPCServer{c}
 }
 
 type GenesisReply struct {
@@ -33,20 +29,6 @@ type GenesisReply struct {
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
 	reply.Genesis = j.c.Genesis()
 	return nil
-}
-
-type SimulateCallProgramTxArgs struct {
-	CallProgramTx actions.CallProgram `json:"callProgramTx"`
-	Actor         codec.Address       `json:"actor"`
-}
-
-type SimulateCallProgramTxReply struct {
-	StateKeys state.Keys `json:"stateKeys"`
-}
-
-func (j *JSONRPCServer) SimulateCallProgramTx(req *http.Request, args *SimulateCallProgramTxArgs, reply *SimulateCallProgramTxReply) (err error) {
-	reply.StateKeys, err = j.simulate(req.Context(), args.CallProgramTx, args.Actor)
-	return err
 }
 
 type TxArgs struct {

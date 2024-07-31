@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -35,9 +34,9 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
-	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/examples/programsvm/controller"
-	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -45,8 +44,8 @@ import (
 
 	auth "github.com/ava-labs/hypersdk/auth"
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
-	lconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
-	lrpc "github.com/ava-labs/hypersdk/examples/programsvm/rpc"
+	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -97,7 +96,7 @@ func init() {
 }
 
 func TestIntegration(t *testing.T) {
-	ginkgo.RunSpecs(t, "programsvm integration test suites")
+	ginkgo.RunSpecs(t, "morpheusvm integration test suites")
 }
 
 func init() {
@@ -213,21 +212,25 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		v := controller.New()
-		err = v.Initialize(
+		v, err := controller.New(vm.WithManualGossiper(), vm.WithManualBuilder())
+		require.NoError(err)
+		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,
 			db,
 			genesisBytes,
 			nil,
 			[]byte(
-				`{"parallelism":3, "testMode":true, "logLevel":"debug"}`,
+				`{
+				  "config": {
+				    "logLevel":"debug"
+				  }
+				}`,
 			),
 			toEngine,
 			nil,
 			app,
-		)
-		require.NoError(err)
+		))
 
 		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
@@ -281,8 +284,7 @@ var _ = ginkgo.AfterSuite(func() {
 		iv.JSONRPCServer.Close()
 		iv.BaseJSONRPCServer.Close()
 		iv.WebSocketServer.Close()
-		err := iv.vm.Shutdown(context.TODO())
-		require.NoError(err)
+		require.NoError(iv.vm.Shutdown(context.TODO()))
 	}
 })
 
@@ -324,8 +326,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 	// read: 2 keys reads
 	// allocate: 1 key created with 1 chunk
 	// write: 2 keys modified
-	transferTxUnits := fees.Dimensions{188, 7, 14, 50, 26}
-	transferTxFee := uint64(285)
+	transferTxUnits := fees.Dimensions{192, 7, 14, 50, 26}
+	transferTxFee := uint64(289)
 
 	ginkgo.It("get currently accepted block ID", func() {
 		for _, inst := range instances {
@@ -370,8 +372,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
-			err := instances[0].vm.Gossiper().Force(context.TODO())
-			require.NoError(err)
+			require.NoError(instances[0].vm.Gossiper().Force(context.TODO()))
 		})
 
 		ginkgo.By("skip invalid time", func() {
@@ -422,13 +423,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 
 			require.NoError(blk.Verify(ctx))
-			require.Equal(blk.Status(), choices.Processing)
 
-			err = instances[1].vm.SetPreference(ctx, blk.ID())
-			require.NoError(err)
+			require.NoError(instances[1].vm.SetPreference(ctx, blk.ID()))
 
 			require.NoError(blk.Accept(ctx))
-			require.Equal(blk.Status(), choices.Accepted)
 			blocks = append(blocks, blk)
 
 			lastAccepted, err := instances[1].vm.LastAccepted(ctx)
@@ -446,7 +444,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		ginkgo.By("ensure balance is updated", func() {
 			balance, err := instances[1].lcli.Balance(context.Background(), addrStr)
 			require.NoError(err)
-			require.Equal(balance, uint64(9_899_715))
+			require.Equal(balance, uint64(9_899_711))
 			balance2, err := instances[1].lcli.Balance(context.Background(), addrStr2)
 			require.NoError(err)
 			require.Equal(balance2, uint64(100_000))
@@ -614,8 +612,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
 
-			err = instances[1].vm.Gossiper().Force(context.TODO())
-			require.NoError(err)
+			require.NoError(instances[1].vm.Gossiper().Force(context.TODO()))
 
 			// mempool in 0 should be 1 (old amount), since gossip/submit failed
 			require.Equal(instances[0].vm.Mempool().Len(context.TODO()), 1)
@@ -631,8 +628,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			n := instances[2]
 			blk1, err := n.vm.ParseBlock(ctx, blocks[0].Bytes())
 			require.NoError(err)
-			err = blk1.Verify(ctx)
-			require.NoError(err)
+			require.NoError(blk1.Verify(ctx))
 
 			// Parse tip
 			blk2, err := n.vm.ParseBlock(ctx, blocks[1].Bytes())
@@ -641,26 +637,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 
 			// Verify tip
-			err = blk2.Verify(ctx)
-			require.NoError(err)
-			err = blk3.Verify(ctx)
-			require.NoError(err)
+			require.NoError(blk2.Verify(ctx))
+			require.NoError(blk3.Verify(ctx))
 
 			// Accept tip
-			err = blk1.Accept(ctx)
-			require.NoError(err)
-			err = blk2.Accept(ctx)
-			require.NoError(err)
-			err = blk3.Accept(ctx)
-			require.NoError(err)
+			require.NoError(blk1.Accept(ctx))
+			require.NoError(blk2.Accept(ctx))
+			require.NoError(blk3.Accept(ctx))
 
 			// Parse another
 			blk4, err := n.vm.ParseBlock(ctx, blocks[3].Bytes())
 			require.NoError(err)
-			err = blk4.Verify(ctx)
-			require.NoError(err)
-			err = blk4.Accept(ctx)
-			require.NoError(err)
+			require.NoError(blk4.Verify(ctx))
+			require.NoError(blk4.Accept(ctx))
 			require.NoError(n.vm.SetPreference(ctx, blk4.ID()))
 		})
 	})
@@ -701,7 +690,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		require.NoError(err)
 		require.NoError(submit(context.Background()))
 
-		require.NoError(err)
 		accept = expectBlk(instances[0])
 		results := accept(false)
 		require.Len(results, 1)
@@ -759,7 +747,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			hutils.Outf("{{yellow}}waiting for mempool to return non-zero txs{{/}}\n")
 			time.Sleep(500 * time.Millisecond)
 		}
-		require.NoError(err)
 		accept := expectBlk(instances[0])
 		results := accept(false)
 		require.Len(results, 1)
@@ -910,14 +897,11 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	require.NotNil(blk)
 
 	require.NoError(blk.Verify(ctx))
-	require.Equal(blk.Status(), choices.Processing)
 
-	err = i.vm.SetPreference(ctx, blk.ID())
-	require.NoError(err)
+	require.NoError(i.vm.SetPreference(ctx, blk.ID()))
 
 	return func(add bool) []*chain.Result {
 		require.NoError(blk.Accept(ctx))
-		require.Equal(blk.Status(), choices.Accepted)
 
 		if add {
 			blocks = append(blocks, blk)
@@ -930,7 +914,7 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	}
 }
 
-var _ common.AppSender = &appSender{}
+var _ common.AppSender = (*appSender)(nil)
 
 type appSender struct {
 	next      int

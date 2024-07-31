@@ -7,12 +7,10 @@ import (
 	"context"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
-	pconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -25,12 +23,12 @@ type DeployProgram struct {
 }
 
 func (*DeployProgram) GetTypeID() uint8 {
-	return pconsts.DeployProgramID
+	return 2
 }
 
 func (t *DeployProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.address == codec.EmptyAddress {
-		t.InitializeAddress()
+		t.address = storage.GetAddressForDeploy(0, t.CreationInfo)
 	}
 	keys := state.Keys{
 		string(storage.AccountProgramKey(t.address)): state.All,
@@ -55,7 +53,7 @@ func (t *DeployProgram) Execute(
 }
 
 func (*DeployProgram) ComputeUnits(chain.Rules) uint64 {
-	return PublishComputeUnits
+	return 1
 }
 
 func (*DeployProgram) Size() int {
@@ -71,7 +69,7 @@ func UnmarshalDeployProgram(p *codec.Packer) (chain.Action, error) {
 	var deployProgram DeployProgram
 	p.UnpackID(true, &deployProgram.ProgramID)
 	p.UnpackBytes(10*units.MiB, true, &deployProgram.CreationInfo)
-	deployProgram.InitializeAddress()
+	deployProgram.address = storage.GetAddressForDeploy(0, deployProgram.CreationInfo)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
@@ -82,8 +80,4 @@ func UnmarshalDeployProgram(p *codec.Packer) (chain.Action, error) {
 func (*DeployProgram) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
-}
-
-func (t *DeployProgram) InitializeAddress() {
-	t.address = storage.GetAddressForDeploy(0, t.CreationInfo)
 }

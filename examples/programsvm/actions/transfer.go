@@ -5,19 +5,29 @@ package actions
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 
-	mconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
-var _ chain.Action = (*Transfer)(nil)
+const (
+	TransferComputeUnits = 1
+	MaxMemoSize          = 256
+)
+
+var (
+	ErrOutputValueZero                 = errors.New("value is zero")
+	ErrOutputMemoTooLarge              = errors.New("memo is too large")
+	_                     chain.Action = (*Transfer)(nil)
+)
 
 type Transfer struct {
 	// To is the recipient of the [Value].
@@ -25,6 +35,9 @@ type Transfer struct {
 
 	// Amount are transferred to [To].
 	Value uint64 `json:"value"`
+
+	// Optional message to accompany transaction.
+	Memo []byte `json:"memo"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
@@ -53,6 +66,9 @@ func (t *Transfer) Execute(
 	if t.Value == 0 {
 		return nil, ErrOutputValueZero
 	}
+	if len(t.Memo) > MaxMemoSize {
+		return nil, ErrOutputMemoTooLarge
+	}
 	if err := storage.SubBalance(ctx, mu, actor, t.Value); err != nil {
 		return nil, err
 	}
@@ -66,23 +82,22 @@ func (*Transfer) ComputeUnits(chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
-func (*Transfer) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (t *Transfer) Size() int {
+	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
 func (t *Transfer) Marshal(p *codec.Packer) {
 	p.PackAddress(t.To)
 	p.PackUint64(t.Value)
+	p.PackBytes(t.Memo)
 }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
 	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
 	transfer.Value = p.UnpackUint64(true)
-	if err := p.Err(); err != nil {
-		return nil, err
-	}
-	return &transfer, nil
+	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
+	return &transfer, p.Err()
 }
 
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {

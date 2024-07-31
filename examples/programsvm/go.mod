@@ -1,8 +1,6 @@
-module github.com/ava-labs/hypersdk/examples/programsvm
+module github.com/ava-labs/hypersdk/examples/morpheusvm
 
 go 1.21.12
-
-toolchain go1.22.1
 
 require (
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0

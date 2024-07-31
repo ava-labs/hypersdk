@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 var actionCmd = &cobra.Command{
@@ -58,69 +58,6 @@ var transferCmd = &cobra.Command{
 		_, _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
-		}}, cli, bcli, ws, factory, true)
-		return err
-	},
-}
-
-var deployProgramCmd = &cobra.Command{
-	Use: "deployProgram",
-	RunE: func(*cobra.Command, []string) error {
-		ctx := context.Background()
-		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
-		if err != nil {
-			return err
-		}
-
-		programID, err := handler.Root().PromptID("program id")
-		if err != nil {
-			return err
-		}
-
-		creationInfo, err := handler.Root().PromptBytes("creation info")
-		if err != nil {
-			return err
-		}
-
-		// Confirm action
-		cont, err := handler.Root().PromptContinue()
-		if !cont || err != nil {
-			return err
-		}
-
-		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{&actions.DeployProgram{
-			ProgramID:    programID,
-			CreationInfo: creationInfo,
-		}}, cli, bcli, ws, factory, true)
-		return err
-	},
-}
-
-var publishProgramBytesCmd = &cobra.Command{
-	Use: "publishProgramBytes",
-	RunE: func(*cobra.Command, []string) error {
-		ctx := context.Background()
-		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
-		if err != nil {
-			return err
-		}
-
-		// Select recipient
-		bytes, err := handler.Root().PromptBytes("program bytes")
-		if err != nil {
-			return err
-		}
-
-		// Confirm action
-		cont, err := handler.Root().PromptContinue()
-		if !cont || err != nil {
-			return err
-		}
-
-		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{&actions.PublishProgram{
-			ProgramBytes: bytes,
 		}}, cli, bcli, ws, factory, true)
 		return err
 	},
@@ -204,7 +141,39 @@ var callProgramCmd = &cobra.Command{
 			Function: function,
 			CallData: calldata,
 		}
-		action.SpecifiedStateKeys, err = bcli.Simulate(ctx, *action, priv.Address)
+		/*
+			action.SpecifiedStateKeys, err = bcli.Simulate(ctx, *action, priv.Address)
+			if err != nil {
+				return err
+			}
+		*/
+		// Confirm action
+		cont, err := handler.Root().PromptContinue()
+		if !cont || err != nil {
+			return err
+		}
+
+		// Generate transaction
+		_, _, err = sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory, true)
+		return err
+	},
+}
+
+var deployProgramCmd = &cobra.Command{
+	Use: "deployProgram",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+
+		programID, err := handler.Root().PromptID("program id")
+		if err != nil {
+			return err
+		}
+
+		creationInfo, err := handler.Root().PromptBytes("creation info")
 		if err != nil {
 			return err
 		}
@@ -216,7 +185,10 @@ var callProgramCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory, true)
+		_, _, err = sendAndWait(ctx, []chain.Action{&actions.DeployProgram{
+			ProgramID:    programID,
+			CreationInfo: creationInfo,
+		}}, cli, bcli, ws, factory, true)
 		return err
 	},
 }

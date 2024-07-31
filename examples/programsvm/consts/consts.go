@@ -13,7 +13,7 @@ import (
 
 const (
 	HRP      = "morpheus"
-	Name     = "programsvm"
+	Name     = "morpheusvm"
 	Symbol   = "RED"
 	Decimals = 9
 )
@@ -35,8 +35,5 @@ func init() {
 var (
 	ActionRegistry *codec.TypeParser[chain.Action]
 	AuthRegistry   *codec.TypeParser[chain.Auth]
-
-	// shameless hacks to make program call action have access to the runtime and db for execution and statekey queries
-
 	ProgramRuntime *runtime.WasmRuntime
 )

@@ -5,19 +5,16 @@ package rpc
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/state"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	_ "github.com/ava-labs/hypersdk/examples/programsvm/registry" // ensure registry populated
+	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/registry" // ensure registry populated
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
@@ -37,20 +34,6 @@ func NewJSONRPCClient(uri string, networkID uint32, chainID ids.ID) *JSONRPCClie
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
 	return &JSONRPCClient{req, networkID, chainID, nil}
-}
-
-func (cli *JSONRPCClient) Simulate(ctx context.Context, callProgramTx actions.CallProgram, actor codec.Address) (state.Keys, error) {
-	resp := new(SimulateCallProgramTxReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"simulateCallProgramTx",
-		&SimulateCallProgramTxArgs{CallProgramTx: callProgramTx, Actor: actor},
-		resp,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return resp.StateKeys, nil
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {

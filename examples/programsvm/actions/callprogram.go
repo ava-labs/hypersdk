@@ -5,18 +5,16 @@ package actions
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-
-	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	pconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-
-	pconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
 )
 
 var _ chain.Action = (*CallProgram)(nil)
@@ -38,7 +36,7 @@ type CallProgram struct {
 }
 
 func (*CallProgram) GetTypeID() uint8 {
-	return pconsts.CallProgramID
+	return 1
 }
 
 func (t *CallProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
@@ -57,6 +55,7 @@ func (t *CallProgram) Execute(
 	actor codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
+
 	result, err := pconsts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
 		Program:      t.Program,
 		Actor:        actor,
@@ -69,7 +68,7 @@ func (t *CallProgram) Execute(
 }
 
 func (*CallProgram) ComputeUnits(chain.Rules) uint64 {
-	return CallComputeUnits
+	return 1
 }
 
 func (*CallProgram) Size() int {

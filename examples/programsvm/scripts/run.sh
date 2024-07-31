@@ -4,20 +4,19 @@
 
 set -e
 
-# Set the CGO flags to use the portable version of BLST
-#
-# We use "export" here instead of just setting a bash variable because we need
-# to pass this flag to all child processes spawned by the shell.
-export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
-
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
 if ! [[ "$0" =~ scripts/run.sh ]]; then
-  echo "must be run from repository root"
+  echo "must be run from morpheusvm root"
   exit 255
 fi
 
-VERSION=v1.11.8
+# shellcheck source=/scripts/constants.sh
+source ../../scripts/constants.sh
+# shellcheck source=/scripts/common/utils.sh
+source ../../scripts/common/utils.sh
+
+VERSION=v1.11.10
 MAX_UINT64=18446744073709551615
 MODE=${MODE:-run}
 LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -96,18 +95,18 @@ fi
 ############################
 
 ############################
-echo "building programsvm"
+echo "building morpheusvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN
+rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/rXJs9n3BSBPPzdpT13o4439zFNdsCzFGi7Gwzf21UWmw9SgJN \
-./cmd/programsvm
+-o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+./cmd/morpheusvm
 
-echo "building programs-cli"
-go build -v -o "${TMPDIR}"/programs-cli ./cmd/programs-cli
+echo "building morpheus-cli"
+go build -v -o "${TMPDIR}"/morpheus-cli ./cmd/morpheus-cli
 
 # log everything in the avalanchego directory
 find "${TMPDIR}"/avalanchego-"${VERSION}"
@@ -127,16 +126,16 @@ EOF
 GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
-  rm -f "${TMPDIR}"/programsvm.genesis
-  "${TMPDIR}"/programs-cli genesis generate "${TMPDIR}"/allocations.json \
+  rm -f "${TMPDIR}"/morpheusvm.genesis
+  "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
   --window-target-units "${WINDOW_TARGET_UNITS}" \
   --max-block-units "${MAX_BLOCK_UNITS}" \
   --min-block-gap "${MIN_BLOCK_GAP}" \
-  --genesis-file "${TMPDIR}"/programsvm.genesis
+  --genesis-file "${TMPDIR}"/morpheusvm.genesis
 else
   echo "copying custom genesis file"
-  rm -f "${TMPDIR}"/programsvm.genesis
-  cp "${GENESIS_PATH}" "${TMPDIR}"/programsvm.genesis
+  rm -f "${TMPDIR}"/morpheusvm.genesis
+  cp "${GENESIS_PATH}" "${TMPDIR}"/morpheusvm.genesis
 fi
 
 ############################
@@ -144,9 +143,9 @@ fi
 ############################
 
 echo "creating vm config"
-rm -f "${TMPDIR}"/programsvm.config
-rm -rf "${TMPDIR}"/programsvm-e2e-profiles
-cat <<EOF > "${TMPDIR}"/programsvm.config
+rm -f "${TMPDIR}"/morpheusvm.config
+rm -rf "${TMPDIR}"/morpheusvm-e2e-profiles
+cat <<EOF > "${TMPDIR}"/morpheusvm.config
 {
   "mempoolSize": 10000000,
   "mempoolSponsorSize": 10000000,
@@ -158,19 +157,19 @@ cat <<EOF > "${TMPDIR}"/programsvm.config
   "storeTransactions": ${STORE_TXS},
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOG_LEVEL}",
-  "continuousProfilerDir":"${TMPDIR}/programsvm-e2e-profiles/*",
+  "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
-mkdir -p "${TMPDIR}"/programsvm-e2e-profiles
+mkdir -p "${TMPDIR}"/morpheusvm-e2e-profiles
 
 ############################
 
 ############################
 
 echo "creating subnet config"
-rm -f "${TMPDIR}"/programsvm.subnet
-cat <<EOF > "${TMPDIR}"/programsvm.subnet
+rm -f "${TMPDIR}"/morpheusvm.subnet
+cat <<EOF > "${TMPDIR}"/morpheusvm.subnet
 {
   "proposerMinBlockDelay": 0,
   "proposerNumHistoricalBlocks": 50000
@@ -181,16 +180,8 @@ EOF
 
 ############################
 echo "building e2e.test"
-# to install the ginkgo binary (required for test build and run)
-go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.13.1
 
-# alert the user if they do not have $GOPATH properly configured
-if ! command -v ginkgo &> /dev/null
-then
-    echo -e "\033[0;31myour golang environment is misconfigued...please ensure the golang bin folder is in your PATH\033[0m"
-    echo -e "\033[0;31myou can set this for the current terminal session by running \"export PATH=\$PATH:\$(go env GOPATH)/bin\"\033[0m"
-    exit
-fi
+prepare_ginkgo
 
 ACK_GINKGO_RC=true ginkgo build ./tests/e2e
 ./tests/e2e/e2e.test --help
@@ -254,9 +245,9 @@ echo "running e2e tests"
 --network-runner-grpc-gateway-endpoint="0.0.0.0:12353" \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
 --avalanchego-plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \
---vm-genesis-path="${TMPDIR}"/programsvm.genesis \
---vm-config-path="${TMPDIR}"/programsvm.config \
---subnet-config-path="${TMPDIR}"/programsvm.subnet \
+--vm-genesis-path="${TMPDIR}"/morpheusvm.genesis \
+--vm-config-path="${TMPDIR}"/morpheusvm.config \
+--subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
 --output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
 --mode="${MODE}"
 

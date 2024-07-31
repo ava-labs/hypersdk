@@ -6,9 +6,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"net/http"
 
@@ -19,12 +16,12 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/programsvm/config"
-	"github.com/ava-labs/hypersdk/examples/programsvm/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/genesis"
-	"github.com/ava-labs/hypersdk/examples/programsvm/rpc"
-	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
-	"github.com/ava-labs/hypersdk/examples/programsvm/version"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
@@ -121,12 +118,14 @@ func (*factory) New(
 	apis := map[string]http.Handler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,
-		rpc.NewJSONRPCServer(c, c.Simulate),
+		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
+
+	consts.ProgramRuntime = runtime.NewRuntime(runtime.NewConfig(), c.Logger())
 
 	return c, c.genesis, apis, nil
 }
@@ -164,20 +163,4 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 func (c *Controller) Shutdown(context.Context) error {
 	// Close any databases created during initialization
 	return c.txDB.Close()
-}
-
-func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor codec.Address) (state.Keys, error) {
-	db, err := c.inner.State()
-	if err != nil {
-		return nil, err
-	}
-	recorder := &storage.Recorder{State: db}
-	_, err = consts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
-		Program:      t.Program,
-		Actor:        actor,
-		State:        &storage.ProgramStateManager{Mutable: recorder},
-		FunctionName: t.Function,
-		Params:       t.CallData,
-	})
-	return recorder.GetStateKeys(), err
 }

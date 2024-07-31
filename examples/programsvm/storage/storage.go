@@ -5,29 +5,22 @@ package storage
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/state"
 
 	smath "github.com/ava-labs/avalanchego/utils/math"
-	mconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
+	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 
-// Metadata
-// 0x0/ (tx)
-//   -> [txID] => timestamp
-//
 // State
 // / (height) => store in root
 //   -> [heightPrefix] => height
@@ -36,90 +29,22 @@ type ReadState func(context.Context, [][]byte) ([][]byte, []error)
 // 0x1/ (hypersdk-height)
 // 0x2/ (hypersdk-timestamp)
 // 0x3/ (hypersdk-fee)
-// 0x4/ (accounts)
-// 0x5/ (programs)
 
 const (
-	// metaDB
-	txPrefix = 0x0
-
-	// stateDB
+	// Active state
 	balancePrefix   = 0x0
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
 	feePrefix       = 0x3
-	accountsPrefix  = 0x4
-	programsPrefix  = 0x5
-
-	accountProgramPrefix = 0x0
-	accountStatePrefix   = 0x1
 )
 
 const BalanceChunks uint16 = 1
 
 var (
-	failureByte  = byte(0x0)
-	successByte  = byte(0x1)
 	heightKey    = []byte{heightPrefix}
 	timestampKey = []byte{timestampPrefix}
 	feeKey       = []byte{feePrefix}
 )
-
-// [txPrefix] + [txID]
-func TxKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+ids.IDLen)
-	k[0] = txPrefix
-	copy(k[1:], id[:])
-	return
-}
-
-func StoreTransaction(
-	_ context.Context,
-	db database.KeyValueWriter,
-	id ids.ID,
-	t int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-) error {
-	k := TxKey(id)
-	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
-	binary.BigEndian.PutUint64(v, uint64(t))
-	if success {
-		v[consts.Uint64Len] = successByte
-	} else {
-		v[consts.Uint64Len] = failureByte
-	}
-	copy(v[consts.Uint64Len+1:], units.Bytes())
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
-	return db.Put(k, v)
-}
-
-func GetTransaction(
-	_ context.Context,
-	db database.KeyValueReader,
-	id ids.ID,
-) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	k := TxKey(id)
-	v, err := db.Get(k)
-	if errors.Is(err, database.ErrNotFound) {
-		return false, 0, false, fees.Dimensions{}, 0, nil
-	}
-	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, err
-	}
-	t := int64(binary.BigEndian.Uint64(v))
-	success := true
-	if v[consts.Uint64Len] == failureByte {
-		success = false
-	}
-	d, err := fees.UnpackDimensions(v[consts.Uint64Len+1 : consts.Uint64Len+1+fees.DimensionsLen])
-	if err != nil {
-		return false, 0, false, fees.Dimensions{}, 0, err
-	}
-	fee := binary.BigEndian.Uint64(v[consts.Uint64Len+1+fees.DimensionsLen:])
-	return true, t, success, d, fee, nil
-}
 
 // [balancePrefix] + [address]
 func BalanceKey(addr codec.Address) (k []byte) {
@@ -261,42 +186,4 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
-}
-
-// [accountStatePrefix] + [account]
-func accountStateKey(account codec.Address) (k []byte) {
-	k = make([]byte, 2+codec.AddressLen)
-	k[0] = accountsPrefix
-	copy(k[1:], account[:])
-	k[len(k)-1] = accountStatePrefix
-	return
-}
-
-func AccountProgramKey(account codec.Address) (k []byte) {
-	k = make([]byte, 2+codec.AddressLen)
-	k[0] = accountsPrefix
-	copy(k[1:], account[:])
-	k[len(k)-1] = accountProgramPrefix
-	return
-}
-
-func ProgramsKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+ids.IDLen)
-	k[0] = programsPrefix
-	copy(k[1:], id[:])
-	return
-}
-
-func StoreProgram(
-	ctx context.Context,
-	mu state.Mutable,
-	programBytes []byte,
-) (ids.ID, error) {
-	programID := ids.ID(sha256.Sum256(programBytes))
-	return programID, mu.Insert(ctx, ProgramsKey(programID), programBytes)
-}
-
-func GetAddressForDeploy(typeID uint8, creationData []byte) codec.Address {
-	digest := sha256.Sum256(creationData)
-	return codec.CreateAddress(typeID, digest)
 }

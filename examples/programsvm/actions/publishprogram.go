@@ -8,12 +8,9 @@ import (
 	"crypto/sha256"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/units"
-	pconsts "github.com/ava-labs/hypersdk/examples/programsvm/consts"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -25,22 +22,20 @@ type PublishProgram struct {
 }
 
 func (*PublishProgram) GetTypeID() uint8 {
-	return pconsts.PublishProgramID
+	return 3
 }
 
 func (t *PublishProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.id == ids.Empty {
 		t.id = sha256.Sum256(t.ProgramBytes)
 	}
-
-	keys := state.Keys{
+	return state.Keys{
 		string(storage.ProgramsKey(t.id)): state.All,
 	}
-	return keys
 }
 
-func (*PublishProgram) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+func (t *PublishProgram) StateKeysMaxChunks() []uint16 {
+	return []uint16{uint16(len(t.ProgramBytes)), uint16(len(t.ProgramBytes))}
 }
 
 func (t *PublishProgram) Execute(
@@ -56,11 +51,11 @@ func (t *PublishProgram) Execute(
 }
 
 func (*PublishProgram) ComputeUnits(chain.Rules) uint64 {
-	return PublishComputeUnits
+	return 5
 }
 
-func (*PublishProgram) Size() int {
-	return codec.AddressLen + consts.Uint64Len
+func (t *PublishProgram) Size() int {
+	return len(t.ProgramBytes)
 }
 
 func (t *PublishProgram) Marshal(p *codec.Packer) {

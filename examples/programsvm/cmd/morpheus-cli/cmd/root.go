@@ -15,7 +15,7 @@ import (
 
 const (
 	fsModeWrite     = 0o600
-	defaultDatabase = ".programs-cli"
+	defaultDatabase = ".morpheus-cli"
 	defaultGenesis  = "genesis.json"
 )
 
@@ -29,20 +29,17 @@ var (
 	windowTargetUnits     []string
 	minBlockGap           int64
 	hideTxs               bool
-	randomRecipient       bool
-	maxTxBacklog          int
 	checkAllChains        bool
 	prometheusBaseURI     string
 	prometheusOpenBrowser bool
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
-	maxFee                int64
 
 	rootCmd = &cobra.Command{
-		Use:        "programs-cli",
-		Short:      "programsvm CLI",
-		SuggestFor: []string{"programs-cli", "programscli"},
+		Use:        "morpheus-cli",
+		Short:      "MorpheusVM CLI",
+		SuggestFor: []string{"morpheus-cli", "morpheuscli"},
 	}
 )
 
@@ -145,31 +142,12 @@ func init() {
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
-		publishProgramBytesCmd,
 		publishProgramFileCmd,
 		callProgramCmd,
 		deployProgramCmd,
 	)
 
 	// spam
-	runSpamCmd.PersistentFlags().BoolVar(
-		&randomRecipient,
-		"random-recipient",
-		false,
-		"random recipient",
-	)
-	runSpamCmd.PersistentFlags().IntVar(
-		&maxTxBacklog,
-		"max-tx-backlog",
-		72_000,
-		"max tx backlog",
-	)
-	runSpamCmd.PersistentFlags().Int64Var(
-		&maxFee,
-		"max-fee",
-		-1,
-		"max fee per tx",
-	)
 	spamCmd.AddCommand(
 		runSpamCmd,
 	)
