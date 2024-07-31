@@ -21,7 +21,7 @@ extern "C" {
 
 fn main() {
     // for now `simulator` is simple state. but later it will have additional fields + methods
-    let mut simulator = SimpleState::new();
+    let simulator = SimpleState::new();
     let state = Mutable {
         obj: &simulator as *const SimpleState as *mut SimpleState,
         get_state: get_state_callback,
@@ -31,12 +31,12 @@ fn main() {
     // unsafe {
     //     CallProgram(&state as *const Mutable as *mut Mutable);
     // }
-    let programPath = "/Users/sam.liokumovich/Documents/hypersdk/x/programs/rust/examples/token/build/wasm32-unknown-unknown/debug/token.wasm";
-    let programPath = CString::new(programPath).unwrap();
+    let program_path = "/Users/sam.liokumovich/Documents/hypersdk/x/programs/rust/examples/token/build/wasm32-unknown-unknown/debug/token.wasm";
+    let program_path = CString::new(program_path).unwrap();
     let response = unsafe {
         CreateProgram(
             &state as *const Mutable as *mut Mutable,
-            programPath.as_ptr(),
+            program_path.as_ptr(),
         )
     };
 

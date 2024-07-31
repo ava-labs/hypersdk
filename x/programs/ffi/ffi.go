@@ -44,14 +44,13 @@ type ExecuteCtx struct {
 }
 
 //export Execute
-func Execute(db *C.SimpleMutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.Response {
+func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.Response {
    // TODO: error checking making sure the params are not nil
+   
    // db
-   state := db.state;
-
+	state := simState.NewSimulatorState(unsafe.Pointer(db))
    // ctx
    testContext := createRuntimeContext(ctx);
-
    // ExecutionRequest passed from the C code
    paramBytes := C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
 	methodName := C.GoString(p.method)
@@ -63,7 +62,7 @@ func Execute(db *C.SimpleMutable, ctx *C.SimulatorContext,  p *C.ExecutionReques
       gas: uint64(gas),
    }
 
-   callInfo := createRuntimeCallInfo(nil, &testContext, &executeCtx);
+   callInfo := createRuntimeCallInfo(state, &testContext, &executeCtx);
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), logging.NewLogger("test"))
    result, err := rt.CallProgram(context.TODO(), callInfo)
@@ -77,7 +76,7 @@ func Execute(db *C.SimpleMutable, ctx *C.SimulatorContext,  p *C.ExecutionReques
    // fmt.Println("callinfo remaining")
    // grab a response
    response := C.Response{
-      id: state,
+      id: 10,
       error: nil,
       // result must be free'd by rust
       result: C.CBytes(result),
@@ -100,7 +99,7 @@ func createRuntimeContext(ctx *C.SimulatorContext) runtime.Context {
    }
 }
 
-func createRuntimeCallInfo(db *state.SimpleMutable, rctx *runtime.Context, e *ExecuteCtx) *runtime.CallInfo {
+func createRuntimeCallInfo(db state.Mutable, rctx *runtime.Context, e *ExecuteCtx) *runtime.CallInfo {
    return &runtime.CallInfo{
       State: simState.NewProgramStateManager(db),
       Actor: rctx.Actor,
