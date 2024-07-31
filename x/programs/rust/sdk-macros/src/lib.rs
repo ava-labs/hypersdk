@@ -2,16 +2,16 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Literal, Span};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use std::str::FromStr;
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input, parse_quote, parse_str,
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Expr, Fields, FnArg, GenericParam, Ident, ItemFn, LitInt, PatType,
-    Path, ReturnType, Signature, Token, Type, TypeParam, TypeParamBound, TypePath, TypeReference,
-    TypeTuple, Visibility,
+    token, Attribute, Error, Expr, Fields, FnArg, GenericParam, Ident, ItemFn, LitInt, Pat,
+    PatIdent, PatType, PatWild, Path, ReturnType, Signature, Token, Type, TypeParam,
+    TypeParamBound, TypePath, TypeReference, TypeTuple, Visibility,
 };
 
 const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
@@ -78,13 +78,38 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let arg_props = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
-        FnArg::Receiver(_) => Err(Error::new(
-            fn_arg.span(),
-            "Functions with the `#[public]` attribute cannot have a `self` parameter.",
-        )),
-        FnArg::Typed(pat_type) => Ok(pat_type),
-    });
+    let arg_props = input
+        .sig
+        .inputs
+        .iter()
+        .skip(1)
+        .enumerate()
+        .map(|(i, fn_arg)| match fn_arg {
+            FnArg::Receiver(_) => Err(Error::new(
+                fn_arg.span(),
+                "Functions with the `#[public]` attribute cannot have a `self` parameter.",
+            )),
+            FnArg::Typed(pat_type) => {
+                let pat = match pat_type.pat.as_ref() {
+                    Pat::Wild(PatWild { attrs, .. }) => Pat::Ident(PatIdent {
+                        attrs: attrs.clone(),
+                        by_ref: None,
+                        mutability: None,
+                        ident: format_ident!("arg{}", i),
+                        subpat: None,
+                    }),
+                    pat => pat.clone(),
+                }
+                .into();
+
+                let pat_type = PatType {
+                    pat,
+                    ..pat_type.clone()
+                };
+
+                Ok(pat_type)
+            }
+        });
 
     let result = match (vis_err, first_arg_err) {
         (None, None) => Ok(vec![]),
@@ -115,7 +140,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let binding_args_props = args_props.iter().map(|&arg| FnArg::Typed(arg.clone()));
+    let binding_args_props = args_props.iter().map(|arg| FnArg::Typed(arg.clone()));
 
     let args_names = args_props
         .iter()
