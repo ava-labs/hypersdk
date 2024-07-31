@@ -54,6 +54,8 @@ typedef struct {
     GetStateCallback get_value_callback;
     InsertStateCallback insert_callback;
     RemoveStateCallback remove_callback;
+    // doesn't need ot be on the bottom on c side, strange why it needs on rust
+    void *statePlaceholder;
 } Mutable;
 
 typedef struct {

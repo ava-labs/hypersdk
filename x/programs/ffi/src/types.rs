@@ -1,4 +1,18 @@
+use std::{ffi::CStr, str::Utf8Error};
+
 use libc::{c_char, c_int, c_uchar, c_uint};
+use wasmlanche_sdk::{Address as SdkAddress, Id};
+use thiserror::Error;
+use std::fmt;
+ 
+#[derive(Error, Debug)]
+pub enum SimulatorError {
+    #[error("Error across the FFI boundary: {0}")]
+    FFI(#[from] Utf8Error),
+    #[error("Error from the response")]
+    ResponseError,
+}
+
 
 #[repr(C)]
 pub struct ExecutionRequest {
@@ -25,12 +39,12 @@ pub struct SimpleMutable {
 }
 
 #[repr(C)]
-pub struct ID {
+struct ID {
     pub id: [c_uchar; 32],
 }
 
 #[repr(C)]
-pub struct Address {
+struct Address {
     pub address: [c_uchar; 33],
 }
 
@@ -63,7 +77,45 @@ impl Bytes {
 
 #[repr(C)]
 pub struct CreateProgramResponse {
-    pub program_address: Address,
-    pub program_id: ID,
-    pub error: *const c_char,
+    program_address: Address,
+    program_id: ID,
+    error: *const c_char,
+}
+
+impl CreateProgramResponse {
+    pub fn get_program_address(&self) -> Result<SdkAddress, SimulatorError> {
+        if self.has_error() { return Err(SimulatorError::ResponseError) };
+        Ok(SdkAddress::new(self.program_address.address))
+    }
+
+    pub fn get_program_id(&self) -> Result<Id, SimulatorError> {
+        if self.has_error() { return Err(SimulatorError::ResponseError) };
+        Ok(self.program_id.id)
+    }
+
+    pub fn has_error(&self) -> bool {
+        !self.error.is_null() 
+    }
+
+    // get error 
+    pub fn error(&self) -> Result<&str, SimulatorError> {
+        if !self.has_error() {
+            return Ok("")
+        }
+        // need to make sure this pointer lives long enough
+        let c_str = unsafe {CStr::from_ptr(self.error)};
+        return c_str.to_str().map_err(SimulatorError::FFI)
+    }
+}
+
+
+impl fmt::Debug for CreateProgramResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+
+        f.debug_struct("CreateProgramResponse")
+            .field("program_address", &self.get_program_address())
+            .field("program_id", &self.get_program_id())
+            .field("error", &self.error())
+            .finish()
+    }
 }

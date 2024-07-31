@@ -27,9 +27,11 @@ func CallProgram(db *C.Mutable) {
 	// form db from params
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	fmt.Println("Calling CallProgram")
-	state.GetValue(context.TODO(), []byte{1, 2, 3})
+	b, err := state.GetValue(context.TODO(), []byte{1, 2, 3})
+   fmt.Println("b, err: ", b, err)
 	state.Insert(context.TODO(), []byte{1, 2, 3}, []byte{6, 6, 9})
-	state.GetValue(context.TODO(), []byte{1, 2, 3})
+	b, err = state.GetValue(context.TODO(), []byte{1, 2, 3})
+   fmt.Println("b, err: ", b, err)
 	state.Remove(context.TODO(), []byte{1, 2, 3})
 	state.GetValue(context.TODO(), []byte{1, 2, 3})
 

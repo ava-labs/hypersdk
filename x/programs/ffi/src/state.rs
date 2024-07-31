@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString}, ptr::{null, null_mut},
 };
 
 use libc::c_char;
@@ -37,6 +37,22 @@ pub struct Mutable {
     pub get_state: GetStateCallback,
     pub insert_state: InsertStateCallback,
     pub remove_state: RemoveStateCallback,
+    // TODO: why does this need to be in the bottom?
+    pub state: Box<SimpleState>,
+}
+
+impl Mutable {
+    pub fn new() -> Self {
+        let mut state = Box::new(SimpleState::new());
+        let obj = Box::as_mut(&mut state) as *mut SimpleState;
+        Mutable {
+            state: state,
+            obj: obj,
+            get_state: get_state_callback,
+            insert_state: insert_state_callback,
+            remove_state: remove_state_callback,
+        }
+    }
 }
 
 pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> BytesWithError {

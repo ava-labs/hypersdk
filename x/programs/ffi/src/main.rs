@@ -5,47 +5,29 @@ use libc::{c_char, c_int, c_uchar, c_uint, c_void};
 mod simulator;
 mod state;
 mod types;
-use state::{
-    get_state_callback, insert_state_callback, remove_state_callback, GetStateCallback, Mutable,
-    SimpleState,
-};
-use types::{
-    Address, CreateProgramResponse, ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID,
-};
-
-#[link(name = "simulator", kind = "dylib")]
-extern "C" {
-    fn CallProgram(db: *mut Mutable);
-    fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
-}
+use simulator::Simulator;
 
 fn main() {
     // for now `simulator` is simple state. but later it will have additional fields + methods
-    let simulator = SimpleState::new();
-    let state = Mutable {
-        obj: &simulator as *const SimpleState as *mut SimpleState,
-        get_state: get_state_callback,
-        insert_state: insert_state_callback,
-        remove_state: remove_state_callback,
-    };
-    // unsafe {
-    //     CallProgram(&state as *const Mutable as *mut Mutable);
-    // }
+    let simulator = Simulator::new();
+    simulator.CallProgramTest();
     let program_path = "/Users/sam.liokumovich/Documents/hypersdk/x/programs/rust/examples/token/build/wasm32-unknown-unknown/debug/token.wasm";
-    let program_path = CString::new(program_path).unwrap();
-    let response = unsafe {
-        CreateProgram(
-            &state as *const Mutable as *mut Mutable,
-            program_path.as_ptr(),
-        )
-    };
 
-    if response.error != std::ptr::null() {
-        println!("error in response");
-    } else {
-        println!("response grabbed");
-        // println!("id {} and address {}", response.program_id, response.program_address)
-    }
+    let create_response = simulator.CreateProgram(program_path);
+    println!("create response {:?}", create_response)
+    // let response = unsafe {
+    //     CreateProgram(
+    //         &state as *const Mutable as *mut Mutable,
+    //         program_path.as_ptr(),
+    //     )
+    // };
+
+    // if response.error != std::ptr::null() {
+    //     println!("error in response");
+    // } else {
+    //     println!("response grabbed");
+    //     // println!("id {} and address {}", response.program_id, response.program_address)
+    // }
 }
 
 // #[link(name = "simulator", kind = "dylib")]
