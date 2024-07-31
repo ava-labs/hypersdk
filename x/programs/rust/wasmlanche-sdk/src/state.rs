@@ -59,6 +59,12 @@ impl<K: NoUninit> AsRef<[u8]> for PrefixedKey<K> {
 // It's also fine as long as we use `repr(C, packed)` for the struct
 unsafe impl<K: NoUninit> NoUninit for PrefixedKey<K> {}
 
+const _: fn() = || {
+    #[doc(hidden)]
+    struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<u32>()]);
+    let _ = ::core::mem::transmute::<crate::state::PrefixedKey<u32>, TypeWithoutPadding>;
+};
+
 /// # Safety
 /// Do not implement this trait manually. Use the [`state_schema`](crate::state_schema) macro instead.
 pub unsafe trait Schema: NoUninit {
