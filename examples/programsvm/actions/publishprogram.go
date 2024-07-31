@@ -30,12 +30,12 @@ func (t *PublishProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 		t.id = sha256.Sum256(t.ProgramBytes)
 	}
 	return state.Keys{
-		string(storage.ProgramsKey(t.id)): state.All,
+		string(storage.ProgramsKey(t.id)): state.Write | state.Allocate,
 	}
 }
 
 func (t *PublishProgram) StateKeysMaxChunks() []uint16 {
-	return []uint16{uint16(len(t.ProgramBytes)), uint16(len(t.ProgramBytes))}
+	return []uint16{uint16(len(t.ProgramBytes))}
 }
 
 func (t *PublishProgram) Execute(
@@ -55,7 +55,7 @@ func (*PublishProgram) ComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *PublishProgram) Size() int {
-	return len(t.ProgramBytes)
+	return 4 + len(t.ProgramBytes)
 }
 
 func (t *PublishProgram) Marshal(p *codec.Packer) {
