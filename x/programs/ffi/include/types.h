@@ -31,7 +31,7 @@ typedef struct {
 typedef struct {
     int id;
     char* error;
-    uint8_t* result;
+    void* result;
 } Response;
 
 typedef struct {
@@ -56,4 +56,8 @@ typedef struct {
     RemoveStateCallback remove_callback;
 } Mutable;
 
-
+typedef struct {
+    Address programAddress;
+    ID programID;
+    const char *err;
+} CreateProgramResponse;

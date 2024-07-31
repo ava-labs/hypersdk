@@ -2,18 +2,24 @@ use std::{collections::HashMap, ffi::CString};
 
 use libc::{c_char, c_int, c_uchar, c_uint, c_void};
 
-mod types;
-mod state;
 mod simulator;
-use types::{ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID, Address};
-use state::{get_state_callback, insert_state_callback, remove_state_callback, GetStateCallback, Mutable, SimpleState};
+mod state;
+mod types;
+use state::{
+    get_state_callback, insert_state_callback, remove_state_callback, GetStateCallback, Mutable,
+    SimpleState,
+};
+use types::{
+    Address, CreateProgramResponse, ExecutionRequest, Response, SimpleMutable, SimulatorContext, ID,
+};
 
 #[link(name = "simulator", kind = "dylib")]
 extern "C" {
     fn CallProgram(db: *mut Mutable);
+    fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
 }
 
-fn main () {
+fn main() {
     // for now `simulator` is simple state. but later it will have additional fields + methods
     let mut simulator = SimpleState::new();
     let state = Mutable {
@@ -22,15 +28,25 @@ fn main () {
         insert_state: insert_state_callback,
         remove_state: remove_state_callback,
     };
-    unsafe {
-        CallProgram(&state as *const Mutable as *mut Mutable);
-    }
-    // simulator.insert(vec![1, 2, 3], vec![4, 5, 6]);
     // unsafe {
     //     CallProgram(&state as *const Mutable as *mut Mutable);
     // }
-}
+    let programPath = "/Users/sam.liokumovich/Documents/hypersdk/x/programs/rust/examples/token/build/wasm32-unknown-unknown/debug/token.wasm";
+    let programPath = CString::new(programPath).unwrap();
+    let response = unsafe {
+        CreateProgram(
+            &state as *const Mutable as *mut Mutable,
+            programPath.as_ptr(),
+        )
+    };
 
+    if response.error != std::ptr::null() {
+        println!("error in response");
+    } else {
+        println!("response grabbed");
+        // println!("id {} and address {}", response.program_id, response.program_address)
+    }
+}
 
 // #[link(name = "simulator", kind = "dylib")]
 // extern "C" {
@@ -56,7 +72,7 @@ fn main () {
 //         height: 0,
 //         timestamp: 0,
 //     };
-  
+
 //     println!("Calling the Execute function");
 //     let response = unsafe {
 //         Execute(
@@ -66,4 +82,3 @@ fn main () {
 
 //     println!("The response id is: {}", response.id);
 // }
-

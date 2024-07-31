@@ -230,6 +230,7 @@ mod tests {
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
+
     const MAX_UNITS: u64 = 1000000;
     #[test]
     fn create_program() {
@@ -243,7 +244,7 @@ mod tests {
     fn init_token() {
         let mut simulator = build_simulator();
 
-        let program_id : Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
+        let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
 
         simulator
@@ -292,7 +293,7 @@ mod tests {
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_id : Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
+        let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
 
         simulator
@@ -349,7 +350,7 @@ mod tests {
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_id : Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
+        let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
         let test_context = TestContext::from(program_id);
 
         simulator

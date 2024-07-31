@@ -159,3 +159,11 @@ func (s *prefixedStateMutable) Remove(ctx context.Context, key []byte) error {
 func newAccountPrefixedMutable(account codec.Address, mutable state.Mutable) state.Mutable {
 	return &prefixedStateMutable{inner: mutable, prefix: accountStateKey(account[:])}
 }
+
+func accountStateKey(key []byte) (k []byte) {
+	k = make([]byte, 2+len(key))
+	k[0] = accountPrefix
+	copy(k[1:], key)
+	k[len(k)-1] = accountStatePrefix
+	return
+}

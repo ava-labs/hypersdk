@@ -63,9 +63,9 @@ pub fn build_simulator() -> Simulator<impl Write, impl Iterator<Item = Simulator
     let writer = stdin.expect("unable to get stdin");
     let reader = stdout.expect("unable to get stdout");
 
-    let responses = BufReader::new(reader)
-    .lines()
-    .map(|line| borsh::from_slice(line?.as_bytes()).map_err(SimulatorError::BorshDeserialization));
+    let responses = BufReader::new(reader).lines().map(|line| {
+        borsh::from_slice(line?.as_bytes()).map_err(SimulatorError::BorshDeserialization)
+    });
 
     Simulator { writer, responses }
 }

@@ -1,4 +1,3 @@
-
 use libc::{c_char, c_int, c_uchar, c_uint};
 
 #[repr(C)]
@@ -60,4 +59,11 @@ impl Bytes {
     pub fn get_slice(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.data, self.len) }
     }
+}
+
+#[repr(C)]
+pub struct CreateProgramResponse {
+    pub program_address: Address,
+    pub program_id: ID,
+    pub error: *const c_char,
 }

@@ -28,13 +28,11 @@ const (
 )
 
 type ProgramStateManager struct {
-	db *SimulatorState
+	db state.Mutable
 }
 
 func NewProgramStateManager(db state.Mutable) *ProgramStateManager {
-	return &ProgramStateManager{
-		db: db
-	}
+	return &ProgramStateManager{db}
 }
 // Balance Manager Methods
 
@@ -96,7 +94,7 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids
 }
 
 func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
-	return p.deployProgram(ctx, programID, accountCreationData)
+	return p.DeployProgram(ctx, programID, accountCreationData)
 }
 
 func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
@@ -105,7 +103,7 @@ func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account cod
 
 func (p *ProgramStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
 	// TODO: we aren't passing in ctx? honestly need to learn more about what contrext does
-	return p.db.insert(accountBalanceKey(account[:]), binary.BigEndian.AppendUint64(nil, amount))
+	return p.db.Insert(ctx, accountBalanceKey(account[:]), binary.BigEndian.AppendUint64(nil, amount))
 }
 
 func (p *ProgramStateManager) getAccountBalance(ctx context.Context, account codec.Address) (uint64, error) {
@@ -179,7 +177,7 @@ func (p *ProgramStateManager) getProgram(ctx context.Context, programID ids.ID) 
 }
 
 // setProgram stores [program] at [programID]
-func (p *ProgramStateManager) setProgram(
+func (p *ProgramStateManager) SetProgram(
 	ctx context.Context,
 	programID ids.ID,
 	program []byte,
@@ -187,7 +185,7 @@ func (p *ProgramStateManager) setProgram(
 	return p.db.Insert(ctx, programKey(programID[:]), program)
 }
 
-func (p *ProgramStateManager) deployProgram(
+func (p *ProgramStateManager) DeployProgram(
 	ctx context.Context,
 	programID ids.ID,
 	accountCreationData []byte,

@@ -81,6 +81,8 @@ extern "C" {
 #endif
 
 extern void CallProgram(Mutable* db);
+extern Response Execute(SimpleMutable* db, SimulatorContext* ctx, ExecutionRequest* p);
+extern CreateProgramResponse CreateProgram(Mutable* db, char* path);
 
 #ifdef __cplusplus
 }
