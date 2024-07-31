@@ -887,7 +887,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// Generate transaction
 			parser, err := instances[0].lcli.Parser(context.TODO())
 			require.NoError(err)
-			submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				[]chain.Action{&actions.PublishProgram{
@@ -899,11 +899,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			// Broadcast and wait for transaction
 			require.NoError(submit(context.Background()))
-			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, _, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
-			cancel()
-			require.NoError(err)
-			require.True(success)
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			require.Len(results, 1)
+			require.True(results[0].Success)
 		})
 	})
 })
