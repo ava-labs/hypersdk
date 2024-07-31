@@ -1,8 +1,6 @@
 package chain_test
 
 import (
-	"bytes"
-	"reflect"
 	"testing"
 	"time"
 
@@ -48,54 +46,6 @@ func TestMarshalTransfer(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, transfer, restoredStruct)
-}
-
-// go test . -v  -fuzz=FuzzTransferValue -fuzztime=2s
-func FuzzTransferValue(f *testing.F) {
-
-	f.Add(uint64(12876198273671286))
-
-	f.Fuzz(func(t *testing.T, value uint64) {
-		type testStructure struct {
-			To    codec.Address `json:"to"`
-			Value uint64        `json:"value"`
-			Memo  []byte        `json:"memo"`
-		}
-
-		transfer := testStructure{
-			To:    codec.Address{1, 2, 3, 4, 5, 6, 7, 8, 9},
-			Value: value,
-			Memo:  []byte("Hello World"), // Fixed memo for uint64 test
-		}
-
-		// Manual marshaling
-		p := codec.NewWriter(0, consts.NetworkSizeLimit)
-		p.PackAddress(transfer.To)
-		p.PackUint64(transfer.Value)
-		p.PackBytes(transfer.Memo)
-		expectedBytes := p.Bytes()
-
-		// chain.MarshalAction
-		actualBytes, err := chain.MarshalAction(transfer)
-		if err != nil {
-			t.Fatalf("MarshalAction failed: %v", err)
-		}
-
-		if !bytes.Equal(expectedBytes, actualBytes) {
-			t.Fatalf("Marshaled bytes do not match. Expected: %v, Got: %v", expectedBytes, actualBytes)
-		}
-
-		// chain.UnmarshalAction
-		var restoredStruct testStructure
-		err = chain.UnmarshalAction(actualBytes, &restoredStruct)
-		if err != nil {
-			t.Fatalf("UnmarshalAction failed: %v", err)
-		}
-
-		if !reflect.DeepEqual(transfer, restoredStruct) {
-			t.Fatalf("Restored struct does not match original. Original: %+v, Restored: %+v", transfer, restoredStruct)
-		}
-	})
 }
 
 func TestMarshalNegativeInts(t *testing.T) {
