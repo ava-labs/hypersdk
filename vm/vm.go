@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
 	"net/http"
 	"path/filepath"
 	"sync"
@@ -840,36 +839,29 @@ func (vm *VM) Submit(
 	verifyAuth bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
-	log.Warn("enter submit")
-
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))
 
-	log.Warn("ENTER SUBMIT")
 	// We should not allow any transactions to be submitted if the VM is not
 	// ready yet. We should never reach this point because of other checks but it
 	// is good to be defensive.
 	if !vm.isReady() {
-		log.Error("VM NOT READY")
 		return []error{ErrNotReady}
 	}
 
 	// Create temporary execution context
 	blk, err := vm.GetStatelessBlock(ctx, vm.preferred)
 	if err != nil {
-		log.Error("GetStatelessBlockFail", zap.Error(err))
 		return []error{err}
 	}
 	view, err := blk.View(ctx, false)
 	if err != nil {
-		log.Error("block view fail", zap.Error(err))
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
 	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
-		log.Error("view.getValue fail", zap.Error(err))
 		return []error{err}
 	}
 	feeManager := fees.NewManager(feeRaw)
@@ -877,7 +869,6 @@ func (vm *VM) Submit(
 	r := vm.c.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
-		log.Error("ComputeNext fail", zap.Error(err))
 		return []error{err}
 	}
 
@@ -885,17 +876,14 @@ func (vm *VM) Submit(
 	oldestAllowed := now - r.GetValidityWindow()
 	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
 	if err != nil {
-		log.Error("IsRepeat fail", zap.Error(err))
 		return []error{err}
 	}
 
-	log.Warn("Made it to per tx")
 	validTxs := []*chain.Transaction{}
 	for i, tx := range txs {
 		// Check if transaction is a repeat before doing any extra work
 		if repeats.Contains(i) {
 			errs = append(errs, chain.ErrDuplicateTx)
-			log.Warn("skipping repeat")
 			continue
 		}
 
@@ -905,7 +893,6 @@ func (vm *VM) Submit(
 			// Don't remove from listeners, it will be removed elsewhere if not
 			// included
 			errs = append(errs, ErrNotAdded)
-			log.Warn("in mempool")
 			continue
 		}
 
@@ -913,7 +900,6 @@ func (vm *VM) Submit(
 		_, err := tx.StateKeys(vm.c.StateManager())
 		if err != nil {
 			errs = append(errs, ErrNotAdded)
-			log.Warn("invalid statekeys")
 			continue
 		}
 
@@ -923,14 +909,12 @@ func (vm *VM) Submit(
 			if err != nil {
 				// Should never fail
 				errs = append(errs, err)
-				log.Warn("failed digest")
 				continue
 			}
 			if err := tx.Auth.Verify(ctx, msg); err != nil {
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				log.Warn("failed auth verify")
 				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
 					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
 				}
