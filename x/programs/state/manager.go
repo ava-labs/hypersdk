@@ -15,7 +15,7 @@ import (
 )
 
 // ensure SimulatorStateManager implements StateManager
-var _ runtime.StateManager = &programStateManager{}
+var _ runtime.StateManager = &ProgramStateManager{}
 
 const (
 	programPrefix = 0x0
@@ -27,19 +27,24 @@ const (
 	addressStoragePrefix = 0x3
 )
 
-type programStateManager struct {
+type ProgramStateManager struct {
 	db *SimulatorState
 }
 
+func NewProgramStateManager(db state.Mutable) *ProgramStateManager {
+	return &ProgramStateManager{
+		db: db
+	}
+}
 // Balance Manager Methods
 
 // getAccountBalance gets the balance associated [account].
 // Returns 0 if no balance was found or errors if another error is present
-func (p *programStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
+func (p *ProgramStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
 	return p.getAccountBalance(ctx, address)
 }
 
-func (p *programStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
+func (p *ProgramStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
 	fromBalance, err := p.getAccountBalance(ctx, from)
 	if err != nil {
 		return err
@@ -61,13 +66,13 @@ func (p *programStateManager) TransferBalance(ctx context.Context, from codec.Ad
 }
 
 // ProgramManager methods
-func (p *programStateManager) GetProgramState(account codec.Address) state.Mutable {
+func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutable {
 	return newAccountPrefixedMutable(account, p.db)
 }
 
 // GetAccountProgram grabs the assoicated id with [account]. The ID is the key mapping to the programbytes
 // Errors if there is no found account or an error fetching
-func (p *programStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
 	programID, exists, err := p.getAccountProgram(ctx, account)
 	if err != nil {
 		return ids.Empty, err
@@ -78,7 +83,7 @@ func (p *programStateManager) GetAccountProgram(ctx context.Context, account cod
 	return programID, nil
 }
 
-func (p *programStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
 	// TODO: take fee out of balance?
 	programBytes, exists, err := p.getProgram(ctx, programID)
 	if err != nil {
@@ -90,20 +95,20 @@ func (p *programStateManager) GetProgramBytes(ctx context.Context, programID ids
 	return programBytes, nil
 }
 
-func (p *programStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
+func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
 	return p.deployProgram(ctx, programID, accountCreationData)
 }
 
-func (p *programStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
+func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
 	return p.setAccountProgram(ctx, account, programID)
 }
 
-func (p *programStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
+func (p *ProgramStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
 	// TODO: we aren't passing in ctx? honestly need to learn more about what contrext does
 	return p.db.insert(accountBalanceKey(account[:]), binary.BigEndian.AppendUint64(nil, amount))
 }
 
-func (p *programStateManager) getAccountBalance(ctx context.Context, account codec.Address) (uint64, error) {
+func (p *ProgramStateManager) getAccountBalance(ctx context.Context, account codec.Address) (uint64, error) {
 	v, err := p.db.GetValue(ctx, accountBalanceKey(account[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return 0, nil
@@ -142,7 +147,7 @@ func programKey(key []byte) (k []byte) {
 	return
 }
 
-func (p *programStateManager) getAccountProgram(ctx context.Context, account codec.Address) (ids.ID, bool, error) {
+func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account codec.Address) (ids.ID, bool, error) {
 	v, err := p.db.GetValue(ctx, accountProgramKey(account[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return ids.Empty, false, nil
@@ -153,7 +158,7 @@ func (p *programStateManager) getAccountProgram(ctx context.Context, account cod
 	return ids.ID(v[:32]), true, nil
 }
 
-func (p *programStateManager) setAccountProgram(
+func (p *ProgramStateManager) setAccountProgram(
 	ctx context.Context,
 	account codec.Address,
 	programID ids.ID,
@@ -162,7 +167,7 @@ func (p *programStateManager) setAccountProgram(
 }
 
 // [programID] -> [programBytes]
-func (p *programStateManager) getProgram(ctx context.Context, programID ids.ID) ([]byte, bool, error) {
+func (p *ProgramStateManager) getProgram(ctx context.Context, programID ids.ID) ([]byte, bool, error) {
 	v, err := p.db.GetValue(ctx, programKey(programID[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
@@ -174,7 +179,7 @@ func (p *programStateManager) getProgram(ctx context.Context, programID ids.ID) 
 }
 
 // setProgram stores [program] at [programID]
-func (p *programStateManager) setProgram(
+func (p *ProgramStateManager) setProgram(
 	ctx context.Context,
 	programID ids.ID,
 	program []byte,
@@ -182,7 +187,7 @@ func (p *programStateManager) setProgram(
 	return p.db.Insert(ctx, programKey(programID[:]), program)
 }
 
-func (p *programStateManager) deployProgram(
+func (p *ProgramStateManager) deployProgram(
 	ctx context.Context,
 	programID ids.ID,
 	accountCreationData []byte,
