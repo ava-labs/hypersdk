@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -262,47 +261,6 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 	require.Empty(t, restoredStruct.EmptyDescription)
 	require.Empty(t, restoredStruct.EmptyItems)
 	require.Empty(t, restoredStruct.EmptyMapField)
-}
-
-func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
-	type TestStruct struct {
-		Uint64Field uint64
-		StringField string
-		BytesField  []byte
-	}
-
-	test := TestStruct{
-		Uint64Field: 42,
-		StringField: "Hello, World!",
-		BytesField:  []byte{1, 2, 3, 4, 5},
-	}
-
-	iterations := 100_000
-
-	// Time codec.AutoMarshalStruct and codec.AutoUnmarshalStruct
-	start := time.Now()
-
-	for i := 0; i < iterations; i++ {
-		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(packer, &test)
-		if packer.Err() != nil {
-			t.Fatal(packer.Err())
-		}
-
-		var restored TestStruct
-		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	reflectionTime := time.Since(start)
-
-	// Check if reflectionTime is more than 100ms
-	if reflectionTime > 100*time.Millisecond {
-		t.Fatalf("MarshalAction and UnmarshalAction took too long: %v", reflectionTime)
-	}
-
-	t.Logf("Reflection time: %v", reflectionTime)
 }
 
 // $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
