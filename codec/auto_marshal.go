@@ -180,24 +180,14 @@ type fieldInfo struct {
 	typ   reflect.Type
 }
 
-var (
-	typeInfoCache = make(map[reflect.Type][]fieldInfo)
-	cacheMutex    sync.RWMutex
-)
+var typeInfoCache sync.Map
 
 func getTypeInfo(t reflect.Type) []fieldInfo {
-	cacheMutex.RLock()
-	info, ok := typeInfoCache[t]
-	cacheMutex.RUnlock()
-	if ok {
-		return info
+	if info, ok := typeInfoCache.Load(t); ok {
+		return info.([]fieldInfo)
 	}
 
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
-
 	var exportedFields []fieldInfo
-
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if field.IsExported() {
@@ -209,7 +199,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 		}
 	}
 
-	typeInfoCache[t] = exportedFields
+	typeInfoCache.Store(t, exportedFields)
 	return exportedFields
 }
 
