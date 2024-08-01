@@ -127,16 +127,17 @@ func (p *Packer) UnpackInt64(required bool) int64 {
 	return int64(v)
 }
 
-func (p *Packer) PackInt(v int) {
-	p.p.PackInt(uint32(v))
+// PackInt now accepts uint32 to ensure full support for 64-bit machines
+func (p *Packer) PackInt(v uint32) {
+	p.p.PackInt(v)
 }
 
-func (p *Packer) UnpackInt(required bool) int {
+func (p *Packer) UnpackInt(required bool) uint32 {
 	v := p.p.UnpackInt()
 	if required && v == 0 {
 		p.addErr(fmt.Errorf("%w: Int field is not populated", ErrFieldNotPopulated))
 	}
-	return int(v)
+	return v
 }
 
 func (p *Packer) PackWindow(w window.Window) {
@@ -179,4 +180,21 @@ func (p *Packer) addErr(err error) {
 
 func (p *Packer) Offset() int {
 	return p.p.Offset
+}
+
+// additional functions added for auto packer
+func (p *Packer) PackShort(v uint16) {
+	p.p.PackShort(v)
+}
+
+func (p *Packer) UnpackShort() uint16 {
+	return p.p.UnpackShort()
+}
+
+func (p *Packer) PackLong(v uint64) {
+	p.p.PackLong(v)
+}
+
+func (p *Packer) UnpackLong() uint64 {
+	return p.p.UnpackLong()
 }

@@ -5,20 +5,17 @@ import (
 	"math"
 	reflect "reflect"
 	"sync"
-
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/consts"
 )
 
-func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) ([]byte, error) {
+func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
 	switch kind {
 	case reflect.Struct:
 		info := getTypeInfo(typ)
 		for _, fi := range info {
 			field := v.Field(fi.index)
-			_, err := marshalValue(p, field, fi.kind, fi.typ)
+			err := marshalValue(p, field, fi.kind, fi.typ)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 	case reflect.Slice:
@@ -27,29 +24,29 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 			p.PackBytes(v.Bytes())
 		} else {
 			if v.Len() > math.MaxUint16 {
-				return nil, fmt.Errorf("array length exceeds maximum allowed")
+				return fmt.Errorf("array length exceeds maximum allowed")
 			}
 			p.PackShort(uint16(v.Len()))
 			for i := 0; i < v.Len(); i++ {
-				_, err := marshalValue(p, v.Index(i), typ.Elem().Kind(), typ.Elem())
+				err := marshalValue(p, v.Index(i), typ.Elem().Kind(), typ.Elem())
 				if err != nil {
-					return nil, err
+					return err
 				}
 			}
 		}
 	case reflect.Map:
 		if v.Len() > math.MaxUint16 {
-			return nil, fmt.Errorf("map length exceeds maximum allowed")
+			return fmt.Errorf("map length exceeds maximum allowed")
 		}
 		p.PackShort(uint16(v.Len()))
 		for _, key := range v.MapKeys() {
-			_, err := marshalValue(p, key, typ.Key().Kind(), typ.Key())
+			err := marshalValue(p, key, typ.Key().Kind(), typ.Key())
 			if err != nil {
-				return nil, err
+				return err
 			}
-			_, err = marshalValue(p, v.MapIndex(key), typ.Elem().Kind(), typ.Elem())
+			err = marshalValue(p, v.MapIndex(key), typ.Elem().Kind(), typ.Elem())
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 	case reflect.Int8:
@@ -72,30 +69,27 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 		p.PackLong(v.Uint())
 	case reflect.String:
 		if len(v.String()) > math.MaxUint16 {
-			return nil, fmt.Errorf("string length exceeds maximum allowed")
+			return fmt.Errorf("string length exceeds maximum allowed")
 		}
-		p.PackStr(v.String())
+		p.PackString(v.String())
 	case reflect.Bool:
 		p.PackBool(v.Bool())
 	default:
 		if typ == reflect.TypeOf(Address{}) {
 			if v.Interface().(Address) == EmptyAddress {
-				return nil, fmt.Errorf("packer does not support empty addresses")
+				return fmt.Errorf("packer does not support empty addresses")
 			}
 			addr := v.Interface().(Address)
-			p.PackFixedBytes(addr[:])
+			p.PackAddress(addr)
 		} else {
-			return nil, fmt.Errorf("unsupported field type: %v", kind)
+			return fmt.Errorf("unsupported field type: %v", kind)
 		}
 	}
 
-	return p.Bytes, nil
+	return nil
 }
 
-func AutoUnmarshalStruct(data []byte, item interface{}) error {
-	p := &wrappers.Packer{
-		Bytes: data,
-	}
+func AutoUnmarshalStruct(p *Packer, item interface{}) error {
 	v := reflect.ValueOf(item).Elem()
 	t := v.Type()
 
@@ -112,7 +106,7 @@ func AutoUnmarshalStruct(data []byte, item interface{}) error {
 	return nil
 }
 
-func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
+func unmarshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
 	switch kind {
 	case reflect.Struct:
 		info := getTypeInfo(typ)
@@ -124,7 +118,9 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 		}
 	case reflect.Slice:
 		if typ.Elem().Kind() == reflect.Uint8 {
-			v.SetBytes(p.UnpackBytes())
+			var b []byte
+			p.UnpackBytes(-1, false, &b)
+			v.SetBytes(b)
 		} else {
 			length := int(p.UnpackShort())
 			slice := reflect.MakeSlice(typ, length, length)
@@ -157,7 +153,7 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 	case reflect.Int16:
 		v.SetInt(int64(p.UnpackShort()))
 	case reflect.Int32:
-		v.SetInt(int64(p.UnpackInt()))
+		v.SetInt(int64(p.UnpackInt(false)))
 	case reflect.Int64:
 		v.SetInt(int64(p.UnpackLong()))
 	case reflect.Uint:
@@ -167,25 +163,25 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 	case reflect.Uint16:
 		v.SetUint(uint64(p.UnpackShort()))
 	case reflect.Uint32:
-		v.SetUint(uint64(p.UnpackInt()))
+		v.SetUint(uint64(p.UnpackInt(false)))
 	case reflect.Uint64:
 		v.SetUint(uint64(p.UnpackLong()))
 	case reflect.String:
-		v.SetString(p.UnpackStr())
+		v.SetString(p.UnpackString(false))
 	case reflect.Bool:
 		v.SetBool(p.UnpackBool())
 	default:
 		if typ == reflect.TypeOf(Address{}) {
 			var addr Address
-			copy(addr[:], p.UnpackFixedBytes(len(addr)))
+			p.UnpackAddress(&addr)
 			v.Set(reflect.ValueOf(addr))
 		} else {
 			return fmt.Errorf("unsupported field type: %v", kind)
 		}
 	}
 
-	if p.Errs.Err != nil {
-		return p.Errs.Err
+	if p.Err() != nil {
+		return p.Err()
 	}
 
 	return nil
@@ -228,8 +224,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	return exportedFields
 }
 
-func AutoMarshalStruct(item interface{}) ([]byte, error) {
-	p := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
+func AutoMarshalStruct(item interface{}, p *Packer) {
 	v := reflect.ValueOf(item)
 	t := v.Type()
 
@@ -237,11 +232,9 @@ func AutoMarshalStruct(item interface{}) ([]byte, error) {
 
 	for _, fi := range info {
 		field := v.Field(fi.index)
-		_, err := marshalValue(p, field, fi.kind, fi.typ)
+		err := marshalValue(p, field, fi.kind, fi.typ)
 		if err != nil {
-			return nil, err
+			p.addErr(err)
 		}
 	}
-
-	return p.Bytes, nil
 }

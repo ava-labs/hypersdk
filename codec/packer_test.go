@@ -122,10 +122,10 @@ func TestPackerAddress(t *testing.T) {
 
 func TestNewReader(t *testing.T) {
 	require := require.New(t)
-	vInt := 900
+	vInt := uint32(900)
 	wp := NewWriter(5, 5)
 	// Add an int and a bool
-	wp.PackInt(vInt)
+	wp.PackInt(uint32(vInt))
 	wp.PackBool(true)
 	// Create reader
 	rp := NewReader(wp.Bytes(), 2)

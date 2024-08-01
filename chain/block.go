@@ -810,7 +810,7 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackInt64(b.Tmstmp)
 	p.PackUint64(b.Hght)
 
-	p.PackInt(len(b.Txs))
+	p.PackInt(uint32(len(b.Txs)))
 	b.authCounts = map[uint8]int{}
 	for _, tx := range b.Txs {
 		if err := tx.Marshal(p); err != nil {
@@ -844,7 +844,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	actionRegistry, authRegistry := parser.Registry()
 	b.Txs = []*Transaction{} // don't preallocate all to avoid DoS
 	b.authCounts = map[uint8]int{}
-	for i := 0; i < txCount; i++ {
+	for i := 0; i < int(txCount); i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, err
