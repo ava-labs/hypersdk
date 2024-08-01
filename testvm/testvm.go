@@ -9,9 +9,18 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
+	"github.com/ava-labs/avalanchego/snow/validators"
+	avatrace "github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/tstate"
+	"github.com/ava-labs/hypersdk/workers"
 )
 
 type BlockProductionType int
@@ -33,17 +42,13 @@ var (
 	TooSoon               = errors.New("too soon to build a block")
 )
 
-var genesisBlock = chain.StatelessBlock{
-	StatefulBlock: &chain.StatefulBlock{
-		Prnt:   ids.ID{'n', 'o', 'n', 'e'},
-		Tmstmp: 0,
-		Hght:   0,
-	},
-}
-
-var defaultEnv = Env{
-	currentBlock: genesisBlock,
-}
+// var genesisBlock = chain.StatelessBlock{
+// 	StatefulBlock: &chain.StatefulBlock{
+// 		Prnt:   ids.ID{'n', 'o', 'n', 'e'},
+// 		Tmstmp: 0,
+// 		Hght:   0,
+// 	},
+// }
 
 type Env struct {
 	currentBlock chain.StatelessBlock
@@ -69,32 +74,66 @@ type Snapshot struct {
 	Env
 }
 
+var _ chain.VM = (*TestVM)(nil)
+
 type TestVM struct {
 	Env
 
 	pendingTransactions []chain.Transaction
 	blockProduction     BlockProduction
 
-	snapshots map[uint64]Snapshot
-	rules     chain.MockRules
-	maxUnits  fees.Dimensions
+	snapshots    map[uint64]Snapshot
+	rules        *chain.MockRules
+	maxUnits     fees.Dimensions
+	stateManager chain.StateManager
+	tracer       avatrace.Tracer
 }
 
 type TestConfig struct {
 	*Env
-
-	blockProduction BlockProduction
+	BlockProduction BlockProduction
+	MaxUnits        fees.Dimensions
+	StateManager    chain.StateManager
+	TracerConfig    trace.Config
+	Rules           *chain.MockRules
 }
 
-func (vm *TestVM) Init(config TestConfig, maxUnits fees.Dimensions) {
+func (vm *TestVM) Init(ctx context.Context, config TestConfig) error {
 	if config.Env != nil {
 		vm.Env = *config.Env
 	} else {
+		var genesisBlock = chain.NewBlock(
+			vm, &chain.StatelessBlock{
+				StatefulBlock: &chain.StatefulBlock{
+					Prnt:      [32]byte{},
+					Tmstmp:    0,
+					Hght:      0,
+					Txs:       []*chain.Transaction{},
+					StateRoot: [32]byte{},
+				},
+			},
+			0,
+		)
+		genesisBlock.MarkAccepted(ctx)
+
+		var defaultEnv = Env{
+			currentBlock: *genesisBlock,
+		}
+
 		vm.Env = defaultEnv
 	}
 
-	vm.blockProduction = config.blockProduction
-	vm.maxUnits = maxUnits
+	vm.blockProduction = config.BlockProduction
+	vm.maxUnits = config.MaxUnits
+	vm.stateManager = config.StateManager
+	tracer, err := trace.New(&config.TracerConfig)
+	if err != nil {
+		return err
+	}
+	vm.tracer = tracer
+	vm.rules = config.Rules
+
+	return nil
 }
 
 func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*chain.Result, error) {
@@ -106,32 +145,32 @@ func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*ch
 	}
 
 	var storage = make(map[string][]byte, len(stateKeys))
-	parent := vm.currentBlock
-	parentView, err := parent.View(ctx, true)
+	// parent := vm.currentBlock
+	// parentView, err := parent.View(ctx, true)
 
-	for k := range stateKeys {
-		v, err := parentView.GetValue(ctx, []byte(k))
-		if err != nil {
-			return nil, err
-		}
-		storage[k] = v
-	}
+	// for k := range stateKeys {
+	// 	v, err := parentView.GetValue(ctx, []byte(k))
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	storage[k] = v
+	// }
 
 	tsv := ts.NewView(stateKeys, storage)
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
-	feeKey := chain.FeeKey(vm.StateManager().FeeKey())
-	feeRaw, err := parentView.GetValue(ctx, feeKey)
+	// feeKey := chain.FeeKey(vm.StateManager().FeeKey())
+	// feeRaw, err := parentView.GetValue(ctx, feeKey)
 	if err != nil {
 		return nil, err
 	}
 
-	parentFeeManager := fees.NewManager(feeRaw)
-	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
+	// parentFeeManager := fees.NewManager(feeRaw)
+	// feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
 
 	result, err := tx.Execute(
 		ctx,
-		feeManager,
+		fees.NewManager([]byte{}),
 		sm,
 		r,
 		tsv,
@@ -141,9 +180,9 @@ func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*ch
 		return nil, err
 	}
 
-	if ok, _ := feeManager.Consume(result.Units, vm.maxUnits); !ok {
-		return nil, nil
-	}
+	// if ok, _ := feeManager.Consume(result.Units, vm.maxUnits); !ok {
+	// 	return nil, nil
+	// }
 
 	return result, nil
 }
@@ -207,12 +246,64 @@ func (vm *TestVM) SnapshotRevert(id uint64) error {
 	return nil
 }
 
+// VM
+
+// Metrics
+func (vm *TestVM) RecordRootCalculated(time.Duration)          {}
+func (vm *TestVM) RecordWaitRoot(time.Duration)                {}
+func (vm *TestVM) RecordWaitSignatures(time.Duration)          {}
+func (vm *TestVM) RecordBlockVerify(time.Duration)             {}
+func (vm *TestVM) RecordBlockAccept(time.Duration)             {}
+func (vm *TestVM) RecordStateChanges(int)                      {}
+func (vm *TestVM) RecordStateOperations(int)                   {}
+func (vm *TestVM) RecordBuildCapped()                          {}
+func (vm *TestVM) RecordEmptyBlockBuilt()                      {}
+func (vm *TestVM) RecordClearedMempool()                       {}
+func (vm *TestVM) GetExecutorBuildRecorder() executor.Metrics  { return nil }
+func (vm *TestVM) GetExecutorVerifyRecorder() executor.Metrics { return nil }
+
+// Monitoring
+func (vm *TestVM) Tracer() avatrace.Tracer { return vm.tracer }
+func (vm *TestVM) Logger() logging.Logger  { return nil }
+
 // Parser
-func (vm *TestVM) Rules(int64) chain.Rules {
-	return &vm.rules
+func (vm *TestVM) Rules(int64) chain.Rules                              { return vm.rules }
+func (vm *TestVM) Registry() (chain.ActionRegistry, chain.AuthRegistry) { return nil, nil }
+
+func (vm *TestVM) AuthVerifiers() workers.Workers { return nil }
+func (vm *TestVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
+	return nil, false
+}
+func (vm *TestVM) GetVerifyAuth() bool { return false }
+
+func (vm *TestVM) IsBootstrapped() bool                     { return false }
+func (vm *TestVM) LastAcceptedBlock() *chain.StatelessBlock { return nil }
+func (vm *TestVM) GetStatelessBlock(context.Context, ids.ID) (*chain.StatelessBlock, error) {
+	return nil, nil
 }
 
-// VM
-func (vm *TestVM) StateManager() chain.StateManager {
-	return nil
+func (vm *TestVM) GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (chain.VerifyContext, error) {
+	return nil, nil
 }
+
+func (vm *TestVM) State() (merkledb.MerkleDB, error) { return nil, nil }
+func (vm *TestVM) StateManager() chain.StateManager  { return vm.stateManager }
+func (vm *TestVM) ValidatorState() validators.State  { return nil }
+
+func (vm *TestVM) Mempool() chain.Mempool { return nil }
+func (vm *TestVM) IsRepeat(context.Context, []*chain.Transaction, set.Bits, bool) set.Bits {
+	return set.Bits{}
+}
+func (vm *TestVM) GetTargetBuildDuration() time.Duration { return 0 }
+func (vm *TestVM) GetTransactionExecutionCores() int     { return 0 }
+func (vm *TestVM) GetStateFetchConcurrency() int         { return 0 }
+
+func (vm *TestVM) Verified(context.Context, *chain.StatelessBlock) {}
+func (vm *TestVM) Rejected(context.Context, *chain.StatelessBlock) {}
+func (vm *TestVM) Accepted(context.Context, *chain.StatelessBlock) {}
+func (vm *TestVM) AcceptedSyncableBlock(context.Context, *chain.SyncableBlock) (block.StateSyncMode, error) {
+	return 0, nil
+}
+
+func (vm *TestVM) UpdateSyncTarget(*chain.StatelessBlock) (bool, error) { return false, nil }
+func (vm *TestVM) StateReady() bool                                     { return false }
