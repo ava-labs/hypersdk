@@ -18,4 +18,8 @@ pub use self::{
     program::{send, ExternalCallError, Program},
     types::{Address, Gas, Id, ID_LEN},
 };
-pub use sdk_macros::{public, state_keys};
+pub use sdk_macros::{public, state_schema};
+
+// re-exports
+pub use borsh;
+pub use bytemuck;
