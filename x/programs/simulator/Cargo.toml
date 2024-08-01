@@ -1,5 +1,5 @@
 [package]
-name = "ffi"
+name = "simulator"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,3 +8,5 @@ libc = "0.2.155"
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
 thiserror = { workspace = true }
 
+[build-dependencies]
+wasmlanche-sdk = { workspace = true, features = ["build"] }

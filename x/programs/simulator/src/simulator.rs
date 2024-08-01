@@ -63,7 +63,7 @@ impl From<&Mutable> for *mut Mutable {
     }
 }
 
-#[link(name = "simulator", kind = "dylib")]
+#[link(name = "simulator")]
 extern "C" {
     fn CallProgram(db: *mut Mutable);
     fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;

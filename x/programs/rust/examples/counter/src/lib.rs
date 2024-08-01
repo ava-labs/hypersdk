@@ -32,41 +32,30 @@ pub fn get_value(context: &mut Context, of: Address) -> Count {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{build_simulator, TestContext};
+    use simulator::Simulator;
     use wasmlanche_sdk::Address;
-
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn init_program() {
-        let mut simulator = build_simulator();
-
-        simulator.create_program(PROGRAM_PATH).unwrap();
+        let mut simulator = Simulator::new();
+        let actor = Address::default();
+        simulator.actor = actor;
+        let error = simulator.create_program(PROGRAM_PATH).has_error();
+        assert!(!error, "Create program errored")
     }
 
     #[test]
     fn increment() {
-        let mut simulator = build_simulator();
-
+        let simulator = Simulator::new();
+        let gas = 100000000;
         let bob = Address::new([1; 33]);
-
-        let counter_id = simulator.create_program(PROGRAM_PATH).unwrap().id;
-
-        let test_context = TestContext::from(counter_id);
-
-        simulator
-            .execute(
-                "inc".into(),
-                vec![test_context.clone().into(), bob.into(), 10u64.into()],
-                1000000,
-            )
-            .unwrap();
-
+        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        simulator.execute(counter_address, "inc", (bob, 10u64), gas);
+        // todo asser resp doesn't error
         let value = simulator
-            .read("get_value".into(), vec![test_context.into(), bob.into()])
-            .unwrap()
-            .result
-            .response::<u64>()
+            .execute(counter_address, "get_value", ((bob),), gas)
+            .result::<u64>()
             .unwrap();
 
         assert_eq!(value, 10);
