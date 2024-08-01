@@ -1,18 +1,23 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package codec_test
 
 import (
 	"fmt"
 	"math"
-	reflect "reflect"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/stretchr/testify/require"
+
+	reflect "reflect"
 )
 
 func TestMarshalTransfer(t *testing.T) {
@@ -34,7 +39,7 @@ func TestMarshalTransfer(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	//this is a copy of actions.Transfer.Marshal() logic
+	// this is a copy of actions.Transfer.Marshal() logic
 	packer.PackAddress(transfer.To)
 	packer.PackUint64(transfer.Value)
 	packer.PackBytes(transfer.Memo)
@@ -46,13 +51,14 @@ func TestMarshalTransfer(t *testing.T) {
 
 	require.Equal(t, expectedBytes, packer.Bytes())
 
-	//unmarshal
+	// unmarshal
 	var restoredStruct testStructure
 	err := codec.AutoUnmarshalStruct(codec.NewReader(expectedBytes, len(expectedBytes)), &restoredStruct)
 	require.NoError(t, err)
 
 	require.Equal(t, transfer, restoredStruct)
 }
+
 func TestMarshalNumber(t *testing.T) {
 	type NumberStructure struct {
 		NegIntOne   int
@@ -120,6 +126,7 @@ func TestMarshalNumber(t *testing.T) {
 
 	require.Equal(t, test, restoredStruct)
 }
+
 func TestMarshalFlatTypes(t *testing.T) {
 	type FlatStructure struct {
 		IntField       int           `json:"intField"`
@@ -181,7 +188,7 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 	}
 
 	test := FlatStructure{
-		ByteArrayField: []byte{}, //codec would unmarshal nil to []byte{} anyway
+		ByteArrayField: []byte{}, // codec would unmarshal nil to []byte{} anyway
 	}
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(packer, &test)
@@ -193,6 +200,7 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 
 	require.Equal(t, test, restoredStruct)
 }
+
 func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 	type SimpleStruct struct {
 		ID    int    `json:"id"`
@@ -522,9 +530,9 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 				requireNoErrorFast(b, r.Err())
 			})
 		})
-
 	}
 }
+
 func TestMarshalSizes(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -791,7 +799,6 @@ func TestAdditionalCornerCases(t *testing.T) {
 
 		require.Equal(t, test, restored)
 	})
-
 }
 
 func TestMarshalLengths(t *testing.T) {
@@ -838,6 +845,7 @@ func TestMarshalLengths(t *testing.T) {
 		})
 	}
 }
+
 func TestMarshalLongBytes(t *testing.T) {
 	type LongBytesStruct struct {
 		LongBytes []byte

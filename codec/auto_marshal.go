@@ -1,10 +1,14 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package codec
 
 import (
 	"fmt"
 	"math"
-	reflect "reflect"
 	"sync"
+
+	reflect "reflect"
 )
 
 func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
