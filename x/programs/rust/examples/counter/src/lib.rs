@@ -1,37 +1,31 @@
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, Address};
-
-#[state_keys]
-pub enum StateKeys {
-    /// The count of this program. Key prefix 0x0 + address
-    Counter(Address),
-}
+use wasmlanche_sdk::{public, state_schema, Address};
 
 type Count = u64;
 
+state_schema! {
+    /// Counter for each address.
+    Counter(Address) => Count,
+}
+
 /// Increments the count at the address by the amount.
 #[public]
-pub fn inc(context: Context<StateKeys>, to: Address, amount: Count) -> bool {
-    let counter = amount + get_value_internal(&context, to);
+pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
+    let counter = amount + get_value(context, to);
 
     context
-        .store_by_key(StateKeys::Counter(to), &counter)
-        .expect("failed to store counter");
+        .store_by_key(Counter(to), counter)
+        .expect("serialization failed");
 
     true
 }
 
 /// Gets the count at the address.
 #[public]
-pub fn get_value(context: Context<StateKeys>, of: Address) -> Count {
-    get_value_internal(&context, of)
-}
-
-#[cfg(not(feature = "bindings"))]
-fn get_value_internal(context: &Context<StateKeys>, of: Address) -> Count {
+pub fn get_value(context: &mut Context, of: Address) -> Count {
     context
-        .get(StateKeys::Counter(of))
+        .get(Counter(of))
         .expect("state corrupt")
         .unwrap_or_default()
 }
