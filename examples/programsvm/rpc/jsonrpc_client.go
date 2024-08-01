@@ -5,6 +5,9 @@ package rpc
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/state"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -156,4 +159,18 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 		return nil, err
 	}
 	return &Parser{cli.networkID, cli.chainID, g}, nil
+}
+
+func (cli *JSONRPCClient) Simulate(ctx context.Context, callProgramTx actions.CallProgram, actor codec.Address) (state.Keys, error) {
+	resp := new(SimulateCallProgramTxReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"simulateCallProgramTx",
+		&SimulateCallProgramTxArgs{CallProgramTx: callProgramTx, Actor: actor},
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return resp.StateKeys, nil
 }

@@ -141,12 +141,12 @@ var callProgramCmd = &cobra.Command{
 			Function: function,
 			CallData: calldata,
 		}
-		/*
-			action.SpecifiedStateKeys, err = bcli.Simulate(ctx, *action, priv.Address)
-			if err != nil {
-				return err
-			}
-		*/
+
+		action.SpecifiedStateKeys, err = bcli.Simulate(ctx, *action, priv.Address)
+		if err != nil {
+			return err
+		}
+
 		// Confirm action
 		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {

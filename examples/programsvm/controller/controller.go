@@ -6,6 +6,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 	"net/http"
 
@@ -118,7 +121,7 @@ func (*factory) New(
 	apis := map[string]http.Handler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,
-		rpc.NewJSONRPCServer(c),
+		rpc.NewJSONRPCServer(c, c.Simulate),
 	)
 	if err != nil {
 		return nil, nil, nil, err
@@ -163,4 +166,20 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 func (c *Controller) Shutdown(context.Context) error {
 	// Close any databases created during initialization
 	return c.txDB.Close()
+}
+
+func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor codec.Address) (state.Keys, error) {
+	db, err := c.inner.State()
+	if err != nil {
+		return nil, err
+	}
+	recorder := &storage.Recorder{State: db}
+	_, err = consts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
+		Program:      t.Program,
+		Actor:        actor,
+		State:        &storage.ProgramStateManager{Mutable: recorder},
+		FunctionName: t.Function,
+		Params:       t.CallData,
+	})
+	return recorder.GetStateKeys(), err
 }
