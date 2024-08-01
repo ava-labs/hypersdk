@@ -2,7 +2,7 @@
 package main
 
 /*
-#cgo CFLAGS: -I./include
+#cgo CFLAGS: -I../common
 #include "types.h"
 */
 import "C"
@@ -19,7 +19,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	simState "github.com/ava-labs/hypersdk/x/programs/state"
+	simState "github.com/ava-labs/hypersdk/x/programs/simulator/state"
 )
 
 //export CallProgram

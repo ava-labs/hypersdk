@@ -1,7 +1,7 @@
 package state
 
 /*
-#cgo CFLAGS: -I../ffi/include
+#cgo CFLAGS: -I../common
 #include "callbacks.h"
 #include <stdlib.h>
 */

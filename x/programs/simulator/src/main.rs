@@ -1,7 +1,3 @@
-use std::{collections::HashMap, ffi::CString};
-
-use libc::{c_char, c_int, c_uchar, c_uint, c_void};
-
 mod simulator;
 mod state;
 mod types;
