@@ -22,15 +22,11 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 			}
 		}
 	case reflect.Slice:
+		// All arrays are packed with uint16 length (up to 65535 elements), but bytestrings are packed with uint32 length (up to 4294967295 bytes)
 		if typ.Elem().Kind() == reflect.Uint8 {
-			if v.IsNil() || v.Len() == 0 {
-				p.PackShort(0)
-			} else {
-				p.PackShort(uint16(v.Len()))
-				p.PackFixedBytes(v.Bytes())
-			}
+			p.PackBytes(v.Bytes())
 		} else {
-			p.PackInt(uint32(v.Len()))
+			p.PackShort(uint16(v.Len()))
 			for i := 0; i < v.Len(); i++ {
 				_, err := marshalValue(p, v.Index(i), typ.Elem().Kind(), typ.Elem())
 				if err != nil {
@@ -120,9 +116,9 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 		}
 	case reflect.Slice:
 		if typ.Elem().Kind() == reflect.Uint8 {
-			v.SetBytes(p.UnpackFixedBytes(int(p.UnpackShort())))
+			v.SetBytes(p.UnpackBytes())
 		} else {
-			length := int(p.UnpackInt())
+			length := int(p.UnpackShort())
 			slice := reflect.MakeSlice(typ, length, length)
 			for i := 0; i < length; i++ {
 				if err := unmarshalValue(p, slice.Index(i), typ.Elem().Kind(), typ.Elem()); err != nil {

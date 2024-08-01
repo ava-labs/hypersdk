@@ -21,6 +21,10 @@ func requireNoErrorFast(tb testing.TB, err error) {
 	}
 }
 
+func TestPacksNumbersTighter(t *testing.T) {
+
+}
+
 func TestMarshalTransfer(t *testing.T) {
 	type testStructure struct {
 		// To is the recipient of the [Value].
@@ -43,7 +47,7 @@ func TestMarshalTransfer(t *testing.T) {
 	//this is a copy of actions.Transfer.Marshal() logic
 	p.PackAddress(transfer.To)
 	p.PackUint64(transfer.Value)
-	p.PackString(string(transfer.Memo))
+	p.PackBytes(transfer.Memo)
 	expectedBytes := p.Bytes()
 
 	actualBytes, err := chain.MarshalAction(transfer)
@@ -531,7 +535,7 @@ func TestMarshalSizes(t *testing.T) {
 				ShortSlice:  []byte{1, 2, 3},
 				LongerSlice: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 			},
-			expectedSize: (0 + 2) + (3 + 2) + (10 + 2),
+			expectedSize: (0 + 4) + (3 + 4) + (10 + 4),
 		},
 		{
 			name: "Address field",
@@ -557,7 +561,7 @@ func TestMarshalSizes(t *testing.T) {
 				BoolField:    true,
 				AddressField: codec.Address{1, 2, 3, 4, 5, 6, 7, 8, 9},
 			},
-			expectedSize: 4 + (4 + 2) + (3 + 2) + 1 + codec.AddressLen,
+			expectedSize: 4 + (4 + 2) + (3 + 4) + 1 + codec.AddressLen,
 		},
 	}
 
@@ -653,4 +657,155 @@ func TestAdditionalCornerCases(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unsupported field type: ptr")
 	})
+	t.Run("EmbeddedStruct", func(t *testing.T) {
+		type Embedded struct {
+			Field int
+		}
+		type Outer struct {
+			Embedded
+			OtherField string
+		}
+		test := Outer{Embedded: Embedded{Field: 42}, OtherField: "test"}
+
+		bytes, err := chain.MarshalAction(test)
+		requireNoErrorFast(t, err)
+
+		var restored Outer
+		err = chain.UnmarshalAction(bytes, &restored)
+		requireNoErrorFast(t, err)
+
+		require.Equal(t, test, restored)
+	})
+
+	t.Run("UnexportedEmbeddedStruct", func(t *testing.T) {
+		type embedded struct {
+			field int
+		}
+		type Outer struct {
+			embedded
+			OtherField string
+		}
+		test := Outer{embedded: embedded{field: 42}, OtherField: "test"}
+
+		bytes, err := chain.MarshalAction(test)
+		requireNoErrorFast(t, err)
+
+		var restored Outer
+		err = chain.UnmarshalAction(bytes, &restored)
+		requireNoErrorFast(t, err)
+
+		require.Equal(t, test.OtherField, restored.OtherField)
+		require.Zero(t, restored.embedded.field) // Unexported fields should be ignored
+	})
+
+	t.Run("StructWithInterface", func(t *testing.T) {
+		type Struct struct {
+			Field interface{}
+		}
+		test := Struct{Field: "test"}
+
+		_, err := chain.MarshalAction(test)
+		require.Error(t, err) // Should error as interfaces are not supported
+	})
+
+	t.Run("CustomType", func(t *testing.T) {
+		type CustomInt int
+		type Struct struct {
+			Field CustomInt
+		}
+		test := Struct{Field: CustomInt(42)}
+
+		bytes, err := chain.MarshalAction(test)
+		requireNoErrorFast(t, err)
+
+		var restored Struct
+		err = chain.UnmarshalAction(bytes, &restored)
+		requireNoErrorFast(t, err)
+
+		require.Equal(t, test, restored)
+	})
+
+}
+
+func TestMarshalLengths(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    interface{}
+		expected int
+	}{
+		{"Bool", struct{ V bool }{true}, 1},
+		{"Int8", struct{ V int8 }{127}, 1},
+		{"Int16", struct{ V int16 }{32767}, 2},
+		{"Int32", struct{ V int32 }{2147483647}, 4},
+		{"Int64", struct{ V int64 }{9223372036854775807}, 8},
+		{"Uint8", struct{ V uint8 }{255}, 1},
+		{"Uint16", struct{ V uint16 }{65535}, 2},
+		{"Uint32", struct{ V uint32 }{4294967295}, 4},
+		{"Uint64", struct{ V uint64 }{18446744073709551615}, 8},
+		{"Bytes", struct{ V []byte }{[]byte{1, 2, 3}}, 3 + 4},
+		{"Uint16ArrayEmpty", struct{ V []uint16 }{[]uint16{}}, 2},
+		{"Uint16Array", struct{ V []uint16 }{[]uint16{1, 2, 3}}, 3*2 + 2},
+		{"String", struct{ V string }{"hello"}, 5 + 2},
+		{"StringArray", struct{ V []string }{[]string{"hello", "world"}}, (5 + 2) + (5 + 2) + 2},
+		{"BytesArray", struct{ V [][]byte }{[][]byte{{1, 2, 3}, {3, 4, 5}}}, (3 + 4) + (3 + 4) + 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bytes, err := chain.MarshalAction(tt.value)
+			if err != nil {
+				t.Fatalf("MarshalAction failed: %v", err)
+			}
+
+			if len(bytes) != tt.expected {
+				t.Errorf("Expected length %d, got %d", tt.expected, len(bytes))
+			}
+
+			restored := reflect.New(reflect.TypeOf(tt.value)).Interface()
+			err = chain.UnmarshalAction(bytes, restored)
+			if err != nil {
+				t.Fatalf("UnmarshalAction failed: %v", err)
+			}
+
+			if !reflect.DeepEqual(tt.value, reflect.ValueOf(restored).Elem().Interface()) {
+				t.Errorf("Value mismatch. Expected %v, got %v", tt.value, reflect.ValueOf(restored).Elem().Interface())
+			}
+		})
+	}
+}
+
+func TestMarshalLongBytes(t *testing.T) {
+	type LongBytesStruct struct {
+		LongBytes []byte
+	}
+
+	longBytes := make([]byte, 70000)
+	for i := range longBytes {
+		longBytes[i] = byte(i % 256)
+	}
+
+	test := LongBytesStruct{
+		LongBytes: longBytes,
+	}
+
+	bytes, err := chain.MarshalAction(test)
+	if err != nil {
+		t.Fatalf("MarshalAction failed: %v", err)
+	}
+
+	// Expected length: 70000 bytes for the data + 4 bytes for the length prefix
+	expectedLength := 70000 + 4
+	if len(bytes) != expectedLength {
+		t.Errorf("Expected marshaled length %d, got %d", expectedLength, len(bytes))
+	}
+
+	var restored LongBytesStruct
+	err = chain.UnmarshalAction(bytes, &restored)
+	if err != nil {
+		t.Fatalf("UnmarshalAction failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(test, restored) {
+		t.Errorf("Restored value does not match original")
+	}
 }
