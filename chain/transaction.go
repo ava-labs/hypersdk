@@ -59,7 +59,11 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		action.Marshal(p)
+		if marshaler, ok := action.(Marshaler); ok {
+			marshaler.Marshal(p)
+		} else {
+			codec.AutoMarshalStruct(p, action)
+		}
 	}
 	return p.Bytes(), p.Err()
 }
@@ -366,7 +370,11 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		action.Marshal(p)
+		if marshaler, ok := action.(Marshaler); ok {
+			marshaler.Marshal(p)
+		} else {
+			codec.AutoMarshalStruct(p, action)
+		}
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
@@ -475,11 +483,18 @@ func unmarshalActions(
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}
-		action, err := unmarshalAction(p)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		if unmarshalAction == nil {
+			var action Action
+			codec.AutoUnmarshalStruct(p, &action)
+			actions = append(actions, action)
+		} else {
+			action, err := unmarshalAction(p)
+			if err != nil {
+				return nil, fmt.Errorf("%w: could not unmarshal action", err)
+			}
+			actions = append(actions, action)
 		}
-		actions = append(actions, action)
+
 	}
 	return actions, nil
 }

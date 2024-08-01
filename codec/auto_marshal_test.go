@@ -9,7 +9,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -42,7 +41,7 @@ func TestMarshalTransfer(t *testing.T) {
 	expectedBytes := packer.Bytes()
 
 	packer = codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(transfer, packer)
+	codec.AutoMarshalStruct(packer, transfer)
 	require.NoError(t, packer.Err())
 
 	require.Equal(t, expectedBytes, packer.Bytes())
@@ -112,7 +111,7 @@ func TestMarshalNumber(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.NoError(t, packer.Err())
 
 	var restoredStruct NumberStructure
@@ -155,7 +154,7 @@ func TestMarshalFlatTypes(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.NoError(t, packer.Err())
 
 	var restoredStruct FlatStructure
@@ -185,7 +184,7 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 		ByteArrayField: []byte{}, //codec would unmarshal nil to []byte{} anyway
 	}
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	bytes := packer.Bytes()
 
 	var restoredStruct FlatStructure
@@ -231,7 +230,7 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.NoError(t, packer.Err())
 
 	var restoredStruct ComplexStruct
@@ -277,7 +276,7 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 
 	for i := 0; i < iterations; i++ {
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		if packer.Err() != nil {
 			t.Fatal(packer.Err())
 		}
@@ -416,7 +415,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		b.Run(fmt.Sprintf("Transfer-Reflection-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
 				packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-				codec.AutoMarshalStruct(transfer, packer)
+				codec.AutoMarshalStruct(packer, transfer)
 				requireNoErrorFast(b, packer.Err())
 				var restored Transfer
 				err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
@@ -475,7 +474,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		b.Run(fmt.Sprintf("Complex-Reflection-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
 				packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-				codec.AutoMarshalStruct(test, packer)
+				codec.AutoMarshalStruct(packer, &test)
 				requireNoErrorFast(b, packer.Err())
 				var restored TestStruct
 				err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
@@ -614,7 +613,7 @@ func TestMarshalSizes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-			codec.AutoMarshalStruct(tt.value, packer)
+			codec.AutoMarshalStruct(packer, tt.value)
 			require.NoError(t, packer.Err())
 			bytes := packer.Bytes()
 
@@ -645,7 +644,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Outer{Middle: Middle{Inner: Inner{Field: 42}}}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored Outer
@@ -660,7 +659,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Empty{}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored Empty
@@ -678,7 +677,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Mixed{Exported: 42, unexported: "should be ignored"}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored Mixed
@@ -699,7 +698,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := PointerStruct{IntPtr: &intVal, StringPtr: &strVal}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.Error(t, packer.Err())
 	})
 
@@ -713,7 +712,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := MyStruct{IntVal: intVal, StringVal: strVal}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(&test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored MyStruct
@@ -732,7 +731,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Outer{Embedded: Embedded{Field: 42}, OtherField: "test"}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored Outer
@@ -753,7 +752,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Outer{embedded: embedded{field: 42}, OtherField: "test"}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored Outer
@@ -771,7 +770,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Struct{Field: "test"}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.Error(t, packer.Err())
 	})
 
@@ -783,7 +782,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		test := Struct{Field: CustomInt(42)}
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-		codec.AutoMarshalStruct(test, packer)
+		codec.AutoMarshalStruct(packer, &test)
 		require.NoError(t, packer.Err())
 
 		var restored Struct
@@ -821,7 +820,7 @@ func TestMarshalLengths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-			codec.AutoMarshalStruct(tt.value, packer)
+			codec.AutoMarshalStruct(packer, tt.value)
 			require.NoError(t, packer.Err())
 			bytes := packer.Bytes()
 
@@ -854,7 +853,7 @@ func TestMarshalLongBytes(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.NoError(t, packer.Err())
 	bytes := packer.Bytes()
 
@@ -891,7 +890,7 @@ func TestMarshalLongArray(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.Error(t, packer.Err())
 }
 
@@ -910,7 +909,7 @@ func TestMarshalLongMap(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.Error(t, packer.Err())
 }
 
@@ -927,13 +926,6 @@ func TestMarshalLongString(t *testing.T) {
 	}
 
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(test, packer)
+	codec.AutoMarshalStruct(packer, &test)
 	require.Error(t, packer.Err())
-}
-
-func TestIntIs64Bit(t *testing.T) {
-	var i int
-	var i64 int64
-
-	require.Equal(t, unsafe.Sizeof(i), unsafe.Sizeof(i64), "int is not 64-bit on this system")
 }

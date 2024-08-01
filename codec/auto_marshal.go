@@ -89,23 +89,6 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 	return nil
 }
 
-func AutoUnmarshalStruct(p *Packer, item interface{}) error {
-	v := reflect.ValueOf(item).Elem()
-	t := v.Type()
-
-	info := getTypeInfo(t)
-
-	for _, fi := range info {
-		field := v.Field(fi.index)
-		err := unmarshalValue(p, field, fi.kind, fi.typ)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func unmarshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Type) error {
 	switch kind {
 	case reflect.Struct:
@@ -226,7 +209,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	return exportedFields
 }
 
-func AutoMarshalStruct(item interface{}, p *Packer) {
+func AutoMarshalStruct(p *Packer, item interface{}) {
 	v := reflect.ValueOf(item)
 	t := v.Type()
 
@@ -255,4 +238,21 @@ func AutoMarshalStruct(item interface{}, p *Packer) {
 			p.addErr(err)
 		}
 	}
+}
+
+func AutoUnmarshalStruct(p *Packer, item interface{}) error {
+	v := reflect.ValueOf(item).Elem()
+	t := v.Type()
+
+	info := getTypeInfo(t)
+
+	for _, fi := range info {
+		field := v.Field(fi.index)
+		err := unmarshalValue(p, field, fi.kind, fi.typ)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
