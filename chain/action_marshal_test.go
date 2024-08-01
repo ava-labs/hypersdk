@@ -299,28 +299,29 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 	t.Logf("Reflection time: %v", reflectionTime)
 }
 
+// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
 // goos: linux
 // goarch: amd64
 // pkg: github.com/ava-labs/hypersdk/chain
 // cpu: AMD EPYC 7763 64-Core Processor
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-1-8                     25          44908275 ns/op        35200248 B/op     500002 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-2-8                     39          28402783 ns/op        35200235 B/op     500003 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-4-8                     52          19412363 ns/op        35200397 B/op     500006 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-8-8                     67          15940310 ns/op        35201158 B/op     500012 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-1-8                         79          13639643 ns/op        14400048 B/op     200002 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-2-8                        138           8520965 ns/op        14400173 B/op     200003 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-4-8                        190           6174020 ns/op        14400186 B/op     200005 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-8-8                        230           5177846 ns/op        14400366 B/op     200009 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-1-8                       8         131652394 ns/op        62400150 B/op    1200002 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-2-8                      15          79716490 ns/op        62400238 B/op    1200003 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-4-8                      22          53110410 ns/op        62400367 B/op    1200005 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-8-8                      27          42143834 ns/op        62400900 B/op    1200010 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-1-8                          19          57420578 ns/op        40800108 B/op     900002 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-2-8                          33          33921873 ns/op        40800186 B/op     900003 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-4-8                          51          22917034 ns/op        40800419 B/op     900005 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-8-8                          60          18573280 ns/op        40800467 B/op     900009 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-1-8                     25          43809594 ns/op        35200210 B/op     500002 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-2-8                     43          27888527 ns/op        35200225 B/op     500003 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-4-8                     61          18754757 ns/op        35200542 B/op     500006 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-8-8                     74          15720307 ns/op        35201033 B/op     500011 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-1-8                         82          13465238 ns/op        14400048 B/op     200002 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-2-8                        144           8436937 ns/op        14400132 B/op     200003 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-4-8                        190           6117171 ns/op        14400180 B/op     200005 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-8-8                        232           5136082 ns/op        14400428 B/op     200009 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-1-8                       1        2922380605 ns/op        2051203920 B/op 11700021 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-2-8                       1        1828922789 ns/op        2051205248 B/op 11700003 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-4-8                       1        1212280807 ns/op        2051207296 B/op 11700019 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-8-8                       1        1067666547 ns/op        2051209072 B/op 11700045 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-1-8                           1        1306538593 ns/op        2029602864 B/op 11400002 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-2-8                           2         796309518 ns/op        2029603760 B/op 11400003 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-4-8                           2         624686344 ns/op        2029612464 B/op 11400075 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-8-8                           2         535399140 ns/op        2029608216 B/op 11400034 allocs/op
 // PASS
-// ok      github.com/ava-labs/hypersdk/chain      20.763s
+// ok      github.com/ava-labs/hypersdk/chain      25.784s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
 	type InnerStruct struct {
 		Field1 int32
@@ -348,20 +349,18 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		BoolField:   true,
 		Uint16Field: 65535,
 		Int8Field:   -128,
-		InnerField: []InnerStruct{
-			{
-				Field1: 12345,
-				Field2: "Inner string",
-				Field3: false,
-				Field5: []byte{6, 7, 8, 9, 10},
-			},
-			{
-				Field1: 222,
-				Field2: "Inner string 2",
-				Field3: true,
-				Field5: []byte{11, 12, 13, 14, 15},
-			},
-		},
+		InnerField: func() []InnerStruct {
+			inner := make([]InnerStruct, 100)
+			for i := 0; i < 100; i++ {
+				inner[i] = InnerStruct{
+					Field1: int32(i),
+					Field2: fmt.Sprintf("Inner string %d", i),
+					Field3: i%2 == 0,
+					Field5: []byte{byte(i), byte(i + 1), byte(i + 2), byte(i + 3), byte(i + 4)},
+				}
+			}
+			return inner
+		}(),
 	}
 
 	type Transfer struct {
@@ -377,6 +376,20 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	}
 
 	const iterationsInBatch = 100_000
+
+	// type megabyteStruct struct {
+	// 	Field1 []byte
+	// }
+
+	// megabyte := megabyteStruct{
+	// 	Field1: func() []byte {
+	// 		data := make([]byte, 1024*1024)
+	// 		for i := range data {
+	// 			data[i] = byte(i % math.MaxUint8)
+	// 		}
+	// 		return data
+	// 	}(),
+	// }
 
 	runParallel := func(b *testing.B, numWorkers int, f func()) {
 		b.ResetTimer()
@@ -425,6 +438,33 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 			})
 		})
 	}
+
+	// for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+	// 	b.Run(fmt.Sprintf("Megabyte-Reflection-%d", numWorkers), func(b *testing.B) {
+	// 		runParallel(b, numWorkers, func() {
+	// 			bytes, err := chain.MarshalAction(megabyte)
+	// 			requireNoErrorFast(b, err)
+	// 			var restored megabyteStruct
+	// 			err = chain.UnmarshalAction(bytes, &restored)
+	// 			requireNoErrorFast(b, err)
+	// 		})
+	// 	})
+	// }
+
+	// for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+	// 	b.Run(fmt.Sprintf("Megabyte-Manual-%d", numWorkers), func(b *testing.B) {
+	// 		runParallel(b, numWorkers, func() {
+	// 			p := codec.NewWriter(0, consts.NetworkSizeLimit)
+	// 			p.PackBytes(megabyte.Field1)
+	// 			bytes := p.Bytes()
+
+	// 			r := codec.NewReader(bytes, consts.NetworkSizeLimit)
+	// 			var restored megabyteStruct
+	// 			r.UnpackBytes(-1, false, &restored.Field1)
+	// 			requireNoErrorFast(b, r.Err())
+	// 		})
+	// 	})
+	// }
 
 	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
 		b.Run(fmt.Sprintf("Complex-Reflection-%d", numWorkers), func(b *testing.B) {
