@@ -170,12 +170,14 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
                 wasmlanche_sdk::register_panic();
 
-                let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
+                let result = {
+                    let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
 
-                let Args { mut ctx, #(#args_names),* } = args;
+                    let Args { mut ctx, #(#args_names),* } = args;
 
-                let result = super::#name(&mut ctx, #(#args_names_2),*);
-                let result = wasmlanche_sdk::borsh::to_vec(&result).expect("error serializing result");
+                    let result = super::#name(&mut ctx, #(#args_names_2),*);
+                    wasmlanche_sdk::borsh::to_vec(&result).expect("error serializing result")
+                };
 
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
