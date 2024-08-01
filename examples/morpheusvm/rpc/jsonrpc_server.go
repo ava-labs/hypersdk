@@ -4,15 +4,29 @@
 package rpc
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 )
+
+const JSONRPCEndpoint = "/morpheusapi"
+
+var ErrTxNotFound = errors.New("tx not found")
+
+type Controller interface {
+	Genesis() *genesis.Genesis
+	Tracer() trace.Tracer
+	GetTransaction(ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
+	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
+}
 
 type JSONRPCServer struct {
 	c Controller

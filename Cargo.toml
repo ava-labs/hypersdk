@@ -26,5 +26,4 @@ sdk-macros = { path = "x/programs/rust/sdk-macros" }
 simulator = { path = "x/programs/cmd/simulator" }
 wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
 
-borsh = { version = "1.5.1", features = ["derive"] }
 thiserror = "1.0.61"

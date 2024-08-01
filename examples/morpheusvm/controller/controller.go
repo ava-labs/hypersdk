@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/auth"
-	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -23,7 +22,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 	"github.com/ava-labs/hypersdk/extension/indexer"
-	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
 
@@ -37,8 +35,15 @@ var (
 	_ vm.ControllerFactory = (*factory)(nil)
 )
 
-func New() *vm.VM {
-	return vm.New(&factory{}, version.Version)
+func New(options ...vm.Option) (*vm.VM, error) {
+	return vm.New(
+		&factory{},
+		version.Version,
+		consts.ActionRegistry,
+		consts.AuthRegistry,
+		auth.Engines(),
+		options...,
+	)
 }
 
 type factory struct{}
@@ -56,12 +61,7 @@ func (*factory) New(
 ) (
 	vm.Controller,
 	vm.Genesis,
-	builder.Builder,
-	gossiper.Gossiper,
 	vm.Handlers,
-	chain.ActionRegistry,
-	chain.AuthRegistry,
-	map[uint8]vm.AuthEngine,
 	error,
 ) {
 	c := &Controller{}
@@ -75,20 +75,20 @@ func (*factory) New(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = config.New(configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	log.Info("initialized config", zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -97,7 +97,7 @@ func (*factory) New(
 
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 	acceptedSubscribers := []indexer.AcceptedSubscriber{
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
@@ -120,28 +120,11 @@ func (*factory) New(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
-	// Create builder and gossiper
-	var (
-		build  builder.Builder
-		gossip gossiper.Gossiper
-	)
-	if c.config.TestMode {
-		c.inner.Logger().Info("running build and gossip in test mode")
-		build = builder.NewManual(inner)
-		gossip = gossiper.NewManual(inner)
-	} else {
-		build = builder.NewTime(inner)
-		gcfg := gossiper.DefaultProposerConfig()
-		gossip, err = gossiper.NewProposer(inner, gcfg)
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, err
-		}
-	}
-	return c, c.genesis, build, gossip, apis, consts.ActionRegistry, consts.AuthRegistry, auth.Engines(), nil
+	return c, c.genesis, apis, nil
 }
 
 type Controller struct {

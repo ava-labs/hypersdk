@@ -1,5 +1,0 @@
-error: enums with named fields are not supported
- --> tests/ui/fail/state-keys-named-variant-field.rs:7:5
-  |
-7 |     Invalid { foo: u8 },
-  |     ^^^^^^^
