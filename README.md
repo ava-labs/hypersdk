@@ -126,8 +126,7 @@ that pays fees). These two identities could be the same (if using a simple signa
 verification `Auth` module) but may be different (if using a "gas relayer" `Auth` module).
 
 `Auth` modules may be hardcoded, like in
-[`morpheusvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/morpheusvm/auth) and
-[`tokenvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/tokenvm/auth), or execute
+[`morpheusvm`](https://github.com/ava-labs/hypersdk/tree/main/examples/morpheusvm/auth), or execute
 a `program` (i.e. a custom deployed multi-sig). To allow for easy interaction between different
 `Auth` modules (and to ensure `Auth` modules can't interfere with each other), the
 `hypersdk` employs a standard, 33-byte addressing scheme: `<typeID><ids.ID>`. Transaction
@@ -485,8 +484,8 @@ already know (blue pill).
 _To ensure the `hypersdk` remains reliable as we optimize and evolve the codebase,
 we also run E2E tests in the `morpheusvm` on each PR to the `hypersdk` core modules._
 
-### Moderate: `tokenvm`
-We created the [`tokenvm`](./examples/tokenvm) to showcase how to use the
+### Moderate: `tokenvm` [DEPRECATED]
+We created the [`tokenvm`](https://github.com/ava-labs/hypersdk/tree/0057e63cca029b5523b8eae618566fafcf2bca2a/examples/tokenvm) to showcase how to use the
 `hypersdk` in an application most readers are already familiar with, token minting
 and token trading.
 
@@ -507,7 +506,7 @@ we also run E2E tests in the `tokenvm` on each PR to the `hypersdk` core modules
 _The `indexvm` will be rewritten using the new WASM Programs module._
 
 The [`indexvm`](https://github.com/ava-labs/indexvm) is much more complex than
-the `tokenvm` (more elaborate mechanisms and a new use case you may not be
+the `morpheusvm` (more elaborate mechanisms and a new use case you may not be
 familiar with). It was built during the design of the `hypersdk` to test out the
 limits of the abstractions for building complex on-chain mechanisms. We recommend
 taking a look at this `hypervm` once you already have familiarity with the `hypersdk` to gain an
@@ -590,8 +589,8 @@ structures utilized by the `hypersdk` and handles both `Accepted` and
 `Gossiper`, `Handlers`, and `Database` packages so this is typically a lot of
 boilerplate code.
 
-You can view what this looks like in the `tokenvm` by clicking this
-[link](./examples/tokenvm/controller/controller.go).
+You can view what this looks like in the `morpheusvm` by clicking this
+[link](./examples/morpheusvm/controller/controller.go).
 
 #### Registry
 ```golang
@@ -621,8 +620,8 @@ start of the network (fee price, enabled txs, etc.). The serialized genesis of
 any `hyperchain` is persisted on the P-Chain for anyone to see when the network
 is created.
 
-You can view what this looks like in the `tokenvm` by clicking this
-[link](./examples/tokenvm/genesis/genesis.go).
+You can view what this looks like in `morpheusvm` by clicking this
+[link](./examples/morpheusvm/genesis/genesis.go).
 
 ### Action
 ```golang
@@ -671,8 +670,7 @@ the blockchain runtime. Specifically, they are "user-defined" element of
 any `hypersdk` transaction that is processed by all participants of any
 `hyperchain`.
 
-You can view what a simple transfer `Action` looks like [here](./examples/tokenvm/actions/transfer.go)
-and what a more complex "fill order" `Action` looks like [here](./examples/tokenvm/actions/fill_order.go).
+You can view what a simple transfer `Action` looks like [here](./examples/morpheusvm/actions/transfer.go)
 
 #### Result
 ```golang
@@ -785,7 +783,7 @@ case of the `indexvm`, the custom rule support is used to set the cost for
 adding anything to state (which is a very `hypervm-specific` value).
 
 You can view what the CreateAsset `Action` associated with the above examples looks like
-[here](./examples/tokenvm/actions/create_asset.go)
+[here](https://github.com/ava-labs/hypersdk/blob/0057e63cca029b5523b8eae618566fafcf2bca2a/examples/tokenvm/actions/create_asset.go)
 
 _As mentioned above, it is up to the `hypervm` to implement a message format
 that it can understand (so that it can parse inbound AWM messages). In the

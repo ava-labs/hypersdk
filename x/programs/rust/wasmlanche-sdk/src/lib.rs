@@ -15,7 +15,7 @@ pub use self::{
     context::{Context, ExternalCallContext},
     logging::{log, register_panic},
     memory::HostPtr,
-    program::{send, DeferDeserialize, ExternalCallError, Program},
+    program::{send, ExternalCallError, Program},
     types::{Address, Gas, Id, ID_LEN},
 };
 pub use sdk_macros::{public, state_keys};

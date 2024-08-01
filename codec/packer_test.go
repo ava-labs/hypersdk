@@ -30,7 +30,8 @@ func TestNewWriter(t *testing.T) {
 	// Pack past limit
 	wr.PackFixedBytes(bytes)
 	require.Len(wr.Bytes(), 2, "Bytes overpacked.")
-	require.ErrorIs(wr.Err(), wrappers.ErrInsufficientLength)
+	err := wr.Err()
+	require.ErrorIs(err, wrappers.ErrInsufficientLength)
 }
 
 func TestPackerID(t *testing.T) {
@@ -59,7 +60,8 @@ func TestPackerID(t *testing.T) {
 		unpackedID = ids.Empty
 		rp.UnpackID(true, &unpackedID)
 		require.Equal(ids.Empty, unpackedID, "UnpackID unpacked incorrectly.")
-		require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
+		err := rp.Err()
+		require.ErrorIs(err, wrappers.ErrInsufficientLength)
 	})
 }
 
@@ -87,7 +89,8 @@ func TestPackerWindow(t *testing.T) {
 		require.NoError(rp.Err(), "UnpackWindow set an error.")
 		// Unpacking again should error
 		rp.UnpackWindow(&unpackedWindow)
-		require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
+		err := rp.Err()
+		require.ErrorIs(err, wrappers.ErrInsufficientLength)
 	})
 }
 
@@ -133,5 +136,6 @@ func TestNewReader(t *testing.T) {
 	require.NoError(rp.Err(), "Reader set error during unpack.")
 	// Unpacked not packed with required
 	require.Zero(rp.UnpackUint64(true), "Reader unpacked correctly.")
-	require.ErrorIs(rp.Err(), wrappers.ErrInsufficientLength)
+	err := rp.Err()
+	require.ErrorIs(err, wrappers.ErrInsufficientLength)
 }
