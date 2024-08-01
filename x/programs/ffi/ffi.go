@@ -46,7 +46,7 @@ type ExecuteCtx struct {
 }
 
 //export Execute
-func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.Response {
+func Execute(db *C.Mutable, ctx *C.SimulatorCallContext,  p *C.ExecutionRequest) C.Response {
    // TODO: error checking making sure the params are not nil
    
    // db
@@ -57,9 +57,13 @@ func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.R
    var paramBytes []byte
    // ExecutionRequest passed from the C code
    if p.params != nil {
-      paramBytes = C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
+      if p.paramLength == 0 {
+         paramBytes = nil;
+      } else {
+         paramBytes = C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
+      }
    } else {
-      paramBytes = []byte{}
+      paramBytes = nil
    }
 
 	methodName := C.GoString(p.method)
@@ -72,7 +76,6 @@ func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.R
    }
 
    callInfo := createRuntimeCallInfo(state, &testContext, &executeCtx);
-	fmt.Println("received method name from C: ", methodName)
 
 	rt := runtime.NewRuntime(runtime.NewConfig(), logging.NewLogger("test"))
    result, err := rt.CallProgram(context.TODO(), callInfo)
@@ -89,17 +92,16 @@ func Execute(db *C.Mutable, ctx *C.SimulatorContext,  p *C.ExecutionRequest) C.R
       id: 10,
       error: nil,
       // result must be free'd by rust
-      result: C.CBytes(result),
+      result: C.Bytes {
+         data:   (*C.uint8_t)(C.CBytes(result)),
+         length: C.uint(len(result)),
+      },
    }
 
-	fmt.Println("received bytes from C: ", paramBytes)
-	fmt.Println("Max gas: ", gas)
-	fmt.Println("DB State: ", state)
-	fmt.Println("Context height: ", ctx.height)
 	return response
 }
 
-func createRuntimeContext(ctx *C.SimulatorContext) runtime.Context {
+func createRuntimeContext(ctx *C.SimulatorCallContext) runtime.Context {
    return runtime.Context{
       Program: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.programAddress), 33)),
       Actor: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actorAddress), 33)),
@@ -124,7 +126,6 @@ func createRuntimeCallInfo(db state.Mutable, rctx *runtime.Context, e *ExecuteCt
 
 //export CreateProgram
 func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
-   fmt.Println("creating program!")
    state := simState.NewSimulatorState(unsafe.Pointer(db))
    programManager := simState.NewProgramStateManager(state)
 
@@ -159,7 +160,6 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
          err: C.CString(errmsg),
       }
    }
-   fmt.Println("function completed correctly!")
    return C.CreateProgramResponse {
       err: nil,
       programID: C.ID {

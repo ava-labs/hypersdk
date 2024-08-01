@@ -26,18 +26,20 @@ typedef struct {
     Address actorAddress;
     unsigned int height;
     unsigned int timestamp;
-} SimulatorContext;
+} SimulatorCallContext;
 
-typedef struct {
-    int id;
-    char* error;
-    void* result;
-} Response;
 
 typedef struct {
     uint8_t* data;
     unsigned int length;
 } Bytes;
+
+
+typedef struct {
+    int id;
+    char* error;
+    Bytes result;
+} Response;
 
 typedef struct {
     uint8_t* data;

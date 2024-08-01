@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
-    ffi::{CStr, CString}, ptr::{null, null_mut},
+    ffi::{CStr, CString},
+    ptr::{null, null_mut},
 };
 
 use libc::c_char;
