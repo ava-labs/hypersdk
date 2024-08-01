@@ -210,6 +210,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	defer cacheMutex.Unlock()
 
 	var exportedFields []fieldInfo
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if field.IsExported() {
@@ -220,6 +221,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 			})
 		}
 	}
+
 	typeInfoCache[t] = exportedFields
 	return exportedFields
 }
@@ -227,6 +229,22 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 func AutoMarshalStruct(item interface{}, p *Packer) {
 	v := reflect.ValueOf(item)
 	t := v.Type()
+
+	// Handle pointer to struct
+	if t.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			p.addErr(fmt.Errorf("cannot marshal nil pointer"))
+			return
+		}
+		v = v.Elem()
+		t = v.Type()
+	}
+
+	// Ensure we're dealing with a struct
+	if t.Kind() != reflect.Struct {
+		p.addErr(fmt.Errorf("AutoMarshalStruct expects a struct or pointer to struct, got %v", t.Kind()))
+		return
+	}
 
 	info := getTypeInfo(t)
 

@@ -702,6 +702,25 @@ func TestAdditionalCornerCases(t *testing.T) {
 		codec.AutoMarshalStruct(test, packer)
 		require.Error(t, packer.Err())
 	})
+
+	t.Run("PointerToStruct", func(t *testing.T) {
+		type MyStruct struct {
+			IntVal    int
+			StringVal string
+		}
+		intVal := 42
+		strVal := "test"
+		test := MyStruct{IntVal: intVal, StringVal: strVal}
+
+		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
+		codec.AutoMarshalStruct(&test, packer)
+		require.NoError(t, packer.Err())
+
+		var restored MyStruct
+		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
+		require.NoError(t, err)
+		require.Equal(t, test, restored)
+	})
 	t.Run("EmbeddedStruct", func(t *testing.T) {
 		type Embedded struct {
 			Field int
