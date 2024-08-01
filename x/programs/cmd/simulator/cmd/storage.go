@@ -50,19 +50,19 @@ func (s *programStateManager) TransferBalance(ctx context.Context, from codec.Ad
 	return setAccountBalance(ctx, s, to, toBalance+amount)
 }
 
-func (s *programStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+func (s *programStateManager) GetAccountProgram(ctx context.Context, account codec.Address) ([]byte, error) {
 	programID, exists, err := getAccountProgram(ctx, s, account)
 	if err != nil {
-		return ids.Empty, err
+		return ids.Empty[:], err
 	}
 	if !exists {
-		return ids.Empty, errors.New("unknown account")
+		return ids.Empty[:], errors.New("unknown account")
 	}
 
-	return programID, nil
+	return programID[:], nil
 }
 
-func (s *programStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+func (s *programStateManager) GetProgramBytes(ctx context.Context, programID []byte) ([]byte, error) {
 	// TODO: take fee out of balance?
 	programBytes, exists, err := getProgram(ctx, s, programID)
 	if err != nil {
@@ -75,11 +75,11 @@ func (s *programStateManager) GetProgramBytes(ctx context.Context, programID ids
 	return programBytes, nil
 }
 
-func (s *programStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
+func (s *programStateManager) NewAccountWithProgram(ctx context.Context, programID []byte, accountCreationData []byte) (codec.Address, error) {
 	return deployProgram(ctx, s, programID, accountCreationData)
 }
 
-func (s *programStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
+func (s *programStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID []byte) error {
 	return setAccountProgram(ctx, s, account, programID)
 }
 
@@ -194,22 +194,22 @@ func setAccountProgram(
 	ctx context.Context,
 	mu state.Mutable,
 	account codec.Address,
-	programID ids.ID,
+	programID []byte,
 ) error {
-	return mu.Insert(ctx, accountDataKey(account[:], []byte("program")), programID[:])
+	return mu.Insert(ctx, accountDataKey(account[:], []byte("program")), programID)
 }
 
 // [programID] -> [programBytes]
 func getProgram(
 	ctx context.Context,
 	db state.Immutable,
-	programID ids.ID,
+	programID []byte,
 ) (
 	[]byte, // program bytes
 	bool, // exists
 	error,
 ) {
-	v, err := db.GetValue(ctx, programKey(programID[:]))
+	v, err := db.GetValue(ctx, programKey(programID))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}
@@ -232,10 +232,10 @@ func setProgram(
 func deployProgram(
 	ctx context.Context,
 	mu state.Mutable,
-	programID ids.ID,
+	programID []byte,
 	accountCreationData []byte,
 ) (codec.Address, error) {
-	newID := sha256.Sum256(append(programID[:], accountCreationData...))
+	newID := sha256.Sum256(append(programID, accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
 	return newAccount, setAccountProgram(ctx, mu, newAccount, programID)
 }

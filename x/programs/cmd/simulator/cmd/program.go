@@ -87,7 +87,7 @@ func programCreateFunc(ctx context.Context, db *state.SimpleMutable, path string
 		return codec.EmptyAddress, fmt.Errorf("program creation failed: %w", err)
 	}
 
-	account, err := deployProgram(ctx, db, programID, []byte{})
+	account, err := deployProgram(ctx, db, programID[:], []byte{})
 	if err != nil {
 		response := multilineOutput([][]byte{utils.ErrBytes(err)})
 		fmt.Println(response)

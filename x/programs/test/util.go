@@ -34,21 +34,21 @@ func CompileTest(programName string) error {
 }
 
 type StateManager struct {
-	ProgramsMap map[ids.ID]string
-	AccountMap  map[codec.Address]ids.ID
+	ProgramsMap map[string]string
+	AccountMap  map[codec.Address]string
 	Balances    map[codec.Address]uint64
 	Mu          state.Mutable
 }
 
-func (t StateManager) GetAccountProgram(_ context.Context, account codec.Address) (ids.ID, error) {
+func (t StateManager) GetAccountProgram(_ context.Context, account codec.Address) ([]byte, error) {
 	if programID, ok := t.AccountMap[account]; ok {
-		return programID, nil
+		return []byte(programID), nil
 	}
-	return ids.Empty, nil
+	return ids.Empty[:], nil
 }
 
-func (t StateManager) GetProgramBytes(_ context.Context, programID ids.ID) ([]byte, error) {
-	programName, ok := t.ProgramsMap[programID]
+func (t StateManager) GetProgramBytes(_ context.Context, programID []byte) ([]byte, error) {
+	programName, ok := t.ProgramsMap[string(programID)]
 	if !ok {
 		return nil, errors.New("couldn't find program")
 	}
@@ -62,14 +62,14 @@ func (t StateManager) GetProgramBytes(_ context.Context, programID ids.ID) ([]by
 	return os.ReadFile(filepath.Join(dir, "/wasm32-unknown-unknown/debug/"+programName+".wasm"))
 }
 
-func (t StateManager) NewAccountWithProgram(_ context.Context, programID ids.ID, _ []byte) (codec.Address, error) {
-	account := codec.CreateAddress(0, programID)
-	t.AccountMap[account] = programID
+func (t StateManager) NewAccountWithProgram(_ context.Context, programID []byte, _ []byte) (codec.Address, error) {
+	account := codec.CreateAddress(0, ids.GenerateTestID())
+	t.AccountMap[account] = string(programID)
 	return account, nil
 }
 
-func (t StateManager) SetAccountProgram(_ context.Context, account codec.Address, programID ids.ID) error {
-	t.AccountMap[account] = programID
+func (t StateManager) SetAccountProgram(_ context.Context, account codec.Address, programID []byte) error {
+	t.AccountMap[account] = string(programID)
 	return nil
 }
 
