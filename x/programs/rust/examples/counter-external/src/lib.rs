@@ -14,7 +14,7 @@ pub fn get_value(_: &mut Context, external: Program, address: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{build_simulator, Param, TestContext};
+    use simulator::Simulator;
 
     use wasmlanche_sdk::Address;
 
@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn inc_and_get_value() {
-        let mut simulator = build_simulator();
+        let mut simulator = Simulator::new();
 
         let counter_path = PROGRAM_PATH
             .replace("counter-external", "counter")
@@ -31,33 +31,17 @@ mod tests {
         let owner = Address::new([1; 33]);
 
         let counter_external = simulator
-            .create_program(PROGRAM_PATH)
-            .expect("should be able to create this program")
-            .id;
+            .create_program(PROGRAM_PATH).program().unwrap();
 
         let counter = simulator
-            .create_program(counter_path)
-            .expect("should be able to create the counter")
-            .id;
+            .create_program(&counter_path).program().unwrap();
 
-        let counter = Param::Id(counter);
 
-        let params = vec![
-            TestContext::from(counter_external).into(),
-            counter.clone(),
-            owner.into(),
-        ];
+        let res = simulator
+            .execute(counter_external, "inc", (counter, owner), 100_000_000);
+        // TODO check err
 
-        simulator
-            .execute("inc".into(), params.clone(), 100_000_000)
-            .expect("call inc");
-
-        let response = simulator
-            .read("get_value".into(), params)
-            .expect("call get_value")
-            .result
-            .response::<u64>()
-            .unwrap();
+        let response = simulator.execute(counter_external, "get_value", (counter, owner), 100_000_000).result::<u64>().unwrap();
 
         assert_eq!(response, 1);
     }

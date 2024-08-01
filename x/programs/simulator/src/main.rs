@@ -21,32 +21,32 @@ use wasmlanche_sdk::Address as SdkAddress;
 //     let response = execute_response.result::<String>();
 //     println!("Response : {:?}", response);
 
-    // let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
-    // let response = execute_response.result::<u64>();
+// let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
+// let response = execute_response.result::<u64>();
 
-    // let params = ("Test", "TST");
+// let params = ("Test", "TST");
 
-    // // let params: Vec<u8> = serialize_and_concat(&items);
-    // let max_gas = 100000000;
-    // let execute_response = simulator.execute(program_address, "init", params, max_gas);
-    // println!("execution response {:?}", execute_response);
-    // let execute_response = simulator.execute(program_address, "name", (), max_gas);
+// // let params: Vec<u8> = serialize_and_concat(&items);
+// let max_gas = 100000000;
+// let execute_response = simulator.execute(program_address, "init", params, max_gas);
+// println!("execution response {:?}", execute_response);
+// let execute_response = simulator.execute(program_address, "name", (), max_gas);
 
-    // simulator.call_program_test();
+// simulator.call_program_test();
 
-    // let a = SdkAddress::new([1; 33]);
-    // let items = vec![a];
-    // let params = serialize_and_concat(&items);
-    // let param_length = params.len() as c_uint;
-    // let method = CString::new("balance_of").expect("CString::new failed");
-    // let execution_params = ExecutionRequest {
-    //     method: method.as_ptr(),
-    //     // TODO: maybe make params null here and check for null pointers in ffi?
-    //     params: params.as_ptr(),
-    //     param_length,
-    //     max_gas,
-    // };
-    // let execute_response = simulator.execute(&context, &execution_params);
+// let a = SdkAddress::new([1; 33]);
+// let items = vec![a];
+// let params = serialize_and_concat(&items);
+// let param_length = params.len() as c_uint;
+// let method = CString::new("balance_of").expect("CString::new failed");
+// let execution_params = ExecutionRequest {
+//     method: method.as_ptr(),
+//     // TODO: maybe make params null here and check for null pointers in ffi?
+//     params: params.as_ptr(),
+//     param_length,
+//     max_gas,
+// };
+// let execute_response = simulator.execute(&context, &execution_params);
 // }
 
 fn main() {
@@ -67,9 +67,8 @@ fn main() {
     let execute_response = simulator.execute(program_address, "inc", ((actor), 10u64), gas);
     let response = execute_response.result::<bool>();
     println!("Response : {:?}", response);
-    
+
     let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
     let response = execute_response.result::<u64>();
     println!("Response : {:?}", response);
-
 }

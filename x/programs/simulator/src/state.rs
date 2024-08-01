@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    ffi::CString,
-};
+use std::{collections::HashMap, ffi::CString};
 
 use libc::c_char;
 
