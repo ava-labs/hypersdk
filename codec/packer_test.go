@@ -125,7 +125,7 @@ func TestNewReader(t *testing.T) {
 	vInt := uint32(900)
 	wp := NewWriter(5, 5)
 	// Add an int and a bool
-	wp.PackInt(uint32(vInt))
+	wp.PackInt(vInt)
 	wp.PackBool(true)
 	// Create reader
 	rp := NewReader(wp.Bytes(), 2)

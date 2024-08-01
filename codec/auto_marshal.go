@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -28,7 +29,7 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 			p.PackBytes(v.Bytes())
 		} else {
 			if v.Len() > math.MaxUint16 {
-				return fmt.Errorf("array length exceeds maximum allowed")
+				return ErrTooManyItems
 			}
 			p.PackShort(uint16(v.Len()))
 			for i := 0; i < v.Len(); i++ {
@@ -40,7 +41,7 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 		}
 	case reflect.Map:
 		if v.Len() > math.MaxUint16 {
-			return fmt.Errorf("map length exceeds maximum allowed")
+			return ErrTooManyItems
 		}
 		p.PackShort(uint16(v.Len()))
 		for _, key := range v.MapKeys() {
@@ -73,7 +74,7 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 		p.PackLong(v.Uint())
 	case reflect.String:
 		if len(v.String()) > math.MaxUint16 {
-			return fmt.Errorf("string length exceeds maximum allowed")
+			return ErrStringTooLong
 		}
 		p.PackString(v.String())
 	case reflect.Bool:
@@ -81,15 +82,14 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 	default:
 		if typ == reflect.TypeOf(Address{}) {
 			if v.Interface().(Address) == EmptyAddress {
-				return fmt.Errorf("packer does not support empty addresses")
+				return errors.New("packer does not support empty addresses")
 			}
 			addr := v.Interface().(Address)
 			p.PackAddress(addr)
 		} else {
-			return fmt.Errorf("unsupported field type: %v", kind)
+			return ErrUnsupportedFieldType
 		}
 	}
-
 	return nil
 }
 
@@ -144,7 +144,7 @@ func unmarshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.T
 	case reflect.Int64:
 		v.SetInt(int64(p.UnpackLong()))
 	case reflect.Uint:
-		v.SetUint(uint64(p.UnpackLong()))
+		v.SetUint(p.UnpackLong())
 	case reflect.Uint8:
 		v.SetUint(uint64(p.UnpackByte()))
 	case reflect.Uint16:
@@ -152,7 +152,7 @@ func unmarshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.T
 	case reflect.Uint32:
 		v.SetUint(uint64(p.UnpackInt(false)))
 	case reflect.Uint64:
-		v.SetUint(uint64(p.UnpackLong()))
+		v.SetUint(p.UnpackLong())
 	case reflect.String:
 		v.SetString(p.UnpackString(false))
 	case reflect.Bool:
@@ -163,7 +163,7 @@ func unmarshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.T
 			p.UnpackAddress(&addr)
 			v.Set(reflect.ValueOf(addr))
 		} else {
-			return fmt.Errorf("unsupported field type: %v", kind)
+			return ErrUnsupportedFieldType
 		}
 	}
 
@@ -220,7 +220,7 @@ func AutoMarshalStruct(p *Packer, item interface{}) {
 	// Handle pointer to struct
 	if t.Kind() == reflect.Ptr {
 		if v.IsNil() {
-			p.addErr(fmt.Errorf("cannot marshal nil pointer"))
+			p.addErr(errors.New("cannot marshal nil pointer"))
 			return
 		}
 		v = v.Elem()

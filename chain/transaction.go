@@ -485,7 +485,10 @@ func unmarshalActions(
 		}
 		if unmarshalAction == nil {
 			var action Action
-			codec.AutoUnmarshalStruct(p, &action)
+			err := codec.AutoUnmarshalStruct(p, &action)
+			if err != nil {
+				return nil, fmt.Errorf("%w: could not unmarshal action", err)
+			}
 			actions = append(actions, action)
 		} else {
 			action, err := unmarshalAction(p)
@@ -494,7 +497,6 @@ func unmarshalActions(
 			}
 			actions = append(actions, action)
 		}
-
 	}
 	return actions, nil
 }
