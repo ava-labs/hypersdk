@@ -181,8 +181,13 @@ type fieldInfo struct {
 }
 
 var typeInfoCache sync.Map
+var typeInfoCacheUnsafe map[reflect.Type][]fieldInfo = make(map[reflect.Type][]fieldInfo)
 
 func getTypeInfo(t reflect.Type) []fieldInfo {
+	if info, ok := typeInfoCacheUnsafe[t]; ok {
+		return info
+	}
+
 	if info, ok := typeInfoCache.Load(t); ok {
 		return info.([]fieldInfo)
 	}
@@ -200,6 +205,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	}
 
 	typeInfoCache.Store(t, exportedFields)
+	typeInfoCacheUnsafe[t] = exportedFields
 	return exportedFields
 }
 
