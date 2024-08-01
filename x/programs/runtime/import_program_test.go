@@ -22,11 +22,11 @@ func TestImportProgramDeployProgram(t *testing.T) {
 	program := newTestProgram(ctx, "deploy_program")
 	runtime := program.Runtime
 	otherProgramID := ids.GenerateTestID()
-	runtime.AddProgram(otherProgramID, "call_program")
+	runtime.AddProgram(otherProgramID[:], "call_program")
 
 	result, err := program.Call(
 		"deploy",
-		otherProgramID)
+		otherProgramID[:])
 	require.NoError(err)
 
 	newAccount := into[codec.Address](result)
