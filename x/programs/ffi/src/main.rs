@@ -31,7 +31,6 @@ fn main() {
 
     let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
     let response = execute_response.result::<u64>();
-    println!("Response : {:?}", response);
 
     // let params = ("Test", "TST");
 
