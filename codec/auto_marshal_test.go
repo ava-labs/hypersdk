@@ -290,37 +290,23 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	type InnerStruct struct {
 		Field1 int32
 		Field2 string
-		Field3 bool
-		Field5 []byte
 	}
 
 	type TestStruct struct {
-		Uint64Field uint64
 		StringField string
 		BytesField  []byte
-		IntField    int
-		BoolField   bool
-		Uint16Field uint16
-		Int8Field   int8
 		InnerField  []InnerStruct
 	}
 
 	test := TestStruct{
-		Uint64Field: 42,
 		StringField: "Hello, World!",
 		BytesField:  []byte{1, 2, 3, 4, 5},
-		IntField:    -100,
-		BoolField:   true,
-		Uint16Field: 65535,
-		Int8Field:   -128,
 		InnerField: func() []InnerStruct {
 			inner := make([]InnerStruct, 100)
 			for i := 0; i < 100; i++ {
 				inner[i] = InnerStruct{
 					Field1: int32(i),
 					Field2: fmt.Sprintf("Inner string %d", i),
-					Field3: i%2 == 0,
-					Field5: []byte{byte(i), byte(i + 1), byte(i + 2), byte(i + 3), byte(i + 4)},
 				}
 			}
 			return inner
@@ -338,27 +324,31 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		Value: 12876198273671286,
 		Memo:  []byte("Hello World"),
 	}
+	_ = transfer
 
 	const iterationsInBatch = 100_000
 
 	runParallel := func(b *testing.B, numWorkers int, f func()) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var wg sync.WaitGroup
-			wg.Add(numWorkers)
-			for w := 0; w < numWorkers; w++ {
-				go func() {
-					defer wg.Done()
-					for j := 0; j < iterationsInBatch/numWorkers; j++ {
-						f()
-					}
-				}()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				var wg sync.WaitGroup
+				wg.Add(numWorkers)
+				for w := 0; w < numWorkers; w++ {
+					go func() {
+						defer wg.Done()
+						for j := 0; j < iterationsInBatch/numWorkers; j++ {
+							f()
+						}
+					}()
+				}
+				wg.Wait()
 			}
-			wg.Wait()
-		}
+		})
+		b.StopTimer()
 	}
 
-	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+	for _, numWorkers := range []int{1, runtime.NumCPU()} {
 		b.Run(fmt.Sprintf("Transfer-Reflection-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
 				packer := codec.NewWriter(0, consts.NetworkSizeLimit)
@@ -375,7 +365,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	}
 
-	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+	for _, numWorkers := range []int{1, runtime.NumCPU()} {
 		b.Run(fmt.Sprintf("Transfer-Manual-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
 				p := codec.NewWriter(0, consts.NetworkSizeLimit)
@@ -396,7 +386,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	}
 
-	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+	for _, numWorkers := range []int{1, runtime.NumCPU()} {
 		b.Run(fmt.Sprintf("Complex-Reflection-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
 				packer := codec.NewWriter(0, consts.NetworkSizeLimit)
@@ -413,41 +403,28 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	}
 
-	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
+	for _, numWorkers := range []int{1, runtime.NumCPU()} {
 		b.Run(fmt.Sprintf("Complex-Manual-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
+
 				p := codec.NewWriter(0, consts.NetworkSizeLimit*100)
-				p.PackUint64(test.Uint64Field)
 				p.PackString(test.StringField)
 				p.PackBytes(test.BytesField)
-				p.PackInt64(int64(test.IntField))
-				p.PackBool(test.BoolField)
-				p.PackInt(uint32(test.Uint16Field))
-				p.PackInt(uint32(test.Int8Field))
 				p.PackInt(uint32(len(test.InnerField)))
 				for _, inner := range test.InnerField {
-					p.PackInt64(int64(inner.Field1))
+					p.PackInt(uint32(inner.Field1))
 					p.PackString(inner.Field2)
-					p.PackBool(inner.Field3)
-					p.PackBytes(inner.Field5)
 				}
 				bytes := p.Bytes()
 
 				r := codec.NewReader(bytes, len(bytes))
 				var restored TestStruct
-				restored.Uint64Field = r.UnpackUint64(false)
 				restored.StringField = r.UnpackString(false)
 				r.UnpackBytes(-1, false, &restored.BytesField)
-				restored.IntField = int(r.UnpackInt64(false))
-				restored.BoolField = r.UnpackBool()
-				restored.Uint16Field = uint16(r.UnpackInt64(false))
-				restored.Int8Field = int8(r.UnpackInt64(false))
 				restored.InnerField = make([]InnerStruct, r.UnpackInt(false))
 				for i := range restored.InnerField {
-					restored.InnerField[i].Field1 = int32(r.UnpackInt64(false))
+					restored.InnerField[i].Field1 = int32(r.UnpackInt(false))
 					restored.InnerField[i].Field2 = r.UnpackString(false)
-					restored.InnerField[i].Field3 = r.UnpackBool()
-					r.UnpackBytes(-1, false, &restored.InnerField[i].Field5)
 				}
 				if err := r.Err(); err != nil {
 					b.Fatal(err) //nolint:forbidigo
