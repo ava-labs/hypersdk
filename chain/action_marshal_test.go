@@ -5,6 +5,7 @@ import (
 	"math"
 	reflect "reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -298,29 +299,28 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 	t.Logf("Reflection time: %v", reflectionTime)
 }
 
-// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
 // goos: linux
 // goarch: amd64
 // pkg: github.com/ava-labs/hypersdk/chain
 // cpu: AMD EPYC 7763 64-Core Processor
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-1-8                     25          43537383 ns/op        35200222 B/op     500002 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-2-8                     44          27911118 ns/op        35200192 B/op     500003 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-4-8                     67          18641837 ns/op        35200585 B/op     500006 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-8-8                     73          15644815 ns/op        35200919 B/op     500011 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-1-8                         85          13315283 ns/op        14400048 B/op     200002 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-2-8                        135           8490382 ns/op        14400117 B/op     200003 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-4-8                        193           6162926 ns/op        14400171 B/op     200005 allocs/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-8-8                        230           5290315 ns/op        14400406 B/op     200009 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-1-8                       8         131688824 ns/op        62400130 B/op    1200002 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-2-8                      14          84294921 ns/op        62400249 B/op    1200003 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-4-8                      20          53936334 ns/op        62400397 B/op    1200005 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Reflection-8-8                      27          42685016 ns/op        62400487 B/op    1200009 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-1-8                          20          56797834 ns/op        40800104 B/op     900002 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-2-8                          38          34366410 ns/op        40800175 B/op     900003 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-4-8                          51          23726648 ns/op        40800266 B/op     900005 allocs/op
-// BenchmarkMarshalUnmarshal/Complex-Manual-8-8                          57          18333733 ns/op        40800778 B/op     900010 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-1-8                     25          44908275 ns/op        35200248 B/op     500002 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-2-8                     39          28402783 ns/op        35200235 B/op     500003 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-4-8                     52          19412363 ns/op        35200397 B/op     500006 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-8-8                     67          15940310 ns/op        35201158 B/op     500012 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-1-8                         79          13639643 ns/op        14400048 B/op     200002 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-2-8                        138           8520965 ns/op        14400173 B/op     200003 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-4-8                        190           6174020 ns/op        14400186 B/op     200005 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-8-8                        230           5177846 ns/op        14400366 B/op     200009 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-1-8                       8         131652394 ns/op        62400150 B/op    1200002 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-2-8                      15          79716490 ns/op        62400238 B/op    1200003 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-4-8                      22          53110410 ns/op        62400367 B/op    1200005 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Reflection-8-8                      27          42143834 ns/op        62400900 B/op    1200010 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-1-8                          19          57420578 ns/op        40800108 B/op     900002 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-2-8                          33          33921873 ns/op        40800186 B/op     900003 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-4-8                          51          22917034 ns/op        40800419 B/op     900005 allocs/op
+// BenchmarkMarshalUnmarshal/Complex-Manual-8-8                          60          18573280 ns/op        40800467 B/op     900009 allocs/op
 // PASS
-// ok      github.com/ava-labs/hypersdk/chain      22.327s
+// ok      github.com/ava-labs/hypersdk/chain      20.763s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
 	type InnerStruct struct {
 		Field1 int32
@@ -773,7 +773,6 @@ func TestMarshalLengths(t *testing.T) {
 		})
 	}
 }
-
 func TestMarshalLongBytes(t *testing.T) {
 	type LongBytesStruct struct {
 		LongBytes []byte
@@ -793,7 +792,7 @@ func TestMarshalLongBytes(t *testing.T) {
 		t.Fatalf("MarshalAction failed: %v", err)
 	}
 
-	// Expected length: 70000 bytes for the data + 4 bytes for the length prefix
+	// 70000 bytes for the data + 4 bytes for the length prefix
 	expectedLength := 70000 + 4
 	if len(bytes) != expectedLength {
 		t.Errorf("Expected marshaled length %d, got %d", expectedLength, len(bytes))
@@ -807,5 +806,82 @@ func TestMarshalLongBytes(t *testing.T) {
 
 	if !reflect.DeepEqual(test, restored) {
 		t.Errorf("Restored value does not match original")
+	}
+}
+
+func TestMarshalLongArray(t *testing.T) {
+	type LongArrayStruct struct {
+		LongArray []uint16
+	}
+
+	// Create an array that's too long (more than 65535 elements)
+	longArray := make([]uint16, math.MaxUint16+1)
+	for i := range longArray {
+		longArray[i] = uint16(i % math.MaxUint16)
+	}
+
+	test := LongArrayStruct{
+		LongArray: longArray,
+	}
+
+	_, err := chain.MarshalAction(test)
+	if err == nil {
+		t.Fatalf("Expected MarshalAction to fail for too long array, but it succeeded")
+	}
+
+	// Check if the error message indicates that the array is too long
+	expectedErrMsg := "array length exceeds maximum allowed"
+	if !strings.Contains(err.Error(), expectedErrMsg) {
+		t.Errorf("Expected error message to contain '%s', but got: %v", expectedErrMsg, err)
+	}
+}
+
+func TestMarshalLongMap(t *testing.T) {
+	type LongMapStruct struct {
+		LongMap map[uint64]uint64
+	}
+
+	longMap := map[uint64]uint64{}
+	for i := uint32(0); i <= math.MaxUint16+1; i++ {
+		longMap[uint64(i)] = uint64(i % math.MaxUint16)
+	}
+
+	test := LongMapStruct{
+		LongMap: longMap,
+	}
+
+	_, err := chain.MarshalAction(test)
+	if err == nil {
+		t.Fatalf("Expected MarshalAction to fail for too large map, but it succeeded")
+	}
+
+	// Check if the error message indicates that the map is too large
+	expectedErrMsg := "map length exceeds maximum allowed"
+	if !strings.Contains(err.Error(), expectedErrMsg) {
+		t.Errorf("Expected error message to contain '%s', but got: %v", expectedErrMsg, err)
+	}
+}
+
+func TestMarshalLongString(t *testing.T) {
+	type LongStringStruct struct {
+		LongString string
+	}
+
+	// Create a string that's too long (more than 65535 characters)
+	longString := strings.Repeat("a", math.MaxUint16+1)
+
+	test := LongStringStruct{
+		LongString: longString,
+	}
+
+	_, err := chain.MarshalAction(test)
+	if err == nil {
+		t.Fatalf("Expected MarshalAction to fail for too long string, but it succeeded")
+	}
+
+	// Check if the error message indicates that the string is too long
+	expectedErrMsg := "string length exceeds maximum allowed"
+	if !strings.Contains(err.Error(), expectedErrMsg) {
+		t.Errorf("Expected error message to contain '%s', but got: %v", expectedErrMsg, err)
 	}
 }

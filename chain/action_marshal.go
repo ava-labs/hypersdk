@@ -2,6 +2,7 @@ package chain
 
 import (
 	"fmt"
+	"math"
 	reflect "reflect"
 	"sync"
 
@@ -26,6 +27,9 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 		if typ.Elem().Kind() == reflect.Uint8 {
 			p.PackBytes(v.Bytes())
 		} else {
+			if v.Len() > math.MaxUint16 {
+				return nil, fmt.Errorf("array length exceeds maximum allowed")
+			}
 			p.PackShort(uint16(v.Len()))
 			for i := 0; i < v.Len(); i++ {
 				_, err := marshalValue(p, v.Index(i), typ.Elem().Kind(), typ.Elem())
@@ -35,7 +39,10 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 			}
 		}
 	case reflect.Map:
-		p.PackInt(uint32(v.Len()))
+		if v.Len() > math.MaxUint16 {
+			return nil, fmt.Errorf("map length exceeds maximum allowed")
+		}
+		p.PackShort(uint16(v.Len()))
 		for _, key := range v.MapKeys() {
 			_, err := marshalValue(p, key, typ.Key().Kind(), typ.Key())
 			if err != nil {
@@ -65,8 +72,10 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 	case reflect.Uint64:
 		p.PackLong(v.Uint())
 	case reflect.String:
-		p.PackShort(uint16(v.Len()))
-		p.PackFixedBytes([]byte(v.String()))
+		if len(v.String()) > math.MaxUint16 {
+			return nil, fmt.Errorf("string length exceeds maximum allowed")
+		}
+		p.PackStr(v.String())
 	case reflect.Bool:
 		p.PackBool(v.Bool())
 	default:
@@ -128,7 +137,7 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 			v.Set(slice)
 		}
 	case reflect.Map:
-		length := int(p.UnpackInt())
+		length := int(p.UnpackShort())
 		m := reflect.MakeMap(typ)
 		for i := 0; i < length; i++ {
 			key := reflect.New(typ.Key()).Elem()
@@ -163,7 +172,7 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 	case reflect.Uint64:
 		v.SetUint(uint64(p.UnpackLong()))
 	case reflect.String:
-		v.SetString(string(p.UnpackFixedBytes(int(p.UnpackShort()))))
+		v.SetString(p.UnpackStr())
 	case reflect.Bool:
 		v.SetBool(p.UnpackBool())
 	default:
