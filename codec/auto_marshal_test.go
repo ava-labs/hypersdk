@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -277,11 +278,15 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(test, packer)
-		require.NoError(t, packer.Err())
+		if packer.Err() != nil {
+			t.Fatal(packer.Err())
+		}
 
 		var restored TestStruct
 		err := codec.AutoUnmarshalStruct(codec.NewReader(packer.Bytes(), consts.NetworkSizeLimit), &restored)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	reflectionTime := time.Since(start)
 
@@ -905,4 +910,11 @@ func TestMarshalLongString(t *testing.T) {
 	packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 	codec.AutoMarshalStruct(test, packer)
 	require.Error(t, packer.Err())
+}
+
+func TestIntIs64Bit(t *testing.T) {
+	var i int
+	var i64 int64
+
+	require.Equal(t, unsafe.Sizeof(i), unsafe.Sizeof(i64), "int is not 64-bit on this system")
 }
