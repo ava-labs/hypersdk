@@ -1,4 +1,4 @@
-package chain_test
+package codec_test
 
 import (
 	"fmt"
@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/stretchr/testify/require"
@@ -51,14 +50,14 @@ func TestMarshalTransfer(t *testing.T) {
 	p.PackBytes(transfer.Memo)
 	expectedBytes := p.Bytes()
 
-	actualBytes, err := chain.MarshalAction(transfer)
+	actualBytes, err := codec.AutoMarshalStruct(transfer)
 	requireNoErrorFast(t, err)
 
 	require.Equal(t, expectedBytes, actualBytes)
 
 	//unmarshal
 	var restoredStruct testStructure
-	err = chain.UnmarshalAction(expectedBytes, &restoredStruct)
+	err = codec.AutoUnmarshalStruct(expectedBytes, &restoredStruct)
 	requireNoErrorFast(t, err)
 
 	require.Equal(t, transfer, restoredStruct)
@@ -120,11 +119,11 @@ func TestMarshalNumber(t *testing.T) {
 		Int64Max:    math.MaxInt64,
 	}
 
-	bytes, err := chain.MarshalAction(test)
+	bytes, err := codec.AutoMarshalStruct(test)
 	requireNoErrorFast(t, err)
 
 	var restoredStruct NumberStructure
-	err = chain.UnmarshalAction(bytes, &restoredStruct)
+	err = codec.AutoUnmarshalStruct(bytes, &restoredStruct)
 	requireNoErrorFast(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -162,11 +161,11 @@ func TestMarshalFlatTypes(t *testing.T) {
 		ByteArrayField: []byte{10, 20, 30},
 	}
 
-	bytes, err := chain.MarshalAction(test)
+	bytes, err := codec.AutoMarshalStruct(test)
 	requireNoErrorFast(t, err)
 
 	var restoredStruct FlatStructure
-	err = chain.UnmarshalAction(bytes, &restoredStruct)
+	err = codec.AutoUnmarshalStruct(bytes, &restoredStruct)
 	requireNoErrorFast(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -192,11 +191,11 @@ func TestMarshalEmptyFlatTypes(t *testing.T) {
 		ByteArrayField: []byte{}, //codec would unmarshal nil to []byte{} anyway
 	}
 
-	bytes, err := chain.MarshalAction(test)
+	bytes, err := codec.AutoMarshalStruct(test)
 	requireNoErrorFast(t, err)
 
 	var restoredStruct FlatStructure
-	err = chain.UnmarshalAction(bytes, &restoredStruct)
+	err = codec.AutoUnmarshalStruct(bytes, &restoredStruct)
 	requireNoErrorFast(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -237,11 +236,11 @@ func TestMarshalStructWithArrayOfStructs(t *testing.T) {
 		EmptyMapField:    map[string]SimpleStruct{},
 	}
 
-	bytes, err := chain.MarshalAction(test)
+	bytes, err := codec.AutoMarshalStruct(test)
 	requireNoErrorFast(t, err)
 
 	var restoredStruct ComplexStruct
-	err = chain.UnmarshalAction(bytes, &restoredStruct)
+	err = codec.AutoUnmarshalStruct(bytes, &restoredStruct)
 	requireNoErrorFast(t, err)
 
 	require.Equal(t, test, restoredStruct)
@@ -278,15 +277,15 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 
 	iterations := 100_000
 
-	// Time chain.MarshalAction and chain.UnmarshalAction
+	// Time codec.AutoMarshalStruct and codec.AutoUnmarshalStruct
 	start := time.Now()
 
 	for i := 0; i < iterations; i++ {
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored TestStruct
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 	}
 	reflectionTime := time.Since(start)
@@ -299,10 +298,10 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 	t.Logf("Reflection time: %v", reflectionTime)
 }
 
-// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./chain
+// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
 // goos: linux
 // goarch: amd64
-// pkg: github.com/ava-labs/hypersdk/chain
+// pkg: github.com/ava-labs/hypersdk/codec
 // cpu: AMD EPYC 7763 64-Core Processor
 // BenchmarkMarshalUnmarshal/Transfer-Reflection-1-8                     25          43809594 ns/op        35200210 B/op     500002 allocs/op
 // BenchmarkMarshalUnmarshal/Transfer-Reflection-2-8                     43          27888527 ns/op        35200225 B/op     500003 allocs/op
@@ -321,7 +320,7 @@ func TestMakeSureMarshalUnmarshalIsNotTooSlow(t *testing.T) {
 // BenchmarkMarshalUnmarshal/Complex-Manual-4-8                           2         624686344 ns/op        2029612464 B/op 11400075 allocs/op
 // BenchmarkMarshalUnmarshal/Complex-Manual-8-8                           2         535399140 ns/op        2029608216 B/op 11400034 allocs/op
 // PASS
-// ok      github.com/ava-labs/hypersdk/chain      25.784s
+// ok      github.com/ava-labs/hypersdk/codec      25.784s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
 	type InnerStruct struct {
 		Field1 int32
@@ -411,10 +410,10 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
 		b.Run(fmt.Sprintf("Transfer-Reflection-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
-				bytes, err := chain.MarshalAction(transfer)
+				bytes, err := codec.AutoMarshalStruct(transfer)
 				requireNoErrorFast(b, err)
 				var restored Transfer
-				err = chain.UnmarshalAction(bytes, &restored)
+				err = codec.AutoUnmarshalStruct(bytes, &restored)
 				requireNoErrorFast(b, err)
 			})
 		})
@@ -442,10 +441,10 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	// for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
 	// 	b.Run(fmt.Sprintf("Megabyte-Reflection-%d", numWorkers), func(b *testing.B) {
 	// 		runParallel(b, numWorkers, func() {
-	// 			bytes, err := chain.MarshalAction(megabyte)
+	// 			bytes, err := codec.AutoMarshalStruct(megabyte)
 	// 			requireNoErrorFast(b, err)
 	// 			var restored megabyteStruct
-	// 			err = chain.UnmarshalAction(bytes, &restored)
+	// 			err = codec.AutoUnmarshalStruct(bytes, &restored)
 	// 			requireNoErrorFast(b, err)
 	// 		})
 	// 	})
@@ -469,10 +468,10 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	for numWorkers := 1; numWorkers <= runtime.NumCPU(); numWorkers *= 2 {
 		b.Run(fmt.Sprintf("Complex-Reflection-%d", numWorkers), func(b *testing.B) {
 			runParallel(b, numWorkers, func() {
-				bytes, err := chain.MarshalAction(test)
+				bytes, err := codec.AutoMarshalStruct(test)
 				requireNoErrorFast(b, err)
 				var restored TestStruct
-				err = chain.UnmarshalAction(bytes, &restored)
+				err = codec.AutoUnmarshalStruct(bytes, &restored)
 				requireNoErrorFast(b, err)
 			})
 		})
@@ -607,7 +606,7 @@ func TestMarshalSizes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bytes, err := chain.MarshalAction(tt.value)
+			bytes, err := codec.AutoMarshalStruct(tt.value)
 			requireNoErrorFast(t, err)
 
 			// Check size
@@ -615,7 +614,7 @@ func TestMarshalSizes(t *testing.T) {
 
 			// Decode and compare
 			decoded := reflect.New(reflect.TypeOf(tt.value)).Interface()
-			err = chain.UnmarshalAction(bytes, decoded)
+			err = codec.AutoUnmarshalStruct(bytes, decoded)
 			requireNoErrorFast(t, err)
 
 			require.Equal(t, tt.value, reflect.ValueOf(decoded).Elem().Interface(), "Decoded value mismatch")
@@ -636,11 +635,11 @@ func TestAdditionalCornerCases(t *testing.T) {
 		}
 		test := Outer{Middle: Middle{Inner: Inner{Field: 42}}}
 
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored Outer
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 
 		require.Equal(t, test, restored)
@@ -650,11 +649,11 @@ func TestAdditionalCornerCases(t *testing.T) {
 		type Empty struct{}
 		test := Empty{}
 
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored Empty
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 
 		require.Equal(t, test, restored)
@@ -667,11 +666,11 @@ func TestAdditionalCornerCases(t *testing.T) {
 		}
 		test := Mixed{Exported: 42, unexported: "should be ignored"}
 
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored Mixed
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 
 		require.Equal(t, test.Exported, restored.Exported)
@@ -687,13 +686,13 @@ func TestAdditionalCornerCases(t *testing.T) {
 		strVal := "test"
 		test := PointerStruct{IntPtr: &intVal, StringPtr: &strVal}
 
-		_, err := chain.MarshalAction(test)
+		_, err := codec.AutoMarshalStruct(test)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unsupported field type: ptr")
 
 		bytes := []byte{0x00, 0x01, 0x02} // Some dummy bytes
 		var restored PointerStruct
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unsupported field type: ptr")
 	})
@@ -707,11 +706,11 @@ func TestAdditionalCornerCases(t *testing.T) {
 		}
 		test := Outer{Embedded: Embedded{Field: 42}, OtherField: "test"}
 
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored Outer
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 
 		require.Equal(t, test, restored)
@@ -727,11 +726,11 @@ func TestAdditionalCornerCases(t *testing.T) {
 		}
 		test := Outer{embedded: embedded{field: 42}, OtherField: "test"}
 
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored Outer
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 
 		require.Equal(t, test.OtherField, restored.OtherField)
@@ -744,7 +743,7 @@ func TestAdditionalCornerCases(t *testing.T) {
 		}
 		test := Struct{Field: "test"}
 
-		_, err := chain.MarshalAction(test)
+		_, err := codec.AutoMarshalStruct(test)
 		require.Error(t, err) // Should error as interfaces are not supported
 	})
 
@@ -755,11 +754,11 @@ func TestAdditionalCornerCases(t *testing.T) {
 		}
 		test := Struct{Field: CustomInt(42)}
 
-		bytes, err := chain.MarshalAction(test)
+		bytes, err := codec.AutoMarshalStruct(test)
 		requireNoErrorFast(t, err)
 
 		var restored Struct
-		err = chain.UnmarshalAction(bytes, &restored)
+		err = codec.AutoUnmarshalStruct(bytes, &restored)
 		requireNoErrorFast(t, err)
 
 		require.Equal(t, test, restored)
@@ -792,7 +791,7 @@ func TestMarshalLengths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bytes, err := chain.MarshalAction(tt.value)
+			bytes, err := codec.AutoMarshalStruct(tt.value)
 			if err != nil {
 				t.Fatalf("MarshalAction failed: %v", err)
 			}
@@ -802,7 +801,7 @@ func TestMarshalLengths(t *testing.T) {
 			}
 
 			restored := reflect.New(reflect.TypeOf(tt.value)).Interface()
-			err = chain.UnmarshalAction(bytes, restored)
+			err = codec.AutoUnmarshalStruct(bytes, restored)
 			if err != nil {
 				t.Fatalf("UnmarshalAction failed: %v", err)
 			}
@@ -827,7 +826,7 @@ func TestMarshalLongBytes(t *testing.T) {
 		LongBytes: longBytes,
 	}
 
-	bytes, err := chain.MarshalAction(test)
+	bytes, err := codec.AutoMarshalStruct(test)
 	if err != nil {
 		t.Fatalf("MarshalAction failed: %v", err)
 	}
@@ -839,7 +838,7 @@ func TestMarshalLongBytes(t *testing.T) {
 	}
 
 	var restored LongBytesStruct
-	err = chain.UnmarshalAction(bytes, &restored)
+	err = codec.AutoUnmarshalStruct(bytes, &restored)
 	if err != nil {
 		t.Fatalf("UnmarshalAction failed: %v", err)
 	}
@@ -864,7 +863,7 @@ func TestMarshalLongArray(t *testing.T) {
 		LongArray: longArray,
 	}
 
-	_, err := chain.MarshalAction(test)
+	_, err := codec.AutoMarshalStruct(test)
 	if err == nil {
 		t.Fatalf("Expected MarshalAction to fail for too long array, but it succeeded")
 	}
@@ -890,7 +889,7 @@ func TestMarshalLongMap(t *testing.T) {
 		LongMap: longMap,
 	}
 
-	_, err := chain.MarshalAction(test)
+	_, err := codec.AutoMarshalStruct(test)
 	if err == nil {
 		t.Fatalf("Expected MarshalAction to fail for too large map, but it succeeded")
 	}
@@ -914,7 +913,7 @@ func TestMarshalLongString(t *testing.T) {
 		LongString: longString,
 	}
 
-	_, err := chain.MarshalAction(test)
+	_, err := codec.AutoMarshalStruct(test)
 	if err == nil {
 		t.Fatalf("Expected MarshalAction to fail for too long string, but it succeeded")
 	}

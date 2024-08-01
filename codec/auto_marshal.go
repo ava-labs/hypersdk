@@ -1,4 +1,4 @@
-package chain
+package codec
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 )
 
@@ -79,11 +78,11 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 	case reflect.Bool:
 		p.PackBool(v.Bool())
 	default:
-		if typ == reflect.TypeOf(codec.Address{}) {
-			if v.Interface().(codec.Address) == codec.EmptyAddress {
+		if typ == reflect.TypeOf(Address{}) {
+			if v.Interface().(Address) == EmptyAddress {
 				return nil, fmt.Errorf("packer does not support empty addresses")
 			}
-			addr := v.Interface().(codec.Address)
+			addr := v.Interface().(Address)
 			p.PackFixedBytes(addr[:])
 		} else {
 			return nil, fmt.Errorf("unsupported field type: %v", kind)
@@ -93,7 +92,7 @@ func marshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ re
 	return p.Bytes, nil
 }
 
-func UnmarshalAction(data []byte, item interface{}) error {
+func AutoUnmarshalStruct(data []byte, item interface{}) error {
 	p := &wrappers.Packer{
 		Bytes: data,
 	}
@@ -176,8 +175,8 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 	case reflect.Bool:
 		v.SetBool(p.UnpackBool())
 	default:
-		if typ == reflect.TypeOf(codec.Address{}) {
-			var addr codec.Address
+		if typ == reflect.TypeOf(Address{}) {
+			var addr Address
 			copy(addr[:], p.UnpackFixedBytes(len(addr)))
 			v.Set(reflect.ValueOf(addr))
 		} else {
@@ -193,10 +192,9 @@ func unmarshalValue(p *wrappers.Packer, v reflect.Value, kind reflect.Kind, typ 
 }
 
 type fieldInfo struct {
-	index    int
-	kind     reflect.Kind
-	typ      reflect.Type
-	exported bool
+	index int
+	kind  reflect.Kind
+	typ   reflect.Type
 }
 
 var (
@@ -230,7 +228,7 @@ func getTypeInfo(t reflect.Type) []fieldInfo {
 	return exportedFields
 }
 
-func MarshalAction(item interface{}) ([]byte, error) {
+func AutoMarshalStruct(item interface{}) ([]byte, error) {
 	p := &wrappers.Packer{MaxSize: consts.NetworkSizeLimit}
 	v := reflect.ValueOf(item)
 	t := v.Type()
