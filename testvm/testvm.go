@@ -4,14 +4,17 @@
 package testvm
 
 import (
+	"context"
 	"errors"
+	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/vm"
-	"github.com/ava-labs/hypersdk/workers"
+	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/tstate"
 )
 
-var _ TestVM = (*vm.VM)(nil)
+// var _ TestVM = (*vm.VM)(nil)
 
 // block production
 const (
@@ -23,6 +26,18 @@ const (
 var (
 	UnknownSnapshot = errors.New("this snapshot doesn't exist")
 )
+
+var genesisBlock = chain.StatelessBlock{
+	StatefulBlock: &chain.StatefulBlock{
+		Prnt:   ids.ID{'n', 'o', 'n', 'e'},
+		Tmstmp: 0,
+		Hght:   0,
+	},
+}
+
+var defaultEnv = Env{
+	currentBlock: genesisBlock,
+}
 
 type Env struct {
 	currentBlock chain.StatelessBlock
@@ -51,19 +66,79 @@ type Snapshot struct {
 type TestVM struct {
 	Env
 
+	blockProduction int
+
 	snapshots map[uint64]Snapshot
+	rules     chain.MockRules
+	maxUnits  fees.Dimensions
 }
 
-func (vm *TestVM) Init() {
-	//
+type TestConfig struct {
+	*Env
+
+	blockProduction int
 }
 
-func (vm *TestVM) RunTransaction(tx chain.Transaction) {
-	//
+func (vm *TestVM) Init(config TestConfig, maxUnits fees.Dimensions) {
+	if config.Env != nil {
+		vm.Env = *config.Env
+	} else {
+		vm.Env = defaultEnv
+	}
+
+	vm.blockProduction = config.blockProduction
+	vm.maxUnits = maxUnits
 }
 
-func (vm *TestVM) SetTimestamp(timestamp uint64) {
-	//
+func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*chain.Result, error) {
+	ts := tstate.New(1)
+	sm := vm.StateManager()
+	stateKeys, err := tx.StateKeys(sm)
+	if err != nil {
+		return nil, err
+	}
+
+	var storage = make(map[string][]byte, len(stateKeys))
+	parent := vm.currentBlock
+	parentView, err := parent.View(ctx, true)
+
+	for k := range stateKeys {
+		v, err := parentView.GetValue(ctx, []byte(k))
+		if err != nil {
+			return nil, err
+		}
+		storage[k] = v
+	}
+
+	tsv := ts.NewView(stateKeys, storage)
+	nextTime := time.Now().UnixMilli()
+	r := vm.Rules(nextTime)
+	feeKey := chain.FeeKey(vm.StateManager().FeeKey())
+	feeRaw, err := parentView.GetValue(ctx, feeKey)
+	if err != nil {
+		return nil, err
+	}
+
+	parentFeeManager := fees.NewManager(feeRaw)
+	feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
+
+	result, err := tx.Execute(
+		ctx,
+		feeManager,
+		sm,
+		r,
+		tsv,
+		nextTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if ok, _ := feeManager.Consume(result.Units, vm.maxUnits); !ok {
+		return nil, nil
+	}
+
+	return result, nil
 }
 
 func (vm *TestVM) SnapshotSave() uint64 {
@@ -99,15 +174,12 @@ func (vm *TestVM) SnapshotRevert(id uint64) error {
 	return nil
 }
 
-// VM methods
-func (vm *TestVM) AuthVerifiers() workers.Workers {
+// Parser
+func (vm *TestVM) Rules(int64) chain.Rules {
+	return &vm.rules
+}
+
+// VM
+func (vm *TestVM) StateManager() chain.StateManager {
 	return nil
-}
-
-func (vm *TestVM) GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (chain.AuthBatchVerifier, bool) {
-	return nil, false
-}
-
-func (vm *TestVM) GetVerifyAuth() bool {
-	return false
 }
