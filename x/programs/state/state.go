@@ -145,11 +145,7 @@ func (s *prefixedStateMutable) prefixKey(key []byte) (k []byte) {
 }
 
 func (s *prefixedStateMutable) GetValue(ctx context.Context, key []byte) (value []byte, err error) {
-	val, err := s.inner.GetValue(ctx, s.prefixKey(key))
-	if err != nil {
-		fmt.Println("Getting value: %s", string(val))
-	}
-	return 
+	return s.inner.GetValue(ctx, s.prefixKey(key))
 }
 
 func (s *prefixedStateMutable) Insert(ctx context.Context, key []byte, value []byte) error {
