@@ -237,12 +237,12 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 	ctx := context.Background()
 	require := require.New(ginkgo.GinkgoT())
 
-	ginkgo.It("Generate 128 blocks", func() {
+	ginkgo.By("Generate 128 blocks", func() {
 		workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 128)
 	})
 
 	var bootstrapNodeURI string
-	ginkgo.It("Start a new node to bootstrap", func() {
+	ginkgo.By("Start a new node to bootstrap", func() {
 		cluster, err := anrCli.AddNode(
 			ctx,
 			"bootstrap",
@@ -262,12 +262,12 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		network.uris = append(network.uris, bootstrapNodeURI)
 		require.NoError(err)
 	})
-	ginkgo.It("Accept a transaction after state sync", func() {
+	ginkgo.By("Accept a transaction after state sync", func() {
 		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
 		require.NoError(err)
 		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
 	})
-	ginkgo.It("Restart the node", func() {
+	ginkgo.By("Restart the node", func() {
 		cluster, err := anrCli.RestartNode(context.Background(), "bootstrap")
 		require.NoError(err)
 
@@ -289,11 +289,11 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		bootstrapNodeURI = uri
 		network.uris[len(network.uris)-1] = bootstrapNodeURI
 	})
-	ginkgo.It("Generate 1024 blocks", func() {
+	ginkgo.By("Generate 1024 blocks", func() {
 		workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 1024)
 	})
 	var syncNodeURI string
-	ginkgo.It("Start a new node to state sync", func() {
+	ginkgo.By("Start a new node to state sync", func() {
 		cluster, err := anrCli.AddNode(
 			ctx,
 			"sync",
@@ -316,12 +316,12 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		require.NoError(err)
 		syncNodeURI = uri
 	})
-	ginkgo.It("Accept a transaction after state sync", func() {
+	ginkgo.By("Accept a transaction after state sync", func() {
 		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
 		require.NoError(err)
 		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
 	})
-	ginkgo.It("Pause the node", func() {
+	ginkgo.By("Pause the node", func() {
 		// shuts down the node and keeps all db/conf data for a proper restart
 		_, err := anrCli.PauseNode(
 			ctx,
@@ -336,10 +336,10 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		require.Error(err) //nolint:forbidigo
 		require.False(ok)
 	})
-	ginkgo.It("Generate 256 blocks", func() {
+	ginkgo.By("Generate 256 blocks", func() {
 		workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 256)
 	})
-	ginkgo.It("Resume the node", func() {
+	ginkgo.By("Resume the node", func() {
 		cluster, err := anrCli.ResumeNode(
 			context.Background(),
 			"sync",
@@ -359,12 +359,12 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		syncNodeURI = uri
 	})
 
-	ginkgo.It("Accept a transaction after resuming", func() {
+	ginkgo.By("Accept a transaction after resuming", func() {
 		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
 		require.NoError(err)
 		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
 	})
-	ginkgo.It("State sync while broadcasting txs", func() {
+	ginkgo.By("State sync while broadcasting txs", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			// Recover failure if exits
@@ -399,7 +399,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		require.NoError(err)
 		cancel()
 	})
-	ginkgo.It("Accept a transaction after syncing", func() {
+	ginkgo.By("Accept a transaction after syncing", func() {
 		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
 		require.NoError(err)
 		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)

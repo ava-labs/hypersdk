@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
@@ -29,6 +28,16 @@ type TxWorkloadFactory interface {
 // 1. Next
 // 2. GenerateTxWithAssertion
 // 3. (Optional) execute the returned assertion on an arbitrary number of URIs
+//
+// This pattern allows the workload to define how many transactions must be generated. For example,
+// a CFMM application may define a set of workloads that define each sequence of actions that should be tested
+// against different network configurations such as:
+// 1. Create Liquidity Pool
+// 2. Add Liquidity
+// 3. Swap
+//
+// To handle tx expiry correctly, the workload must generate txs on demand (right before issuance) rather than
+// returning a slice of txs, which may expire before they are issued.
 type TxWorkloadIterator interface {
 	// Next returns true iff there are more transactions to generate.
 	Next() bool
@@ -48,10 +57,10 @@ func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []st
 		_, err = submitClient.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 
-		utils.ForEach(func(uri string) {
+		for _, uri := range uris {
 			err := confirm(ctx, uri)
 			require.NoError(err)
-		}, uris)
+		}
 	}
 }
 
@@ -82,7 +91,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	utils.ForEach(func(uri string) {
+	for _, uri := range uris {
 		client := rpc.NewJSONRPCClient(uri)
 		err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
@@ -92,7 +101,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 			return acceptedHeight >= targetheight, nil
 		})
 		require.NoError(err)
-	}, uris)
+	}
 }
 
 func GenerateUntilCancel(
@@ -118,8 +127,8 @@ func GenerateUntilCancel(
 			continue
 		}
 
-		utils.ForEach(func(uri string) {
+		for _, uri := range uris {
 			_ = confirm(backgroundCtx, uri)
-		}, uris)
+		}
 	}
 }
