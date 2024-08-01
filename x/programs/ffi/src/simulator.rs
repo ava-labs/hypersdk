@@ -11,7 +11,7 @@ use crate::{
 pub struct Simulator {
     state: Mutable,
     // TODO: create a map (string -> address) to improve dev ux with addresses
-    pub actor: Address
+    pub actor: Address,
 }
 
 impl Simulator {
@@ -32,7 +32,13 @@ impl Simulator {
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
     }
 
-    pub fn execute<T: borsh::BorshSerialize>(&self, program: Address, method: &str, params: T, gas: u64) -> Response {
+    pub fn execute<T: borsh::BorshSerialize>(
+        &self,
+        program: Address,
+        method: &str,
+        params: T,
+        gas: u64,
+    ) -> Response {
         // build the call context
         let context = SimulatorCallContext::new(program, self.actor);
         // build the executrion request
@@ -40,7 +46,6 @@ impl Simulator {
         // serialize the params
         let params = borsh::to_vec(&params).expect("error serializing result");
 
-    
         let request = ExecutionRequest {
             method: method.as_ptr(),
             params: params.as_ptr(),

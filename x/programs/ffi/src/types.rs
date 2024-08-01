@@ -4,8 +4,8 @@ use borsh::BorshDeserialize;
 use libc::{c_char, c_int, c_uchar, c_uint};
 use std::fmt;
 use thiserror::Error;
-use wasmlanche_sdk::{Address as SdkAddress, Id};
 use wasmlanche_sdk::ExternalCallError;
+use wasmlanche_sdk::{Address as SdkAddress, Id};
 
 #[derive(Error, Debug)]
 pub enum SimulatorError {
@@ -42,11 +42,8 @@ impl Response {
     where
         T: BorshDeserialize,
     {
-        // let bytes = self.result.get_slice();
-        // println!("bytes: {:?}", bytes);
-        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
-        let res: Result<T, ExternalCallError> = borsh::from_slice(&bytes)?;
-        res.map_err(SimulatorError::ExternalCall)
+        let bytes = self.result.get_slice();
+        Ok(borsh::from_slice(bytes)?)
     }
 }
 

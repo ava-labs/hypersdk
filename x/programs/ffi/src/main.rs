@@ -21,27 +21,28 @@ fn main() {
     let program_response = simulator.create_program(program_path);
     let program_address = program_response.program().unwrap();
 
-    let execute_response = simulator.execute(program_address, "get_value", ((actor),),gas);
-    let response = execute_response.result::<u64>().unwrap();
+    let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
+    let response = execute_response.result::<u64>();
     println!("Response : {:?}", response);
-    
-    
-    
-    
-    
-    
-    // let params = ("Test", "TST");
 
+    let execute_response = simulator.execute(program_address, "inc", ((actor), 10u64), gas);
+    let response = execute_response.result::<bool>();
+    println!("Response : {:?}", response);
+
+    let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
+    let response = execute_response.result::<u64>();
+    println!("Response : {:?}", response);
+
+    // let params = ("Test", "TST");
 
     // // let params: Vec<u8> = serialize_and_concat(&items);
     // let max_gas = 100000000;
     // let execute_response = simulator.execute(program_address, "init", params, max_gas);
     // println!("execution response {:?}", execute_response);
     // let execute_response = simulator.execute(program_address, "name", (), max_gas);
-    
 
     // simulator.call_program_test();
-    
+
     // let a = SdkAddress::new([1; 33]);
     // let items = vec![a];
     // let params = serialize_and_concat(&items);
@@ -56,9 +57,6 @@ fn main() {
     // };
     // let execute_response = simulator.execute(&context, &execution_params);
 }
-
-
-
 
 fn serialize_and_concat<T: BorshSerialize>(items: &[T]) -> Vec<u8> {
     let mut result = Vec::new();
