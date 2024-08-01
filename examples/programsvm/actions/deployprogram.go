@@ -17,7 +17,7 @@ import (
 var _ chain.Action = (*DeployProgram)(nil)
 
 type DeployProgram struct {
-	ProgramID    ids.ID `json:"programID"`
+	ProgramID    []byte `json:"programID"`
 	CreationInfo []byte `json:"creationInfo"`
 	address      codec.Address
 }
@@ -61,13 +61,13 @@ func (*DeployProgram) Size() int {
 }
 
 func (t *DeployProgram) Marshal(p *codec.Packer) {
-	p.PackID(t.ProgramID)
+	p.PackBytes(t.ProgramID)
 	p.PackBytes(t.CreationInfo)
 }
 
 func UnmarshalDeployProgram(p *codec.Packer) (chain.Action, error) {
 	var deployProgram DeployProgram
-	p.UnpackID(true, &deployProgram.ProgramID)
+	p.UnpackBytes(36, true, &deployProgram.ProgramID)
 	p.UnpackBytes(10*units.MiB, true, &deployProgram.CreationInfo)
 	deployProgram.address = storage.GetAddressForDeploy(0, deployProgram.CreationInfo)
 	if err := p.Err(); err != nil {

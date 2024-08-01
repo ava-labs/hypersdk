@@ -53,6 +53,7 @@ func sendAndWait(
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
+		println(result.Outputs[0][0])
 		handler.Root().PrintStatus(tx.ID(), result.Success)
 	}
 	return result.Success, tx.ID(), nil

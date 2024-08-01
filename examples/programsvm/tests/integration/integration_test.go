@@ -320,11 +320,14 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser, err := instances[0].lcli.Parser(context.TODO())
 			require.NoError(err)
 
-			submit, _, _, err := instances[0].cli.GenerateTransaction(
+			bytes, err := os.ReadFile("/Users/david.boehm/github/hypersdk/x/programs/runtime/wasm32-unknown-unknown/release/simple.wasm")
+			require.NoError(err)
+
+			submit, tx, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				[]chain.Action{&actions.PublishProgram{
-					ProgramBytes: []byte{0, 1, 2, 3},
+					ProgramBytes: bytes,
 				}},
 				factory,
 			)
@@ -332,10 +335,18 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 			// Broadcast and wait for transaction
 			require.NoError(submit(context.Background()))
-			accept := expectBlk(instances[0])
-			results := accept(false)
-			require.Len(results, 1)
-			require.True(results[0].Success)
+
+			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+			success, _, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
+			cancel()
+			require.NoError(err)
+			require.True(success)
+			/*
+				accept := expectBlk(instances[0])
+				results := accept(false)
+				require.Len(results, 1)
+				require.True(results[0].Success)
+			*/
 		})
 	})
 })

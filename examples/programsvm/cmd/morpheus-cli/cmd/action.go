@@ -168,7 +168,7 @@ var deployProgramCmd = &cobra.Command{
 			return err
 		}
 
-		programID, err := handler.Root().PromptID("program id")
+		programID, err := handler.Root().PromptBytes("program id")
 		if err != nil {
 			return err
 		}

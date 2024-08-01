@@ -7,6 +7,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
@@ -36,8 +37,8 @@ func AccountProgramKey(account codec.Address) (k []byte) {
 	return
 }
 
-func ProgramsKey(id ids.ID) (k []byte) {
-	k = make([]byte, 1+ids.IDLen)
+func ProgramsKey(id []byte) (k []byte) {
+	k = make([]byte, 1+len(id))
 	k[0] = programsPrefix
 	copy(k[1:], id[:])
 	return
@@ -47,9 +48,10 @@ func StoreProgram(
 	ctx context.Context,
 	mu state.Mutable,
 	programBytes []byte,
-) (ids.ID, error) {
+) ([]byte, error) {
 	programID := ids.ID(sha256.Sum256(programBytes))
-	return programID, mu.Insert(ctx, ProgramsKey(programID), programBytes)
+	key, _ := keys.Encode(ProgramsKey(programID[:]), len(programBytes))
+	return key, mu.Insert(ctx, key, programBytes)
 }
 
 func GetAddressForDeploy(typeID uint8, creationData []byte) codec.Address {
@@ -79,19 +81,19 @@ func (p *ProgramStateManager) GetProgramState(address codec.Address) state.Mutab
 	return &prefixedStateMutable{prefix: accountStateKey(address), inner: p}
 }
 
-func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
+func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) ([]byte, error) {
 	result, err := p.GetValue(ctx, AccountProgramKey(account))
 	if err != nil {
-		return ids.Empty, err
+		return ids.Empty[:], err
 	}
-	return ids.ID(result), nil
+	return result, nil
 }
 
-func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID []byte) ([]byte, error) {
 	return p.GetValue(ctx, ProgramsKey(programID))
 }
 
-func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
+func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID []byte, accountCreationData []byte) (codec.Address, error) {
 	newAddress := GetAddressForDeploy(0, accountCreationData)
 	_, err := p.GetValue(ctx, AccountProgramKey(newAddress))
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
@@ -103,8 +105,8 @@ func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, program
 	return newAddress, p.SetAccountProgram(ctx, newAddress, programID)
 }
 
-func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
-	return p.Insert(ctx, AccountProgramKey(account), programID[:])
+func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID []byte) error {
+	return p.Insert(ctx, AccountProgramKey(account), programID)
 }
 
 type prefixedStateMutable struct {

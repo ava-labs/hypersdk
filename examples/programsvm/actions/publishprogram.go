@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -29,8 +30,9 @@ func (t *PublishProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.id == ids.Empty {
 		t.id = sha256.Sum256(t.ProgramBytes)
 	}
+	key, _ := keys.Encode(storage.ProgramsKey(t.id[:]), len(t.ProgramBytes))
 	return state.Keys{
-		string(storage.ProgramsKey(t.id)): state.Write | state.Allocate,
+		string(key): state.Write | state.Allocate,
 	}
 }
 
