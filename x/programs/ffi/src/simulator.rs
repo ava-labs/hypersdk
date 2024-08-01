@@ -32,7 +32,7 @@ impl Simulator {
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
     }
 
-    pub fn execute<T: borsh::BorshSerialize>(
+    pub fn execute<T: wasmlanche_sdk::borsh::BorshSerialize>(
         &self,
         program: Address,
         method: &str,
@@ -44,7 +44,7 @@ impl Simulator {
         // build the executrion request
         let method = CString::new(method).expect("Unable to create a cstring");
         // serialize the params
-        let params = borsh::to_vec(&params).expect("error serializing result");
+        let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
 
         let request = ExecutionRequest {
             method: method.as_ptr(),

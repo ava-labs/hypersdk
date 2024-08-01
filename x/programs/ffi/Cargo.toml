@@ -7,5 +7,4 @@ edition = "2021"
 libc = "0.2.155"
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
 thiserror = { workspace = true }
-borsh = { workspace = true }
 

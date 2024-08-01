@@ -1,6 +1,5 @@
 use std::{ffi::CStr, str::Utf8Error};
 
-use borsh::BorshDeserialize;
 use libc::{c_char, c_int, c_uchar, c_uint};
 use std::fmt;
 use thiserror::Error;
@@ -14,7 +13,7 @@ pub enum SimulatorError {
     #[error("Error from the response")]
     ResponseError,
     #[error(transparent)]
-    Serialization(#[from] borsh::io::Error),
+    Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
     #[error(transparent)]
     ExternalCall(#[from] ExternalCallError),
 }
@@ -40,10 +39,10 @@ pub struct Response {
 impl Response {
     pub fn result<T>(&self) -> Result<T, SimulatorError>
     where
-        T: BorshDeserialize,
+        T: wasmlanche_sdk::borsh::BorshDeserialize,
     {
         let bytes = self.result.get_slice();
-        Ok(borsh::from_slice(bytes)?)
+        Ok(wasmlanche_sdk::borsh::from_slice(bytes)?)
     }
 }
 
