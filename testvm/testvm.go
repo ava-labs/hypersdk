@@ -14,17 +14,23 @@ import (
 	"github.com/ava-labs/hypersdk/tstate"
 )
 
-// var _ TestVM = (*vm.VM)(nil)
+type BlockProductionType int
 
-// block production
 const (
-	PerTransactionBatch = iota
+	Trigger BlockProductionType = iota
+	PerTransactionBatch
 	BlockTime
-	Trigger
 )
 
+type BlockProduction struct {
+	Type  BlockProductionType
+	Value int
+}
+
 var (
-	UnknownSnapshot = errors.New("this snapshot doesn't exist")
+	UnknownSnapshot       = errors.New("this snapshot doesn't exist")
+	NotEnoughTransactions = errors.New("not enough pending transactions to fill batch")
+	TooSoon               = errors.New("too soon to build a block")
 )
 
 var genesisBlock = chain.StatelessBlock{
@@ -66,7 +72,8 @@ type Snapshot struct {
 type TestVM struct {
 	Env
 
-	blockProduction int
+	pendingTransactions []chain.Transaction
+	blockProduction     BlockProduction
 
 	snapshots map[uint64]Snapshot
 	rules     chain.MockRules
@@ -76,7 +83,7 @@ type TestVM struct {
 type TestConfig struct {
 	*Env
 
-	blockProduction int
+	blockProduction BlockProduction
 }
 
 func (vm *TestVM) Init(config TestConfig, maxUnits fees.Dimensions) {
@@ -139,6 +146,32 @@ func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*ch
 	}
 
 	return result, nil
+}
+
+func (vm *TestVM) BuildBlock() error {
+	switch vm.blockProduction.Type {
+	case PerTransactionBatch:
+		batch := vm.blockProduction.Value
+		if batch > len(vm.pendingTransactions) {
+			return NotEnoughTransactions
+		}
+	case BlockTime:
+		blockTime := vm.blockProduction.Value
+		currentTime := time.Now().Unix()
+		if currentTime < vm.Timestamp()+int64(blockTime) {
+			return TooSoon
+		}
+	}
+
+	vm.Env.currentBlock = chain.StatelessBlock{
+		StatefulBlock: &chain.StatefulBlock{
+			Prnt:   vm.currentBlock.ID(),
+			Tmstmp: vm.currentBlock.Tmstmp,
+			Hght:   vm.currentBlock.Hght,
+		},
+	}
+
+	return nil
 }
 
 func (vm *TestVM) SnapshotSave() uint64 {
