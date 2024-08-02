@@ -1,11 +1,34 @@
-use libc::c_char;
-use std::ffi::CString;
-use wasmlanche_sdk::Address;
+use libc::{c_char, c_uint};
+use std::{
+    ffi::{CStr, CString},
+    str::Utf8Error,
+};
+use thiserror::Error;
+use wasmlanche_sdk::{Address, ExternalCallError, Id};
 
 use crate::{
-    state::Mutable,
-    types::{CallProgramResponse, CreateProgramResponse, SimulatorCallContext, SimulatorError},
+    state::Mutable, types::Bytes, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
 };
+
+#[derive(Error, Debug)]
+pub enum SimulatorError {
+    #[error("Error across the FFI boundary: {0}")]
+    FFI(#[from] Utf8Error),
+    #[error(transparent)]
+    Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
+    #[error(transparent)]
+    ExternalCall(#[from] ExternalCallError),
+    #[error("Error during program creation")]
+    CreateProgram(String),
+    #[error("Error during program execution")]
+    CallProgram(String),
+}
+
+#[link(name = "simulator")]
+extern "C" {
+    fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
+    fn CallProgram(db: *mut Mutable, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+}
 
 pub struct Simulator {
     state: Mutable,
@@ -20,10 +43,7 @@ impl Simulator {
         }
     }
 
-    pub fn create_program(
-        &self,
-        program_path: &str,
-    ) -> CreateProgramResponse {
+    pub fn create_program(&self, program_path: &str) -> CreateProgramResponse {
         // TODO: do we need to free this?
         let program_path = CString::new(program_path).unwrap();
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
@@ -52,8 +72,85 @@ impl From<&Mutable> for *mut Mutable {
     }
 }
 
-#[link(name = "simulator")]
-extern "C" {
-    fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
-    fn CallProgram(db: *mut Mutable, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+impl CreateProgramResponse {
+    pub fn program(&self) -> Result<Address, SimulatorError> {
+        if self.has_error() {
+            let error = self.error()?;
+            return Err(SimulatorError::CreateProgram(error.into()));
+        };
+        Ok(Address::new(self.program_address.address))
+    }
+
+    pub fn program_id(&self) -> Result<Id, SimulatorError> {
+        if self.has_error() {
+            let error = self.error()?;
+            return Err(SimulatorError::CreateProgram(error.into()));
+        };
+        Ok(self.program_id.id)
+    }
+
+    pub fn has_error(&self) -> bool {
+        !self.error.is_null()
+    }
+
+    // get error
+    pub fn error(&self) -> Result<&str, SimulatorError> {
+        if !self.has_error() {
+            return Ok("");
+        }
+        // TODO: need to make sure this pointer lives long enough
+        let c_str = unsafe { CStr::from_ptr(self.error) };
+        return c_str.to_str().map_err(SimulatorError::FFI);
+    }
+}
+
+impl CallProgramResponse {
+    pub fn result<T>(&self) -> Result<T, SimulatorError>
+    where
+        T: wasmlanche_sdk::borsh::BorshDeserialize,
+    {
+        if self.has_error() {
+            let error = self.error()?;
+            return Err(SimulatorError::CallProgram(error.into()));
+        };
+        let bytes = self.result.get_slice();
+        Ok(wasmlanche_sdk::borsh::from_slice(bytes)?)
+    }
+
+    pub fn has_error(&self) -> bool {
+        !self.error.is_null()
+    }
+
+    // get error
+    pub fn error(&self) -> Result<&str, SimulatorError> {
+        if !self.has_error() {
+            return Ok("");
+        }
+        // TODO: need to make sure this pointer lives long enough
+        let c_str = unsafe { CStr::from_ptr(self.error) };
+        return c_str.to_str().map_err(SimulatorError::FFI);
+    }
+}
+
+impl SimulatorCallContext {
+    pub fn new(
+        program_address: Address,
+        actor_address: Address,
+        method: &CString,
+        params: Vec<u8>,
+        gas: u64,
+    ) -> Self {
+        SimulatorCallContext {
+            program_address: program_address.into(),
+            actor_address: actor_address.into(),
+            height: 0,
+            timestamp: 0,
+            method: method.as_ptr(),
+            params: Bytes {
+                data: params.as_ptr(),
+                length: params.len() as c_uint,
+            },
+            max_gas: gas as c_uint,
+        }
+    }
 }
