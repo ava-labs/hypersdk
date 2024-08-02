@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package subscriber;
+
+option go_package = ".";
+
+service ExternalSubscriber {
+    rpc ProcessBlock (Block) returns (BlockAck);
+}
+
+message Block {
+    string block_data = 1;
+}
+
+message BlockAck {
+    bool success = 1;
+}
