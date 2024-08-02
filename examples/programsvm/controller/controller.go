@@ -180,6 +180,7 @@ func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor 
 		State:        &storage.ProgramStateManager{Mutable: recorder},
 		FunctionName: t.Function,
 		Params:       t.CallData,
+		Fuel:         100000000,
 	})
 	return recorder.GetStateKeys(), err
 }

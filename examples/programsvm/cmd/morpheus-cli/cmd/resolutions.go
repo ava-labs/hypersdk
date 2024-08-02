@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/status-im/keycard-go/hexutils"
 	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -53,7 +54,9 @@ func sendAndWait(
 		utils.Outf("{{yellow}}skipping unexpected transaction:{{/}} %s\n", tx.ID())
 	}
 	if printStatus {
-		println(result.Outputs[0][0])
+		for _, output := range result.Outputs[0] {
+			utils.Outf(hexutils.BytesToHex(output) + "\n")
+		}
 		handler.Root().PrintStatus(tx.ID(), result.Success)
 	}
 	return result.Success, tx.ID(), nil

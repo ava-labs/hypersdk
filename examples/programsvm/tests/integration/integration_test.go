@@ -314,16 +314,16 @@ var _ = ginkgo.Describe("[Network]", func() {
 var _ = ginkgo.Describe("[Tx Processing]", func() {
 	require := require.New(ginkgo.GinkgoT())
 	ginkgo.It("test publish program", func() {
+		var result []byte
+		parser, err := instances[0].lcli.Parser(context.TODO())
+		require.NoError(err)
 		ginkgo.By("issue publish to the first node", func() {
 
 			// Generate transaction
-			parser, err := instances[0].lcli.Parser(context.TODO())
-			require.NoError(err)
-
 			bytes, err := os.ReadFile("/Users/david.boehm/github/hypersdk/x/programs/runtime/wasm32-unknown-unknown/release/simple.wasm")
 			require.NoError(err)
 
-			submit, tx, _, err := instances[0].cli.GenerateTransaction(
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
 				parser,
 				[]chain.Action{&actions.PublishProgram{
@@ -336,17 +336,60 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			// Broadcast and wait for transaction
 			require.NoError(submit(context.Background()))
 
-			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-			success, _, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
-			cancel()
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			require.Len(results, 1)
+			require.True(results[0].Success)
+
+			result = results[0].Outputs[0][0]
+
+		})
+		ginkgo.By("issue deploy to the first node", func() {
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				[]chain.Action{&actions.DeployProgram{
+					ProgramID:    result,
+					CreationInfo: []byte{1, 2, 3, 4, 5, 6},
+				}},
+				factory,
+			)
 			require.NoError(err)
-			require.True(success)
-			/*
-				accept := expectBlk(instances[0])
-				results := accept(false)
-				require.Len(results, 1)
-				require.True(results[0].Success)
-			*/
+
+			// Broadcast and wait for transaction
+			require.NoError(submit(context.Background()))
+
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			require.Len(results, 1)
+			require.True(results[0].Success)
+			result = results[0].Outputs[0][0]
+		})
+
+		ginkgo.By("issue call Program to the first node", func() {
+			action := actions.CallProgram{
+				Program:  codec.Address(result),
+				Function: "get_value",
+			}
+			action.SpecifiedStateKeys, err = instances[0].lcli.Simulate(context.Background(), action, codec.EmptyAddress)
+			require.NoError(err)
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				[]chain.Action{&action},
+				factory,
+			)
+			require.NoError(err)
+
+			// Broadcast and wait for transaction
+			err = submit(context.Background())
+			require.NoError(err)
+
+			accept := expectBlk(instances[0])
+			results := accept(false)
+			require.Len(results, 1)
+			require.True(results[0].Success)
+
 		})
 	})
 })

@@ -43,8 +43,12 @@ func (t *CallProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	return t.SpecifiedStateKeys
 }
 
-func (*CallProgram) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+func (t *CallProgram) StateKeysMaxChunks() []uint16 {
+	var result []uint16
+	for range t.SpecifiedStateKeys {
+		result = append(result, 1)
+	}
+	return result
 }
 
 func (t *CallProgram) Execute(
@@ -90,9 +94,9 @@ func (t *CallProgram) Marshal(p *codec.Packer) {
 func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
 	var callProgram CallProgram
 	p.UnpackAddress(&callProgram.Program) // we do not verify the typeID is valid
-	callProgram.Value = p.UnpackUint64(true)
+	callProgram.Value = p.UnpackUint64(false)
 	callProgram.Function = p.UnpackString(true)
-	p.UnpackBytes(units.MiB, true, &callProgram.CallData)
+	p.UnpackBytes(units.MiB, false, &callProgram.CallData)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

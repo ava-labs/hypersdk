@@ -82,7 +82,8 @@ func (p *ProgramStateManager) GetProgramState(address codec.Address) state.Mutab
 }
 
 func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) ([]byte, error) {
-	result, err := p.GetValue(ctx, AccountProgramKey(account))
+	key, _ := keys.Encode(AccountProgramKey(account), 36)
+	result, err := p.GetValue(ctx, key)
 	if err != nil {
 		return ids.Empty[:], err
 	}
@@ -90,12 +91,13 @@ func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account cod
 }
 
 func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID []byte) ([]byte, error) {
-	return p.GetValue(ctx, ProgramsKey(programID))
+	return p.GetValue(ctx, programID)
 }
 
 func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID []byte, accountCreationData []byte) (codec.Address, error) {
 	newAddress := GetAddressForDeploy(0, accountCreationData)
-	_, err := p.GetValue(ctx, AccountProgramKey(newAddress))
+	key, _ := keys.Encode(AccountProgramKey(newAddress), 36)
+	_, err := p.GetValue(ctx, key)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
 		return codec.EmptyAddress, err
 	} else if err == nil {
@@ -106,7 +108,8 @@ func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, program
 }
 
 func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID []byte) error {
-	return p.Insert(ctx, AccountProgramKey(account), programID)
+	key, _ := keys.Encode(AccountProgramKey(account), 36)
+	return p.Insert(ctx, key, programID)
 }
 
 type prefixedStateMutable struct {

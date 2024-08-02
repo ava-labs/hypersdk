@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/examples/programsvm/storage"
+	"github.com/ava-labs/hypersdk/keys"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -30,14 +31,14 @@ func (t *DeployProgram) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	if t.address == codec.EmptyAddress {
 		t.address = storage.GetAddressForDeploy(0, t.CreationInfo)
 	}
-	keys := state.Keys{
-		string(storage.AccountProgramKey(t.address)): state.All,
+	stateKey, _ := keys.Encode(storage.AccountProgramKey(t.address), 36)
+	return state.Keys{
+		string(stateKey): state.All,
 	}
-	return keys
 }
 
 func (*DeployProgram) StateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
+	return []uint16{storage.BalanceChunks}
 }
 
 func (t *DeployProgram) Execute(
@@ -68,7 +69,7 @@ func (t *DeployProgram) Marshal(p *codec.Packer) {
 func UnmarshalDeployProgram(p *codec.Packer) (chain.Action, error) {
 	var deployProgram DeployProgram
 	p.UnpackBytes(36, true, &deployProgram.ProgramID)
-	p.UnpackBytes(10*units.MiB, true, &deployProgram.CreationInfo)
+	p.UnpackBytes(10*units.MiB, false, &deployProgram.CreationInfo)
 	deployProgram.address = storage.GetAddressForDeploy(0, deployProgram.CreationInfo)
 	if err := p.Err(); err != nil {
 		return nil, err
