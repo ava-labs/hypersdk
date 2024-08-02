@@ -75,8 +75,9 @@ type workloadFactory struct {
 	factory *auth.ED25519Factory
 }
 
-func (f *workloadFactory) NewBasicTxWorkload(uri string) (workload.TxWorkloadIterator, error) {
-	return f.NewSizedTxWorkload(uri, 1)
+func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator, error) {
+	basicTxWorkload, err := f.NewSizedTxWorkload(uri, 1)
+	return []workload.TxWorkloadIterator{basicTxWorkload}, err
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {

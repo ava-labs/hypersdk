@@ -21,7 +21,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
-	"github.com/ava-labs/avalanchego/snow/validators"
+	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -206,7 +206,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			ChainDataDir:   dname,
 			Metrics:        metrics.NewPrefixGatherer(),
 			PublicKey:      bls.PublicFromSecretKey(sk),
-			ValidatorState: &validators.TestState{},
+			ValidatorState: &validatorstest.TestState{},
 		}
 
 		toEngine := make(chan common.Message, 1)

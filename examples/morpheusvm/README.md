@@ -28,7 +28,7 @@ The first step to running this demo is to launch your own `morpheusvm` Subnet. Y
 can do so by running the following command from this location (may take a few
 minutes):
 ```bash
-killall avalanche-network-runner
+./scripts/run.sh
 ```
 
 When the Subnet is running, you'll see the following logs emitted:
@@ -38,7 +38,7 @@ avalanche-network-runner is running in the background...
 
 use the following command to terminate:
 
-./scripts/stop.sh;
+killall avalanche-network-runner
 ```
 
 _By default, this allocates all funds on the network to `morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu`. The private
