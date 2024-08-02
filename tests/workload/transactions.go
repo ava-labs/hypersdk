@@ -16,9 +16,9 @@ import (
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
 // and a sized sequence of transactions to test on a given environment and reach a particular state
 type TxWorkloadFactory interface {
-	// Generate a new TxWorkloadIterator that generates a single sequence of transactions
-	// and corresponding assertions.
-	NewBasicTxWorkload(uri string) (TxWorkloadIterator, error)
+	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
+	// to define each sequence of transactions that should be tested.
+	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
 	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 }

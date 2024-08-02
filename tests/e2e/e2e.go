@@ -223,13 +223,16 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Basic Tx Workload]", func() {
+var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	ginkgo.It("Basic Tx Workload", func() {
 		ctx := context.Background()
 		require := require.New(ginkgo.GinkgoT())
-		txs, err := txWorkloadFactory.NewBasicTxWorkload(uris[0])
+
+		txWorkloads, err := txWorkloadFactory.NewWorkloads(uris[0])
 		require.NoError(err)
-		workload.ExecuteWorkload(ctx, require, network.uris, txs)
+		for _, txWorkload := range txWorkloads {
+			workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
+		}
 	})
 })
 
