@@ -15,12 +15,14 @@ pub use crate::{
 pub enum SimulatorError {
     #[error("Error across the FFI boundary: {0}")]
     FFI(#[from] Utf8Error),
-    #[error("Error from the response")]
-    ResponseError,
     #[error(transparent)]
     Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
     #[error(transparent)]
     ExternalCall(#[from] ExternalCallError),
+    #[error("Error during program creation")]
+    CreateProgram(String),
+    #[error("Error during program execution")]
+    CallProgram(String),
 }
 
 impl CallProgramResponse {
@@ -28,15 +30,33 @@ impl CallProgramResponse {
     where
         T: wasmlanche_sdk::borsh::BorshDeserialize,
     {
+        if self.has_error() {
+            let error = self.error()?;
+            return Err(SimulatorError::CallProgram(error.into()));
+        };
         let bytes = self.result.get_slice();
         Ok(wasmlanche_sdk::borsh::from_slice(bytes)?)
+    }
+
+    pub fn has_error(&self) -> bool {
+        !self.error.is_null()
+    }
+
+    // get error
+    pub fn error(&self) -> Result<&str, SimulatorError> {
+        if !self.has_error() {
+            return Ok("");
+        }
+        // TODO: need to make sure this pointer lives long enough
+        let c_str = unsafe { CStr::from_ptr(self.error) };
+        return c_str.to_str().map_err(SimulatorError::FFI);
     }
 }
 
 impl From<SdkAddress> for Address {
     fn from(value: SdkAddress) -> Self {
         Address {
-            address: value.as_bytes().try_into().unwrap(),
+            address: value.as_bytes().try_into().expect("Invalid address format"),
         }
     }
 }
@@ -73,14 +93,16 @@ impl Bytes {
 impl CreateProgramResponse {
     pub fn program(&self) -> Result<SdkAddress, SimulatorError> {
         if self.has_error() {
-            return Err(SimulatorError::ResponseError);
+            let error = self.error()?;
+            return Err(SimulatorError::CreateProgram(error.into()));
         };
         Ok(SdkAddress::new(self.program_address.address))
     }
 
     pub fn program_id(&self) -> Result<Id, SimulatorError> {
         if self.has_error() {
-            return Err(SimulatorError::ResponseError);
+            let error = self.error()?;
+            return Err(SimulatorError::CreateProgram(error.into()));
         };
         Ok(self.program_id.id)
     }

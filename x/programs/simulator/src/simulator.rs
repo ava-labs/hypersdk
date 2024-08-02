@@ -4,7 +4,7 @@ use wasmlanche_sdk::Address;
 
 use crate::{
     state::Mutable,
-    types::{CallProgramResponse, CreateProgramResponse, SimulatorCallContext},
+    types::{CallProgramResponse, CreateProgramResponse, SimulatorCallContext, SimulatorError},
 };
 
 pub struct Simulator {
@@ -20,7 +20,10 @@ impl Simulator {
         }
     }
 
-    pub fn create_program(&self, program_path: &str) -> CreateProgramResponse {
+    pub fn create_program(
+        &self,
+        program_path: &str,
+    ) -> CreateProgramResponse {
         // TODO: do we need to free this?
         let program_path = CString::new(program_path).unwrap();
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
