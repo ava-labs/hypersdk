@@ -93,7 +93,11 @@ type TestConfig struct {
 	Rules           *chain.MockRules
 }
 
-func (vm *TestVM) Init(ctx context.Context, config TestConfig) error {
+func Init(ctx context.Context, config TestConfig) (*TestVM, error) {
+	vm := &TestVM{}
+
+	vm.snapshots = make(map[uint64]Snapshot)
+
 	if config.Env != nil {
 		vm.Env = *config.Env
 	} else {
@@ -128,12 +132,12 @@ func (vm *TestVM) Init(ctx context.Context, config TestConfig) error {
 	vm.stateManager = config.StateManager
 	tracer, err := trace.New(&config.TracerConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	vm.tracer = tracer
 	vm.rules = config.Rules
 
-	return nil
+	return vm, nil
 }
 
 func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*chain.Result, error) {
@@ -223,7 +227,7 @@ func (vm *TestVM) Get(k []byte) ([]byte, error) {
 	return v, nil
 }
 
-func (vm *TestVM) SnapshotSave() uint64 {
+func (vm *TestVM) SnapshotSave() (uint64, error) {
 	var index uint64
 	for i := range vm.snapshots {
 		if _, ok := vm.snapshots[i]; ok {
@@ -231,7 +235,24 @@ func (vm *TestVM) SnapshotSave() uint64 {
 			break
 		}
 	}
-	return index
+
+	newEnv := Env{
+		currentBlock: chain.StatelessBlock{
+			StatefulBlock: &chain.StatefulBlock{
+				Prnt:      vm.Env.currentBlock.Prnt,
+				Tmstmp:    vm.Env.currentBlock.Tmstmp,
+				Hght:      vm.Env.currentBlock.Hght,
+				Txs:       []*chain.Transaction{}, // TODO
+				StateRoot: vm.Env.currentBlock.StateRoot,
+			},
+		},
+		storage: map[string][]byte{},
+	}
+	vm.snapshots[index] = Snapshot{
+		Env: newEnv,
+	}
+
+	return index, nil
 }
 
 func (vm *TestVM) SnapshotDelete(id uint64) error {

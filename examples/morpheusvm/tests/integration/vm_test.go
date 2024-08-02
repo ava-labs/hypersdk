@@ -33,7 +33,6 @@ func TestVmIntegration(t *testing.T) {
 	rules.EXPECT().GetStorageValueWriteUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetMaxOutputsPerAction().Return(uint8(60)).AnyTimes()
 
-	vm := testvm.TestVM{}
 	config := testvm.TestConfig{
 		BlockProduction: testvm.BlockProduction{Type: testvm.Trigger},
 		MaxUnits:        [5]uint64{},
@@ -42,7 +41,8 @@ func TestVmIntegration(t *testing.T) {
 		Rules:           rules,
 	}
 	ctx := context.Background()
-	vm.Init(ctx, config)
+	vm, err := testvm.Init(ctx, config)
+	require.NoError(err)
 
 	key, err := secp256r1.GeneratePrivateKey()
 	require.NoError(err)
