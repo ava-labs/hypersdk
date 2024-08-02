@@ -1,9 +1,9 @@
-use std::{ffi::CStr, str::Utf8Error};
 use libc::c_uint;
 use std::ffi::CString;
+use std::{ffi::CStr, str::Utf8Error};
 
 pub use crate::{
-    Address, Bytes, BytesWithError, CreateProgramResponse, CallProgramResponse,
+    Address, Bytes, BytesWithError, CallProgramResponse, CreateProgramResponse,
     SimulatorCallContext,
 };
 use thiserror::Error;
@@ -41,7 +41,13 @@ impl From<SdkAddress> for Address {
 }
 
 impl SimulatorCallContext {
-    pub fn new(program_address: SdkAddress, actor_address: SdkAddress, method: &CString, params: Vec<u8>, gas: u64) -> Self {
+    pub fn new(
+        program_address: SdkAddress,
+        actor_address: SdkAddress,
+        method: &CString,
+        params: Vec<u8>,
+        gas: u64,
+    ) -> Self {
         SimulatorCallContext {
             program_address: program_address.into(),
             actor_address: actor_address.into(),

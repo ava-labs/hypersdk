@@ -40,25 +40,29 @@ typedef struct {
 
 // Response from calling a program
 typedef struct {
-    int id;
     char* error;
     Bytes result;
+    unsigned int fuel;
 } CallProgramResponse;
 
-typedef BytesWithError (*GetStateCallback)(void *data, Bytes key);
-typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
-typedef char *(*RemoveStateCallback)(void *data, Bytes key);
-
-typedef struct {
-    void *stateObj;
-    GetStateCallback get_value_callback;
-    InsertStateCallback insert_callback;
-    RemoveStateCallback remove_callback;
-    void *statePlaceholder;
-} Mutable;
-
+// Response from creating a program
 typedef struct {
     Address program_address;
     ID program_id;
     const char *error;
 } CreateProgramResponse;
+
+// Callback functions for the mutable interface
+typedef BytesWithError (*GetStateCallback)(void *data, Bytes key);
+typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
+typedef char *(*RemoveStateCallback)(void *data, Bytes key);
+
+typedef struct {
+    // this ptr gives context to the callbacks
+    void *stateObj;
+    GetStateCallback get_value_callback;
+    InsertStateCallback insert_callback;
+    RemoveStateCallback remove_callback;
+    // placeholder pointer to match rust definition
+    void *statePlaceholder;
+} Mutable;

@@ -27,7 +27,7 @@ impl SimpleState {
         self.state.remove(&key);
     }
 }
-
+// We re-define this mutable in rust for more control over the pointer types
 #[repr(C)]
 pub struct Mutable {
     pub obj: *mut SimpleState,

@@ -5,7 +5,7 @@ use wasmlanche_sdk::Address;
 
 use crate::{
     state::Mutable,
-    types::{CreateProgramResponse, CallProgramResponse, SimulatorCallContext},
+    types::{CallProgramResponse, CreateProgramResponse, SimulatorCallContext},
 };
 
 pub struct Simulator {
@@ -54,8 +54,5 @@ impl From<&Mutable> for *mut Mutable {
 #[link(name = "simulator")]
 extern "C" {
     fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
-    fn CallProgram(
-        db: *mut Mutable,
-        ctx: *const SimulatorCallContext,
-    ) -> CallProgramResponse;
+    fn CallProgram(db: *mut Mutable, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 }
