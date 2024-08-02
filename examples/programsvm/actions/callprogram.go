@@ -33,6 +33,8 @@ type CallProgram struct {
 	CallData []byte `json:"calldata"`
 
 	SpecifiedStateKeys state.Keys `json:"statekeys"`
+
+	Fuel uint64 `json:"fuel"`
 }
 
 func (*CallProgram) GetTypeID() uint8 {
@@ -59,7 +61,6 @@ func (t *CallProgram) Execute(
 	actor codec.Address,
 	_ ids.ID,
 ) ([][]byte, error) {
-
 	result, err := pconsts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
 		Program:      t.Program,
 		Actor:        actor,
@@ -67,12 +68,13 @@ func (t *CallProgram) Execute(
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Timestamp:    uint64(timestamp),
+		Fuel:         t.Fuel,
 	})
 	return [][]byte{result}, err
 }
 
-func (*CallProgram) ComputeUnits(chain.Rules) uint64 {
-	return 1
+func (t *CallProgram) ComputeUnits(chain.Rules) uint64 {
+	return t.Fuel / 1000
 }
 
 func (*CallProgram) Size() int {
@@ -84,6 +86,7 @@ func (t *CallProgram) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 	p.PackString(t.Function)
 	p.PackBytes(t.CallData)
+	p.PackUint64(t.Fuel)
 	p.PackInt(len(t.SpecifiedStateKeys))
 	for key, value := range t.SpecifiedStateKeys {
 		p.PackString(key)
@@ -100,6 +103,7 @@ func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
+	callProgram.Fuel = p.UnpackUint64(false)
 	count := p.UnpackInt(true)
 	callProgram.SpecifiedStateKeys = make(state.Keys, count)
 	for i := 0; i < count; i++ {

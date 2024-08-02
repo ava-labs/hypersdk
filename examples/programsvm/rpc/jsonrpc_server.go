@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/status-im/keycard-go/hexutils"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -19,10 +20,10 @@ import (
 
 type JSONRPCServer struct {
 	c        Controller
-	simulate func(context.Context, actions.CallProgram, codec.Address) (state.Keys, error)
+	simulate func(context.Context, actions.CallProgram, codec.Address) (state.Keys, uint64, error)
 }
 
-func NewJSONRPCServer(c Controller, simulate func(context.Context, actions.CallProgram, codec.Address) (state.Keys, error)) *JSONRPCServer {
+func NewJSONRPCServer(c Controller, simulate func(context.Context, actions.CallProgram, codec.Address) (state.Keys, uint64, error)) *JSONRPCServer {
 	return &JSONRPCServer{c, simulate}
 }
 
@@ -40,13 +41,26 @@ type SimulateCallProgramTxArgs struct {
 	Actor         codec.Address       `json:"actor"`
 }
 
+type SimulateStateKey struct {
+	HexKey      string `json:"hex"`
+	Permissions byte   `json:"perm"`
+}
 type SimulateCallProgramTxReply struct {
-	StateKeys state.Keys `json:"stateKeys"`
+	StateKeys    []SimulateStateKey `json:"stateKeys"`
+	FuelConsumed uint64             `json:"fuel"`
 }
 
 func (j *JSONRPCServer) SimulateCallProgramTx(req *http.Request, args *SimulateCallProgramTxArgs, reply *SimulateCallProgramTxReply) (err error) {
-	reply.StateKeys, err = j.simulate(req.Context(), args.CallProgramTx, args.Actor)
-	return err
+	stateKeys, fuelConsumed, err := j.simulate(req.Context(), args.CallProgramTx, args.Actor)
+	if err != nil {
+		return err
+	}
+	reply.StateKeys = make([]SimulateStateKey, 0, len(stateKeys))
+	for key, permission := range stateKeys {
+		reply.StateKeys = append(reply.StateKeys, SimulateStateKey{HexKey: hexutils.BytesToHex([]byte(key)), Permissions: byte(permission)})
+	}
+	reply.FuelConsumed = fuelConsumed
+	return nil
 }
 
 type TxArgs struct {

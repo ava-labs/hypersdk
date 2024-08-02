@@ -371,7 +371,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Program:  codec.Address(result),
 				Function: "get_value",
 			}
-			action.SpecifiedStateKeys, err = instances[0].lcli.Simulate(context.Background(), action, codec.EmptyAddress)
+			action.SpecifiedStateKeys, action.Fuel, err = instances[0].lcli.Simulate(context.Background(), action, codec.EmptyAddress)
 			require.NoError(err)
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
 				context.Background(),
@@ -389,7 +389,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			results := accept(false)
 			require.Len(results, 1)
 			require.True(results[0].Success)
-
 		})
 	})
 })

@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/programsvm/actions"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/status-im/keycard-go/hexutils"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -161,7 +162,7 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	return &Parser{cli.networkID, cli.chainID, g}, nil
 }
 
-func (cli *JSONRPCClient) Simulate(ctx context.Context, callProgramTx actions.CallProgram, actor codec.Address) (state.Keys, error) {
+func (cli *JSONRPCClient) Simulate(ctx context.Context, callProgramTx actions.CallProgram, actor codec.Address) (state.Keys, uint64, error) {
 	resp := new(SimulateCallProgramTxReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -170,7 +171,11 @@ func (cli *JSONRPCClient) Simulate(ctx context.Context, callProgramTx actions.Ca
 		resp,
 	)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return resp.StateKeys, nil
+	result := state.Keys{}
+	for _, entry := range resp.StateKeys {
+		result.Add(string(hexutils.HexToBytes(entry.HexKey)), state.Permissions(entry.Permissions))
+	}
+	return result, resp.FuelConsumed, nil
 }

@@ -168,19 +168,21 @@ func (c *Controller) Shutdown(context.Context) error {
 	return c.txDB.Close()
 }
 
-func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor codec.Address) (state.Keys, error) {
+func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor codec.Address) (state.Keys, uint64, error) {
 	db, err := c.inner.State()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	recorder := &storage.Recorder{State: db}
-	_, err = consts.ProgramRuntime.CallProgram(ctx, &runtime.CallInfo{
+	startFuel := uint64(1000000000)
+	callInfo := &runtime.CallInfo{
 		Program:      t.Program,
 		Actor:        actor,
 		State:        &storage.ProgramStateManager{Mutable: recorder},
 		FunctionName: t.Function,
 		Params:       t.CallData,
-		Fuel:         100000000,
-	})
-	return recorder.GetStateKeys(), err
+		Fuel:         startFuel,
+	}
+	_, err = consts.ProgramRuntime.CallProgram(ctx, callInfo)
+	return recorder.GetStateKeys(), startFuel - callInfo.RemainingFuel(), err
 }
