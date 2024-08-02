@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -42,16 +43,10 @@ var (
 	TooSoon               = errors.New("too soon to build a block")
 )
 
-// var genesisBlock = chain.StatelessBlock{
-// 	StatefulBlock: &chain.StatefulBlock{
-// 		Prnt:   ids.ID{'n', 'o', 'n', 'e'},
-// 		Tmstmp: 0,
-// 		Hght:   0,
-// 	},
-// }
-
 type Env struct {
 	currentBlock chain.StatelessBlock
+
+	storage map[string][]byte
 }
 
 func (e *Env) Height() uint64 {
@@ -118,9 +113,14 @@ func (vm *TestVM) Init(ctx context.Context, config TestConfig) error {
 
 		var defaultEnv = Env{
 			currentBlock: *genesisBlock,
+			storage:      make(map[string][]byte),
 		}
 
 		vm.Env = defaultEnv
+	}
+
+	if vm.storage == nil {
+		vm.storage = make(map[string][]byte)
 	}
 
 	vm.blockProduction = config.BlockProduction
@@ -144,26 +144,24 @@ func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*ch
 		return nil, err
 	}
 
-	var storage = make(map[string][]byte, len(stateKeys))
-	// parent := vm.currentBlock
-	// parentView, err := parent.View(ctx, true)
+	var tstorage = make(map[string][]byte, len(stateKeys))
 
-	// for k := range stateKeys {
-	// 	v, err := parentView.GetValue(ctx, []byte(k))
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	storage[k] = v
-	// }
+	for k := range stateKeys {
+		v, err := vm.Get([]byte(k))
+		if err != nil {
+			return nil, err
+		}
+		tstorage[k] = v
+	}
 
-	tsv := ts.NewView(stateKeys, storage)
+	tsv := ts.NewView(stateKeys, tstorage)
 	nextTime := time.Now().UnixMilli()
 	r := vm.Rules(nextTime)
 	// feeKey := chain.FeeKey(vm.StateManager().FeeKey())
-	// feeRaw, err := parentView.GetValue(ctx, feeKey)
-	if err != nil {
-		return nil, err
-	}
+	// feeRaw, err := vm.currentBlock.GetValue(ctx, feeKey)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	// parentFeeManager := fees.NewManager(feeRaw)
 	// feeManager, err := parentFeeManager.ComputeNext(nextTime, r)
@@ -213,6 +211,18 @@ func (vm *TestVM) BuildBlock() error {
 	return nil
 }
 
+func (vm *TestVM) Insert(k []byte, v []byte) {
+	vm.storage[string(k)] = v
+}
+
+func (vm *TestVM) Get(k []byte) ([]byte, error) {
+	v, ok := vm.storage[string(k)]
+	if !ok {
+		return nil, database.ErrNotFound
+	}
+	return v, nil
+}
+
 func (vm *TestVM) SnapshotSave() uint64 {
 	var index uint64
 	for i := range vm.snapshots {
@@ -244,6 +254,10 @@ func (vm *TestVM) SnapshotRevert(id uint64) error {
 	vm.Env = snapshot.Env
 
 	return nil
+}
+
+func (vm *TestVM) SetStorage(key string) {
+	// vm.currentBlock
 }
 
 // VM

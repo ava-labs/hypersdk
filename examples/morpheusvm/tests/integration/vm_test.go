@@ -2,12 +2,13 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
+	"encoding/binary"
 	"testing"
 	"time"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
@@ -23,13 +24,14 @@ func TestVmIntegration(t *testing.T) {
 	defer ctrl.Finish()
 
 	rules := chain.NewMockRules(ctrl)
-	rules.EXPECT().GetBaseComputeUnits().Return(uint64(60))
+	rules.EXPECT().GetBaseComputeUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageKeyReadUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageKeyWriteUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageKeyAllocateUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageValueReadUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageValueAllocateUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageValueWriteUnits().Return(uint64(60)).AnyTimes()
+	rules.EXPECT().GetMaxOutputsPerAction().Return(uint8(60)).AnyTimes()
 
 	vm := testvm.TestVM{}
 	config := testvm.TestConfig{
@@ -41,21 +43,50 @@ func TestVmIntegration(t *testing.T) {
 	}
 	ctx := context.Background()
 	vm.Init(ctx, config)
+
 	key, err := secp256r1.GeneratePrivateKey()
 	require.NoError(err)
 	factory := auth.NewSECP256R1Factory(key)
-	auth, err := factory.Sign([]byte{})
+	secpAuth, err := factory.Sign([]byte{})
 	require.NoError(err)
+
+	from := auth.NewSECP256R1Address(key.PublicKey())
+	require.NoError(err)
+	fromKey := storage.BalanceKey(from)
+	to := codec.EmptyAddress
+	toKey := storage.BalanceKey(to)
+	vm.Insert(fromKey, binary.BigEndian.AppendUint64(nil, 1))
+	vm.Insert(toKey, binary.BigEndian.AppendUint64(nil, 0))
+
 	tx := chain.Transaction{
 		Base: &chain.Base{
 			Timestamp: time.Now().Unix(),
 			ChainID:   [32]byte{},
 			MaxFee:    100,
 		},
-		Actions: []chain.Action{&actions.Transfer{}},
-		Auth:    auth,
+		Actions: []chain.Action{&actions.Transfer{
+			To:    to,
+			Value: 1,
+		}},
+		Auth: secpAuth,
 	}
+
 	result, err := vm.RunTransaction(ctx, tx)
 	require.NoError(err)
-	fmt.Println(result)
+	require.Equal("", string(result.Error))
+	require.True(result.Success)
+	require.Equal(0, len(result.Error))
+	require.NotEqual(0, len(result.Outputs))
+
+	fromBalRaw, err := vm.Get(fromKey)
+	require.NoError(err)
+	var fromBal uint64
+	binary.BigEndian.PutUint64(fromBalRaw, fromBal)
+	require.Equal(uint64(0), fromBal)
+
+	toBalRaw, err := vm.Get(toKey)
+	require.NoError(err)
+	var toBal uint64
+	binary.BigEndian.PutUint64(toBalRaw, toBal)
+	require.Equal(uint64(0), toBal)
 }
