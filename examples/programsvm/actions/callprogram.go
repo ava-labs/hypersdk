@@ -82,11 +82,11 @@ func (*CallProgram) Size() int {
 }
 
 func (t *CallProgram) Marshal(p *codec.Packer) {
-	p.PackAddress(t.Program)
 	p.PackUint64(t.Value)
+	p.PackUint64(t.Fuel)
+	p.PackAddress(t.Program)
 	p.PackString(t.Function)
 	p.PackBytes(t.CallData)
-	p.PackUint64(t.Fuel)
 	p.PackInt(len(t.SpecifiedStateKeys))
 	for key, value := range t.SpecifiedStateKeys {
 		p.PackString(key)
@@ -96,14 +96,14 @@ func (t *CallProgram) Marshal(p *codec.Packer) {
 
 func UnmarshalCallProgram(p *codec.Packer) (chain.Action, error) {
 	var callProgram CallProgram
-	p.UnpackAddress(&callProgram.Program) // we do not verify the typeID is valid
 	callProgram.Value = p.UnpackUint64(false)
+	callProgram.Fuel = p.UnpackUint64(true)
+	p.UnpackAddress(&callProgram.Program) // we do not verify the typeID is valid
 	callProgram.Function = p.UnpackString(true)
 	p.UnpackBytes(units.MiB, false, &callProgram.CallData)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
-	callProgram.Fuel = p.UnpackUint64(false)
 	count := p.UnpackInt(true)
 	callProgram.SpecifiedStateKeys = make(state.Keys, count)
 	for i := 0; i < count; i++ {
