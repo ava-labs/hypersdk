@@ -18,7 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestVmIntegration(t *testing.T) {
+func SetupVM(ctx context.Context, t *testing.T) *testvm.TestVM {
 	require := require.New(t)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -43,15 +43,24 @@ func TestVmIntegration(t *testing.T) {
 		TracerConfig:    trace.Config{Enabled: false},
 		Rules:           rules,
 	}
-	ctx := context.Background()
 	vm, err := testvm.Init(ctx, config)
 	require.NoError(err)
+
+	return vm
+}
+
+func TestVmIntegration(t *testing.T) {
+	ctx := context.Background()
+
+	require := require.New(t)
 
 	key, err := secp256r1.GeneratePrivateKey()
 	require.NoError(err)
 	factory := auth.NewSECP256R1Factory(key)
 	secpAuth, err := factory.Sign([]byte{})
 	require.NoError(err)
+
+	vm := SetupVM(ctx, t)
 
 	from := auth.NewSECP256R1Address(key.PublicKey())
 	require.NoError(err)
