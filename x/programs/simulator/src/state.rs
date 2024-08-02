@@ -1,8 +1,10 @@
+use crate::types::{Bytes, BytesWithError};
+use libc::c_char;
 use std::{collections::HashMap, ffi::CString};
 
-use libc::c_char;
-
-use crate::types::{Bytes, BytesWithError};
+// define constant error messages
+// TODO: Would love a less-hardcodey way of representing errors between rust <-> go
+pub const ERR_NOT_FOUND: &str = "not found";
 
 #[repr(C)]
 pub struct SimpleState {
@@ -27,6 +29,7 @@ impl SimpleState {
         self.state.remove(&key);
     }
 }
+
 // We re-define this mutable in rust for more control over the pointer types
 #[repr(C)]
 pub struct Mutable {
@@ -65,25 +68,15 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
             },
             error: std::ptr::null(),
         },
-        None => {
-            // this should error
-            // could add an extra field to bytes to indicate error, or
-            // update a pointer to an error message
-            BytesWithError {
-                bytes: Bytes {
-                    data: std::ptr::null_mut(),
-                    length: 0,
-                },
-                error: CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
-            }
-        }
+        None => BytesWithError {
+            bytes: Bytes {
+                data: std::ptr::null_mut(),
+                length: 0,
+            },
+            error: CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
+        },
     }
 }
-
-// define constant error messages
-// pub const ERR_NONE: &str = "None";
-// TODO: don't like how they need to be exactly like the go error messages. maybe can set up errors in the .h file?
-pub const ERR_NOT_FOUND: &str = "not found";
 
 pub extern "C" fn insert_state_callback(
     obj_ptr: *mut SimpleState,
@@ -94,10 +87,7 @@ pub extern "C" fn insert_state_callback(
     let key = key.get_slice();
     let value = value.get_slice();
     obj.insert(key.to_vec(), value.to_vec());
-    // should be error message
     std::ptr::null()
-    // when is this freed?
-    // CString::new(ERR_NONE).unwrap().into_raw()
 }
 
 pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> *const c_char {
@@ -105,12 +95,9 @@ pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -
     let obj = unsafe { &mut *obj_ptr };
     let key = key.get_slice();
     obj.remove(key.to_vec());
-    // should be error message
     std::ptr::null()
 }
 
-// could have one callback function that multiplexes to different functions
-// or pass in multiple function pointers
 pub type GetStateCallback =
     extern "C" fn(simObjectPtr: *mut SimpleState, key: Bytes) -> BytesWithError;
 pub type InsertStateCallback =

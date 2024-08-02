@@ -1,6 +1,5 @@
-use std::ffi::CString;
-
 use libc::c_char;
+use std::ffi::CString;
 use wasmlanche_sdk::Address;
 
 use crate::{
@@ -10,7 +9,6 @@ use crate::{
 
 pub struct Simulator {
     state: Mutable,
-    // TODO: create a map (string -> address) to improve dev ux with addresses
     pub actor: Address,
 }
 

@@ -1,14 +1,15 @@
 use libc::c_uint;
-use std::ffi::CString;
-use std::{ffi::CStr, str::Utf8Error};
+use std::{
+    ffi::{CStr, CString},
+    str::Utf8Error,
+};
+use thiserror::Error;
+use wasmlanche_sdk::{Address as SdkAddress, ExternalCallError, Id};
 
 pub use crate::{
     Address, Bytes, BytesWithError, CallProgramResponse, CreateProgramResponse,
     SimulatorCallContext,
 };
-use thiserror::Error;
-use wasmlanche_sdk::ExternalCallError;
-use wasmlanche_sdk::{Address as SdkAddress, Id};
 
 #[derive(Error, Debug)]
 pub enum SimulatorError {
@@ -77,14 +78,6 @@ impl CreateProgramResponse {
         Ok(SdkAddress::new(self.program_address.address))
     }
 
-    // TOOD: remove
-    pub fn program_c_address(&self) -> Result<Address, SimulatorError> {
-        if self.has_error() {
-            return Err(SimulatorError::ResponseError);
-        };
-        Ok(self.program_address)
-    }
-
     pub fn program_id(&self) -> Result<Id, SimulatorError> {
         if self.has_error() {
             return Err(SimulatorError::ResponseError);
@@ -101,18 +94,8 @@ impl CreateProgramResponse {
         if !self.has_error() {
             return Ok("");
         }
-        // need to make sure this pointer lives long enough
+        // TODO: need to make sure this pointer lives long enough
         let c_str = unsafe { CStr::from_ptr(self.error) };
         return c_str.to_str().map_err(SimulatorError::FFI);
     }
 }
-
-// impl fmt::Debug for CreateProgramResponse {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.debug_struct("CreateProgramResponse")
-//             .field("program_address", &self.program())
-//             .field("program_id", &self.program_id())
-//             .field("error", &self.error())
-//             .finish()
-//     }
-// }
