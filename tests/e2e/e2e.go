@@ -236,7 +236,7 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	})
 })
 
-var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
+var _ = ginkgo.It("[HyperSDK Syncing]", func() {
 	ctx := context.Background()
 	require := require.New(ginkgo.GinkgoT())
 
