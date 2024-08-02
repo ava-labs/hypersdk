@@ -86,7 +86,7 @@ func (s *SimulatorState) getValue(key []byte) ([]byte, error) {
 		return nil, fmt.Errorf("error getting value: %s", err)
 	}
 
-	val := C.GoBytes(unsafe.Pointer(valueBytes.data), C.int(valueBytes.length))
+	val := C.GoBytes(unsafe.Pointer(valueBytes.bytes.data), C.int(valueBytes.bytes.length))
 	return val, nil
 }
 

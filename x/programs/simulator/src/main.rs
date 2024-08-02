@@ -67,15 +67,15 @@ fn main() {
     let program_response = simulator.create_program(program_path);
     let program_address = program_response.program().unwrap();
 
-    let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
+    let execute_response = simulator.call_program(program_address, "get_value", ((actor),), gas);
     let response = execute_response.result::<u64>();
     println!("Response : {:?}", response);
 
-    let execute_response = simulator.execute(program_address, "inc", ((actor), 10u64), gas);
+    let execute_response = simulator.call_program(program_address, "inc", ((actor), 10u64), gas);
     let response = execute_response.result::<bool>();
     println!("Response : {:?}", response);
 
-    let execute_response = simulator.execute(program_address, "get_value", ((actor),), gas);
+    let execute_response = simulator.call_program(program_address, "get_value", ((actor),), gas);
     let response = execute_response.result::<u64>();
     println!("Response : {:?}", response);
 

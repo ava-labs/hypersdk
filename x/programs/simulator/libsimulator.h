@@ -80,8 +80,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern void CallProgram(Mutable* db);
-extern Response Execute(Mutable* db, SimulatorCallContext* ctx);
+extern CallProgramResponse CallProgram(Mutable* db, SimulatorCallContext* ctx);
 extern CreateProgramResponse CreateProgram(Mutable* db, char* path);
 
 #ifdef __cplusplus

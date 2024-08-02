@@ -10,11 +10,17 @@ typedef struct {
 } ID;
 
 typedef struct {
-    uint8_t* data;
+    const uint8_t* data;
     unsigned int length;
 } Bytes;
 
-// Context needed for runtime.Call
+// Bytes with an additional error field
+typedef struct {
+    Bytes bytes;
+    const char* error;
+} BytesWithError;
+
+// Context needed to invoke a program's method
 typedef struct {
     // address of the program being invoked
     Address program_address;
@@ -27,25 +33,18 @@ typedef struct {
     // method being called on program
     const char* method;
     // params borsh serialized as byte vector
-    const uint8_t* params;
-    unsigned int param_length;
+    Bytes params;
     // max allowed gas during execution
     unsigned int max_gas;
 } SimulatorCallContext;
 
+// Response from calling a program
 typedef struct {
     int id;
     char* error;
     Bytes result;
-} Response;
+} CallProgramResponse;
 
-typedef struct {
-    uint8_t* data;
-    unsigned int length;
-    const char* error;
-} BytesWithError;
-
-// ideally this would return an error enum, but couldn't figure out how include enums in headers(cgo giving me compiler errors)
 typedef BytesWithError (*GetStateCallback)(void *data, Bytes key);
 typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
 typedef char *(*RemoveStateCallback)(void *data, Bytes key);
@@ -55,7 +54,6 @@ typedef struct {
     GetStateCallback get_value_callback;
     InsertStateCallback insert_callback;
     RemoveStateCallback remove_callback;
-    // doesn't need ot be on the bottom on c side, strange why it needs on rust
     void *statePlaceholder;
 } Mutable;
 

@@ -23,30 +23,7 @@ import (
 )
 
 //export CallProgram
-func CallProgram(db *C.Mutable) {
-	// form db from params
-	state := simState.NewSimulatorState(unsafe.Pointer(db))
-	fmt.Println("Calling CallProgram")
-	b, err := state.GetValue(context.TODO(), []byte{1, 2, 3})
-   fmt.Println("b, err: ", b, err)
-	state.Insert(context.TODO(), []byte{1, 2, 3}, []byte{6, 6, 9})
-	b, err = state.GetValue(context.TODO(), []byte{1, 2, 3})
-   fmt.Println("b, err: ", b, err)
-	state.Remove(context.TODO(), []byte{1, 2, 3})
-	state.GetValue(context.TODO(), []byte{1, 2, 3})
-
-	fmt.Println("Triggering callback")
-}
-
-
-type ExecuteCtx struct {
-   method string;
-   paramBytes []byte;
-   gas uint64;
-}
-
-//export Execute
-func Execute(db *C.Mutable, ctx *C.SimulatorCallContext) C.Response {
+func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramResponse {
    // TODO: error checking making sure the params are not nil
    // db
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
@@ -63,7 +40,7 @@ func Execute(db *C.Mutable, ctx *C.SimulatorCallContext) C.Response {
    // balance := callInfo.RemainingFuel()
    // fmt.Println("callinfo remaining")
    // grab a response
-   response := C.Response{
+   response := C.CallProgramResponse{
       id: 10,
       error: nil,
       // result must be free'd by rust
@@ -86,7 +63,7 @@ func createRuntimeContext(ctx *C.SimulatorCallContext) runtime.Context {
 }
 
 func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
-   paramBytes := C.GoBytes(unsafe.Pointer(ctx.params), C.int(ctx.param_length))
+   paramBytes := C.GoBytes(unsafe.Pointer(ctx.params.data), C.int(ctx.params.length))
 	methodName := C.GoString(ctx.method)
    return &runtime.CallInfo{
       State: simState.NewProgramStateManager(db),

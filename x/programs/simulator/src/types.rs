@@ -3,7 +3,7 @@ use libc::c_uint;
 use std::ffi::CString;
 
 pub use crate::{
-    Address, Bytes, BytesWithError, CreateProgramResponse, Response,
+    Address, Bytes, BytesWithError, CreateProgramResponse, CallProgramResponse,
     SimulatorCallContext,
 };
 use thiserror::Error;
@@ -22,7 +22,7 @@ pub enum SimulatorError {
     ExternalCall(#[from] ExternalCallError),
 }
 
-impl Response {
+impl CallProgramResponse {
     pub fn result<T>(&self) -> Result<T, SimulatorError>
     where
         T: wasmlanche_sdk::borsh::BorshDeserialize,
@@ -48,8 +48,10 @@ impl SimulatorCallContext {
             height: 0,
             timestamp: 0,
             method: method.as_ptr(),
-            params: params.as_ptr(),
-            param_length: params.len() as c_uint,
+            params: Bytes {
+                data: params.as_ptr(),
+                length: params.len() as c_uint,
+            },
             max_gas: gas as c_uint,
         }
     }
