@@ -57,17 +57,17 @@ func Execute(db *C.Mutable, ctx *C.SimulatorCallContext,  p *C.ExecutionRequest)
    var paramBytes []byte
    // ExecutionRequest passed from the C code
    if p.params != nil {
-      if p.paramLength == 0 {
+      if p.param_length == 0 {
          paramBytes = nil;
       } else {
-         paramBytes = C.GoBytes(unsafe.Pointer(p.params), C.int(p.paramLength))
+         paramBytes = C.GoBytes(unsafe.Pointer(p.params), C.int(p.param_length))
       }
    } else {
       paramBytes = nil
    }
 
 	methodName := C.GoString(p.method)
-   gas := p.maxGas
+   gas := p.max_gas
 
    executeCtx := ExecuteCtx{
       method: methodName,
@@ -103,8 +103,8 @@ func Execute(db *C.Mutable, ctx *C.SimulatorCallContext,  p *C.ExecutionRequest)
 
 func createRuntimeContext(ctx *C.SimulatorCallContext) runtime.Context {
    return runtime.Context{
-      Program: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.programAddress), 33)),
-      Actor: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actorAddress), 33)),
+      Program: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.program_address), 33)),
+      Actor: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actor_address), 33)),
       Height: uint64(ctx.height),
       Timestamp: uint64(ctx.timestamp),
    }
@@ -133,14 +133,14 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
    programBytes, err := os.ReadFile(programPath)
    if err != nil {
       return C.CreateProgramResponse {
-         err: C.CString(err.Error()),
+         error: C.CString(err.Error()),
       }
    }
 
    programID, err := generateRandomID()
    if err != nil {
       return C.CreateProgramResponse {
-         err: C.CString(err.Error()),
+         error: C.CString(err.Error()),
       }
    }
 
@@ -148,7 +148,7 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
    if err != nil {
       errmsg := fmt.Sprintf("program creation failed: %s", err.Error())
       return C.CreateProgramResponse {
-         err: C.CString(errmsg),
+         error: C.CString(errmsg),
       }
       
    }
@@ -157,16 +157,16 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
    if err != nil {
       errmsg := fmt.Sprintf("program deployment failed: %s", err.Error())
       return C.CreateProgramResponse {
-         err: C.CString(errmsg),
+         error: C.CString(errmsg),
       }
    }
    return C.CreateProgramResponse {
-      err: nil,
-      programID: C.ID {
-         id: *(*[32]C.char)(C.CBytes(programID[:])),
+      error: nil,
+      program_id: C.ID {
+         id: *(*[32]C.uchar)(C.CBytes(programID[:])),
       },
-      programAddress: C.Address{
-         address: *(*[33]C.char)(C.CBytes(account[:])),
+      program_address: C.Address{
+         address: *(*[33]C.uchar)(C.CBytes(account[:])),
       },
 
    }

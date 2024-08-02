@@ -1,10 +1,11 @@
 use std::{ffi::CStr, str::Utf8Error};
 
-use libc::{c_char, c_int, c_uchar, c_uint};
 use std::fmt;
 use thiserror::Error;
 use wasmlanche_sdk::ExternalCallError;
 use wasmlanche_sdk::{Address as SdkAddress, Id};
+pub use crate::{SimulatorCallContext, Response, CreateProgramResponse, Address, Bytes, BytesWithError, ExecutionRequest};
+
 
 #[derive(Error, Debug)]
 pub enum SimulatorError {
@@ -18,24 +19,6 @@ pub enum SimulatorError {
     ExternalCall(#[from] ExternalCallError),
 }
 
-#[repr(C)]
-pub struct ExecutionRequest {
-    pub method: *const c_char,
-    pub params: *const c_uchar,
-    pub param_length: c_uint,
-    pub max_gas: c_uint,
-}
-
-#[repr(C)]
-pub struct Response {
-    // Todo: remove id
-    pub id: c_int,
-    // string error message
-    pub error: *const c_char,
-    // result byte array
-    pub result: Bytes,
-}
-
 impl Response {
     pub fn result<T>(&self) -> Result<T, SimulatorError>
     where
@@ -46,31 +29,12 @@ impl Response {
     }
 }
 
-#[repr(C)]
-struct ID {
-    pub id: [c_uchar; 32],
-}
-
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct Address {
-    pub address: [c_uchar; 33],
-}
-
 impl From<SdkAddress> for Address {
     fn from(value: SdkAddress) -> Self {
         Address {
             address: value.as_bytes().try_into().unwrap(),
         }
     }
-}
-
-#[repr(C)]
-pub struct SimulatorCallContext {
-    program_address: Address,
-    actor_address: Address,
-    height: c_uint,
-    timestamp: c_uint,
 }
 
 impl SimulatorCallContext {
@@ -84,30 +48,10 @@ impl SimulatorCallContext {
     }
 }
 
-#[repr(C)]
-pub struct Bytes {
-    pub data: *mut u8,
-    pub len: usize,
-}
-
-#[repr(C)]
-pub struct BytesWithError {
-    pub data: *mut u8,
-    pub len: usize,
-    pub error: *const c_char,
-}
-
 impl Bytes {
     pub fn get_slice(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.data, self.len) }
+        unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
     }
-}
-
-#[repr(C)]
-pub struct CreateProgramResponse {
-    program_address: Address,
-    program_id: ID,
-    error: *const c_char,
 }
 
 impl CreateProgramResponse {
@@ -148,18 +92,12 @@ impl CreateProgramResponse {
     }
 }
 
-impl fmt::Debug for CreateProgramResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CreateProgramResponse")
-            .field("program_address", &self.program())
-            .field("program_id", &self.program_id())
-            .field("error", &self.error())
-            .finish()
-    }
-}
-
-// impl fmt::Debug for Response {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt:: Result {
-//         f.debug
+// impl fmt::Debug for CreateProgramResponse {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         f.debug_struct("CreateProgramResponse")
+//             .field("program_address", &self.program())
+//             .field("program_id", &self.program_id())
+//             .field("error", &self.error())
+//             .finish()
 //     }
 // }

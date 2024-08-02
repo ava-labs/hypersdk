@@ -7,23 +7,23 @@ typedef struct {
 } SimpleMutable;
 
 typedef struct {
-    char* method;
-    uint8_t* params;
-    unsigned int paramLength;
-    unsigned int maxGas;
+    const char* method;
+    const uint8_t* params;
+    unsigned int param_length;
+    unsigned int max_gas;
 } ExecutionRequest;
 
 typedef struct {
-    char address[33];
+    unsigned char address[33];
 } Address;
 
 typedef struct {
-    char id[32];
+    unsigned char id[32];
 } ID;
 
 typedef struct {
-    Address programAddress;
-    Address actorAddress;
+    Address program_address;
+    Address actor_address;
     unsigned int height;
     unsigned int timestamp;
 } SimulatorCallContext;
@@ -61,7 +61,7 @@ typedef struct {
 } Mutable;
 
 typedef struct {
-    Address programAddress;
-    ID programID;
-    const char *err;
+    Address program_address;
+    ID program_id;
+    const char *error;
 } CreateProgramResponse;

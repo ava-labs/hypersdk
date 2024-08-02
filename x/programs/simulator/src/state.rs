@@ -60,7 +60,7 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
     match value {
         Some(v) => BytesWithError {
             data: v.as_ptr() as *mut u8,
-            len: v.len(),
+            length: v.len() as u32,
             error: std::ptr::null(),
         },
         None => {
@@ -69,7 +69,7 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
             // update a pointer to an error message
             BytesWithError {
                 data: std::ptr::null_mut(),
-                len: 0,
+                length: 0,
                 error: CString::new(ERR_NOT_FOUND).unwrap().into_raw(),
             }
         }

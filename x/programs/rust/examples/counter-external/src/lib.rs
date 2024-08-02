@@ -36,7 +36,6 @@ mod tests {
         let counter = simulator
             .create_program(&counter_path).program().unwrap();
 
-
         let res = simulator
             .execute(counter_external, "inc", (counter, owner), 100_000_000);
         // TODO check err
