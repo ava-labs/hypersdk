@@ -89,8 +89,6 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 		height = acceptedHeight
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 	for _, uri := range uris {
 		client := rpc.NewJSONRPCClient(uri)
 		err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
