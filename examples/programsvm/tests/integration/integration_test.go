@@ -367,28 +367,38 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		})
 
 		ginkgo.By("issue call Program to the first node", func() {
-			action := actions.CallProgram{
+			simulatedAction := actions.CallProgram{
 				Program:  codec.Address(result),
 				Function: "get_value",
 			}
-			action.SpecifiedStateKeys, action.Fuel, err = instances[0].lcli.Simulate(context.Background(), action, codec.EmptyAddress)
+			simulatedAction.SpecifiedStateKeys, simulatedAction.Fuel, err = instances[0].lcli.Simulate(context.Background(), simulatedAction, codec.EmptyAddress)
 			require.NoError(err)
-			submit, _, _, err := instances[0].cli.GenerateTransaction(
-				context.Background(),
-				parser,
-				[]chain.Action{&action},
-				factory,
-			)
-			require.NoError(err)
+			for i := 1; i < 3; i++ {
+				require.NoError(err)
+				valueAmount := uint64(i)
+				submit, _, _, err := instances[0].cli.GenerateTransaction(
+					context.Background(),
+					parser,
+					[]chain.Action{&actions.CallProgram{
+						Program:            codec.Address(result),
+						Function:           "get_value",
+						Value:              valueAmount,
+						SpecifiedStateKeys: simulatedAction.SpecifiedStateKeys,
+						Fuel:               simulatedAction.Fuel,
+					}},
+					factory,
+				)
+				require.NoError(err)
 
-			// Broadcast and wait for transaction
-			err = submit(context.Background())
-			require.NoError(err)
+				// Broadcast and wait for transaction
+				err = submit(context.Background())
+				require.NoError(err)
 
-			accept := expectBlk(instances[0])
-			results := accept(false)
-			require.Len(results, 1)
-			require.True(results[0].Success)
+				accept := expectBlk(instances[0])
+				results := accept(false)
+				require.Len(results, 1)
+				require.True(results[0].Success)
+			}
 		})
 	})
 })
