@@ -34,6 +34,7 @@ type ProgramStateManager struct {
 func NewProgramStateManager(db state.Mutable) *ProgramStateManager {
 	return &ProgramStateManager{db}
 }
+
 // Balance Manager Methods
 
 // getAccountBalance gets the balance associated [account].

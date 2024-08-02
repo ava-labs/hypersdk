@@ -14,7 +14,7 @@ fn main() {
 
     // Build the Go library
     let status = Command::new("go")
-        .args(&["build", "-buildmode=c-shared", "-o"])
+        .args(["build", "-buildmode=c-shared", "-o"])
         .arg(&output)
         .arg(&go_file)
         .status()

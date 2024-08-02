@@ -31,6 +31,8 @@ impl SimpleState {
 }
 
 // We re-define this mutable in rust for more control over the pointer types
+// mute clippy warnings
+#[allow(improper_ctypes)]
 #[repr(C)]
 pub struct Mutable {
     pub obj: *mut SimpleState,

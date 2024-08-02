@@ -13,7 +13,7 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum SimulatorError {
     #[error("Error across the FFI boundary: {0}")]
-    FFI(#[from] Utf8Error),
+    Ffi(#[from] Utf8Error),
     #[error(transparent)]
     Serialization(#[from] wasmlanche_sdk::borsh::io::Error),
     #[error(transparent)]
@@ -26,7 +26,9 @@ pub enum SimulatorError {
 
 #[link(name = "simulator")]
 extern "C" {
+    #[allow(improper_ctypes)]
     fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
+    #[allow(improper_ctypes)]
     fn CallProgram(db: *mut Mutable, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 }
 
@@ -100,7 +102,7 @@ impl CreateProgramResponse {
         }
         // TODO: need to make sure this pointer lives long enough
         let c_str = unsafe { CStr::from_ptr(self.error) };
-        return c_str.to_str().map_err(SimulatorError::FFI);
+        return c_str.to_str().map_err(SimulatorError::Ffi);
     }
 
     // will panic if there is an error. helpful for testing
@@ -135,7 +137,7 @@ impl CallProgramResponse {
         }
         // TODO: need to make sure this pointer lives long enough
         let c_str = unsafe { CStr::from_ptr(self.error) };
-        return c_str.to_str().map_err(SimulatorError::FFI);
+        return c_str.to_str().map_err(SimulatorError::Ffi);
     }
 
     // will panic if there is an error. helpful for testing
