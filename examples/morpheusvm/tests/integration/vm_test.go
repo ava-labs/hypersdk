@@ -28,14 +28,17 @@ func TestVmIntegration(t *testing.T) {
 	rules.EXPECT().GetStorageKeyReadUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageKeyWriteUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageKeyAllocateUnits().Return(uint64(60)).AnyTimes()
-	rules.EXPECT().GetStorageValueReadUnits().Return(uint64(60)).AnyTimes()
+	rules.EXPECT().GetUnitPriceChangeDenominator().Return([5]uint64{}).AnyTimes()
 	rules.EXPECT().GetStorageValueAllocateUnits().Return(uint64(60)).AnyTimes()
 	rules.EXPECT().GetStorageValueWriteUnits().Return(uint64(60)).AnyTimes()
+	rules.EXPECT().GetStorageValueReadUnits().Return(uint64(60)).AnyTimes()
+	rules.EXPECT().GetWindowTargetUnits().Return([5]uint64{}).AnyTimes()
 	rules.EXPECT().GetMaxOutputsPerAction().Return(uint8(60)).AnyTimes()
+	rules.EXPECT().GetMinUnitPrice().Return([5]uint64{}).AnyTimes()
 
 	config := testvm.TestConfig{
 		BlockProduction: testvm.BlockProduction{Type: testvm.Trigger},
-		MaxUnits:        [5]uint64{},
+		MaxUnits:        [5]uint64{255, 255, 255, 255, 255},
 		StateManager:    &storage.StateManager{},
 		TracerConfig:    trace.Config{Enabled: false},
 		Rules:           rules,
@@ -73,6 +76,7 @@ func TestVmIntegration(t *testing.T) {
 
 	result, err := vm.RunTransaction(ctx, tx)
 	require.NoError(err)
+	require.NotNil(result)
 	require.Equal("", string(result.Error))
 	require.True(result.Success)
 	require.Equal(0, len(result.Error))
