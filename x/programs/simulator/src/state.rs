@@ -43,8 +43,8 @@ impl Mutable {
         let mut state = Box::new(SimpleState::new());
         let obj = Box::as_mut(&mut state) as *mut SimpleState;
         Mutable {
-            state: state,
-            obj: obj,
+            state,
+            obj,
             get_state: get_state_callback,
             insert_state: insert_state_callback,
             remove_state: remove_state_callback,

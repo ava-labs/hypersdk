@@ -81,7 +81,6 @@ func (s *SimulatorState) getValue(key []byte) ([]byte, error) {
 		err := C.GoString(valueBytes.error)
 		// todo: create our own errors so no need for a dependecy to avalanche go here
 		if err == database.ErrNotFound.Error() {
-			fmt.Println("Key not found in state in state")
 			return nil, database.ErrNotFound
 		}
 		return nil, fmt.Errorf("error getting value: %s", err)

@@ -46,37 +46,12 @@ type ExecuteCtx struct {
 }
 
 //export Execute
-func Execute(db *C.Mutable, ctx *C.SimulatorCallContext,  p *C.ExecutionRequest) C.Response {
+func Execute(db *C.Mutable, ctx *C.SimulatorCallContext) C.Response {
    // TODO: error checking making sure the params are not nil
-   
    // db
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
-   // ctx
-   
-   testContext := createRuntimeContext(ctx);
-   var paramBytes []byte
-   // ExecutionRequest passed from the C code
-   if p.params != nil {
-      if p.param_length == 0 {
-         paramBytes = nil;
-      } else {
-         paramBytes = C.GoBytes(unsafe.Pointer(p.params), C.int(p.param_length))
-      }
-   } else {
-      paramBytes = nil
-   }
-
-	methodName := C.GoString(p.method)
-   gas := p.max_gas
-
-   executeCtx := ExecuteCtx{
-      method: methodName,
-      paramBytes: paramBytes,
-      gas: uint64(gas),
-   }
-
-   callInfo := createRuntimeCallInfo(state, &testContext, &executeCtx);
-
+   // call info
+   callInfo := createRuntimeCallInfo(state, ctx);
 	rt := runtime.NewRuntime(runtime.NewConfig(), logging.NewLogger("test"))
    result, err := rt.CallProgram(context.TODO(), callInfo)
    if err != nil {
@@ -110,16 +85,18 @@ func createRuntimeContext(ctx *C.SimulatorCallContext) runtime.Context {
    }
 }
 
-func createRuntimeCallInfo(db state.Mutable, rctx *runtime.Context, e *ExecuteCtx) *runtime.CallInfo {
+func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
+   paramBytes := C.GoBytes(unsafe.Pointer(ctx.params), C.int(ctx.param_length))
+	methodName := C.GoString(ctx.method)
    return &runtime.CallInfo{
       State: simState.NewProgramStateManager(db),
-      Actor: rctx.Actor,
-      FunctionName: e.method,
-      Program: rctx.Program,
-      Params: e.paramBytes,
-      Fuel: e.gas,
-      Height: rctx.Height,
-      Timestamp: rctx.Timestamp,
+      Actor: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actor_address), 33)),
+      FunctionName: methodName,
+      Program: codec.Address(C.GoBytes(unsafe.Pointer(&ctx.program_address), 33)),
+      Params: paramBytes,
+      Fuel: uint64(ctx.max_gas),
+      Height: uint64(ctx.height),
+      Timestamp: uint64(ctx.timestamp),
    }
 }
 

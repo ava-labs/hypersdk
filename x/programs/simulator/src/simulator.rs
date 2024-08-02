@@ -5,7 +5,7 @@ use wasmlanche_sdk::Address;
 
 use crate::{
     state::Mutable,
-    types::{CreateProgramResponse, ExecutionRequest, Response, SimulatorCallContext},
+    types::{CreateProgramResponse, Response, SimulatorCallContext},
 };
 
 pub struct Simulator {
@@ -39,21 +39,13 @@ impl Simulator {
         params: T,
         gas: u64,
     ) -> Response {
-        // build the call context
-        let context = SimulatorCallContext::new(program, self.actor);
-        // build the executrion request
-        let method = CString::new(method).expect("Unable to create a cstring");
         // serialize the params
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
+        let method = CString::new(method).expect("Unable to create a cstring");
+        // build the call context
+        let context = SimulatorCallContext::new(program, self.actor, &method, params, gas);
 
-        let request = ExecutionRequest {
-            method: method.as_ptr(),
-            params: params.as_ptr(),
-            param_length: params.len() as c_uint,
-            max_gas: gas as c_uint,
-        };
-
-        unsafe { Execute((&self.state).into(), &context, &request) }
+        unsafe { Execute((&self.state).into(), &context) }
     }
 }
 
@@ -70,6 +62,5 @@ extern "C" {
     fn Execute(
         db: *mut Mutable,
         ctx: *const SimulatorCallContext,
-        request: *const ExecutionRequest,
     ) -> Response;
 }

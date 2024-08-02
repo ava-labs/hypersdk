@@ -2,18 +2,6 @@
 #include <stdio.h>
 
 typedef struct {
-   // View v; maybe we could use a view here but not sure?
-   int state;
-} SimpleMutable;
-
-typedef struct {
-    const char* method;
-    const uint8_t* params;
-    unsigned int param_length;
-    unsigned int max_gas;
-} ExecutionRequest;
-
-typedef struct {
     unsigned char address[33];
 } Address;
 
@@ -22,18 +10,28 @@ typedef struct {
 } ID;
 
 typedef struct {
-    Address program_address;
-    Address actor_address;
-    unsigned int height;
-    unsigned int timestamp;
-} SimulatorCallContext;
-
-
-typedef struct {
     uint8_t* data;
     unsigned int length;
 } Bytes;
 
+// Context needed for runtime.Call
+typedef struct {
+    // address of the program being invoked
+    Address program_address;
+    // invoker
+    Address actor_address;
+    // block height
+    unsigned int height;
+    // block timestamp
+    unsigned int timestamp;
+    // method being called on program
+    const char* method;
+    // params borsh serialized as byte vector
+    const uint8_t* params;
+    unsigned int param_length;
+    // max allowed gas during execution
+    unsigned int max_gas;
+} SimulatorCallContext;
 
 typedef struct {
     int id;
@@ -47,6 +45,7 @@ typedef struct {
     const char* error;
 } BytesWithError;
 
+// ideally this would return an error enum, but couldn't figure out how include enums in headers(cgo giving me compiler errors)
 typedef BytesWithError (*GetStateCallback)(void *data, Bytes key);
 typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
 typedef char *(*RemoveStateCallback)(void *data, Bytes key);

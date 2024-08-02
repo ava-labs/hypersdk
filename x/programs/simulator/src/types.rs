@@ -1,10 +1,11 @@
 use std::{ffi::CStr, str::Utf8Error};
+use libc::c_uint;
+use std::ffi::CString;
 
 pub use crate::{
-    Address, Bytes, BytesWithError, CreateProgramResponse, ExecutionRequest, Response,
+    Address, Bytes, BytesWithError, CreateProgramResponse, Response,
     SimulatorCallContext,
 };
-use std::fmt;
 use thiserror::Error;
 use wasmlanche_sdk::ExternalCallError;
 use wasmlanche_sdk::{Address as SdkAddress, Id};
@@ -40,12 +41,16 @@ impl From<SdkAddress> for Address {
 }
 
 impl SimulatorCallContext {
-    pub fn new(program_address: SdkAddress, actor_address: SdkAddress) -> Self {
+    pub fn new(program_address: SdkAddress, actor_address: SdkAddress, method: &CString, params: Vec<u8>, gas: u64) -> Self {
         SimulatorCallContext {
             program_address: program_address.into(),
             actor_address: actor_address.into(),
             height: 0,
             timestamp: 0,
+            method: method.as_ptr(),
+            params: params.as_ptr(),
+            param_length: params.len() as c_uint,
+            max_gas: gas as c_uint,
         }
     }
 }
