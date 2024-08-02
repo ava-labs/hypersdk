@@ -1,11 +1,12 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package auth
+package secp256r1
 
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -35,7 +36,7 @@ func (d *SECP256R1) address() codec.Address {
 }
 
 func (*SECP256R1) GetTypeID() uint8 {
-	return SECP256R1ID
+	return auth.SECP256R1ID
 }
 
 func (*SECP256R1) ComputeUnits(chain.Rules) uint64 {
@@ -102,5 +103,5 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64) {
 }
 
 func NewSECP256R1Address(pk secp256r1.PublicKey) codec.Address {
-	return codec.CreateAddress(SECP256R1ID, utils.ToID(pk[:]))
+	return codec.CreateAddress(auth.SECP256R1ID, utils.ToID(pk[:]))
 }

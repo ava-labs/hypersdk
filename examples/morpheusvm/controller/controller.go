@@ -13,7 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/auth"
+	"github.com/ava-labs/hypersdk/auth/common"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -41,7 +41,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		version.Version,
 		consts.ActionRegistry,
 		consts.AuthRegistry,
-		auth.Engines(),
+		common.Engines(),
 		options...,
 	)
 }

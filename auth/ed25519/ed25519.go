@@ -1,11 +1,12 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package auth
+package ed25519
 
 import (
 	"context"
 
+	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto"
@@ -35,7 +36,7 @@ func (d *ED25519) address() codec.Address {
 }
 
 func (*ED25519) GetTypeID() uint8 {
-	return ED25519ID
+	return auth.ED25519ID
 }
 
 func (*ED25519) ComputeUnits(chain.Rules) uint64 {
@@ -149,5 +150,5 @@ func (b *ED25519Batch) Done() []func() error {
 }
 
 func NewED25519Address(pk ed25519.PublicKey) codec.Address {
-	return codec.CreateAddress(ED25519ID, utils.ToID(pk[:]))
+	return codec.CreateAddress(auth.ED25519ID, utils.ToID(pk[:]))
 }

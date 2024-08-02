@@ -20,6 +20,9 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 
+	authbls "github.com/ava-labs/hypersdk/auth/bls"
+	authed25519 "github.com/ava-labs/hypersdk/auth/ed25519"
+	authsecp256r1 "github.com/ava-labs/hypersdk/auth/secp256r1"
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
@@ -48,15 +51,15 @@ func (h *Handler) DefaultActor() (
 	var factory chain.AuthFactory
 	switch addr[0] {
 	case auth.ED25519ID:
-		factory = auth.NewED25519Factory(ed25519.PrivateKey(priv))
+		factory = authed25519.NewED25519Factory(ed25519.PrivateKey(priv))
 	case auth.SECP256R1ID:
-		factory = auth.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
+		factory = authsecp256r1.NewSECP256R1Factory(secp256r1.PrivateKey(priv))
 	case auth.BLSID:
 		p, err := bls.PrivateKeyFromBytes(priv)
 		if err != nil {
 			return ids.Empty, nil, nil, nil, nil, nil, err
 		}
-		factory = auth.NewBLSFactory(p)
+		factory = authbls.NewBLSFactory(p)
 	default:
 		return ids.Empty, nil, nil, nil, nil, nil, ErrInvalidAddress
 	}
