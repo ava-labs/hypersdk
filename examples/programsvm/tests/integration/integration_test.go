@@ -320,7 +320,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		ginkgo.By("issue publish to the first node", func() {
 
 			// Generate transaction
-			bytes, err := os.ReadFile("/Users/david.boehm/github/hypersdk/x/programs/runtime/wasm32-unknown-unknown/release/simple.wasm")
+			bytes, err := os.ReadFile("./simple.wasm")
 			require.NoError(err)
 
 			submit, _, _, err := instances[0].cli.GenerateTransaction(
