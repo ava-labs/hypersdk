@@ -221,7 +221,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	}
 
 	// Estimate storage costs
-	for maxChunks := range stateKeysMaxChunks {
+	for _, maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
 		allocatesOp.Add(r.GetStorageKeyAllocateUnits())
