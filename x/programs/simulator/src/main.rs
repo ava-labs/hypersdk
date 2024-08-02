@@ -5,7 +5,6 @@
 // reference: https://rust-lang.github.io/rust-bindgen/tutorial-3.html
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-
 mod simulator;
 mod state;
 mod types;
