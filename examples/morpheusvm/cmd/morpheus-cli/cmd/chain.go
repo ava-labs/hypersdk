@@ -5,9 +5,11 @@ package cmd
 
 import (
 	"context"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/utils"
 	"github.com/spf13/cobra"
 
 	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
@@ -68,5 +70,69 @@ var watchChainCmd = &cobra.Command{
 			cli := brpc.NewJSONRPCClient(uri, networkID, chainID)
 			return cli.Parser(context.TODO())
 		}, handleTx)
+	},
+}
+
+var watchPreConfsCmd = &cobra.Command{
+	Use: "watch-preconfs",
+	RunE: func(_ *cobra.Command, args []string) error {
+		ctx := context.Background()
+		_, _, _, cli, _, ws, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+		if err := handler.h.CloseDatabase(); err != nil {
+			return err
+		}
+		if err := ws.RegisterPreConf(); err != nil {
+			return err
+		}
+		_, chainID, _, err := cli.Network(ctx)
+		if err != nil {
+			return err
+		}
+		utils.Outf("{{green}}watching for preconf on %s 👀{{/}}\n", chainID)
+		for ctx.Err() == nil {
+			chunkID, err := ws.ListenPreConf(ctx)
+			if err != nil {
+				return err
+			}
+			// _, h, _, _ := cli.Accepted(ctx)
+			utils.Outf("new preconf issued: %s at current block height, time: %d\n", chunkID, time.Now().UnixMilli())
+		}
+		return nil
+	},
+}
+
+var watchPreConfsStandCmd = &cobra.Command{
+	Use: "watch-preconfs-stand",
+	RunE: func(_ *cobra.Command, args []string) error {
+		ctx := context.Background()
+		_, _, _, cli, _, ws, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+		if err := handler.h.CloseDatabase(); err != nil {
+			return err
+		}
+		if err := ws.RegisterBlocks(); err != nil {
+			return err
+		}
+		_, chainID, _, err := cli.Network(ctx)
+		if err != nil {
+			return err
+		}
+		utils.Outf("{{green}}watching for preconf on %s 👀{{/}}\n", chainID)
+		for ctx.Err() == nil {
+			blk, chunkIDs, err := ws.ListenBlock(ctx)
+			if err != nil {
+				return err
+			}
+			utils.Outf("received new block: %d at time %d\n", blk.Height, time.Now().UnixMilli())
+			for _, chunkID := range chunkIDs {
+				utils.Outf("preconf honoured: %s at block height: %d\n", chunkID, blk.Height)
+			}
+		}
+		return nil
 	},
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/avalanchego/vms/proposervm/proposer"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
@@ -41,9 +42,9 @@ type proposerInfo struct {
 type ProposerMonitor struct {
 	vm *VM
 
-	fetchLock sync.Mutex
-	proposers *cache.LRU[uint64, *proposerInfo] // safe for concurrent use
-
+	fetchLock          sync.Mutex
+	proposers          *cache.LRU[uint64, *proposerInfo] // safe for concurrent use
+	proposer           proposer.Windower
 	currentLock        sync.Mutex
 	lastFetchedPHeight time.Time
 	currentHeight      uint64
@@ -56,6 +57,11 @@ func NewProposerMonitor(vm *VM) *ProposerMonitor {
 	return &ProposerMonitor{
 		vm:        vm,
 		proposers: &cache.LRU[uint64, *proposerInfo]{Size: proposerMonitorLRUSize},
+		proposer: proposer.New(
+			vm.snowCtx.ValidatorState,
+			vm.snowCtx.SubnetID,
+			vm.snowCtx.ChainID,
+		),
 		aggrCache: &cache.LRU[string, *bls.PublicKey]{Size: aggrPubKeyLRUSize},
 	}
 }
@@ -231,7 +237,9 @@ func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (i
 	return ids.NodeID{}, fmt.Errorf("no validators")
 }
 
-func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error) {
+// @todo instead of codec.Address, we can do tx.NamespaceID().
+// this makes, sure all general transactions are sampled by a validator, whereas rollup transactions in individual chunks per validator.
+func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
 	// Get determinisitc ordering of validators
 	info, ok := p.proposers.Get(height)
 	if !ok {
@@ -248,16 +256,19 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, he
 	seedBytes := make([]byte, consts.Uint64Len*2+codec.AddressLen)
 	binary.BigEndian.PutUint64(seedBytes, epoch) // ensures partitions rotate even if P-Chain height is static
 	binary.BigEndian.PutUint64(seedBytes[consts.Uint64Len:], height)
-	copy(seedBytes[consts.Uint64Len*2:], addr[:])
+	copy(seedBytes[consts.Uint64Len*2:], ns[:])
 	seed := utils.ToID(seedBytes)
 
 	// Select validator
-	//
+	// @todo
 	// It is important to ensure each partition is actually a unique validator, otherwise
 	// the censorship resistance that partitions are supposed to provide is lost (all partitions
 	// could be allocated to a single validator if we aren't careful).
 	seedInt := new(big.Int).SetBytes(seed[:])
 	partitionInt := new(big.Int).Add(seedInt, big.NewInt(int64(partition)))
+	// @todo this gets unique partition but validator. But what does the partition mentioned in genesis do?
+	// like is it only for generating a pseudo random number for adding into tx Base, to ensure that, user is not dealing with censoring validator?
+	// it is looking in that way, as partition included in tx base is getting added to base generated.
 	partitionIdx := new(big.Int).Mod(partitionInt, big.NewInt(int64(len(info.partitionSet)))).Int64()
 	return info.partitionSet[int(partitionIdx)], nil
 }
@@ -299,4 +310,9 @@ func (p *ProposerMonitor) GetAggregatePublicKey(ctx context.Context, height uint
 		p.vm.Logger().Debug("found cached aggregate public key", zap.Uint64("height", height), zap.String("signers", signers.String()))
 	}
 	return v, nil
+}
+
+func (p *ProposerMonitor) ProposerLookUP(ctx context.Context, height uint64, pChainHeight uint64, maxWindows int) ids.NodeID {
+	props, _ := p.proposer.Proposers(ctx, height, pChainHeight, maxWindows)
+	return props[0] // first validator in the list, will be the default block proposer. @todo
 }

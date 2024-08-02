@@ -286,7 +286,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			// If this passes, we know that latest pHeight must be non-nil
 
 			// Check that transaction is in right partition
-			parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Auth.Sponsor(), tx.Partition())
+			parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Action.NMTNamespace(), tx.Partition())
 			if err != nil {
 				p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
 				p.results[chunkIndex][txIndex] = &Result{Valid: false}

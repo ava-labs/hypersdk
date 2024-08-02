@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	BlockMode byte = 0
-	ChunkMode byte = 1
-	TxMode    byte = 2
-
-	TxSuccess uint8 = 0
-	TxFailed  uint8 = 1
-	TxExpired uint8 = 2
-	TxInvalid uint8 = 3
+	BlockMode   byte  = 0
+	ChunkMode   byte  = 1
+	TxMode      byte  = 2
+	PreConfMode byte  = 3
+	TxSuccess   uint8 = 0
+	TxFailed    uint8 = 1
+	TxExpired   uint8 = 2
+	TxInvalid   uint8 = 3
 )
 
 func PackChunkMessage(block uint64, c *chain.FilteredChunk, results []*chain.Result) ([]byte, error) {

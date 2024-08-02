@@ -252,6 +252,9 @@ func (vm *VM) Initialize(
 	}
 	vm.blobDB = blobDB
 	statePath, err := hutils.InitSubDirectory(snowCtx.ChainDataDir, "statedb")
+	if err != nil {
+		return err
+	}
 	stateDB, _, err := vilmo.New(vm.Logger(), statePath, 15_000_000, 50_000 /* default batch size */, 64*units.KiB, 256 /* history */) // TODO: make these configs
 	if err != nil {
 		return err

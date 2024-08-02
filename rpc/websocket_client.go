@@ -33,10 +33,12 @@ type WebSocketClient struct {
 	writeStopped chan struct{}
 	readStopped  chan struct{}
 
-	pendingBlocks chan []byte
-	pendingChunks chan []byte
-	pendingTxs    chan *byteWrapper
-	txsToProcess  atomic.Int64
+	preConfsMap     map[ids.ID]bool
+	pendingBlocks   chan []byte
+	pendingChunks   chan []byte
+	pendingPreConfs chan []byte
+	pendingTxs      chan *byteWrapper
+	txsToProcess    atomic.Int64
 
 	txsl sync.Mutex
 	txs  map[uint64]ids.ID
@@ -70,14 +72,16 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 	}
 	resp.Body.Close()
 	wc := &WebSocketClient{
-		conn:          conn,
-		mb:            pubsub.NewMessageBuffer(&logging.NoLog{}, pending, targetWrite, maxWrite, pubsub.MaxMessageWait),
-		readStopped:   make(chan struct{}),
-		writeStopped:  make(chan struct{}),
-		pendingBlocks: make(chan []byte, pending),
-		pendingChunks: make(chan []byte, pending),
-		pendingTxs:    make(chan *byteWrapper, pending),
-		txs:           make(map[uint64]ids.ID, pending),
+		conn:            conn,
+		mb:              pubsub.NewMessageBuffer(&logging.NoLog{}, pending, targetWrite, maxWrite, pubsub.MaxMessageWait),
+		readStopped:     make(chan struct{}),
+		writeStopped:    make(chan struct{}),
+		preConfsMap:     make(map[ids.ID]bool),
+		pendingBlocks:   make(chan []byte, pending),
+		pendingChunks:   make(chan []byte, pending),
+		pendingPreConfs: make(chan []byte, pending),
+		pendingTxs:      make(chan *byteWrapper, pending),
+		txs:             make(map[uint64]ids.ID, pending),
 	}
 	go func() {
 		defer close(wc.readStopped)
@@ -124,6 +128,8 @@ func NewWebSocketClient(uri string, handshakeTimeout time.Duration, pending, tar
 				case TxMode:
 					wc.txsToProcess.Add(1)
 					wc.pendingTxs <- &byteWrapper{t: time.Now().UnixMilli(), b: tmsg}
+				case PreConfMode:
+					wc.pendingPreConfs <- tmsg
 				default:
 					utils.Outf("{{orange}}unexpected message mode:{{/}} %x\n", msg[0])
 					continue
@@ -190,14 +196,23 @@ func (c *WebSocketClient) RegisterBlocks() error {
 // Listen listens for block messages from the streaming server.
 func (c *WebSocketClient) ListenBlock(
 	ctx context.Context,
-) (*chain.StatefulBlock, error) {
+) (*chain.StatefulBlock, []ids.ID, error) {
 	select {
 	case msg := <-c.pendingBlocks:
-		return chain.UnmarshalBlock(msg)
+		// @todo match the preconfs from the cached values
+		blk, err := chain.UnmarshalBlock(msg)
+		if err != nil {
+			return nil, nil, err
+		}
+		avalChunkIDs := make([]ids.ID, 0)
+		for _, chunk := range blk.AvailableChunks {
+			avalChunkIDs = append(avalChunkIDs, chunk.ID())
+		}
+		return blk, avalChunkIDs, nil
 	case <-c.readStopped:
-		return nil, c.err
+		return nil, nil, c.err
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 	}
 }
 
@@ -221,6 +236,25 @@ func (c *WebSocketClient) ListenChunk(
 		return 0, nil, nil, c.err
 	case <-ctx.Done():
 		return 0, nil, nil, ctx.Err()
+	}
+}
+
+func (c *WebSocketClient) RegisterPreConf() error {
+	if c.closed {
+		return ErrClosed
+	}
+	_, err := c.mb.Send([]byte{PreConfMode})
+	return err
+}
+
+func (c *WebSocketClient) ListenPreConf(ctx context.Context) (ids.ID, error) {
+	select {
+	case msg := <-c.pendingPreConfs:
+		return ids.FromString(string(msg))
+	case <-c.readStopped:
+		return ids.Empty, c.err
+	case <-ctx.Done():
+		return ids.Empty, ctx.Err()
 	}
 }
 

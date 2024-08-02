@@ -323,3 +323,81 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	}
 	return nil
 }
+
+func (h *Handler) WatchPreconfs() error {
+	ctx := context.Background()
+	chainID, uris, err := h.PromptChain("select chainID", nil)
+	if err != nil {
+		return err
+	}
+	if err := h.CloseDatabase(); err != nil {
+		return err
+	}
+	uriName := onlyAPIs(uris)[0]
+	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[uriName])
+	rcli := rpc.NewJSONRPCClient(uris[uriName])
+	scli, err := rpc.NewWebSocketClient(
+		uris[uriName],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		consts.MTU,
+		pubsub.MaxReadMessageSize,
+	) // we write the max read
+	if err != nil {
+		return err
+	}
+	defer scli.Close()
+	if err := scli.RegisterPreConf(); err != nil {
+		return err
+	}
+	utils.Outf("watching for preconfs on %s 👀{{/}}\n", chainID)
+
+	for ctx.Err() == nil {
+		chunkID, err := scli.ListenPreConf(ctx)
+		if err != nil {
+			return fmt.Errorf("%w: preconf unpack err", err)
+		}
+		_, h, _, _ := rcli.Accepted(ctx)
+		utils.Outf("preconf issued for chunk id: %s{{/}} at height: %d\n", chunkID, h)
+	}
+	return nil
+}
+
+func (h *Handler) WatchPreconfsHonored() error {
+	ctx := context.Background()
+	chainID, uris, err := h.PromptChain("select chainID", nil)
+	if err != nil {
+		return err
+	}
+	if err := h.CloseDatabase(); err != nil {
+		return err
+	}
+	uriName := onlyAPIs(uris)[0]
+	utils.Outf("{{yellow}}uri:{{/}} %s\n", uris[uriName])
+	scli, err := rpc.NewWebSocketClient(
+		uris[uriName],
+		rpc.DefaultHandshakeTimeout,
+		pubsub.MaxPendingMessages,
+		consts.MTU,
+		pubsub.MaxReadMessageSize,
+	) // we write the max read
+	if err != nil {
+		return err
+	}
+	defer scli.Close()
+	if err := scli.RegisterBlocks(); err != nil {
+		return err
+	}
+	utils.Outf("watching for preconfs on %s 👀{{/}}\n", chainID)
+
+	for ctx.Err() == nil {
+		blk, chunkIDs, err := scli.ListenBlock(ctx)
+		if err != nil {
+			return fmt.Errorf("%w: blk unpack err", err)
+		}
+		for _, chunkID := range chunkIDs {
+			utils.Outf("preconf honored for chunk id: %s{{/}} at height: %d\n", chunkID, blk.Height)
+		}
+	}
+	return nil
+}

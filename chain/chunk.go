@@ -40,7 +40,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	sm := vm.StateManager()
 	r := vm.Rules(now)
 	c := &Chunk{
-		Slot: utils.UnixRDeci(now, r.GetValidityWindow()),
+		Slot: utils.UnixRDeci(now, r.GetValidityWindow()), // chunk validity window is 9 seconds @todo
 		Txs:  make([]*Transaction, 0, chunkPrealloc),
 	}
 	epoch := utils.Epoch(now, r.GetEpochDuration())
@@ -50,8 +50,8 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration())
-	if executedEpoch+2 < epoch { // only require + 2 because we don't care about epoch + 1 like in verification.
+	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration()) // epoch duration set to 10 seconds.
+	if executedEpoch+2 < epoch {                                  // only require + 2 because we don't care about epoch + 1 like in verification.
 		return nil, fmt.Errorf("executed epoch (%d) is too far behind (%d) to verify chunk", executedEpoch, epoch)
 	}
 	if heights[0] == nil {

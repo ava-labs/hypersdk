@@ -45,9 +45,15 @@ func BuildBlock(
 	if pHeight > 0 { // even if epoch is set, we use this height to verify warp messages
 		vm.StartCertStream(ctx)
 		restorableChunks := []*ChunkCertificate{}
+		// @todo sort chunks by slot time?
 		for {
 			// TODO: ensure chunk producer is in this epoch
-			// TODO: ensure only 1 chunk per producer
+			// @todo make this(block producer) validators chunks as TOB.
+			// if the block producer donot have any chunks on the top. no way he is haivng any chunks anywhere?
+			// may be sometimes there is no Txs for TOB inclusion?
+			// @todo sort all chunks on the timestamp order.
+			// TODO: ensure only 1 chunk per producer ?? do we need to limit this?
+			// @todo how to make sure, the sequencer msg sequenced can pay for DA fee?
 			// TOOD: prefer old chunks to new chunks for a given producer
 
 			// It is assumed that [NextChunkCertificate] will never return a duplicate chunk.
@@ -55,7 +61,7 @@ func BuildBlock(
 			if !ok {
 				break
 			}
-
+			// @todo prioritise preconfed chunks?
 			// Check that we actually have the chunk
 			if !vm.HasChunk(ctx, cert.Slot, cert.Chunk) {
 				log.Debug("skipping certificate of chunk we don't have", zap.Stringer("chunkID", cert.Chunk))

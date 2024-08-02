@@ -153,6 +153,8 @@ func init() {
 		setChainCmd,
 		chainInfoCmd,
 		watchChainCmd,
+		watchPreConfsCmd,
+		watchPreConfsStandCmd,
 	)
 
 	// actions

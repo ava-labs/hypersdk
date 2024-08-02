@@ -45,5 +45,5 @@ func (c *Config) GetTargetChunkBuildDuration() time.Duration      { return 100 *
 func (c *Config) GetChunkBuildFrequency() time.Duration           { return 250 * time.Millisecond }
 func (c *Config) GetBlockBuildFrequency() time.Duration           { return time.Second }
 func (c *Config) GetProcessingBuildSkip() int                     { return 16 }
-func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 85 } // out of 100 (more weight == more fees)
+func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 85 } // out of 100 (more weight == more fees) // @todo
 func (c *Config) GetBeneficiary() codec.Address                   { return codec.EmptyAddress }

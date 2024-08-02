@@ -48,7 +48,7 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 		return ErrTimestampTooEarly
 	case b.ChainID != chainID:
 		return ErrInvalidChainID
-	case b.Partition >= r.GetPartitions():
+	case b.Partition >= r.GetPartitions(): // @todo is this correct?
 		return fmt.Errorf("%w: %d >= %d", ErrInvalidPartition, b.Partition, r.GetPartitions())
 	default:
 		return nil

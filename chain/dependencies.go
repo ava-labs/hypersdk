@@ -15,10 +15,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
-	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/state"
+	"github.com/ava-labs/hypersdk/vilmo"
 )
 
 type (
@@ -133,7 +133,7 @@ type VM interface {
 	CacheValidators(ctx context.Context, height uint64)
 	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
 	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
-	AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error)
+	AddressPartition(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -319,6 +319,8 @@ type Action interface {
 	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
 	// of any warp message is [MaxOutgoingWarpChunks].
 	OutputsWarpMessage() bool
+
+	NMTNamespace() []byte
 }
 
 type Auth interface {

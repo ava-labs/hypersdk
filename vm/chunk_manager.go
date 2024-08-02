@@ -438,7 +438,8 @@ func (c *ChunkManager) VerifyAndTrackCertificate(ctx context.Context, cert *chai
 	// If we don't have the chunk, we wait to fetch it until the certificate is included in an accepted block.
 
 	// TODO: if this certificate conflicts with a chunk we signed, post the conflict (slashable fault)
-
+	// @todo
+	c.IssuePreConf(ctx, cert.ID(), epochHeight, set.Bits{})
 	// Store chunk certificate for building
 	c.certs.Update(cert)
 	return nil
@@ -550,6 +551,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// Fees are proportional to the weight of the chunk, so we may want to wait until it has more than the minimum.
 		//
 		// TODO: add a timeout here in case we never get above target
+		// @todo verifies weight of the total signers in chunk.
 		if err := warp.VerifyWeight(weight, totalWeight, c.vm.config.GetMinimumCertificateBroadcastNumerator(), weightDenominator); err != nil {
 			c.vm.Logger().Debug("chunk does not have sufficient weight to create certificate", zap.Stringer("chunkID", chunkSignature.Chunk), zap.Error(err))
 			return nil
@@ -608,7 +610,9 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		c.certs.Update(cert)
 
 		// Broadcast certificate to validators (we will broadcast each time the number of signers goes up)
-		c.PushChunkCertificate(ctx, cert)
+		// @todo only broadcast certificate for the first time ever to validators only after gathering minimum required stake signed.
+		// keep broadcasting to all validators everytime after increase in the stake signing in the chunk, as validator rewards are propotional to the signatures they gather.
+		c.PushChunkCertificate(ctx, cert) // @todo issue preconf in the push chunk certicificate method for produced chunks.
 
 		// Send chunk and cert to non-validators (this will ensure they don't need to fetch chunks and that
 		// will allow them to kickoff signature verification earlier).
@@ -619,6 +623,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		if !firstCertificate {
 			return nil
 		}
+		// @todo send chunk and certificates to non validators, for the first time, when minimum required stake signs the chunk.
+		//https://hackmd.io/@patrickogrady/rys8mdl5p#Chunk-Certificate
 		c.PushCertifiedChunk(ctx, cw.chunk, cert)
 	case chunkCertificateMsg:
 		cert, err := chain.UnmarshalChunkCertificate(msg[1:])
@@ -629,7 +635,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		}
 
 		// Handle cert verification
-		if err := c.VerifyAndTrackCertificate(ctx, cert); err != nil {
+		if err := c.VerifyAndTrackCertificate(ctx, cert); err != nil { // @todo issue preconf in the verify and track certificate method for received chunks.
 			c.vm.Logger().Warn("unable to verify and store certificate", zap.Stringer("nodeID", nodeID), zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
@@ -641,6 +647,8 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		// This operation should be cached, so it should be fast.
 		chunk, err := c.vm.GetChunk(cert.Slot, cert.Chunk)
 		if chunk == nil {
+			// @todo this expects chunk to be available before cert is verified.
+			// should nt the chunk be fetched?
 			c.vm.Logger().Debug("skipping optimistic chunk auth because chunk is missing", zap.Stringer("chunkID", cert.Chunk), zap.Error(err))
 			return nil
 		}
@@ -961,7 +969,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 							invalid = true
 							break
 						}
-						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor(), tx.Partition())
+						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Action.NMTNamespace(), tx.Partition())
 						if err != nil {
 							c.vm.Logger().Debug("unable to compute address partition", zap.Error(err))
 							invalid = true
@@ -1113,6 +1121,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 						c.vm.Logger().Warn("unable to parse signature", zap.Error(err))
 						continue
 					}
+					// @todo the signature is sent to the chunk producer.
 					c.PushSignature(ctx, nodeID, chunkSignature)
 				case <-c.vm.stop:
 					c.vm.Logger().Info("stopping chunk storage worker")
@@ -1269,7 +1278,34 @@ func (c *ChunkManager) PushChunkCertificate(ctx context.Context, cert *chain.Chu
 	if err != nil {
 		panic(err)
 	}
+
+	go c.IssuePreConf(ctx, cert.ID(), epochHeight, cert.Signers)
 	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: validators}, msg) // skips validators we aren't connected to
+}
+
+func (c *ChunkManager) IssuePreConf(ctx context.Context, chunkID ids.ID, epochHeight uint64, bitSet set.Bits) {
+	// currentHeight, _ := c.vm.GetLastAcceptedHeight()
+	// nextProposer := c.vm.ProposerLookUp(ctx, currentHeight+1, epochHeight, 5)
+	// // Construct certificate
+	// canonicalValidators, _, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
+	// if err != nil {
+	// 	c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
+	// }
+	// var nextProposerIndex int
+	// for i, vdr := range canonicalValidators {
+	// 	if vdr.NodeIDs[0] == nextProposer {
+	// 		nextProposerIndex = i
+	// 		break
+	// 	}
+	// }
+	// if !bitSet.Contains(nextProposerIndex) {
+	// 	c.vm.Logger().Info("next proposer not in the signer set, no preconf given", zap.Stringer("chunkID", chunkID), zap.Uint64("height", epochHeight))
+	// 	return
+	// }
+	// if err := c.vm.webSocketServer.GivePreconf(chunkID); err != nil {
+	// 	c.vm.Logger().Warn("unable to give preconf", zap.Error(err))
+	// }
+	c.vm.webSocketServer.GivePreconf(chunkID)
 }
 
 func makeCertifiedChunkMsg(chunk *chain.Chunk, cert *chain.ChunkCertificate) ([]byte, error) {
@@ -1362,7 +1398,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 		return
 	}
-	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor(), tx.Partition())
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Action.NMTNamespace(), tx.Partition())
 	if err != nil {
 		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return

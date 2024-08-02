@@ -48,9 +48,9 @@ type WebSocketServer struct {
 	vm VM
 	s  *pubsub.Server
 
-	blockListeners *pubsub.Connections
-	chunkListeners *pubsub.Connections
-
+	blockListeners       *pubsub.Connections
+	chunkListeners       *pubsub.Connections
+	preconfListeners     *pubsub.Connections
 	authWorkers          workers.Workers
 	incomingTransactions chan *txWrapper
 	txBacklog            atomic.Int64
@@ -67,6 +67,7 @@ func NewWebSocketServer(vm VM, maxPendingMessages int) (*WebSocketServer, *pubsu
 		vm:                   vm,
 		blockListeners:       pubsub.NewConnections(),
 		chunkListeners:       pubsub.NewConnections(),
+		preconfListeners:     pubsub.NewConnections(),
 		incomingTransactions: make(chan *txWrapper, vm.GetAuthRPCBacklog()),
 		txListeners:          make(map[ids.ID][]*txListener, maxPendingMessages),
 		expiringTxs:          oexpirer.New[*expiringTx](maxPendingMessages),
@@ -207,6 +208,18 @@ func (w *WebSocketServer) SetMinTx(t int64) error {
 	return nil
 }
 
+// issues a very simple preconf message to rollups opting in.
+// This preconf gaurantees only the order of txs included in the ROB chunks.
+func (w *WebSocketServer) GivePreconf(chunkID ids.ID) error {
+	if w.preconfListeners.Len() > 0 {
+		inactiveConnection := w.s.Publish(append([]byte{PreConfMode}, []byte(chunkID.String())...), w.preconfListeners)
+		for _, conn := range inactiveConnection {
+			w.preconfListeners.Remove(conn)
+		}
+	}
+	return nil
+}
+
 func (w *WebSocketServer) AcceptBlock(b *chain.StatelessBlock) error {
 	if w.blockListeners.Len() > 0 {
 		inactiveConnection := w.s.Publish(append([]byte{BlockMode}, b.Bytes()...), w.blockListeners)
@@ -310,6 +323,9 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 			default:
 				log.Debug("dropping tx because backlog is full")
 			}
+		case PreConfMode:
+			w.preconfListeners.Add(c)
+			log.Debug("added preconf listener")
 		default:
 			log.Error("unexpected message type",
 				zap.Int("len", len(msgBytes)),

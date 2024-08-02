@@ -353,6 +353,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
+	// @todo currently there are no bonds implemented?
 	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		return nil, err
 	}

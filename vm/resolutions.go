@@ -20,10 +20,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
+	"github.com/ava-labs/hypersdk/vilmo"
 )
 
 var (
@@ -99,7 +99,7 @@ func (vm *VM) IsSeenChunk(ctx context.Context, chunkID ids.ID) bool {
 }
 
 func (vm *VM) Verified(ctx context.Context, b *chain.StatelessBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.Verified")
+	_, span := vm.tracer.Start(ctx, "VM.Verified")
 	defer span.End()
 
 	vm.verifiedL.Lock()
@@ -144,7 +144,7 @@ func (vm *VM) processExecutedChunks() {
 }
 
 func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk *chain.FilteredChunk, results []*chain.Result, invalidTxs []ids.ID) {
-	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
+	_, span := vm.tracer.Start(ctx, "VM.ExecutedChunk")
 	defer span.End()
 
 	// Mark all txs as seen (prevent replay in subsequent blocks)
@@ -174,7 +174,7 @@ func (vm *VM) ExecutedChunk(ctx context.Context, blk *chain.StatefulBlock, chunk
 }
 
 func (vm *VM) ExecutedBlock(ctx context.Context, blk *chain.StatefulBlock) {
-	ctx, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
+	_, span := vm.tracer.Start(ctx, "VM.ExecutedBlock")
 	defer span.End()
 
 	// We interleave results with chunks to ensure things are processed in the write order (if processed independently, we might
@@ -414,8 +414,8 @@ func (vm *VM) CacheValidators(ctx context.Context, height uint64) {
 	vm.proposerMonitor.Fetch(ctx, height)
 }
 
-func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error) {
-	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, addr, partition)
+func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, ns, partition)
 }
 
 func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (bool, error) {
@@ -710,4 +710,8 @@ func (vm *VM) RecordTStateIterate(t time.Duration) {
 
 func (vm *VM) RecordVilmoBatchWrite(t time.Duration) {
 	vm.metrics.appendDBBatchWrite.Observe(float64(t))
+}
+
+func (vm *VM) ProposerLookUp(ctx context.Context, height uint64, pChainHeight uint64, maxWindows int) ids.NodeID {
+	return vm.proposerMonitor.ProposerLookUP(ctx, height, pChainHeight, maxWindows)
 }
