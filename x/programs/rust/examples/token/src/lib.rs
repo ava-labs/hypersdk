@@ -217,7 +217,7 @@ mod internal {
 #[cfg(test)]
 mod tests {
     use super::Units;
-    use simulator::{Endpoint, Param, Step, TestContext};
+    use simulator::Simulator;
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -225,170 +225,112 @@ mod tests {
     const MAX_UNITS: u64 = 1000000;
     #[test]
     fn create_program() {
-        let mut simulator = build_simulator();
+        let simulator = Simulator::new();
 
-        simulator.create_program(PROGRAM_PATH).unwrap();
+        simulator.create_program(PROGRAM_PATH).unwrap()
     }
 
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = build_simulator();
+        let mut simulator = Simulator::new();
 
-        let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+
         simulator
-            .execute(
-                "init".into(),
-                vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                MAX_UNITS,
-            )
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         let supply = simulator
-            .read("total_supply".into(), vec![test_context.clone().into()])
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "total_supply", (), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
         assert_eq!(supply, 0);
 
         let symbol = simulator
-            .read("symbol".into(), vec![test_context.clone().into()])
-            .unwrap()
-            .result
-            .response::<String>()
+            .call_program(program_address, "symbol", (), MAX_UNITS)
+            .result::<String>()
             .unwrap();
-
         assert_eq!(symbol, "TST");
 
         let name = simulator
-            .read("name".into(), vec![test_context.into()])
-            .unwrap()
-            .result
-            .response::<String>()
+            .call_program(program_address, "name", (), MAX_UNITS)
+            .result::<String>()
             .unwrap();
-
         assert_eq!(name, "Test");
     }
 
     #[test]
     fn mint() {
-        let mut simulator = build_simulator();
+        let simulator = Simulator::new();
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .execute(
-                "init".into(),
-                vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                MAX_UNITS,
-            )
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         simulator
-            .execute(
-                "mint".into(),
-                vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_initial_balance),
-                ],
+            .call_program(
+                program_address,
+                "mint",
+                (alice, alice_initial_balance),
                 MAX_UNITS,
             )
             .unwrap();
 
         let balance = simulator
-            .read(
-                "balance_of".into(),
-                vec![test_context.clone().into(), alice.into()],
-            )
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(balance, alice_initial_balance);
 
         let total_supply = simulator
-            .read("total_supply".into(), vec![test_context.into()])
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "total_supply", (), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(total_supply, alice_initial_balance);
     }
 
     #[test]
     fn burn() {
-        let mut simulator = build_simulator();
+        let simulator = Simulator::new();
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_id: Id = simulator.create_program(PROGRAM_PATH).unwrap().id.into();
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .execute(
-                "init".into(),
-                vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
+            .unwrap();
+
+        simulator
+            .call_program(
+                program_address,
+                "mint",
+                (alice, alice_initial_balance),
                 MAX_UNITS,
             )
             .unwrap();
 
         simulator
-            .execute(
-                "mint".into(),
-                vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_initial_balance),
-                ],
-                MAX_UNITS,
-            )
-            .unwrap();
-
-        simulator
-            .execute(
-                "burn".into(),
-                vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_burn_amount),
-                ],
+            .call_program(
+                program_address,
+                "burn",
+                (alice, alice_burn_amount),
                 MAX_UNITS,
             )
             .unwrap();
 
         let balance = simulator
-            .read(
-                "balance_of".into(),
-                vec![test_context.clone().into(), alice.into()],
-            )
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(balance, alice_initial_balance - alice_burn_amount);
     }
 }

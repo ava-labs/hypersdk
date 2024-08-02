@@ -34,11 +34,11 @@ mod tests {
 
         let counter = simulator.create_program(&counter_path).program().unwrap();
 
-        let res = simulator.execute(counter_external, "inc", (counter, owner), 100_000_000);
+        let res = simulator.call_program(counter_external, "inc", (counter, owner), 100_000_000);
         // TODO check err
 
         let response = simulator
-            .execute(counter_external, "get_value", (counter, owner), 100_000_000)
+            .call_program(counter_external, "get_value", (counter, owner), 100_000_000)
             .result::<u64>()
             .unwrap();
 

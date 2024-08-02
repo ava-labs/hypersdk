@@ -102,6 +102,13 @@ impl CreateProgramResponse {
         let c_str = unsafe { CStr::from_ptr(self.error) };
         return c_str.to_str().map_err(SimulatorError::FFI);
     }
+
+    // will panic if there is an error. helpful for testing
+    pub fn unwrap(&self) {
+        if self.has_error() {
+            panic!("This CallProgramResponse errored")
+        }
+    }
 }
 
 impl CallProgramResponse {
@@ -129,6 +136,13 @@ impl CallProgramResponse {
         // TODO: need to make sure this pointer lives long enough
         let c_str = unsafe { CStr::from_ptr(self.error) };
         return c_str.to_str().map_err(SimulatorError::FFI);
+    }
+
+    // will panic if there is an error. helpful for testing
+    pub fn unwrap(&self) {
+        if self.has_error() {
+            panic!("This CallProgramResponse errored")
+        }
     }
 }
 

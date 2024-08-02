@@ -1,6 +1,6 @@
 use wasmlanche_sdk::Address as SdkAddress;
 
-pub use crate::{Address, Bytes};
+pub use crate::{Address, Bytes, BytesWithError};
 
 impl From<SdkAddress> for Address {
     fn from(value: SdkAddress) -> Self {

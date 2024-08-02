@@ -51,10 +51,9 @@ mod tests {
         let gas = 100000000;
         let bob = Address::new([1; 33]);
         let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-        simulator.execute(counter_address, "inc", (bob, 10u64), gas);
-        // todo asser resp doesn't error
+        simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
         let value = simulator
-            .execute(counter_address, "get_value", ((bob),), gas)
+            .call_program(counter_address, "get_value", ((bob),), gas)
             .result::<u64>()
             .unwrap();
 
