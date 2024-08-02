@@ -371,13 +371,19 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Program:  codec.Address(result),
 				Function: "get_value",
 			}
-			simulatedAction.SpecifiedStateKeys, simulatedAction.Fuel, err = instances[0].lcli.Simulate(context.Background(), simulatedAction, codec.EmptyAddress)
+
+			specifiedStateKeysSet, fuel, err := instances[0].lcli.Simulate(context.Background(), simulatedAction, codec.EmptyAddress)
+			specifiedStateKeys := make([]actions.StateKeyPermission, 0, len(specifiedStateKeysSet))
+			for key, value := range specifiedStateKeysSet {
+				specifiedStateKeys = append(specifiedStateKeys, actions.StateKeyPermission{Key: key, Permission: value})
+			}
 			require.NoError(err)
-			for j := 1; j < 5; j++ {
-				time.Sleep(10 * time.Millisecond)
-				for i := 1; i < 3; i++ {
+			start := time.Now()
+			for j := 0; j < 100; j++ {
+				for i := 0; i < 10; i++ {
 					require.NoError(err)
-					valueAmount := uint64(100000000 * (i + 10*j))
+					valueAmount := uint64(10000000 * (i + 10*j))
+
 					submit, _, _, err := instances[0].cli.GenerateTransaction(
 						context.Background(),
 						parser,
@@ -385,8 +391,8 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 							Program:            codec.Address(result),
 							Function:           "get_value",
 							Value:              valueAmount,
-							SpecifiedStateKeys: simulatedAction.SpecifiedStateKeys,
-							Fuel:               simulatedAction.Fuel,
+							SpecifiedStateKeys: specifiedStateKeys,
+							Fuel:               fuel,
 						}},
 						factory,
 					)
@@ -399,9 +405,13 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 				accept := expectBlk(instances[0])
 				results := accept(false)
-				require.Len(results, 2)
+				require.Len(results, 10)
 				require.True(results[0].Success)
 			}
+			end := time.Now()
+			require.Greater(end, start)
+			totalMS := end.Sub(start).Milliseconds()
+			require.Less(totalMS, int64(1500))
 		})
 	})
 })
