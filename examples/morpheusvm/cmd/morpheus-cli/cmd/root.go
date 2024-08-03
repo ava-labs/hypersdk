@@ -35,6 +35,7 @@ var (
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
+	accountsNumber        uint32
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -145,6 +146,12 @@ func init() {
 	)
 
 	// spam
+	runSpamCmd.PersistentFlags().Uint32Var(
+		&accountsNumber,
+		"accounts",
+		0,
+		"number of accounts to create",
+	)
 	spamCmd.AddCommand(
 		runSpamCmd,
 	)

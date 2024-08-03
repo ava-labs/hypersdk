@@ -50,7 +50,11 @@ var (
 	sent     atomic.Int64
 )
 
-func (h *Handler) Spam(sh SpamHelper) error {
+type SpamFlags struct {
+	AccountsNumber int
+}
+
+func (h *Handler) Spam(sh SpamHelper, flags SpamFlags) error {
 	ctx := context.Background()
 
 	// Select chain
@@ -109,13 +113,17 @@ func (h *Handler) Spam(sh SpamHelper) error {
 	}
 
 	// Collect parameters
-	numAccounts, err := h.PromptInt("number of accounts", consts.MaxInt)
-	if err != nil {
-		return err
+	numAccounts := flags.AccountsNumber
+	if numAccounts == 0 {
+		numAccounts, err = h.PromptInt("number of accounts", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
 	if numAccounts < 2 {
 		return ErrInsufficientAccounts
 	}
+
 	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
 	if err != nil {
 		return err
