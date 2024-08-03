@@ -52,6 +52,12 @@ var (
 
 type SpamFlags struct {
 	AccountsNumber int
+	SZipf          float64
+	VZipf          float64
+	TxPerSec       int
+	MinTxsPerSec   int
+	TxPerSecStep   int
+	NumClients     int
 }
 
 func (h *Handler) Spam(sh SpamHelper, flags SpamFlags) error {
@@ -124,29 +130,52 @@ func (h *Handler) Spam(sh SpamHelper, flags SpamFlags) error {
 		return ErrInsufficientAccounts
 	}
 
-	sZipf, err := h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
-	if err != nil {
-		return err
+	sZipf := flags.SZipf
+	if sZipf == 0 {
+		sZipf, err = h.PromptFloat("s (Zipf distribution = [(v+k)^(-s)], Default = 1.01)", consts.MaxFloat64)
+		if err != nil {
+			return err
+		}
 	}
-	vZipf, err := h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
-	if err != nil {
-		return err
+
+	vZipf := flags.VZipf
+	if vZipf == 0 {
+		vZipf, err = h.PromptFloat("v (Zipf distribution = [(v+k)^(-s)], Default = 2.7)", consts.MaxFloat64)
+		if err != nil {
+			return err
+		}
 	}
-	txsPerSecond, err := h.PromptInt("txs to try and issue per second", consts.MaxInt)
-	if err != nil {
-		return err
+
+	txsPerSecond := flags.TxPerSec
+	if txsPerSecond == 0 {
+		txsPerSecond, err = h.PromptInt("txs to try and issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
-	minTxsPerSecond, err := h.PromptInt("minimum txs to issue per second", consts.MaxInt)
-	if err != nil {
-		return err
+
+	minTxsPerSecond := flags.MinTxsPerSec
+	if minTxsPerSecond == 0 {
+		minTxsPerSecond, err = h.PromptInt("minimum txs to issue per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
-	txsPerSecondStep, err := h.PromptInt("txs to increase per second", consts.MaxInt)
-	if err != nil {
-		return err
+
+	txsPerSecondStep := flags.TxPerSecStep
+	if txsPerSecondStep == 0 {
+		txsPerSecondStep, err = h.PromptInt("txs to increase per second", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
-	numClients, err := h.PromptInt("number of clients per node", consts.MaxInt)
-	if err != nil {
-		return err
+
+	numClients := flags.NumClients
+	if numClients == 0 {
+		numClients, err = h.PromptInt("number of clients per node", consts.MaxInt)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Log Zipf participants

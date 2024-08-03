@@ -36,6 +36,12 @@ var (
 	prometheusData        string
 	startPrometheus       bool
 	accountsNumber        uint32
+	sZipf                 float64
+	vZipf                 float64
+	txPerSec              uint32
+	minCapacity           uint32
+	txPerSecStep          uint32
+	numClients            uint32
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -145,12 +151,48 @@ func init() {
 		transferCmd,
 	)
 
-	// spam
+	// spam run ed25519 --accounts=10000000 --txs-per-second=100000 --min-capacity=15000 --step-size=1000 --s-zipf=1.0001 --v-zipf=2.7
 	runSpamCmd.PersistentFlags().Uint32Var(
 		&accountsNumber,
 		"accounts",
 		0,
 		"number of accounts to create",
+	)
+	runSpamCmd.PersistentFlags().Float64Var(
+		&sZipf,
+		"s-zipf",
+		0,
+		"s-zipf",
+	)
+	runSpamCmd.PersistentFlags().Float64Var(
+		&vZipf,
+		"v-zipf",
+		0,
+		"v-zipf",
+	)
+	runSpamCmd.PersistentFlags().Uint32Var(
+		&txPerSec,
+		"txs-per-second",
+		0,
+		"txs per second",
+	)
+	runSpamCmd.PersistentFlags().Uint32Var(
+		&txPerSecStep,
+		"step-size",
+		0,
+		"step size",
+	)
+	runSpamCmd.PersistentFlags().Uint32Var(
+		&numClients,
+		"conns-per-host",
+		0,
+		"number of clients",
+	)
+	runSpamCmd.PersistentFlags().Uint32Var(
+		&minCapacity,
+		"min-capacity",
+		0,
+		"min capacity",
 	)
 	spamCmd.AddCommand(
 		runSpamCmd,

@@ -109,6 +109,12 @@ var runSpamCmd = &cobra.Command{
 			keyType: args[0],
 		}, cli.SpamFlags{
 			AccountsNumber: int(accountsNumber),
+			SZipf:          sZipf,
+			VZipf:          vZipf,
+			TxPerSec:       int(txPerSec),
+			MinTxsPerSec:   int(minCapacity),
+			TxPerSecStep:   int(txPerSecStep),
+			NumClients:     int(numClients),
 		})
 	},
 }
