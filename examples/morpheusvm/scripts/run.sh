@@ -207,11 +207,12 @@ fi
 
 killall avalanche-network-runner || true
 
+date=$(date +%Y-%m-%d-%H-%M-%S)
 echo "launch avalanche-network-runner in the background"
 $BIN server \
 --log-level=verbo \
 --port=":12352" \
---grpc-gateway-port=":12353" &
+--grpc-gateway-port=":12353" > >(tee "anr-${date}.log") 2>&1 &
 
 ############################
 # By default, it runs all e2e test cases!
