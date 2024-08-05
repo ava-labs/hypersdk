@@ -149,7 +149,7 @@ func (vm *VM) Rejected(ctx context.Context, b *chain.StatelessBlock) {
 	vm.snowCtx.Log.Info("rejected block", zap.Stringer("id", b.ID()))
 }
 
-func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
+func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) error {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockProcess.Observe(float64(time.Since(start)))
@@ -162,12 +162,12 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	// don't allow subscription until the node is healthy.
 	if !b.Processed() {
 		vm.snowCtx.Log.Info("skipping unprocessed block", zap.Uint64("height", b.Hght))
-		return
+		return nil
 	}
 
 	// Update controller
 	if err := vm.c.Accepted(context.TODO(), b); err != nil {
-		vm.Fatal("accepted processing failed", zap.Error(err))
+		return vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 
 	// TODO: consider removing this (unused and requires an extra iteration)
@@ -178,12 +178,12 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 
 	// Update server
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
+		return vm.Fatal("unable to accept block in websocket server", zap.Error(err))
 	}
 	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
 	// send [ErrExpired] messages.
 	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
+		return vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
 	}
 
 	// Update price metrics
@@ -195,8 +195,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
-		vm.Fatal("failed to update the last processed height", zap.Error(err))
+		return vm.Fatal("failed to update the last processed height", zap.Error(err))
 	}
+
+	return nil
 }
 
 func (vm *VM) processAcceptedBlocks() {
@@ -220,7 +222,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
+func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
 
@@ -228,7 +230,7 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 
 	// Update accepted blocks on-disk and caches
 	if err := vm.UpdateLastAccepted(b); err != nil {
-		vm.Fatal("unable to update last accepted", zap.Error(err))
+		return vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
 
 	// Remove from verified caches
@@ -290,6 +292,8 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 		zap.Int("dropped mempool txs", len(removed)),
 		zap.Bool("state ready", vm.StateReady()),
 	)
+
+	return nil
 }
 
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {

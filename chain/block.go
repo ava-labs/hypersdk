@@ -563,11 +563,10 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	}
 
 	// Mark block as accepted and update last accepted in storage
-	b.MarkAccepted(ctx)
-	return nil
+	return b.MarkAccepted(ctx)
 }
 
-func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
+func (b *StatelessBlock) MarkAccepted(ctx context.Context) error {
 	// Accept block and free unnecessary memory
 	b.accepted = true
 	b.txsSet = nil // only used for replay protection when processing
@@ -576,7 +575,7 @@ func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 	// needed to ensure we don't resync all blocks when state sync finishes.
 	//
 	// Note: We will not call [b.vm.Verified] before accepting during state sync
-	b.vm.Accepted(ctx, b)
+	return b.vm.Accepted(ctx, b)
 }
 
 // implements "snowman.Block.choices.Decidable"

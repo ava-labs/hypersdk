@@ -1213,12 +1213,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	return nil
 }
 
-// Fatal logs the provided message and then panics to force an exit.
-//
-// While we could attempt a graceful shutdown, it is not clear that
-// the shutdown will complete given that we have encountered a fatal
-// issue. It is better to ensure we exit to surface the error.
-func (vm *VM) Fatal(msg string, fields ...zap.Field) {
-	vm.snowCtx.Log.Fatal(msg, fields...)
-	panic("fatal error")
+func (vm *VM) Fatal(msg string, field zap.Field) error {
+	vm.snowCtx.Log.Fatal(msg, zap.Stack("stack"), field)
+	return ErrFatal
 }
