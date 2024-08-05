@@ -236,176 +236,178 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	})
 })
 
-var _ = ginkgo.It("[HyperSDK Syncing]", func() {
-	ctx := context.Background()
-	require := require.New(ginkgo.GinkgoT())
+var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
+	ginkgo.It("Sync", func() {
+		ctx := context.Background()
+		require := require.New(ginkgo.GinkgoT())
 
-	ginkgo.By("Generate 128 blocks", func() {
-		workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 128)
-	})
+		ginkgo.By("Generate 128 blocks", func() {
+			workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 128)
+		})
 
-	var bootstrapNodeURI string
-	ginkgo.By("Start a new node to bootstrap", func() {
-		cluster, err := anrCli.AddNode(
-			ctx,
-			"bootstrap",
-			networkConfig.ExecPath,
-			trackSubnetsOpt,
-			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainID: networkConfig.VMConfig,
-			}),
-		)
-		require.NoError(err)
-		awaitHealthy(require, anrCli)
-
-		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := formatURI(nodeURI, blockchainID)
-		utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
-		bootstrapNodeURI = uri
-		network.uris = append(network.uris, bootstrapNodeURI)
-		require.NoError(err)
-	})
-	ginkgo.By("Accept a transaction after state sync", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
-	})
-	ginkgo.By("Restart the node", func() {
-		cluster, err := anrCli.RestartNode(context.Background(), "bootstrap")
-		require.NoError(err)
-
-		// Upon restart, the node should be able to read blocks from disk
-		// to initialize its [seen] index and become ready in less than
-		// [ValidityWindow].
-		start := time.Now()
-		awaitHealthy(require, anrCli)
-		require.WithinDuration(time.Now(), start, 20*time.Second)
-
-		// Update bootstrap info to latest in case it was assigned a new port
-		nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
-		uri := formatURI(nodeURI, blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
-		c := rpc.NewJSONRPCClient(uri)
-		_, _, _, err = c.Network(ctx)
-		require.NoError(err)
-		bootstrapNodeURI = uri
-		network.uris[len(network.uris)-1] = bootstrapNodeURI
-	})
-	ginkgo.By("Generate 1024 blocks", func() {
-		workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 1024)
-	})
-	var syncNodeURI string
-	ginkgo.By("Start a new node to state sync", func() {
-		cluster, err := anrCli.AddNode(
-			ctx,
-			"sync",
-			networkConfig.ExecPath,
-			trackSubnetsOpt,
-			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainID: networkConfig.VMConfig,
-			}),
-		)
-		require.NoError(err)
-
-		awaitHealthy(require, anrCli)
-
-		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-		uri := formatURI(nodeURI, blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
-		c := rpc.NewJSONRPCClient(uri)
-		_, _, _, err = c.Network(ctx)
-		require.NoError(err)
-		syncNodeURI = uri
-	})
-	ginkgo.By("Accept a transaction after state sync", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
-	})
-	ginkgo.By("Pause the node", func() {
-		// shuts down the node and keeps all db/conf data for a proper restart
-		_, err := anrCli.PauseNode(
-			ctx,
-			"sync",
-		)
-		require.NoError(err)
-
-		awaitHealthy(require, anrCli)
-
-		c := rpc.NewJSONRPCClient(syncNodeURI)
-		ok, err := c.Ping(ctx)
-		require.Error(err) //nolint:forbidigo
-		require.False(ok)
-	})
-	ginkgo.By("Generate 256 blocks", func() {
-		workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 256)
-	})
-	ginkgo.By("Resume the node", func() {
-		cluster, err := anrCli.ResumeNode(
-			context.Background(),
-			"sync",
-		)
-		require.NoError(err)
-
-		awaitHealthy(require, anrCli)
-
-		// Update sync info to latest in case it was assigned a new port
-		nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
-		uri := formatURI(nodeURI, blockchainID)
-		require.NoError(err)
-		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
-		c := rpc.NewJSONRPCClient(uri)
-		_, _, _, err = c.Network(ctx)
-		require.NoError(err)
-		syncNodeURI = uri
-	})
-
-	ginkgo.By("Accept a transaction after resuming", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
-	})
-	ginkgo.By("State sync while broadcasting txs", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			// Recover failure if exits
-			defer ginkgo.GinkgoRecover()
-
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
+		var bootstrapNodeURI string
+		ginkgo.By("Start a new node to bootstrap", func() {
+			cluster, err := anrCli.AddNode(
+				ctx,
+				"bootstrap",
+				networkConfig.ExecPath,
+				trackSubnetsOpt,
+				runner_sdk.WithChainConfigs(map[string]string{
+					blockchainID: networkConfig.VMConfig,
+				}),
+			)
 			require.NoError(err)
-			workload.GenerateUntilCancel(ctx, network.uris, txWorkload)
-		}()
+			awaitHealthy(require, anrCli)
 
-		// Give time for transactions to start processing
-		time.Sleep(5 * time.Second)
+			nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
+			uri := formatURI(nodeURI, blockchainID)
+			utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
+			bootstrapNodeURI = uri
+			network.uris = append(network.uris, bootstrapNodeURI)
+			require.NoError(err)
+		})
+		ginkgo.By("Accept a transaction after state sync", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
+		})
+		ginkgo.By("Restart the node", func() {
+			cluster, err := anrCli.RestartNode(context.Background(), "bootstrap")
+			require.NoError(err)
 
-		// Start syncing node
-		cluster, err := anrCli.AddNode(
-			ctx,
-			"sync_concurrent",
-			networkConfig.ExecPath,
-			trackSubnetsOpt,
-			runner_sdk.WithChainConfigs(map[string]string{
-				blockchainID: networkConfig.VMConfig,
-			}),
-		)
-		require.NoError(err)
-		awaitHealthy(require, anrCli)
+			// Upon restart, the node should be able to read blocks from disk
+			// to initialize its [seen] index and become ready in less than
+			// [ValidityWindow].
+			start := time.Now()
+			awaitHealthy(require, anrCli)
+			require.WithinDuration(time.Now(), start, 20*time.Second)
 
-		nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
-		uri := formatURI(nodeURI, blockchainID)
-		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
-		c := rpc.NewJSONRPCClient(uri)
-		_, _, _, err = c.Network(ctx)
-		require.NoError(err)
-		cancel()
-	})
-	ginkgo.By("Accept a transaction after syncing", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
+			// Update bootstrap info to latest in case it was assigned a new port
+			nodeURI := cluster.ClusterInfo.NodeInfos["bootstrap"].Uri
+			uri := formatURI(nodeURI, blockchainID)
+			require.NoError(err)
+			utils.Outf("{{blue}}bootstrap node uri: %s{{/}}\n", uri)
+			c := rpc.NewJSONRPCClient(uri)
+			_, _, _, err = c.Network(ctx)
+			require.NoError(err)
+			bootstrapNodeURI = uri
+			network.uris[len(network.uris)-1] = bootstrapNodeURI
+		})
+		ginkgo.By("Generate 1024 blocks", func() {
+			workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 1024)
+		})
+		var syncNodeURI string
+		ginkgo.By("Start a new node to state sync", func() {
+			cluster, err := anrCli.AddNode(
+				ctx,
+				"sync",
+				networkConfig.ExecPath,
+				trackSubnetsOpt,
+				runner_sdk.WithChainConfigs(map[string]string{
+					blockchainID: networkConfig.VMConfig,
+				}),
+			)
+			require.NoError(err)
+
+			awaitHealthy(require, anrCli)
+
+			nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
+			uri := formatURI(nodeURI, blockchainID)
+			require.NoError(err)
+			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
+			c := rpc.NewJSONRPCClient(uri)
+			_, _, _, err = c.Network(ctx)
+			require.NoError(err)
+			syncNodeURI = uri
+		})
+		ginkgo.By("Accept a transaction after state sync", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
+		})
+		ginkgo.By("Pause the node", func() {
+			// shuts down the node and keeps all db/conf data for a proper restart
+			_, err := anrCli.PauseNode(
+				ctx,
+				"sync",
+			)
+			require.NoError(err)
+
+			awaitHealthy(require, anrCli)
+
+			c := rpc.NewJSONRPCClient(syncNodeURI)
+			ok, err := c.Ping(ctx)
+			require.Error(err) //nolint:forbidigo
+			require.False(ok)
+		})
+		ginkgo.By("Generate 256 blocks", func() {
+			workload.GenerateNBlocks(ctx, require, network.uris, txWorkloadFactory, 256)
+		})
+		ginkgo.By("Resume the node", func() {
+			cluster, err := anrCli.ResumeNode(
+				context.Background(),
+				"sync",
+			)
+			require.NoError(err)
+
+			awaitHealthy(require, anrCli)
+
+			// Update sync info to latest in case it was assigned a new port
+			nodeURI := cluster.ClusterInfo.NodeInfos["sync"].Uri
+			uri := formatURI(nodeURI, blockchainID)
+			require.NoError(err)
+			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
+			c := rpc.NewJSONRPCClient(uri)
+			_, _, _, err = c.Network(ctx)
+			require.NoError(err)
+			syncNodeURI = uri
+		})
+
+		ginkgo.By("Accept a transaction after resuming", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
+		})
+		ginkgo.By("State sync while broadcasting txs", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				// Recover failure if exits
+				defer ginkgo.GinkgoRecover()
+
+				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
+				require.NoError(err)
+				workload.GenerateUntilCancel(ctx, network.uris, txWorkload)
+			}()
+
+			// Give time for transactions to start processing
+			time.Sleep(5 * time.Second)
+
+			// Start syncing node
+			cluster, err := anrCli.AddNode(
+				ctx,
+				"sync_concurrent",
+				networkConfig.ExecPath,
+				trackSubnetsOpt,
+				runner_sdk.WithChainConfigs(map[string]string{
+					blockchainID: networkConfig.VMConfig,
+				}),
+			)
+			require.NoError(err)
+			awaitHealthy(require, anrCli)
+
+			nodeURI := cluster.ClusterInfo.NodeInfos["sync_concurrent"].Uri
+			uri := formatURI(nodeURI, blockchainID)
+			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", uri)
+			c := rpc.NewJSONRPCClient(uri)
+			_, _, _, err = c.Network(ctx)
+			require.NoError(err)
+			cancel()
+		})
+		ginkgo.By("Accept a transaction after syncing", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(ctx, require, network.uris, txWorkload)
+		})
 	})
 })
 
