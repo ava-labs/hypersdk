@@ -104,7 +104,6 @@ func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account cod
 }
 
 func (p *ProgramStateManager) setAccountBalance(ctx context.Context, account codec.Address, amount uint64) error {
-	// TODO: we aren't passing in ctx? honestly need to learn more about what contrext does
 	return p.db.Insert(ctx, accountBalanceKey(account[:]), binary.BigEndian.AppendUint64(nil, amount))
 }
 

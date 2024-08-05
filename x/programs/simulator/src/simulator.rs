@@ -46,7 +46,6 @@ impl Simulator {
     }
 
     pub fn create_program(&self, program_path: &str) -> CreateProgramResponse {
-        // TODO: do we need to free this?
         let program_path = CString::new(program_path).unwrap();
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
     }
@@ -106,7 +105,6 @@ impl CreateProgramResponse {
         if !self.has_error() {
             return Ok("");
         }
-        // TODO: need to make sure this pointer lives long enough
         let c_str = unsafe { CStr::from_ptr(self.error) };
         return c_str.to_str().map_err(SimulatorError::Ffi);
     }
@@ -114,7 +112,7 @@ impl CreateProgramResponse {
     // will panic if there is an error. helpful for testing
     pub fn unwrap(&self) {
         if self.has_error() {
-            panic!("This CallProgramResponse errored")
+            panic!("CreateProgramResponse errored")
         }
     }
 }
@@ -141,7 +139,6 @@ impl CallProgramResponse {
         if !self.has_error() {
             return Ok("");
         }
-        // TODO: need to make sure this pointer lives long enough
         let c_str = unsafe { CStr::from_ptr(self.error) };
         return c_str.to_str().map_err(SimulatorError::Ffi);
     }
@@ -149,7 +146,7 @@ impl CallProgramResponse {
     // will panic if there is an error. helpful for testing
     pub fn unwrap(&self) {
         if self.has_error() {
-            panic!("This CallProgramResponse errored")
+            panic!("CallProgramResponse errored")
         }
     }
 }

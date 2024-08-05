@@ -141,7 +141,7 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 	} else {
 		errPtr = C.CString(err.Error())
 	}
-	// TODO: check what happens when result is nil
+
 	return C.CallProgramResponse{
 		error: errPtr,
 		result: C.Bytes{
