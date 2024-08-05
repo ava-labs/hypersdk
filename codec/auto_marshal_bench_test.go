@@ -11,8 +11,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// $ go test -bench=BenchmarkMarshalUnmarshal ./codec
+// goos: linux
+// goarch: amd64
+// pkg: github.com/ava-labs/hypersdk/codec
+// cpu: AMD EPYC 7763 64-Core Processor
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-8                 18439879                62.80 ns/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-8                     50670040                24.64 ns/op
+// BenchmarkMarshalUnmarshal/InnerOuter-Reflection-8                4309082               293.0 ns/op
+// BenchmarkMarshalUnmarshal/InnerOuter-Manual-8                   13443223                88.32 ns/op
+// BenchmarkMarshalUnmarshal/BigFlatObject-Reflection-8             8192916               137.2 ns/op
+// BenchmarkMarshalUnmarshal/BigFlatObject-Manual-8                24067494                46.57 ns/op
+// PASS
+// ok      github.com/ava-labs/hypersdk/codec      8.315s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
-	sampleSize := 100
+	sampleSize := 100000
 
 	type Transfer struct {
 		To    codec.Address `json:"to"`
