@@ -56,14 +56,14 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
 	paramBytes := C.GoBytes(unsafe.Pointer(ctx.params.data), C.int(ctx.params.length))
 	methodName := C.GoString(ctx.method)
-	actor := codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actor_address), 33))
-	program := codec.Address(C.GoBytes(unsafe.Pointer(&ctx.program_address), 33))
-	
+	actorBytes := C.GoBytes(unsafe.Pointer(&ctx.actor_address), codec.AddressLen)
+	programBytes := C.GoBytes(unsafe.Pointer(&ctx.program_address), codec.AddressLen)
+
 	return &runtime.CallInfo{
 		State:        simState.NewProgramStateManager(db),
-		Actor:        actor,
+		Actor:        codec.Address(actorBytes),
 		FunctionName: methodName,
-		Program:      program,
+		Program:      codec.Address(programBytes),
 		Params:       paramBytes,
 		Fuel:         uint64(ctx.max_gas),
 		Height:       uint64(ctx.height),
@@ -109,10 +109,10 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 	return C.CreateProgramResponse{
 		error: nil,
 		program_id: C.ID{
-			id: *(*[32]C.uchar)(C.CBytes(programID[:])),
+			*(*[32]C.uchar)(C.CBytes(programID[:])),
 		},
 		program_address: C.Address{
-			address: *(*[33]C.uchar)(C.CBytes(account[:])),
+			*(*[33]C.uchar)(C.CBytes(account[:])),
 		},
 	}
 }
