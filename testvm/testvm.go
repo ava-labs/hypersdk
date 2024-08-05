@@ -65,10 +65,6 @@ func (e *Env) SetTime(timestamp int64) {
 	e.currentBlock.Tmstmp = timestamp
 }
 
-type Snapshot struct {
-	Env
-}
-
 var _ chain.VM = (*TestVM)(nil)
 
 type TestVM struct {
@@ -77,7 +73,7 @@ type TestVM struct {
 	pendingTransactions []chain.Transaction
 	blockProduction     BlockProduction
 
-	snapshots    map[uint64]Snapshot
+	snapshots    map[uint64]Env
 	rules        *chain.MockRules
 	maxUnits     fees.Dimensions
 	stateManager chain.StateManager
@@ -93,10 +89,10 @@ type TestConfig struct {
 	Rules           *chain.MockRules
 }
 
-func Init(ctx context.Context, config TestConfig) (*TestVM, error) {
+func NewTestVM(ctx context.Context, config TestConfig) (*TestVM, error) {
 	vm := &TestVM{}
 
-	vm.snapshots = make(map[uint64]Snapshot)
+	vm.snapshots = make(map[uint64]Env)
 	if config.Env != nil {
 		vm.Env = *config.Env
 	} else {
@@ -251,19 +247,8 @@ func (vm *TestVM) SnapshotSave() (uint64, error) {
 		}
 	}
 
-	var transactions = make([]*chain.Transaction, len(vm.Env.currentBlock.Txs))
-	for _, tx := range transactions {
-		base := chain.Base{
-			Timestamp: tx.Base.Timestamp,
-			ChainID:   tx.Base.ChainID,
-			MaxFee:    tx.Base.MaxFee,
-		}
-		transactions = append(transactions, &chain.Transaction{
-			Base:    &base,
-			Actions: tx.Actions,
-			Auth:    tx.Auth,
-		})
-	}
+	transactions := make([]*chain.Transaction, len(vm.Env.currentBlock.Txs))
+	copy(transactions, vm.Env.currentBlock.Txs)
 
 	newEnv := Env{
 		currentBlock: chain.StatelessBlock{
@@ -275,12 +260,10 @@ func (vm *TestVM) SnapshotSave() (uint64, error) {
 				StateRoot: vm.Env.currentBlock.StateRoot,
 			},
 		},
-		storage: map[string][]byte{},
+		storage: vm.Env.storage,
 	}
 
-	vm.snapshots[index] = Snapshot{
-		Env: newEnv,
-	}
+	vm.snapshots[index] = newEnv
 
 	return index, nil
 }
@@ -302,7 +285,7 @@ func (vm *TestVM) SnapshotRevert(id uint64) error {
 		return UnknownSnapshot
 	}
 
-	vm.Env = snapshot.Env
+	vm.Env = snapshot
 
 	return nil
 }

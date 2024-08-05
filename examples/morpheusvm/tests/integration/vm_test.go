@@ -43,7 +43,7 @@ func SetupVM(ctx context.Context, t *testing.T) *testvm.TestVM {
 		TracerConfig:    trace.Config{Enabled: false},
 		Rules:           rules,
 	}
-	vm, err := testvm.Init(ctx, config)
+	vm, err := testvm.NewTestVM(ctx, config)
 	require.NoError(err)
 
 	return vm
