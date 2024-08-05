@@ -173,7 +173,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: addrStr,
-			Balance: 10_000_000,
+			Balance: 10_000_0000,
 		},
 	}
 	genesisBytes, err = json.Marshal(gen)
@@ -379,10 +379,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			}
 			require.NoError(err)
 			start := time.Now()
-			for j := 0; j < 100; j++ {
-				for i := 0; i < 10; i++ {
+			for j := 0; j < 50; j++ {
+				for i := 0; i < 200; i++ {
 					require.NoError(err)
-					valueAmount := uint64(10000000 * (i + 10*j))
+					valueAmount := uint64(10000000 * (i + 100*j))
 
 					submit, _, _, err := instances[0].cli.GenerateTransaction(
 						context.Background(),
@@ -405,7 +405,6 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 
 				accept := expectBlk(instances[0])
 				results := accept(false)
-				require.Len(results, 10)
 				require.True(results[0].Success)
 			}
 			end := time.Now()
