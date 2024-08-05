@@ -50,11 +50,3 @@ func (s *SimpleMutable) Commit(ctx context.Context) error {
 	}
 	return view.CommitToDB(ctx)
 }
-
-func (s *SimpleMutable) HasChanges() bool {
-	return len(s.changes) > 0
-}
-
-func (s *SimpleMutable) Changes() map[string]maybe.Maybe[[]byte] {
-	return s.changes
-}
