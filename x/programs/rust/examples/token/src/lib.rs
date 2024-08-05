@@ -233,7 +233,7 @@ mod tests {
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = Simulator::new();
+        let simulator = Simulator::new();
 
         let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 

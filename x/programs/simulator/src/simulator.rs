@@ -68,6 +68,12 @@ impl Simulator {
     }
 }
 
+impl Default for Simulator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl From<&Mutable> for *mut Mutable {
     fn from(state: &Mutable) -> Self {
         state as *const Mutable as *mut Mutable

@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn inc_and_get_value() {
-        let mut simulator = Simulator::new();
+        let simulator = Simulator::new();
 
         let counter_path = PROGRAM_PATH
             .replace("counter-external", "counter")
@@ -34,8 +34,7 @@ mod tests {
 
         let counter = simulator.create_program(&counter_path).program().unwrap();
 
-        let res = simulator.call_program(counter_external, "inc", (counter, owner), 100_000_000);
-        // TODO check err
+        simulator.call_program(counter_external, "inc", (counter, owner), 100_000_000).unwrap();
 
         let response = simulator
             .call_program(counter_external, "get_value", (counter, owner), 100_000_000)

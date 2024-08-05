@@ -29,6 +29,11 @@ impl SimpleState {
         self.state.remove(&key);
     }
 }
+impl Default for SimpleState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // We re-define this mutable in rust for more control over the pointer types
 // mute clippy warnings
@@ -54,6 +59,12 @@ impl Mutable {
             insert_state: insert_state_callback,
             remove_state: remove_state_callback,
         }
+    }
+}
+
+impl Default for Mutable {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

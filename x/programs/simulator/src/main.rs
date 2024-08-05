@@ -14,7 +14,7 @@ use wasmlanche_sdk::Address as SdkAddress;
 fn main() {
     // for now `simulator` is simple state. but later it will have additional fields + methods
     let mut simulator = Simulator::new();
-    let gas = 100000000 as u64;
+    let gas = 100000000_u64;
     let actor = SdkAddress::default();
     simulator.actor = actor;
     let program_path = "/Users/sam.liokumovich/Documents/hypersdk/x/programs/rust/examples/counter/build/wasm32-unknown-unknown/debug/counter.wasm";
