@@ -1,17 +1,17 @@
 use wasmlanche_sdk::{public, Address, Context};
 
 #[public]
-pub fn get_timestamp(context: Context) -> u64 {
+pub fn get_timestamp(context: &mut Context) -> u64 {
     context.timestamp()
 }
 
 #[public]
-pub fn get_height(context: Context) -> u64 {
+pub fn get_height(context: &mut Context) -> u64 {
     context.height()
 }
 
 #[public]
-pub fn get_actor(context: Context) -> Address {
+pub fn get_actor(context: &mut Context) -> Address {
     context.actor()
 }
 

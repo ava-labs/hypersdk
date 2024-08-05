@@ -6,7 +6,6 @@ package vm
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"go.uber.org/zap"
 
@@ -42,7 +41,7 @@ func (vm *VM) GetStateSummary(ctx context.Context, height uint64) (block.StateSu
 }
 
 func (vm *VM) ParseStateSummary(ctx context.Context, bytes []byte) (block.StateSummary, error) {
-	sb, err := chain.ParseBlock(ctx, bytes, choices.Processing, vm)
+	sb, err := chain.ParseBlock(ctx, bytes, false, vm)
 	if err != nil {
 		return nil, err
 	}
