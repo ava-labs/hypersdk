@@ -34,7 +34,9 @@ mod tests {
 
         let counter = simulator.create_program(&counter_path).program().unwrap();
 
-        simulator.call_program(counter_external, "inc", (counter, owner), 100_000_000).unwrap();
+        simulator
+            .call_program(counter_external, "inc", (counter, owner), 100_000_000)
+            .unwrap();
 
         let response = simulator
             .call_program(counter_external, "get_value", (counter, owner), 100_000_000)
