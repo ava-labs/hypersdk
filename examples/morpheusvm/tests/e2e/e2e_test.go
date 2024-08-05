@@ -20,6 +20,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/cli"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -28,6 +29,7 @@ import (
 	"github.com/ava-labs/hypersdk/utils"
 
 	runner_sdk "github.com/ava-labs/avalanche-network-runner/client"
+	morpheusCliCmd "github.com/ava-labs/hypersdk/examples/morpheusvm/cmd/morpheus-cli/cmd"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -422,6 +424,65 @@ var _ = ginkgo.Describe("[Test]", func() {
 		utils.Outf("{{yellow}}skipping tests{{/}}\n")
 		return
 	}
+
+	ginkgo.It("handles spam without shutting down RPC server", func() {
+		var err error
+
+		checkIfRPCServerIsHealthy := func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_, err = instances[0].lcli.Balance(ctx, sender)
+			require.NoError(err)
+		}
+
+		err = os.RemoveAll("/tmp/whatever")
+		require.NoError(err)
+
+		controller := morpheusCliCmd.NewController("/tmp/whatever")
+		cliRoot, err := cli.New(controller)
+		require.NoError(err)
+		cliHandler := morpheusCliCmd.NewHandler(cliRoot)
+
+		cliHandler.Root().StoreKey(&cli.PrivateKey{
+			Address: auth.NewED25519Address(priv.PublicKey()),
+			Bytes:   priv[:],
+		})
+		cliHandler.Root().StoreDefaultKey(auth.NewED25519Address(priv.PublicKey()))
+
+		_, _, chainID, err := instances[0].cli.Network(context.Background())
+		require.NoError(err)
+		cliHandler.Root().StoreChain(chainID, instances[0].uri)
+		require.NoError(err)
+		cliHandler.Root().StoreDefaultChain(chainID)
+		require.NoError(err)
+
+		checkIfRPCServerIsHealthy()
+
+		fmt.Println("Spam test started")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		defer cancel()
+
+		err = cliHandler.Root().Spam(&morpheusCliCmd.SpamHelper{
+			KeyType: "ed25519",
+		}, cli.SpamFlags{
+			AccountsNumber: 10000,
+			SZipf:          1.01,
+			VZipf:          2.7,
+			TxPerSec:       10000,
+			MinTxsPerSec:   1000,
+			TxPerSecStep:   100,
+			NumClients:     10,
+			Ctx:            &ctx,
+		})
+		require.Error(err)
+
+		fmt.Println("Spam test complete")
+
+		checkIfRPCServerIsHealthy()
+	})
+	fmt.Println("DEBUG: Exiting test")
+	return
 
 	ginkgo.It("transfer in a single node (raw)", func() {
 		nativeBalance, err := instances[0].lcli.Balance(context.TODO(), sender)

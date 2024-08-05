@@ -58,10 +58,16 @@ type SpamFlags struct {
 	MinTxsPerSec   int
 	TxPerSecStep   int
 	NumClients     int
+	Ctx            *context.Context
 }
 
 func (h *Handler) Spam(sh SpamHelper, flags SpamFlags) error {
-	ctx := context.Background()
+	var ctx context.Context
+	if flags.Ctx != nil {
+		ctx = *flags.Ctx
+	} else {
+		ctx = context.Background()
+	}
 
 	// Select chain
 	chainID, uris, err := h.PromptChain("select chainID", nil)

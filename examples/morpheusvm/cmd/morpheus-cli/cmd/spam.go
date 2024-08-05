@@ -26,13 +26,13 @@ import (
 )
 
 type SpamHelper struct {
-	keyType string
+	KeyType string
 	cli     *mrpc.JSONRPCClient
 	ws      *rpc.WebSocketClient
 }
 
 func (sh *SpamHelper) CreateAccount() (*cli.PrivateKey, error) {
-	return generatePrivateKey(sh.keyType)
+	return generatePrivateKey(sh.KeyType)
 }
 
 func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
@@ -106,7 +106,7 @@ var runSpamCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		return handler.Root().Spam(&SpamHelper{
-			keyType: args[0],
+			KeyType: args[0],
 		}, cli.SpamFlags{
 			AccountsNumber: int(accountsNumber),
 			SZipf:          sZipf,
