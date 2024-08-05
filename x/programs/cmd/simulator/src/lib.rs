@@ -4,7 +4,6 @@
 //! Simulator binary directly.
 
 use base64::{engine::general_purpose::STANDARD as b64, Engine};
-use borsh::BorshDeserialize;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufRead, BufReader, Write},
@@ -12,7 +11,10 @@ use std::{
     process::{Child, Command, Stdio},
 };
 use thiserror::Error;
-use wasmlanche_sdk::{Address, ExternalCallError};
+use wasmlanche_sdk::{
+    borsh::{self, BorshDeserialize},
+    Address, ExternalCallError,
+};
 
 mod id;
 
