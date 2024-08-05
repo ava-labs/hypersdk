@@ -28,8 +28,7 @@ type BlockProductionType int
 
 const (
 	Trigger BlockProductionType = iota
-	PerTransactionBatch
-	BlockTime
+	MinTransactionBatch
 )
 
 type BlockProduction struct {
@@ -41,6 +40,7 @@ var (
 	UnknownSnapshot       = errors.New("this snapshot doesn't exist")
 	NotEnoughTransactions = errors.New("not enough pending transactions to fill batch")
 	TooSoon               = errors.New("too soon to build a block")
+	ConsumeFailed         = errors.New("failed to consume units")
 )
 
 type Env struct {
@@ -70,8 +70,7 @@ var _ chain.VM = (*TestVM)(nil)
 type TestVM struct {
 	Env
 
-	pendingTransactions []chain.Transaction
-	blockProduction     BlockProduction
+	blockProduction BlockProduction
 
 	snapshots    map[uint64]Env
 	rules        *chain.MockRules
@@ -194,34 +193,37 @@ func (vm *TestVM) RunTransaction(ctx context.Context, tx chain.Transaction) (*ch
 	}
 
 	if ok, _ := feeManager.Consume(result.Units, vm.maxUnits); !ok {
-		return nil, nil
+		return nil, ConsumeFailed
 	}
+
+	vm.currentBlock.Txs = append(vm.currentBlock.Txs, &tx)
 
 	return result, nil
 }
 
 func (vm *TestVM) BuildBlock() error {
 	switch vm.blockProduction.Type {
-	case PerTransactionBatch:
+	case MinTransactionBatch:
 		batch := vm.blockProduction.Value
-		if batch > len(vm.pendingTransactions) {
+		if batch > len(vm.currentBlock.Txs) {
 			return NotEnoughTransactions
 		}
-	case BlockTime:
-		blockTime := vm.blockProduction.Value
-		currentTime := time.Now().Unix()
-		if currentTime < vm.Timestamp()+int64(blockTime) {
-			return TooSoon
-		}
+	case Trigger:
+	default:
+		panic("unsupported block production type")
 	}
 
-	vm.Env.currentBlock = chain.StatelessBlock{
-		StatefulBlock: &chain.StatefulBlock{
-			Prnt:   vm.currentBlock.ID(),
-			Tmstmp: vm.currentBlock.Tmstmp,
-			Hght:   vm.currentBlock.Hght,
+	vm.Env.currentBlock = *chain.NewBlock(
+		vm,
+		&chain.StatelessBlock{
+			StatefulBlock: &chain.StatefulBlock{
+				Prnt:   vm.currentBlock.ID(),
+				Tmstmp: vm.currentBlock.Tmstmp,
+				Hght:   vm.currentBlock.Hght,
+			},
 		},
-	}
+		0,
+	)
 
 	return nil
 }
