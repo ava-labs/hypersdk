@@ -10,8 +10,9 @@ import (
 )
 
 type Config struct {
-	StoreTransactions bool          `json:"storeTransactions"`
-	LogLevel          logging.Level `json:"logLevel"`
+	StoreTransactions       bool          `json:"storeTransactions"`
+	LogLevel                logging.Level `json:"logLevel"`
+	ExportedBlockSubcribers string        `json:"exportedBlockSubscribers"`
 }
 
 func New(b []byte) (*Config, error) {

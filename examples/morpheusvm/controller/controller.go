@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
@@ -84,6 +85,9 @@ func (*factory) New(
 		return nil, nil, nil, err
 	}
 
+	// TODO: remove hardcoded config value
+	c.config.ExportedBlockSubcribers = "localhost:9001"
+
 	log.Info("initialized config", zap.Any("contents", c.config))
 
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
@@ -107,6 +111,16 @@ func (*factory) New(
 		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
 	} else {
 		c.txIndexer = indexer.NewNoOpTxIndexer()
+	}
+
+	if c.config.ExportedBlockSubcribers != "" {
+		// Connect to gRPC server
+		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(c.config.ExportedBlockSubcribers, c.networkID, c.chainID, c.genesis)
+		// Immediately fail if we couldn't connect
+		if err != nil {
+			c.log.Fatal("could not connect to external subscriber %v", zap.Any("c.config", c.config))
+		}
+		acceptedSubscribers = append(acceptedSubscribers, externalSubscriber)
 	}
 	c.acceptedSubscriber = indexer.NewAcceptedSubscribers(acceptedSubscribers...)
 
