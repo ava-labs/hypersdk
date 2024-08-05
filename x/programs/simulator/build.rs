@@ -24,13 +24,13 @@ fn main() {
         panic!("Go build command failed");
     }
 
-    println!("cargo:rustc-link-search=native={}", dir);
+    println!("cargo::rustc-link-search=native={}", dir);
     // link the dynamic library created by go build
-    println!("cargo:rustc-link-lib=dylib=simulator");
+    println!("cargo::rustc-link-lib=dylib=simulator");
 
     // Rerun the script if simulator.so changes
     println!(
-        "cargo:rerun-if-changed={}",
+        "cargo::rerun-if-changed={}",
         Path::new(&dir).join("simulator.so").display()
     );
 
