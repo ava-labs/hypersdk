@@ -79,7 +79,7 @@ func (t *Transaction) Sign(
 	}
 	t.Auth = auth
 
-	// Ensure the transaction is fully initialized and correct by reloading it from
+	// Ensure transaction is fully initialized and correct by reloading it from
 	// bytes
 	size := len(msg) + consts.ByteLen + t.Auth.Size()
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
