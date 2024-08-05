@@ -103,9 +103,7 @@ func (*factory) New(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	acceptedSubscribers := []indexer.AcceptedSubscriber{
-		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
-	}
+	var acceptedSubscribers []indexer.AcceptedSubscriber
 	if c.config.StoreTransactions {
 		c.txIndexer = indexer.NewTxDBIndexer(c.txDB)
 		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
