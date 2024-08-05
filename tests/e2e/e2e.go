@@ -104,112 +104,114 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	})
 })
 
-var _ = ginkgo.It("[HyperSDK Syncing]", func() {
-	tc := e2e.NewTestContext()
-	require := require.New(tc)
+var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
+	ginkgo.It("[Sync]", func() {
+		tc := e2e.NewTestContext()
+		require := require.New(tc)
 
-	uris := getE2EURIs(tc, blockchainID)
-	ginkgo.By("Generate 128 blocks", func() {
-		workload.GenerateNBlocks(tc.DefaultContext(), require, uris, txWorkloadFactory, 128)
-	})
+		uris := getE2EURIs(tc, blockchainID)
+		ginkgo.By("Generate 128 blocks", func() {
+			workload.GenerateNBlocks(tc.DefaultContext(), require, uris, txWorkloadFactory, 128)
+		})
 
-	var (
-		bootstrapNode    *tmpnet.Node
-		bootstrapNodeURI string
-	)
-	ginkgo.By("Start a new node to bootstrap", func() {
-		bootstrapNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-		bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
-		uris = append(uris, bootstrapNodeURI)
-	})
-	ginkgo.By("Accept a transaction after state sync", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
-	})
-	ginkgo.By("Restart the node", func() {
-		require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
-	})
-	ginkgo.By("Generate 1024 blocks", func() {
-		workload.GenerateNBlocks(tc.DefaultContext(), require, uris, txWorkloadFactory, 1024)
-	})
-	var (
-		syncNode    *tmpnet.Node
-		syncNodeURI string
-	)
-	ginkgo.By("Start a new node to state sync", func() {
-		syncNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-		syncNodeURI = formatURI(syncNode.URI, blockchainID)
-		uris = append(uris, syncNodeURI)
-		utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
-		c := rpc.NewJSONRPCClient(syncNodeURI)
-		_, _, _, err := c.Network(tc.DefaultContext())
-		require.NoError(err)
-	})
-	ginkgo.By("Accept a transaction after state sync", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
-	})
-	ginkgo.By("Pause the node", func() {
-		// TODO: remove the need to call SaveAPIPort from the test
-		require.NoError(syncNode.SaveAPIPort())
-		require.NoError(syncNode.Stop(tc.DefaultContext()))
-
-		// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
-		c := rpc.NewJSONRPCClient(syncNodeURI)
-		ok, err := c.Ping(tc.DefaultContext())
-		require.Error(err) //nolint:forbidigo
-		require.False(ok)
-	})
-	ginkgo.By("Generate 256 blocks", func() {
-		// Generate blocks on all nodes except the paused node
-		runningURIs := uris[:len(uris)-1]
-		workload.GenerateNBlocks(tc.DefaultContext(), require, runningURIs, txWorkloadFactory, 256)
-	})
-	ginkgo.By("Resume the node", func() {
-		require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
-		utils.Outf("Waiting for sync node to restart")
-		require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
-
-		utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
-
-		c := rpc.NewJSONRPCClient(syncNodeURI)
-		_, _, _, err := c.Network(tc.DefaultContext())
-		require.NoError(err)
-	})
-
-	ginkgo.By("Accept a transaction after resuming", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
-	})
-	ginkgo.By("State sync while broadcasting txs", func() {
-		ctx, cancel := context.WithCancel(tc.DefaultContext())
-		go func() {
-			// Recover failure if exits
-			defer ginkgo.GinkgoRecover()
-
-			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
+		var (
+			bootstrapNode    *tmpnet.Node
+			bootstrapNodeURI string
+		)
+		ginkgo.By("Start a new node to bootstrap", func() {
+			bootstrapNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
+			bootstrapNodeURI = formatURI(bootstrapNode.URI, blockchainID)
+			uris = append(uris, bootstrapNodeURI)
+		})
+		ginkgo.By("Accept a transaction after state sync", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(bootstrapNodeURI, 1)
 			require.NoError(err)
-			workload.GenerateUntilCancel(tc.DefaultContext(), uris, txWorkload)
-		}()
+			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+		})
+		ginkgo.By("Restart the node", func() {
+			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
+		})
+		ginkgo.By("Generate 1024 blocks", func() {
+			workload.GenerateNBlocks(tc.DefaultContext(), require, uris, txWorkloadFactory, 1024)
+		})
+		var (
+			syncNode    *tmpnet.Node
+			syncNodeURI string
+		)
+		ginkgo.By("Start a new node to state sync", func() {
+			syncNode = e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
+			syncNodeURI = formatURI(syncNode.URI, blockchainID)
+			uris = append(uris, syncNodeURI)
+			utils.Outf("{{blue}}sync node uri: %s{{/}}\n", syncNodeURI)
+			c := rpc.NewJSONRPCClient(syncNodeURI)
+			_, _, _, err := c.Network(tc.DefaultContext())
+			require.NoError(err)
+		})
+		ginkgo.By("Accept a transaction after state sync", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+		})
+		ginkgo.By("Pause the node", func() {
+			// TODO: remove the need to call SaveAPIPort from the test
+			require.NoError(syncNode.SaveAPIPort())
+			require.NoError(syncNode.Stop(tc.DefaultContext()))
 
-		// Give time for transactions to start processing
-		time.Sleep(5 * time.Second)
+			// TODO: remove extra Ping check and rely on tmpnet to stop the node correctly
+			c := rpc.NewJSONRPCClient(syncNodeURI)
+			ok, err := c.Ping(tc.DefaultContext())
+			require.Error(err) //nolint:forbidigo
+			require.False(ok)
+		})
+		ginkgo.By("Generate 256 blocks", func() {
+			// Generate blocks on all nodes except the paused node
+			runningURIs := uris[:len(uris)-1]
+			workload.GenerateNBlocks(tc.DefaultContext(), require, runningURIs, txWorkloadFactory, 256)
+		})
+		ginkgo.By("Resume the node", func() {
+			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
+			utils.Outf("Waiting for sync node to restart")
+			require.NoError(tmpnet.WaitForHealthy(tc.DefaultContext(), syncNode))
 
-		syncConcurrentNode := e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
-		syncConcurrentNodeURI := formatURI(syncConcurrentNode.URI, blockchainID)
-		uris = append(uris, syncConcurrentNodeURI)
-		c := rpc.NewJSONRPCClient(syncConcurrentNodeURI)
-		_, _, _, err := c.Network(ctx)
-		require.NoError(err)
-		cancel()
-	})
-	ginkgo.By("Accept a transaction after syncing", func() {
-		txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
-		require.NoError(err)
-		workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+			utils.Outf("{{blue}}sync node reporting healthy: %s{{/}}\n", syncNodeURI)
+
+			c := rpc.NewJSONRPCClient(syncNodeURI)
+			_, _, _, err := c.Network(tc.DefaultContext())
+			require.NoError(err)
+		})
+
+		ginkgo.By("Accept a transaction after resuming", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(syncNodeURI, 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+		})
+		ginkgo.By("State sync while broadcasting txs", func() {
+			ctx, cancel := context.WithCancel(tc.DefaultContext())
+			go func() {
+				// Recover failure if exits
+				defer ginkgo.GinkgoRecover()
+
+				txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 128)
+				require.NoError(err)
+				workload.GenerateUntilCancel(tc.DefaultContext(), uris, txWorkload)
+			}()
+
+			// Give time for transactions to start processing
+			time.Sleep(5 * time.Second)
+
+			syncConcurrentNode := e2e.CheckBootstrapIsPossible(tc, e2e.GetEnv(tc).GetNetwork())
+			syncConcurrentNodeURI := formatURI(syncConcurrentNode.URI, blockchainID)
+			uris = append(uris, syncConcurrentNodeURI)
+			c := rpc.NewJSONRPCClient(syncConcurrentNodeURI)
+			_, _, _, err := c.Network(ctx)
+			require.NoError(err)
+			cancel()
+		})
+		ginkgo.By("Accept a transaction after syncing", func() {
+			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
+			require.NoError(err)
+			workload.ExecuteWorkload(tc.DefaultContext(), require, uris, txWorkload)
+		})
 	})
 })
 
