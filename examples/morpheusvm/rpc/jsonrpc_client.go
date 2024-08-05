@@ -134,6 +134,14 @@ type Parser struct {
 	genesis   *genesis.Genesis
 }
 
+func NewParser(networkID uint32, chainID ids.ID, genesis *genesis.Genesis) *Parser {
+	return &Parser{
+		networkID: networkID,
+		chainID:   chainID,
+		genesis:   genesis,
+	}
+}
+
 func (p *Parser) ChainID() ids.ID {
 	return p.chainID
 }

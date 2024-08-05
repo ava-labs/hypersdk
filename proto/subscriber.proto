@@ -9,7 +9,7 @@ service ExternalSubscriber {
 }
 
 message Block {
-    string block_data = 1;
+    bytes block_data = 1;
 }
 
 message BlockAck {

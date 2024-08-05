@@ -4,9 +4,12 @@ import (
 	"log"
 	"net"
 
-	"github.com/ava-labs/hypersdk/extension/indexer"
-	pb "github.com/ava-labs/hypersdk/proto"
 	"google.golang.org/grpc"
+
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber"
+
+	mpb "github.com/ava-labs/hypersdk/examples/morpheusvm/proto"
+	pb "github.com/ava-labs/hypersdk/proto"
 )
 
 var logger = log.Default()
@@ -20,7 +23,11 @@ func main() {
 	logger.Println("listening to TCP port 9001")
 
 	s := grpc.NewServer()
-	pb.RegisterExternalSubscriberServer(s, &indexer.Sidecar{})
+	// pb.RegisterExternalSubscriberServer(s,
+	// &external_subscriber.MorpheusSidecar{})
+	morpheusSidecar := externalsubscriber.NewMorpheusSidecar()
+	mpb.RegisterMorpheusSubscriberServer(s, morpheusSidecar)
+	pb.RegisterExternalSubscriberServer(s, morpheusSidecar)
 
 	logger.Println("Server listening on port 9001")
 

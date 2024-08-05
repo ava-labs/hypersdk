@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
@@ -114,7 +115,7 @@ func (*factory) New(
 
 	if c.config.ExportedBlockSubcribers != "" {
 		// Connect to gRPC server
-		externalSubscriber, err := indexer.NewExternalSubscriber(c.config.ExportedBlockSubcribers)
+		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(c.config.ExportedBlockSubcribers, c.networkID, c.chainID, c.genesis)
 		// Immediately fail if we couldn't connect
 		if err != nil {
 			c.log.Fatal("could not connect to external subscriber %v", zap.Any("c.config", c.config))

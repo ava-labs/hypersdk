@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package subscriber;
+
+option go_package = ".";
+
+service MorpheusSubscriber {
+    rpc Initialize(InitMsg) returns (InitMsgAck);
+}
+
+message InitMsg {
+    uint32 networkID = 1;
+    bytes chainID = 2;
+    bytes genesis = 3; 
+}
+
+message InitMsgAck {
+    bool success = 1;
+}

@@ -1,17 +1,23 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package indexer
 
 import (
 	"context"
-	"encoding/json"
+	"log"
+
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/ava-labs/hypersdk/chain"
+
 	pb "github.com/ava-labs/hypersdk/proto"
-	"google.golang.org/grpc"
 )
 
 var _ AcceptedSubscriber = (*ExternalSubscriber)(nil)
 
-type ExternalSubscriber struct{
+type ExternalSubscriber struct {
 	client pb.ExternalSubscriberClient
 }
 
@@ -20,7 +26,6 @@ func NewExternalSubscriber(server string) (*ExternalSubscriber, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Println("Connected to: ", server)
 	return &ExternalSubscriber{
 		client: pb.NewExternalSubscriberClient(conn),
 	}, nil
@@ -28,12 +33,17 @@ func NewExternalSubscriber(server string) (*ExternalSubscriber, error) {
 
 func (e *ExternalSubscriber) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
 	// Make gRPC call to client
-	blockJSON, _ := json.Marshal(blk)
-	req := &pb.Block{BlockData: string(blockJSON)}
-	_, err := e.client.ProcessBlock(ctx, req)
+	blockBytes, err := blk.Marshal()
+	if err != nil {
+		log.Fatal("Failed to marshal block", zap.Any("block", blk))
+	}
+	req := &pb.Block{
+		BlockData: blockBytes,
+	}
+	_, err = e.client.ProcessBlock(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	return nil	
+	return nil
 }
