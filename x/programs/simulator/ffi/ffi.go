@@ -17,9 +17,11 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
+
 	simState "github.com/ava-labs/hypersdk/x/programs/simulator/state"
 )
 
@@ -54,11 +56,14 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
 	paramBytes := C.GoBytes(unsafe.Pointer(ctx.params.data), C.int(ctx.params.length))
 	methodName := C.GoString(ctx.method)
+	actor := codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actor_address), 33))
+	program := codec.Address(C.GoBytes(unsafe.Pointer(&ctx.program_address), 33))
+	
 	return &runtime.CallInfo{
 		State:        simState.NewProgramStateManager(db),
-		Actor:        codec.Address(C.GoBytes(unsafe.Pointer(&ctx.actor_address), 33)),
+		Actor:        actor,
 		FunctionName: methodName,
-		Program:      codec.Address(C.GoBytes(unsafe.Pointer(&ctx.program_address), 33)),
+		Program:      program,
 		Params:       paramBytes,
 		Fuel:         uint64(ctx.max_gas),
 		Height:       uint64(ctx.height),
@@ -88,16 +93,15 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 
 	err = programManager.SetProgram(context.TODO(), programID, programBytes)
 	if err != nil {
-		errmsg := fmt.Sprintf("program creation failed: %s", err.Error())
+		errmsg := "program creation failed: " + err.Error()
 		return C.CreateProgramResponse{
 			error: C.CString(errmsg),
 		}
-
 	}
 
 	account, err := programManager.DeployProgram(context.TODO(), programID, []byte{})
 	if err != nil {
-		errmsg := fmt.Sprintf("program deployment failed: %s", err.Error())
+		errmsg := "program deployment failed: " + err.Error()
 		return C.CreateProgramResponse{
 			error: C.CString(errmsg),
 		}

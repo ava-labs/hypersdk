@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/state"
@@ -69,7 +70,7 @@ func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutab
 	return newAccountPrefixedMutable(account, p.db)
 }
 
-// GetAccountProgram grabs the assoicated id with [account]. The ID is the key mapping to the programbytes
+// GetAccountProgram grabs the associated id with [account]. The ID is the key mapping to the programbytes
 // Errors if there is no found account or an error fetching
 func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) (ids.ID, error) {
 	programID, exists, err := p.getAccountProgram(ctx, account)

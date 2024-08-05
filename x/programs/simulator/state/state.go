@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/ava-labs/avalanchego/database"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 )
@@ -46,15 +47,15 @@ func NewSimulatorState(db unsafe.Pointer) *SimulatorState {
 	}
 }
 
-func (s *SimulatorState) GetValue(ctx context.Context, key []byte) ([]byte, error) {
+func (s *SimulatorState) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	return s.getValue(key)
 }
 
-func (s *SimulatorState) Insert(ctx context.Context, key []byte, value []byte) error {
+func (s *SimulatorState) Insert(_ context.Context, key []byte, value []byte) error {
 	return s.insert(key, value)
 }
 
-func (s *SimulatorState) Remove(ctx context.Context, key []byte) error {
+func (s *SimulatorState) Remove(_ context.Context, key []byte) error {
 	return s.remove(key)
 }
 
@@ -108,9 +109,9 @@ func (s *SimulatorState) insert(key []byte, value []byte) error {
 		length: C.uint(len(value)),
 	}
 
-	c_err := C.bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
-	if c_err != nil {
-		return fmt.Errorf("error inserting value: %s", C.GoString(c_err))
+	cErr := C.bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
+	if cErr != nil {
+		return fmt.Errorf("error inserting value: %s", C.GoString(cErr))
 	}
 	return nil
 }
@@ -124,9 +125,9 @@ func (s *SimulatorState) remove(key []byte) error {
 		length: C.uint(len(key)),
 	}
 
-	c_err := C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
-	if c_err != nil {
-		return fmt.Errorf("error removing value: %s", C.GoString(c_err))
+	cErr := C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
+	if cErr != nil {
+		return fmt.Errorf("error removing value: %s", C.GoString(cErr))
 	}
 	return nil
 }
