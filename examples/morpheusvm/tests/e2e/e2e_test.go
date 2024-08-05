@@ -23,8 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/e2e"
 	"github.com/ava-labs/hypersdk/tests/workload"
-	"github.com/ava-labs/hypersdk/tests/e2e"
-	"github.com/ava-labs/hypersdk/tests/workload"
 
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -139,70 +137,6 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 
 	return tx, func(ctx context.Context, uri string) error {
 		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
-}
-
-func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator, error) {
-	basicTxWorkload, err := f.NewSizedTxWorkload(uri, 1)
-	return []workload.TxWorkloadIterator{basicTxWorkload}, err
-}
-
-func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
-	cli := rpc.NewJSONRPCClient(uri)
-	networkID, _, blockchainID, err := cli.Network(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
-	return &simpleTxWorkload{
-		factory: f.factory,
-		cli:     cli,
-		lcli:    lcli,
-		size:    size,
-	}, nil
-}
-
-type simpleTxWorkload struct {
-	factory   *auth.ED25519Factory
-	cli       *rpc.JSONRPCClient
-	lcli      *lrpc.JSONRPCClient
-	networkID uint32
-	chainID   ids.ID
-	count     int
-	size      int
-}
-
-func (g *simpleTxWorkload) Next() bool {
-	return g.count < g.size
-}
-
-func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, func(ctx context.Context, uri string) error, error) {
-	g.count++
-	other, err := ed25519.GeneratePrivateKey()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	aother := auth.NewED25519Address(other.PublicKey())
-	aotherStr := codec.MustAddressBech32(consts.HRP, aother)
-	parser, err := g.lcli.Parser(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	_, tx, _, err := g.cli.GenerateTransaction(
-		ctx,
-		parser,
-		[]chain.Action{&actions.Transfer{
-			To:    aother,
-			Value: 1,
-		}},
-		g.factory,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
@@ -212,21 +146,8 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		}
 		balance, err := lcli.Balance(ctx, aotherStr)
 		if err != nil {
-			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
-		}
-		if !success {
-			return fmt.Errorf("tx %s not accepted", tx.ID())
-		}
-		balance, err := lcli.Balance(ctx, aotherStr)
-		if err != nil {
-			return fmt.Errorf("failed to get balance of %s: %w", aotherStr, err)
 			return fmt.Errorf("failed to get balance of %s: %w", aotherStr, err)
 		}
-		if balance != 1 {
-			return fmt.Errorf("expected balance of 1, got %d", balance)
-		}
-		return nil
-	}, nil
 		if balance != 1 {
 			return fmt.Errorf("expected balance of 1, got %d", balance)
 		}
