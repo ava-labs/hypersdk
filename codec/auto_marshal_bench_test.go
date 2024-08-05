@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// $ go test -bench=BenchmarkMarshalUnmarshal ./codec
+// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
 // goos: linux
 // goarch: amd64
 // pkg: github.com/ava-labs/hypersdk/codec
