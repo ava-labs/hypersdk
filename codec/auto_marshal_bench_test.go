@@ -11,19 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// $ go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
+// $  go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
 // goos: linux
 // goarch: amd64
 // pkg: github.com/ava-labs/hypersdk/codec
 // cpu: AMD EPYC 7763 64-Core Processor
-// BenchmarkMarshalUnmarshal/Transfer-Reflection-8                 18439879                62.80 ns/op
-// BenchmarkMarshalUnmarshal/Transfer-Manual-8                     50670040                24.64 ns/op
-// BenchmarkMarshalUnmarshal/InnerOuter-Reflection-8                4309082               293.0 ns/op
-// BenchmarkMarshalUnmarshal/InnerOuter-Manual-8                   13443223                88.32 ns/op
-// BenchmarkMarshalUnmarshal/BigFlatObject-Reflection-8             8192916               137.2 ns/op
-// BenchmarkMarshalUnmarshal/BigFlatObject-Manual-8                24067494                46.57 ns/op
+// BenchmarkMarshalUnmarshal/Transfer-Reflection-8                 16926199                73.60 ns/op          128 B/op          2 allocs/op
+// BenchmarkMarshalUnmarshal/Transfer-Manual-8                     48778156                23.37 ns/op            0 B/op          0 allocs/op
+// BenchmarkMarshalUnmarshal/InnerOuter-Reflection-8                3665438               316.4 ns/op           392 B/op          3 allocs/op
+// BenchmarkMarshalUnmarshal/InnerOuter-Manual-8                    9388050               127.0 ns/op           320 B/op          1 allocs/op
+// BenchmarkMarshalUnmarshal/BigFlatObject-Reflection-8             8642730               140.9 ns/op           128 B/op          1 allocs/op
+// BenchmarkMarshalUnmarshal/BigFlatObject-Manual-8                27176488                44.62 ns/op            0 B/op          0 allocs/op
 // PASS
-// ok      github.com/ava-labs/hypersdk/codec      8.315s
+// ok      github.com/ava-labs/hypersdk/codec      7.936s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
 	sampleSize := 100000
 
