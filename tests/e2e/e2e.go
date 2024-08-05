@@ -111,7 +111,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 
 		uris := getE2EURIs(tc, blockchainID)
 		ginkgo.By("Generate 128 blocks", func() {
-			workload.GenerateNBlocks(tc.DefaultContext(), require, uris, txWorkloadFactory, 128)
+			workload.GenerateNBlocks(tc.ContextWithTimeout(5*time.Minute), require, uris, txWorkloadFactory, 128)
 		})
 
 		var (
@@ -132,7 +132,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
 		})
 		ginkgo.By("Generate 1024 blocks", func() {
-			workload.GenerateNBlocks(tc.DefaultContext(), require, uris, txWorkloadFactory, 1024)
+			workload.GenerateNBlocks(tc.ContextWithTimeout(10*time.Minute), require, uris, txWorkloadFactory, 1024)
 		})
 		var (
 			syncNode    *tmpnet.Node
