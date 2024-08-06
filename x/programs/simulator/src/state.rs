@@ -1,4 +1,4 @@
-use crate::types::{Bytes, BytesWithError};
+use crate::bindings::{Bytes, BytesWithError};
 use libc::c_char;
 use std::{collections::HashMap, ffi::CString};
 
@@ -17,7 +17,7 @@ impl SimpleState {
             state: HashMap::new(),
         }
     }
-    pub fn get_value(&self, key: &Vec<u8>) -> Option<&Vec<u8>> {
+    pub fn get_value(&self, key: &[u8]) -> Option<&Vec<u8>> {
         self.state.get(key)
     }
 
@@ -70,8 +70,7 @@ impl Default for Mutable {
 
 pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> BytesWithError {
     let obj = unsafe { &mut *obj_ptr };
-    let key = key.get_slice();
-    let value = obj.get_value(&key.to_vec());
+    let value = obj.get_value(&key);
 
     match value {
         Some(v) => BytesWithError {
@@ -97,15 +96,12 @@ pub extern "C" fn insert_state_callback(
     value: Bytes,
 ) -> *const c_char {
     let obj = unsafe { &mut *obj_ptr };
-    let key = key.get_slice();
-    let value = value.get_slice();
     obj.insert(key.to_vec(), value.to_vec());
     std::ptr::null()
 }
 
 pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> *const c_char {
     let obj = unsafe { &mut *obj_ptr };
-    let key = key.get_slice();
     obj.remove(key.to_vec());
     std::ptr::null()
 }
