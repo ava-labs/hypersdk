@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	reflect "reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,12 @@ func GetABI(t reflect.Type) (string, error) {
 			if fieldType == "[]uint8" {
 				fieldType = "[]byte"
 			}
-			fields[field.Name] = fieldType
+			fieldName := field.Name
+			if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+				parts := strings.Split(jsonTag, ",")
+				fieldName = parts[0]
+			}
+			fields[fieldName] = fieldType
 		}
 	}
 
@@ -72,7 +78,7 @@ func TestGetABI(t *testing.T) {
 		Value uint64 `json:"value"`
 
 		// Optional message to accompany transaction.
-		Memo []byte `json:"memo"`
+		Memo []byte `json:"memo,omitempty"`
 	}
 
 	abiString, err = GetABI(reflect.TypeOf(Transfer{}))
@@ -83,9 +89,9 @@ func TestGetABI(t *testing.T) {
 		{
 			"name": "Transfer",
 			"fields": {
-				"To": "codec.Address",
-				"Value": "uint64",
-				"Memo": "[]byte"
+				"to": "codec.Address",
+				"value": "uint64",
+				"memo": "[]byte"
 			}
 		}
 	]`, abiString)
