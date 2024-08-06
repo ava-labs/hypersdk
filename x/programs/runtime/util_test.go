@@ -69,8 +69,8 @@ func (t *testRuntime) WithValue(value uint64) *testRuntime {
 	return t
 }
 
-func (t *testRuntime) AddProgram(programID ids.ID, programName string) {
-	t.StateManager.(test.StateManager).ProgramsMap[programID] = programName
+func (t *testRuntime) AddProgram(programID []byte, programName string) {
+	t.StateManager.(test.StateManager).ProgramsMap[string(programID)] = programName
 }
 
 func (t *testRuntime) CallProgram(program codec.Address, function string, params ...interface{}) ([]byte, error) {
@@ -87,6 +87,7 @@ func (t *testRuntime) CallProgram(program codec.Address, function string, params
 func newTestProgram(ctx context.Context, program string) *testProgram {
 	id := ids.GenerateTestID()
 	account := codec.CreateAddress(0, id)
+	stringedID := string(id[:])
 	return &testProgram{
 		Runtime: &testRuntime{
 			Context: ctx,
@@ -94,8 +95,8 @@ func newTestProgram(ctx context.Context, program string) *testProgram {
 				NewConfig(),
 				logging.NoLog{}).WithDefaults(CallInfo{Fuel: 10000000}),
 			StateManager: test.StateManager{
-				ProgramsMap: map[ids.ID]string{id: program},
-				AccountMap:  map[codec.Address]ids.ID{account: id},
+				ProgramsMap: map[string]string{stringedID: program},
+				AccountMap:  map[codec.Address]string{account: stringedID},
 				Balances:    map[codec.Address]uint64{},
 				Mu:          test.NewTestDB(),
 			},

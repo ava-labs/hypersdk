@@ -1,6 +1,6 @@
-use wasmlanche_sdk::{public, Address, Context, Id};
+use wasmlanche_sdk::{public, Address, Context};
 
 #[public]
-pub fn deploy(ctx: &mut Context, program_id: Id) -> Address {
-    ctx.program().deploy(program_id, &[])
+pub fn deploy(ctx: &mut Context, program_id: Vec<u8>) -> Address {
+    ctx.program().deploy(&program_id, &[])
 }

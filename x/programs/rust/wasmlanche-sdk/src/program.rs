@@ -1,4 +1,4 @@
-use crate::{memory::HostPtr, types::Address, types::Id, Gas};
+use crate::{memory::HostPtr, types::Address, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
@@ -120,7 +120,7 @@ impl Program {
     /// # Panics
     /// Panics if there was an issue deserializing the account
     #[must_use]
-    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Address {
+    pub fn deploy(&self, program_id: &[u8], account_creation_data: &[u8]) -> Address {
         #[link(wasm_import_module = "program")]
         extern "C" {
             #[link_name = "deploy"]

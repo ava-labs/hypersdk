@@ -8,7 +8,6 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
 	"github.com/ava-labs/hypersdk/codec"
@@ -39,7 +38,7 @@ type callProgramInput struct {
 }
 
 type deployProgramInput struct {
-	ProgramID           ids.ID
+	ProgramID           []byte
 	AccountCreationData []byte
 }
 
