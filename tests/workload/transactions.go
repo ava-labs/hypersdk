@@ -5,6 +5,7 @@ package workload
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -79,6 +80,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
 		require.NoError(err)
 
+		fmt.Println("asdf111")
 		_, err = client.SubmitTx(ctx, tx.Bytes())
 		require.NoError(err)
 

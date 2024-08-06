@@ -5,6 +5,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -39,6 +40,8 @@ func (*StateManager) CanDeduct(
 	im state.Immutable,
 	amount uint64,
 ) error {
+	panic("feiwhefwiuhfihuqe")
+	fmt.Println("uuhiwqheriqwer")
 	bal, err := GetBalance(ctx, im, addr)
 	if err != nil {
 		return err

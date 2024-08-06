@@ -89,6 +89,7 @@ func (e *EndpointRequester) SendRequest(
 	if err != nil {
 		return err
 	}
+	fmt.Println("asdasfdadsfadsf")
 	return SendJSONRequest(
 		ctx,
 		e.cli,

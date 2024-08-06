@@ -60,6 +60,8 @@ func (j *JSONRPCServer) SubmitTx(
 	args *SubmitTxArgs,
 	reply *SubmitTxReply,
 ) error {
+	panic("asdf")
+	fmt.Println("asdfl;kj")
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SubmitTx")
 	defer span.End()
 

@@ -838,6 +838,7 @@ func (vm *VM) Submit(
 	verifyAuth bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
+	fmt.Println("qwerty")
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))

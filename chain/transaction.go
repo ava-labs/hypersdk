@@ -251,6 +251,7 @@ func (t *Transaction) PreExecute(
 	im state.Immutable,
 	timestamp int64,
 ) error {
+	fmt.Println("asdf")
 	if err := t.Base.Execute(r.ChainID(), r, timestamp); err != nil {
 		return err
 	}
