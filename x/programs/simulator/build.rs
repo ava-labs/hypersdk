@@ -9,8 +9,20 @@ use std::process::Command;
 // writes the bindings to the $OUT_DIR/bindings.rs file
 fn main() {
     let dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let output = Path::new(&dir).join("libsimulator.so");
-    let go_file = Path::new(&dir).join("./ffi/ffi.go");
+    let profile = env::var("PROFILE").unwrap();
+
+    let target_dir = env::var("CARGO_TARGET_DIR")
+        .or_else(|_| -> Result<_, Box<dyn std::error::Error>> {
+            let json = Command::new("cargo").arg("metadata").output()?.stdout;
+            let json = serde_json::from_slice::<serde_json::Value>(&json)?;
+            Ok(json["target_directory"].as_str().unwrap().to_string())
+        })
+        .expect("Failed to get target directory");
+
+    let output = Path::new(&target_dir)
+        .join(&profile)
+        .join("libsimulator.so");
+    let go_file = Path::new(&dir).join("ffi").join("ffi.go");
 
     // Build the Go library
     let status = Command::new("go")
@@ -34,10 +46,12 @@ fn main() {
         Path::new(&dir).join("simulator.so").display()
     );
 
+    let types_path = Path::new(".").join("common").join("types.h");
+
     // Import the types from the C header file
     let bindings = bindgen::Builder::default()
         .ctypes_prefix("libc")
-        .header("./common/types.h")
+        .header(types_path.to_string_lossy())
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("unable to generate bindings");

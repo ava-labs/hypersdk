@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdio.h>
 
 typedef struct {
     unsigned char address[33];
