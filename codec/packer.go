@@ -148,10 +148,12 @@ func (p *Packer) UnpackWindow(w *window.Window) {
 	copy((*w)[:], p.p.UnpackFixedBytes(window.WindowSliceSize))
 }
 
+// Deprecated: Use PackBytes for better performance.
 func (p *Packer) PackString(s string) {
 	p.p.PackStr(s)
 }
 
+// Deprecated: Use UnpackBytes for better performance.
 func (p *Packer) UnpackString(required bool) string {
 	str := p.p.UnpackStr()
 	if required && len(str) == 0 {
