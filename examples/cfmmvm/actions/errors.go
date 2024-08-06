@@ -15,8 +15,6 @@ var (
 	ErrOutputTokenSymbolTooLarge      = errors.New("token symbol is too large")
 	ErrOutputTokenMetadataEmpty       = errors.New("token metadata is empty")
 	ErrOutputTokenMetadataTooLarge    = errors.New("token metadata is too large")
-	ErrOutputTokenDecimalsZero        = errors.New("token decimals is zero")
-	ErrOutputTokenDecimalsTooPrecise  = errors.New("token decimals are too precise")
 	ErrOutputTokenAlreadyExists       = errors.New("token already exists")
 	ErrOutputTokenDoesNotExist        = errors.New("token does not exist")
 	ErrOutputTokenNotOwner            = errors.New("actor is not token owner")

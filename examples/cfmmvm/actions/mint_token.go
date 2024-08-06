@@ -30,12 +30,12 @@ type MintToken struct {
 }
 
 // ComputeUnits implements chain.Action.
-func (m *MintToken) ComputeUnits(chain.Rules) uint64 {
+func (*MintToken) ComputeUnits(chain.Rules) uint64 {
 	return MintTokenComputeUnits
 }
 
 // Execute implements chain.Action.
-func (m *MintToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
+func (m *MintToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Enforce initial invariants
 	if m.Value == 0 {
 		return nil, ErrOutputMintValueZero
@@ -58,27 +58,27 @@ func (m *MintToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutable
 }
 
 // GetTypeID implements chain.Action.
-func (m *MintToken) GetTypeID() uint8 {
+func (*MintToken) GetTypeID() uint8 {
 	return consts.MintTokenID
 }
 
 // Size implements chain.Action.
-func (m *MintToken) Size() int {
+func (*MintToken) Size() int {
 	return codec.AddressLen + lconsts.Uint64Len + codec.AddressLen
 }
 
 // StateKeys implements chain.Action.
-func (m *MintToken) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (*MintToken) StateKeys(codec.Address, ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
 // StateKeysMaxChunks implements chain.Action.
-func (m *MintToken) StateKeysMaxChunks() []uint16 {
+func (*MintToken) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
 // ValidRange implements chain.Action.
-func (m *MintToken) ValidRange(chain.Rules) (int64, int64) {
+func (*MintToken) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

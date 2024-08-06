@@ -25,12 +25,12 @@ type BurnToken struct {
 }
 
 // ComputeUnits implements chain.Action.
-func (b *BurnToken) ComputeUnits(chain.Rules) uint64 {
+func (*BurnToken) ComputeUnits(chain.Rules) uint64 {
 	return BurnTokenComputeUnits
 }
 
 // Execute implements chain.Action.
-func (b *BurnToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
+func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Assert invariant
 	if b.Value == 0 {
 		return nil, ErrOutputBurnValueZero
@@ -58,17 +58,17 @@ func (b *BurnToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutable
 }
 
 // GetTypeID implements chain.Action.
-func (b *BurnToken) GetTypeID() uint8 {
+func (*BurnToken) GetTypeID() uint8 {
 	return consts.BurnTokenID
 }
 
 // Size implements chain.Action.
-func (b *BurnToken) Size() int {
+func (*BurnToken) Size() int {
 	return codec.AddressLen + lconsts.Uint64Len
 }
 
 // StateKeys implements chain.Action.
-func (b *BurnToken) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (b *BurnToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(b.TokenAddress)):           state.All,
 		string(storage.TokenAccountKey(b.TokenAddress, actor)): state.All,
@@ -76,12 +76,12 @@ func (b *BurnToken) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 }
 
 // StateKeysMaxChunks implements chain.Action.
-func (b *BurnToken) StateKeysMaxChunks() []uint16 {
+func (*BurnToken) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.TokenInfoChunks, storage.TokenAccountInfoChunks}
 }
 
 // ValidRange implements chain.Action.
-func (b *BurnToken) ValidRange(chain.Rules) (int64, int64) {
+func (*BurnToken) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

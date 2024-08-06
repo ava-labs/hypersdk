@@ -70,6 +70,6 @@ func (*ConstantProductFormula) Swap(reserveX uint64, reserveY uint64, deltaX uin
 
 type ConstantSumFormula struct{}
 
-func (*ConstantSumFormula) Swap(reserveX uint64, reserveY uint64, deltaX uint64, deltaY uint64, fee uint64) (uint64, uint64, uint64, uint64, error) {
+func (*ConstantSumFormula) Swap(uint64, uint64, uint64, uint64, uint64) (uint64, uint64, uint64, uint64, error) {
 	panic("unimplemented")
 }

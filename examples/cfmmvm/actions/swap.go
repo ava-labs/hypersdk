@@ -27,12 +27,12 @@ type Swap struct {
 }
 
 // ComputeUnits implements chain.Action.
-func (s *Swap) ComputeUnits(chain.Rules) uint64 {
+func (*Swap) ComputeUnits(chain.Rules) uint64 {
 	return SwapComputeUnits
 }
 
 // Execute implements chain.Action.
-func (s *Swap) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
+func (s *Swap) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, reserveX, reserveY, lpTokenAddress, err := storage.GetLiquidityPoolNoController(ctx, mu, s.LPAddress)
 	if err != nil {
@@ -77,27 +77,27 @@ func (s *Swap) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, tim
 }
 
 // GetTypeID implements chain.Action.
-func (s *Swap) GetTypeID() uint8 {
+func (*Swap) GetTypeID() uint8 {
 	return consts.SwapID
 }
 
 // Size implements chain.Action.
-func (s *Swap) Size() int {
+func (*Swap) Size() int {
 	return lconsts.Uint64Len + lconsts.Uint64Len
 }
 
 // StateKeys implements chain.Action.
-func (s *Swap) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (*Swap) StateKeys(codec.Address, ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
 // StateKeysMaxChunks implements chain.Action.
-func (s *Swap) StateKeysMaxChunks() []uint16 {
+func (*Swap) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
 // ValidRange implements chain.Action.
-func (s *Swap) ValidRange(chain.Rules) (int64, int64) {
+func (*Swap) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

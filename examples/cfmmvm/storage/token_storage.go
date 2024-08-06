@@ -99,12 +99,12 @@ func GetTokenInfo(
 	if errs[0] != nil {
 		return nil, nil, 0, nil, 0, codec.EmptyAddress, errs[0]
 	}
-	return innerGetTokenInfo(values[0], nil)
+	return innerGetTokenInfo(values[0])
 }
 
 func GetTokenInfoNoController(
 	ctx context.Context,
-	mu state.Mutable,
+	mu state.Immutable,
 	tokenAddress codec.Address,
 ) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
 	k := TokenInfoKey(tokenAddress)
@@ -112,12 +112,11 @@ func GetTokenInfoNoController(
 	if err != nil {
 		return nil, nil, 0, nil, 0, codec.EmptyAddress, err
 	}
-	return innerGetTokenInfo(v, nil)
+	return innerGetTokenInfo(v)
 }
 
 func innerGetTokenInfo(
 	v []byte,
-	err error,
 ) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
 	// Extract name
 	nameLen := binary.BigEndian.Uint16(v)
@@ -284,7 +283,7 @@ func GetTokenAccount(
 
 func GetTokenAccountNoController(
 	ctx context.Context,
-	mu state.Mutable,
+	mu state.Immutable,
 	tokenAddress codec.Address,
 	account codec.Address,
 ) (uint64, error) {

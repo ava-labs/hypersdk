@@ -41,9 +41,9 @@ const (
 )
 
 const (
-	LiquidityPoolTokenName     = "CFMM-Pair"
+	LiquidityPoolTokenName     = "CFMM-Pair" // #nosec G101
 	LiquidityPoolTokenSymbol   = "CFMMP"
-	LiquidityPoolTokenDecimals = 18
+	LiquidityPoolTokenDecimals = 9
 	LiquidityPoolTokenMetadata = "A liquidity pool"
 )
 

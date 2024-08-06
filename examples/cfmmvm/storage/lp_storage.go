@@ -83,7 +83,7 @@ func SetLiquidityPool(
 
 func GetLiquidityPoolNoController(
 	ctx context.Context,
-	mu state.Mutable,
+	mu state.Immutable,
 	poolAddress codec.Address,
 ) (uint64, codec.Address, codec.Address, uint64, uint64, uint64, codec.Address, error) {
 	k := LiquidityPoolKey(poolAddress)

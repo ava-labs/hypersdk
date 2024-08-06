@@ -24,12 +24,12 @@ type DepositLiquidity struct {
 }
 
 // ComputeUnits implements chain.Action.
-func (d *DepositLiquidity) ComputeUnits(chain.Rules) uint64 {
+func (*DepositLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return DepositLiquidityComputeUnits
 }
 
 // Execute implements chain.Action.
-func (d *DepositLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (d *DepositLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) (outputs [][]byte, err error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, reserveX, reserveY, lpTokenAddress, err := storage.GetLiquidityPoolNoController(ctx, mu, d.LiquidityPool)
 	if err != nil {
@@ -83,12 +83,12 @@ func (d *DepositLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.
 		if err != nil {
 			return nil, err
 		}
-		tokenXChange = tokenXChange / reserveX
+		tokenXChange /= reserveX
 		tokenYChange, err := smath.Mul64(amountY, tSupply)
 		if err != nil {
 			return nil, err
 		}
-		tokenYChange = tokenYChange / reserveY
+		tokenYChange /= reserveY
 		liquidity = min(tokenXChange, tokenYChange)
 	}
 
@@ -109,27 +109,27 @@ func (d *DepositLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.
 }
 
 // GetTypeID implements chain.Action.
-func (d *DepositLiquidity) GetTypeID() uint8 {
+func (*DepositLiquidity) GetTypeID() uint8 {
 	return consts.DepositLiquidityID
 }
 
 // Size implements chain.Action.
-func (d *DepositLiquidity) Size() int {
+func (*DepositLiquidity) Size() int {
 	return codec.AddressLen
 }
 
 // StateKeys implements chain.Action.
-func (d *DepositLiquidity) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (*DepositLiquidity) StateKeys(codec.Address, ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
 // StateKeysMaxChunks implements chain.Action.
-func (d *DepositLiquidity) StateKeysMaxChunks() []uint16 {
+func (*DepositLiquidity) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
 // ValidRange implements chain.Action.
-func (d *DepositLiquidity) ValidRange(chain.Rules) (int64, int64) {
+func (*DepositLiquidity) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

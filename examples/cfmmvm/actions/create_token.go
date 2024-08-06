@@ -13,8 +13,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/consts"
 	"github.com/ava-labs/hypersdk/examples/cfmmvm/storage"
 	"github.com/ava-labs/hypersdk/state"
-
-	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
 var _ chain.Action = (*CreateToken)(nil)
@@ -22,18 +20,17 @@ var _ chain.Action = (*CreateToken)(nil)
 type CreateToken struct {
 	Name     []byte `json:"name"`
 	Symbol   []byte `json:"symbol"`
-	Decimals uint8  `json:"decimals"`
 	Metadata []byte `json:"metadata"`
 }
 
 // ComputeUnits implements chain.Action.
-func (c *CreateToken) ComputeUnits(chain.Rules) uint64 {
+func (*CreateToken) ComputeUnits(chain.Rules) uint64 {
 	return CreateTokenComputeUnits
 }
 
 // Execute implements chain.Action.
 // Returns: address of created token
-func (c *CreateToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
+func (c *CreateToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Enforce initial invariants
 	if len(c.Name) == 0 {
 		return nil, ErrOutputTokenNameEmpty
@@ -55,14 +52,8 @@ func (c *CreateToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutab
 		return nil, ErrOutputTokenMetadataTooLarge
 	}
 
-	if c.Decimals == 0 {
-		return nil, ErrOutputTokenDecimalsZero
-	}
-	if c.Decimals > storage.MaxTokenDecimals {
-		return nil, ErrOutputTokenDecimalsTooPrecise
-	}
 	// Continue only if address doesn't exist
-	tokenAddress := storage.TokenAddress(c.Name, c.Symbol, c.Decimals, c.Metadata)
+	tokenAddress := storage.TokenAddress(c.Name, c.Symbol, consts.Decimals, c.Metadata)
 	tokenInfoKey := storage.TokenInfoKey(tokenAddress)
 
 	if _, err := mu.GetValue(ctx, tokenInfoKey); err == nil {
@@ -70,7 +61,7 @@ func (c *CreateToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutab
 	}
 
 	// Invariants met; create and return
-	if err := storage.SetTokenInfo(ctx, mu, tokenAddress, c.Name, c.Symbol, c.Decimals, c.Metadata, 0, actor); err != nil {
+	if err := storage.SetTokenInfo(ctx, mu, tokenAddress, c.Name, c.Symbol, consts.Decimals, c.Metadata, 0, actor); err != nil {
 		return nil, err
 	}
 
@@ -80,11 +71,11 @@ func (c *CreateToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutab
 
 // Size implements chain.Action.
 func (c *CreateToken) Size() int {
-	return codec.BytesLen(c.Name) + codec.BytesLen(c.Symbol) + lconsts.Uint8Len + codec.BytesLen(c.Metadata)
+	return codec.BytesLen(c.Name) + codec.BytesLen(c.Symbol) + codec.BytesLen(c.Metadata)
 }
 
 // ValidRange implements chain.Action.
-func (c *CreateToken) ValidRange(chain.Rules) (int64, int64) {
+func (*CreateToken) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
@@ -93,9 +84,9 @@ func (*CreateToken) GetTypeID() uint8 {
 	return consts.CreateTokenID
 }
 
-func (c *CreateToken) StateKeys(_ codec.Address, actionID ids.ID) state.Keys {
+func (c *CreateToken) StateKeys(codec.Address, ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.TokenInfoKey(storage.TokenAddress(c.Name, c.Symbol, c.Decimals, c.Metadata))): state.All,
+		string(storage.TokenInfoKey(storage.TokenAddress(c.Name, c.Symbol, consts.Decimals, c.Metadata))): state.All,
 	}
 }
 
@@ -107,7 +98,6 @@ func (*CreateToken) StateKeysMaxChunks() []uint16 {
 func (c *CreateToken) Marshal(p *codec.Packer) {
 	p.PackBytes(c.Name)
 	p.PackBytes(c.Symbol)
-	p.PackByte(c.Decimals)
 	p.PackBytes(c.Metadata)
 }
 
@@ -115,7 +105,6 @@ func UnmarhsalCreateToken(p *codec.Packer) (chain.Action, error) {
 	var createToken CreateToken
 	p.UnpackBytes(storage.MaxTokenNameSize, true, &createToken.Name)
 	p.UnpackBytes(storage.MaxTokenSymbolSize, true, &createToken.Symbol)
-	createToken.Decimals = p.UnpackByte()
 	p.UnpackBytes(storage.MaxTokenMetadataSize, true, &createToken.Metadata)
 	return &createToken, p.Err()
 }

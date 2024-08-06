@@ -23,13 +23,13 @@ type RemoveLiquidity struct {
 	LiquidityPool codec.Address `json:"liquidityPool"`
 }
 
-// ComputeUnits implements chain.Action.
-func (r *RemoveLiquidity) ComputeUnits(chain.Rules) uint64 {
+//nolint:stylecheck
+func (*RemoveLiquidity) ComputeUnits(chain.Rules) uint64 {
 	return RemoveLiquidityComputeUnits
 }
 
 // Execute implements chain.Action.
-func (l *RemoveLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
+func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check that LP exists
 	functionID, tokenX, tokenY, fee, reserveX, reserveY, lpTokenAddress, err := storage.GetLiquidityPoolNoController(ctx, mu, l.LiquidityPool)
 	if err != nil {
@@ -58,12 +58,12 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.M
 	if err != nil {
 		return nil, err
 	}
-	amountX = amountX / lpTokenSupply
+	amountX /= lpTokenSupply
 	amountY, err := smath.Mul64(currLPTokenBalance, balanceY)
 	if err != nil {
 		return nil, err
 	}
-	amountY = amountY / lpTokenSupply
+	amountY /= lpTokenSupply
 	if amountX == 0 || amountY == 0 {
 		return nil, ErrOutputInsufficientLiquidityBurned
 	}
@@ -94,27 +94,27 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, r chain.Rules, mu state.M
 }
 
 // GetTypeID implements chain.Action.
-func (r *RemoveLiquidity) GetTypeID() uint8 {
+func (*RemoveLiquidity) GetTypeID() uint8 {
 	return consts.RemoveLiquidityID
 }
 
 // Size implements chain.Action.
-func (r *RemoveLiquidity) Size() int {
+func (*RemoveLiquidity) Size() int {
 	return codec.AddressLen
 }
 
 // StateKeys implements chain.Action.
-func (r *RemoveLiquidity) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (*RemoveLiquidity) StateKeys(codec.Address, ids.ID) state.Keys {
 	panic("unimplemented")
 }
 
 // StateKeysMaxChunks implements chain.Action.
-func (r *RemoveLiquidity) StateKeysMaxChunks() []uint16 {
+func (*RemoveLiquidity) StateKeysMaxChunks() []uint16 {
 	panic("unimplemented")
 }
 
 // ValidRange implements chain.Action.
-func (r *RemoveLiquidity) ValidRange(chain.Rules) (int64, int64) {
+func (*RemoveLiquidity) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

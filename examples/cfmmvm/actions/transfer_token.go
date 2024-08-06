@@ -26,12 +26,12 @@ type TransferToken struct {
 }
 
 // ComputeUnits implements chain.Action.
-func (t *TransferToken) ComputeUnits(chain.Rules) uint64 {
+func (*TransferToken) ComputeUnits(chain.Rules) uint64 {
 	return TransferTokenComputeUnits
 }
 
 // Execute implements chain.Action.
-func (t *TransferToken) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) ([][]byte, error) {
+func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable, _ int64, actor codec.Address, _ ids.ID) ([][]byte, error) {
 	// Check invariants
 	if t.Value == 0 {
 		return nil, ErrOutputTransferValueZero
@@ -58,17 +58,17 @@ func (t *TransferToken) Execute(ctx context.Context, r chain.Rules, mu state.Mut
 }
 
 // GetTypeID implements chain.Action.
-func (t *TransferToken) GetTypeID() uint8 {
+func (*TransferToken) GetTypeID() uint8 {
 	return consts.TransferTokenID
 }
 
 // Size implements chain.Action.
-func (t *TransferToken) Size() int {
+func (*TransferToken) Size() int {
 	return codec.AddressLen + codec.AddressLen + lconsts.Uint64Len
 }
 
 // StateKeys implements chain.Action.
-func (t *TransferToken) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (t *TransferToken) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 	return state.Keys{
 		string(storage.TokenInfoKey(t.TokenAddress)):           state.All,
 		string(storage.TokenAccountKey(t.TokenAddress, actor)): state.All,
@@ -76,12 +76,12 @@ func (t *TransferToken) StateKeys(actor codec.Address, actionID ids.ID) state.Ke
 }
 
 // StateKeysMaxChunks implements chain.Action.
-func (t *TransferToken) StateKeysMaxChunks() []uint16 {
+func (*TransferToken) StateKeysMaxChunks() []uint16 {
 	return []uint16{storage.TokenInfoChunks, storage.TokenAccountInfoChunks}
 }
 
 // ValidRange implements chain.Action.
-func (t *TransferToken) ValidRange(chain.Rules) (int64, int64) {
+func (*TransferToken) ValidRange(chain.Rules) (int64, int64) {
 	return -1, -1
 }
 

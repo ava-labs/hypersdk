@@ -69,7 +69,6 @@ func TestCreateLiquidityPool(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -95,13 +94,11 @@ func TestCreateLiquidityPool(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
@@ -127,13 +124,11 @@ func TestCreateLiquidityPool(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
@@ -183,13 +178,11 @@ func TestCreateLiquidityPool(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -225,7 +218,6 @@ func TestCreateLiquidityPool(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -265,13 +257,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -362,13 +352,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
@@ -397,13 +385,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 			},
@@ -433,13 +419,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&MintToken{
@@ -474,13 +458,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -555,13 +537,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -621,13 +601,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -684,13 +662,11 @@ func TestDepositLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -778,13 +754,11 @@ func TestRemoveLiquidity(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -882,13 +856,11 @@ func TestSwap(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{
@@ -955,13 +927,11 @@ func TestSwap(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&CreateToken{
 					Name:     []byte(TokenTwoName),
 					Symbol:   []byte(TokenTwoSymbol),
-					Decimals: TokenTwoDecimals,
 					Metadata: []byte(TokenTwoMetadata),
 				},
 				&CreateLiquidityPool{

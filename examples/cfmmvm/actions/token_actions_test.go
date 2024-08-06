@@ -29,7 +29,6 @@ func TestCreateToken(t *testing.T) {
 			Action: &CreateToken{
 				Name:     []byte{},
 				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
@@ -41,7 +40,6 @@ func TestCreateToken(t *testing.T) {
 			Action: &CreateToken{
 				Name:     []byte(TokenOneName),
 				Symbol:   []byte{},
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
@@ -53,7 +51,6 @@ func TestCreateToken(t *testing.T) {
 			Action: &CreateToken{
 				Name:     []byte(TokenOneName),
 				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte{},
 			},
 			ExpectedOutputs: [][]byte(nil),
@@ -61,23 +58,10 @@ func TestCreateToken(t *testing.T) {
 			State:           GenerateEmptyState(),
 		},
 		{
-			Name: "No token with zero decimals",
-			Action: &CreateToken{
-				Name:     []byte(TokenOneName),
-				Symbol:   []byte(TokenOneSymbol),
-				Decimals: 0,
-				Metadata: []byte(TokenOneMetadata),
-			},
-			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr:     ErrOutputTokenDecimalsZero,
-			State:           GenerateEmptyState(),
-		},
-		{
 			Name: "No token with too large name",
 			Action: &CreateToken{
 				Name:     []byte(TooLargeTokenName),
 				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
@@ -89,7 +73,6 @@ func TestCreateToken(t *testing.T) {
 			Action: &CreateToken{
 				Name:     []byte(TokenOneName),
 				Symbol:   []byte(TooLargeTokenSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
@@ -101,7 +84,6 @@ func TestCreateToken(t *testing.T) {
 			Action: &CreateToken{
 				Name:     []byte(TokenOneName),
 				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TooLargeTokenMetadata),
 			},
 			ExpectedOutputs: [][]byte(nil),
@@ -109,23 +91,10 @@ func TestCreateToken(t *testing.T) {
 			State:           GenerateEmptyState(),
 		},
 		{
-			Name: "No token with too precise decimals",
-			Action: &CreateToken{
-				Name:     []byte(TokenOneName),
-				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TooPreciseTokenDecimals,
-				Metadata: []byte(TokenOneMetadata),
-			},
-			ExpectedOutputs: [][]byte(nil),
-			ExpectedErr:     ErrOutputTokenDecimalsTooPrecise,
-			State:           GenerateEmptyState(),
-		},
-		{
 			Name: "Correct token creation is allowed",
 			Action: &CreateToken{
 				Name:     []byte(TokenOneName),
 				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			ExpectedOutputs: [][]byte{tokenOneAddress[:]},
@@ -153,14 +122,12 @@ func TestCreateToken(t *testing.T) {
 			Action: &CreateToken{
 				Name:     []byte(TokenOneName),
 				Symbol:   []byte(TokenOneSymbol),
-				Decimals: TokenOneDecimals,
 				Metadata: []byte(TokenOneMetadata),
 			},
 			SetupActions: []chain.Action{
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -200,7 +167,6 @@ func TestMintToken(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -256,7 +222,6 @@ func TestMintToken(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -326,7 +291,6 @@ func TestBurnToken(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -350,7 +314,6 @@ func TestBurnToken(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&MintToken{
@@ -422,7 +385,6 @@ func TestTransferToken(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 			},
@@ -447,7 +409,6 @@ func TestTransferToken(t *testing.T) {
 				&CreateToken{
 					Name:     []byte(TokenOneName),
 					Symbol:   []byte(TokenOneSymbol),
-					Decimals: TokenOneDecimals,
 					Metadata: []byte(TokenOneMetadata),
 				},
 				&MintToken{
