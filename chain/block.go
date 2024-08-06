@@ -86,7 +86,7 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 }
 
 // Stateless is defined separately from "Block"
-// in case external packages needs use the stateful block
+// in case external packages need to use the stateful block
 // without mocking VM or parent block
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
