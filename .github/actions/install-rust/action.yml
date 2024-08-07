@@ -8,7 +8,7 @@ inputs:
   cache:
     description: "to cache or not to cache, that is the question"
     required: false
-    default: "false"
+    default: "true"
 
 runs:
   using: composite
