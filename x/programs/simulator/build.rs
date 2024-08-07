@@ -36,15 +36,11 @@ fn main() {
         panic!("Go build command failed");
     }
 
-    println!("cargo::rustc-link-search=native={}", dir);
+    let target_dir = Path::new(&target_dir).join(&profile);
+    println!("cargo::rustc-link-search=native={}", target_dir.to_string_lossy());
+    
     // link the dynamic library created by go build
     println!("cargo::rustc-link-lib=dylib=simulator");
-
-    // Rerun the script if simulator.so changes
-    println!(
-        "cargo::rerun-if-changed={}",
-        Path::new(&dir).join("simulator.so").display()
-    );
 
     let types_path = Path::new(".").join("common").join("types.h");
 
