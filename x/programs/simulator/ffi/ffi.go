@@ -56,8 +56,8 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 func createRuntimeCallInfo(db state.Mutable, ctx *C.SimulatorCallContext) *runtime.CallInfo {
 	paramBytes := C.GoBytes(unsafe.Pointer(ctx.params.data), C.int(ctx.params.length))
 	methodName := C.GoString(ctx.method)
-	actorBytes := C.GoBytes(unsafe.Pointer(&ctx.actor_address), codec.AddressLen)  //nolint:all
-	programBytes := C.GoBytes(unsafe.Pointer(&ctx.program_address), codec.AddressLen)  //nolint:all
+	actorBytes := C.GoBytes(unsafe.Pointer(&ctx.actor_address), codec.AddressLen)     //nolint:all
+	programBytes := C.GoBytes(unsafe.Pointer(&ctx.program_address), codec.AddressLen) //nolint:all
 
 	return &runtime.CallInfo{
 		State:        simState.NewProgramStateManager(db),
@@ -109,10 +109,10 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 	return C.CreateProgramResponse{
 		error: nil,
 		program_id: C.ID{
-			*(*[32]C.uchar)(C.CBytes(programID[:])),  //nolint:all
+			*(*[32]C.uchar)(C.CBytes(programID[:])), //nolint:all
 		},
 		program_address: C.Address{
-			*(*[33]C.uchar)(C.CBytes(account[:])),  //nolint:all
+			*(*[33]C.uchar)(C.CBytes(account[:])), //nolint:all
 		},
 	}
 }
@@ -145,7 +145,7 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 	return C.CallProgramResponse{
 		error: errPtr,
 		result: C.Bytes{
-			data:   (*C.uint8_t)(C.CBytes(result)), 
+			data:   (*C.uint8_t)(C.CBytes(result)),
 			length: C.uint(len(result)),
 		},
 		fuel: C.uint(fuel),
