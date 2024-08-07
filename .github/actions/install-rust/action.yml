@@ -8,7 +8,7 @@ inputs:
   cache:
     description: "to cache or not to cache, that is the question"
     required: false
-    default: "true"
+    default: "false"
 
 runs:
   using: composite
@@ -17,10 +17,5 @@ runs:
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ inputs.targets }}
-
-    - if: ${{ inputs.cache == 'true' }}
-      name: Create necessary directories
-      run: mkdir -p /home/runner/work/hypersdk/hypersdk/target/tests/target
-
     - if: ${{ inputs.cache == 'true' }}
       uses: Swatinem/rust-cache@v2
