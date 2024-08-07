@@ -20,8 +20,7 @@ fn main() {
         .expect("Failed to get target directory");
     let target_dir = Path::new(&target_dir).join(&profile);
 
-    let output = Path::new(&target_dir)
-        .join("libsimulator.so");
+    let output = Path::new(&target_dir).join("libsimulator.so");
     let go_file = Path::new(&dir).join("ffi").join("ffi.go");
 
     // Build the Go library
