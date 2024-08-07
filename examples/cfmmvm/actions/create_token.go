@@ -53,7 +53,7 @@ func (c *CreateToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutab
 	}
 
 	// Continue only if address doesn't exist
-	tokenAddress := storage.TokenAddress(c.Name, c.Symbol, consts.Decimals, c.Metadata)
+	tokenAddress := storage.TokenAddress(c.Name, c.Symbol, c.Metadata)
 	tokenInfoKey := storage.TokenInfoKey(tokenAddress)
 
 	if _, err := mu.GetValue(ctx, tokenInfoKey); err == nil {
@@ -86,7 +86,7 @@ func (*CreateToken) GetTypeID() uint8 {
 
 func (c *CreateToken) StateKeys(codec.Address, ids.ID) state.Keys {
 	return state.Keys{
-		string(storage.TokenInfoKey(storage.TokenAddress(c.Name, c.Symbol, consts.Decimals, c.Metadata))): state.All,
+		string(storage.TokenInfoKey(storage.TokenAddress(c.Name, c.Symbol, c.Metadata))): state.All,
 	}
 }
 

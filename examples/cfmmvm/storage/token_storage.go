@@ -18,6 +18,8 @@ import (
 	lconsts "github.com/ava-labs/hypersdk/consts"
 )
 
+// Note: to remove decimal, remember that it is 1 byte
+
 const (
 	MaxTokenNameSize     = 64
 	MaxTokenSymbolSize   = 8
@@ -33,12 +35,11 @@ func TokenInfoKey(tokenAddress codec.Address) []byte {
 	return k
 }
 
-func TokenAddress(name []byte, symbol []byte, decimals uint8, metadata []byte) codec.Address {
-	v := make([]byte, len(name)+len(symbol)+lconsts.ByteLen+len(metadata))
+func TokenAddress(name []byte, symbol []byte, metadata []byte) codec.Address {
+	v := make([]byte, len(name)+len(symbol)+len(metadata))
 	copy(v, name)
 	copy(v[len(name):], symbol)
-	v[len(name)+len(symbol)] = decimals
-	copy(v[len(name)+len(symbol)+lconsts.ByteLen:], metadata)
+	copy(v[len(name)+len(symbol):], metadata)
 	id := utils.ToID(v)
 	return codec.CreateAddress(consts.TOKENID, id)
 }

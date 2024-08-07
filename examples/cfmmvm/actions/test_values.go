@@ -38,8 +38,8 @@ const (
 var (
 	ts *tstate.TState
 
-	tokenOneAddress = storage.TokenAddress([]byte(TokenOneName), []byte(TokenOneSymbol), TokenOneDecimals, []byte(TokenOneMetadata))
-	tokenTwoAddress = storage.TokenAddress([]byte(TokenTwoName), []byte(TokenTwoSymbol), TokenTwoDecimals, []byte(TokenTwoMetadata))
+	tokenOneAddress = storage.TokenAddress([]byte(TokenOneName), []byte(TokenOneSymbol), []byte(TokenOneMetadata))
+	tokenTwoAddress = storage.TokenAddress([]byte(TokenTwoName), []byte(TokenTwoSymbol), []byte(TokenTwoMetadata))
 )
 
 func createAddressWithSameDigits(num uint8) (codec.Address, error) {
