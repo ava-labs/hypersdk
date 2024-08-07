@@ -37,7 +37,7 @@ func CreateAddress(typeID uint8, id ids.ID) Address {
 }
 
 // CreateRandomAddress returns a random address
-// Intended to be used during testing
+// for use during testing
 func CreateRandomAddress() (Address, error) {
 	var randAddress Address
 	b := make([]byte, AddressLen)
