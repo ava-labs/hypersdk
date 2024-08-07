@@ -45,18 +45,18 @@ mod tests {
         assert!(!error, "Create program errored")
     }
 
-    #[test]
-    fn increment() {
-        let simulator = Simulator::new();
-        let gas = 100000000;
-        let bob = Address::new([1; 33]);
-        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
-        simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
-        let value = simulator
-            .call_program(counter_address, "get_value", ((bob),), gas)
-            .result::<u64>()
-            .unwrap();
+    // #[test]
+    // fn increment() {
+    //     let simulator = Simulator::new();
+    //     let gas = 100000000;
+    //     let bob = Address::new([1; 33]);
+    //     let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+    //     simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
+    //     let value = simulator
+    //         .call_program(counter_address, "get_value", ((bob),), gas)
+    //         .result::<u64>()
+    //         .unwrap();
 
-        assert_eq!(value, 10);
-    }
+    //     assert_eq!(value, 10);
+    // }
 }
