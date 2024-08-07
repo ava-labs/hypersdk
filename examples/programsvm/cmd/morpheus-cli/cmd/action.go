@@ -5,6 +5,9 @@ package cmd
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/utils"
+	"github.com/status-im/keycard-go/hexutils"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -89,9 +92,13 @@ var publishProgramFileCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{&actions.PublishProgram{
+		result, _, err := sendAndWait(ctx, []chain.Action{&actions.PublishProgram{
 			ProgramBytes: bytes,
 		}}, cli, bcli, ws, factory, true)
+
+		if result != nil && result.Success {
+			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
+		}
 		return err
 	},
 }
@@ -129,23 +136,22 @@ var callProgramCmd = &cobra.Command{
 			return err
 		}
 
-		// Select calldata
-		calldata, err := handler.Root().PromptBytes("calldata")
-		if err != nil {
-			return err
-		}
-
 		action := &actions.CallProgram{
 			Program:  programAccount,
 			Value:    amount,
 			Function: function,
-			CallData: calldata,
 		}
 
-		action.SpecifiedStateKeys, err = bcli.Simulate(ctx, *action, priv.Address)
+		specifiedStateKeysSet, fuel, err := bcli.Simulate(ctx, *action, priv.Address)
 		if err != nil {
 			return err
 		}
+
+		action.SpecifiedStateKeys = make([]actions.StateKeyPermission, 0, len(specifiedStateKeysSet))
+		for key, value := range specifiedStateKeysSet {
+			action.SpecifiedStateKeys = append(action.SpecifiedStateKeys, actions.StateKeyPermission{Key: key, Permission: value})
+		}
+		action.Fuel = fuel
 
 		// Confirm action
 		cont, err := handler.Root().PromptContinue()
@@ -154,7 +160,11 @@ var callProgramCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory, true)
+		result, _, err := sendAndWait(ctx, []chain.Action{action}, cli, bcli, ws, factory, true)
+
+		if result != nil && result.Success {
+			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
+		}
 		return err
 	},
 }
@@ -185,10 +195,19 @@ var deployProgramCmd = &cobra.Command{
 		}
 
 		// Generate transaction
-		_, _, err = sendAndWait(ctx, []chain.Action{&actions.DeployProgram{
+		result, _, err := sendAndWait(ctx, []chain.Action{&actions.DeployProgram{
 			ProgramID:    programID,
 			CreationInfo: creationInfo,
 		}}, cli, bcli, ws, factory, true)
+
+		if result != nil && result.Success {
+			address, err := codec.ToAddress(result.Outputs[0][0])
+			if err != nil {
+				return err
+			}
+			addressString, err := codec.AddressBech32(consts.HRP, address)
+			utils.Outf(addressString + "\n")
+		}
 		return err
 	},
 }
