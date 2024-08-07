@@ -38,7 +38,7 @@ func (t *TransferToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mut
 	}
 
 	// Check that token exists
-	if _, _, _, _, _, _, err := storage.GetTokenInfoNoController(ctx, mu, t.TokenAddress); err != nil {
+	if _, _, _, _, _, err := storage.GetTokenInfoNoController(ctx, mu, t.TokenAddress); err != nil {
 		return nil, ErrOutputTokenDoesNotExist
 	}
 	// Check that balance is sufficient

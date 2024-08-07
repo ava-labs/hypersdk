@@ -311,7 +311,7 @@ func TestDepositLiquidity(t *testing.T) {
 			Assertion: func(m state.Mutable) bool {
 				functionID, tokenX, tokenY, fee, reserveX, reserveY, lpTokenAddressFromChain, err := storage.GetLiquidityPoolNoController(context.TODO(), m, lpAddress)
 				require.NoError(err)
-				_, _, _, _, tSupply, _, err := storage.GetTokenInfoNoController(context.Background(), m, lpTokenAddressFromChain)
+				_, _, _, tSupply, _, err := storage.GetTokenInfoNoController(context.Background(), m, lpTokenAddressFromChain)
 				require.NoError(err)
 				zeroAddressBalance, err := storage.GetTokenAccountNoController(context.TODO(), m, lpTokenAddressFromChain, codec.EmptyAddress)
 				require.NoError(err)
@@ -404,7 +404,7 @@ func TestDepositLiquidity(t *testing.T) {
 				stateKeys.Add(string(storage.TokenAccountKey(tokenTwoAddress, lpAddress)), state.Read)
 				stateKeys.Add(string(storage.LiquidityPoolKey(lpAddress)), state.Read)
 				stateKeys.Add(string(storage.TokenInfoKey(lpTokenAddress)), state.Read)
-				require.NoError(storage.SetTokenInfo(context.TODO(), mu, lpTokenAddress, []byte(storage.LiquidityPoolTokenName), []byte(storage.LiquidityPoolTokenSymbol), storage.LiquidityPoolTokenDecimals, []byte(storage.LiquidityPoolTokenMetadata), 0, lpAddress))
+				require.NoError(storage.SetTokenInfo(context.TODO(), mu, lpTokenAddress, []byte(storage.LiquidityPoolTokenName), []byte(storage.LiquidityPoolTokenSymbol), []byte(storage.LiquidityPoolTokenMetadata), 0, lpAddress))
 				require.NoError(storage.SetLiquidityPool(context.TODO(), mu, lpAddress, InitialFunctionID, tokenOneAddress, tokenTwoAddress, InitialFee, 2, 2, lpTokenAddress))
 				return ts.NewView(stateKeys, mu.Storage)
 			}(),
@@ -443,7 +443,7 @@ func TestDepositLiquidity(t *testing.T) {
 				stateKeys.Add(string(storage.TokenAccountKey(tokenTwoAddress, lpAddress)), state.All)
 				stateKeys.Add(string(storage.LiquidityPoolKey(lpAddress)), state.Read)
 				stateKeys.Add(string(storage.TokenInfoKey(lpTokenAddress)), state.Read)
-				require.NoError(storage.SetTokenInfo(context.TODO(), mu, lpTokenAddress, []byte(storage.LiquidityPoolTokenName), []byte(storage.LiquidityPoolTokenSymbol), storage.LiquidityPoolTokenDecimals, []byte(storage.LiquidityPoolTokenMetadata), 0, lpAddress))
+				require.NoError(storage.SetTokenInfo(context.TODO(), mu, lpTokenAddress, []byte(storage.LiquidityPoolTokenName), []byte(storage.LiquidityPoolTokenSymbol), []byte(storage.LiquidityPoolTokenMetadata), 0, lpAddress))
 				require.NoError(storage.SetLiquidityPool(context.TODO(), mu, lpAddress, InitialFunctionID, tokenOneAddress, tokenTwoAddress, InitialFee, 2, 2, lpTokenAddress))
 				return ts.NewView(stateKeys, mu.Storage)
 			}(),

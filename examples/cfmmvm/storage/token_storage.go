@@ -59,7 +59,6 @@ func SetTokenInfo(
 	tokenAddress codec.Address,
 	name []byte,
 	symbol []byte,
-	decimals uint8,
 	metadata []byte,
 	totalSupply uint64,
 	owner codec.Address,
@@ -69,7 +68,7 @@ func SetTokenInfo(
 	nameLen := len(name)
 	symbolLen := len(symbol)
 	metadataLen := len(metadata)
-	tokenInfoSize := lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.Uint8Len + lconsts.Uint16Len + metadataLen + lconsts.Uint64Len + codec.AddressLen
+	tokenInfoSize := lconsts.Uint16Len + nameLen + lconsts.Uint16Len + symbolLen + lconsts.Uint16Len + metadataLen + lconsts.Uint64Len + codec.AddressLen
 	v := make([]byte, tokenInfoSize)
 
 	// Insert name
@@ -78,15 +77,13 @@ func SetTokenInfo(
 	// Insert symbol
 	binary.BigEndian.PutUint16(v[lconsts.Uint16Len+nameLen:], uint16(symbolLen))
 	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len:lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen], symbol)
-	// Insert decimals
-	v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen] = decimals
 	// Insert metadata
-	binary.BigEndian.PutUint16(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen:], uint16(metadataLen))
-	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len:lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen], metadata)
+	binary.BigEndian.PutUint16(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen:], uint16(metadataLen))
+	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len:lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len+metadataLen], metadata)
 	// Insert totalSupply
-	binary.BigEndian.PutUint64(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen:], totalSupply)
+	binary.BigEndian.PutUint64(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len+metadataLen:], totalSupply)
 	// Insert owner
-	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen+lconsts.Uint64Len:], owner[:])
+	copy(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len+metadataLen+lconsts.Uint64Len:], owner[:])
 	return mu.Insert(ctx, k, v)
 }
 
@@ -94,11 +91,11 @@ func GetTokenInfo(
 	ctx context.Context,
 	f ReadState,
 	tokenAddress codec.Address,
-) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
+) ([]byte, []byte, []byte, uint64, codec.Address, error) {
 	k := TokenInfoKey(tokenAddress)
 	values, errs := f(ctx, [][]byte{k})
 	if errs[0] != nil {
-		return nil, nil, 0, nil, 0, codec.EmptyAddress, errs[0]
+		return nil, nil, nil, 0, codec.EmptyAddress, errs[0]
 	}
 	return innerGetTokenInfo(values[0])
 }
@@ -107,35 +104,33 @@ func GetTokenInfoNoController(
 	ctx context.Context,
 	mu state.Immutable,
 	tokenAddress codec.Address,
-) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
+) ([]byte, []byte, []byte, uint64, codec.Address, error) {
 	k := TokenInfoKey(tokenAddress)
 	v, err := mu.GetValue(ctx, k)
 	if err != nil {
-		return nil, nil, 0, nil, 0, codec.EmptyAddress, err
+		return nil, nil, nil, 0, codec.EmptyAddress, err
 	}
 	return innerGetTokenInfo(v)
 }
 
 func innerGetTokenInfo(
 	v []byte,
-) ([]byte, []byte, uint8, []byte, uint64, codec.Address, error) {
+) ([]byte, []byte, []byte, uint64, codec.Address, error) {
 	// Extract name
 	nameLen := binary.BigEndian.Uint16(v)
 	name := v[lconsts.Uint16Len : lconsts.Uint16Len+nameLen]
 	// Extract symbol
 	symbolLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len+nameLen:])
 	symbol := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len : lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen]
-	// Extract decimals
-	decimals := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen]
 	// Extract metadata
-	metadataLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen:])
-	metadata := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len : lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen]
+	metadataLen := binary.BigEndian.Uint16(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen:])
+	metadata := v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len : lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len+metadataLen]
 	// Extract totalSupply
-	totalSupply := binary.BigEndian.Uint64(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen:])
+	totalSupply := binary.BigEndian.Uint64(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len+metadataLen:])
 	// Extract owner
-	owner := codec.Address(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.ByteLen+lconsts.Uint16Len+metadataLen+lconsts.Uint64Len:])
+	owner := codec.Address(v[lconsts.Uint16Len+nameLen+lconsts.Uint16Len+symbolLen+lconsts.Uint16Len+metadataLen+lconsts.Uint64Len:])
 
-	return name, symbol, decimals, metadata, totalSupply, owner, nil
+	return name, symbol, metadata, totalSupply, owner, nil
 }
 
 func SetTokenAccount(
@@ -163,7 +158,7 @@ func MintToken(
 	mintAmount uint64,
 ) error {
 	// Get token info + account
-	tName, tSymbol, tDecimals, tMetadata, tSupply, tOwner, err := GetTokenInfoNoController(ctx, mu, tokenAddress)
+	tName, tSymbol, tMetadata, tSupply, tOwner, err := GetTokenInfoNoController(ctx, mu, tokenAddress)
 	if err != nil {
 		return err
 	}
@@ -180,7 +175,7 @@ func MintToken(
 		return err
 	}
 	// Update token info
-	if err := SetTokenInfo(ctx, mu, tokenAddress, tName, tSymbol, tDecimals, tMetadata, newTotalSupply, tOwner); err != nil {
+	if err := SetTokenInfo(ctx, mu, tokenAddress, tName, tSymbol, tMetadata, newTotalSupply, tOwner); err != nil {
 		return err
 	}
 	// Update token account
@@ -241,7 +236,7 @@ func BurnToken(
 	if err != nil {
 		return err
 	}
-	name, symbol, decimals, metadata, totalSupply, owner, err := GetTokenInfoNoController(ctx, mu, tokenAddress)
+	name, symbol, metadata, totalSupply, owner, err := GetTokenInfoNoController(ctx, mu, tokenAddress)
 	if err != nil {
 		return err
 	}
@@ -258,7 +253,7 @@ func BurnToken(
 	if err = SetTokenAccount(ctx, mu, tokenAddress, from, newBalance); err != nil {
 		return err
 	}
-	if err = SetTokenInfo(ctx, mu, tokenAddress, name, symbol, decimals, metadata, newTotalSupply, owner); err != nil {
+	if err = SetTokenInfo(ctx, mu, tokenAddress, name, symbol, metadata, newTotalSupply, owner); err != nil {
 		return err
 	}
 

@@ -37,7 +37,7 @@ func (b *BurnToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable
 	}
 
 	// Check that token exists
-	_, _, _, _, _, _, err := storage.GetTokenInfoNoController(ctx, mu, b.TokenAddress)
+	_, _, _, _, _, err := storage.GetTokenInfoNoController(ctx, mu, b.TokenAddress)
 	if err != nil {
 		return nil, ErrOutputTokenDoesNotExist
 	}

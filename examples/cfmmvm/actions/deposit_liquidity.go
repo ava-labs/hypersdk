@@ -49,7 +49,7 @@ func (d *DepositLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.
 		return nil, err
 	}
 
-	_, _, _, _, tSupply, _, err := storage.GetTokenInfoNoController(ctx, mu, lpTokenAddress)
+	_, _, _, tSupply, _, err := storage.GetTokenInfoNoController(ctx, mu, lpTokenAddress)
 	if err != nil {
 		return nil, ErrOutputTokenDoesNotExist
 	}

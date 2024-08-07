@@ -40,11 +40,11 @@ func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu sta
 		return nil, ErrOutputInvalidFee
 	}
 	// Check that tokens exist
-	_, _, _, _, _, _, err := storage.GetTokenInfoNoController(ctx, mu, c.TokenX)
+	_, _, _, _, _, err := storage.GetTokenInfoNoController(ctx, mu, c.TokenX)
 	if err != nil {
 		return nil, ErrOutputTokenXDoesNotExist
 	}
-	_, _, _, _, _, _, err = storage.GetTokenInfoNoController(ctx, mu, c.TokenY)
+	_, _, _, _, _, err = storage.GetTokenInfoNoController(ctx, mu, c.TokenY)
 	if err != nil {
 		return nil, ErrOutputTokenYDoesNotExist
 	}
@@ -63,7 +63,7 @@ func (c *CreateLiquidityPool) Execute(ctx context.Context, _ chain.Rules, mu sta
 	}
 	// Create token
 	lpTokenAddress := storage.LiqudityPoolTokenAddress(poolAddress)
-	if err := storage.SetTokenInfo(ctx, mu, lpTokenAddress, []byte(storage.LiquidityPoolTokenName), []byte(storage.LiquidityPoolTokenSymbol), storage.LiquidityPoolTokenDecimals, []byte(storage.LiquidityPoolTokenMetadata), 0, poolAddress); err != nil {
+	if err := storage.SetTokenInfo(ctx, mu, lpTokenAddress, []byte(storage.LiquidityPoolTokenName), []byte(storage.LiquidityPoolTokenSymbol), []byte(storage.LiquidityPoolTokenMetadata), 0, poolAddress); err != nil {
 		return nil, err
 	}
 	// Create LP

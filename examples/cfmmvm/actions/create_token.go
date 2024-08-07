@@ -61,7 +61,7 @@ func (c *CreateToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutab
 	}
 
 	// Invariants met; create and return
-	if err := storage.SetTokenInfo(ctx, mu, tokenAddress, c.Name, c.Symbol, consts.Decimals, c.Metadata, 0, actor); err != nil {
+	if err := storage.SetTokenInfo(ctx, mu, tokenAddress, c.Name, c.Symbol, c.Metadata, 0, actor); err != nil {
 		return nil, err
 	}
 

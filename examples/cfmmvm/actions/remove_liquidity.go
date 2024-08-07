@@ -49,7 +49,7 @@ func (l *RemoveLiquidity) Execute(ctx context.Context, _ chain.Rules, mu state.M
 		return nil, err
 	}
 
-	_, _, _, _, lpTokenSupply, _, err := storage.GetTokenInfoNoController(ctx, mu, lpTokenAddress)
+	_, _, _, lpTokenSupply, _, err := storage.GetTokenInfoNoController(ctx, mu, lpTokenAddress)
 	if err != nil {
 		return nil, err
 	}

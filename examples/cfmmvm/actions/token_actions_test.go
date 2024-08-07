@@ -105,15 +105,14 @@ func TestCreateToken(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			Assertion: func(m state.Mutable) bool {
-				name, symbol, decimals, metadata, totalSupply, owner, err := storage.GetTokenInfoNoController(context.TODO(), m, tokenOneAddress)
+				name, symbol, metadata, totalSupply, owner, err := storage.GetTokenInfoNoController(context.TODO(), m, tokenOneAddress)
 				require.NoError(err)
 				namesMatch := (string(name) == TokenOneName)
 				symbolsMatch := (string(symbol) == TokenOneSymbol)
-				decimalsMatch := (decimals == TokenOneDecimals)
 				metadataMatch := (string(metadata) == TokenOneMetadata)
 				totalSupplyMatch := (totalSupply == uint64(0))
 				ownersMatch := (owner == onesAddr)
-				return namesMatch && symbolsMatch && decimalsMatch && metadataMatch && totalSupplyMatch && ownersMatch
+				return namesMatch && symbolsMatch && metadataMatch && totalSupplyMatch && ownersMatch
 			},
 			Actor: onesAddr,
 		},
@@ -191,7 +190,7 @@ func TestMintToken(t *testing.T) {
 				stateKeys := make(state.Keys)
 				mu := chaintest.NewInMemoryStore()
 				stateKeys.Add(string(storage.TokenInfoKey(tokenOneAddress)), state.All)
-				require.NoError(storage.SetTokenInfo(context.TODO(), mu, tokenOneAddress, []byte(TokenOneName), []byte(TokenOneSymbol), TokenOneDecimals, []byte(TokenOneMetadata), 0, onesAddr))
+				require.NoError(storage.SetTokenInfo(context.TODO(), mu, tokenOneAddress, []byte(TokenOneName), []byte(TokenOneSymbol), []byte(TokenOneMetadata), 0, onesAddr))
 				return ts.NewView(stateKeys, mu.Storage)
 			}(),
 			Actor: twosAddr,
@@ -234,7 +233,7 @@ func TestMintToken(t *testing.T) {
 				return ts.NewView(stateKeys, chaintest.NewInMemoryStore().Storage)
 			}(),
 			Assertion: func(m state.Mutable) bool {
-				_, _, _, _, totalSupply, _, err := storage.GetTokenInfoNoController(context.TODO(), m, tokenOneAddress)
+				_, _, _, totalSupply, _, err := storage.GetTokenInfoNoController(context.TODO(), m, tokenOneAddress)
 				require.NoError(err)
 				supplyMatches := (totalSupply == InitialTokenMintValue)
 				balance, err := storage.GetTokenAccountNoController(context.TODO(), m, tokenOneAddress, onesAddr)

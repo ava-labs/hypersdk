@@ -41,7 +41,7 @@ func (m *MintToken) Execute(ctx context.Context, _ chain.Rules, mu state.Mutable
 		return nil, ErrOutputMintValueZero
 	}
 	// Check if token exists
-	_, _, _, _, _, owner, err := storage.GetTokenInfoNoController(ctx, mu, m.Token)
+	_, _, _, _, owner, err := storage.GetTokenInfoNoController(ctx, mu, m.Token)
 	if err != nil {
 		return nil, ErrOutputTokenDoesNotExist
 	}
