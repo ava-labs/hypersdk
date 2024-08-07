@@ -41,13 +41,16 @@ func init() {
 	require := require.New(ginkgo.GinkgoT())
 
 	// Load default pk
-	prefundedAddrStr := "morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu"
 	privBytes, err := codec.LoadHex(
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
 		ed25519.PrivateKeyLen,
 	)
 	require.NoError(err)
 	priv := ed25519.PrivateKey(privBytes)
+	fmt.Println(priv.PublicKey())
+	address := auth.NewED25519Address(priv.PublicKey())
+	morpheusAddress, err := codec.AddressBech32(consts.HRP, address)
+	require.NoError(err)
 	factory := auth.NewED25519Factory(priv)
 
 	gen := genesis.Default()
@@ -56,8 +59,8 @@ func init() {
 	gen.MinBlockGap = 100
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
-			Address: prefundedAddrStr,
-			Balance: 10_000_000,
+			Address: morpheusAddress,
+			Balance: 10000000000000000000,
 		},
 	}
 	genesisBytes, err := json.Marshal(gen)
@@ -111,13 +114,19 @@ func (g *simpleTxWorkload) Next() bool {
 
 func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, func(ctx context.Context, uri string) error, error) {
 	g.count++
-	other, err := ed25519.GeneratePrivateKey()
+	// other, err := ed25519.GeneratePrivateKey()
+	otherBytes, err := codec.LoadHex(
+		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+		ed25519.PrivateKeyLen,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
+	other := ed25519.PrivateKey(otherBytes)
 
 	aother := auth.NewED25519Address(other.PublicKey())
 	aotherStr := codec.MustAddressBech32(consts.HRP, aother)
+	fmt.Println(aotherStr)
 	parser, err := g.lcli.Parser(ctx)
 	if err != nil {
 		return nil, nil, err

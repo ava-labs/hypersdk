@@ -23,6 +23,7 @@ func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*t
   					"rootGenerationCores": 2,
   					"transactionExecutionCores": 2,
   					"verifyAuth":true,
+						"logLevel":"debug",
   					"streamingBacklogSize": 10000000,
   					"stateSyncServerDelay": 100000000
 				}`,
