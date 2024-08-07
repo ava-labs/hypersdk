@@ -37,8 +37,11 @@ fn main() {
     }
 
     let target_dir = Path::new(&target_dir).join(&profile);
-    println!("cargo::rustc-link-search=native={}", target_dir.to_string_lossy());
-    
+    println!(
+        "cargo::rustc-link-search=native={}",
+        target_dir.to_string_lossy()
+    );
+
     // link the dynamic library created by go build
     println!("cargo::rustc-link-lib=dylib=simulator");
 
