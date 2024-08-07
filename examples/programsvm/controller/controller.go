@@ -171,7 +171,7 @@ func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor 
 	if err != nil {
 		return nil, 0, err
 	}
-	recorder := &storage.Recorder{State: db}
+	recorder := storage.NewRecorder(db)
 	startFuel := uint64(1000000000)
 	callInfo := &runtime.CallInfo{
 		Program:      t.Program,
@@ -180,6 +180,7 @@ func (c *Controller) Simulate(ctx context.Context, t actions.CallProgram, actor 
 		FunctionName: t.Function,
 		Params:       t.CallData,
 		Fuel:         startFuel,
+		Value:        t.Value,
 	}
 	_, err = consts.ProgramRuntime.CallProgram(ctx, callInfo)
 	return recorder.GetStateKeys(), startFuel - callInfo.RemainingFuel(), err

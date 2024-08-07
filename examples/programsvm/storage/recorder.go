@@ -14,6 +14,10 @@ type Recorder struct {
 	WriteState    set.Set[string]
 }
 
+func NewRecorder(db database.Database) *Recorder {
+	return &Recorder{State: db, changedValues: map[string][]byte{}}
+}
+
 func (r *Recorder) Insert(_ context.Context, key []byte, value []byte) error {
 	stringKey := string(key)
 	r.WriteState.Add(stringKey)

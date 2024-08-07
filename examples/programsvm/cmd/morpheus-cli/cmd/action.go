@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/near/borsh-go"
 	"github.com/status-im/keycard-go/hexutils"
 	"os"
 
@@ -164,6 +165,26 @@ var callProgramCmd = &cobra.Command{
 
 		if result != nil && result.Success {
 			utils.Outf(hexutils.BytesToHex(result.Outputs[0][0]) + "\n")
+			switch function {
+			case "balance":
+				{
+					var intValue uint64
+					err := borsh.Deserialize(&intValue, result.Outputs[0][0])
+					if err != nil {
+						return err
+					}
+					utils.Outf("%s\n", utils.FormatBalance(intValue, consts.Decimals))
+				}
+			case "get_value":
+				{
+					var intValue int64
+					err := borsh.Deserialize(&intValue, result.Outputs[0][0])
+					if err != nil {
+						return err
+					}
+					utils.Outf("%d\n", intValue)
+				}
+			}
 		}
 		return err
 	},

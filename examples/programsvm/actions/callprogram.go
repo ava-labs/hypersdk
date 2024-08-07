@@ -78,6 +78,7 @@ func (t *CallProgram) Execute(
 		Params:       t.CallData,
 		Timestamp:    uint64(timestamp),
 		Fuel:         t.Fuel,
+		Value:        t.Value,
 	})
 	return [][]byte{result}, err
 }
