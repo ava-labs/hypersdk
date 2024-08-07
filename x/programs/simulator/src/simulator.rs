@@ -7,7 +7,8 @@ use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError, Id};
 
 use crate::{
-    state::Mutable, types::Bytes, CallProgramResponse, CreateProgramResponse, SimulatorCallContext,
+    bindings::{Bytes, CallProgramResponse, CreateProgramResponse, SimulatorCallContext},
+    state::Mutable,
 };
 
 #[derive(Error, Debug)]
@@ -126,8 +127,8 @@ impl CallProgramResponse {
             let error = self.error()?;
             return Err(SimulatorError::CallProgram(error.into()));
         };
-        let bytes = self.result.get_slice();
-        Ok(wasmlanche_sdk::borsh::from_slice(bytes)?)
+
+        Ok(wasmlanche_sdk::borsh::from_slice(&self.result)?)
     }
 
     pub fn has_error(&self) -> bool {
