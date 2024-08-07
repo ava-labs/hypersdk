@@ -18,9 +18,9 @@ fn main() {
             Ok(json["target_directory"].as_str().unwrap().to_string())
         })
         .expect("Failed to get target directory");
+    let target_dir = Path::new(&target_dir).join(&profile);
 
     let output = Path::new(&target_dir)
-        .join(&profile)
         .join("libsimulator.so");
     let go_file = Path::new(&dir).join("ffi").join("ffi.go");
 
@@ -36,7 +36,6 @@ fn main() {
         panic!("Go build command failed");
     }
 
-    let target_dir = Path::new(&target_dir).join(&profile);
     println!(
         "cargo::rustc-link-search=native={}",
         target_dir.to_string_lossy()
