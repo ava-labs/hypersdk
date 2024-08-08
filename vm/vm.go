@@ -954,11 +954,13 @@ func (vm *VM[_]) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
+				event := TxRemovedEvent{
+					TxID: txID,
+					Err:  err,
+				}
+
 				for _, subscription := range vm.txRemovedSubscriptions {
-					if err := subscription.Accept(TxRemovedEvent{
-						TxID: txID,
-						Err:  err,
-					}); err != nil {
+					if err := subscription.Accept(event); err != nil {
 						vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
 					}
 				}
