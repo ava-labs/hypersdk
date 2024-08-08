@@ -736,7 +736,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	// blocks we don't have yet at tip and we don't want
 	// to count that as a historical read.
 	vm.metrics.blocksFromDisk.Inc()
-	blk, err := vm.GetCachedBlock(ctx, blkHeight)
+	blk, err := vm.GetDiskBlock(ctx, blkHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -1166,7 +1166,7 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
 		blk, err := vm.GetCachedBlock(ctx, i)
 		if err != nil {
-			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
+			vm.snowCtx.Log.Info("could not find block on disk", zap.Uint64("height", i))
 			continue
 		}
 		vm.CacheBlock(blk)
