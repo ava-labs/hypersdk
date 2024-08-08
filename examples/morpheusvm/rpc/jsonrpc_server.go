@@ -97,3 +97,15 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	reply.Amount = balance
 	return err
 }
+
+type GetABIArgs struct {
+}
+
+type GetABIReply struct {
+	ABIJSON string `json:"abi"`
+}
+
+func (j *JSONRPCServer) GetABI(req *http.Request, args *GetABIArgs, reply *GetABIReply) error {
+	reply.ABIJSON = string(consts.ABIString)
+	return nil
+}

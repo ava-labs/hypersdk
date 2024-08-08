@@ -34,4 +34,5 @@ func init() {
 var (
 	ActionRegistry *codec.TypeParser[chain.Action]
 	AuthRegistry   *codec.TypeParser[chain.Auth]
+	ABIString      []byte
 )

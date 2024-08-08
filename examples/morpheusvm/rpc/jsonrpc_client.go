@@ -157,3 +157,14 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	}
 	return &Parser{cli.networkID, cli.chainID, g}, nil
 }
+
+func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
+	resp := new(GetABIReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getabi",
+		nil,
+		resp,
+	)
+	return resp.ABIJSON, err
+}
