@@ -153,7 +153,7 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let external_call = quote! {
         mod private {
             use super::*;
-            #[derive(wasmlanche_sdk::borsh::BorshDeserialize)]
+            #[derive(wasmlanche_sdk::borsh::BorshDeserialize, Debug)]
             #[borsh(crate = "wasmlanche_sdk::borsh")]
             struct Args {
                 ctx: #context_type,
@@ -172,6 +172,8 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
 
                 let result = {
                     let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
+                    wasmlanche_sdk::dbg!(&args);
+                    
 
                     let Args { mut ctx, #(#args_names),* } = args;
 
