@@ -187,6 +187,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		})
 		ginkgo.By("State sync while broadcasting txs", func() {
 			ctx, cancel := context.WithCancel(tc.DefaultContext())
+			defer cancel()
 			go func() {
 				// Recover failure if exits
 				defer ginkgo.GinkgoRecover()
@@ -205,7 +206,6 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			c := rpc.NewJSONRPCClient(syncConcurrentNodeURI)
 			_, _, _, err := c.Network(ctx)
 			require.NoError(err)
-			cancel()
 		})
 		ginkgo.By("Accept a transaction after syncing", func() {
 			txWorkload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 1)
