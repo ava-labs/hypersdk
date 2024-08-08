@@ -158,9 +158,10 @@ func TestTransferMarshalSpec(t *testing.T) {
 	require.Equal(t, emptyAddrString, codec.MustAddressBech32(mconsts.HRP, codec.EmptyAddress))
 
 	tests := []struct {
-		name     string
-		transfer Transfer
-		expected string
+		name        string
+		transfer    Transfer
+		expected    string
+		expectedErr error
 	}{
 		{
 			name: "Zero value",
@@ -187,7 +188,7 @@ func TestTransferMarshalSpec(t *testing.T) {
 				Value: 123,
 				Memo:  []byte("memo"),
 			},
-			expected: "000000000000000000000000000000000000000000000000000000000000000000000000000000007b000000046d656d6f",
+			expectedErr: codec.ErrEmptyAddress,
 		},
 		{
 			name: "Empty memo",
@@ -203,8 +204,14 @@ func TestTransferMarshalSpec(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := codec.NewWriter(0, consts.NetworkSizeLimit)
-			tt.transfer.Marshal(p)
-			require.Equal(t, tt.expected, hex.EncodeToString(p.Bytes()))
+			codec.AutoMarshalStruct(p, tt.transfer)
+			if tt.expectedErr != nil {
+				require.Error(t, p.Err())
+				require.Equal(t, tt.expectedErr.Error(), p.Err().Error())
+			} else {
+				require.NoError(t, p.Err())
+				require.Equal(t, tt.expected, hex.EncodeToString(p.Bytes()))
+			}
 		})
 	}
 }

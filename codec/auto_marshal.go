@@ -81,8 +81,8 @@ func marshalValue(p *Packer, v reflect.Value, kind reflect.Kind, typ reflect.Typ
 		p.PackBool(v.Bool())
 	default:
 		if typ == reflect.TypeOf(Address{}) {
-			if v.Interface().(Address) == EmptyAddress {
-				return errors.New("packer does not support empty addresses")
+			if v.Interface().(Address) == (Address{}) {
+				return ErrEmptyAddress
 			}
 			addr := v.Interface().(Address)
 			p.PackAddress(addr)

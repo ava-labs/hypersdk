@@ -15,4 +15,5 @@ var (
 	ErrInvalidSize          = errors.New("invalid size")
 	ErrStringTooLong        = errors.New("string length exceeds maximum allowed")
 	ErrUnsupportedFieldType = errors.New("unsupported field type")
+	ErrEmptyAddress         = errors.New("empty address is not allowed during marshal")
 )
