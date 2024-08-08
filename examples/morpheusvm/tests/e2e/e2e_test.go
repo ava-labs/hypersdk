@@ -51,13 +51,13 @@ func init() {
 	factory := auth.NewED25519Factory(priv)
 
 	gen := genesis.Default()
-	gen.WindowTargetUnits = fees.Dimensions{40000000, 450000, 450000, 450000, 450000}
-	gen.MaxBlockUnits = fees.Dimensions{1800000, 15000, 15000, 2500, 15000}
+	gen.WindowTargetUnits = fees.Dimensions{18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615}
+	gen.MaxBlockUnits = fees.Dimensions{1800000, 18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615}
 	gen.MinBlockGap = 100
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: prefundedAddrStr,
-			Balance: 10_000_000,
+			Balance: 10_000_000_000_000,
 		},
 	}
 	genesisBytes, err := json.Marshal(gen)
