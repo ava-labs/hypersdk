@@ -31,9 +31,7 @@ type SubscriptionFuncFactory[T any] struct {
 }
 
 func (s SubscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
-	return SubscriptionFunc[T]{
-		AcceptF: s.AcceptF,
-	}, nil
+	return SubscriptionFunc[T](s), nil
 }
 
 type SubscriptionFunc[T any] struct {
