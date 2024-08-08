@@ -316,7 +316,6 @@ var _ = ginkgo.AfterSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
 
 	for _, iv := range instances {
-		// TODO what are these for?
 		iv.JSONRPCServer.Close()
 		iv.BaseJSONRPCServer.Close()
 		iv.WebSocketServer.Close()
