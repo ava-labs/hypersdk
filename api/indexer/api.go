@@ -16,7 +16,7 @@ import (
 
 var ErrTxNotFound = errors.New("tx not found")
 
-func NewAPIFactory(indexer *TxDBIndexer, path string, name string) *APIFactory {
+func NewAPIFactory(indexer *TxDBIndexer, name string, path string) *APIFactory {
 	return &APIFactory{
 		path:    path,
 		name:    name,

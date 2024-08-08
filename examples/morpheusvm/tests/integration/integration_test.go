@@ -216,7 +216,7 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		txDBIndexer := indexer.NewTxDBIndexer(memdb.New())
 		indexerFactory := indexer.NewSubscriptionFactory(txDBIndexer)
-		indexerAPI := indexer.NewAPIFactory(txDBIndexer, "/indexer", "morpehusvm")
+		indexerAPI := indexer.NewAPIFactory(txDBIndexer, "morpehusvm", "/indexer")
 
 		server, handler := rpc.NewWebSocketServer(
 			l,
