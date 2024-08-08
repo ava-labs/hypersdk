@@ -2,7 +2,6 @@ package codec
 
 import (
 	"encoding/json"
-	"fmt"
 	reflect "reflect"
 	"strings"
 	"testing"
@@ -10,44 +9,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func GetABI(t reflect.Type) (string, error) {
-	if t.Kind() != reflect.Struct {
-		return "", fmt.Errorf("expected struct, got %v", t.Kind())
+type ABINode struct {
+	Type       string             `json:"type"`
+	Properties map[string]ABINode `json:"properties,omitempty"`
+	Items      *ABINode           `json:"items,omitempty"`
+}
+
+func GetABIString(t reflect.Type) ([]byte, error) {
+	abiNode, err := GetABINode(t)
+	if err != nil {
+		return nil, err
 	}
 
-	structName := t.Name()
-	fields := make(map[string]string)
+	return json.MarshalIndent(abiNode, "", "  ")
+}
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if field.IsExported() {
-			fieldType := field.Type.String()
-			if fieldType == "[]uint8" {
-				fieldType = "[]byte"
-			}
+func GetABINode(t reflect.Type) (ABINode, error) {
+	abiNode := ABINode{
+		Type: t.String(), // Include package name
+	}
+
+	kind := t.Kind()
+
+	prefix := ""
+	if kind == reflect.Slice {
+		prefix = "[]"
+		t = t.Elem()
+	}
+
+	if kind == reflect.Struct {
+		abiNode.Properties = make(map[string]ABINode)
+
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			fieldType := field.Type
 			fieldName := field.Name
+
 			if jsonTag := field.Tag.Get("json"); jsonTag != "" {
 				parts := strings.Split(jsonTag, ",")
 				fieldName = parts[0]
 			}
-			fields[fieldName] = fieldType
+
+			prop, err := GetABINode(fieldType)
+			if err != nil {
+				return ABINode{}, err
+			}
+
+			abiNode.Properties[fieldName] = prop
 		}
+	} else {
+		abiNode.Type = prefix + t.String()
 	}
 
-	abi := []map[string]interface{}{
-		{
-			"name":   structName,
-			"fields": fields,
-		},
-	}
-
-	abiJSON, err := json.Marshal(abi)
-	if err != nil {
-		return "", err
-	}
-
-	return string(abiJSON), nil
+	return abiNode, nil
 }
+
 func TestGetABI(t *testing.T) {
 	require := require.New(t)
 
@@ -56,19 +72,21 @@ func TestGetABI(t *testing.T) {
 		Field2 int
 	}
 
-	abiString, err := GetABI(reflect.TypeOf(Struct1{}))
+	abiString, err := GetABIString(reflect.TypeOf(Struct1{}))
 	require.NoError(err)
-
 	require.JSONEq(`
-	[
 		{
-			"name": "Struct1",
-			"fields": {
-				"Field1": "string",
-				"Field2": "int"
+			"type": "codec.Struct1",
+			"properties": {
+				"Field1": {
+					"type": "string"
+				},
+				"Field2": {
+					"type": "int"
+				}
 			}
 		}
-	]`, abiString)
+	`, string(abiString))
 
 	type Transfer struct {
 		// To is the recipient of the [Value].
@@ -81,20 +99,25 @@ func TestGetABI(t *testing.T) {
 		Memo []byte `json:"memo,omitempty"`
 	}
 
-	abiString, err = GetABI(reflect.TypeOf(Transfer{}))
+	abiString, err = GetABIString(reflect.TypeOf(Transfer{}))
 	require.NoError(err)
 
 	require.JSONEq(`
-	[
 		{
-			"name": "Transfer",
-			"fields": {
-				"to": "codec.Address",
-				"value": "uint64",
-				"memo": "[]byte"
+			"type": "codec.Transfer",
+			"properties": {
+				"to": {
+					"type": "codec.Address"
+				},
+				"value": {
+					"type": "uint64"
+				},
+				"memo": {
+					"type": "[]uint8"
+				}
 			}
 		}
-	]`, abiString)
+	`, string(abiString))
 
 	type AllInts struct {
 		Int8   int8
@@ -107,23 +130,65 @@ func TestGetABI(t *testing.T) {
 		Uint64 uint64
 	}
 
-	abiString, err = GetABI(reflect.TypeOf(AllInts{}))
+	abiString, err = GetABIString(reflect.TypeOf(AllInts{}))
 	require.NoError(err)
 
 	require.JSONEq(`
-	[
 		{
-			"name": "AllInts",
-			"fields": {
-				"Int8": "int8",
-				"Int16": "int16",
-				"Int32": "int32",
-				"Int64": "int64",
-				"Uint8": "uint8",
-				"Uint16": "uint16",
-				"Uint32": "uint32",
-				"Uint64": "uint64"
+			"type": "codec.AllInts",
+			"properties": {
+				"Int8": {
+					"type": "int8"
+				},
+				"Int16": {
+					"type": "int16"
+				},
+				"Int32": {
+					"type": "int32"
+				},
+				"Int64": {
+					"type": "int64"
+				},
+				"Uint8": {
+					"type": "uint8"
+				},
+				"Uint16": {
+					"type": "uint16"
+				},
+				"Uint32": {
+					"type": "uint32"
+				},
+				"Uint64": {
+					"type": "uint64"
+				}
 			}
 		}
-	]`, abiString)
+	`, string(abiString))
+
+	type InnerStruct struct {
+		Field1 string
+		Field2 int
+	}
+
+	type OuterStruct struct {
+		SingleItem InnerStruct   `json:"single_item"`
+		ArrayItems []InnerStruct `json:"array_items"`
+	}
+
+	abiString, err = GetABIString(reflect.TypeOf(OuterStruct{}))
+	require.NoError(err)
+
+	require.Equal(`
+		{
+			"type": "codec.OuterStruct",
+			"properties": {
+				"SingleItem": {
+					"type": "codec.InnerStruct"
+				},
+				"ArrayItems": {
+					"type": "[]codec.InnerStruct"
+				}
+			}
+		}
+		`, string(abiString))
 }
