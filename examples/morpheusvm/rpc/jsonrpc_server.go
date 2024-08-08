@@ -11,14 +11,13 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/rpc"
 )
 
 const JSONRPCEndpoint = "/morpheusapi"
 
-var _ rpc.HandlerFactory[*controller.Controller] = (*JSONRPCServerFactory)(nil)
+var _ rpc.HandlerFactory[Controller] = (*JSONRPCServerFactory)(nil)
 
 type Controller interface {
 	Genesis() *genesis.Genesis
@@ -28,7 +27,7 @@ type Controller interface {
 
 type JSONRPCServerFactory struct{}
 
-func (j JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
+func (j JSONRPCServerFactory) New(c Controller) (rpc.HTTPHandler, error) {
 	handler, err := rpc.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(c))
 	return rpc.HTTPHandler{
 		Path:    JSONRPCEndpoint,

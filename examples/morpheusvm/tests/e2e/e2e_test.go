@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/api/indexer"
@@ -234,8 +233,6 @@ type simpleTxWorkload struct {
 	cli        *rpc.JSONRPCClient
 	lcli       *lrpc.JSONRPCClient
 	indexerCli *indexer.Client
-	networkID  uint32
-	chainID    ids.ID
 	count      int
 	size       int
 }
