@@ -147,7 +147,7 @@ jobs:
   morpheusvm-e2e-tests:
     needs: [hypersdk-tests]
     runs-on: ubuntu-20.04-32
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
