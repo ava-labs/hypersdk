@@ -1,14 +1,20 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use proc_macro2::{Literal, Span};
 use quote::{format_ident, quote, ToTokens};
+use std::str::FromStr;
 use syn::{
-    parse_macro_input, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, Error,
-    Fields, FnArg, Ident, ItemEnum, ItemFn, Pat, PatType, Path, ReturnType, Signature, Token, Type,
-    Visibility,
+    parse::{Parse, ParseStream},
+    parse_macro_input, parse_quote, parse_str,
+    punctuated::Punctuated,
+    spanned::Spanned,
+    token, Attribute, Error, Expr, Fields, FnArg, GenericParam, Ident, ItemFn, LitInt, Pat,
+    PatIdent, PatType, PatWild, Path, ReturnType, Signature, Token, Type, TypeParam,
+    TypeParamBound, TypePath, TypeReference, TypeTuple, Visibility,
 };
 
-const CONTEXT_TYPE: &str = "wasmlanche_sdk::Context";
+const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
 
 /// An attribute procedural macro that makes a function visible to the VM host.
 /// It does so by creating an `extern "C" fn` that handles all pointer resolution and deserialization.
@@ -28,53 +34,42 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let (input, user_specified_context_type, first_arg_err) = {
+    let (input, context_type, first_arg_err) = {
         let mut context_type: Box<Type> = Box::new(parse_str(CONTEXT_TYPE).unwrap());
         let mut input = input;
 
         let first_arg_err = match input.sig.inputs.first_mut() {
-            Some(FnArg::Typed(PatType { ty, .. })) if is_context(ty) => {
+            Some(FnArg::Typed(PatType { ty, .. })) if is_mutable_context_ref(ty) => {
                 let types = (context_type.as_mut(), ty.as_mut());
 
-                if let (Type::Path(context_type), Type::Path(ty)) = types {
-                    let args = [context_type, ty].map(|type_path| {
-                        type_path
-                            .path
-                            .segments
-                            .last_mut()
-                            .map(|segment| &mut segment.arguments)
-                    });
-
-                    if let [Some(context_type_args), Some(ty_args)] = args {
-                        *context_type_args = ty_args.clone();
-                    }
+                if let (Type::Reference(context_type), Type::Reference(ty)) = types {
+                    context_type.lifetime = ty.lifetime.clone();
                 }
 
                 std::mem::swap(&mut context_type, ty);
                 None
             }
 
-            arg => {
-                let err = match arg {
-                Some(FnArg::Typed(PatType { ty, .. })) => {
-                    Error::new(
-                        ty.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                Some(_) => {
-                    Error::new(
-                        arg.span(),
-                        format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-                None => {
-                    Error::new(
-                        input.sig.paren_token.span.join(),
-                        format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
-                    )
-                }
-            };
+            first_arg => {
+                let err = match first_arg {
+                    Some(fn_arg) => {
+                        let message = format!("The first paramter of a function with the `#[public]` attribute must be of type `{CONTEXT_TYPE}`");
+
+                        let span = match fn_arg {
+                            FnArg::Typed(PatType { ty, .. }) => ty.span(),
+                            _ => fn_arg.span(),
+                        };
+
+                        Error::new(span, message)
+                    }
+
+                    None => {
+                        Error::new(
+                            input.sig.paren_token.span.join(),
+                            format!("Functions with the `#[public]` attribute must have at least one parameter and the first parameter must be of type `{CONTEXT_TYPE}`"),
+                        )
+                    }
+                };
 
                 Some(err)
             }
@@ -83,26 +78,37 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         (input, context_type, first_arg_err)
     };
 
-    let input_types_iter = input.sig.inputs.iter().skip(1).map(|fn_arg| match fn_arg {
-        FnArg::Receiver(_) => Err(Error::new(
-            fn_arg.span(),
-            "Functions with the `#[public]` attribute cannot have a `self` parameter.",
-        )),
-        FnArg::Typed(PatType { ty, .. }) => Ok(ty.clone()),
-    });
-
-    let arg_props = std::iter::once(Ok(user_specified_context_type))
-        .chain(input_types_iter)
+    let arg_props = input
+        .sig
+        .inputs
+        .iter()
+        .skip(1)
         .enumerate()
-        .map(|(i, ty)| {
-            ty.map(|ty| PatType {
-                attrs: vec![],
-                pat: Box::new(Pat::Verbatim(
-                    format_ident!("param_{}", i).into_token_stream(),
-                )),
-                colon_token: Default::default(),
-                ty,
-            })
+        .map(|(i, fn_arg)| match fn_arg {
+            FnArg::Receiver(_) => Err(Error::new(
+                fn_arg.span(),
+                "Functions with the `#[public]` attribute cannot have a `self` parameter.",
+            )),
+            FnArg::Typed(pat_type) => {
+                let pat = match pat_type.pat.as_ref() {
+                    Pat::Wild(PatWild { attrs, .. }) => Pat::Ident(PatIdent {
+                        attrs: attrs.clone(),
+                        by_ref: None,
+                        mutability: None,
+                        ident: format_ident!("arg{}", i),
+                        subpat: None,
+                    }),
+                    pat => pat.clone(),
+                }
+                .into();
+
+                let pat_type = PatType {
+                    pat,
+                    ..pat_type.clone()
+                };
+
+                Ok(pat_type)
+            }
         });
 
     let result = match (vis_err, first_arg_err) {
@@ -134,32 +140,23 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
         Err(errors) => return errors.to_compile_error().into(),
     };
 
-    let binding_args_props = args_props.iter().cloned().map({
-        let mut first = true;
+    let binding_args_props = args_props.iter().map(|arg| FnArg::Typed(arg.clone()));
 
-        move |mut arg| {
-            if first {
-                first = false;
-                arg.ty = Box::new(parse_quote!(&wasmlanche_sdk::ExternalCallContext));
-            }
-
-            FnArg::Typed(arg)
-        }
-    });
-
-    let converted_params = args_props.iter().map(|PatType { pat: name, .. }| {
-        quote! {
-           args.#name
-        }
-    });
+    let args_names = args_props
+        .iter()
+        .map(|PatType { pat: name, .. }| quote! {#name});
+    let args_names_2 = args_names.clone();
 
     let name = &input.sig.ident;
+    let context_type = type_from_reference(&context_type);
 
     let external_call = quote! {
         mod private {
             use super::*;
-            #[derive(borsh::BorshDeserialize)]
+            #[derive(wasmlanche_sdk::borsh::BorshDeserialize)]
+            #[borsh(crate = "wasmlanche_sdk::borsh")]
             struct Args {
+                ctx: #context_type,
                 #(#args_props),*
             }
 
@@ -173,18 +170,24 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
             unsafe extern "C" fn #name(args: wasmlanche_sdk::HostPtr) {
                 wasmlanche_sdk::register_panic();
 
-                let args: Args = unsafe {
-                    borsh::from_slice(&args).expect("error fetching serialized args")
+                let result = {
+                    let args: Args = wasmlanche_sdk::borsh::from_slice(&args).expect("error fetching serialized args");
+
+                    let Args { mut ctx, #(#args_names),* } = args;
+
+                    let result = super::#name(&mut ctx, #(#args_names_2),*);
+                    wasmlanche_sdk::borsh::to_vec(&result).expect("error serializing result")
                 };
 
-                let result = super::#name(#(#converted_params),*);
-                let result = borsh::to_vec(&result).expect("error serializing result");
                 unsafe { set_call_result(result.as_ptr(), result.len()) };
             }
         }
     };
 
-    let inputs: Punctuated<FnArg, Token![,]> = binding_args_props.collect();
+    let inputs: Punctuated<FnArg, Token![,]> =
+        std::iter::once(parse_str("ctx: &wasmlanche_sdk::ExternalCallContext").unwrap())
+            .chain(binding_args_props)
+            .collect();
     let args = inputs.iter().skip(1).map(|arg| match arg {
         FnArg::Typed(PatType { pat, .. }) => pat,
         _ => unreachable!(),
@@ -197,10 +200,10 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let block = Box::new(parse_quote! {{
-        let args = borsh::to_vec(&(#(#args),*)).expect("error serializing args");
-        param_0
+        let args = wasmlanche_sdk::borsh::to_vec(&(#(#args),*)).expect("error serializing args");
+        ctx
             .program()
-            .call_function::<#return_type>(#name, &args, param_0.max_units(), param_0.value())
+            .call_function::<#return_type>(#name, &args, ctx.max_units(), ctx.value())
             .expect("calling the external program failed")
     }});
 
@@ -236,120 +239,245 @@ pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     })
 }
 
-/// This macro assists in defining the schema for a program's state.  A user can
-/// simply define an enum with the desired state keys and the macro will
-/// generate the necessary code to convert the enum to a byte vector.
-/// The enum will automatically derive the Copy and Clone traits. As well as the
-/// repr(u8) attribute.
-///
-/// Note: The enum variants with named fields are not supported.
-#[proc_macro_attribute]
-pub fn state_keys(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut item_enum = parse_macro_input!(item as ItemEnum);
+#[derive(Debug)]
+struct KeyPair {
+    key_comments: Vec<Attribute>,
+    key_vis: Visibility,
+    key_type_name: Ident,
+    key_fields: Fields,
+    value_type: Type,
+}
 
-    if !matches!(item_enum.vis, Visibility::Public(_)) {
-        return Error::new(
-            item_enum.span(),
-            "`enum`s with the `#[state_keys]` attribute must have `pub` visibility.",
-        )
-        .to_compile_error()
-        .into();
-    }
+impl Parse for KeyPair {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let key_comments = input.call(Attribute::parse_outer)?;
+        let key_vis = input.parse::<Visibility>()?;
+        let key_type_name: Ident = input.parse()?;
+        let lookahead = input.lookahead1();
 
-    // add default attributes
-    item_enum.attrs.push(parse_quote! {
-         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-    });
+        let key_fields = if lookahead.peek(token::Paren) {
+            let fields = input.parse()?;
+            Fields::Unnamed(fields)
+        } else if lookahead.peek(token::Brace) {
+            Fields::Named(input.parse()?)
+        } else {
+            Fields::Unit
+        };
 
-    let name = &item_enum.ident;
-    let variants = &item_enum.variants;
+        if let Fields::Named(named) = key_fields {
+            return Err(Error::new(
+                named.span(),
+                "types with named fields are not supported",
+            ));
+        }
 
-    const MAX_VARIANTS: usize = u8::MAX as usize + 1;
+        input.parse::<Token![=>]>()?;
+        let value_type = input.parse()?;
 
-    if variants.len() > MAX_VARIANTS {
-        return Error::new(
-            variants[MAX_VARIANTS].span(),
-            "Cannot exceed `u8::MAX` variants",
-        )
-        .into_compile_error()
-        .into();
-    }
-
-    let match_arms: Result<Vec<_>, _> = variants
-        .iter()
-        .enumerate()
-        .map(|(idx, variant)| {
-            let variant_ident = &variant.ident;
-            let idx = idx as u8;
-
-            match &variant.fields {
-                // TODO:
-                // use bytemuck to represent the raw bytes of the key
-                // and figure out way to enforce backwards compatibility
-                Fields::Unnamed(fields) => {
-                    let fields = &fields.unnamed;
-
-                    let fields = fields
-                        .iter()
-                        .enumerate()
-                        .map(|(i, field)| Ident::new(&format!("field_{i}"), field.span()));
-                    let fields_2 = fields.clone();
-
-                    Ok(quote! {
-                        Self::#variant_ident(#(#fields),*) => {
-                            borsh::to_vec(&(#idx, #(#fields_2),*))?.serialize(writer)?;
-                        }
-                    })
-                }
-
-                Fields::Unit => Ok(quote! {
-                    Self::#variant_ident => {
-                        let len = 1u32;
-                        writer.write_all(&len.to_le_bytes())?;
-                        writer.write_all(&[#idx])?;
-                    }
-                }),
-
-                Fields::Named(_) => Err(Error::new(
-                    variant_ident.span(),
-                    "enums with named fields are not supported".to_string(),
-                )
-                .into_compile_error()),
-            }
+        Ok(Self {
+            key_comments,
+            key_vis,
+            key_type_name,
+            key_fields,
+            value_type,
         })
+    }
+}
+
+#[proc_macro]
+pub fn state_schema(input: TokenStream) -> TokenStream {
+    let key_pairs =
+        parse_macro_input!(input with Punctuated::<KeyPair, Token![,]>::parse_terminated);
+    let result: Result<_, Error> = key_pairs
+        .into_iter()
+        .enumerate()
+        .try_fold(
+            quote! {},
+            |mut token_stream,
+             (
+                i,
+                KeyPair {
+                    key_comments,
+                    key_vis,
+                    key_type_name,
+                    key_fields,
+                    value_type,
+                },
+            )| {
+                let i = u8::try_from(i).map_err(|_| {
+                    Error::new(
+                        key_type_name.span(),
+                        "Cannot exceed `u8::MAX + 1` keys in a state-schema",
+                    )
+                })?;
+
+                token_stream.extend(Some(quote! {
+                    #(#key_comments)*
+                    #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::Pod, wasmlanche_sdk::bytemuck::Zeroable)]
+                    #[bytemuck(crate = "wasmlanche_sdk::bytemuck")]
+                    #[repr(C)]
+                    #key_vis struct #key_type_name #key_fields;
+
+                    const _: fn() = || {
+                        #[doc(hidden)]
+                        struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<#key_type_name>()]);
+                        let _ = ::core::mem::transmute::<wasmlanche_sdk::state::PrefixedKey<#key_type_name>, TypeWithoutPadding>;
+                    };
+
+                    unsafe impl wasmlanche_sdk::state::Schema for #key_type_name {
+                        type Value = #value_type;
+
+                        fn prefix() -> u8 {
+                            #i
+                        }
+                    }
+                }));
+
+                Ok(token_stream)
+            },
+        );
+
+    match result {
+        Ok(token_stream) => token_stream,
+        Err(err) => err.to_compile_error(),
+    }
+    .into()
+}
+
+type CommaSeparated<T> = Punctuated<T, Token![,]>;
+
+fn create_n_suffixed_types<S>(ident: &str, n: usize, span: S) -> CommaSeparated<Type>
+where
+    S: Into<Option<Span>>,
+{
+    let span = span.into().unwrap_or_else(Span::call_site);
+
+    (0..n)
+        .map(|i| Ident::new(&format!("{ident}{i}"), span))
+        .map(Path::from)
+        .map(|path| TypePath { qself: None, path })
+        .map(Type::Path)
+        .collect()
+}
+
+fn create_n_suffixed_generic_params<S>(
+    ident: &str,
+    n: usize,
+    span: S,
+    bounds: Punctuated<TypeParamBound, Token![+]>,
+) -> CommaSeparated<GenericParam>
+where
+    S: Into<Option<Span>>,
+{
+    let span = span.into().unwrap_or_else(Span::call_site);
+
+    (0..n)
+        .map(|i| Ident::new(&format!("{ident}{i}"), span))
+        .map(TypeParam::from)
+        .map(|param| (bounds.clone(), param))
+        .map(|(bounds, param)| TypeParam { bounds, ..param })
+        .map(GenericParam::Type)
+        .collect()
+}
+
+fn create_tuple_of_tuples(a: CommaSeparated<Type>, b: CommaSeparated<Type>) -> Type {
+    let paren_token = Default::default();
+
+    let elems = a
+        .into_iter()
+        .zip(b)
+        .map(|(a, b)| TypeTuple {
+            paren_token,
+            elems: [a, b].into_iter().collect(),
+        })
+        .map(Type::Tuple)
         .collect();
 
-    let match_arms = match match_arms {
-        Ok(match_arms) => match_arms,
-        Err(err) => return err.into(),
-    };
+    Type::Tuple(TypeTuple { paren_token, elems })
+}
 
-    let trait_implementation_body = if !variants.is_empty() {
-        quote! { match self { #(#match_arms),* } }
-    } else {
-        quote! {}
-    };
+#[proc_macro]
+pub fn impl_to_pairs(inputs: TokenStream) -> TokenStream {
+    let mut inputs =
+        parse_macro_input!(inputs with Punctuated::<Expr, Token![,]>::parse_terminated).into_iter();
+
+    let n: TokenStream = inputs.next().unwrap().into_token_stream().into();
+    let n = parse_macro_input!(n as LitInt)
+        .base10_parse::<usize>()
+        .unwrap();
+
+    let key_generic_bounds = inputs.next().unwrap().into_token_stream().into();
+    let key_generic_bounds = parse_macro_input!(key_generic_bounds with Punctuated::<TypeParamBound, Token![+]>::parse_terminated);
+    let keys = create_n_suffixed_types("K", n, None);
+
+    let values = keys
+        .clone()
+        .into_iter()
+        .map(|key| Type::Verbatim(quote! { #key::Value }))
+        .collect();
+
+    let tuple_of_key_value_pairs = create_tuple_of_tuples(keys, values);
+    let generic_params = create_n_suffixed_generic_params("K", n, None, key_generic_bounds);
+
+    let accessors = (0..n)
+        .map(|i| i.to_string())
+        .map(|i| <Literal as FromStr>::from_str(&i).unwrap());
 
     quote! {
-        #item_enum
-        impl borsh::BorshSerialize for #name {
-            fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-                #trait_implementation_body
-                Ok(())
+        impl<#generic_params> Sealed for #tuple_of_key_value_pairs {}
+
+        impl<#generic_params> IntoPairs for #tuple_of_key_value_pairs {
+            fn into_pairs(self) -> impl IntoIterator<Item = Result<(CacheKey, CacheValue), Error>> {
+                [
+                    #(
+                        crate::borsh::to_vec(&self.#accessors.1)
+                            .map(|value| (Box::from(to_key(self.#accessors.0).as_ref()), value))
+                            .map_err(|_| Error::Serialization)
+                    ),*
+                ]
             }
         }
-        unsafe impl wasmlanche_sdk::state::Key for #name {}
     }
     .into()
 }
 
 /// Returns whether the type_path represents a Program type.
-fn is_context(type_path: &Type) -> bool {
-    if let Type::Path(type_path) = type_path {
-        let context_path = parse_str::<Path>(CONTEXT_TYPE).unwrap();
-        let context_ident = context_path.segments.last().map(|segment| &segment.ident);
+fn is_mutable_context_ref(type_path: &Type) -> bool {
+    let Type::Reference(TypeReference {
+        mutability: Some(mutability),
+        elem,
+        ..
+    }) = type_path
+    else {
+        return false;
+    };
+
+    // span is ignored in the comparison
+    if mutability != &Token![mut](mutability.span()) {
+        return false;
+    }
+
+    if let Type::Path(type_path) = elem.as_ref() {
+        let context_path = parse_str::<TypeReference>(CONTEXT_TYPE).unwrap();
+        let Type::Path(context_path) = context_path.elem.as_ref() else {
+            return false;
+        };
+
+        let context_ident = context_path
+            .path
+            .segments
+            .last()
+            .map(|segment| &segment.ident);
         type_path.path.segments.last().map(|segment| &segment.ident) == context_ident
     } else {
         false
+    }
+}
+
+fn type_from_reference(type_path: &Type) -> &Type {
+    if let Type::Reference(TypeReference { elem, .. }) = type_path {
+        elem.as_ref()
+    } else {
+        type_path
     }
 }

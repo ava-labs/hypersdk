@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
@@ -381,7 +380,7 @@ func (vm *VM) Initialize(
 			ctx,
 			chain.NewGenesisBlock(root),
 			nil,
-			choices.Accepted,
+			true,
 			vm,
 		)
 		if err != nil {
@@ -768,7 +767,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 	newBlk, err := chain.ParseBlock(
 		ctx,
 		source,
-		choices.Processing,
+		false,
 		vm,
 	)
 	if err != nil {

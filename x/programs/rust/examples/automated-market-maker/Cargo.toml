@@ -7,9 +7,8 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+token = { path = "../token", features = ["bindings"] }
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
-borsh = { workspace = true }
-token = { path = "../token", features = ["bindings"]}
 
 [dev-dependencies]
 simulator = { workspace = true }
