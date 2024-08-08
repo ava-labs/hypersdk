@@ -11,13 +11,10 @@ import (
 
 // CreateRandomAddress returns a random address
 // for use during testing
-func CreateRandomAddress() (codec.Address, error) {
-	var randAddress codec.Address
+func NewRandomAddress() (codec.Address, error) {
 	b := make([]byte, codec.AddressLen)
-	_, err := rand.Read(b)
-	if err != nil {
+	if _, err := rand.Read(b); err != nil {
 		return codec.EmptyAddress, err
 	}
-	copy(randAddress[:], b)
-	return randAddress, nil
+	return codec.ToAddress(b)
 }
