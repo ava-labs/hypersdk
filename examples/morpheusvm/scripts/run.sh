@@ -212,6 +212,7 @@ $BIN server \
 --log-level=verbo \
 --port=":12352" \
 --grpc-gateway-port=":12353" &
+SERVER_PID=$!
 
 ############################
 # By default, it runs all e2e test cases!
@@ -225,15 +226,27 @@ function cleanup() {
     echo ""
     echo "use the following command to terminate:"
     echo ""
-    echo "./scripts/stop.sh;"
+    echo "kill $SERVER_PID"
     echo ""
+    echo "or"
+    echo ""
+    echo "killall avalanche-network-runner"
     exit
   fi
 
-  echo "avalanche-network-runner shutting down..."
-  ./scripts/stop.sh;
+  echo "Shutting down avalanche-network-runner..."
+  kill "$SERVER_PID"
+  wait "$SERVER_PID"
+  echo "avalanche-network-runner server terminated"
 }
 trap cleanup EXIT
+
+additional_args=("$@")
+
+if [[ ${MODE} == "run" ]]; then
+  echo "applying ginkgo.focus=Ping to limit test cases on network setup"
+  additional_args+=("--ginkgo.focus=Ping")
+fi
 
 echo "running e2e tests"
 ./tests/e2e/e2e.test \
@@ -249,7 +262,9 @@ echo "running e2e tests"
 --vm-config-path="${TMPDIR}"/morpheusvm.config \
 --subnet-config-path="${TMPDIR}"/morpheusvm.subnet \
 --output-path="${TMPDIR}"/avalanchego-"${VERSION}"/output.yaml \
---mode="${MODE}"
+--mode="${MODE}" \
+"${additional_args[@]}"
+
 
 ############################
 if [[ ${MODE} == "run" ]]; then
