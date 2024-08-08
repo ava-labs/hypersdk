@@ -9,7 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/registry" // ensure registry populated
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -143,7 +143,7 @@ func (p *Parser) Rules(t int64) chain.Rules {
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
-	return consts.ActionRegistry, consts.AuthRegistry
+	return registry.Action, registry.Auth
 }
 
 func (*Parser) StateManager() chain.StateManager {
