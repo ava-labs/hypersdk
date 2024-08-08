@@ -4,6 +4,8 @@
 package registry
 
 import (
+	"errors"
+
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -28,6 +30,23 @@ func init() {
 		consts.AuthRegistry.Register((&auth.SECP256R1{}).GetTypeID(), auth.UnmarshalSECP256R1),
 		consts.AuthRegistry.Register((&auth.BLS{}).GetTypeID(), auth.UnmarshalBLS),
 	)
+
+	// Adding actions to ABI
+	// Default wallet integration requires all actions to be in ABI to be able to sign them
+	// FIXME: Would be better to integrate it with ActionRegistry
+	var actionsForABI []codec.HavingTypeId = []codec.HavingTypeId{
+		&actions.Transfer{},
+		//... add all other actions here
+	}
+
+	if len(actionsForABI) != len(consts.ActionRegistry.ListIndices()) {
+		errs.Add(errors.New("ActionRegistry and actionsForABI must have the same actions registered"))
+	}
+
+	var err error
+	consts.ABIString, err = codec.GetVmABIString(actionsForABI)
+	errs.Add(err)
+
 	if errs.Errored() {
 		panic(errs.Err)
 	}

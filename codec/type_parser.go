@@ -46,3 +46,11 @@ func (p *TypeParser[T]) LookupIndex(index uint8) (func(*Packer) (T, error), bool
 	}
 	return nil, false
 }
+
+func (p *TypeParser[T]) ListIndices() []uint8 {
+	indices := make([]uint8, 0, len(p.indexToDecoder))
+	for index := range p.indexToDecoder {
+		indices = append(indices, index)
+	}
+	return indices
+}
