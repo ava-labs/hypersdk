@@ -40,21 +40,17 @@ impl Default for SimpleState {
 #[allow(improper_ctypes)]
 #[repr(C)]
 pub struct Mutable {
-    pub obj: *mut SimpleState,
+    pub state: Box<SimpleState>,
     pub get_state: GetStateCallback,
     pub insert_state: InsertStateCallback,
     pub remove_state: RemoveStateCallback,
-    // TODO: why does this need to be in the bottom?
-    pub state: Box<SimpleState>,
 }
 
 impl Mutable {
     pub fn new() -> Self {
-        let mut state = Box::new(SimpleState::new());
-        let obj = Box::as_mut(&mut state) as *mut SimpleState;
+        let state = Box::new(SimpleState::new());
         Mutable {
             state,
-            obj,
             get_state: get_state_callback,
             insert_state: insert_state_callback,
             remove_state: remove_state_callback,

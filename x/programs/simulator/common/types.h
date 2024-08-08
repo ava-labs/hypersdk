@@ -62,6 +62,4 @@ typedef struct {
     GetStateCallback get_value_callback;
     InsertStateCallback insert_callback;
     RemoveStateCallback remove_callback;
-    // placeholder pointer to match rust definition
-    void *statePlaceholder;
 } Mutable;

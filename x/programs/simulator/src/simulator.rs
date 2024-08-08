@@ -60,7 +60,6 @@ impl Simulator {
         gas: u64,
     ) -> CallProgramResponse {
         // serialize the params
-        println!("Params: {:?}", params);
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
         // build the call context
