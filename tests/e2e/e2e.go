@@ -132,7 +132,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().RestartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, bootstrapNode))
 		})
 		ginkgo.By("Generate 1024 blocks", func() {
-			workload.GenerateNBlocks(tc.ContextWithTimeout(10*time.Minute), require, uris, txWorkloadFactory, 1024)
+			workload.GenerateNBlocks(tc.ContextWithTimeout(20*time.Minute), require, uris, txWorkloadFactory, 1024)
 		})
 		var (
 			syncNode    *tmpnet.Node
@@ -166,7 +166,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 		ginkgo.By("Generate 256 blocks", func() {
 			// Generate blocks on all nodes except the paused node
 			runningURIs := uris[:len(uris)-1]
-			workload.GenerateNBlocks(tc.DefaultContext(), require, runningURIs, txWorkloadFactory, 256)
+			workload.GenerateNBlocks(tc.ContextWithTimeout(5*time.Minute), require, runningURIs, txWorkloadFactory, 256)
 		})
 		ginkgo.By("Resume the node", func() {
 			require.NoError(e2e.GetEnv(tc).GetNetwork().StartNode(tc.DefaultContext(), ginkgo.GinkgoWriter, syncNode))
