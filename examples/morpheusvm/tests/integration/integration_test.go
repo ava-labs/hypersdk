@@ -31,7 +31,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/api/indexer"
-	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -45,12 +44,12 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/onsi/ginkgo/v2"
-
+	auth "github.com/ava-labs/hypersdk/auth"
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	hutils "github.com/ava-labs/hypersdk/utils"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 var (
