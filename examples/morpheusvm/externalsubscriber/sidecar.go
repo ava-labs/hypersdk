@@ -6,7 +6,6 @@ package externalsubscriber
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 
@@ -27,8 +26,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-var errUnknownMethod = errors.New("unknown rpc method")
-
 type JSONRPCRequest struct {
 	JSONRPC string      `json:"jsonrpc"`
 	Method  string      `json:"method"`
@@ -39,7 +36,6 @@ type JSONRPCRequest struct {
 type JSONRPCResponse struct {
 	JSONRPC string      `json:"jsonrpc"`
 	Result  interface{} `json:"result,omitempty"`
-	Error   interface{} `json:"error,omitempty"`
 	ID      interface{} `json:"id"`
 }
 
@@ -86,6 +82,10 @@ func NewMorpheusSidecar(stdDBDir string, logger *log.Logger) *MorpheusSidecar {
 	}
 }
 
+/*
+gRPC-related functions
+*/
+
 func (m *MorpheusSidecar) Initialize(_ context.Context, initRequest *pb.InitRequest) (*emptypb.Empty, error) {
 	if m.parser != nil {
 		return &emptypb.Empty{}, nil
@@ -127,36 +127,37 @@ func (m *MorpheusSidecar) ProcessBlock(ctx context.Context, b *pb.BlockRequest) 
 	return &emptypb.Empty{}, nil
 }
 
+/*
+JSON-RPC related functions
+*/
+
 func (m *MorpheusSidecar) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req JSONRPCRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid params", http.StatusBadRequest)
+		http.Error(w, "Invalid JSON-RPC request format", http.StatusBadRequest)
 		return
 	}
 	switch req.Method {
 	case "getBlock":
 		var getBlockRequest GetBlockRequest
 		if err := m.parseParams(req.Params, &getBlockRequest); err != nil {
-			http.Error(w, "Invalid block params", http.StatusBadRequest)
-			return
+			m.sendErrorResponse(w, req.ID, err)
 		}
 		// Get block
 		blk, err := m.standardIndexer.GetBlockByHeight(getBlockRequest.Height)
 		if err != nil {
 			m.Logger.Println("Could not get block", zap.Any("Height", getBlockRequest.Height))
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			m.sendErrorResponse(w, req.ID, err)
 			return
 		}
 		// Unmarshal block
 		uBlk, err := chain.UnmarshalBlock(blk, m.parser)
 		if err != nil {
 			m.Logger.Println("Could not unmarshall block", zap.Any("Block Bytes", blk))
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			m.sendErrorResponse(w, req.ID, err)
 			return
 		}
-		if err := m.sendResponse(w, req.ID, uBlk, nil); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		m.sendResponse(w, req.ID, uBlk)
 	case "getTX":
 		var getTxRequest GetTxRequest
 		if err := m.parseParams(req.Params, &getTxRequest); err != nil {
@@ -176,11 +177,10 @@ func (m *MorpheusSidecar) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			FeeDimensions: dim,
 			Fee:           fee,
 		}
-		if err := m.sendResponse(w, req.ID, resp, nil); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		m.sendResponse(w, req.ID, resp)
 	default:
-		http.Error(w, errUnknownMethod.Error(), http.StatusBadRequest)
+		m.Logger.Println("could not match method")
+		m.sendErrorResponse(w, req.ID, "unknown rpc method")
 	}
 }
 
@@ -193,13 +193,26 @@ func (*MorpheusSidecar) parseParams(params interface{}, dest interface{}) error 
 	return json.Unmarshal(data, dest)
 }
 
-func (*MorpheusSidecar) sendResponse(w http.ResponseWriter, id interface{}, result interface{}, errMsg interface{}) error {
+func (*MorpheusSidecar) sendResponse(w http.ResponseWriter, id interface{}, result interface{}) {
 	response := JSONRPCResponse{
 		JSONRPC: "2.0",
 		Result:  result,
+		ID:      id,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (*MorpheusSidecar) sendErrorResponse(w http.ResponseWriter, id interface{}, errMsg interface{}) {
+	errResponse := JSONRPCErrorResponse{
+		JSONRPC: "2.0",
 		Error:   errMsg,
 		ID:      id,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(errResponse); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
