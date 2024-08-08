@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -179,7 +178,7 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 	if err != nil {
 		return nil, err
 	}
-	return chain.ParseBlock(ctx, b, choices.Accepted, vm)
+	return chain.ParseBlock(ctx, b, true, vm)
 }
 
 func (vm *VM) GetCachedBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {

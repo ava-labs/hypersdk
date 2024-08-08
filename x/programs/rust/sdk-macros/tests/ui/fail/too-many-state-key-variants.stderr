@@ -1,5 +1,5 @@
-error: Cannot exceed `u8::MAX` variants
-  --> tests/ui/fail/too-many-state-key-variants.rs:10:9
-   |
-10 |         Variant256,
-   |         ^^^^^^^^^^
+error: Cannot exceed `u8::MAX + 1` keys in a state-schema
+ --> tests/ui/fail/too-many-state-key-variants.rs:9:9
+  |
+9 |         Variant256 => u8,
+  |         ^^^^^^^^^^

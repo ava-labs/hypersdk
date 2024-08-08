@@ -1,23 +1,32 @@
 use crate::{
-    state::{Error, Key, State},
+    state::{self, Error, IntoPairs, Schema, State},
     types::Address,
     Gas, Id, Program,
 };
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use std::{cell::RefCell, collections::HashMap};
+
+pub type CacheKey = Box<[u8]>;
+pub type CacheValue = Vec<u8>;
 
 /// Representation of the context that is passed to programs at runtime.
 #[cfg_attr(feature = "debug", derive(Debug))]
-pub struct Context<K = ()> {
+pub struct Context {
     program: Program,
     actor: Address,
     height: u64,
     timestamp: u64,
     action_id: Id,
-    state_cache: RefCell<HashMap<K, Option<Vec<u8>>>>,
+    state_cache: RefCell<HashMap<CacheKey, Option<CacheValue>>>,
 }
 
-impl<K> BorshDeserialize for Context<K> {
+impl Drop for Context {
+    fn drop(&mut self) {
+        State::new(&self.state_cache).flush();
+    }
+}
+
+impl BorshDeserialize for Context {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let program = Program::deserialize_reader(reader)?;
         let actor = Address::deserialize_reader(reader)?;
@@ -36,7 +45,7 @@ impl<K> BorshDeserialize for Context<K> {
     }
 }
 
-impl<K> Context<K> {
+impl Context {
     pub fn program(&self) -> &Program {
         &self.program
     }
@@ -56,22 +65,33 @@ impl<K> Context<K> {
     pub fn action_id(&self) -> Id {
         self.action_id
     }
-}
 
-impl<K: Key> Context<K> {
     /// See [`State::get`].
     /// # Errors
     /// See [`State::get`].
-    pub fn get<V: BorshDeserialize>(&self, key: K) -> Result<Option<V>, crate::state::Error> {
-        State::new(&self.state_cache).get(key)
+    pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, state::Error>
+    where
+        Key: Schema,
+    {
+        key.get(self)
+    }
+
+    /// Should not use this function directly.
+    /// # Errors
+    /// Errors when there's an issue deserializing.
+    pub fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, state::Error>
+    where
+        V: BorshDeserialize,
+    {
+        State::new(&self.state_cache).get_with_raw_key(key)
     }
 
     /// See [`State::store_by_key`].
     /// # Errors
     /// See [`State::store_by_key`].
-    pub fn store_by_key<V>(&self, key: K, value: &V) -> Result<(), crate::state::Error>
+    pub fn store_by_key<K>(&self, key: K, value: K::Value) -> Result<(), Error>
     where
-        V: BorshSerialize,
+        K: Schema,
     {
         State::new(&self.state_cache).store_by_key(key, value)
     }
@@ -79,17 +99,14 @@ impl<K: Key> Context<K> {
     /// See [`State::store`].
     /// # Errors
     /// See [`State::store`].    
-    pub fn store<'b, V: BorshSerialize + 'b, Pairs: IntoIterator<Item = (K, &'b V)>>(
-        &self,
-        pairs: Pairs,
-    ) -> Result<(), Error> {
+    pub fn store<Pairs: IntoPairs>(&self, pairs: Pairs) -> Result<(), Error> {
         State::new(&self.state_cache).store(pairs)
     }
 
     /// See [`State::delete`].
     /// # Errors
     /// See [`State::delete`].
-    pub fn delete<V: BorshDeserialize>(&self, key: K) -> Result<Option<V>, Error> {
+    pub fn delete<K: Schema>(&self, key: K) -> Result<Option<K::Value>, Error> {
         State::new(&self.state_cache).delete(key)
     }
 }

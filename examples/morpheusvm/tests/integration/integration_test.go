@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -221,13 +220,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			db,
 			genesisBytes,
 			nil,
-			[]byte(
-				`{
-				  "config": {
-				    "logLevel":"debug"
-				  }
-				}`,
-			),
+			[]byte(`{}`),
 			toEngine,
 			nil,
 			app,
@@ -424,12 +417,10 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 
 			require.NoError(blk.Verify(ctx))
-			require.Equal(blk.Status(), choices.Processing)
 
 			require.NoError(instances[1].vm.SetPreference(ctx, blk.ID()))
 
 			require.NoError(blk.Accept(ctx))
-			require.Equal(blk.Status(), choices.Accepted)
 			blocks = append(blocks, blk)
 
 			lastAccepted, err := instances[1].vm.LastAccepted(ctx)
@@ -900,13 +891,11 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	require.NotNil(blk)
 
 	require.NoError(blk.Verify(ctx))
-	require.Equal(blk.Status(), choices.Processing)
 
 	require.NoError(i.vm.SetPreference(ctx, blk.ID()))
 
 	return func(add bool) []*chain.Result {
 		require.NoError(blk.Accept(ctx))
-		require.Equal(blk.Status(), choices.Accepted)
 
 		if add {
 			blocks = append(blocks, blk)

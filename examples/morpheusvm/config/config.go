@@ -5,19 +5,15 @@ package config
 
 import (
 	"encoding/json"
-
-	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 type Config struct {
-	StoreTransactions bool          `json:"storeTransactions"`
-	LogLevel          logging.Level `json:"logLevel"`
+	StoreTransactions bool `json:"storeTransactions"`
 }
 
 func New(b []byte) (*Config, error) {
 	c := &Config{
 		StoreTransactions: true,
-		LogLevel:          logging.Info,
 	}
 
 	if len(b) > 0 {
