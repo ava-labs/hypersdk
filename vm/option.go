@@ -25,9 +25,9 @@ func WithManualGossiper[T Controller]() Option[T] {
 	}
 }
 
-func WithBlockSubscriptions[T Controller](subscriptions ...event.Subscription[*chain.StatelessBlock]) Option[T] {
+func WithBlockSubscriptions[T Controller](subscriptions ...event.SubscriptionFactory[*chain.StatelessBlock]) Option[T] {
 	return func(vm *VM[T]) {
-		vm.acceptedBlockSubscriptions = subscriptions
+		vm.blockSubscriptionFactories = subscriptions
 	}
 }
 
@@ -43,8 +43,8 @@ func WithControllerAPIs[T Controller](apiHandlerFactories ...rpc.HandlerFactory[
 	}
 }
 
-func WithRemoveTxSubscriptions[T Controller](subscriptions ...event.Subscription[TxRemovedEvent]) Option[T] {
+func WithRemoveTxSubscriptions[T Controller](subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option[T] {
 	return func(vm *VM[T]) {
-		vm.txRemovedSubscriptions = subscriptions
+		vm.txRemovedSubscriptionFactories = subscriptions
 	}
 }

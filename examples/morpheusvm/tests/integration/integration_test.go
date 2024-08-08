@@ -214,7 +214,8 @@ var _ = ginkgo.BeforeSuite(func() {
 		toEngine := make(chan common.Message, 1)
 		db := memdb.New()
 
-		txDBIndexer := indexer.NewTxDBIndexer(db)
+		txDBIndexer := indexer.NewTxDBIndexer(memdb.New())
+		indexerFactory := indexer.NewSubscriptionFactory(txDBIndexer)
 		indexerAPI := indexer.NewAPIFactory(txDBIndexer, "morpheusvm", "indexer")
 
 		server, handler := rpc.NewWebSocketServer(
@@ -226,14 +227,13 @@ var _ = ginkgo.BeforeSuite(func() {
 		)
 
 		webSocketFactory := rpc.NewPubSubFactory(handler)
-
-		removeTxSubscription := rpc.SubscriptionFunc[vm.TxRemovedEvent]{
+		removeTxSubscription := rpc.SubscriptionFuncFactory[vm.TxRemovedEvent]{
 			AcceptF: func(event vm.TxRemovedEvent) error {
 				return server.RemoveTx(event.TxID, event.Err)
 			},
 		}
 
-		acceptBlockSubscription := &rpc.SubscriptionFunc[*chain.StatelessBlock]{
+		acceptBlockSubscription := &rpc.SubscriptionFuncFactory[*chain.StatelessBlock]{
 			AcceptF: func(event *chain.StatelessBlock) error {
 				return server.AcceptBlock(event)
 			},
@@ -242,7 +242,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		v, err := controller.New(
 			vm.WithManualGossiper[*controller.Controller](),
 			vm.WithManualBuilder[*controller.Controller](),
-			vm.WithBlockSubscriptions[*controller.Controller](txDBIndexer, acceptBlockSubscription),
+			vm.WithBlockSubscriptions[*controller.Controller](indexerFactory, acceptBlockSubscription),
 			vm.WithRemoveTxSubscriptions[*controller.Controller](removeTxSubscription),
 			vm.WithVMAPIs[*controller.Controller](
 				rpc.JSONRPCServerFactory{},

@@ -20,8 +20,23 @@ var (
 	failureByte = byte(0x0)
 	successByte = byte(0x1)
 
-	_ event.Subscription[*chain.StatelessBlock] = (*TxDBIndexer)(nil)
+	_ event.SubscriptionFactory[*chain.StatelessBlock] = (*SubscriptionFactory)(nil)
+	_ event.Subscription[*chain.StatelessBlock]        = (*TxDBIndexer)(nil)
 )
+
+func NewSubscriptionFactory(indexer *TxDBIndexer) *SubscriptionFactory {
+	return &SubscriptionFactory{
+		indexer: indexer,
+	}
+}
+
+type SubscriptionFactory struct {
+	indexer *TxDBIndexer
+}
+
+func (s *SubscriptionFactory) New() (event.Subscription[*chain.StatelessBlock], error) {
+	return s.indexer, nil
+}
 
 func NewTxDBIndexer(db database.Database) *TxDBIndexer {
 	return &TxDBIndexer{
@@ -31,10 +46,6 @@ func NewTxDBIndexer(db database.Database) *TxDBIndexer {
 
 type TxDBIndexer struct {
 	db database.Database
-}
-
-func (t *TxDBIndexer) Close() error {
-	return t.db.Close()
 }
 
 func (t *TxDBIndexer) Accept(blk *chain.StatelessBlock) error {
@@ -58,6 +69,10 @@ func (t *TxDBIndexer) Accept(blk *chain.StatelessBlock) error {
 	}
 
 	return batch.Write()
+}
+
+func (t *TxDBIndexer) Close() error {
+	return t.db.Close()
 }
 
 func (*TxDBIndexer) storeTransaction(

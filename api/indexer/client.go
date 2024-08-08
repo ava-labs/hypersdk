@@ -9,9 +9,19 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 )
+
+func NewClient(uri string) *Client {
+	uri = strings.TrimSuffix(uri, "/")
+	uri += "indexer"
+
+	return &Client{
+		requester: requester.New(uri, consts.Name),
+	}
+}
 
 type Client struct {
 	requester *requester.EndpointRequester

@@ -166,7 +166,7 @@ func (vm *VM[_]) processAcceptedBlock(b *chain.StatelessBlock) {
 	}
 
 	// Update subscriptions
-	for _, subscription := range vm.acceptedBlockSubscriptions {
+	for _, subscription := range vm.blockSubscriptions {
 		if err := subscription.Accept(b); err != nil {
 			vm.Fatal("subscription failed to process block", zap.Error(err))
 		}

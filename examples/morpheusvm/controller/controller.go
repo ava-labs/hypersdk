@@ -87,8 +87,6 @@ type Controller struct {
 	genesis      *genesis.Genesis
 	config       *Config
 	stateManager *storage.StateManager
-
-	metrics *metrics
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {

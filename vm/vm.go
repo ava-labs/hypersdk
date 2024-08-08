@@ -71,10 +71,12 @@ type VM[T Controller] struct {
 	genesis  Genesis
 	builder  builder.Builder
 	gossiper gossiper.Gossiper
-	// TODO cleanup subscriptions
-	acceptedBlockSubscriptions []event.Subscription[*chain.StatelessBlock]
+
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
+	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
 	// TODO remove by returning an verification error from the submit tx api
-	txRemovedSubscriptions []event.Subscription[TxRemovedEvent] // TODO option for this
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
 	vmAPIHandlerFactories         []rpc.HandlerFactory[rpc.VM]
 	controllerAPIHandlerFactories []rpc.HandlerFactory[T]
@@ -470,6 +472,24 @@ func (vm *VM[_]) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
+	for _, factory := range vm.blockSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize block subscription: %w", err)
+		}
+
+		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
+	}
+
+	for _, factory := range vm.txRemovedSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
+		}
+
+		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
+	}
+
 	vm.handlers = make(map[string]http.Handler)
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
@@ -667,7 +687,7 @@ func (vm *VM[_]) Shutdown(context.Context) error {
 		}
 	}
 
-	for _, subscription := range vm.acceptedBlockSubscriptions {
+	for _, subscription := range vm.blockSubscriptions {
 		if err := subscription.Close(); err != nil {
 			return err
 		}

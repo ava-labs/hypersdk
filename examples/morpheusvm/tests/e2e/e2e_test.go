@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -220,21 +221,23 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 	}
 	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
 	return &simpleTxWorkload{
-		factory: f.factory,
-		cli:     cli,
-		lcli:    lcli,
-		size:    size,
+		factory:    f.factory,
+		cli:        cli,
+		lcli:       lcli,
+		indexerCli: indexer.NewClient(uri),
+		size:       size,
 	}, nil
 }
 
 type simpleTxWorkload struct {
-	factory   *auth.ED25519Factory
-	cli       *rpc.JSONRPCClient
-	lcli      *lrpc.JSONRPCClient
-	networkID uint32
-	chainID   ids.ID
-	count     int
-	size      int
+	factory    *auth.ED25519Factory
+	cli        *rpc.JSONRPCClient
+	lcli       *lrpc.JSONRPCClient
+	indexerCli *indexer.Client
+	networkID  uint32
+	chainID    ids.ID
+	count      int
+	size       int
 }
 
 func (g *simpleTxWorkload) Next() bool {
@@ -267,16 +270,15 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		return nil, nil, err
 	}
 
-	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
-		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
+	return tx, func(ctx context.Context, _ string) error {
+		success, _, err := g.indexerCli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
 		}
 		if !success {
 			return fmt.Errorf("tx %s not accepted", tx.ID())
 		}
-		balance, err := lcli.Balance(ctx, aotherStr)
+		balance, err := g.lcli.Balance(ctx, aotherStr)
 		if err != nil {
 			return fmt.Errorf("failed to get balance of %s: %w", aotherStr, err)
 		}

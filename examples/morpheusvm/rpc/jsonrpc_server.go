@@ -18,9 +18,7 @@ import (
 
 const JSONRPCEndpoint = "/morpheusapi"
 
-var (
-	_ rpc.HandlerFactory[*controller.Controller] = (*JSONRPCServerFactory)(nil)
-)
+var _ rpc.HandlerFactory[*controller.Controller] = (*JSONRPCServerFactory)(nil)
 
 type Controller interface {
 	Genesis() *genesis.Genesis
@@ -30,7 +28,7 @@ type Controller interface {
 
 type JSONRPCServerFactory struct{}
 
-func (J JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
+func (j JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
 	handler, err := rpc.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(c))
 	return rpc.HTTPHandler{
 		Path:    JSONRPCEndpoint,

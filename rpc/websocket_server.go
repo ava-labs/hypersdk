@@ -21,9 +21,20 @@ import (
 )
 
 var (
-	_ HandlerFactory[VM]           = (*PubSubFactory)(nil)
-	_ event.Subscription[struct{}] = (*SubscriptionFunc[struct{}])(nil)
+	_ HandlerFactory[VM]                  = (*PubSubFactory)(nil)
+	_ event.Subscription[struct{}]        = (*SubscriptionFunc[struct{}])(nil)
+	_ event.SubscriptionFactory[struct{}] = (*SubscriptionFuncFactory[struct{}])(nil)
 )
+
+type SubscriptionFuncFactory[T any] struct {
+	AcceptF func(t T) error
+}
+
+func (s SubscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
+	return SubscriptionFunc[T]{
+		AcceptF: s.AcceptF,
+	}, nil
+}
 
 type SubscriptionFunc[T any] struct {
 	AcceptF func(t T) error
