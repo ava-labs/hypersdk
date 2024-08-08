@@ -77,7 +77,7 @@ type VM[T Controller] struct {
 	txRemovedSubscriptions []event.Subscription[TxRemovedEvent] // TODO option for this
 
 	vmAPIHandlerFactories         []rpc.HandlerFactory[rpc.VM]
-	controllerApiHandlerFactories []rpc.HandlerFactory[T]
+	controllerAPIHandlerFactories []rpc.HandlerFactory[T]
 
 	rawStateDB     database.Database
 	stateDB        merkledb.MerkleDB
@@ -484,7 +484,7 @@ func (vm *VM[_]) Initialize(
 		vm.handlers[api.Path] = api.Handler
 	}
 
-	for _, apiFactory := range vm.controllerApiHandlerFactories {
+	for _, apiFactory := range vm.controllerAPIHandlerFactories {
 		api, err := apiFactory.New(vm.c)
 		if err != nil {
 			return fmt.Errorf("failed to initialize api: %w", err)

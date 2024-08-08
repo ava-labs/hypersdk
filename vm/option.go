@@ -39,7 +39,7 @@ func WithVMAPIs[T Controller](apiHandlerFactories ...rpc.HandlerFactory[rpc.VM])
 
 func WithControllerAPIs[T Controller](apiHandlerFactories ...rpc.HandlerFactory[T]) Option[T] {
 	return func(vm *VM[T]) {
-		vm.controllerApiHandlerFactories = apiHandlerFactories
+		vm.controllerAPIHandlerFactories = apiHandlerFactories
 	}
 }
 
