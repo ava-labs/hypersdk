@@ -4,10 +4,7 @@
 package rpc
 
 import (
-	"context"
 	"net/http"
-
-	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -20,12 +17,6 @@ const JSONRPCEndpoint = "/morpheusapi"
 
 var _ rpc.HandlerFactory[*controller.Controller] = (*JSONRPCServerFactory)(nil)
 
-type Controller interface {
-	Genesis() *genesis.Genesis
-	Tracer() trace.Tracer
-	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
-}
-
 type JSONRPCServerFactory struct{}
 
 func (j JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
@@ -37,10 +28,10 @@ func (j JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, er
 }
 
 type JSONRPCServer struct {
-	c Controller
+	c *controller.Controller
 }
 
-func NewJSONRPCServer(c Controller) *JSONRPCServer {
+func NewJSONRPCServer(c *controller.Controller) *JSONRPCServer {
 	return &JSONRPCServer{c}
 }
 
