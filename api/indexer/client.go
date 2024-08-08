@@ -13,9 +13,9 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 )
 
-func NewClient(uri string, name string) *Client {
+func NewClient(uri string, name string, endpoint string) *Client {
 	uri = strings.TrimSuffix(uri, "/")
-	uri += "indexer"
+	uri += endpoint
 
 	return &Client{
 		requester: requester.New(uri, name),

@@ -67,7 +67,7 @@ func runFunc(*cobra.Command, []string) error {
 
 	txDBIndexer := indexer.NewTxDBIndexer(memdb.New())
 	indexerFactory := indexer.NewSubscriptionFactory(txDBIndexer)
-	indexerAPI := indexer.NewAPIFactory(txDBIndexer, "morpheusvm", "indexer")
+	indexerAPI := indexer.NewAPIFactory(txDBIndexer, "morpheusvm", "/indexer")
 
 	server, handler := rpc.NewWebSocketServer(
 		log,
