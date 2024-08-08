@@ -1,7 +1,7 @@
 // Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package config
+package controller
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ type Config struct {
 	StoreTransactions bool `json:"storeTransactions"`
 }
 
-func New(b []byte) (*Config, error) {
+func newConfig(b []byte) (*Config, error) {
 	c := &Config{
 		StoreTransactions: true,
 	}
