@@ -9,7 +9,7 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-// CreateRandomAddress returns a random address
+// NewRandomAddress returns a random address
 // for use during testing
 func NewRandomAddress() (codec.Address, error) {
 	b := make([]byte, codec.AddressLen)
