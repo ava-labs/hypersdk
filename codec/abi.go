@@ -36,6 +36,9 @@ func GetVmABIString(actions []HavingTypeId) ([]byte, error) {
 
 func getActionABI(action HavingTypeId) (SingleActionABI, error) {
 	t := reflect.TypeOf(action)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
 
 	result := SingleActionABI{
 		ID:    action.GetTypeID(),

@@ -162,7 +162,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (string, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
 		ctx,
-		"getabi",
+		"getABI",
 		nil,
 		resp,
 	)

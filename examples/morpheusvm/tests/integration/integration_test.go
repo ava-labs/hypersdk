@@ -880,6 +880,18 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.Equal(balance, bbalance+100)
 		})
 	})
+
+	ginkgo.It("responds on ABI request with a valid json response", func() {
+		abi, err := instances[0].lcli.GetABI(context.TODO())
+		require.NoError(err)
+
+		var abiJSON []interface{}
+		err = json.Unmarshal([]byte(abi), &abiJSON)
+		require.NoError(err)
+		require.Len(abiJSON, 1)
+
+		require.Equal(string(abi)[0:2], "[\n")
+	})
 })
 
 func expectBlk(i instance) func(bool) []*chain.Result {

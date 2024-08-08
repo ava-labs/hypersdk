@@ -40,6 +40,31 @@ func TestGetABIBasic(t *testing.T) {
 	]`, string(abiString))
 }
 
+func TestGetABIBasicPtr(t *testing.T) {
+	require := require.New(t)
+
+	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{&Struct1{}})
+	require.NoError(err)
+	require.JSONEq(`[
+		{
+			"id": 1,
+			"name": "Struct1",
+			"types": {
+				"Struct1": [
+					{
+						"name": "Field1",
+						"type": "string"
+					},
+					{
+						"name": "Field2",
+						"type": "int32"
+					}
+				]
+			}
+		}
+	]`, string(abiString))
+}
+
 type Transfer struct {
 	To    codec.Address `json:"to"`
 	Value uint64        `json:"value"`
