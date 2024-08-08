@@ -15,13 +15,11 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
@@ -39,7 +37,7 @@ var (
 func New(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		&factory{},
-		version.Version,
+		consts.Version,
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
@@ -80,7 +78,7 @@ func (*factory) New(
 	}
 
 	// Load config and genesis
-	c.config, err = config.New(configBytes)
+	c.config, err = newConfig(configBytes)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -135,7 +133,7 @@ type Controller struct {
 	chainID   ids.ID
 
 	genesis      *genesis.Genesis
-	config       *config.Config
+	config       *Config
 	stateManager *storage.StateManager
 
 	metrics *metrics
