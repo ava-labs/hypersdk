@@ -6,14 +6,15 @@ package externalsubscriber
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber/router"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/extension/indexer"
@@ -21,105 +22,39 @@ import (
 	"github.com/ava-labs/hypersdk/pebble"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
-	mpb "github.com/ava-labs/hypersdk/examples/morpheusvm/proto"
 	pb "github.com/ava-labs/hypersdk/proto"
 	hstorage "github.com/ava-labs/hypersdk/storage"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-// TODO: clean up directory structure
-var stdDBDir = "./stdDB/"
+var errUnknownMethod = errors.New("unknown rpc method")
 
-type ExternalMorpheusAPI interface {
-	GetBlock(w http.ResponseWriter, r *http.Request)
-	GetTX(w http.ResponseWriter, r *http.Request)
+type JSONRPCRequest struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
+	ID      interface{} `json:"id"`
 }
 
-type MorpheusSidecar struct {
-	pb.ExternalSubscriberServer
-	mpb.MorpheusSubscriberServer
-	ExternalMorpheusAPI
-	standardIndexer indexer.StandardIndexer
-	parser          *rpc.Parser
+type JSONRPCResponse struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Result  interface{} `json:"result,omitempty"`
+	Error   interface{} `json:"error,omitempty"`
+	ID      interface{} `json:"id"`
 }
 
-func NewMorpheusSidecar() *MorpheusSidecar {
-	stdDB, err := hstorage.New(pebble.NewDefaultConfig(), stdDBDir, "db", ametrics.NewLabelGatherer("standardIndexer"))
-	if err != nil {
-		log.Fatalln("Failed to create DB for standard indexer")
-	}
-	return &MorpheusSidecar{standardIndexer: indexer.NewStandardDBIndexer(stdDB)}
+type JSONRPCErrorResponse struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Error   interface{} `json:"error"`
+	ID      interface{} `json:"id"`
 }
 
-func (m *MorpheusSidecar) Initialize(_ context.Context, initMsg *mpb.InitMsg) (*mpb.InitMsgAck, error) {
-	if m.parser != nil {
-		// TODO: implement better error handling for case where parser is
-		// already initialized
-		return &mpb.InitMsgAck{Success: true}, nil
-	}
-
-	// Unmarshal chainID, genesis
-	chainID := ids.ID(initMsg.ChainID)
-	var gen genesis.Genesis
-	if err := json.Unmarshal(initMsg.Genesis, &gen); err != nil {
-		logger.Println("Unable to unmarhsal genesis", zap.Any("genesis", initMsg.Genesis))
-		return nil, err
-	}
-	m.parser = rpc.NewParser(initMsg.NetworkID, chainID, &gen)
-	logger.Println("External Subscriber has initialized the parser associated with MorpheusVM")
-	return &mpb.InitMsgAck{Success: true}, nil
+type GetBlockRequest struct {
+	Height uint64 `json:"height"`
 }
 
-func (m *MorpheusSidecar) ProcessBlock(ctx context.Context, b *pb.Block) (*pb.BlockAck, error) {
-	if m.parser == nil {
-		return &pb.BlockAck{Success: true}, nil
-	}
-
-	// Unmarshal block
-	blk, err := chain.UnmarshalBlock(b.BlockData, m.parser)
-	if err != nil {
-		log.Fatalln("Failed to unmarshal block", zap.Any("block", b.BlockData))
-	}
-
-	// Call accept only if block has been indexed
-	if m.standardIndexer.BlockAlreadyIndexed(blk.Hght) {
-		return &pb.BlockAck{Success: true}, nil
-	}
-
-	// Index block
-	if err := m.standardIndexer.AcceptedStateful(ctx, blk); err != nil {
-		return &pb.BlockAck{Success: false}, nil
-	}
-	logger.Println("Indexed block number ", blk.Hght)
-	return &pb.BlockAck{Success: true}, nil
-}
-
-func (m *MorpheusSidecar) GetBlock(w http.ResponseWriter, r *http.Request) {
-	queryParams := r.URL.Query()
-	// Get block height
-	blkHeight := queryParams.Get("height")
-	num, err := strconv.ParseUint(blkHeight, 10, 64)
-	if err != nil {
-		logger.Println("Could not parse block height", zap.Any("Height", blkHeight))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Get block
-	blk, err := m.standardIndexer.GetBlockByHeight(num)
-	if err != nil {
-		logger.Println("Could not get block", zap.Any("Height", num))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Unmarshal block
-	uBlk, err := chain.UnmarshalBlock(blk, m.parser)
-	if err != nil {
-		logger.Println("Could not unmarshall block", zap.Any("Block Bytes", blk))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err := json.NewEncoder(w).Encode(uBlk); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+type GetTxRequest struct {
+	TxID ids.ID `json:"txID"`
 }
 
 type GetTXResponse struct {
@@ -130,31 +65,141 @@ type GetTXResponse struct {
 	Fee           uint64          `json:"fee"`
 }
 
-func (m *MorpheusSidecar) GetTX(w http.ResponseWriter, r *http.Request) {
-	queryParams := r.URL.Query()
-	// Get TXID
-	txID := queryParams.Get("txID")
-	txIDConv, err := ids.FromString(txID)
+type MorpheusSidecar struct {
+	pb.ExternalSubscriberServer
+	http.Handler
+	standardIndexer indexer.StandardIndexer
+	parser          *rpc.Parser
+	router          *router.Router
+	Logger          *log.Logger
+}
+
+func NewMorpheusSidecar(stdDBDir string, logger *log.Logger) *MorpheusSidecar {
+	stdDB, err := hstorage.New(pebble.NewDefaultConfig(), stdDBDir, "db", ametrics.NewLabelGatherer("standardIndexer"))
 	if err != nil {
-		logger.Println("Could not convert txID", zap.Any("txID", txID))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Fatalln("Failed to create DB for standard indexer")
+	}
+	return &MorpheusSidecar{
+		standardIndexer: indexer.NewStandardDBIndexer(stdDB),
+		router:          router.NewRouter(),
+		Logger:          logger,
+	}
+}
+
+func (m *MorpheusSidecar) Initialize(_ context.Context, initRequest *pb.InitRequest) (*emptypb.Empty, error) {
+	if m.parser != nil {
+		return &emptypb.Empty{}, nil
+	}
+
+	// Unmarshal chainID, genesis
+	chainID := ids.ID(initRequest.ChainID)
+	var gen genesis.Genesis
+	if err := json.Unmarshal(initRequest.Genesis, &gen); err != nil {
+		m.Logger.Println("Unable to unmarhsal genesis", zap.Any("genesis", initRequest.Genesis))
+		return nil, err
+	}
+	m.parser = rpc.NewParser(initRequest.NetworkID, chainID, &gen)
+	m.Logger.Println("External Subscriber has initialized the parser associated with MorpheusVM")
+	return &emptypb.Empty{}, nil
+}
+
+func (m *MorpheusSidecar) ProcessBlock(ctx context.Context, b *pb.BlockRequest) (*emptypb.Empty, error) {
+	if m.parser == nil {
+		return &emptypb.Empty{}, nil
+	}
+
+	// Unmarshal block
+	blk, err := chain.UnmarshalBlock(b.BlockData, m.parser)
+	if err != nil {
+		return &emptypb.Empty{}, err
+	}
+
+	// Call accept only if block has been indexed
+	if m.standardIndexer.BlockAlreadyIndexed(blk.Hght) {
+		return &emptypb.Empty{}, nil
+	}
+
+	// Index block
+	if err := m.standardIndexer.AcceptedStateful(ctx, blk); err != nil {
+		return &emptypb.Empty{}, nil
+	}
+	m.Logger.Println("Indexed block number ", blk.Hght)
+	return &emptypb.Empty{}, nil
+}
+
+func (m *MorpheusSidecar) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req JSONRPCRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid params", http.StatusBadRequest)
 		return
 	}
-	exists, timestamp, success, dim, fee, err := m.standardIndexer.GetTransaction(txIDConv)
+	switch req.Method {
+	case "getBlock":
+		var getBlockRequest GetBlockRequest
+		if err := m.parseParams(req.Params, &getBlockRequest); err != nil {
+			http.Error(w, "Invalid block params", http.StatusBadRequest)
+			return
+		}
+		// Get block
+		blk, err := m.standardIndexer.GetBlockByHeight(getBlockRequest.Height)
+		if err != nil {
+			m.Logger.Println("Could not get block", zap.Any("Height", getBlockRequest.Height))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Unmarshal block
+		uBlk, err := chain.UnmarshalBlock(blk, m.parser)
+		if err != nil {
+			m.Logger.Println("Could not unmarshall block", zap.Any("Block Bytes", blk))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := m.sendResponse(w, req.ID, uBlk, nil); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	case "getTX":
+		var getTxRequest GetTxRequest
+		if err := m.parseParams(req.Params, &getTxRequest); err != nil {
+			http.Error(w, "Invalid TX params", http.StatusBadRequest)
+			return
+		}
+		exists, timestamp, success, dim, fee, err := m.standardIndexer.GetTransaction(getTxRequest.TxID)
+		if err != nil {
+			m.Logger.Println("Could not get TX", zap.Any("txID", getTxRequest.TxID))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		resp := GetTXResponse{
+			Exists:        exists,
+			Timestamp:     timestamp,
+			Success:       success,
+			FeeDimensions: dim,
+			Fee:           fee,
+		}
+		if err := m.sendResponse(w, req.ID, resp, nil); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	default:
+		http.Error(w, errUnknownMethod.Error(), http.StatusBadRequest)
+	}
+}
+
+func (*MorpheusSidecar) parseParams(params interface{}, dest interface{}) error {
+	// Convert params to JSON, then decode into the destination struct
+	data, err := json.Marshal(params)
 	if err != nil {
-		logger.Println("Could not get TX", zap.Any("txID", txIDConv))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
-	resp := GetTXResponse{
-		Exists:        exists,
-		Timestamp:     timestamp,
-		Success:       success,
-		FeeDimensions: dim,
-		Fee:           fee,
+	return json.Unmarshal(data, dest)
+}
+
+func (*MorpheusSidecar) sendResponse(w http.ResponseWriter, id interface{}, result interface{}, errMsg interface{}) error {
+	response := JSONRPCResponse{
+		JSONRPC: "2.0",
+		Result:  result,
+		Error:   errMsg,
+		ID:      id,
 	}
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		logger.Println("Failed to encode response", zap.Any("Response", resp))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(response)
 }

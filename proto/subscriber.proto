@@ -2,16 +2,21 @@ syntax = "proto3";
 
 package subscriber;
 
+import "google/protobuf/empty.proto";
+
 option go_package = ".";
 
 service ExternalSubscriber {
-    rpc ProcessBlock (Block) returns (BlockAck);
+    rpc ProcessBlock (BlockRequest) returns (google.protobuf.Empty);
+    rpc Initialize (InitRequest) returns (google.protobuf.Empty);
 }
 
-message Block {
+message BlockRequest {
     bytes block_data = 1;
 }
 
-message BlockAck {
-    bool success = 1;
+message InitRequest {
+    uint32 networkID = 1;
+    bytes chainID = 2;
+    bytes genesis = 3; 
 }

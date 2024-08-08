@@ -6,42 +6,42 @@ package externalsubscriber
 import (
 	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/extension/indexer"
 
-	mpb "github.com/ava-labs/hypersdk/examples/morpheusvm/proto"
+	pb "github.com/ava-labs/hypersdk/proto"
 )
-
-var logger = log.Default()
 
 type MorpheusSubscriber struct {
 	*indexer.ExternalSubscriber
-	morpheusClient mpb.MorpheusSubscriberClient
+	client pb.ExternalSubscriberClient
 }
 
-func NewMorpheusSubscriber(server string, networkID uint32, chainID ids.ID, g *genesis.Genesis) (*MorpheusSubscriber, error) {
+func NewMorpheusSubscriber(server string, networkID uint32, chainID ids.ID, g *genesis.Genesis, log logging.Logger) (*MorpheusSubscriber, error) {
 	// Connect to external subscriber
 	extSub, err := indexer.NewExternalSubscriber(server)
 	if err != nil {
 		return nil, err
 	}
 	// Send info necessary to create parser
-	conn, err := grpc.Dial(server, grpc.WithBlock(), grpc.WithInsecure())
+	conn, err := grpc.Dial(server, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
-	logger.Println("Connected to: ", server)
-	morpheusSubClient := mpb.NewMorpheusSubscriberClient(conn)
+	log.Debug("Connected to: ", zap.Any("Server", server))
+	client := pb.NewExternalSubscriberClient(conn)
 	genesisBytes, _ := json.Marshal(g)
 
-	_, err = morpheusSubClient.Initialize(
+	_, err = client.Initialize(
 		context.TODO(),
-		&mpb.InitMsg{
+		&pb.InitRequest{
 			NetworkID: networkID,
 			ChainID:   chainID[:],
 			Genesis:   genesisBytes,
@@ -53,6 +53,6 @@ func NewMorpheusSubscriber(server string, networkID uint32, chainID ids.ID, g *g
 
 	return &MorpheusSubscriber{
 		ExternalSubscriber: extSub,
-		morpheusClient:     morpheusSubClient,
+		client:             client,
 	}, nil
 }

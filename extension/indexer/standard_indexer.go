@@ -30,11 +30,15 @@ type StandardIndexer interface {
 }
 
 type StandardDBIndexer struct {
+	TxDBIndexer
 	db database.Database
 }
 
 func NewStandardDBIndexer(db database.Database) *StandardDBIndexer {
-	return &StandardDBIndexer{db: db}
+	return &StandardDBIndexer{
+		TxDBIndexer: *NewTxDBIndexer(db),
+		db:          db,
+	}
 }
 
 func (s *StandardDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
@@ -161,26 +165,6 @@ func (s *StandardDBIndexer) BlockAlreadyIndexed(height uint64) bool {
 /*
 Helper storage functions
 */
-
-func (*StandardDBIndexer) storeTransaction(
-	batch database.KeyValueWriter,
-	txID ids.ID,
-	timestamp int64,
-	success bool,
-	units fees.Dimensions,
-	fee uint64,
-) error {
-	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
-	binary.BigEndian.PutUint64(v, uint64(timestamp))
-	if success {
-		v[consts.Uint64Len] = successByte
-	} else {
-		v[consts.Uint64Len] = failureByte
-	}
-	copy(v[consts.Uint64Len+1:], units.Bytes())
-	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
-	return batch.Put(txID[:], v)
-}
 
 func (*StandardDBIndexer) storeTransactionStateful(
 	batch database.KeyValueWriter,

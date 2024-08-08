@@ -5,10 +5,9 @@ package indexer
 
 import (
 	"context"
-	"log"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ava-labs/hypersdk/chain"
 
@@ -22,7 +21,7 @@ type ExternalSubscriber struct {
 }
 
 func NewExternalSubscriber(server string) (*ExternalSubscriber, error) {
-	conn, err := grpc.Dial(server, grpc.WithBlock(), grpc.WithInsecure())
+	conn, err := grpc.Dial(server, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
@@ -35,15 +34,11 @@ func (e *ExternalSubscriber) Accepted(ctx context.Context, blk *chain.StatelessB
 	// Make gRPC call to client
 	blockBytes, err := blk.Marshal()
 	if err != nil {
-		log.Fatal("Failed to marshal block", zap.Any("block", blk))
+		return err
 	}
-	req := &pb.Block{
+	req := &pb.BlockRequest{
 		BlockData: blockBytes,
 	}
 	_, err = e.client.ProcessBlock(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

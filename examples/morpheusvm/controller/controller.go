@@ -86,7 +86,7 @@ func (*factory) New(
 	}
 
 	// TODO: remove hardcoded config value
-	c.config.ExportedBlockSubcribers = "localhost:9001"
+	c.config.ExportedBlockSubcriberAddress = "localhost:9001"
 
 	log.Info("initialized config", zap.Any("contents", c.config))
 
@@ -113,12 +113,12 @@ func (*factory) New(
 		c.txIndexer = indexer.NewNoOpTxIndexer()
 	}
 
-	if c.config.ExportedBlockSubcribers != "" {
+	if c.config.ExportedBlockSubcriberAddress != "" {
 		// Connect to gRPC server
-		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(c.config.ExportedBlockSubcribers, c.networkID, c.chainID, c.genesis)
+		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, c.genesis, c.log)
 		// Immediately fail if we couldn't connect
 		if err != nil {
-			c.log.Fatal("could not connect to external subscriber %v", zap.Any("c.config", c.config))
+			return nil, nil, nil, err
 		}
 		acceptedSubscribers = append(acceptedSubscribers, externalSubscriber)
 	}

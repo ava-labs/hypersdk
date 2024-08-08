@@ -159,7 +159,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
   "stateSyncServerDelay": ${STATESYNC_DELAY},
-  "exportedBlockSubscribers": "localhost:9001"
+  "exportedBlockSubscriberAddress": "localhost:9001"
 }
 EOF
 mkdir -p "${TMPDIR}"/morpheusvm-e2e-profiles
