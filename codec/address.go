@@ -4,7 +4,6 @@
 package codec
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -34,19 +33,6 @@ func CreateAddress(typeID uint8, id ids.ID) Address {
 	a[0] = typeID
 	copy(a[1:], id[:])
 	return Address(a)
-}
-
-// CreateRandomAddress returns a random address
-// for use during testing
-func CreateRandomAddress() (Address, error) {
-	var randAddress Address
-	b := make([]byte, AddressLen)
-	_, err := rand.Read(b)
-	if err != nil {
-		return EmptyAddress, err
-	}
-	copy(randAddress[:], b)
-	return randAddress, nil
 }
 
 func ToAddress(bytes []byte) (Address, error) {

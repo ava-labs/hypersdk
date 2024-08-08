@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/codectest"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -21,7 +22,7 @@ func TestTransferAction(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
-	addr, err := codec.CreateRandomAddress()
+	addr, err := codectest.CreateRandomAddress()
 	req.NoError(err)
 
 	tests := []chaintest.ActionTest{
