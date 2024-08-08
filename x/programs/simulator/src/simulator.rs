@@ -1,7 +1,6 @@
 use libc::{c_char, c_uint};
 use std::{
-    ffi::{CStr, CString},
-    str::Utf8Error,
+    ffi::{CStr, CString}, fmt::Debug, str::Utf8Error
 };
 use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError, Id};
@@ -51,7 +50,7 @@ impl Simulator {
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
     }
 
-    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
+    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize + Debug>(
         &self,
         program: Address,
         method: &str,
@@ -59,10 +58,11 @@ impl Simulator {
         gas: u64,
     ) -> CallProgramResponse {
         // serialize the params
+        println!("Params: {:?}", params);
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
         // build the call context
-        let context = SimulatorCallContext::new(program, self.actor, &method, params, gas);
+        let context = SimulatorCallContext::new(program, self.actor, &method, &params, gas);
 
         unsafe { CallProgram((&self.state).into(), &context) }
     }
@@ -157,7 +157,7 @@ impl SimulatorCallContext {
         program_address: Address,
         actor_address: Address,
         method: &CString,
-        params: Vec<u8>,
+        params: &[u8],
         gas: u64,
     ) -> Self {
         SimulatorCallContext {

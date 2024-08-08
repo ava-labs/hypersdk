@@ -75,7 +75,7 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
     match value {
         Some(v) => BytesWithError {
             bytes: Bytes {
-                data: v.as_ptr() as *mut u8,
+                data: v.as_ptr(),
                 length: v.len() as u32,
             },
             error: std::ptr::null(),

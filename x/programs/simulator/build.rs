@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 // builds the go library
-// go build -buildmode=c-shared -o libsimulator.so ffi.go
+// go build -buildmode=c-shared -o libsimulator.so ffi/ffi.go
 // generates the bindings for the C header file
 // writes the bindings to the $OUT_DIR/bindings.rs file
 fn main() {
@@ -25,7 +25,7 @@ fn main() {
 
     // Build the Go library
     let status = Command::new("go")
-        .args(["build", "-buildmode=c-shared", "-o"])
+        .args(["build", "-buildmode=c-shared", "-tags=debug", "-o"])
         .arg(&output)
         .arg(&go_file)
         .status()
