@@ -1,6 +1,8 @@
 use libc::{c_char, c_uint};
 use std::{
-    ffi::{CStr, CString}, fmt::Debug, str::Utf8Error
+    ffi::{CStr, CString},
+    fmt::Debug,
+    str::Utf8Error,
 };
 use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError, Id};
