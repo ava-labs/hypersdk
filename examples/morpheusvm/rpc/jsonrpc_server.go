@@ -19,7 +19,7 @@ var _ rpc.HandlerFactory[*controller.Controller] = (*JSONRPCServerFactory)(nil)
 
 type JSONRPCServerFactory struct{}
 
-func (j JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
+func (JSONRPCServerFactory) New(c *controller.Controller) (rpc.HTTPHandler, error) {
 	handler, err := rpc.NewJSONRPCHandler(consts.Name, NewJSONRPCServer(c))
 	return rpc.HTTPHandler{
 		Path:    JSONRPCEndpoint,
