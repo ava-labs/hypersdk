@@ -59,7 +59,11 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		action.Marshal(p)
+		if marshaler, ok := action.(Marshaler); ok {
+			marshaler.Marshal(p)
+		} else {
+			codec.AutoMarshalStruct(p, action)
+		}
 	}
 	return p.Bytes(), p.Err()
 }
@@ -366,7 +370,11 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		action.Marshal(p)
+		if marshaler, ok := action.(Marshaler); ok {
+			marshaler.Marshal(p)
+		} else {
+			codec.AutoMarshalStruct(p, action)
+		}
 	}
 	authID := t.Auth.GetTypeID()
 	p.PackByte(authID)
@@ -380,7 +388,7 @@ func MarshalTxs(txs []*Transaction) ([]byte, error) {
 	}
 	size := consts.IntLen + codec.CummSize(txs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-	p.PackInt(len(txs))
+	p.PackInt(uint32(len(txs)))
 	for _, tx := range txs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
@@ -399,7 +407,7 @@ func UnmarshalTxs(
 	txCount := p.UnpackInt(true)
 	authCounts := map[uint8]int{}
 	txs := make([]*Transaction, 0, initialCapacity) // DoS to set size to txCount
-	for i := 0; i < txCount; i++ {
+	for i := 0; i < int(txCount); i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
 			return nil, nil, err
@@ -475,11 +483,20 @@ func unmarshalActions(
 		if !ok {
 			return nil, fmt.Errorf("%w: %d is unknown action type", ErrInvalidObject, actionType)
 		}
-		action, err := unmarshalAction(p)
-		if err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal action", err)
+		if unmarshalAction == nil {
+			var action Action
+			err := codec.AutoUnmarshalStruct(p, &action)
+			if err != nil {
+				return nil, fmt.Errorf("%w: could not unmarshal action", err)
+			}
+			actions = append(actions, action)
+		} else {
+			action, err := unmarshalAction(p)
+			if err != nil {
+				return nil, fmt.Errorf("%w: could not unmarshal action", err)
+			}
+			actions = append(actions, action)
 		}
-		actions = append(actions, action)
 	}
 	return actions, nil
 }

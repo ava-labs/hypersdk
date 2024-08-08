@@ -86,18 +86,20 @@ func (t *Transfer) Size() int {
 	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
-func (t *Transfer) Marshal(p *codec.Packer) {
-	p.PackAddress(t.To)
-	p.PackUint64(t.Value)
-	p.PackBytes(t.Memo)
-}
+// Optional. Only use if you have to manually marshal the action.
+
+// var _ chain.Marshaler = (*Transfer)(nil)
+
+// func (t *Transfer) Marshal(p *codec.Packer) {
+// 	p.PackAddress(t.To)
+// 	p.PackUint64(t.Value)
+// 	p.PackBytes(t.Memo)
+// }
 
 func UnmarshalTransfer(p *codec.Packer) (chain.Action, error) {
 	var transfer Transfer
-	p.UnpackAddress(&transfer.To) // we do not verify the typeID is valid
-	transfer.Value = p.UnpackUint64(true)
-	p.UnpackBytes(MaxMemoSize, false, &transfer.Memo)
-	return &transfer, p.Err()
+	err := codec.AutoUnmarshalStruct(p, &transfer)
+	return &transfer, err
 }
 
 func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
