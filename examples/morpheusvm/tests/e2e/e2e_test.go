@@ -224,7 +224,7 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 		factory:    f.factory,
 		cli:        cli,
 		lcli:       lcli,
-		indexerCli: indexer.NewClient(uri),
+		indexerCli: indexer.NewClient(uri, consts.Name),
 		size:       size,
 	}, nil
 }
