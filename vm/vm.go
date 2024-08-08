@@ -677,8 +677,7 @@ func (vm *VM[_]) Shutdown(context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	// Shutdown controller once all mechanisms that could invoke it have
-	// shutdown.
+	// Close subscriptions
 	for _, subscription := range vm.txRemovedSubscriptions {
 		if err := subscription.Close(); err != nil {
 			return err
