@@ -1,0 +1,17 @@
+FROM node:20-bookworm AS builder
+
+WORKDIR /app/examples/morpheusvm/frontend/web_wallet
+
+COPY examples/morpheusvm/frontend/web_wallet/package*.json ./
+
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+
+COPY examples/morpheusvm/frontend /app/examples/morpheusvm/frontend
+
+RUN CI=yes npm run test
+RUN npm run build
+
+FROM nginx:1.27
+
+COPY --from=builder /app/examples/morpheusvm/frontend/web_wallet/dist /usr/share/nginx/html

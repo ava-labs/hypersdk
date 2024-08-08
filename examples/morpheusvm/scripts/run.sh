@@ -68,28 +68,30 @@ AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${VERSION}/avalanchego
 AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
-  echo "building avalanchego"
+  echo "downloading avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
   rm -rf "${TMPDIR}"/avalanchego-"${VERSION}"
   mkdir -p "${TMPDIR}"/avalanchego-"${VERSION}"
-  rm -rf "${TMPDIR}"/avalanchego-src
-  mkdir -p "${TMPDIR}"/avalanchego-src
 
-  # Download src
-  cd "${TMPDIR}"/avalanchego-src
-  git clone https://github.com/ava-labs/avalanchego.git
-  cd avalanchego
-  git checkout "${VERSION}"
+  # Determine system architecture
+  ARCH=$(uname -m)
+  if [ "$ARCH" = "x86_64" ]; then
+    DOWNLOAD_URL="https://github.com/ava-labs/avalanchego/releases/download/${VERSION}/avalanchego-linux-amd64-${VERSION}.tar.gz"
+  elif [ "$ARCH" = "aarch64" ]; then
+    DOWNLOAD_URL="https://github.com/ava-labs/avalanchego/releases/download/${VERSION}/avalanchego-linux-arm64-${VERSION}.tar.gz"
+  else
+    echo "Unsupported architecture: $ARCH"
+    exit 1
+  fi
 
-  # Build avalanchego
-  ./scripts/build.sh
-  mv build/avalanchego "${TMPDIR}"/avalanchego-"${VERSION}"
-
-  cd "${CWD}"
+  # Download and extract avalanchego
+  wget -O avalanchego.tar.gz "$DOWNLOAD_URL"
+  tar -xzf avalanchego.tar.gz -C "${TMPDIR}"/avalanchego-"${VERSION}" --strip-components=1
+  rm avalanchego.tar.gz
 else
-  echo "using previously built avalanchego"
+  echo "using previously downloaded avalanchego"
 fi
 
 ############################
@@ -193,6 +195,13 @@ ANR_REPO_PATH=github.com/ava-labs/avalanche-network-runner
 ANR_VERSION=v1.8.1
 # version set
 go install -v "${ANR_REPO_PATH}"@"${ANR_VERSION}"
+
+# Check if MODE is set to deps_only
+if [ "$MODE" = "deps_only" ]; then
+    echo "MODE is set to deps_only. Exiting..."
+    exit 0
+fi
+
 
 #################################
 # run "avalanche-network-runner" server

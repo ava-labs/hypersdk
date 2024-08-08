@@ -22,3 +22,6 @@ MORPHEUSVM_PATH=$(
 )
 
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"
+
+# Build the faucet
+go build -o ./build/morpheus-faucet ./cmd/morpheus-faucet

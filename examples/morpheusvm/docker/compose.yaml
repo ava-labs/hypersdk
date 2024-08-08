@@ -1,0 +1,52 @@
+services:
+  web:
+    build:
+      context: ../../..
+      dockerfile: examples/morpheusvm/docker/Dockerfile.web
+    ports:
+      - "3000:80"
+
+  faucet:
+    build:
+      context: ../../..
+      dockerfile: examples/morpheusvm/docker/Dockerfile.faucet
+    environment:
+      - RPC_ENDPOINT=nodes:9650
+    ports:
+      - "8765:8765"
+
+  nodes:
+    build:
+      context: ../../..
+      dockerfile: examples/morpheusvm/docker/Dockerfile.nodes
+    environment:
+      - MODE=run
+    ports:
+      - "9650-9654:9650-9654"
+    volumes:
+      - type: volume
+        target: /go/pkg/mod
+      - type: volume
+        target: /root/.cache/go-build
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9650"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  caddy:
+    image: caddy:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - SERVE_DOMAIN
+
+volumes:
+  caddy_data:
+  caddy_config:

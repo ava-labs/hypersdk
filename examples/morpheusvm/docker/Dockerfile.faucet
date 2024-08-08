@@ -1,0 +1,19 @@
+FROM golang:1.22-bookworm AS builder
+
+WORKDIR /hypersdk
+ENV GOMODCACHE /go/pkg/mod
+
+COPY . .
+
+WORKDIR /hypersdk/examples/morpheusvm
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -o build/morpheus-faucet ./cmd/morpheus-faucet
+
+FROM debian:bookworm-slim
+
+COPY --from=builder /hypersdk/examples/morpheusvm/build/morpheus-faucet /morpheus-faucet
+RUN ls -ltha ./ && chmod +x /morpheus-faucet
+
+ENTRYPOINT ["/morpheus-faucet"]
