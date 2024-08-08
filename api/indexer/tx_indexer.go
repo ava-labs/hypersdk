@@ -38,14 +38,12 @@ func (s *SubscriptionFactory) New() (event.Subscription[*chain.StatelessBlock], 
 	return s.indexer, nil
 }
 
-func NewTxDBIndexer(db database.Database) *TxDBIndexer {
-	return &TxDBIndexer{
-		db: db,
-	}
-}
-
 type TxDBIndexer struct {
 	db database.Database
+}
+
+func NewTxDBIndexer(db database.Database) *TxDBIndexer {
+	return &TxDBIndexer{db: db}
 }
 
 func (t *TxDBIndexer) Accept(blk *chain.StatelessBlock) error {

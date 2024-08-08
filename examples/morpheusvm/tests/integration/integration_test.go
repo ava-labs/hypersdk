@@ -226,7 +226,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			10000000,
 		)
 
-		webSocketFactory := rpc.NewPubSubFactory(handler)
+		webSocketFactory := rpc.NewWebSocketServerFactory(handler)
 		removeTxSubscription := rpc.SubscriptionFuncFactory[vm.TxRemovedEvent]{
 			AcceptF: func(event vm.TxRemovedEvent) error {
 				return server.RemoveTx(event.TxID, event.Err)
@@ -243,7 +243,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			vm.WithManualGossiper[*controller.Controller](),
 			vm.WithManualBuilder[*controller.Controller](),
 			vm.WithBlockSubscriptions[*controller.Controller](indexerFactory, acceptBlockSubscription),
-			vm.WithRemoveTxSubscriptions[*controller.Controller](removeTxSubscription),
+			vm.WithTxRemovedSubscriptions[*controller.Controller](removeTxSubscription),
 			vm.WithVMAPIs[*controller.Controller](
 				rpc.JSONRPCServerFactory{},
 				indexerAPI,

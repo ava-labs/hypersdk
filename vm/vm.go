@@ -67,11 +67,10 @@ type VM[T Controller] struct {
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor[T]
 
-	config   Config
-	genesis  Genesis
-	builder  builder.Builder
-	gossiper gossiper.Gossiper
-
+	config                     Config
+	genesis                    Genesis
+	builder                    builder.Builder
+	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
 	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
 	// TODO remove by returning an verification error from the submit tx api
@@ -80,14 +79,13 @@ type VM[T Controller] struct {
 
 	vmAPIHandlerFactories         []rpc.HandlerFactory[rpc.VM]
 	controllerAPIHandlerFactories []rpc.HandlerFactory[T]
-
-	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
-	vmDB           database.Database
-	handlers       map[string]http.Handler
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
-	authEngine     map[uint8]AuthEngine
+	rawStateDB                    database.Database
+	stateDB                       merkledb.MerkleDB
+	vmDB                          database.Database
+	handlers                      map[string]http.Handler
+	actionRegistry                chain.ActionRegistry
+	authRegistry                  chain.AuthRegistry
+	authEngine                    map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]

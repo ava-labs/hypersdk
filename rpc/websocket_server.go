@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	_ HandlerFactory[VM]                  = (*PubSubFactory)(nil)
+	_ HandlerFactory[VM]                  = (*WebSocketServerFactory)(nil)
 	_ event.Subscription[struct{}]        = (*SubscriptionFunc[struct{}])(nil)
 	_ event.SubscriptionFactory[struct{}] = (*SubscriptionFuncFactory[struct{}])(nil)
 )
@@ -46,20 +46,20 @@ func (SubscriptionFunc[_]) Close() error {
 	return nil
 }
 
-func NewPubSubFactory(server *pubsub.Server) *PubSubFactory {
-	return &PubSubFactory{
-		server: server,
+func NewWebSocketServerFactory(server *pubsub.Server) *WebSocketServerFactory {
+	return &WebSocketServerFactory{
+		handler: server,
 	}
 }
 
-type PubSubFactory struct {
-	server *pubsub.Server
+type WebSocketServerFactory struct {
+	handler *pubsub.Server
 }
 
-func (p PubSubFactory) New(VM) (HTTPHandler, error) {
+func (p WebSocketServerFactory) New(VM) (HTTPHandler, error) {
 	return HTTPHandler{
 		Path:    WebSocketEndpoint,
-		Handler: p.server,
+		Handler: p.handler,
 	}, nil
 }
 

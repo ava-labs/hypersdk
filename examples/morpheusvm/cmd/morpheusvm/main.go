@@ -74,25 +74,25 @@ func runFunc(*cobra.Command, []string) error {
 		trace.Noop,
 		lconsts.ActionRegistry,
 		lconsts.AuthRegistry,
-		10000000,
+		10_000_000,
 	)
 
-	webSocketFactory := rpc.NewPubSubFactory(handler)
-	removeTxSubscription := rpc.SubscriptionFuncFactory[vm.TxRemovedEvent]{
+	webSocketFactory := rpc.NewWebSocketServerFactory(handler)
+	txRemovedSubscription := rpc.SubscriptionFuncFactory[vm.TxRemovedEvent]{
 		AcceptF: func(event vm.TxRemovedEvent) error {
 			return server.RemoveTx(event.TxID, event.Err)
 		},
 	}
 
-	acceptBlockSubscription := &rpc.SubscriptionFuncFactory[*chain.StatelessBlock]{
+	blockSubscription := &rpc.SubscriptionFuncFactory[*chain.StatelessBlock]{
 		AcceptF: func(event *chain.StatelessBlock) error {
 			return server.AcceptBlock(event)
 		},
 	}
 
 	controller, err := controller.New(
-		vm.WithBlockSubscriptions[*controller.Controller](indexerFactory, acceptBlockSubscription),
-		vm.WithRemoveTxSubscriptions[*controller.Controller](removeTxSubscription),
+		vm.WithBlockSubscriptions[*controller.Controller](indexerFactory, blockSubscription),
+		vm.WithTxRemovedSubscriptions[*controller.Controller](txRemovedSubscription),
 		vm.WithVMAPIs[*controller.Controller](
 			rpc.JSONRPCServerFactory{},
 			indexerAPI,

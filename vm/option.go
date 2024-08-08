@@ -43,7 +43,7 @@ func WithControllerAPIs[T Controller](apiHandlerFactories ...rpc.HandlerFactory[
 	}
 }
 
-func WithRemoveTxSubscriptions[T Controller](subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option[T] {
+func WithTxRemovedSubscriptions[T Controller](subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option[T] {
 	return func(vm *VM[T]) {
 		vm.txRemovedSubscriptionFactories = subscriptions
 	}
