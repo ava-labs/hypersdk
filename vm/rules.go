@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-
 	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
 )
@@ -37,14 +35,14 @@ type BaseRules struct {
 	MaxOutputsPerAction uint8 `json:"maxOutputsPerAction"`
 
 	// Tx Fee Parameters
-	BaseComputeUnits          uint64 `json:"baseUnits"`
-	StorageKeyReadUnits       uint64 `json:"storageKeyReadUnits"`
-	StorageValueReadUnits     uint64 `json:"storageValueReadUnits"` // per chunk
-	StorageKeyAllocateUnits   uint64 `json:"storageKeyAllocateUnits"`
-	StorageValueAllocateUnits uint64 `json:"storageValueAllocateUnits"` // per chunk
-	StorageKeyWriteUnits      uint64 `json:"storageKeyWriteUnits"`
-	StorageValueWriteUnits    uint64 `json:"storageValueWriteUnits"` // per chunk
-	SponsorStateKeysMaxChunks uint64 `json:"sponsorStateKeysMaxChunks"`
+	BaseComputeUnits          uint64   `json:"baseUnits"`
+	StorageKeyReadUnits       uint64   `json:"storageKeyReadUnits"`
+	StorageValueReadUnits     uint64   `json:"storageValueReadUnits"` // per chunk
+	StorageKeyAllocateUnits   uint64   `json:"storageKeyAllocateUnits"`
+	StorageValueAllocateUnits uint64   `json:"storageValueAllocateUnits"` // per chunk
+	StorageKeyWriteUnits      uint64   `json:"storageKeyWriteUnits"`
+	StorageValueWriteUnits    uint64   `json:"storageValueWriteUnits"` // per chunk
+	SponsorStateKeysMaxChunks []uint16 `json:"sponsorStateKeysMaxChunks"`
 }
 
 // GetRules would normally depend on the param, but these rules are unchanging
@@ -82,6 +80,7 @@ func DefaultRules() *BaseRules {
 		StorageValueAllocateUnits: 5,
 		StorageKeyWriteUnits:      10,
 		StorageValueWriteUnits:    3,
+		SponsorStateKeysMaxChunks: []uint16{1},
 	}
 }
 
@@ -132,7 +131,7 @@ func (r *BaseRules) GetBaseComputeUnits() uint64 {
 }
 
 func (r *BaseRules) GetSponsorStateKeysMaxChunks() []uint16 {
-	return []uint16{storage.BalanceChunks}
+	return r.SponsorStateKeysMaxChunks
 }
 
 func (r *BaseRules) GetStorageKeyReadUnits() uint64 {
