@@ -17,4 +17,3 @@ simulator = { workspace = true }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
-

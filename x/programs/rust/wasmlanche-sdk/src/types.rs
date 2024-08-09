@@ -27,11 +27,6 @@ impl Address {
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
         Self(bytes)
     }
-
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
 }
 
 impl Default for Address {

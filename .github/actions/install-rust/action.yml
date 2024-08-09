@@ -1,9 +1,9 @@
-name: 'Install Rust toolchain and Cache'
-description: 'Install a rust toolchain and cache'
+name: "Install Rust toolchain and Cache"
+description: "Install a rust toolchain and cache"
 
 inputs:
   targets:
-    description: 'pass targets to the rust-toolchain installer'
+    description: "pass targets to the rust-toolchain installer"
     required: false
   cache:
     description: "to cache or not to cache, that is the question"
@@ -12,7 +12,7 @@ inputs:
 
 runs:
   using: composite
-  steps: 
+  steps:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:

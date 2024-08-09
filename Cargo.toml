@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "x/programs/cmd/simulator",
     "x/programs/rust/sdk-macros",
     "x/programs/rust/wasmlanche-sdk",
     "x/programs/rust/examples/token",
@@ -8,8 +7,7 @@ members = [
     "x/programs/rust/examples/counter-external",
     "x/programs/rust/examples/automated-market-maker",
     "x/programs/rust/wasmlanche-sdk/tests/test-crate",
-    "x/programs/test/programs/*",
-    "x/programs/cmd/simulator/test/*",
+    "x/programs/test/programs/*", "x/programs/simulator",
 ]
 resolver = "2"
 
@@ -23,7 +21,6 @@ strip = true
 
 [workspace.dependencies]
 sdk-macros = { path = "x/programs/rust/sdk-macros" }
-simulator = { path = "x/programs/cmd/simulator" }
 wasmlanche-sdk = { path = "x/programs/rust/wasmlanche-sdk" }
-
+simulator = { path = "x/programs/simulator"}
 thiserror = "1.0.61"
