@@ -62,9 +62,8 @@ impl Step {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
-#[non_exhaustive]
 pub struct TestContext {
-    program_id: Id,
+    pub program_id: Id,
     pub actor: Address,
     pub height: u64,
     pub timestamp: u64,
@@ -128,6 +127,7 @@ pub enum Param {
     #[allow(private_interfaces)]
     TestContext(SimulatorTestContext),
     Bytes(Vec<u8>),
+    FixedBytes(Vec<u8>),
     Path(String),
     Address(Address),
 }
@@ -140,6 +140,7 @@ enum StringParam {
     String(String),
     Id(String),
     Bytes(String),
+    FixedBytes(String),
     Path(String),
     Address(String),
 }
@@ -156,6 +157,7 @@ impl From<&Param> for StringParam {
             Param::Bytes(bytes) => StringParam::Bytes(
                 b64.encode(borsh::to_vec(bytes).expect("the serialization should work")),
             ),
+            Param::FixedBytes(bytes) => StringParam::FixedBytes(b64.encode(bytes)),
             Param::Address(addr) => StringParam::Address(b64.encode(addr)),
             Param::Id(id) => {
                 let num: &usize = id.into();
