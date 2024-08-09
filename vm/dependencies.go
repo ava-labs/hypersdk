@@ -59,6 +59,7 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
+		StateBranchFactor:                merkledb.BranchFactor16,
 		TraceConfig:                      trace.Config{Enabled: false},
 		MempoolSize:                      2_048,
 		AuthVerificationCores:            1,

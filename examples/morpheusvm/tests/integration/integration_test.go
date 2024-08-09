@@ -242,7 +242,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			BaseJSONRPCServer: ljsonRPCServer,
 			WebSocketServer:   webSocketServer,
 			cli:               rpc.NewJSONRPCClient(jsonRPCServer.URL),
-			lcli:              lrpc.NewJSONRPCClient(ljsonRPCServer.URL, snowCtx.NetworkID, snowCtx.ChainID),
+			lcli:              lrpc.NewJSONRPCClient(ljsonRPCServer.URL),
 		}
 
 		// Force sync ready (to mimic bootstrapping from genesis)

@@ -214,11 +214,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
 	cli := rpc.NewJSONRPCClient(uri)
-	networkID, _, blockchainID, err := cli.Network(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
+	lcli := lrpc.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factory,
 		cli:     cli,
@@ -268,7 +264,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		lcli := lrpc.NewJSONRPCClient(uri)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
