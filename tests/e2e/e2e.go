@@ -141,9 +141,10 @@ func CreateE2ENetwork(
 	}
 	specs := []*rpcpb.BlockchainSpec{
 		{
-			VmName:      networkConfig.Name,
-			Genesis:     networkConfig.VMGenesisPath,
-			ChainConfig: networkConfig.VMConfig,
+			VmName:          networkConfig.Name,
+			Genesis:         networkConfig.VMGenesisPath,
+			ChainConfig:     networkConfig.VMConfig,
+			BlockchainAlias: networkConfig.Name,
 			SubnetSpec: &rpcpb.SubnetSpec{
 				SubnetConfig: networkConfig.SubnetConfigPath,
 				Participants: subnet,
