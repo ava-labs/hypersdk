@@ -16,6 +16,22 @@ import (
 	"github.com/ava-labs/hypersdk/fees"
 )
 
+var _ HandlerFactory[VM] = (*JSONRPCServerFactory)(nil)
+
+type JSONRPCServerFactory struct{}
+
+func (JSONRPCServerFactory) New(vm VM) (HTTPHandler, error) {
+	handler, err := NewJSONRPCHandler(Name, NewJSONRPCServer(vm))
+	if err != nil {
+		return HTTPHandler{}, err
+	}
+
+	return HTTPHandler{
+		Path:    JSONRPCEndpoint,
+		Handler: handler,
+	}, nil
+}
+
 type JSONRPCServer struct {
 	vm VM
 }

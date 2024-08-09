@@ -40,6 +40,7 @@ import (
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/trace"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/vm/event"
 	"github.com/ava-labs/hypersdk/workers"
 
 	avacache "github.com/ava-labs/avalanchego/cache"
@@ -57,26 +58,34 @@ const (
 	MinAcceptedBlockWindow = 1024
 )
 
-type VM struct {
-	factory ControllerFactory
-	c       Controller
+type VM[T Controller] struct {
+	factory ControllerFactory[T]
+	c       T
 	v       *version.Semantic
 
 	snowCtx         *snow.Context
 	pkBytes         []byte
-	proposerMonitor *ProposerMonitor
+	proposerMonitor *ProposerMonitor[T]
 
-	config         Config
-	genesis        Genesis
-	builder        builder.Builder
-	gossiper       gossiper.Gossiper
-	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
-	vmDB           database.Database
-	handlers       Handlers
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
-	authEngine     map[uint8]AuthEngine
+	config                     Config
+	genesis                    Genesis
+	builder                    builder.Builder
+	gossiper                   gossiper.Gossiper
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
+	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
+	// TODO remove by returning an verification error from the submit tx api
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
+
+	vmAPIHandlerFactories         []rpc.HandlerFactory[rpc.VM]
+	controllerAPIHandlerFactories []rpc.HandlerFactory[T]
+	rawStateDB                    database.Database
+	stateDB                       merkledb.MerkleDB
+	vmDB                          database.Database
+	handlers                      map[string]http.Handler
+	actionRegistry                chain.ActionRegistry
+	authRegistry                  chain.AuthRegistry
+	authEngine                    map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -104,9 +113,6 @@ type VM struct {
 	acceptedQueue chan *chain.StatelessBlock
 	acceptorDone  chan struct{}
 
-	// Transactions that streaming users are currently subscribed to
-	webSocketServer *rpc.WebSocketServer
-
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
 	authVerifiers workers.Workers
@@ -118,7 +124,7 @@ type VM struct {
 	toEngine     chan<- common.Message
 
 	// State Sync client and AppRequest handlers
-	stateSyncClient        *stateSyncerClient
+	stateSyncClient        *stateSyncerClient[T]
 	stateSyncNetworkClient avasync.NetworkClient
 	stateSyncNetworkServer *avasync.NetworkServer
 
@@ -132,15 +138,15 @@ type VM struct {
 	stop  chan struct{}
 }
 
-func New(
-	factory ControllerFactory,
+func New[T Controller](
+	factory ControllerFactory[T],
 	v *version.Semantic,
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
-	options ...Option,
-) (*VM, error) {
-	vm := &VM{
+	options ...Option[T],
+) (*VM[T], error) {
+	vm := &VM[T]{
 		factory:        factory,
 		v:              v,
 		config:         NewConfig(),
@@ -166,7 +172,7 @@ func New(
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Initialize(
+func (vm *VM[_]) Initialize(
 	ctx context.Context,
 	snowCtx *snow.Context,
 	_ database.Database,
@@ -243,13 +249,11 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
+	vm.c, vm.genesis, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
 		controllerContext.NetworkID,
 		controllerContext.ChainID,
-		controllerContext.ChainDataDir,
-		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
 		controllerConfigBytes,
@@ -466,21 +470,50 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
-	// Setup handlers
-	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm))
-	if err != nil {
-		return fmt.Errorf("unable to create handler: %w", err)
+	for _, factory := range vm.blockSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize block subscription: %w", err)
+		}
+
+		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
 	}
-	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
-		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
+
+	for _, factory := range vm.txRemovedSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
+		}
+
+		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
 	}
-	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
-	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
-		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
+
+	vm.handlers = make(map[string]http.Handler)
+	for _, apiFactory := range vm.vmAPIHandlerFactories {
+		api, err := apiFactory.New(vm)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api: %w", err)
+		}
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
 	}
-	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
-	vm.webSocketServer = webSocketServer
-	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
+
+	for _, apiFactory := range vm.controllerAPIHandlerFactories {
+		api, err := apiFactory.New(vm.c)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api: %w", err)
+		}
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
+	}
 
 	err = vm.restoreAcceptedQueue(ctx)
 	if err != nil {
@@ -490,12 +523,12 @@ func (vm *VM) Initialize(
 	return nil
 }
 
-func (vm *VM) checkActivity(ctx context.Context) {
+func (vm *VM[_]) checkActivity(ctx context.Context) {
 	vm.gossiper.Queue(ctx)
 	vm.builder.Queue(ctx)
 }
 
-func (vm *VM) markReady() {
+func (vm *VM[_]) markReady() {
 	// Wait for state syncing to complete
 	select {
 	case <-vm.stop:
@@ -529,7 +562,7 @@ func (vm *VM) markReady() {
 	vm.checkActivity(context.TODO())
 }
 
-func (vm *VM) isReady() bool {
+func (vm *VM[_]) isReady() bool {
 	select {
 	case <-vm.ready:
 		return true
@@ -539,7 +572,7 @@ func (vm *VM) isReady() bool {
 	}
 }
 
-func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
+func (vm *VM[_]) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) {
 	if !vm.isReady() {
 		return utils.Repeat[[]byte](nil, len(keys)), utils.Repeat(ErrNotReady, len(keys))
 	}
@@ -547,7 +580,7 @@ func (vm *VM) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error) 
 	return vm.stateDB.GetValues(ctx, keys)
 }
 
-func (vm *VM) SetState(_ context.Context, state snow.State) error {
+func (vm *VM[_]) SetState(_ context.Context, state snow.State) error {
 	switch state {
 	case snow.StateSyncing:
 		vm.Logger().Info("state sync started")
@@ -598,13 +631,13 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 }
 
 // onBootstrapStarted marks this VM as bootstrapping
-func (vm *VM) onBootstrapStarted() error {
+func (vm *VM[_]) onBootstrapStarted() error {
 	vm.bootstrapped.Set(false)
 	return nil
 }
 
 // ForceReady is used in integration testing
-func (vm *VM) ForceReady() {
+func (vm *VM[_]) ForceReady() {
 	// Only works if haven't already started syncing
 	vm.stateSyncClient.ForceDone()
 	vm.seenValidityWindowOnce.Do(func() {
@@ -613,7 +646,7 @@ func (vm *VM) ForceReady() {
 }
 
 // onNormalOperationsStarted marks this VM as bootstrapped
-func (vm *VM) onNormalOperationsStarted() error {
+func (vm *VM[_]) onNormalOperationsStarted() error {
 	defer vm.checkActivity(context.TODO())
 
 	if vm.bootstrapped.Get() {
@@ -624,7 +657,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Shutdown(ctx context.Context) error {
+func (vm *VM[_]) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
@@ -644,10 +677,17 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	// Shutdown controller once all mechanisms that could invoke it have
-	// shutdown.
-	if err := vm.c.Shutdown(ctx); err != nil {
-		return err
+	// Close subscriptions
+	for _, subscription := range vm.txRemovedSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
 	}
 
 	// Close DBs
@@ -665,16 +705,16 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 
 // implements "block.ChainVM.common.VM"
 // TODO: this must be callable in the factory before initializing
-func (vm *VM) Version(_ context.Context) (string, error) { return vm.v.String(), nil }
+func (vm *VM[_]) Version(_ context.Context) (string, error) { return vm.v.String(), nil }
 
 // implements "block.ChainVM.common.VM"
 // for "ext/vm/[chainID]"
-func (vm *VM) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
+func (vm *VM[_]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return vm.handlers, nil
 }
 
 // implements "block.ChainVM.commom.VM.health.Checkable"
-func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
+func (vm *VM[_]) HealthCheck(context.Context) (interface{}, error) {
 	// TODO: engine will mark VM as ready when we return
 	// [block.StateSyncDynamic]. This should change in v1.9.11.
 	//
@@ -690,7 +730,7 @@ func (vm *VM) HealthCheck(context.Context) (interface{}, error) {
 // replaces "core.SnowmanVM.GetBlock"
 //
 // This is ONLY called on accepted blocks pre-ProposerVM fork.
-func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
+func (vm *VM[_]) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	ctx, span := vm.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
 
@@ -698,7 +738,7 @@ func (vm *VM) GetBlock(ctx context.Context, id ids.ID) (snowman.Block, error) {
 	return vm.GetStatelessBlock(ctx, id)
 }
 
-func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
+func (vm *VM[_]) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.StatelessBlock, error) {
 	_, span := vm.tracer.Start(ctx, "VM.GetStatelessBlock")
 	defer span.End()
 
@@ -740,7 +780,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 
 // implements "block.ChainVM.commom.VM.Parser"
 // replaces "core.SnowmanVM.ParseBlock"
-func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
+func (vm *VM[_]) ParseBlock(ctx context.Context, source []byte) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockParse.Observe(float64(time.Since(start)))
@@ -784,7 +824,7 @@ func (vm *VM) ParseBlock(ctx context.Context, source []byte) (snowman.Block, err
 }
 
 // implements "block.ChainVM"
-func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
+func (vm *VM[_]) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	start := time.Now()
 	defer func() {
 		vm.metrics.blockBuild.Observe(float64(time.Since(start)))
@@ -833,7 +873,7 @@ func (vm *VM) BuildBlock(ctx context.Context) (snowman.Block, error) {
 	return blk, nil
 }
 
-func (vm *VM) Submit(
+func (vm *VM[_]) Submit(
 	ctx context.Context,
 	verifyAuth bool,
 	txs []*chain.Transaction,
@@ -914,9 +954,17 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
-					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				event := TxRemovedEvent{
+					TxID: txID,
+					Err:  err,
 				}
+
+				for _, subscription := range vm.txRemovedSubscriptions {
+					if err := subscription.Accept(event); err != nil {
+						vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+					}
+				}
+
 				errs = append(errs, err)
 				continue
 			}
@@ -946,7 +994,7 @@ func (vm *VM) Submit(
 
 // "SetPreference" implements "block.ChainVM"
 // replaces "core.SnowmanVM.SetPreference"
-func (vm *VM) SetPreference(_ context.Context, id ids.ID) error {
+func (vm *VM[_]) SetPreference(_ context.Context, id ids.ID) error {
 	vm.snowCtx.Log.Debug("set preference", zap.Stringer("id", id))
 	vm.preferred = id
 	return nil
@@ -954,7 +1002,7 @@ func (vm *VM) SetPreference(_ context.Context, id ids.ID) error {
 
 // "LastAccepted" implements "block.ChainVM"
 // replaces "core.SnowmanVM.LastAccepted"
-func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) {
+func (vm *VM[_]) LastAccepted(_ context.Context) (ids.ID, error) {
 	return vm.lastAccepted.ID(), nil
 }
 
@@ -966,7 +1014,7 @@ func (vm *VM) LastAccepted(_ context.Context) (ids.ID, error) {
 // implements "snowmanblock.ChainVM.commom.VM.AppHandler"
 // assume gossip via proposervm has been activated
 // ref. "avalanchego/vms/platformvm/network.AppGossip"
-func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
+func (vm *VM[_]) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.AppGossip")
 	defer span.End()
 
@@ -974,7 +1022,7 @@ func (vm *VM) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []byte) erro
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequest(
+func (vm *VM[_]) AppRequest(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
@@ -988,7 +1036,7 @@ func (vm *VM) AppRequest(
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, _ *common.AppError) error {
+func (vm *VM[_]) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID uint32, _ *common.AppError) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.AppRequestFailed")
 	defer span.End()
 
@@ -997,7 +1045,7 @@ func (vm *VM) AppRequestFailed(ctx context.Context, nodeID ids.NodeID, requestID
 }
 
 // implements "block.ChainVM.commom.VM.AppHandler"
-func (vm *VM) AppResponse(
+func (vm *VM[_]) AppResponse(
 	ctx context.Context,
 	nodeID ids.NodeID,
 	requestID uint32,
@@ -1009,7 +1057,7 @@ func (vm *VM) AppResponse(
 	return vm.networkManager.AppResponse(ctx, nodeID, requestID, response)
 }
 
-func (vm *VM) CrossChainAppRequest(
+func (vm *VM[_]) CrossChainAppRequest(
 	ctx context.Context,
 	nodeID ids.ID,
 	requestID uint32,
@@ -1022,7 +1070,7 @@ func (vm *VM) CrossChainAppRequest(
 	return vm.networkManager.CrossChainAppRequest(ctx, nodeID, requestID, deadline, request)
 }
 
-func (vm *VM) CrossChainAppRequestFailed(
+func (vm *VM[_]) CrossChainAppRequestFailed(
 	ctx context.Context,
 	nodeID ids.ID,
 	requestID uint32,
@@ -1035,7 +1083,7 @@ func (vm *VM) CrossChainAppRequestFailed(
 	return vm.networkManager.CrossChainAppRequestFailed(ctx, nodeID, requestID)
 }
 
-func (vm *VM) CrossChainAppResponse(
+func (vm *VM[_]) CrossChainAppResponse(
 	ctx context.Context,
 	nodeID ids.ID,
 	requestID uint32,
@@ -1048,7 +1096,7 @@ func (vm *VM) CrossChainAppResponse(
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
-func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
+func (vm *VM[_]) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Application) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.Connected")
 	defer span.End()
 
@@ -1056,7 +1104,7 @@ func (vm *VM) Connected(ctx context.Context, nodeID ids.NodeID, v *version.Appli
 }
 
 // implements "block.ChainVM.commom.VM.validators.Connector"
-func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
+func (vm *VM[_]) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 	ctx, span := vm.tracer.Start(ctx, "VM.Disconnected")
 	defer span.End()
 
@@ -1064,14 +1112,14 @@ func (vm *VM) Disconnected(ctx context.Context, nodeID ids.NodeID) error {
 }
 
 // VerifyHeightIndex implements snowmanblock.HeightIndexedChainVM
-func (*VM) VerifyHeightIndex(context.Context) error { return nil }
+func (*VM[_]) VerifyHeightIndex(context.Context) error { return nil }
 
 // GetBlockIDAtHeight implements snowmanblock.HeightIndexedChainVM
 // Note: must return database.ErrNotFound if the index at height is unknown.
 //
 // This is called by the VM pre-ProposerVM fork and by the sync server
 // in [GetStateSummary].
-func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
+func (vm *VM[_]) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, error) {
 	if height == vm.lastAccepted.Height() {
 		return vm.lastAccepted.ID(), nil
 	}
@@ -1088,7 +1136,7 @@ func (vm *VM) GetBlockIDAtHeight(_ context.Context, height uint64) (ids.ID, erro
 // backfillSeenTransactions makes a best effort to populate [vm.seen]
 // with whatever transactions we already have on-disk. This will lead
 // a node to becoming ready faster during a restart.
-func (vm *VM) backfillSeenTransactions() {
+func (vm *VM[_]) backfillSeenTransactions() {
 	// Exit early if we don't have any blocks other than genesis (which
 	// contains no transactions)
 	blk := vm.lastAccepted
@@ -1151,7 +1199,7 @@ func (vm *VM) backfillSeenTransactions() {
 	)
 }
 
-func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
+func (vm *VM[_]) loadAcceptedBlocks(ctx context.Context) error {
 	start := uint64(0)
 	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
@@ -1173,7 +1221,7 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	return nil
 }
 
-func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
+func (vm *VM[_]) restoreAcceptedQueue(ctx context.Context) error {
 	has, err := vm.HasLastProcessed()
 	if err != nil {
 		return fmt.Errorf("could not load last processed block: %w", err)
@@ -1218,7 +1266,7 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 // While we could attempt a graceful shutdown, it is not clear that
 // the shutdown will complete given that we have encountered a fatal
 // issue. It is better to ensure we exit to surface the error.
-func (vm *VM) Fatal(msg string, fields ...zap.Field) {
+func (vm *VM[_]) Fatal(msg string, fields ...zap.Field) {
 	vm.snowCtx.Log.Fatal(msg, fields...)
 	panic("fatal error")
 }
