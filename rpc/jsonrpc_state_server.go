@@ -33,8 +33,8 @@ type JSONRPCStateServer struct {
 }
 
 func (s *JSONRPCStateServer) ReadState(req *http.Request, args *StateRequest, res *StateResponse) error {
-	_, span := s.stateReader.Tracer().Start(req.Context(), "Server.ReadState")
+	ctx, span := s.stateReader.Tracer().Start(req.Context(), "Server.ReadState")
 	defer span.End()
-	res.Values, res.Errors = s.stateReader.ReadState(req.Context(), args.Keys)
+	res.Values, res.Errors = s.stateReader.ReadState(ctx, args.Keys)
 	return nil
 }

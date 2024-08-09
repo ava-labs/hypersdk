@@ -9,7 +9,7 @@ const (
 	Name                 = "hypersdk"
 	JSONRPCEndpoint      = "/coreapi"
 	WebSocketEndpoint    = "/corews"
-	JSONRPCStateEndpoint = "/state"
+	JSONRPCStateEndpoint = "/corestate"
 
 	DefaultHandshakeTimeout = 10 * time.Second
 )
