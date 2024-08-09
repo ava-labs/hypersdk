@@ -239,7 +239,7 @@ function cleanup() {
     echo ""
     echo "or"
     echo ""
-    echo "killall avalanche-network-runner"
+    echo "./scripts/stop.sh"
     exit
   fi
 
