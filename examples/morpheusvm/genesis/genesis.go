@@ -7,7 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/trace"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
@@ -17,8 +19,10 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
-var _ vm.Genesis = (*Genesis)(nil)
-var _ vm.RuleFactory[*vm.BaseRules] = (*RuleFactory)(nil)
+var (
+	_ vm.Genesis                    = (*Genesis)(nil)
+	_ vm.RuleFactory[*vm.BaseRules] = (*RuleFactory)(nil)
+)
 
 type RuleFactory struct {
 	unchangingRules *vm.BaseRules

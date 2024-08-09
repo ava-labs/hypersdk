@@ -6,14 +6,19 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/chain"
-	hconsts "github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/fees"
+
+	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
-var _ chain.Rules = (*BaseRules)(nil)
-var _ RuleFactory[chain.Rules] = (*BaseRules)(nil)
+var (
+	_ chain.Rules              = (*BaseRules)(nil)
+	_ RuleFactory[chain.Rules] = (*BaseRules)(nil)
+)
 
 type BaseRules struct {
 	NetworkID uint32 `json:"networkID"`
@@ -52,7 +57,6 @@ func (r *BaseRules) GetRules(_ int64) chain.Rules {
 
 func DefaultRules() *BaseRules {
 	return &BaseRules{
-
 		// Chain Parameters
 		MinBlockGap:      100,
 		MinEmptyBlockGap: 750,
@@ -170,6 +174,6 @@ func (r *BaseRules) GetWindowTargetUnits() fees.Dimensions {
 	return r.WindowTargetUnits
 }
 
-func (r *BaseRules) FetchCustom(string) (any, bool) {
+func (*BaseRules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
