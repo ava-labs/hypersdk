@@ -118,8 +118,8 @@ type Mempool interface {
 type Rules interface {
 	// Should almost always be constant (unless there is a fork of
 	// a live network)
-	NetworkID() uint32
-	ChainID() ids.ID
+	GetNetworkID() uint32
+	GetChainID() ids.ID
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds

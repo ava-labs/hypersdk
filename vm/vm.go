@@ -275,7 +275,7 @@ func (vm *VM) Initialize(
 	// Instantiate DBs
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		BranchFactor: vm.genesis.GetStateBranchFactor(),
+		BranchFactor: vm.config.StateBranchFactor,
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations
 		RootGenConcurrency:          uint(vm.config.RootGenerationCores),

@@ -66,8 +66,6 @@ func (*factory) New(
 	c := &Controller{}
 	c.inner = inner
 	c.log = log
-	c.networkID = networkID
-	c.chainID = chainID
 	c.stateManager = &storage.StateManager{}
 
 	// Instantiate metrics
@@ -92,6 +90,8 @@ func (*factory) New(
 			err,
 		)
 	}
+	c.genesis.ChainID = chainID
+	c.genesis.NetworkID = networkID
 	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
@@ -127,11 +127,8 @@ func (*factory) New(
 }
 
 type Controller struct {
-	inner     *vm.VM
-	log       logging.Logger
-	networkID uint32
-	chainID   ids.ID
-
+	inner        *vm.VM
+	log          logging.Logger
 	genesis      *genesis.Genesis
 	config       *Config
 	stateManager *storage.StateManager
@@ -145,7 +142,7 @@ type Controller struct {
 
 func (c *Controller) Rules(t int64) chain.Rules {
 	// TODO: extend with [UpgradeBytes]
-	return c.genesis.Rules(t, c.networkID, c.chainID)
+	return c.genesis.GetRulesFactory().GetRules(t)
 }
 
 func (c *Controller) StateManager() chain.StateManager {

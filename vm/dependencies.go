@@ -25,6 +25,8 @@ import (
 type Handlers map[string]http.Handler
 
 type Config struct {
+	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
+
 	TraceConfig                      trace.Config    `json:"traceConfig"`
 	MempoolSize                      int             `json:"mempoolSize"`
 	AuthVerificationCores            int             `json:"authVerificationCores"`
@@ -87,8 +89,10 @@ func NewConfig() Config {
 
 type Genesis interface {
 	Load(context.Context, avatrace.Tracer, state.Mutable) error
+}
 
-	GetStateBranchFactor() merkledb.BranchFactor
+type RuleFactory[T chain.Rules] interface {
+	GetRules(t int64) T
 }
 
 type AuthEngine interface {
