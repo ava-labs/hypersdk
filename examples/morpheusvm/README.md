@@ -38,7 +38,7 @@ avalanche-network-runner is running in the background...
 
 use the following command to terminate:
 
-killall avalanche-network-runner
+./scripts/stop.sh
 ```
 
 _By default, this allocates all funds on the network to `morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu`. The private
