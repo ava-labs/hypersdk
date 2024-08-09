@@ -52,8 +52,8 @@ func (*SpamHelper) GetFactory(pk *cli.PrivateKey) (chain.AuthFactory, error) {
 	}
 }
 
-func (sh *SpamHelper) CreateClient(uri string, networkID uint32, chainID ids.ID) error {
-	sh.cli = mrpc.NewJSONRPCClient(uri, networkID, chainID)
+func (sh *SpamHelper) CreateClient(uri string, _ uint32, _ ids.ID) error {
+	sh.cli = mrpc.NewJSONRPCClient(uri)
 	ws, err := rpc.NewWebSocketClient(uri, rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return err

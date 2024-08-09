@@ -65,7 +65,6 @@ func (h *Handler) DefaultActor() (
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
 	jcli := rpc.NewJSONRPCClient(uris[0])
-	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -80,8 +79,6 @@ func (h *Handler) DefaultActor() (
 		}, factory, jcli,
 		brpc.NewJSONRPCClient(
 			uris[0],
-			networkID,
-			chainID,
 		), ws, nil
 }
 
