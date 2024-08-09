@@ -5,6 +5,7 @@ package consts
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/version"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -36,3 +37,9 @@ var (
 	AuthRegistry   *codec.TypeParser[chain.Auth]
 	ABIString      []byte
 )
+
+var Version = &version.Semantic{
+	Major: 0,
+	Minor: 0,
+	Patch: 1,
+}

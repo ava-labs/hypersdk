@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
 )
 
 func init() {
@@ -27,6 +26,6 @@ func NewCommand() *cobra.Command {
 }
 
 func versionFunc(*cobra.Command, []string) error {
-	fmt.Printf("%s@%s (%s)\n", consts.Name, version.Version, consts.ID)
+	fmt.Printf("%s@%s (%s)\n", consts.Name, consts.Version, consts.ID)
 	return nil
 }
