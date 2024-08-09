@@ -51,6 +51,7 @@ type Config struct {
 	ProcessingBuildSkip              int             `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
+	EnableStateReadRPCHandler        bool            `json:"enableStateReadRPCHandler"`
 	// Config is defined by the Controller
 	Config map[string]any `json:"config"`
 }
