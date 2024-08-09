@@ -78,6 +78,13 @@ type VM struct {
 	authRegistry   chain.AuthRegistry
 	authEngine     map[uint8]AuthEngine
 
+	// State layout
+	// TODO think of ways to prevent controller from defining state keys that
+	// collide with this
+	heightKey    []byte
+	timestampKey []byte
+	feeKey       []byte
+
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
@@ -157,6 +164,9 @@ func New(
 	// Set defaults
 	vm.builder = builder.NewTime(vm)
 	vm.gossiper = txGossiper
+	vm.heightKey = []byte("height")
+	vm.timestampKey = []byte("timestamp")
+	vm.feeKey = []byte("fee")
 
 	for _, option := range options {
 		option(vm)
@@ -390,10 +400,10 @@ func (vm *VM) Initialize(
 
 		// Update chain metadata
 		sps = state.NewSimpleMutable(vm.stateDB)
-		if err := sps.Insert(ctx, chain.HeightKey(vm.StateManager().HeightKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.HeightKey(vm.heightKey), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
+		if err := sps.Insert(ctx, chain.TimestampKey(vm.timestampKey), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
@@ -403,7 +413,7 @@ func (vm *VM) Initialize(
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+		if err := sps.Insert(ctx, chain.FeeKey(vm.feeKey), feeManager.Bytes()); err != nil {
 			return err
 		}
 
@@ -859,7 +869,7 @@ func (vm *VM) Submit(
 		// This will error if a block does not yet have processed state.
 		return []error{err}
 	}
-	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeKey()))
+	feeRaw, err := view.GetValue(ctx, chain.FeeKey(vm.feeKey))
 	if err != nil {
 		return []error{err}
 	}

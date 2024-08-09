@@ -152,13 +152,13 @@ type Rules interface {
 	FetchCustom(string) (any, bool)
 }
 
-type MetadataManager interface {
-	HeightKey() []byte
-	TimestampKey() []byte
-	FeeKey() []byte
-}
-
-type FeeHandler interface {
+// StateManager allows [Chain] to safely store certain types of items in state
+// in a structured manner. If we did not use [StateManager], we may overwrite
+// state written by actions or auth.
+//
+// None of these keys should be suffixed with the max amount of chunks they will
+// use. This will be handled by the hypersdk.
+type StateManager interface {
 	// StateKeys is a full enumeration of all database keys that could be touched during fee payment
 	// by [addr]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).
@@ -172,17 +172,6 @@ type FeeHandler interface {
 
 	// Deduct removes [amount] from [addr] during transaction execution to pay fees.
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
-}
-
-// StateManager allows [Chain] to safely store certain types of items in state
-// in a structured manner. If we did not use [StateManager], we may overwrite
-// state written by actions or auth.
-//
-// None of these keys should be suffixed with the max amount of chunks they will
-// use. This will be handled by the hypersdk.
-type StateManager interface {
-	FeeHandler
-	MetadataManager
 }
 
 type Object interface {
