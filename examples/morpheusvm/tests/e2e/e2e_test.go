@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -224,13 +223,11 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 }
 
 type simpleTxWorkload struct {
-	factory   *auth.ED25519Factory
-	cli       *rpc.JSONRPCClient
-	lcli      *lrpc.JSONRPCClient
-	networkID uint32
-	chainID   ids.ID
-	count     int
-	size      int
+	factory *auth.ED25519Factory
+	cli     *rpc.JSONRPCClient
+	lcli    *lrpc.JSONRPCClient
+	count   int
+	size    int
 }
 
 func (g *simpleTxWorkload) Next() bool {
