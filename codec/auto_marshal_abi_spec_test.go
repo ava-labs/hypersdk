@@ -77,46 +77,45 @@ func TestMarshalSimpleSpec(t *testing.T) {
 	abiString, err := codec.GetVmABIString(VMActions)
 	require.NoError(err)
 	// This JSON will be input in TypeScript
-	expectedABI := `
-	[
-		{
-			"id": 1,
-			"name": "MockAction1",
-			"types": {
-				"MockAction1": [
-					{
-						"name": "Field1",
-						"type": "string"
-					},
-					{
-						"name": "Field2",
-						"type": "int32"
-					}
-				]
-			}
-		},
-		{
-			"id": 2,
-			"name": "MockActionTransfer",
-			"types": {
-				"MockActionTransfer": [
-					{
-						"name": "to",
-						"type": "Address"
-					},
-					{
-						"name": "value",
-						"type": "uint64"
-					},
-					{
-						"name": "memo",
-						"type": "[]uint8"
-					}
-				]
-			}
-		}
-	]`
-	require.JSONEq(expectedABI, string(abiString))
+	expectedABI := `[
+  {
+    "id": 1,
+    "name": "MockAction1",
+    "types": {
+      "MockAction1": [
+        {
+          "name": "Field1",
+          "type": "string"
+        },
+        {
+          "name": "Field2",
+          "type": "int32"
+        }
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "name": "MockActionTransfer",
+    "types": {
+      "MockActionTransfer": [
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "value",
+          "type": "uint64"
+        },
+        {
+          "name": "memo",
+          "type": "[]uint8"
+        }
+      ]
+    }
+  }
+]`
+	require.Equal(expectedABI, string(abiString))
 
 	action1Instance := MockAction1{
 		Field1: "Super value",
