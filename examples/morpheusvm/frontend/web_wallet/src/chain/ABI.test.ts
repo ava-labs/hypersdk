@@ -141,13 +141,13 @@ const abiString = `[
   }
 ]`
 
-test.only('TestABISpec', () => {
+test('TestABISpec', () => {
   const abi = new ABI(abiString)
   expect(bytesToHex(abi.getHash()))
     .toBe("26d5faddb952328f5c11d96f814163f002ff45cdce436eb9c7426caf0633c24e")
 })
 
-test.only('TestMarshalEmptySpec', () => {
+test('TestMarshalEmptySpec', () => {
   const abi = new ABI(abiString)
   const jsonString = `
   {
@@ -158,7 +158,7 @@ test.only('TestMarshalEmptySpec', () => {
     .toBe("0000")
 })
 
-test.only('TestMarshalSingleNumber', () => {
+test('TestMarshalSingleNumber', () => {
   const abi = new ABI(abiString)
   const jsonString = `
   {
@@ -169,7 +169,7 @@ test.only('TestMarshalSingleNumber', () => {
     .toBe("302d")
 })
 
-test.only('TestMarshalAllNumbersSpec', () => {
+test('TestMarshalAllNumbersSpec', () => {
   const abi = new ABI(abiString)
   const jsonString = `
   {
@@ -187,7 +187,7 @@ test.only('TestMarshalAllNumbersSpec', () => {
     .toBe("fefffefffffffefffffffffffffffe818001800000018000000000000001")
 })
 
-describe.only('TestMarshalStringAndBytesSpec', () => {
+describe('TestMarshalStringAndBytesSpec', () => {
   const abi = new ABI(abiString)
   const testCases = [
     {
@@ -195,21 +195,21 @@ describe.only('TestMarshalStringAndBytesSpec', () => {
       jsonString: `{"field1": "","field2": ""}`,
       expectedDigest: "000000000000"
     },
-    // {
-    //   name: "String 'A' and empty bytes",
-    //   jsonString: `{"field1": "A","field2": ""}`,
-    //   expectedDigest: "00014100000000"
-    // },
-    // {
-    //   name: "Byte 0x00 and empty string",
-    //   jsonString: `{"field1": "","field2": "AA=="}`,
-    //   expectedDigest: "00000000000100"
-    // },
-    // {
-    //   name: "Non-empty fields",
-    //   jsonString: `{"field1": "Hello, World!","field2": "AQIDBA=="}`,
-    //   expectedDigest: "000d48656c6c6f2c20576f726c64210000000401020304"
-    // },
+    {
+      name: "String 'A' and empty bytes",
+      jsonString: `{"field1": "A","field2": ""}`,
+      expectedDigest: "00014100000000"
+    },
+    {
+      name: "Byte 0x00 and empty string",
+      jsonString: `{"field1": "","field2": "AA=="}`,
+      expectedDigest: "00000000000100"
+    },
+    {
+      name: "Non-empty fields",
+      jsonString: `{"field1": "Hello, World!","field2": "AQIDBA=="}`,
+      expectedDigest: "000d48656c6c6f2c20576f726c64210000000401020304"
+    },
   ]
 
   testCases.forEach(tc => {
@@ -288,7 +288,8 @@ function encodeField(type: string, value: unknown): Uint8Array {
   console.warn("DEBUG: encodeField", type, value)
 
   if (type === '[]uint8' && typeof value === 'string') {
-    value = Array.from(atob(value), char => char.charCodeAt(0));
+    const byteArray = Array.from(atob(value), char => char.charCodeAt(0)) as number[]
+    return new Uint8Array([...encodeNumber("uint32", byteArray.length), ...byteArray])
   }
 
   if (type.startsWith('[]')) {
