@@ -89,13 +89,61 @@ const abiString = `[
         }
       ]
     }
+  },
+  {
+    "id": 5,
+    "name": "MockActionArrays",
+    "types": {
+      "MockActionArrays": [
+        {
+          "name": "strings",
+          "type": "[]string"
+        },
+        {
+          "name": "bytes",
+          "type": "[][]uint8"
+        },
+        {
+          "name": "uint8s",
+          "type": "[]uint8"
+        },
+        {
+          "name": "uint16s",
+          "type": "[]uint16"
+        },
+        {
+          "name": "uint32s",
+          "type": "[]uint32"
+        },
+        {
+          "name": "uint64s",
+          "type": "[]uint64"
+        },
+        {
+          "name": "int8s",
+          "type": "[]int8"
+        },
+        {
+          "name": "int16s",
+          "type": "[]int16"
+        },
+        {
+          "name": "int32s",
+          "type": "[]int32"
+        },
+        {
+          "name": "int64s",
+          "type": "[]int64"
+        }
+      ]
+    }
   }
 ]`
 
 test('TestABISpec', () => {
   const abi = new ABI(abiString)
   expect(bytesToHex(abi.getHash()))
-    .toBe("269a24f3157d1af5403d2f21313f2b3d48232a282c51c9cea1457322f2887358")
+    .toBe("26d5faddb952328f5c11d96f814163f002ff45cdce436eb9c7426caf0633c24e")
 })
 
 test('TestMarshalEmptySpec', () => {
@@ -144,6 +192,25 @@ test('TestMarshalStringAndBytesSpec', () => {
   const binary = abi.getActionBinary("MockActionStringAndBytes", data)
   expect(bytesToHex(binary))
     .toBe("000d48656c6c6f2c20576f726c64210000000401020304")
+})
+
+test('TestMarshalArraysSpec', () => {
+  const abi = new ABI(abiString)
+  const data = {
+    "strings": ["Hello", "World"],
+    "bytes": [new Uint8Array([0x01, 0x02]), new Uint8Array([0x03, 0x04])],
+    "uint8s": new Uint8Array([1, 2]),
+    "uint16s": [300, 400],
+    "uint32s": [70000, 80000],
+    "uint64s": ["5000000000", "6000000000"],
+    "int8s": [-1, -2],
+    "int16s": [-300, -400],
+    "int32s": [-70000, -80000],
+    "int64s": ["-5000000000", "-6000000000"]
+  }
+  const binary = abi.getActionBinary("MockActionArrays", data)
+  expect(bytesToHex(binary))
+    .toBe("0002000548656c6c6f0005576f726c6400020000000201020000000203040000000201020002012c0190000200011170000138800002000000012a05f2000000000165a0bc000002fffe0002fed4fe700002fffeee90fffec7800002fffffffed5fa0e00fffffffe9a5f4400")
 })
 
 import { sha256 } from '@noble/hashes/sha256';
@@ -203,6 +270,18 @@ function encodeField(type: string, value: unknown): Uint8Array {
       return encodeString(value as string)
     case "[]uint8":
       return encodeByteArray(value as Uint8Array)
+    case "[]string":
+      return encodeStringArray(value as string[])
+    case "[][]uint8":
+      return encodeByteArrayArray(value as Uint8Array[])
+    case "[]uint16":
+    case "[]uint32":
+    case "[]uint64":
+    case "[]int8":
+    case "[]int16":
+    case "[]int32":
+    case "[]int64":
+      return encodeNumberArray(type.slice(2), value as (number | string)[])
     default:
       throw new Error(`Type ${type} marshaling is not implemented yet`)
   }
@@ -271,4 +350,22 @@ function encodeString(value: string): Uint8Array {
 function encodeByteArray(value: Uint8Array): Uint8Array {
   const lengthBytes = encodeNumber("uint32", value.length)
   return new Uint8Array([...lengthBytes, ...value])
+}
+
+function encodeStringArray(value: string[]): Uint8Array {
+  const lengthBytes = encodeNumber("uint16", value.length)
+  const encodedStrings = value.map(encodeString)
+  return new Uint8Array([...lengthBytes, ...encodedStrings.flatMap(arr => Array.from(arr))])
+}
+
+function encodeByteArrayArray(value: Uint8Array[]): Uint8Array {
+  const lengthBytes = encodeNumber("uint16", value.length)
+  const encodedArrays = value.map(encodeByteArray)
+  return new Uint8Array([...lengthBytes, ...encodedArrays.flatMap(arr => Array.from(arr))])
+}
+
+function encodeNumberArray(type: string, value: (number | string)[]): Uint8Array {
+  const lengthBytes = encodeNumber("uint16", value.length)
+  const encodedNumbers = value.map(num => encodeNumber(type, num))
+  return new Uint8Array([...lengthBytes, ...encodedNumbers.flatMap(arr => Array.from(arr))])
 }

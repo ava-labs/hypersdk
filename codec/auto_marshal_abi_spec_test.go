@@ -74,6 +74,7 @@ func TestABISpec(t *testing.T) {
 		MockActionTransfer{},
 		MockActionAllNumbers{},
 		MockActionStringAndBytes{},
+		MockActionArrays{},
 	}
 	abiString, err := codec.GetVmABIString(VMActions)
 	require.NoError(err)
@@ -166,12 +167,60 @@ func TestABISpec(t *testing.T) {
         }
       ]
     }
+  },
+  {
+    "id": 5,
+    "name": "MockActionArrays",
+    "types": {
+      "MockActionArrays": [
+        {
+          "name": "strings",
+          "type": "[]string"
+        },
+        {
+          "name": "bytes",
+          "type": "[][]uint8"
+        },
+        {
+          "name": "uint8s",
+          "type": "[]uint8"
+        },
+        {
+          "name": "uint16s",
+          "type": "[]uint16"
+        },
+        {
+          "name": "uint32s",
+          "type": "[]uint32"
+        },
+        {
+          "name": "uint64s",
+          "type": "[]uint64"
+        },
+        {
+          "name": "int8s",
+          "type": "[]int8"
+        },
+        {
+          "name": "int16s",
+          "type": "[]int16"
+        },
+        {
+          "name": "int32s",
+          "type": "[]int32"
+        },
+        {
+          "name": "int64s",
+          "type": "[]int64"
+        }
+      ]
+    }
   }
 ]`
 	require.Equal(expectedABI, string(abiString))
 
 	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("269a24f3157d1af5403d2f21313f2b3d48232a282c51c9cea1457322f2887358", hex.EncodeToString(abiHash[:]))
+	require.Equal("26d5faddb952328f5c11d96f814163f002ff45cdce436eb9c7426caf0633c24e", hex.EncodeToString(abiHash[:]))
 
 }
 
@@ -324,4 +373,65 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 	actionDigest := actionPacker.Bytes()
 
 	require.Equal("000d48656c6c6f2c20576f726c64210000000401020304", hex.EncodeToString(actionDigest))
+}
+
+type MockActionArrays struct {
+	AbstractMockAction
+	Strings []string `json:"strings"`
+	Bytes   [][]byte `json:"bytes"`
+	Uint8s  []uint8  `json:"uint8s"`
+	Uint16s []uint16 `json:"uint16s"`
+	Uint32s []uint32 `json:"uint32s"`
+	Uint64s []uint64 `json:"uint64s"`
+	Int8s   []int8   `json:"int8s"`
+	Int16s  []int16  `json:"int16s"`
+	Int32s  []int32  `json:"int32s"`
+	Int64s  []int64  `json:"int64s"`
+}
+
+func (s MockActionArrays) GetTypeID() uint8 {
+	return 5
+}
+
+func TestMarshalArraysSpec(t *testing.T) {
+	require := require.New(t)
+
+	action := MockActionArrays{
+		Strings: []string{"Hello", "World"},
+		Bytes:   [][]byte{{0x01, 0x02}, {0x03, 0x04}},
+		Uint8s:  []uint8{1, 2},
+		Uint16s: []uint16{300, 400},
+		Uint32s: []uint32{70000, 80000},
+		Uint64s: []uint64{5000000000, 6000000000},
+		Int8s:   []int8{-1, -2},
+		Int16s:  []int16{-300, -400},
+		Int32s:  []int32{-70000, -80000},
+		Int64s:  []int64{-5000000000, -6000000000},
+	}
+
+	structJSON, err := json.Marshal(action)
+	require.NoError(err)
+
+	expectedStructJSON := `
+	{
+		"strings": ["Hello", "World"],
+		"bytes": ["AQI=", "AwQ="],
+		"uint8s": "AQI=",
+		"uint16s": [300, 400],
+		"uint32s": [70000, 80000],
+		"uint64s": [5000000000, 6000000000],
+		"int8s": [-1, -2],
+		"int16s": [-300, -400],
+		"int32s": [-70000, -80000],
+		"int64s": [-5000000000, -6000000000]
+	}`
+	require.JSONEq(expectedStructJSON, string(structJSON))
+
+	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, action)
+	require.NoError(actionPacker.Err())
+
+	actionDigest := actionPacker.Bytes()
+
+	require.Equal("0002000548656c6c6f0005576f726c6400020000000201020000000203040000000201020002012c0190000200011170000138800002000000012a05f2000000000165a0bc000002fffe0002fed4fe700002fffeee90fffec7800002fffffffed5fa0e00fffffffe9a5f4400", hex.EncodeToString(actionDigest))
 }

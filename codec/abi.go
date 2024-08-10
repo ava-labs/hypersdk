@@ -106,17 +106,24 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 			fields = append(fields, embeddedFields...)
 			otherStructsSeen = append(otherStructsSeen, moreTypes...)
 		} else {
-			typeName := fieldType.Name()
-			if fieldType.Kind() == reflect.Slice {
-				typeName = "[]" + fieldType.Elem().Name()
 
-				if fieldType.Elem().Kind() == reflect.Struct {
-					otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
+			arrayPrefix := ""
+
+			for i := 0; i < 100; i++ {
+				if fieldType.Kind() == reflect.Slice {
+					arrayPrefix += "[]"
+					fieldType = fieldType.Elem()
+				} else {
+					break
 				}
+			}
+
+			typeName := arrayPrefix + fieldType.Name()
+
+			if fieldType.Kind() == reflect.Struct {
+				otherStructsSeen = append(otherStructsSeen, fieldType)
 			} else if fieldType.Kind() == reflect.Ptr {
 				otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
-			} else if fieldType.Kind() == reflect.Struct {
-				otherStructsSeen = append(otherStructsSeen, fieldType)
 			}
 
 			fields = append(fields, ABIField{
