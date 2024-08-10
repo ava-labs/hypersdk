@@ -142,33 +142,68 @@ type InnerStruct struct {
 	Field2 uint64
 }
 
-type OuterStruct struct {
-	SingleItem InnerStruct   `json:"single_item"`
-	ArrayItems []InnerStruct `json:"array_items"`
+type OuterStructSingle struct {
+	SingleItem InnerStruct `json:"single_item"`
 }
 
-func (o OuterStruct) GetTypeID() uint8 {
+func (o OuterStructSingle) GetTypeID() uint8 {
 	return 4
 }
 
-func TestGetABIOuterStruct(t *testing.T) {
+func TestGetABIOuterStructSingle(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{OuterStruct{}})
+	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{OuterStructSingle{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
 		{
 			"id": 4,
-			"name": "OuterStruct",
+			"name": "OuterStructSingle",
 			"types": {
-				"OuterStruct": [
+				"OuterStructSingle": [
 					{
 						"name": "single_item",
 						"type": "InnerStruct"
+					}
+				],
+				"InnerStruct": [
+					{
+						"name": "Field1",
+						"type": "string"
 					},
 					{
-						"name": "array_items",
+						"name": "Field2",
+						"type": "uint64"
+					}
+				]
+			}
+		}
+	]`, string(abiString))
+}
+
+type OuterStructArray struct {
+	Items []InnerStruct `json:"items"`
+}
+
+func (o OuterStructArray) GetTypeID() uint8 {
+	return 5
+}
+
+func TestGetABIOuterStructArray(t *testing.T) {
+	require := require.New(t)
+
+	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{OuterStructArray{}})
+	require.NoError(err)
+
+	require.JSONEq(`[
+		{
+			"id": 5,
+			"name": "OuterStructArray",
+			"types": {
+				"OuterStructArray": [
+					{
+						"name": "items",
 						"type": "[]InnerStruct"
 					}
 				],
@@ -181,6 +216,45 @@ func TestGetABIOuterStruct(t *testing.T) {
 						"name": "Field2",
 						"type": "uint64"
 					}
+				]
+			}
+		}
+	]`, string(abiString))
+}
+
+type CompositionInner struct {
+	InnerField1 uint64
+}
+
+func (c CompositionInner) GetTypeID() uint8 {
+	return 5
+}
+
+type CompositionOuter struct {
+	CompositionInner
+	Field1 uint64
+	Field2 string
+}
+
+func (c CompositionOuter) GetTypeID() uint8 {
+	return 6
+}
+
+func TestGetABIComposition(t *testing.T) {
+	require := require.New(t)
+
+	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{CompositionOuter{}})
+	require.NoError(err)
+
+	require.JSONEq(`[
+		{
+			"id": 6,
+			"name": "CompositionOuter",
+			"types": {
+				"CompositionOuter": [
+					{ "name": "InnerField1", "type": "uint64" },
+					{ "name": "Field1", "type": "uint64" },
+					{ "name": "Field2", "type": "string" }
 				]
 			}
 		}

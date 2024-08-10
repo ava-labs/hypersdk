@@ -77,7 +77,7 @@ func getActionABI(action HavingTypeId) (SingleActionABI, error) {
 	return result, nil
 }
 
-func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) { //reflect.Type returns other types to describe
+func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 	kind := t.Kind()
 
 	if kind != reflect.Struct {
@@ -97,21 +97,33 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) { //refl
 			fieldName = parts[0]
 		}
 
-		typeName := fieldType.Name()
-		if fieldType.Kind() == reflect.Slice {
-			typeName = "[]" + fieldType.Elem().Name()
-
-			if fieldType.Elem().Kind() == reflect.Struct {
-				otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
+		if field.Anonymous && fieldType.Kind() == reflect.Struct {
+			// Handle embedded struct by flattening its fields
+			embeddedFields, moreTypes, err := describeStruct(fieldType)
+			if err != nil {
+				return nil, nil, err
 			}
-		} else if fieldType.Kind() == reflect.Ptr {
-			otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
-		}
+			fields = append(fields, embeddedFields...)
+			otherStructsSeen = append(otherStructsSeen, moreTypes...)
+		} else {
+			typeName := fieldType.Name()
+			if fieldType.Kind() == reflect.Slice {
+				typeName = "[]" + fieldType.Elem().Name()
 
-		fields = append(fields, ABIField{
-			Name: fieldName,
-			Type: typeName,
-		})
+				if fieldType.Elem().Kind() == reflect.Struct {
+					otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
+				}
+			} else if fieldType.Kind() == reflect.Ptr {
+				otherStructsSeen = append(otherStructsSeen, fieldType.Elem())
+			} else if fieldType.Kind() == reflect.Struct {
+				otherStructsSeen = append(otherStructsSeen, fieldType)
+			}
+
+			fields = append(fields, ABIField{
+				Name: fieldName,
+				Type: typeName,
+			})
+		}
 	}
 
 	return fields, otherStructsSeen, nil
