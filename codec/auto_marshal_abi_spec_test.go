@@ -5,6 +5,7 @@ package codec_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"testing"
@@ -44,9 +45,6 @@ func (s AbstractMockAction) StateKeysMaxChunks() []uint16 {
 func (s AbstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("ValidRange unimplemented")
 }
-func (s AbstractMockAction) GetTypeID() uint8 {
-	return 1
-}
 
 type MockAction1 struct {
 	AbstractMockAction
@@ -54,10 +52,29 @@ type MockAction1 struct {
 	Field2 int32
 }
 
+func (s MockAction1) GetTypeID() uint8 {
+	return 1
+}
+
+type MockActionTransfer struct {
+	AbstractMockAction
+	To    codec.Address `json:"to"`
+	Value uint64        `json:"value"`
+	Memo  []byte        `json:"memo"`
+}
+
+func (s MockActionTransfer) GetTypeID() uint8 {
+	return 2
+}
+
 func TestMarshalSimpleSpec(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{MockAction1{}})
+	VMActions := []codec.HavingTypeId{
+		MockAction1{},
+		MockActionTransfer{},
+	}
+	abiString, err := codec.GetVmABIString(VMActions)
 	require.NoError(err)
 	// This JSON will be input in TypeScript
 	expectedABI := `
@@ -77,15 +94,35 @@ func TestMarshalSimpleSpec(t *testing.T) {
 					}
 				]
 			}
+		},
+		{
+			"id": 2,
+			"name": "MockActionTransfer",
+			"types": {
+				"MockActionTransfer": [
+					{
+						"name": "to",
+						"type": "Address"
+					},
+					{
+						"name": "value",
+						"type": "uint64"
+					},
+					{
+						"name": "memo",
+						"type": "[]uint8"
+					}
+				]
+			}
 		}
 	]`
 	require.JSONEq(expectedABI, string(abiString))
 
-	actionInstance := MockAction1{
+	action1Instance := MockAction1{
 		Field1: "Super value",
 		Field2: -123777,
 	}
-	structJSON, err := json.Marshal(actionInstance)
+	structJSON, err := json.Marshal(action1Instance)
 	require.NoError(err)
 
 	// This JSON will also be an input in TypeScript
@@ -97,11 +134,14 @@ func TestMarshalSimpleSpec(t *testing.T) {
 	require.JSONEq(expectedStructJSON, string(structJSON))
 
 	// This is the output of the combination of above JSONs
-	actionPacker := codec.NewWriter(actionInstance.Size(), consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(actionPacker, actionInstance)
+	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, action1Instance)
 	require.NoError(actionPacker.Err())
 
 	actionDigest := actionPacker.Bytes()
 
 	require.Equal("000b53757065722076616c7565fffe1c7f", hex.EncodeToString(actionDigest))
+
+	abiHash := sha256.Sum256([]byte(abiString))
+	require.Equal("404e365ee910729071642fa843076186ad6001a6314cde7c0ae5f1355f90ab8e", hex.EncodeToString(abiHash[:]))
 }
