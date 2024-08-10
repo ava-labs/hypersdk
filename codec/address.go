@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -33,6 +34,12 @@ func CreateAddress(typeID uint8, id ids.ID) Address {
 	a[0] = typeID
 	copy(a[1:], id[:])
 	return Address(a)
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It marshals the Address as a base64-encoded string.
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
 }
 
 func ToAddress(bytes []byte) (Address, error) {
