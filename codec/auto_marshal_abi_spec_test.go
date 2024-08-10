@@ -347,32 +347,67 @@ type MockActionStringAndBytes struct {
 func (s MockActionStringAndBytes) GetTypeID() uint8 {
 	return 4
 }
-
 func TestMarshalStringAndBytesSpec(t *testing.T) {
 	require := require.New(t)
 
-	action := MockActionStringAndBytes{
-		Field1: "Hello, World!",
-		Field2: []byte{0x01, 0x02, 0x03, 0x04},
+	testCases := []struct {
+		name           string
+		action         MockActionStringAndBytes
+		expectedJSON   string
+		expectedDigest string
+	}{
+		{
+			name: "Non-empty fields",
+			action: MockActionStringAndBytes{
+				Field1: "Hello, World!",
+				Field2: []byte{0x01, 0x02, 0x03, 0x04},
+			},
+			expectedJSON:   `{"field1": "Hello, World!","field2": "AQIDBA=="}`,
+			expectedDigest: "000d48656c6c6f2c20576f726c64210000000401020304",
+		},
+		{
+			name: "Empty fields",
+			action: MockActionStringAndBytes{
+				Field1: "",
+				Field2: []byte{},
+			},
+			expectedJSON:   `{"field1": "","field2": ""}`,
+			expectedDigest: "000000000000",
+		},
+		{
+			name: "String 'A' and empty bytes",
+			action: MockActionStringAndBytes{
+				Field1: "A",
+				Field2: []byte{},
+			},
+			expectedJSON:   `{"field1": "A","field2": ""}`,
+			expectedDigest: "00014100000000",
+		},
+		{
+			name: "Byte 0x00 and empty string",
+			action: MockActionStringAndBytes{
+				Field1: "",
+				Field2: []byte{0x00},
+			},
+			expectedJSON:   `{"field1": "","field2": "AA=="}`,
+			expectedDigest: "00000000000100",
+		},
 	}
 
-	structJSON, err := json.Marshal(action)
-	require.NoError(err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			structJSON, err := json.Marshal(tc.action)
+			require.NoError(err)
+			require.JSONEq(tc.expectedJSON, string(structJSON))
 
-	expectedStructJSON := `
-	{
-		"field1": "Hello, World!",
-		"field2": "AQIDBA=="
-	}`
-	require.JSONEq(expectedStructJSON, string(structJSON))
+			actionPacker := codec.NewWriter(tc.action.Size(), consts.NetworkSizeLimit)
+			codec.AutoMarshalStruct(actionPacker, tc.action)
+			require.NoError(actionPacker.Err())
 
-	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(actionPacker, action)
-	require.NoError(actionPacker.Err())
-
-	actionDigest := actionPacker.Bytes()
-
-	require.Equal("000d48656c6c6f2c20576f726c64210000000401020304", hex.EncodeToString(actionDigest))
+			actionDigest := actionPacker.Bytes()
+			require.Equal(tc.expectedDigest, hex.EncodeToString(actionDigest))
+		})
+	}
 }
 
 type MockActionArrays struct {
