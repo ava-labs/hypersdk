@@ -12,54 +12,45 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/stretchr/testify/require"
 )
 
-// This is a combined spec for ABI and AutoMarshal
-// The results of this test are used in TypeScript tests to ensure the TypeScript implementation is correct
-// Tests are added on as-needed by Typescript base
+// This is a combined spec for ABI and AutoMarshal.
+// The results of this test are used in TypeScript tests to ensure the TypeScript implementation is correct.
+// Tests are added on an as-needed basis by TypeScript.
 
-var _ chain.Action = MockAction1{}
-
-type MockAction1 struct {
-	Field1 string
-	Field2 int32
+type AbstractMockAction struct {
 }
 
-// ComputeUnits implements chain.Action.
-func (s MockAction1) ComputeUnits(chain.Rules) uint64 {
+func (s AbstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("ComputeUnits unimplemented")
 }
-
-// Execute implements chain.Action.
-func (s MockAction1) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (s AbstractMockAction) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
 	panic("Execute unimplemented")
 }
-
-// Size implements chain.Action.
-func (s MockAction1) Size() int {
-	//TODO: has to be automatic for automatic marshalling
-	return codec.StringLen(s.Field1) + 4 //32 bit is 4 bytes
+func (s AbstractMockAction) Size() int {
+	// TODO: This has to be automatic for automatic marshalling
+	return 0
 }
-
-// StateKeys implements chain.Action.
-func (s MockAction1) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (s AbstractMockAction) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
 	panic("StateKeys unimplemented")
 }
-
-// StateKeysMaxChunks implements chain.Action.
-func (s MockAction1) StateKeysMaxChunks() []uint16 {
+func (s AbstractMockAction) StateKeysMaxChunks() []uint16 {
 	panic("StateKeysMaxChunks unimplemented")
 }
-
-// ValidRange implements chain.Action.
-func (s MockAction1) ValidRange(chain.Rules) (start int64, end int64) {
+func (s AbstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("ValidRange unimplemented")
 }
-
-func (s MockAction1) GetTypeID() uint8 {
+func (s AbstractMockAction) GetTypeID() uint8 {
 	return 1
+}
+
+type MockAction1 struct {
+	AbstractMockAction
+	Field1 string
+	Field2 int32
 }
 
 func TestMarshalSimpleSpec(t *testing.T) {
@@ -67,8 +58,8 @@ func TestMarshalSimpleSpec(t *testing.T) {
 
 	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{MockAction1{}})
 	require.NoError(err)
-	//this json will be input in TS
-	require.JSONEq(`
+	// This JSON will be input in TypeScript
+	expectedABI := `
 	[
 		{
 			"id": 1,
@@ -86,33 +77,30 @@ func TestMarshalSimpleSpec(t *testing.T) {
 				]
 			}
 		}
-	]`, string(abiString))
+	]`
+	require.JSONEq(expectedABI, string(abiString))
 
 	actionInstance := MockAction1{
 		Field1: "Super value",
 		Field2: -123777,
 	}
-	structJson, err := json.Marshal(actionInstance)
+	structJSON, err := json.Marshal(actionInstance)
 	require.NoError(err)
 
-	//this json will also be an input in TS
-	require.JSONEq(`
+	// This JSON will also be an input in TypeScript
+	expectedStructJSON := `
 	{
-	"Field1": "Super value",
-	"Field2": -123777
-	}`, string(structJson))
+		"Field1": "Super value",
+		"Field2": -123777
+	}`
+	require.JSONEq(expectedStructJSON, string(structJSON))
 
-	//this digest hex would be an output of aformentioned 2 jsons
-	tx := chain.Transaction{
-		Base: &chain.Base{
-			Timestamp: 123456789,
-			ChainID:   [32]byte{},
-			MaxFee:    0,
-		},
-		Actions: []chain.Action{actionInstance},
-		Auth:    nil,
-	}
+	// This is the output of the combination of above JSONs
+	actionPacker := codec.NewWriter(actionInstance.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, actionInstance)
+	require.NoError(actionPacker.Err())
 
-	digest, err := tx.Digest()
-	require.Equal(hex.EncodeToString(digest), "00000000075bcd15000000000000000000000000000000000000000000000000000000000000000000000000000000000101000b53757065722076616c7565fffe1c7f")
+	actionDigest := actionPacker.Bytes()
+
+	require.Equal("000b53757065722076616c7565fffe1c7f", hex.EncodeToString(actionDigest))
 }
