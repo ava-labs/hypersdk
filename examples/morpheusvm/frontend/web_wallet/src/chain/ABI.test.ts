@@ -287,6 +287,10 @@ export class ABI {
 function encodeField(type: string, value: unknown): Uint8Array {
   console.warn("DEBUG: encodeField", type, value)
 
+  if (type === 'Address' && typeof value === 'string') {
+    return encodeAddress(value)
+  }
+
   if (type === '[]uint8' && typeof value === 'string') {
     const byteArray = Array.from(atob(value), char => char.charCodeAt(0)) as number[]
     return new Uint8Array([...encodeNumber("uint32", byteArray.length), ...byteArray])
@@ -311,6 +315,14 @@ function encodeField(type: string, value: unknown): Uint8Array {
     default:
       throw new Error(`Type ${type} marshaling is not implemented yet`)
   }
+}
+
+function encodeAddress(value: string): Uint8Array {
+  const decodedBytes = atob(value)
+  if (decodedBytes.length !== 33) {
+    throw new Error(`Address must be 33 bytes long, got ${decodedBytes.length} bytes`)
+  }
+  return new Uint8Array(Array.from(decodedBytes, char => char.charCodeAt(0)))
 }
 
 function encodeNumber(type: string, value: number | string): Uint8Array {
@@ -391,3 +403,17 @@ function encodeArray(type: string, value: unknown[]): Uint8Array {
   }, [] as number[]);
   return new Uint8Array([...lengthBytes, ...flattenedItems]);
 }
+
+
+test('TestMarshalTransferSpec', () => {
+  const abi = new ABI(abiString)
+  const jsonString = `
+  {
+    "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+    "value": 1000,
+    "memo": "AQID"
+  }`
+  const binary = abi.getActionBinary("MockActionTransfer", jsonString)
+  expect(bytesToHex(binary))
+    .toBe("0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203")
+})

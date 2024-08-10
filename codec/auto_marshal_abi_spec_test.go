@@ -470,3 +470,27 @@ func TestMarshalArraysSpec(t *testing.T) {
 
 	require.Equal("0002000548656c6c6f0005576f726c6400020000000201020000000203040000000201020002012c0190000200011170000138800002000000012a05f2000000000165a0bc000002fffe0002fed4fe700002fffeee90fffec7800002fffffffed5fa0e00fffffffe9a5f4400", hex.EncodeToString(actionDigest))
 }
+
+func TestMarshalTransferSpec(t *testing.T) {
+	require := require.New(t)
+
+	action := MockActionTransfer{
+		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
+		Value: 1000,
+		Memo:  []byte{0x01, 0x02, 0x03},
+	}
+
+	structJSON, err := json.Marshal(action)
+	require.NoError(err)
+
+	expectedJSON := `{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}`
+	require.Equal(expectedJSON, string(structJSON))
+
+	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, action)
+	require.NoError(actionPacker.Err())
+
+	actionDigest := actionPacker.Bytes()
+	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
+}
