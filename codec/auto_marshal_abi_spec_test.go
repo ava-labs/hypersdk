@@ -75,6 +75,9 @@ func TestABISpec(t *testing.T) {
 		MockActionAllNumbers{},
 		MockActionStringAndBytes{},
 		MockActionArrays{},
+		MockActionWithTransferArray{},
+		MockActionWithTransfer{},
+		MockActionWithTransferMap{},
 	}
 	abiString, err := codec.GetVmABIString(VMActions)
 	require.NoError(err)
@@ -215,12 +218,76 @@ func TestABISpec(t *testing.T) {
         }
       ]
     }
+  },
+  {
+    "id": 7,
+    "name": "MockActionWithTransferArray",
+    "types": {
+      "MockActionTransfer": [
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "value",
+          "type": "uint64"
+        },
+        {
+          "name": "memo",
+          "type": "[]uint8"
+        }
+      ],
+      "MockActionWithTransferArray": [
+        {
+          "name": "transfers",
+          "type": "[]MockActionTransfer"
+        }
+      ]
+    }
+  },
+  {
+    "id": 6,
+    "name": "MockActionWithTransfer",
+    "types": {
+      "MockActionTransfer": [
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "value",
+          "type": "uint64"
+        },
+        {
+          "name": "memo",
+          "type": "[]uint8"
+        }
+      ],
+      "MockActionWithTransfer": [
+        {
+          "name": "transfer",
+          "type": "MockActionTransfer"
+        }
+      ]
+    }
+  },
+  {
+    "id": 8,
+    "name": "MockActionWithTransferMap",
+    "types": {
+      "MockActionWithTransferMap": [
+        {
+          "name": "transfersMap",
+          "type": ""
+        }
+      ]
+    }
   }
 ]`
 	require.Equal(expectedABI, string(abiString))
 
 	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("26d5faddb952328f5c11d96f814163f002ff45cdce436eb9c7426caf0633c24e", hex.EncodeToString(abiHash[:]))
+	require.Equal("1b11cc4be907c26b3aa8346c07866a86ec685f63198ccbe27937a4372c49a4bd", hex.EncodeToString(abiHash[:]))
 
 }
 
@@ -492,5 +559,99 @@ func TestMarshalTransferSpec(t *testing.T) {
 
 	actionDigest := actionPacker.Bytes()
 	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
+}
+
+type MockActionWithTransfer struct {
+	AbstractMockAction
+	Transfer MockActionTransfer `json:"transfer"`
+}
+
+func (s MockActionWithTransfer) GetTypeID() uint8 {
+	return 6
+}
+
+type MockActionWithTransferArray struct {
+	AbstractMockAction
+	Transfers []MockActionTransfer `json:"transfers"`
+}
+
+func (s MockActionWithTransferArray) GetTypeID() uint8 {
+	return 7
+}
+
+type MockActionWithTransferMap struct {
+	AbstractMockAction
+	TransfersMap map[string]MockActionTransfer `json:"transfersMap"`
+}
+
+func (s MockActionWithTransferMap) GetTypeID() uint8 {
+	return 8
+}
+
+func TestMarshalComplexStructs(t *testing.T) {
+	require := require.New(t)
+
+	transfer := MockActionTransfer{
+		To:    codec.Address{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14},
+		Value: 1000,
+		Memo:  []byte{0x01, 0x02, 0x03},
+	}
+
+	// Struct with a single transfer
+	actionWithTransfer := MockActionWithTransfer{
+		Transfer: transfer,
+	}
+	structJSON, err := json.Marshal(actionWithTransfer)
+	require.NoError(err)
+
+	expectedJSON := `{"transfer":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}}`
+	require.JSONEq(expectedJSON, string(structJSON))
+
+	actionPacker := codec.NewWriter(actionWithTransfer.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, actionWithTransfer)
+	require.NoError(actionPacker.Err())
+
+	actionDigest := actionPacker.Bytes()
+	expectedDigest := "0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
+
+	// Struct with an array of transfers
+	actionWithTransferArray := MockActionWithTransferArray{
+		Transfers: []MockActionTransfer{transfer, transfer},
+	}
+	structJSON, err = json.Marshal(actionWithTransferArray)
+	require.NoError(err)
+
+	expectedJSON = `{"transfers":[{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"},{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}]}`
+	require.JSONEq(expectedJSON, string(structJSON))
+
+	actionPacker = codec.NewWriter(actionWithTransferArray.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, actionWithTransferArray)
+	require.NoError(actionPacker.Err())
+
+	actionDigest = actionPacker.Bytes()
+	expectedDigest = "00020102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000030102030102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
+	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
+
+	// Struct with a map of transfers
+	actionWithTransferMap := MockActionWithTransferMap{
+		TransfersMap: map[string]MockActionTransfer{
+			"first":  transfer,
+			"second": transfer,
+		},
+	}
+	structJSON, err = json.Marshal(actionWithTransferMap)
+	require.NoError(err)
+
+	expectedJSON = `{"transfersMap":{"first":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"},"second":{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}}}`
+	require.JSONEq(expectedJSON, string(structJSON))
+
+	actionPacker = codec.NewWriter(actionWithTransferMap.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, actionWithTransferMap)
+	require.NoError(actionPacker.Err())
+
+	actionDigest = actionPacker.Bytes()
+	expectedDigest = "0002000566697273740102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e80000000301020300067365636f6e640102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203"
 	require.Equal(expectedDigest, hex.EncodeToString(actionDigest))
 }

@@ -138,13 +138,77 @@ const abiString = `[
         }
       ]
     }
+  },
+  {
+    "id": 7,
+    "name": "MockActionWithTransferArray",
+    "types": {
+      "MockActionTransfer": [
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "value",
+          "type": "uint64"
+        },
+        {
+          "name": "memo",
+          "type": "[]uint8"
+        }
+      ],
+      "MockActionWithTransferArray": [
+        {
+          "name": "transfers",
+          "type": "[]MockActionTransfer"
+        }
+      ]
+    }
+  },
+  {
+    "id": 6,
+    "name": "MockActionWithTransfer",
+    "types": {
+      "MockActionTransfer": [
+        {
+          "name": "to",
+          "type": "Address"
+        },
+        {
+          "name": "value",
+          "type": "uint64"
+        },
+        {
+          "name": "memo",
+          "type": "[]uint8"
+        }
+      ],
+      "MockActionWithTransfer": [
+        {
+          "name": "transfer",
+          "type": "MockActionTransfer"
+        }
+      ]
+    }
+  },
+  {
+    "id": 8,
+    "name": "MockActionWithTransferMap",
+    "types": {
+      "MockActionWithTransferMap": [
+        {
+          "name": "transfersMap",
+          "type": ""
+        }
+      ]
+    }
   }
 ]`
 
 test('TestABISpec', () => {
   const abi = new ABI(abiString)
   expect(bytesToHex(abi.getHash()))
-    .toBe("26d5faddb952328f5c11d96f814163f002ff45cdce436eb9c7426caf0633c24e")
+    .toBe("1b11cc4be907c26b3aa8346c07866a86ec685f63198ccbe27937a4372c49a4bd")
 })
 
 test('TestMarshalEmptySpec', () => {
@@ -267,53 +331,75 @@ export class ABI {
   getActionBinary(actionName: string, dataJSON: string): Uint8Array {
     const data = parse(dataJSON) as Record<string, unknown>
 
-    const actionABI = this.abi.find(abi => abi.name === actionName)
-    if (!actionABI) throw new Error(`No action ABI found: ${actionName}`)
+    return this.encodeField(actionName, data)
+  }
 
-    const structABI = actionABI.types[actionName]
-    if (!structABI) throw new Error(`No struct ${actionName} found in action ${actionName} ABI`)
 
-    let resultingBinary = new Uint8Array()
-    for (const field of structABI) {
-      const value = data[field.name]
-      const fieldBinary = encodeField(field.type, value)
-      resultingBinary = new Uint8Array([...resultingBinary, ...fieldBinary])
+  encodeField(type: string, value: unknown): Uint8Array {
+    console.warn("DEBUG: encodeField", type, value)
+
+    if (type === 'Address' && typeof value === 'string') {
+      return encodeAddress(value)
     }
 
-    return resultingBinary
+    if (type === '[]uint8' && typeof value === 'string') {
+      const byteArray = Array.from(atob(value), char => char.charCodeAt(0)) as number[]
+      return new Uint8Array([...encodeNumber("uint32", byteArray.length), ...byteArray])
+    }
+
+    if (type.startsWith('[]')) {
+      return this.encodeArray(type.slice(2), value as unknown[]);
+    }
+
+    switch (type) {
+      case "uint8":
+      case "uint16":
+      case "uint32":
+      case "uint64":
+      case "int8":
+      case "int16":
+      case "int32":
+      case "int64":
+        return encodeNumber(type, value as number | string)
+      case "string":
+        return encodeString(value as string)
+      default:
+        {
+          const actionABI = this.abi.find(abi => abi.name === type)
+          if (!actionABI) throw new Error(`No action ABI found: ${type}`)
+
+          const structABI = actionABI.types[type]
+          if (!structABI) throw new Error(`No struct ${type} found in action ${type} ABI`)
+
+          const dataRecord = value as Record<string, unknown>;
+          let resultingBinary = new Uint8Array()
+          for (const field of structABI) {
+            const fieldBinary = this.encodeField(field.type, dataRecord[field.name]);
+            resultingBinary = new Uint8Array([...resultingBinary, ...fieldBinary])
+          }
+          return resultingBinary
+        }
+
+    }
   }
-}
 
-function encodeField(type: string, value: unknown): Uint8Array {
-  console.warn("DEBUG: encodeField", type, value)
+  encodeArray(type: string, value: unknown[]): Uint8Array {
+    if (!Array.isArray(value)) {
+      throw new Error(`Error in encodeArray: Expected an array for type ${type}, but received ${typeof value} of declared type ${type}`)
+    }
 
-  if (type === 'Address' && typeof value === 'string') {
-    return encodeAddress(value)
-  }
-
-  if (type === '[]uint8' && typeof value === 'string') {
-    const byteArray = Array.from(atob(value), char => char.charCodeAt(0)) as number[]
-    return new Uint8Array([...encodeNumber("uint32", byteArray.length), ...byteArray])
-  }
-
-  if (type.startsWith('[]')) {
-    return encodeArray(type.slice(2), value as unknown[]);
-  }
-
-  switch (type) {
-    case "uint8":
-    case "uint16":
-    case "uint32":
-    case "uint64":
-    case "int8":
-    case "int16":
-    case "int32":
-    case "int64":
-      return encodeNumber(type, value as number | string)
-    case "string":
-      return encodeString(value as string)
-    default:
-      throw new Error(`Type ${type} marshaling is not implemented yet`)
+    const lengthBytes = encodeNumber("uint16", value.length);
+    const encodedItems = value.map(item => this.encodeField(type, item));
+    const flattenedItems = encodedItems.reduce((acc, item) => {
+      if (item instanceof Uint8Array) {
+        return [...acc, ...item];
+      } else if (typeof item === 'number') {
+        return [...acc, item];
+      } else {
+        throw new Error(`Unexpected item type in encoded array: ${typeof item}`);
+      }
+    }, [] as number[]);
+    return new Uint8Array([...lengthBytes, ...flattenedItems]);
   }
 }
 
@@ -385,25 +471,6 @@ function encodeString(value: string): Uint8Array {
   return new Uint8Array([...lengthBytes, ...stringBytes])
 }
 
-function encodeArray(type: string, value: unknown[]): Uint8Array {
-  if (!Array.isArray(value)) {
-    throw new Error(`Error in encodeArray: Expected an array for type ${type}, but received ${typeof value} of declared type ${type}`)
-  }
-
-  const lengthBytes = encodeNumber("uint16", value.length);
-  const encodedItems = value.map(item => encodeField(type, item));
-  const flattenedItems = encodedItems.reduce((acc, item) => {
-    if (item instanceof Uint8Array) {
-      return [...acc, ...item];
-    } else if (typeof item === 'number') {
-      return [...acc, item];
-    } else {
-      throw new Error(`Unexpected item type in encoded array: ${typeof item}`);
-    }
-  }, [] as number[]);
-  return new Uint8Array([...lengthBytes, ...flattenedItems]);
-}
-
 
 test('TestMarshalTransferSpec', () => {
   const abi = new ABI(abiString)
@@ -416,4 +483,62 @@ test('TestMarshalTransferSpec', () => {
   const binary = abi.getActionBinary("MockActionTransfer", jsonString)
   expect(bytesToHex(binary))
     .toBe("0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203")
+})
+
+
+test('TestMarshalComplexStructs', () => {
+  const abi = new ABI(abiString)
+
+  // Struct with a single transfer
+  const jsonStringSingleTransfer = `
+  {
+    "transfer": {
+      "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+      "value": 1000,
+      "memo": "AQID"
+    }
+  }`
+  const binarySingleTransfer = abi.getActionBinary("MockActionWithTransfer", jsonStringSingleTransfer)
+  expect(bytesToHex(binarySingleTransfer))
+    .toBe("0102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203")
+
+  // Struct with an array of transfers
+  const jsonStringTransferArray = `
+  {
+    "transfers": [
+      {
+        "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+        "value": 1000,
+        "memo": "AQID"
+      },
+      {
+        "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+        "value": 1000,
+        "memo": "AQID"
+      }
+    ]
+  }`
+  const binaryTransferArray = abi.getActionBinary("MockActionWithTransferArray", jsonStringTransferArray)
+  expect(bytesToHex(binaryTransferArray))
+    .toBe("00020102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e8000000030102030102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203")
+
+  // // Struct with a map of transfers
+  // const jsonStringTransferMap = `
+  // {
+  //   "transfersMap": {
+  //     "first": {
+  //       "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+  //       "value": 1000,
+  //       "memo": "AQID"
+  //     },
+  //     "second": {
+  //       "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+  //       "value": 1000,
+  //       "memo": "AQID"
+  //     }
+  //   }
+  // }`
+  // const binaryTransferMap = abi.getActionBinary("MockActionWithTransferMap", jsonStringTransferMap)
+  // expect(bytesToHex(binaryTransferMap))
+  //   .toBe("0002000566697273740102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e80000000301020300067365636f6e640102030405060708090a0b0c0d0e0f10111213140000000000000000000000000000000000000003e800000003010203")
 })
