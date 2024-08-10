@@ -46,13 +46,12 @@ func (s AbstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("ValidRange unimplemented")
 }
 
-type MockAction1 struct {
+type MockActionSingleNumber struct {
 	AbstractMockAction
-	Field1 string
-	Field2 int32
+	Field1 uint16
 }
 
-func (s MockAction1) GetTypeID() uint8 {
+func (s MockActionSingleNumber) GetTypeID() uint8 {
 	return 1
 }
 
@@ -67,11 +66,69 @@ func (s MockActionTransfer) GetTypeID() uint8 {
 	return 2
 }
 
+func TestMarshalEmptySpec(t *testing.T) {
+	require := require.New(t)
+
+	var err error
+
+	action1Instance := MockActionSingleNumber{
+		Field1: 0,
+	}
+	structJSON, err := json.Marshal(action1Instance)
+	require.NoError(err)
+
+	// This JSON will also be an input in TypeScript
+	expectedStructJSON := `
+	{
+		"Field1": 0
+	}`
+	require.JSONEq(expectedStructJSON, string(structJSON))
+
+	// This is the output of the combination of above JSONs
+	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, action1Instance)
+	require.NoError(actionPacker.Err())
+
+	actionDigest := actionPacker.Bytes()
+
+	require.Equal("0000", hex.EncodeToString(actionDigest))
+
+}
+
 func TestMarshalSimpleSpec(t *testing.T) {
 	require := require.New(t)
 
+	var err error
+
+	action1Instance := MockActionSingleNumber{
+		Field1: 12333,
+	}
+	structJSON, err := json.Marshal(action1Instance)
+	require.NoError(err)
+
+	// This JSON will also be an input in TypeScript
+	expectedStructJSON := `
+	{
+		"Field1": 12333
+	}`
+	require.JSONEq(expectedStructJSON, string(structJSON))
+
+	// This is the output of the combination of above JSONs
+	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, action1Instance)
+	require.NoError(actionPacker.Err())
+
+	actionDigest := actionPacker.Bytes()
+
+	require.Equal("302d", hex.EncodeToString(actionDigest))
+
+}
+
+func TestABISpec(t *testing.T) {
+	require := require.New(t)
+
 	VMActions := []codec.HavingTypeId{
-		MockAction1{},
+		MockActionSingleNumber{},
 		MockActionTransfer{},
 	}
 	abiString, err := codec.GetVmABIString(VMActions)
@@ -80,16 +137,12 @@ func TestMarshalSimpleSpec(t *testing.T) {
 	expectedABI := `[
   {
     "id": 1,
-    "name": "MockAction1",
+    "name": "MockActionSingleNumber",
     "types": {
-      "MockAction1": [
+      "MockActionSingleNumber": [
         {
           "name": "Field1",
-          "type": "string"
-        },
-        {
-          "name": "Field2",
-          "type": "int32"
+          "type": "uint16"
         }
       ]
     }
@@ -117,30 +170,7 @@ func TestMarshalSimpleSpec(t *testing.T) {
 ]`
 	require.Equal(expectedABI, string(abiString))
 
-	action1Instance := MockAction1{
-		Field1: "Super value",
-		Field2: -123777,
-	}
-	structJSON, err := json.Marshal(action1Instance)
-	require.NoError(err)
-
-	// This JSON will also be an input in TypeScript
-	expectedStructJSON := `
-	{
-		"Field1": "Super value",
-		"Field2": -123777
-	}`
-	require.JSONEq(expectedStructJSON, string(structJSON))
-
-	// This is the output of the combination of above JSONs
-	actionPacker := codec.NewWriter(action1Instance.Size(), consts.NetworkSizeLimit)
-	codec.AutoMarshalStruct(actionPacker, action1Instance)
-	require.NoError(actionPacker.Err())
-
-	actionDigest := actionPacker.Bytes()
-
-	require.Equal("000b53757065722076616c7565fffe1c7f", hex.EncodeToString(actionDigest))
-
 	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("404e365ee910729071642fa843076186ad6001a6314cde7c0ae5f1355f90ab8e", hex.EncodeToString(abiHash[:]))
+	require.Equal("a92c32c95198ea6539871193f2f45187d89378de0c6bd0095f5ff3b79557f34e", hex.EncodeToString(abiHash[:]))
+
 }
