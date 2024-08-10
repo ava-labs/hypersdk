@@ -17,9 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This is a combined spec for ABI and AutoMarshal.
-// The results of this test are used in TypeScript tests to ensure the TypeScript implementation is correct.
-// Tests are added on an as-needed basis by TypeScript.
+// Combined ABI and AutoMarshal spec
+// Used to verify TypeScript implementation
+// Tests added as needed by TypeScript
+// Ensures consistency in marshaling, not testing Go struct marshaling itself
 
 type AbstractMockAction struct {
 }
