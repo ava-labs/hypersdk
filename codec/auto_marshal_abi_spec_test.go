@@ -73,6 +73,7 @@ func TestABISpec(t *testing.T) {
 		MockActionSingleNumber{},
 		MockActionTransfer{},
 		MockActionAllNumbers{},
+		MockActionStringAndBytes{},
 	}
 	abiString, err := codec.GetVmABIString(VMActions)
 	require.NoError(err)
@@ -149,12 +150,28 @@ func TestABISpec(t *testing.T) {
         }
       ]
     }
+  },
+  {
+    "id": 4,
+    "name": "MockActionStringAndBytes",
+    "types": {
+      "MockActionStringAndBytes": [
+        {
+          "name": "field1",
+          "type": "string"
+        },
+        {
+          "name": "field2",
+          "type": "[]uint8"
+        }
+      ]
+    }
   }
 ]`
 	require.Equal(expectedABI, string(abiString))
 
 	abiHash := sha256.Sum256([]byte(abiString))
-	require.Equal("9ca568711bf22f818756c7c552e1aa012ffd728d55ea33241f9636173a532f07", hex.EncodeToString(abiHash[:]))
+	require.Equal("269a24f3157d1af5403d2f21313f2b3d48232a282c51c9cea1457322f2887358", hex.EncodeToString(abiHash[:]))
 
 }
 
@@ -270,4 +287,41 @@ func TestMarshalAllNumbersSpec(t *testing.T) {
 
 	require.Equal("fefffefffffffefffffffffffffffe818001800000018000000000000001", hex.EncodeToString(actionDigest))
 
+}
+
+type MockActionStringAndBytes struct {
+	AbstractMockAction
+	Field1 string `json:"field1"`
+	Field2 []byte `json:"field2"`
+}
+
+func (s MockActionStringAndBytes) GetTypeID() uint8 {
+	return 4
+}
+
+func TestMarshalStringAndBytesSpec(t *testing.T) {
+	require := require.New(t)
+
+	action := MockActionStringAndBytes{
+		Field1: "Hello, World!",
+		Field2: []byte{0x01, 0x02, 0x03, 0x04},
+	}
+
+	structJSON, err := json.Marshal(action)
+	require.NoError(err)
+
+	expectedStructJSON := `
+	{
+		"field1": "Hello, World!",
+		"field2": "AQIDBA=="
+	}`
+	require.JSONEq(expectedStructJSON, string(structJSON))
+
+	actionPacker := codec.NewWriter(action.Size(), consts.NetworkSizeLimit)
+	codec.AutoMarshalStruct(actionPacker, action)
+	require.NoError(actionPacker.Err())
+
+	actionDigest := actionPacker.Bytes()
+
+	require.Equal("000d48656c6c6f2c20576f726c64210000000401020304", hex.EncodeToString(actionDigest))
 }
