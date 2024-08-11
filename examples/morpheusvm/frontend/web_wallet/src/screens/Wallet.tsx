@@ -7,7 +7,7 @@ import { COIN_SYMBOL, DECIMAL_PLACES, MAX_TRANSFER_FEE } from '../const'
 import { getBalance, getNetwork, sendTx } from '../lib/api'
 import { TransferAction } from '../actions/TransferAction'
 import { Transaction } from '../chain/Transaction'
-import { idStringToBigInt } from '../lib/cb58'
+import { idStringToBigInt } from '../../../morpheus_snap/src/cb58'
 import { useState } from 'react'
 
 export default function Wallet({ otherWalletAddress, signer, balanceBigNumber, onBalanceRefreshRequested, walletName, derivationPath }: { otherWalletAddress: string, signer: SignerIface, balanceBigNumber: bigint, onBalanceRefreshRequested: () => void, walletName: string, derivationPath: string }) {

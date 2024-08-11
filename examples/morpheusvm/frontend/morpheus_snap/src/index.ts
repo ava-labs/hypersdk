@@ -7,6 +7,8 @@ import { isValidSegment } from './keys';
 import { renderSignBytes } from './ui';
 
 
+
+
 /**
  * Handle incoming JSON-RPC requests, sent through `wallet_invokeSnap`.
  *
@@ -40,6 +42,14 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     const signature = nacl.sign.detached(bytes, keyPair.secretKey);
 
     return base58.encode(signature)
+  } else if (request.method === 'signTransaction') {
+    const { derivationPath, tx } = (request.params || {}) as { derivationPath?: string[], tx?: Transaction };
+
+    keyPair = await deriveKeyPair(derivationPath || []);
+
+
+
+    return "TODO:";
   } else if (request.method === 'getPublicKey') {
     const { derivationPath } = (request.params || {}) as { derivationPath?: string[] };
 

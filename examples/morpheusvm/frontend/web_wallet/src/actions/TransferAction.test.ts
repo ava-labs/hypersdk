@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { TRANSFER_ACTION_ID, TransferAction } from './TransferAction'
 import { bytesToHex } from '@noble/hashes/utils'
-import { idStringToBigInt } from '../lib/cb58'
+import { idStringToBigInt } from '../../../morpheus_snap/src/cb58'
 import { Transaction } from '../chain/Transaction'
 import { hexToBytes } from '@noble/curves/abstract/utils'
 import { PrivateKeySigner } from '../signers/PrivateKeySigner'
