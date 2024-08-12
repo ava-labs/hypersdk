@@ -28,8 +28,6 @@ awscpu
 .vscode*
 .env
 
-*.pb*
-
 # db*
 
 *cpu[0-9]*
