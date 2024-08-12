@@ -52,7 +52,7 @@ impl Simulator {
         unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
     }
 
-    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize + Debug>(
+    pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
         &self,
         program: Address,
         method: &str,
