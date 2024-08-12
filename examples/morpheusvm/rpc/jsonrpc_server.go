@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/hypersdk/vm"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -16,6 +15,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 const JSONRPCEndpoint = "/morpheusapi"

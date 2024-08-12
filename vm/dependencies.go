@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"net/http"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
+	"github.com/ava-labs/avalanchego/x/merkledb"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"

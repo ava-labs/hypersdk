@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/vm"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 type JSONRPCClient struct {

@@ -5,13 +5,13 @@ package cmd
 
 import (
 	"encoding/json"
-	"github.com/ava-labs/hypersdk/vm"
 	"os"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var rulesCmd = &cobra.Command{

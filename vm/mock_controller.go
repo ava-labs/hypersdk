@@ -57,20 +57,6 @@ func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Accepted", reflect.TypeOf((*MockController)(nil).Accepted), arg0, arg1)
 }
 
-// Rules mocks base method.
-func (m *MockController) Rules(arg0 int64) chain.Rules {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rules", arg0)
-	ret0, _ := ret[0].(chain.Rules)
-	return ret0
-}
-
-// Rules indicates an expected call of Rules.
-func (mr *MockControllerMockRecorder) Rules(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rules", reflect.TypeOf((*MockController)(nil).Rules), arg0)
-}
-
 // Shutdown mocks base method.
 func (m *MockController) Shutdown(arg0 context.Context) error {
 	m.ctrl.T.Helper()

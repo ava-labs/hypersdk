@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
@@ -19,9 +20,7 @@ import (
 	smath "github.com/ava-labs/avalanchego/utils/math"
 )
 
-var (
-	_ vm.Genesis = (*Genesis)(nil)
-)
+var _ vm.Genesis = (*Genesis)(nil)
 
 type CustomAllocation struct {
 	Address string `json:"address"` // bech32 address

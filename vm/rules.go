@@ -6,6 +6,7 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -14,9 +15,7 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
-var (
-	_ chain.Rules = (*BaseRules)(nil)
-)
+var _ chain.Rules = (*BaseRules)(nil)
 
 type BaseRules struct {
 	NetworkID uint32 `json:"networkID"`
@@ -180,6 +179,7 @@ type UnchangingRuleFactory[T chain.Rules] struct {
 func (r *UnchangingRuleFactory[T]) GetTypedRules(_ int64) T {
 	return r.UnchangingRules
 }
+
 func (r *UnchangingRuleFactory[T]) GetRules(t int64) chain.Rules {
 	return r.GetTypedRules(t)
 }
