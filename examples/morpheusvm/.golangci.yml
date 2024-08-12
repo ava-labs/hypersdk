@@ -7,7 +7,7 @@ run:
   # skip auto-generated files.
   skip-files:
     - ".*\\.pb\\.go$"
-    - ".*mock.*"
+    - '.*mock.*'
 
 issues:
   # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
@@ -81,13 +81,13 @@ linters-settings:
       - name: unhandled-error
         disabled: false
         arguments:
-          - "fmt.Fprint"
-          - "fmt.Fprintf"
-          - "fmt.Print"
-          - "fmt.Printf"
-          - "fmt.Println"
-          - "rand.Read"
-          - "sb.WriteString"
+          - 'fmt.Fprint'
+          - 'fmt.Fprintf'
+          - 'fmt.Print'
+          - 'fmt.Printf'
+          - 'fmt.Println'
+          - 'rand.Read'
+          - 'sb.WriteString'
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unused-parameter
       - name: unused-parameter
         disabled: false
@@ -100,9 +100,9 @@ linters-settings:
   staticcheck:
     # https://staticcheck.io/docs/options#checks
     checks:
-      - "all"
-      - "-SA6002" # argument should be pointer-like to avoid allocation, for sync.Pool
-      - "-SA1019" # deprecated packages e.g., golang.org/x/crypto/ripemd160
+      - 'all'
+      - '-SA6002' # argument should be pointer-like to avoid allocation, for sync.Pool
+      - '-SA1019' # deprecated packages e.g., golang.org/x/crypto/ripemd160
   # https://golangci-lint.run/usage/linters#gosec
   gosec:
     excludes:
@@ -110,6 +110,6 @@ linters-settings:
   depguard:
     list-type: blacklist
     packages-with-error-message:
-      - io/ioutil: "io/ioutil is deprecated. Use package io or os instead."
-      - github.com/stretchr/testify/assert: "github.com/stretchr/testify/require should be used instead."
+      - io/ioutil: 'io/ioutil is deprecated. Use package io or os instead.'
+      - github.com/stretchr/testify/assert: 'github.com/stretchr/testify/require should be used instead.'
     include-go-root: true

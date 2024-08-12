@@ -61,15 +61,15 @@ builds:
           - CC=o64-clang
 
 checksum:
-  name_template: "morpheusvm_checksums.txt"
+  name_template: 'morpheusvm_checksums.txt'
 
 archives:
   - id: default
-    name_template: "morpheusvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: 'morpheusvm_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 
 release:
   make_latest: false # Should be done manually
-  mode: "keep-existing" # Should not override releases
+  mode: 'keep-existing' # Should not override releases
   github:
     owner: ava-labs
     name: hypersdk
