@@ -56,9 +56,9 @@ impl<'a> Mutable<'a> {
     }
 }
 
-pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> BytesWithError {
-    let obj = unsafe { &mut *obj_ptr };
-    let value = obj.get_value(&key);
+pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> BytesWithError {
+    // let obj = unsafe { &mut *obj_ptr };
+    let value = state.get_value(&key);
 
     match value {
         Some(v) => BytesWithError {
@@ -79,24 +79,22 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
 }
 
 pub extern "C" fn insert_state_callback(
-    obj_ptr: *mut SimpleState,
+    state: &mut SimpleState,
     key: Bytes,
     value: Bytes,
 ) -> *const c_char {
-    let obj = unsafe { &mut *obj_ptr };
-    obj.insert(key.to_vec(), value.to_vec());
+    state.insert(key.to_vec(), value.to_vec());
     std::ptr::null()
 }
 
-pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> *const c_char {
-    let obj = unsafe { &mut *obj_ptr };
-    obj.remove(key.to_vec());
+pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) -> *const c_char {
+    state.remove(key.to_vec());
     std::ptr::null()
 }
 
 pub type GetStateCallback =
-    extern "C" fn(simObjectPtr: *mut SimpleState, key: Bytes) -> BytesWithError;
+    extern "C" fn(simObjectPtr: &mut SimpleState, key: Bytes) -> BytesWithError;
 pub type InsertStateCallback =
-    extern "C" fn(objectPtr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
+    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
 pub type RemoveStateCallback =
-    extern "C" fn(objectPtr: *mut SimpleState, key: Bytes) -> *const c_char;
+    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes) -> *const c_char;
