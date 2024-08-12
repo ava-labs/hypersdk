@@ -53,18 +53,22 @@ impl Context {
         &self.program
     }
 
+    /// Returns the address of the actor that is executing the program.
     pub fn actor(&self) -> Address {
         self.actor
     }
 
+    /// Returns the block-height
     pub fn height(&self) -> u64 {
         self.height
     }
 
+    /// Returns the block-timestamp
     pub fn timestamp(&self) -> u64 {
         self.timestamp
     }
 
+    /// Returns the action-id
     pub fn action_id(&self) -> Id {
         self.action_id
     }
