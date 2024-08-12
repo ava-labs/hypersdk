@@ -21,8 +21,7 @@ import (
 )
 
 var (
-	_ vm.Genesis                    = (*Genesis)(nil)
-	_ vm.RuleFactory[*vm.BaseRules] = (*RuleFactory)(nil)
+	_ vm.Genesis = (*Genesis)(nil)
 )
 
 type CustomAllocation struct {
