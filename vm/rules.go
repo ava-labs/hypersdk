@@ -88,13 +88,15 @@ func DefaultRules() *BaseRules {
 	}
 }
 
-func LoadBaseRules(b []byte, _ []byte /* upgradeBytes */) (*BaseRules, error) {
+func LoadBaseRules(b []byte, _ []byte /* upgradeBytes */, chainID ids.ID, networkID uint32) (*BaseRules, error) {
 	g := DefaultRules()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal base genesis %s: %w", string(b), err)
 		}
 	}
+	g.NetworkID = networkID
+	g.ChainID = chainID
 	return g, nil
 }
 
@@ -176,4 +178,12 @@ func (r *BaseRules) GetWindowTargetUnits() fees.Dimensions {
 
 func (*BaseRules) FetchCustom(string) (any, bool) {
 	return nil, false
+}
+
+type UnchangingRuleFactory[T chain.Rules] struct {
+	UnchangingRules T
+}
+
+func (r *UnchangingRuleFactory[T]) GetRules(_ int64) T {
+	return r.UnchangingRules
 }

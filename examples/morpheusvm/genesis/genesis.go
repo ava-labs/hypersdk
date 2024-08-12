@@ -25,14 +25,6 @@ var (
 	_ vm.RuleFactory[*vm.BaseRules] = (*RuleFactory)(nil)
 )
 
-type RuleFactory struct {
-	unchangingRules *vm.BaseRules
-}
-
-func (r *RuleFactory) GetRules(_ int64) *vm.BaseRules {
-	return r.unchangingRules
-}
-
 type CustomAllocation struct {
 	Address string `json:"address"` // bech32 address
 	Balance uint64 `json:"balance"`
@@ -46,7 +38,7 @@ type Genesis struct {
 }
 
 func (g *Genesis) GetRulesFactory() vm.RuleFactory[*vm.BaseRules] {
-	return &RuleFactory{g.BaseRules}
+	return &vm.UnchangingRuleFactory[*vm.BaseRules]{UnchangingRules: g.BaseRules}
 }
 
 func Default() *Genesis {
