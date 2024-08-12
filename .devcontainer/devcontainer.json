@@ -1,0 +1,37 @@
+// For format details, see https://aka.ms/devcontainer.json.
+{
+  "name": "HyperSDK Programs",
+  "image": "mcr.microsoft.com/devcontainers/base",
+  "runArgs": ["--network=host"],
+
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.21.12"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "configureZshAsDefaultShell": true
+    }
+  },
+
+  "remoteEnv": {},
+
+  "postCreateCommand": {
+    "install-wasm-target": "rustup target add wasm32-unknown-unknown"
+  },
+
+  "postStartCommand": "sudo apt update && sudo apt install -y libclang-dev",
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=/go/src/github.com/ava-labs/hypersdk,type=bind",
+  "workspaceFolder": "/go/src/github.com/ava-labs/hypersdk/x/programs/rust/examples/find-out",
+
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "git.autofetch": true
+      },
+      "extensions": ["rust-lang.rust-analyzer", "ms-vsliveshare.vsliveshare"]
+    }
+  }
+}

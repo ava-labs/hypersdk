@@ -16,11 +16,15 @@ mod types;
 
 pub use self::{
     context::{Context, ExternalCallContext},
-    logging::{log, register_panic},
-    memory::HostPtr,
     program::{send, ExternalCallError, Program},
     types::{Address, Gas, Id, ID_LEN},
 };
+#[doc(hidden)]
+pub use self::{
+    logging::{log, register_panic},
+    memory::HostPtr,
+};
+
 pub use sdk_macros::{public, state_schema};
 
 // re-exports
