@@ -12,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/codectest"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/tstate"
@@ -21,7 +22,7 @@ func TestTransferAction(t *testing.T) {
 	req := require.New(t)
 	ts := tstate.New(1)
 	emptyBalanceKey := storage.BalanceKey(codec.EmptyAddress)
-	oneAddr, err := createAddressWithByte(1)
+	addr, err := codectest.NewRandomAddress()
 	req.NoError(err)
 
 	tests := []chaintest.ActionTest{
@@ -100,7 +101,7 @@ func TestTransferAction(t *testing.T) {
 			Name:  "SimpleTransfer",
 			Actor: codec.EmptyAddress,
 			Action: &Transfer{
-				To:    oneAddr,
+				To:    addr,
 				Value: 1,
 			},
 			State: func() state.Mutable {
@@ -108,12 +109,12 @@ func TestTransferAction(t *testing.T) {
 				store := chaintest.NewInMemoryStore()
 				req.NoError(storage.SetBalance(context.Background(), store, codec.EmptyAddress, 1))
 				keys.Add(string(emptyBalanceKey), state.All)
-				keys.Add(string(storage.BalanceKey(oneAddr)), state.All)
+				keys.Add(string(storage.BalanceKey(addr)), state.All)
 				return ts.NewView(keys, store.Storage)
 			}(),
 			Assertion: func(ctx context.Context, t *testing.T, store state.Mutable) {
 				require := require.New(t)
-				receiverBalance, err := storage.GetBalance(ctx, store, oneAddr)
+				receiverBalance, err := storage.GetBalance(ctx, store, addr)
 				require.NoError(err)
 				require.Equal(receiverBalance, uint64(1))
 				senderBalance, err := storage.GetBalance(ctx, store, codec.EmptyAddress)
@@ -126,12 +127,4 @@ func TestTransferAction(t *testing.T) {
 	for _, tt := range tests {
 		tt.Run(context.Background(), t)
 	}
-}
-
-func createAddressWithByte(b byte) (codec.Address, error) {
-	addrSlice := make([]byte, codec.AddressLen)
-	for i := range addrSlice {
-		addrSlice[i] = b
-	}
-	return codec.ToAddress(addrSlice)
 }

@@ -220,13 +220,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			db,
 			genesisBytes,
 			nil,
-			[]byte(
-				`{
-				  "config": {
-				    "logLevel":"debug"
-				  }
-				}`,
-			),
+			[]byte(`{}`),
 			toEngine,
 			nil,
 			app,
