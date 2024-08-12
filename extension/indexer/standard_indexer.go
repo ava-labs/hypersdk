@@ -143,7 +143,6 @@ func (s *StandardDBIndexer) GetBlock(blockID ids.ID) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Get block
 
 	v, err = s.db.Get(v)
 	if errors.Is(err, database.ErrNotFound) {
