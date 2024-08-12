@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"github.com/ava-labs/hypersdk/vm"
 	"os"
 
 	"github.com/fatih/color"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
+	"github.com/ava-labs/hypersdk/vm"
 )
 
 var genesisCmd = &cobra.Command{
