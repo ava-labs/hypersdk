@@ -1,7 +1,7 @@
-# Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+# Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 # See the file LICENSE for licensing terms.
 
-version: '2.4'
+version: "2.4"
 
 services:
   # Default mmap count limits on most systems is too low resulting in memory exceptions.
