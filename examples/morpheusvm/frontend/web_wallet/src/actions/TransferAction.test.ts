@@ -71,6 +71,8 @@ test('Single action tx sign and marshal', async () => {
     const chainId = idStringToBigInt("2c7iUW3kCDwRA9ZFd5bjZZc8iDy68uAsFSBahjqSZGttiTDSNH");
     const addr1 = "morpheus1qqds2l0ryq5hc2ddps04384zz6rfeuvn3kyvn77hp4n5sv3ahuh6wgkt57y";
 
+
+
     const action = new TransferAction(addr1, 123n, "memo");
 
     const tx = new Transaction(

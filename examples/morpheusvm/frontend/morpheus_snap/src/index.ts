@@ -5,6 +5,7 @@ import nacl from 'tweetnacl';
 import { assertInput, assertIsString, assertConfirmation, assertIsArray } from './assert';
 import { isValidSegment } from './keys';
 import { renderSignBytes } from './ui';
+import { Marshaler, TransactionPayload } from './Marshaler';
 
 
 
@@ -43,13 +44,24 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
 
     return base58.encode(signature)
   } else if (request.method === 'signTransaction') {
-    const { derivationPath, tx } = (request.params || {}) as { derivationPath?: string[], tx?: Transaction };
+    const { derivationPath, tx, abiString } = (request.params || {}) as { derivationPath?: string[], tx: TransactionPayload, abiString: string };
 
     keyPair = await deriveKeyPair(derivationPath || []);
 
+    const marshaler = new Marshaler(abiString);
+    const digest = marshaler.encodeTransaction(tx);
 
+    const bytesBase58 = base58.encode(digest);
 
-    return "TODO:";
+    const accepted = await renderSignBytes(bytesBase58);
+    assertConfirmation(!!accepted);
+
+    const signature = nacl.sign.detached(digest, keyPair.secretKey);
+
+    return {
+      signature: base58.encode(signature),
+      digest: base58.encode(digest)
+    };
   } else if (request.method === 'getPublicKey') {
     const { derivationPath } = (request.params || {}) as { derivationPath?: string[] };
 

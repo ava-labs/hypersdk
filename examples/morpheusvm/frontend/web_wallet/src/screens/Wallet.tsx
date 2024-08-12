@@ -37,15 +37,16 @@ export default function Wallet({ otherWalletAddress, signer, balanceBigNumber, o
             log("info", `Initial balance: ${formatBalance(initialBalance, DECIMAL_PLACES)} ${COIN_SYMBOL}`)
 
             const chainIdStr = (await getNetwork()).chainId
-            const chainId = idStringToBigInt(chainIdStr)
+            const chainIdBigNumber = idStringToBigInt(chainIdStr)
 
-            const tx = new Transaction(
-                BigInt(Date.now()) + 60n * 1000n,//5 minutes from now
-                chainId,
-                MAX_TRANSFER_FEE,
-                [action]
-            )
-            const signed = await tx.sign(signer)
+            const tx: TransactionPayload = {
+                timestamp: String(BigInt(Date.now()) + 60n * 1000n),
+                chainId: String(chainIdBigNumber),
+                maxFee: String(MAX_TRANSFER_FEE),
+                actions: [action]
+            }
+
+            const signed = await signer.sign(tx)
 
             log("success", `Transaction signed`)
 

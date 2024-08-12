@@ -1,6 +1,9 @@
 
 import { sha256 } from '@noble/hashes/sha256';
 import { parse } from 'lossless-json'
+import nacl from 'tweetnacl';
+import { ed25519 } from "@noble/curves/ed25519";
+import { ED25519_AUTH_ID } from './bech32';
 
 type ABIField = {
     name: string
@@ -18,7 +21,7 @@ export type ActionData = {
     data: Record<string, unknown>
 }
 
-export type Transaction = {
+export type TransactionPayload = {
     timestamp: string
     chainId: string
     maxFee: string
@@ -30,6 +33,9 @@ export class Marshaler {
 
     constructor(private abiString: string) {
         this.abi = JSON.parse(abiString)
+        if (!Array.isArray(this.abi)) {
+            throw new Error('Invalid ABI: ABI must be an array of single action ABIs')
+        }
     }
 
     getHash(): Uint8Array {
@@ -37,12 +43,21 @@ export class Marshaler {
     }
 
     getActionBinary(actionName: string, dataJSON: string): Uint8Array {
+        //todo: has to throw error of dataJSON has any extra fields
         const data = parse(dataJSON) as Record<string, unknown>
 
         return this.encodeField(actionName, data)
     }
 
-    encodeTransaction(tx: Transaction): Uint8Array {
+    signTransaction(tx: TransactionPayload, privateKey: Uint8Array): Uint8Array {
+        const signableBytes = this.encodeTransaction(tx)
+        if (privateKey.length !== 64) throw new Error('Invalid private key: must be 64 bytes long')
+        const signature = nacl.sign.detached(signableBytes, privateKey)
+        const pubKey = privateKey.slice(32)
+        return new Uint8Array([...signableBytes, ED25519_AUTH_ID, ...pubKey, ...signature])
+    }
+
+    encodeTransaction(tx: TransactionPayload): Uint8Array {
         const timestampBytes = encodeNumber("uint64", tx.timestamp);
         const chainIdBytes = encodeNumber("uint256", tx.chainId);
         const maxFeeBytes = encodeNumber("uint64", tx.maxFee);
@@ -50,18 +65,27 @@ export class Marshaler {
 
         let actionsBytes = new Uint8Array();
         for (const action of tx.actions) {
-            const actionNameBytes = encodeString(action.actionName);
+            const actionTypeIdBytes = encodeNumber("uint8", this.getActionTypeId(action.actionName));
             const actionDataBytes = this.encodeField(action.actionName, action.data);
-            actionsBytes = new Uint8Array([...actionsBytes, ...actionNameBytes, ...actionDataBytes]);
+            actionsBytes = new Uint8Array([...actionsBytes, ...actionTypeIdBytes, ...actionDataBytes]);
         }
 
+        const abiHashBytes = this.getHash()
+
         return new Uint8Array([
+            // ...abiHashBytes //TODO: add abi hash to the end of the signable body of transaction
             ...timestampBytes,
             ...chainIdBytes,
             ...maxFeeBytes,
             ...actionsCountBytes,
-            ...actionsBytes
+            ...actionsBytes,
         ]);
+    }
+
+    getActionTypeId(actionName: string): number {
+        const actionABI = this.abi.find(abi => abi.name === actionName)
+        if (!actionABI) throw new Error(`No action ABI found: ${actionName}`)
+        return actionABI.id
     }
 
     private encodeField(type: string, value: unknown): Uint8Array {
@@ -84,6 +108,7 @@ export class Marshaler {
             case "uint32":
             case "uint64":
             case "uint256":
+            //TODO: implement uint128, int128, and int256 if needed
             case "int8":
             case "int16":
             case "int32":
