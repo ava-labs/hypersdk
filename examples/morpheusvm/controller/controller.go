@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/extension/indexer"
@@ -37,8 +38,8 @@ func New(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		&factory{},
 		consts.Version,
-		consts.ActionRegistry,
-		consts.AuthRegistry,
+		registry.Action,
+		registry.Auth,
 		auth.Engines(),
 		options...,
 	)
