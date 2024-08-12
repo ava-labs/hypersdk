@@ -6,7 +6,6 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -16,8 +15,7 @@ import (
 )
 
 var (
-	_ chain.Rules              = (*BaseRules)(nil)
-	_ RuleFactory[chain.Rules] = (*BaseRules)(nil)
+	_ chain.Rules = (*BaseRules)(nil)
 )
 
 type BaseRules struct {
@@ -48,11 +46,6 @@ type BaseRules struct {
 	StorageKeyWriteUnits      uint64   `json:"storageKeyWriteUnits"`
 	StorageValueWriteUnits    uint64   `json:"storageValueWriteUnits"` // per chunk
 	SponsorStateKeysMaxChunks []uint16 `json:"sponsorStateKeysMaxChunks"`
-}
-
-// GetRules would normally depend on the param, but these rules are unchanging
-func (r *BaseRules) GetRules(_ int64) chain.Rules {
-	return r
 }
 
 func DefaultRules() *BaseRules {
@@ -184,6 +177,17 @@ type UnchangingRuleFactory[T chain.Rules] struct {
 	UnchangingRules T
 }
 
-func (r *UnchangingRuleFactory[T]) GetRules(_ int64) T {
+func (r *UnchangingRuleFactory[T]) GetTypedRules(_ int64) T {
 	return r.UnchangingRules
+}
+func (r *UnchangingRuleFactory[T]) GetRules(t int64) chain.Rules {
+	return r.GetTypedRules(t)
+}
+
+func LoadUnchangingRuleFactory[T chain.Rules](load func(b []byte, chainID ids.ID, networkID uint32) (T, error), b []byte, chainID ids.ID, networkID uint32) (*UnchangingRuleFactory[T], error) {
+	rules, err := load(b, chainID, networkID)
+	if err != nil {
+		return nil, err
+	}
+	return &UnchangingRuleFactory[T]{UnchangingRules: rules}, nil
 }

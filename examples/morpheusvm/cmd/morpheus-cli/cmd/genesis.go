@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
 var genesisCmd = &cobra.Command{
@@ -32,30 +31,6 @@ var genGenesisCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		g := genesis.Default()
-		if len(minUnitPrice) > 0 {
-			d, err := fees.ParseDimensions(minUnitPrice)
-			if err != nil {
-				return err
-			}
-			g.MinUnitPrice = d
-		}
-		if len(maxBlockUnits) > 0 {
-			d, err := fees.ParseDimensions(maxBlockUnits)
-			if err != nil {
-				return err
-			}
-			g.MaxBlockUnits = d
-		}
-		if len(windowTargetUnits) > 0 {
-			d, err := fees.ParseDimensions(windowTargetUnits)
-			if err != nil {
-				return err
-			}
-			g.WindowTargetUnits = d
-		}
-		if minBlockGap >= 0 {
-			g.MinBlockGap = minBlockGap
-		}
 
 		a, err := os.ReadFile(args[0])
 		if err != nil {

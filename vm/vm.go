@@ -68,6 +68,7 @@ type VM struct {
 
 	config         Config
 	genesis        Genesis
+	ruleFactory    RuleFactory
 	builder        builder.Builder
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database
@@ -243,13 +244,14 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
+	vm.c, vm.genesis, vm.ruleFactory, vm.handlers, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
 		controllerContext.NetworkID,
 		controllerContext.ChainID,
 		controllerContext.ChainDataDir,
 		controllerContext.Metrics,
+		genesisBytes,
 		genesisBytes,
 		upgradeBytes,
 		controllerConfigBytes,
@@ -275,7 +277,7 @@ func (vm *VM) Initialize(
 	// Instantiate DBs
 	merkleRegistry := prometheus.NewRegistry()
 	vm.stateDB, err = merkledb.New(ctx, vm.rawStateDB, merkledb.Config{
-		BranchFactor: vm.config.StateBranchFactor,
+		BranchFactor: vm.genesis.GetStateBranchFactor(),
 		// RootGenConcurrency limits the number of goroutines
 		// that will be used across all concurrent root generations
 		RootGenConcurrency:          uint(vm.config.RootGenerationCores),
@@ -396,7 +398,7 @@ func (vm *VM) Initialize(
 		if err := sps.Insert(ctx, chain.TimestampKey(vm.StateManager().TimestampKey()), binary.BigEndian.AppendUint64(nil, 0)); err != nil {
 			return err
 		}
-		genesisRules := vm.c.Rules(0)
+		genesisRules := vm.Rules(0)
 		feeManager := fees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
@@ -865,7 +867,7 @@ func (vm *VM) Submit(
 	}
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
-	r := vm.c.Rules(now)
+	r := vm.Rules(now)
 	nextFeeManager, err := feeManager.ComputeNext(now, r)
 	if err != nil {
 		return []error{err}

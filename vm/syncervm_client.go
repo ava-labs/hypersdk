@@ -129,7 +129,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		return block.StateSyncSkipped, err
 	}
 	syncClient, err := avasync.NewClient(&avasync.ClientConfig{
-		BranchFactor:     s.vm.config.StateBranchFactor,
+		BranchFactor:     s.vm.genesis.GetStateBranchFactor(),
 		NetworkClient:    s.vm.stateSyncNetworkClient,
 		Log:              s.vm.snowCtx.Log,
 		Metrics:          metrics,
@@ -139,7 +139,7 @@ func (s *stateSyncerClient) AcceptedSyncableBlock(
 		return block.StateSyncSkipped, err
 	}
 	s.syncManager, err = avasync.NewManager(avasync.ManagerConfig{
-		BranchFactor:          s.vm.config.StateBranchFactor,
+		BranchFactor:          s.vm.genesis.GetStateBranchFactor(),
 		DB:                    s.vm.stateDB,
 		Client:                syncClient,
 		SimultaneousWorkLimit: s.vm.config.StateSyncParallelism,

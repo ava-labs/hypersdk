@@ -55,11 +55,13 @@ func (*factory) New(
 	chainDataDir string,
 	gatherer ametrics.MultiGatherer,
 	genesisBytes []byte,
-	upgradeBytes []byte, // subnets to allow for AWM
+	ruleBytes []byte,
+	ruleUpgradeBytes []byte, // subnets to allow for AWM
 	configBytes []byte,
 ) (
 	vm.Controller,
 	vm.Genesis,
+	vm.RuleFactory,
 	vm.Handlers,
 	error,
 ) {
@@ -72,20 +74,20 @@ func (*factory) New(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = newConfig(configBytes)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	log.Info("initialized config", zap.Any("contents", c.config))
 
-	c.genesis, err = genesis.New(genesisBytes, upgradeBytes, chainID, networkID)
+	c.genesis, err = genesis.New(genesisBytes)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf(
+		return nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
@@ -94,7 +96,7 @@ func (*factory) New(
 
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	acceptedSubscribers := []indexer.AcceptedSubscriber{
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
@@ -117,17 +119,18 @@ func (*factory) New(
 		rpc.NewJSONRPCServer(c),
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
-	return c, c.genesis, apis, nil
+	return c, c.genesis, c.rules, apis, nil
 }
 
 type Controller struct {
 	inner        *vm.VM
 	log          logging.Logger
 	genesis      *genesis.Genesis
+	rules        *vm.UnchangingRuleFactory[*vm.BaseRules]
 	config       *Config
 	stateManager *storage.StateManager
 
@@ -136,11 +139,6 @@ type Controller struct {
 	txDB               database.Database
 	txIndexer          indexer.TxIndexer
 	acceptedSubscriber indexer.AcceptedSubscriber
-}
-
-func (c *Controller) Rules(t int64) chain.Rules {
-	// TODO: extend with [UpgradeBytes]
-	return c.genesis.GetRulesFactory().GetRules(t)
 }
 
 func (c *Controller) StateManager() chain.StateManager {
@@ -154,4 +152,9 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 func (c *Controller) Shutdown(context.Context) error {
 	// Close any databases created during initialization
 	return c.txDB.Close()
+}
+
+func (c *Controller) Rules(t int64) *vm.BaseRules {
+	// Close any databases created during initialization
+	return c.rules.GetTypedRules(t)
 }

@@ -173,8 +173,6 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	gen = genesis.Default()
-	gen.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
-	gen.MinBlockGap = 0
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: addrStr,
@@ -183,6 +181,13 @@ var _ = ginkgo.BeforeSuite(func() {
 	}
 	genesisBytes, err = json.Marshal(gen)
 	require.NoError(err)
+
+	rules := vm.DefaultRules()
+	rules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
+	rules.MinBlockGap = 0
+	rulesBytes, err := json.Marshal(rules)
+	require.NoError(err)
+	genesisBytes = append(genesisBytes, rulesBytes...)
 
 	networkID = uint32(1)
 	subnetID := ids.GenerateTestID()

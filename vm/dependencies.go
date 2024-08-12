@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 	"net/http"
 	"time"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/x/merkledb"
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
@@ -25,8 +24,6 @@ import (
 type Handlers map[string]http.Handler
 
 type Config struct {
-	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
-
 	TraceConfig                      trace.Config    `json:"traceConfig"`
 	MempoolSize                      int             `json:"mempoolSize"`
 	AuthVerificationCores            int             `json:"authVerificationCores"`
@@ -59,7 +56,6 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		StateBranchFactor:                merkledb.BranchFactor16,
 		TraceConfig:                      trace.Config{Enabled: false},
 		MempoolSize:                      2_048,
 		AuthVerificationCores:            1,
@@ -90,10 +86,11 @@ func NewConfig() Config {
 
 type Genesis interface {
 	Load(context.Context, avatrace.Tracer, state.Mutable) error
+	GetStateBranchFactor() merkledb.BranchFactor
 }
 
-type RuleFactory[T chain.Rules] interface {
-	GetRules(t int64) T
+type RuleFactory interface {
+	GetRules(t int64) chain.Rules
 }
 
 type AuthEngine interface {
@@ -110,19 +107,19 @@ type ControllerFactory interface {
 		chainDataDir string,
 		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
-		upgradeBytes []byte,
+		rulesBytes []byte,
+		rulesUpgradeBytes []byte,
 		configBytes []byte,
 	) (
 		Controller,
 		Genesis,
+		RuleFactory,
 		Handlers,
 		error,
 	)
 }
 
 type Controller interface {
-	Rules(t int64) chain.Rules // ms
-
 	// StateManager is used by the VM to request keys to store required
 	// information in state (without clobbering things the Controller is
 	// storing).

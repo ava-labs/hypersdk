@@ -6,6 +6,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"github.com/ava-labs/hypersdk/vm"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,6 +24,7 @@ var ErrTxNotFound = errors.New("tx not found")
 
 type Controller interface {
 	Genesis() *genesis.Genesis
+	Rules(int64) *vm.BaseRules
 	Tracer() trace.Tracer
 	GetTransaction(ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
@@ -42,6 +44,15 @@ type GenesisReply struct {
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
 	reply.Genesis = j.c.Genesis()
+	return nil
+}
+
+type RulesReply struct {
+	Rules *vm.BaseRules `json:"rules"`
+}
+
+func (j *JSONRPCServer) Rules(_ *http.Request, _ *struct{}, reply *RulesReply) (err error) {
+	reply.Rules = j.c.Rules(0)
 	return nil
 }
 

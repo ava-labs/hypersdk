@@ -7,9 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/avalanchego/ids"
-
 	"github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -30,31 +29,30 @@ type CustomAllocation struct {
 }
 
 type Genesis struct {
-	*vm.BaseRules
+	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
 
-func (g *Genesis) GetRulesFactory() vm.RuleFactory[*vm.BaseRules] {
-	return &vm.UnchangingRuleFactory[*vm.BaseRules]{UnchangingRules: g.BaseRules}
+func (g *Genesis) GetStateBranchFactor() merkledb.BranchFactor {
+	return g.StateBranchFactor
 }
 
 func Default() *Genesis {
 	return &Genesis{
-		BaseRules: vm.DefaultRules(),
+		StateBranchFactor: merkledb.BranchFactor16,
+		CustomAllocation:  []*CustomAllocation{},
 	}
 }
 
-func New(b []byte, _ []byte /* upgradeBytes */, chainID ids.ID, networkID uint32) (*Genesis, error) {
+func New(b []byte) (*Genesis, error) {
 	g := Default()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)
 		}
 	}
-	g.ChainID = chainID
-	g.NetworkID = networkID
 	return g, nil
 }
 

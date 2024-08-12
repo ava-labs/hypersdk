@@ -66,7 +66,7 @@ func (vm *VM) Logger() logging.Logger {
 }
 
 func (vm *VM) Rules(t int64) chain.Rules {
-	return vm.c.Rules(t)
+	return vm.ruleFactory.GetRules(t)
 }
 
 func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {

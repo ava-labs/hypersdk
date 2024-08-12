@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"context"
+	"github.com/ava-labs/hypersdk/vm"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -22,6 +23,7 @@ import (
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
 	g         *genesis.Genesis
+	rules     *vm.BaseRules
 }
 
 // NewJSONRPCClient creates a new client object.
@@ -29,7 +31,7 @@ func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, nil}
+	return &JSONRPCClient{req, nil, nil}
 }
 
 func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
@@ -49,6 +51,25 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error)
 	}
 	cli.g = resp.Genesis
 	return resp.Genesis, nil
+}
+
+func (cli *JSONRPCClient) Rules(ctx context.Context) (*vm.BaseRules, error) {
+	if cli.g != nil {
+		return cli.rules, nil
+	}
+
+	resp := new(RulesReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"rules",
+		nil,
+		resp,
+	)
+	if err != nil {
+		return nil, err
+	}
+	cli.rules = resp.Rules
+	return resp.Rules, nil
 }
 
 func (cli *JSONRPCClient) Tx(ctx context.Context, id ids.ID) (bool, bool, int64, uint64, error) {
@@ -126,14 +147,15 @@ var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
 	genesis *genesis.Genesis
+	rules   vm.RuleFactory
 }
 
 func (p *Parser) ChainID() ids.ID {
-	return p.genesis.ChainID
+	return p.Rules(0).GetChainID()
 }
 
 func (p *Parser) Rules(t int64) chain.Rules {
-	return p.genesis.GetRulesFactory().GetRules(t)
+	return p.rules.GetRules(t)
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
@@ -149,5 +171,9 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{g}, nil
+	rules, err := cli.Rules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Parser{genesis: g, rules: &vm.UnchangingRuleFactory[*vm.BaseRules]{UnchangingRules: rules}}, nil
 }
