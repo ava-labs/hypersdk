@@ -57,7 +57,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     const accepted = await renderSignBytes(bytesBase58);
     assertConfirmation(!!accepted);
 
-    const signedTxBytes = signTransactionBytes(digest, keyPair.secretKey);
+    const signedTxBytes = signTransactionBytes(digest, keyPair.secretKey.slice(0, 32));
 
     return base58.encode(signedTxBytes);
   } else if (request.method === 'getPublicKey') {

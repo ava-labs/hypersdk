@@ -76,7 +76,7 @@ export class MetamaskSnapSigner implements SignerIface {
 
     async signTx(txPayload: TransactionPayload, abiString: string): Promise<Uint8Array> {
         const sig58 = await this._invokeSnap({
-            method: 'signBytes', params: {
+            method: 'signTransaction', params: {
                 derivationPath: [`${this.lastDerivationSection}'`],
                 abiString: abiString,
                 tx: txPayload,
