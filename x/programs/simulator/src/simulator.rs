@@ -9,7 +9,7 @@ use wasmlanche_sdk::{Address, ExternalCallError, Id};
 
 use crate::{
     bindings::{Bytes, CallProgramResponse, CreateProgramResponse, SimulatorCallContext},
-    state::Mutable,
+    state::{Mutable, SimpleState},
 };
 
 #[derive(Error, Debug)]
@@ -28,28 +28,28 @@ pub enum SimulatorError {
 
 #[link(name = "simulator")]
 extern "C" {
-    #[allow(improper_ctypes)]
-    fn CreateProgram(db: *mut Mutable, path: *const c_char) -> CreateProgramResponse;
-    #[allow(improper_ctypes)]
-    fn CallProgram(db: *mut Mutable, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+    fn CreateProgram(db: usize, path: *const c_char) -> CreateProgramResponse;
+
+    fn CallProgram(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 }
 
-pub struct Simulator {
-    state: Mutable,
+pub struct Simulator<'a> {
+    state: Mutable<'a>,
     pub actor: Address,
 }
 
-impl Simulator {
-    pub fn new() -> Self {
+impl<'a> Simulator<'a> {
+    pub fn new(state: &'a mut SimpleState) -> Self {
         Simulator {
-            state: Mutable::new(),
+            state: Mutable::new(state),
             actor: Address::default(),
         }
     }
 
     pub fn create_program(&self, program_path: &str) -> CreateProgramResponse {
         let program_path = CString::new(program_path).unwrap();
-        unsafe { CreateProgram((&self.state).into(), program_path.as_ptr()) }
+        let state_addr = &self.state as *const _ as usize;
+        unsafe { CreateProgram(state_addr, program_path.as_ptr()) }
     }
 
     pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
@@ -64,18 +64,13 @@ impl Simulator {
         let method = CString::new(method).expect("Unable to create a cstring");
         // build the call context
         let context = SimulatorCallContext::new(program, self.actor, &method, &params, gas);
+        let state_addr = &self.state as *const _ as usize;
 
-        unsafe { CallProgram((&self.state).into(), &context) }
+        unsafe { CallProgram(state_addr, &context) }
     }
 }
 
-impl Default for Simulator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl From<&Mutable> for *mut Mutable {
+impl<'a> From<&Mutable<'a>> for *mut Mutable<'a> {
     fn from(state: &Mutable) -> Self {
         state as *const Mutable as *mut Mutable
     }

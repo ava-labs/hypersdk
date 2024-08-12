@@ -32,13 +32,15 @@ pub fn get_value(context: &mut Context, of: Address) -> Count {
 
 #[cfg(test)]
 mod tests {
-    use simulator::Simulator;
+    use simulator::{SimpleState, Simulator};
     use wasmlanche_sdk::Address;
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn init_program() {
-        let mut simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let mut simulator = Simulator::new(&mut state);
+
         let actor = Address::default();
         simulator.actor = actor;
         let error = simulator.create_program(PROGRAM_PATH).has_error();
@@ -47,7 +49,8 @@ mod tests {
 
     #[test]
     fn increment() {
-        let simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
         let gas = 100000000;
         let bob = Address::new([1; 33]);
         let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
