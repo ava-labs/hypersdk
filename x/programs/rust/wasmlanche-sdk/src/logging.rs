@@ -2,6 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 /// Prints and returns the value of a given expression for quick and dirty debugging.
+/// this should work the same way as the [std::dbg] macro.
 #[macro_export]
 macro_rules! dbg {
     () => {
@@ -35,6 +36,7 @@ macro_rules! dbg {
     };
 }
 
+#[doc(hidden)]
 /// Catch panics by sending their information to the host.
 pub fn register_panic() {
     #[cfg(debug_assertions)]
@@ -51,6 +53,7 @@ pub fn register_panic() {
     }
 }
 
+#[doc(hidden)]
 /// Log an arbitrary [&str] on the terminal.
 pub fn log(text: &str) {
     log_bytes(text.as_bytes());
