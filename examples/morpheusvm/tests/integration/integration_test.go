@@ -76,12 +76,10 @@ var (
 	addrStr3 string
 
 	// when used with embedded VMs
-	genesisBytes []byte
-	instances    []instance
-	blocks       []snowman.Block
+	instances []instance
+	blocks    []snowman.Block
 
 	networkID uint32
-	gen       *genesis.Genesis
 )
 
 func init() {

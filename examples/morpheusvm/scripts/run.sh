@@ -127,10 +127,10 @@ GENESIS_PATH=$2
 if [[ -z "${GENESIS_PATH}" ]]; then
   echo "creating VM genesis file with allocations"
   rm -f "${TMPDIR}"/morpheusvm.genesis
-  "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
-  --window-target-units "${WINDOW_TARGET_UNITS}" \
+  "${TMPDIR}"/morpheus-cli rules generate --window-target-units "${WINDOW_TARGET_UNITS}" \
   --max-block-units "${MAX_BLOCK_UNITS}" \
-  --min-block-gap "${MIN_BLOCK_GAP}" \
+  --min-block-gap "${MIN_BLOCK_GAP}"
+  "${TMPDIR}"/morpheus-cli genesis generate "${TMPDIR}"/allocations.json \
   --genesis-file "${TMPDIR}"/morpheusvm.genesis
 else
   echo "copying custom genesis file"

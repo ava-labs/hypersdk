@@ -56,7 +56,7 @@ func (*factory) New(
 	gatherer ametrics.MultiGatherer,
 	genesisBytes []byte,
 	ruleBytes []byte,
-	ruleUpgradeBytes []byte, // subnets to allow for AWM
+	_ []byte, // subnets to allow for AWM
 	configBytes []byte,
 ) (
 	vm.Controller,
@@ -94,7 +94,7 @@ func (*factory) New(
 	}
 	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	c.rules, err = vm.LoadUnchangingRuleFactory[*vm.BaseRules](vm.LoadBaseRules, genesisBytes, chainID, networkID)
+	c.rules, err = vm.LoadUnchangingRuleFactory[*vm.BaseRules](vm.LoadBaseRules, ruleBytes, chainID, networkID)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"unable to read rules: %w",
