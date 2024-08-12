@@ -17,31 +17,33 @@ import (
 )
 
 var (
-	_ AcceptedSubscriber = (*StandardDBIndexer)(nil)
-	_ StandardIndexer    = (*StandardDBIndexer)(nil)
+	_ AcceptedSubscriber = (*DBIndexer)(nil)
+	_ AcceptedSubscriber = (*NoOpIndexer)(nil)
+
+	_ Indexer = (*DBIndexer)(nil)
+
+
+	failureByte = byte(0x0)
+	successByte = byte(0x1)
 )
 
-type StandardIndexer interface {
-	TxIndexer
+type Indexer interface {
+	AcceptedSubscriber
+	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 	AcceptedStateful(context.Context, *chain.StatefulBlock) error
 	GetBlockByHeight(height uint64) ([]byte, error)
 	GetBlock(blockID ids.ID) ([]byte, error)
-	BlockAlreadyIndexed(height uint64) bool
 }
 
-type StandardDBIndexer struct {
-	TxDBIndexer
+type DBIndexer struct {
 	db database.Database
 }
 
-func NewStandardDBIndexer(db database.Database) *StandardDBIndexer {
-	return &StandardDBIndexer{
-		TxDBIndexer: *NewTxDBIndexer(db),
-		db:          db,
-	}
+func NewDBIndexer(db database.Database) *DBIndexer {
+	return &DBIndexer{db: db}
 }
 
-func (s *StandardDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+func (s *DBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
 	v, err := s.db.Get(txID[:])
 	if errors.Is(err, database.ErrNotFound) {
 		return false, 0, false, fees.Dimensions{}, 0, nil
@@ -62,16 +64,16 @@ func (s *StandardDBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees
 	return true, timestamp, success, d, fee, nil
 }
 
-func (s *StandardDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
+func (s *DBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
 	batch := s.db.NewBatch()
 	defer batch.Reset()
 
 	// Store block bytes
-	if err := s.storeBlock(batch, blk); err != nil {
+	if err := s.putBlock(batch, blk); err != nil {
 		return err
 	}
 	// Map block ID to block height
-	if err := s.mapBlockIDToHeight(batch, blk.ID(), blk.Hght); err != nil {
+	if err := s.putBlockID(batch, blk.ID(), blk.Hght); err != nil {
 		return err
 	}
 	// Store TX
@@ -79,7 +81,7 @@ func (s *StandardDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBloc
 	results := blk.Results()
 	for j, tx := range blk.Txs {
 		result := results[j]
-		if err := s.storeTransaction(
+		if err := s.putTransaction(
 			batch,
 			tx.ID(),
 			timestamp,
@@ -94,12 +96,12 @@ func (s *StandardDBIndexer) Accepted(_ context.Context, blk *chain.StatelessBloc
 	return batch.Write()
 }
 
-func (s *StandardDBIndexer) AcceptedStateful(_ context.Context, blk *chain.StatefulBlock) error {
+func (s *DBIndexer) AcceptedStateful(_ context.Context, blk *chain.StatefulBlock) error {
 	batch := s.db.NewBatch()
 	defer batch.Reset()
 
 	// Store block itself
-	if err := s.storeStatefulBlock(batch, blk); err != nil {
+	if err := s.putStatefulBlock(batch, blk); err != nil {
 		return err
 	}
 	blkID, err := blk.ID()
@@ -107,13 +109,13 @@ func (s *StandardDBIndexer) AcceptedStateful(_ context.Context, blk *chain.State
 		return err
 	}
 	// Map block ID to block height
-	if err = s.mapBlockIDToHeight(batch, blkID, blk.Hght); err != nil {
+	if err = s.putBlockID(batch, blkID, blk.Hght); err != nil {
 		return err
 	}
 	// Store TX
 	timestamp := blk.Tmstmp
 	for _, tx := range blk.Txs {
-		if err := s.storeTransactionStateful(batch, tx.ID(), timestamp); err != nil {
+		if err := s.putTransactionStateful(batch, tx.ID(), timestamp); err != nil {
 			return err
 		}
 	}
@@ -121,7 +123,7 @@ func (s *StandardDBIndexer) AcceptedStateful(_ context.Context, blk *chain.State
 	return batch.Write()
 }
 
-func (s *StandardDBIndexer) GetBlockByHeight(height uint64) ([]byte, error) {
+func (s *DBIndexer) GetBlockByHeight(height uint64) ([]byte, error) {
 	k := make([]byte, consts.Uint64Len)
 	binary.BigEndian.PutUint64(k, height)
 	v, err := s.db.Get(k)
@@ -134,7 +136,7 @@ func (s *StandardDBIndexer) GetBlockByHeight(height uint64) ([]byte, error) {
 	return v, nil
 }
 
-func (s *StandardDBIndexer) GetBlock(blockID ids.ID) ([]byte, error) {
+func (s *DBIndexer) GetBlock(blockID ids.ID) ([]byte, error) {
 	// Get height
 	v, err := s.db.Get(blockID[:])
 	if errors.Is(err, database.ErrNotFound) {
@@ -154,18 +156,7 @@ func (s *StandardDBIndexer) GetBlock(blockID ids.ID) ([]byte, error) {
 	return v, nil
 }
 
-func (s *StandardDBIndexer) BlockAlreadyIndexed(height uint64) bool {
-	k := make([]byte, consts.Uint64Len)
-	binary.BigEndian.PutUint64(k, height)
-	exists, _ := s.db.Has(k)
-	return exists
-}
-
-/*
-Helper storage functions
-*/
-
-func (*StandardDBIndexer) storeTransactionStateful(
+func (*DBIndexer) putTransactionStateful(
 	batch database.KeyValueWriter,
 	txID ids.ID,
 	timestamp int64,
@@ -175,7 +166,8 @@ func (*StandardDBIndexer) storeTransactionStateful(
 	return batch.Put(txID[:], v)
 }
 
-func (*StandardDBIndexer) mapBlockIDToHeight(
+// Maps block ID to height
+func (*DBIndexer) putBlockID(
 	batch database.KeyValueWriter,
 	blockID ids.ID,
 	blockHeight uint64,
@@ -185,7 +177,7 @@ func (*StandardDBIndexer) mapBlockIDToHeight(
 	return batch.Put(blockID[:], v)
 }
 
-func (*StandardDBIndexer) storeBlock(
+func (*DBIndexer) putBlock(
 	batch database.KeyValueWriter,
 	blk *chain.StatelessBlock,
 ) error {
@@ -195,7 +187,7 @@ func (*StandardDBIndexer) storeBlock(
 	return batch.Put(k, v)
 }
 
-func (*StandardDBIndexer) storeStatefulBlock(
+func (*DBIndexer) putStatefulBlock(
 	batch database.KeyValueWriter,
 	blk *chain.StatefulBlock,
 ) error {
@@ -206,4 +198,50 @@ func (*StandardDBIndexer) storeStatefulBlock(
 		return err
 	}
 	return batch.Put(k, v)
+}
+
+func (*DBIndexer) putTransaction(
+	batch database.KeyValueWriter,
+	txID ids.ID,
+	timestamp int64,
+	success bool,
+	units fees.Dimensions,
+	fee uint64,
+) error {
+	v := make([]byte, consts.Uint64Len+1+fees.DimensionsLen+consts.Uint64Len)
+	binary.BigEndian.PutUint64(v, uint64(timestamp))
+	if success {
+		v[consts.Uint64Len] = successByte
+	} else {
+		v[consts.Uint64Len] = failureByte
+	}
+	copy(v[consts.Uint64Len+1:], units.Bytes())
+	binary.BigEndian.PutUint64(v[consts.Uint64Len+1+fees.DimensionsLen:], fee)
+	return batch.Put(txID[:], v)
+}
+
+type NoOpIndexer struct {}
+
+func NewNoOpIndexer() *NoOpIndexer {
+	return &NoOpIndexer{}
+}
+
+func (*NoOpIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
+	return nil
+}
+
+func (*NoOpIndexer) GetTransaction(_ ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
+	return false, 0, false, fees.Dimensions{}, 0, errors.New("indexer not enabled")
+}
+
+func (*NoOpIndexer) GetBlock(_ ids.ID) ([]byte, error) {
+	return nil, errors.New("indexer not enabled")
+}
+
+func (*NoOpIndexer) GetBlockByHeight(_ uint64) ([]byte, error) {
+	return nil, errors.New("indexer not enabled")
+}
+
+func (*NoOpIndexer) AcceptedStateful(_ context.Context, _ *chain.StatefulBlock) error {
+	return errors.New("indexer not enabled")
 }

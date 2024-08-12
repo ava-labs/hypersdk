@@ -99,23 +99,23 @@ func (*factory) New(
 	}
 	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
-	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
+	c.db, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	acceptedSubscribers := []indexer.AcceptedSubscriber{
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
 	}
-	if c.config.StoreTransactions {
-		c.txIndexer = indexer.NewTxDBIndexer(c.txDB)
-		acceptedSubscribers = append(acceptedSubscribers, c.txIndexer)
+	if c.config.IndexAll {
+		c.dbIndexer = indexer.NewDBIndexer(c.db)
+		acceptedSubscribers = append(acceptedSubscribers, c.dbIndexer)
 	} else {
-		c.txIndexer = indexer.NewNoOpTxIndexer()
+		c.dbIndexer = indexer.NewNoOpIndexer()
 	}
 
 	if c.config.ExportedBlockSubcriberAddress != "" {
 		// Connect to gRPC server
-		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, c.genesis, c.log)
+		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(context.Background(), c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, c.genesis, c.log)
 		// Immediately fail if we couldn't connect
 		if err != nil {
 			return nil, nil, nil, err
@@ -153,8 +153,8 @@ type Controller struct {
 
 	metrics *metrics
 
-	txDB               database.Database
-	txIndexer          indexer.TxIndexer
+	db               database.Database
+	dbIndexer          indexer.Indexer
 	acceptedSubscriber indexer.AcceptedSubscriber
 }
 
@@ -173,5 +173,5 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 
 func (c *Controller) Shutdown(context.Context) error {
 	// Close any databases created during initialization
-	return c.txDB.Close()
+	return c.db.Close()
 }

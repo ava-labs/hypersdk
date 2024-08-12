@@ -64,7 +64,7 @@ type GetTXResponse struct {
 type MorpheusSidecar struct {
 	pb.ExternalSubscriberServer
 	http.Handler
-	standardIndexer indexer.StandardIndexer
+	standardIndexer indexer.Indexer
 	parser          *rpc.Parser
 	router          *router.Router
 	Logger          *log.Logger
@@ -76,7 +76,7 @@ func NewMorpheusSidecar(stdDBDir string, logger *log.Logger) *MorpheusSidecar {
 		log.Fatalln("Failed to create DB for standard indexer")
 	}
 	return &MorpheusSidecar{
-		standardIndexer: indexer.NewStandardDBIndexer(stdDB),
+		standardIndexer: indexer.NewDBIndexer(stdDB),
 		router:          router.NewRouter(),
 		Logger:          logger,
 	}
@@ -112,11 +112,6 @@ func (m *MorpheusSidecar) ProcessBlock(ctx context.Context, b *pb.BlockRequest) 
 	blk, err := chain.UnmarshalBlock(b.BlockData, m.parser)
 	if err != nil {
 		return &emptypb.Empty{}, err
-	}
-
-	// Call accept only if block has been indexed
-	if m.standardIndexer.BlockAlreadyIndexed(blk.Hght) {
-		return &emptypb.Empty{}, nil
 	}
 
 	// Index block

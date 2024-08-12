@@ -10,14 +10,14 @@ import (
 )
 
 type Config struct {
-	StoreTransactions             bool          `json:"storeTransactions"`
+	IndexAll             bool          `json:"indexAll"`
 	LogLevel                      logging.Level `json:"logLevel"`
 	ExportedBlockSubcriberAddress string        `json:"exportedBlockSubscriberAddress"`
 }
 
 func New(b []byte) (*Config, error) {
 	c := &Config{
-		StoreTransactions: true,
+		IndexAll: true,
 		LogLevel:          logging.Info,
 	}
 

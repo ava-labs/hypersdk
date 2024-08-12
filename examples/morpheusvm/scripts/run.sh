@@ -158,8 +158,7 @@ cat <<EOF > "${TMPDIR}"/morpheusvm.config
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOG_LEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
-  "stateSyncServerDelay": ${STATESYNC_DELAY},
-  "exportedBlockSubscriberAddress": "localhost:9001"
+  "stateSyncServerDelay": ${STATESYNC_DELAY}
 }
 EOF
 mkdir -p "${TMPDIR}"/morpheusvm-e2e-profiles

@@ -24,7 +24,7 @@ type MorpheusSubscriber struct {
 	client pb.ExternalSubscriberClient
 }
 
-func NewMorpheusSubscriber(server string, networkID uint32, chainID ids.ID, g *genesis.Genesis, log logging.Logger) (*MorpheusSubscriber, error) {
+func NewMorpheusSubscriber(ctx context.Context, server string, networkID uint32, chainID ids.ID, g *genesis.Genesis, log logging.Logger) (*MorpheusSubscriber, error) {
 	// Connect to external subscriber
 	extSub, err := indexer.NewExternalSubscriber(server)
 	if err != nil {
@@ -40,7 +40,7 @@ func NewMorpheusSubscriber(server string, networkID uint32, chainID ids.ID, g *g
 	genesisBytes, _ := json.Marshal(g)
 
 	_, err = client.Initialize(
-		context.TODO(),
+		ctx,
 		&pb.InitRequest{
 			NetworkID: networkID,
 			ChainID:   chainID[:],

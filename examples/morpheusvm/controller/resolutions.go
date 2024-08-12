@@ -29,7 +29,7 @@ func (c *Controller) Tracer() trace.Tracer {
 }
 
 func (c *Controller) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error) {
-	return c.txIndexer.GetTransaction(txID)
+	return c.dbIndexer.GetTransaction(txID)
 }
 
 func (c *Controller) GetBalanceFromState(

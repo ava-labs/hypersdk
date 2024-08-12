@@ -7,6 +7,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"google.golang.org/grpc"
 
@@ -18,6 +21,9 @@ import (
 
 // Spins up a Sidecar server (gRPC server and API server)
 func main() {
+	signals := make(chan os.Signal, 1)
+    signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
 	stdDBDir := "./stdDB/"
 	logger := log.Default()
 
@@ -26,7 +32,9 @@ func main() {
 	go startGRPCServer(morpheusSidecar)
 	go startMorpheusAPI(morpheusSidecar)
 
-	select {}
+	// Wait for a signal
+    <-signals
+	morpheusSidecar.Logger.Println("\nShutting down...")
 }
 
 func startGRPCServer(m *externalsubscriber.MorpheusSidecar) {
