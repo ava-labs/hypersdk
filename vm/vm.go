@@ -483,7 +483,7 @@ func (vm *VM) Initialize(
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 
 	// optional handler
-	if vm.config.EnableStateReadRPCHandler {
+	if vm.config.EnableJSONRPCStateHandler {
 		if _, ok := vm.handlers[rpc.JSONRPCStateEndpoint]; ok {
 			return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCStateEndpoint)
 		}

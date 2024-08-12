@@ -22,8 +22,8 @@ type JSONRPCStateClient struct {
 }
 
 func (c *JSONRPCStateClient) ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error, error) {
-	res := new(StateResponse)
-	err := c.requester.SendRequest(ctx, "readState", StateRequest{Keys: keys}, res)
+	res := new(ReadStateResponse)
+	err := c.requester.SendRequest(ctx, "readState", ReadStateRequest{Keys: keys}, res)
 	if err != nil {
 		return nil, nil, err
 	}

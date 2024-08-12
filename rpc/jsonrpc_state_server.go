@@ -10,21 +10,21 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 )
 
-type stateReader interface {
+type StateReader interface {
 	Tracer() trace.Tracer
 	ReadState(ctx context.Context, keys [][]byte) ([][]byte, []error)
 }
 
-type StateRequest struct {
+type ReadStateRequest struct {
 	Keys [][]byte
 }
 
-type StateResponse struct {
+type ReadStateResponse struct {
 	Values [][]byte
 	Errors []error
 }
 
-func NewJSONRPCStateServer(stateReader stateReader) *JSONRPCStateServer {
+func NewJSONRPCStateServer(stateReader StateReader) *JSONRPCStateServer {
 	return &JSONRPCStateServer{
 		stateReader: stateReader,
 	}
@@ -32,10 +32,10 @@ func NewJSONRPCStateServer(stateReader stateReader) *JSONRPCStateServer {
 
 // JSONRPCStateServer gives direct read access to the vm state
 type JSONRPCStateServer struct {
-	stateReader
+	stateReader StateReader
 }
 
-func (s *JSONRPCStateServer) ReadState(req *http.Request, args *StateRequest, res *StateResponse) error {
+func (s *JSONRPCStateServer) ReadState(req *http.Request, args *ReadStateRequest, res *ReadStateResponse) error {
 	ctx, span := s.stateReader.Tracer().Start(req.Context(), "Server.ReadState")
 	defer span.End()
 	res.Values, res.Errors = s.stateReader.ReadState(ctx, args.Keys)
