@@ -94,6 +94,15 @@ func (*factory) New(
 	}
 	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
+	c.rules, err = vm.LoadUnchangingRuleFactory[*vm.BaseRules](vm.LoadBaseRules, genesisBytes, chainID, networkID)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf(
+			"unable to read rules: %w",
+			err,
+		)
+	}
+	log.Info("loaded rules", zap.Any("rules", c.rules.UnchangingRules))
+
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
 		return nil, nil, nil, nil, err

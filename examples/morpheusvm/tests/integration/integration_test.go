@@ -172,22 +172,25 @@ var _ = ginkgo.BeforeSuite(func() {
 	// create embedded VMs
 	instances = make([]instance, vms)
 
-	gen = genesis.Default()
-	gen.CustomAllocation = []*genesis.CustomAllocation{
+	type genAndRules struct {
+		*genesis.Genesis
+		*vm.BaseRules
+	}
+	combined := genAndRules{}
+	combined.Genesis = genesis.Default()
+	combined.Genesis.CustomAllocation = []*genesis.CustomAllocation{
 		{
 			Address: addrStr,
 			Balance: 10_000_000,
 		},
 	}
-	genesisBytes, err = json.Marshal(gen)
-	require.NoError(err)
 
-	rules := vm.DefaultRules()
-	rules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
-	rules.MinBlockGap = 0
-	rulesBytes, err := json.Marshal(rules)
+	combined.BaseRules = vm.DefaultRules()
+	combined.BaseRules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
+	combined.BaseRules.MinBlockGap = 0
+
+	genesisBytes, err := json.Marshal(combined)
 	require.NoError(err)
-	genesisBytes = append(genesisBytes, rulesBytes...)
 
 	networkID = uint32(1)
 	subnetID := ids.GenerateTestID()

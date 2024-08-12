@@ -81,7 +81,7 @@ func DefaultRules() *BaseRules {
 	}
 }
 
-func LoadBaseRules(b []byte, _ []byte /* upgradeBytes */, chainID ids.ID, networkID uint32) (*BaseRules, error) {
+func LoadBaseRules(b []byte, chainID ids.ID, networkID uint32) (*BaseRules, error) {
 	g := DefaultRules()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {

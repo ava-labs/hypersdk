@@ -54,7 +54,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error)
 }
 
 func (cli *JSONRPCClient) Rules(ctx context.Context) (*vm.BaseRules, error) {
-	if cli.g != nil {
+	if cli.rules != nil {
 		return cli.rules, nil
 	}
 
