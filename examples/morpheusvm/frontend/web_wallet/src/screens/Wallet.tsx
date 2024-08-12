@@ -76,7 +76,7 @@ export default function Wallet({ otherWalletAddress, signer, balanceBigNumber, o
                     log("success", `Balance changed to ${parseFloat(formatBalance(balance, DECIMAL_PLACES)).toFixed(6)} ${COIN_SYMBOL} in ${((Date.now() - timeStarted) / 1000).toFixed(2)}s`)
                     break
                 } else {
-                    await new Promise(resolve => setTimeout(resolve, 10))
+                    await new Promise(resolve => setTimeout(resolve, 100))
                 }
             }
 

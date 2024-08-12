@@ -18,6 +18,7 @@
     "baseUrl": "./"
   },
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "src/ui.tsx"
   ]
 }

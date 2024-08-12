@@ -6,15 +6,14 @@ import { parseBech32 } from './bech32';
 import { base64 } from '@scure/base';
 import { image } from '@metamask/snaps-sdk';
 
-type ABIField = {
-    name: string
-    type: string
-}
 
-type SingleActionABI = {
+export type SingleActionABI = {
     id: number
     name: string
-    types: Record<string, ABIField[]>
+    types: Record<string, {
+        name: string
+        type: string
+    }[]>
 }
 
 

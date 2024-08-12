@@ -10,7 +10,6 @@ import { signTransactionBytes, TransactionPayload } from './sign';
 
 
 
-
 /**
  * Handle incoming JSON-RPC requests, sent through `wallet_invokeSnap`.
  *
@@ -52,9 +51,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     const marshaler = new Marshaler(abiString);
     const digest = marshaler.encodeTransaction(tx);
 
-    const bytesBase58 = base58.encode(digest);
-
-    const accepted = await renderSignBytes(bytesBase58);
+    const accepted = await renderSignBytes(tx);
     assertConfirmation(!!accepted);
 
     const signedTxBytes = signTransactionBytes(digest, keyPair.secretKey.slice(0, 32));

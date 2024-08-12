@@ -2,7 +2,7 @@ import { expect } from '@jest/globals';
 import { bytesToHex } from '@noble/hashes/utils'
 import { Marshaler } from './Marshaler'
 
-const abiString = `[
+export const abiString = `[
   {
     "id": 1,
     "name": "MockActionSingleNumber",
