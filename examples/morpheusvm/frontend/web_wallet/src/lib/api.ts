@@ -63,6 +63,11 @@ export async function getNetwork(): Promise<{ networkId: number, subnetId: strin
     return _makeApiRequest<{ networkId: number, subnetId: string, chainId: string }>("coreapi", 'hypersdk.network');
 }
 
+export async function getAbi(): Promise<string> {
+    const response = await _makeApiRequest<{ abi: string }>("morpheusapi", 'morpheusvm.getABI');
+    return response.abi
+}
+
 export async function sendTx(txBytes: Uint8Array): Promise<void> {
     const bytesBase64 = base64.encode(txBytes);
     await _makeApiRequest<void>("coreapi", 'hypersdk.submitTx', { tx: bytesBase64 });

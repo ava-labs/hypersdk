@@ -1,7 +1,41 @@
+import { TransactionPayload, signTransactionBytes } from "../../../morpheus_snap/src/sign"
+import { Marshaler } from "../../../morpheus_snap/src/Marshaler"
+
+export interface SignerIface {
+    signTx(txPayload: TransactionPayload, abiString: string): Promise<Uint8Array>
+    getPublicKey(): Uint8Array
+}
+
+export class PrivateKeySigner implements SignerIface {
+    constructor(private privateKey: Uint8Array) {
+        if (this.privateKey.length !== 32) {
+            throw new Error("Private key must be 32 bytes");
+        }
+    }
+
+    async signTx(txPayload: TransactionPayload, abiString: string): Promise<Uint8Array> {
+        const marshaler = new Marshaler(abiString);
+        const digest = marshaler.encodeTransaction(txPayload);
+        const signedTxBytes = signTransactionBytes(digest, this.privateKey);
+        return signedTxBytes;
+    }
+
+    getPublicKey(): Uint8Array {
+        return ed25519.getPublicKey(this.privateKey);
+    }
+}
+
+export class EphemeralSigner extends PrivateKeySigner {
+    constructor() {
+        super(ed25519.utils.randomPrivateKey());
+    }
+}
+
 import MetaMaskSDK, { SDKProvider } from "@metamask/sdk"
-import { ED25519_AUTH_ID, SignerIface } from "./SignerIface";
 import { DEVELOPMENT_MODE, SNAP_ID } from "../const";
 import { base58 } from '@scure/base';
+import { ed25519 } from "@noble/curves/ed25519";
+import { ED25519_AUTH_ID } from "../../../morpheus_snap/src/bech32";
 
 type InvokeSnapParams = {
     method: string;
@@ -40,12 +74,12 @@ export class MetamaskSnapSigner implements SignerIface {
         return this.cachedPublicKey;
     }
 
-    async signTx(binary: Uint8Array): Promise<Uint8Array> {
-        const bytesBase58 = base58.encode(binary);
+    async signTx(txPayload: TransactionPayload, abiString: string): Promise<Uint8Array> {
         const sig58 = await this._invokeSnap({
             method: 'signBytes', params: {
-                bytesBase58: bytesBase58,
-                derivationPath: [`${this.lastDerivationSection}'`]
+                derivationPath: [`${this.lastDerivationSection}'`],
+                abiString: abiString,
+                tx: txPayload,
             }
         }) as string | undefined;
         if (!sig58) {

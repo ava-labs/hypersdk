@@ -550,6 +550,9 @@ func TestMarshalTransferSpec(t *testing.T) {
 	structJSON, err := json.Marshal(action)
 	require.NoError(err)
 
+	addrString := codec.MustAddressBech32("morpheus", action.To)
+	require.Equal("morpheus1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5qqqqqqqqqqqqqqqqqqqqqmqvs7e", addrString)
+
 	expectedJSON := `{"to":"AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA","value":1000,"memo":"AQID"}`
 	require.Equal(expectedJSON, string(structJSON))
 

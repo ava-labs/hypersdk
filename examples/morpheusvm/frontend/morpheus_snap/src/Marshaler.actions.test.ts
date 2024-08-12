@@ -306,11 +306,11 @@ test('TestMarshalArraysSpec', () => {
 
 
 
-test('TestMarshalTransferSpec', () => {
+test('TestMarshalTransferSpec - bech32', () => {
   const abi = new Marshaler(abiString)
   const jsonString = `
   {
-    "to": "AQIDBAUGBwgJCgsMDQ4PEBESExQAAAAAAAAAAAAAAAAA",
+    "to": "morpheus1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5qqqqqqqqqqqqqqqqqqqqqmqvs7e",
     "value": 1000,
     "memo": "AQID"
   }`

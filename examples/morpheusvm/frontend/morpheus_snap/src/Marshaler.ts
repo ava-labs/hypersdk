@@ -1,9 +1,10 @@
 
 import { sha256 } from '@noble/hashes/sha256';
 import { parse } from 'lossless-json'
-import nacl from 'tweetnacl';
-import { ed25519 } from "@noble/curves/ed25519";
-import { ED25519_AUTH_ID } from './bech32';
+import { TransactionPayload } from './sign';
+import { parseBech32 } from './bech32';
+import { base64 } from '@scure/base';
+import { image } from '@metamask/snaps-sdk';
 
 type ABIField = {
     name: string
@@ -16,17 +17,7 @@ type SingleActionABI = {
     types: Record<string, ABIField[]>
 }
 
-export type ActionData = {
-    actionName: string
-    data: Record<string, unknown>
-}
 
-export type TransactionPayload = {
-    timestamp: string
-    chainId: string
-    maxFee: string
-    actions: ActionData[]
-}
 
 export class Marshaler {
     private abi: SingleActionABI[]
@@ -49,15 +40,11 @@ export class Marshaler {
         return this.encodeField(actionName, data)
     }
 
-    signTransaction(tx: TransactionPayload, privateKey: Uint8Array): Uint8Array {
-        const signableBytes = this.encodeTransaction(tx)
-        if (privateKey.length !== 64) throw new Error('Invalid private key: must be 64 bytes long')
-        const signature = nacl.sign.detached(signableBytes, privateKey)
-        const pubKey = privateKey.slice(32)
-        return new Uint8Array([...signableBytes, ED25519_AUTH_ID, ...pubKey, ...signature])
-    }
-
     encodeTransaction(tx: TransactionPayload): Uint8Array {
+        if (tx.timestamp.slice(-3) !== "000") {
+            tx.timestamp = String(Math.floor(parseInt(tx.timestamp) / 1000) * 1000)
+        }
+
         const timestampBytes = encodeNumber("uint64", tx.timestamp);
         const chainIdBytes = encodeNumber("uint256", tx.chainId);
         const maxFeeBytes = encodeNumber("uint64", tx.maxFee);
@@ -82,7 +69,7 @@ export class Marshaler {
         ]);
     }
 
-    getActionTypeId(actionName: string): number {
+    private getActionTypeId(actionName: string): number {
         const actionABI = this.abi.find(abi => abi.name === actionName)
         if (!actionABI) throw new Error(`No action ABI found: ${actionName}`)
         return actionABI.id
@@ -157,12 +144,45 @@ export class Marshaler {
 }
 
 function encodeAddress(value: string): Uint8Array {
-    const decodedBytes = atob(value)
-    if (decodedBytes.length !== 33) {
-        throw new Error(`Address must be 33 bytes long, got ${decodedBytes.length} bytes`)
+    let decodedCount = 0
+
+    let addrBytes: Uint8Array = new Uint8Array()
+
+    //try as a normal bech32 address
+    try {
+        const [hrp, decodedBytes] = parseBech32(value)
+        addrBytes = decodedBytes
+        decodedCount++
+    } catch (e) {
     }
-    return new Uint8Array(Array.from(decodedBytes, char => char.charCodeAt(0)))
+
+    //try as 33 byte base64 encoded address (golang would marshal as such)
+    if (isValidBase64(value)) {
+        const decoded = base64.decode(value);
+        if (decoded.length === 33) {//doesn't throw
+            addrBytes = decoded;
+            decodedCount++;
+        }
+    }
+
+    if (decodedCount > 1) {
+        throw new Error(`Address must be either bech32 or base64 encoded, could be decoded as both. the result is ambiguous: ${value}`)
+    } else if (decodedCount === 1) {
+        return addrBytes
+    } else {
+        throw new Error(`Address must be either bech32 or base64 encoded, could be decoded as neither: ${value}`)
+    }
 }
+
+function isValidBase64(str: string): boolean {
+    try {
+        const decoded = base64.decode(str);
+        return decoded.length > 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(str);
+    } catch {
+        return false;
+    }
+}
+
 function encodeNumber(type: string, value: number | string): Uint8Array {
     let bigValue = BigInt(value)
     let buffer: ArrayBuffer
@@ -230,3 +250,19 @@ function encodeString(value: string): Uint8Array {
     const lengthBytes = encodeNumber("uint16", stringBytes.length)
     return new Uint8Array([...lengthBytes, ...stringBytes])
 }
+
+//TODO: consider using this instead of DataView
+// private packUintGeneric(value: bigint, byteLength: number): void {
+//     const buffer = new ArrayBuffer(byteLength);
+//     const view = new DataView(buffer);
+//     for (let i = 0; i < byteLength; i++) {
+//         view.setUint8(byteLength - 1 - i, Number(value & 255n));
+//         value >>= 8n;
+//     }
+//     const newBytes = new Uint8Array(buffer);
+//     this._bytes = new Uint8Array([...this._bytes, ...newBytes]);
+// }
+
+// packUint64(value: bigint): void {
+//     this.packUintGeneric(value, 8);
+// }

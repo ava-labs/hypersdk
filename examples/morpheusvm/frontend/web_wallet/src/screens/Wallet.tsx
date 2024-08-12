@@ -1,17 +1,17 @@
 
 import { ArrowPathIcon } from '@heroicons/react/20/solid'
-import { pubKeyToED25519Addr } from '../lib/bech32'
-import { SignerIface } from '../signers/SignerIface'
+import { pubKeyToED25519Addr } from '../../../morpheus_snap/src/bech32'
 import { formatBalance, fromFormattedBalance } from '../lib/numberFormat'
-import { COIN_SYMBOL, DECIMAL_PLACES, MAX_TRANSFER_FEE } from '../const'
-import { getBalance, getNetwork, sendTx } from '../lib/api'
-import { TransferAction } from '../actions/TransferAction'
-import { Transaction } from '../chain/Transaction'
+import { COIN_SYMBOL, DECIMAL_PLACES, HRP, MAX_TRANSFER_FEE } from '../const'
+import { getAbi, getBalance, getNetwork, sendTx } from '../lib/api'
 import { idStringToBigInt } from '../../../morpheus_snap/src/cb58'
 import { useState } from 'react'
+import { base64 } from '@scure/base'
+import { ActionData, TransactionPayload } from '../../../morpheus_snap/src/sign'
+import { SignerIface } from '../lib/signers'
 
 export default function Wallet({ otherWalletAddress, signer, balanceBigNumber, onBalanceRefreshRequested, walletName, derivationPath }: { otherWalletAddress: string, signer: SignerIface, balanceBigNumber: bigint, onBalanceRefreshRequested: () => void, walletName: string, derivationPath: string }) {
-    const myAddr = pubKeyToED25519Addr(signer.getPublicKey())
+    const myAddr = pubKeyToED25519Addr(signer.getPublicKey(), HRP)
 
     const [loadingCounter, setLoadingCounter] = useState(0)
     const [logText, setLogText] = useState("")
@@ -32,24 +32,34 @@ export default function Wallet({ otherWalletAddress, signer, balanceBigNumber, o
             const amount = fromFormattedBalance(amountString, DECIMAL_PLACES)
             const initialBalance = await getBalance(myAddr)
 
-            const action = new TransferAction(otherWalletAddress, amount, "just testing")
 
             log("info", `Initial balance: ${formatBalance(initialBalance, DECIMAL_PLACES)} ${COIN_SYMBOL}`)
+
 
             const chainIdStr = (await getNetwork()).chainId
             const chainIdBigNumber = idStringToBigInt(chainIdStr)
 
-            const tx: TransactionPayload = {
-                timestamp: String(BigInt(Date.now()) + 60n * 1000n),
-                chainId: String(chainIdBigNumber),
-                maxFee: String(MAX_TRANSFER_FEE),
-                actions: [action]
+            const actionData: ActionData = {
+                data: {
+                    to: otherWalletAddress,
+                    value: String(amount),
+                    memo: base64.encode(new TextEncoder().encode("Hey there!")),
+                },
+                actionName: "Transfer",
             }
 
-            const signed = await signer.sign(tx)
+            const txPayload: TransactionPayload = {
+                timestamp: String(BigInt(Date.now()) + 59n * 1000n),
+                chainId: String(chainIdBigNumber),
+                maxFee: String(MAX_TRANSFER_FEE),
+                actions: [actionData]
+            }
+
+            const abiString = await getAbi()
+
+            const signed = await signer.signTx(txPayload, abiString)
 
             log("success", `Transaction signed`)
-
 
             await sendTx(signed)
             log("success", `Transaction sent, waiting for the balance change`)

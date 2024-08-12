@@ -5,7 +5,8 @@ import nacl from 'tweetnacl';
 import { assertInput, assertIsString, assertConfirmation, assertIsArray } from './assert';
 import { isValidSegment } from './keys';
 import { renderSignBytes } from './ui';
-import { Marshaler, TransactionPayload } from './Marshaler';
+import { Marshaler } from './Marshaler';
+import { signTransactionBytes, TransactionPayload } from './sign';
 
 
 
@@ -26,7 +27,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
 }) => {
   let keyPair: nacl.SignKeyPair;
 
-  if (request.method === 'signBytes') {
+ /* if (request.method === 'signBytes') {
     // const dappHost = (new URL(origin))?.host;
 
     const { derivationPath, bytesBase58 } = (request.params || {}) as { derivationPath?: string[], bytesBase58?: string };
@@ -43,7 +44,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     const signature = nacl.sign.detached(bytes, keyPair.secretKey);
 
     return base58.encode(signature)
-  } else if (request.method === 'signTransaction') {
+  } else */if (request.method === 'signTransaction') {
     const { derivationPath, tx, abiString } = (request.params || {}) as { derivationPath?: string[], tx: TransactionPayload, abiString: string };
 
     keyPair = await deriveKeyPair(derivationPath || []);
@@ -56,12 +57,9 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     const accepted = await renderSignBytes(bytesBase58);
     assertConfirmation(!!accepted);
 
-    const signature = nacl.sign.detached(digest, keyPair.secretKey);
+    const signedTxBytes = signTransactionBytes(digest, keyPair.secretKey);
 
-    return {
-      signature: base58.encode(signature),
-      digest: base58.encode(digest)
-    };
+    return base58.encode(signedTxBytes);
   } else if (request.method === 'getPublicKey') {
     const { derivationPath } = (request.params || {}) as { derivationPath?: string[] };
 

@@ -27,8 +27,6 @@
   },
   "include": [
     "src",
-    "../morpheus_snap/src/Marshaler.test.ts",
-    "../morpheus_snap/src/Marshaler.ts",
-    "../morpheus_snap/src/cb58.ts"
+    "../morpheus_snap/src/*.ts"
   ]
 }

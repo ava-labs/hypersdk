@@ -1,10 +1,8 @@
-import { SignerIface } from '../signers/SignerIface'
 import { SNAP_ID } from '../const'
-import { MetamaskSnapSigner } from '../signers/MetamaskSnapSigner'
-import { EphemeralSigner } from '../signers/EphemeralSigner'
 import { useState } from 'react'
 import Loading from './Loading'
 import FullScreenError from './FullScreenError'
+import { EphemeralSigner, MetamaskSnapSigner, SignerIface } from '../lib/signers'
 
 
 export default function ConnectWalletWindow({ onSignerInitComplete }: { onSignerInitComplete: (signers: { signer1: SignerIface, signer2: SignerIface }) => void }) {
