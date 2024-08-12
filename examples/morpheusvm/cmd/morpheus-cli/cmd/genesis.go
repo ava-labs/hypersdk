@@ -5,12 +5,14 @@ package cmd
 
 import (
 	"encoding/json"
+	"github.com/ava-labs/hypersdk/vm"
 	"os"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/fees"
 )
 
 var genesisCmd = &cobra.Command{
@@ -30,7 +32,38 @@ var genGenesisCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
-		g := genesis.Default()
+		type genAndRules struct {
+			*genesis.Genesis
+			*vm.BaseRules
+		}
+		combined := genAndRules{}
+		combined.Genesis = genesis.Default()
+		combined.BaseRules = vm.DefaultRules()
+
+		if len(minUnitPrice) > 0 {
+			d, err := fees.ParseDimensions(minUnitPrice)
+			if err != nil {
+				return err
+			}
+			combined.MinUnitPrice = d
+		}
+		if len(maxBlockUnits) > 0 {
+			d, err := fees.ParseDimensions(maxBlockUnits)
+			if err != nil {
+				return err
+			}
+			combined.MaxBlockUnits = d
+		}
+		if len(windowTargetUnits) > 0 {
+			d, err := fees.ParseDimensions(windowTargetUnits)
+			if err != nil {
+				return err
+			}
+			combined.WindowTargetUnits = d
+		}
+		if minBlockGap >= 0 {
+			combined.MinBlockGap = minBlockGap
+		}
 
 		a, err := os.ReadFile(args[0])
 		if err != nil {
@@ -40,9 +73,9 @@ var genGenesisCmd = &cobra.Command{
 		if err := json.Unmarshal(a, &allocs); err != nil {
 			return err
 		}
-		g.CustomAllocation = allocs
+		combined.CustomAllocation = allocs
 
-		b, err := json.Marshal(g)
+		b, err := json.Marshal(combined)
 		if err != nil {
 			return err
 		}

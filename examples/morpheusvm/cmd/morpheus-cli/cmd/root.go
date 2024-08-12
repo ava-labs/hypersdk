@@ -17,7 +17,6 @@ const (
 	fsModeWrite     = 0o600
 	defaultDatabase = ".morpheus-cli"
 	defaultGenesis  = "genesis.json"
-	defaultRules    = "rules.json"
 )
 
 var (
@@ -25,7 +24,6 @@ var (
 
 	dbPath                string
 	genesisFile           string
-	rulesFile             string
 	minUnitPrice          []string
 	maxBlockUnits         []string
 	windowTargetUnits     []string
@@ -48,7 +46,6 @@ var (
 func init() {
 	cobra.EnablePrefixMatching = true
 	rootCmd.AddCommand(
-		rulesCmd,
 		genesisCmd,
 		keyCmd,
 		chainCmd,
@@ -84,45 +81,32 @@ func init() {
 		defaultGenesis,
 		"genesis file path",
 	)
-
-	genesisCmd.AddCommand(
-		genGenesisCmd,
-	)
-
-	// rules
-	genRulesCmd.PersistentFlags().StringVar(
-		&rulesFile,
-		"rules-file",
-		defaultRules,
-		"rules file path",
-	)
-
-	genRulesCmd.PersistentFlags().StringSliceVar(
+	genGenesisCmd.PersistentFlags().StringSliceVar(
 		&minUnitPrice,
 		"min-unit-price",
 		[]string{},
 		"minimum price",
 	)
-	genRulesCmd.PersistentFlags().StringSliceVar(
+	genGenesisCmd.PersistentFlags().StringSliceVar(
 		&maxBlockUnits,
 		"max-block-units",
 		[]string{},
 		"max block units",
 	)
-	genRulesCmd.PersistentFlags().StringSliceVar(
+	genGenesisCmd.PersistentFlags().StringSliceVar(
 		&windowTargetUnits,
 		"window-target-units",
 		[]string{},
 		"window target units",
 	)
-	genRulesCmd.PersistentFlags().Int64Var(
+	genGenesisCmd.PersistentFlags().Int64Var(
 		&minBlockGap,
 		"min-block-gap",
 		-1,
 		"minimum block gap (ms)",
 	)
-	rulesCmd.AddCommand(
-		genRulesCmd,
+	genesisCmd.AddCommand(
+		genGenesisCmd,
 	)
 
 	// key
