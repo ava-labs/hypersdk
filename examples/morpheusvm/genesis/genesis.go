@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/avalanchego/trace"
 
@@ -54,13 +55,15 @@ func Default() *Genesis {
 	}
 }
 
-func New(b []byte, _ []byte /* upgradeBytes */) (*Genesis, error) {
+func New(b []byte, _ []byte /* upgradeBytes */, chainID ids.ID, networkID uint32) (*Genesis, error) {
 	g := Default()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)
 		}
 	}
+	g.ChainID = chainID
+	g.NetworkID = networkID
 	return g, nil
 }
 

@@ -83,15 +83,13 @@ func (*factory) New(
 
 	log.Info("initialized config", zap.Any("contents", c.config))
 
-	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
+	c.genesis, err = genesis.New(genesisBytes, upgradeBytes, chainID, networkID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
 	}
-	c.genesis.ChainID = chainID
-	c.genesis.NetworkID = networkID
 	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
 
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
