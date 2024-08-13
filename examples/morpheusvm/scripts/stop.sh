@@ -4,5 +4,9 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-ginkgo -v ${SCRIPT_DIR}/tests/e2e/e2e.test -- --stop-network
+MORPHEUSVM_PATH=$(
+  cd "$(dirname "${BASH_SOURCE[0]}")"
+  cd .. && pwd
+)
+
+ginkgo -v "$MORPHEUSVM_PATH"/tests/e2e/e2e.test -- --stop-network
