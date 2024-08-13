@@ -1,5 +1,5 @@
 error[E0308]: mismatched types
- --> tests/ui/fail/generic-context-args.rs:7:1
+ --> tests/ui/fail/generic-context-args.rs:10:1
   |
 7 | #[public]
   | ^^^^^^^^^
@@ -9,7 +9,7 @@ error[E0308]: mismatched types
   |
   = note: `Context<u8>` and `wasmlanche_sdk::Context` have similar names, but are actually distinct types
 note: `Context<u8>` is defined in the current crate
- --> tests/ui/fail/generic-context-args.rs:5:1
+ --> tests/ui/fail/generic-context-args.rs:8:1
   |
 5 | pub struct Context<T>(T);
   | ^^^^^^^^^^^^^^^^^^^^^
@@ -19,7 +19,7 @@ note: `wasmlanche_sdk::Context` is defined in crate `wasmlanche_sdk`
   | pub struct Context {
   | ^^^^^^^^^^^^^^^^^^
 note: function defined here
- --> tests/ui/fail/generic-context-args.rs:8:8
+ --> tests/ui/fail/generic-context-args.rs:11:8
   |
 7 | #[public]
   | ---------

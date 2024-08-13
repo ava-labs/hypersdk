@@ -21,8 +21,9 @@ go install -v github.com/palantir/go-license@latest
 
 # alert the user if they do not have $GOPATH properly configured
 check_command go-license
+check_command hawkeye
 
-go-license --config="${SCRIPT_DIR}/../license.yml" -- **/*.go
+hawkeye format
 
 echo "gofumpt files"
 go install -v mvdan.cc/gofumpt@latest
