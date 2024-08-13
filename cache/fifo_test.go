@@ -181,17 +181,18 @@ func TestFIFOCacheInsertion(t *testing.T) {
 			cache, err := NewFIFO[int, int](2)
 			require.NoError(err)
 
-			for _, op := range tt.ops {
-				if put, ok := op.(put); ok {
-					exists := cache.Put(put.kv, put.kv)
-					require.Equal(put.exists, exists)
-				} else if get, ok := op.(get); ok {
-					val, ok := cache.Get(get.k)
-					require.Equal(get.ok, ok)
+			for _, opIntf := range tt.ops {
+				switch op := opIntf.(type) {
+				case put:
+					exists := cache.Put(op.kv, op.kv)
+					require.Equal(op.exists, exists)
+				case get:
+					val, ok := cache.Get(op.k)
+					require.Equal(op.ok, ok)
 					if ok {
-						require.Equal(get.k, val)
+						require.Equal(op.k, val)
 					}
-				} else {
+				default:
 					require.Fail("op can only be a put or a get")
 				}
 			}
