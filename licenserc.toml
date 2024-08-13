@@ -3,7 +3,7 @@ baseDir = "."
 
 # Path to the header template file.
 # The header template file is skipped on any execution.
-headerPath = "license-header"
+headerPath = "license-header.txt"
 
 # On enabled, check the license header matches exactly with whitespace.
 strictCheck = true
@@ -11,12 +11,10 @@ strictCheck = true
 # Patterns of path to be included on execution.
 includes = ["**/*.rs", "**/*.go"]
 
-# exclude all mock_*.go files
-excludes = ["**/mock_*.go"]
-
 # Whether you use the default mapping.
 useDefaultMapping = true
 
-# Properties to fulfill the template.
-[properties]
-Year = 2024
+additionalHeaders = ["license-style.txt"]
+
+[mapping.GO_STYLE]
+extensions = ["go"]
