@@ -1,0 +1,48 @@
+# Base directory for the whole execution.
+# All relative paths is based on this path.
+baseDir = "."
+
+# Path to the header template file.
+# The header template file is skipped on any execution.
+headerPath = "./scripts/license-header/license-header.txt"
+
+# On enabled, check the license header matches exactly with whitespace.
+strictCheck = true
+
+# Patterns of path to be included on execution.
+includes = ["**/*.rs", "**/*.go"]
+
+# Whether you use the default mapping. Check DocumentType.defaultMapping() for the completed list.
+useDefaultMapping = true
+
+# Paths to additional header style files. The model of user-defined header style can be found below.
+additionalHeaders = ["./scripts/license-header/hypersdk-header-style.toml"]
+
+# Mapping rules (repeated).
+[mapping.HYPERSDK_HEADER_STYLE]
+extensions = ["go"]
+
+# Properties to fulfill the template.
+[properties]
+Year = 2024
+
+# Options to configure Git features.
+[git]
+# If enabled, do not process files that are ignored by Git; possible value: ['auto', 'enable', 'disable']
+# 'auto' means this feature tries to be enabled with:
+#   * gix - if `basedir` is in a Git repository.
+#   * ignore crate's gitignore rules - if `basedir` is not in a Git repository.
+# 'enable' means always enabled with gix; failed if it is impossible.
+# default: 'auto'
+ignore = 'auto'
+
+# If enabled, populate file attrs determinated by Git; possible value: ['auto', 'enable', 'disable']
+# Attributes contains:
+#   * 'hawkeye.git.fileCreatedYear'
+#   * 'hawkeye.git.fileModifiedYear'
+# 'auto' means this feature tries to be enabled with:
+#   * gix - if `basedir` is in a Git repository.
+# 'enable' means always enabled with gix; failed if it is impossible.
+# default: 'disable'
+attrs = 'disable'
+
