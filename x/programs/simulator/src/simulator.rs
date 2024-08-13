@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use libc::{c_char, c_uint};
 use std::{
     ffi::{CStr, CString},

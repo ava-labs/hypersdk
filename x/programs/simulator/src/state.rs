@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use crate::bindings::{Bytes, BytesWithError};
 use libc::c_char;
 use std::{collections::HashMap, ffi::CString};
