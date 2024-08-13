@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
+	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -21,16 +23,22 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/tests/e2e"
+	he2e "github.com/ava-labs/hypersdk/tests/e2e"
+	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
 
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
+const owner = "morpheusvm-e2e-tests"
+
 var (
-	_ workload.TxWorkloadFactory  = (*workloadFactory)(nil)
-	_ workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+	_            workload.TxWorkloadFactory  = (*workloadFactory)(nil)
+	_            workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+	flagVars     *e2e.FlagVars
+	genesisBytes []byte
+	factory      *auth.ED25519Factory
 )
 
 func TestE2e(t *testing.T) {
@@ -38,6 +46,7 @@ func TestE2e(t *testing.T) {
 }
 
 func init() {
+	flagVars = e2e.RegisterFlags()
 	require := require.New(ginkgo.GinkgoT())
 
 	// Load default pk
@@ -48,7 +57,7 @@ func init() {
 	)
 	require.NoError(err)
 	priv := ed25519.PrivateKey(privBytes)
-	factory := auth.NewED25519Factory(priv)
+	factory = auth.NewED25519Factory(priv)
 
 	gen := genesis.Default()
 	gen.WindowTargetUnits = fees.Dimensions{18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615}
@@ -60,16 +69,34 @@ func init() {
 			Balance: 10_000_000_000_000,
 		},
 	}
-	genesisBytes, err := json.Marshal(gen)
+	genesisBytes, err = json.Marshal(gen)
 	require.NoError(err)
 
-	e2e.SetupTestNetwork(
+	he2e.SetWorkload(consts.Name, &workloadFactory{factory})
+}
+
+var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
+	// Run only once in the first ginkgo process
+	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
+	subnet := fixture.NewHyperVMSubnet(
 		consts.Name,
 		consts.ID,
 		genesisBytes,
-		&workloadFactory{factory},
+		nodes...,
 	)
-}
+
+	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
+	return e2e.NewTestEnvironment(
+		e2e.NewTestContext(),
+		flagVars,
+		network,
+	).Marshal()
+}, func(envBytes []byte) {
+	// Run in every ginkgo process
+
+	// Initialize the local test environment from the global state
+	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+})
 
 type workloadFactory struct {
 	factory *auth.ED25519Factory

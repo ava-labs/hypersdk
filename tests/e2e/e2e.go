@@ -16,78 +16,39 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/utils"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-const owner = "hypersdk-e2e"
-
 var (
 	vmName            string
-	vmID              ids.ID
-	genesisBytes      []byte
 	txWorkloadFactory workload.TxWorkloadFactory
-	blockchainID      ids.ID
-	flagVars          *e2e.FlagVars
 )
 
-func init() {
-	flagVars = e2e.RegisterFlags()
-}
-
-func SetupTestNetwork(
-	name string,
-	id ids.ID,
-	g []byte,
-	factory workload.TxWorkloadFactory,
-) {
+func SetWorkload(name string, factory workload.TxWorkloadFactory) {
 	vmName = name
-	vmID = id
-	genesisBytes = g
 	txWorkloadFactory = factory
 }
-
-var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
-	// Run only once in the first ginkgo process
-	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
-	subnet := fixture.NewHyperVMSubnet(
-		vmName,
-		vmID,
-		genesisBytes,
-		nodes...,
-	)
-	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
-	return e2e.NewTestEnvironment(
-		e2e.NewTestContext(),
-		flagVars,
-		network,
-	).Marshal()
-}, func(envBytes []byte) {
-	// Run in every ginkgo process
-
-	// Initialize the local test environment from the global state
-	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
-	blockchainID = e2e.GetEnv(e2e.NewTestContext()).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
-})
 
 var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	tc := e2e.NewTestContext()
 	require := require.New(tc)
 
 	ginkgo.It("Ping", func() {
-		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID))
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
+		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
 	})
 
 	ginkgo.It("GetNetwork", func() {
+		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 		baseURIs := getE2EBaseURIs(tc)
 		baseURI := baseURIs[0]
 		client := info.NewClient(baseURI)
 		expectedNetworkID, err := client.GetNetworkID(tc.DefaultContext())
 		require.NoError(err)
-		workload.GetNetwork(tc.DefaultContext(), require, getE2EURIs(tc, blockchainID), expectedNetworkID, blockchainID)
+		workload.GetNetwork(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID), expectedNetworkID, expectedBlockchainID)
 	})
 })
 
@@ -95,6 +56,7 @@ var _ = ginkgo.Describe("[HyperSDK Tx Workloads]", func() {
 	ginkgo.It("Basic Tx Workload", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 
 		txWorkloads, err := txWorkloadFactory.NewWorkloads(getE2EURIs(tc, blockchainID)[0])
 		require.NoError(err)
@@ -108,6 +70,7 @@ var _ = ginkgo.Describe("[HyperSDK Syncing]", func() {
 	ginkgo.It("[Sync]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
+		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 
 		uris := getE2EURIs(tc, blockchainID)
 		ginkgo.By("Generate 128 blocks", func() {

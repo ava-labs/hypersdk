@@ -6,6 +6,7 @@ set -e
 
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
+MODE=${MODE:-run}
 if ! [[ "$0" =~ scripts/run.sh ]]; then
   echo "must be run from morpheusvm root"
   exit 255
