@@ -26,7 +26,7 @@ import (
 )
 
 type GetBlockRequest struct {
-	Id ids.ID `json:"id"`
+	ID ids.ID `json:"id"`
 }
 
 type GetBlockByHeightRequest struct {
@@ -99,8 +99,14 @@ func (m *MorpheusSidecar) ProcessBlock(ctx context.Context, b *pb.BlockRequest) 
 		return &emptypb.Empty{}, err
 	}
 
+	// Unmarshal results
+	results, err := chain.UnmarshalResults(b.Results)
+	if err != nil {
+		return &emptypb.Empty{}, err
+	}
+
 	// Index block
-	if err := m.standardIndexer.AcceptedStateful(ctx, blk); err != nil {
+	if err := m.standardIndexer.AcceptedStateful(ctx, blk, results); err != nil {
 		return &emptypb.Empty{}, nil
 	}
 	m.Logger.Println("Indexed block number ", blk.Hght)
@@ -112,9 +118,9 @@ JSON-RPC related functions
 */
 
 func (m *MorpheusSidecar) GetBlock(_ *http.Request, args *GetBlockRequest, resp *GetBlockResponse) error {
-	blk, err := m.standardIndexer.GetBlock(args.Id)
+	blk, err := m.standardIndexer.GetBlock(args.ID)
 	if err != nil {
-		m.Logger.Println("Could not get block", zap.Any("ID", args.Id))
+		m.Logger.Println("Could not get block", zap.Any("ID", args.ID))
 		return err
 	}
 
@@ -122,7 +128,7 @@ func (m *MorpheusSidecar) GetBlock(_ *http.Request, args *GetBlockRequest, resp 
 	if err != nil {
 		m.Logger.Println("Could not unmarshal block", zap.Any("Block Bytes", blk))
 	}
-	
+
 	resp.Block = uBlk
 
 	return nil
@@ -134,12 +140,12 @@ func (m *MorpheusSidecar) GetBlockByHeight(_ *http.Request, args *GetBlockByHeig
 		m.Logger.Println("Could not get block", zap.Any("ID", args.Height))
 		return err
 	}
-	
+
 	uBlk, err := chain.UnmarshalBlock(blk, m.parser)
 	if err != nil {
 		m.Logger.Println("Could not unmarshal block", zap.Any("Block Bytes", blk))
 	}
-	
+
 	resp.Block = uBlk
 
 	return nil

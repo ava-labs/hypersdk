@@ -23,7 +23,7 @@ import (
 // Spins up a Sidecar server (gRPC server and API server)
 func main() {
 	signals := make(chan os.Signal, 1)
-    signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	stdDBDir := "./stdDB/"
 	logger := log.Default()
@@ -34,7 +34,7 @@ func main() {
 	go startMorpheusAPI(morpheusSidecar)
 
 	// Wait for a signal
-    <-signals
+	<-signals
 	morpheusSidecar.Logger.Println("\nShutting down...")
 }
 
@@ -55,7 +55,6 @@ func startGRPCServer(m *externalsubscriber.MorpheusSidecar) {
 }
 
 func startMorpheusAPI(m *externalsubscriber.MorpheusSidecar) {
-
 	codec := json.NewCodec()
 
 	rpcServer := rpc.NewServer()

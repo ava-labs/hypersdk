@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	IndexAll             bool          `json:"indexAll"`
+	IndexAll                      bool          `json:"indexAll"`
 	LogLevel                      logging.Level `json:"logLevel"`
 	ExportedBlockSubcriberAddress string        `json:"exportedBlockSubscriberAddress"`
 }
@@ -18,7 +18,7 @@ type Config struct {
 func New(b []byte) (*Config, error) {
 	c := &Config{
 		IndexAll: true,
-		LogLevel:          logging.Info,
+		LogLevel: logging.Info,
 	}
 
 	if len(b) > 0 {

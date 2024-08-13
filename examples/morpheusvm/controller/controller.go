@@ -153,7 +153,7 @@ type Controller struct {
 
 	metrics *metrics
 
-	db               database.Database
+	db                 database.Database
 	dbIndexer          indexer.Indexer
 	acceptedSubscriber indexer.AcceptedSubscriber
 }

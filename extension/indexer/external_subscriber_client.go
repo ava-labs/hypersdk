@@ -37,8 +37,15 @@ func (e *ExternalSubscriber) Accepted(ctx context.Context, blk *chain.StatelessB
 	if err != nil {
 		return err
 	}
+
+	resultsMarshaled, err := chain.MarshalResults(blk.Results())
+	if err != nil {
+		return err
+	}
+
 	req := &pb.BlockRequest{
 		BlockData: blockBytes,
+		Results:   resultsMarshaled,
 	}
 	_, err = e.client.ProcessBlock(ctx, req)
 	return err
