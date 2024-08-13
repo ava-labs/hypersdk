@@ -236,6 +236,7 @@ func (vm *VM) Initialize(
 	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
 	controllerConfigBytes, err := json.Marshal(vm.config.Config)
 	if err != nil {
