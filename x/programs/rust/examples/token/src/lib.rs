@@ -217,219 +217,124 @@ mod internal {
 #[cfg(test)]
 mod tests {
     use super::Units;
-    use simulator::{Endpoint, Param, Step, TestContext};
+    use simulator::{SimpleState, Simulator};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
+    const MAX_UNITS: u64 = 1000000;
     #[test]
     fn create_program() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
-        simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap();
+        simulator.create_program(PROGRAM_PATH).unwrap()
     }
 
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         let supply = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "total_supply".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into()],
-            })
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "total_supply", (), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
         assert_eq!(supply, 0);
 
         let symbol = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "symbol".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into()],
-            })
-            .unwrap()
-            .result
-            .response::<String>()
+            .call_program(program_address, "symbol", (), MAX_UNITS)
+            .result::<String>()
             .unwrap();
         assert_eq!(symbol, "TST");
 
         let name = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "name".into(),
-                max_units: 0,
-                params: vec![test_context.into()],
-            })
-            .unwrap()
-            .result
-            .response::<String>()
+            .call_program(program_address, "name", (), MAX_UNITS)
+            .result::<String>()
             .unwrap();
         assert_eq!(name, "Test");
     }
 
     #[test]
     fn mint() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "mint".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_initial_balance),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(
+                program_address,
+                "mint",
+                (alice, alice_initial_balance),
+                MAX_UNITS,
+            )
             .unwrap();
 
         let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "balance_of".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into(), alice.into()],
-            })
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(balance, alice_initial_balance);
 
         let total_supply = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "total_supply".into(),
-                max_units: 0,
-                params: vec![test_context.into()],
-            })
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "total_supply", (), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
         assert_eq!(total_supply, alice_initial_balance);
     }
 
     #[test]
     fn burn() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "mint".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_initial_balance),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(
+                program_address,
+                "mint",
+                (alice, alice_initial_balance),
+                MAX_UNITS,
+            )
             .unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "burn".into(),
-                max_units: 1000000,
-                params: vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_burn_amount),
-                ],
-            })
+            .call_program(
+                program_address,
+                "burn",
+                (alice, alice_burn_amount),
+                MAX_UNITS,
+            )
             .unwrap();
 
         let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "balance_of".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into(), alice.into()],
-            })
-            .unwrap()
-            .result
-            .response::<Units>()
+            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(balance, alice_initial_balance - alice_burn_amount);
     }
 }
