@@ -1,6 +1,3 @@
-
-import nacl from 'tweetnacl';
-import { Marshaler } from './Marshaler';
 import { ED25519_AUTH_ID } from './bech32';
 import { ed25519 } from "@noble/curves/ed25519";
 

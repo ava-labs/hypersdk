@@ -1,11 +1,14 @@
 FROM node:20-bookworm AS builder
 
+# Install morpheus_snap dependencies
+WORKDIR /app/examples/morpheusvm/frontend/morpheus_snap
+COPY examples/morpheusvm/frontend/morpheus_snap/package*.json ./
+RUN npm ci --omit=dev
+    
+# Install web_wallet dependencies
 WORKDIR /app/examples/morpheusvm/frontend/web_wallet
-
 COPY examples/morpheusvm/frontend/web_wallet/package*.json ./
-
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 COPY examples/morpheusvm/frontend /app/examples/morpheusvm/frontend
 

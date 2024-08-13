@@ -4,7 +4,6 @@ import { parse } from 'lossless-json'
 import { TransactionPayload } from './sign';
 import { parseBech32 } from './bech32';
 import { base64 } from '@scure/base';
-import { image } from '@metamask/snaps-sdk';
 
 
 export type SingleActionABI = {
@@ -56,7 +55,7 @@ export class Marshaler {
             actionsBytes = new Uint8Array([...actionsBytes, ...actionTypeIdBytes, ...actionDataBytes]);
         }
 
-        const abiHashBytes = this.getHash()
+        // const abiHashBytes = this.getHash()
 
         return new Uint8Array([
             // ...abiHashBytes //TODO: add abi hash to the end of the signable body of transaction
@@ -149,7 +148,7 @@ function encodeAddress(value: string): Uint8Array {
 
     //try as a normal bech32 address
     try {
-        const [hrp, decodedBytes] = parseBech32(value)
+        const [, decodedBytes] = parseBech32(value)
         addrBytes = decodedBytes
         decodedCount++
     } catch (e) {
