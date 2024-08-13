@@ -4,14 +4,13 @@
 package registry
 
 import (
-	"errors"
-
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 var (
@@ -41,10 +40,6 @@ func init() {
 	var actionsForABI []codec.HavingTypeId = []codec.HavingTypeId{
 		&actions.Transfer{},
 		//... add all other actions here
-	}
-
-	if len(actionsForABI) != len(consts.ActionRegistry.ListIndices()) {
-		errs.Add(errors.New("ActionRegistry and actionsForABI must have the same actions registered"))
 	}
 
 	var err error
