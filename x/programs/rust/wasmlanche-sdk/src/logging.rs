@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 /// Prints and returns the value of a given expression for quick and dirty debugging.
 #[macro_export]
 macro_rules! dbg {

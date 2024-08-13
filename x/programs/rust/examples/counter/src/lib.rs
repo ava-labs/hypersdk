@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_schema, Address};
