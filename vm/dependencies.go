@@ -94,6 +94,11 @@ type RuleFactory interface {
 	GetRules(t int64) chain.Rules
 }
 
+type TypedRuleFactory[T chain.Rules] interface {
+	RuleFactory
+	GetTypedRules(t int64) T
+}
+
 type AuthEngine interface {
 	GetBatchVerifier(cores int, count int) chain.AuthBatchVerifier
 	Cache(auth chain.Auth)

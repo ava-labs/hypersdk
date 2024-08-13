@@ -23,8 +23,6 @@ const JSONRPCEndpoint = "/morpheusapi"
 var ErrTxNotFound = errors.New("tx not found")
 
 type Controller interface {
-	Genesis() *genesis.Genesis
-	Rules(int64) *vm.BaseRules
 	Tracer() trace.Tracer
 	GetTransaction(ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
@@ -32,10 +30,12 @@ type Controller interface {
 
 type JSONRPCServer struct {
 	c Controller
+	g *genesis.Genesis
+	r vm.TypedRuleFactory[*vm.BaseRules]
 }
 
-func NewJSONRPCServer(c Controller) *JSONRPCServer {
-	return &JSONRPCServer{c}
+func NewJSONRPCServer(c Controller, g *genesis.Genesis, r vm.TypedRuleFactory[*vm.BaseRules]) *JSONRPCServer {
+	return &JSONRPCServer{c: c, g: g, r: r}
 }
 
 type GenesisReply struct {
@@ -43,7 +43,7 @@ type GenesisReply struct {
 }
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
-	reply.Genesis = j.c.Genesis()
+	reply.Genesis = j.g
 	return nil
 }
 
@@ -52,7 +52,7 @@ type RulesReply struct {
 }
 
 func (j *JSONRPCServer) Rules(_ *http.Request, _ *struct{}, reply *RulesReply) (err error) {
-	reply.Rules = j.c.Rules(0)
+	reply.Rules = j.r.GetTypedRules(0)
 	return nil
 }
 

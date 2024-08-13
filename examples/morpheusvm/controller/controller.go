@@ -85,23 +85,23 @@ func (*factory) New(
 
 	log.Info("initialized config", zap.Any("contents", c.config))
 
-	c.genesis, err = genesis.New(genesisBytes)
+	chainGenesis, err := genesis.New(genesisBytes)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"unable to read genesis: %w",
 			err,
 		)
 	}
-	log.Info("loaded genesis", zap.Any("genesis", c.genesis))
+	log.Info("loaded genesis", zap.Any("genesis", chainGenesis))
 
-	c.rules, err = vm.LoadUnchangingRuleFactory[*vm.BaseRules](vm.LoadBaseRules, ruleBytes, chainID, networkID)
+	rules, err := vm.LoadUnchangingRuleFactory[*vm.BaseRules](vm.LoadBaseRules, ruleBytes, chainID, networkID)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf(
 			"unable to read rules: %w",
 			err,
 		)
 	}
-	log.Info("loaded rules", zap.Any("rules", c.rules.UnchangingRules))
+	log.Info("loaded rules", zap.Any("rules", rules.UnchangingRules))
 
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
@@ -125,21 +125,19 @@ func (*factory) New(
 	apis := map[string]http.Handler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,
-		rpc.NewJSONRPCServer(c),
+		rpc.NewJSONRPCServer(c, chainGenesis, rules),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
-	return c, c.genesis, c.rules, apis, nil
+	return c, chainGenesis, rules, apis, nil
 }
 
 type Controller struct {
 	inner        *vm.VM
 	log          logging.Logger
-	genesis      *genesis.Genesis
-	rules        *vm.UnchangingRuleFactory[*vm.BaseRules]
 	config       *Config
 	stateManager *storage.StateManager
 
@@ -161,9 +159,4 @@ func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) er
 func (c *Controller) Shutdown(context.Context) error {
 	// Close any databases created during initialization
 	return c.txDB.Close()
-}
-
-func (c *Controller) Rules(t int64) *vm.BaseRules {
-	// Close any databases created during initialization
-	return c.rules.GetTypedRules(t)
 }
