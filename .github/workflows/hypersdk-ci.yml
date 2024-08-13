@@ -53,6 +53,8 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: scripts/tests.actionlint.sh
+      - name: Check License Header
+        uses: korandoru/hawkeye@v5
 
   hypersdk-unit-tests:
     runs-on: ubuntu-20.04-32
