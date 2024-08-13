@@ -4,7 +4,7 @@ baseDir = "."
 
 # Path to the header template file.
 # The header template file is skipped on any execution.
-headerPath = "./license-header.txt"
+headerPath = "license-header.txt"
 
 # On enabled, check the license header matches exactly with whitespace.
 strictCheck = true
