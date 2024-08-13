@@ -1,5 +1,5 @@
 # [REQUIRED] The name of this header.
-[HYPERSDK_HEADER_STYLE]
+[GO_STYLE]
 
 # The characters to prepend before each license header lines. Default to empty.
 beforeEachLine = "// "
