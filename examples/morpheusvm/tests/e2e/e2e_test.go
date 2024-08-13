@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -60,8 +61,11 @@ func init() {
 	factory = auth.NewED25519Factory(priv)
 
 	gen := genesis.Default()
-	gen.WindowTargetUnits = fees.Dimensions{18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615}
-	gen.MaxBlockUnits = fees.Dimensions{1800000, 18446744073709551615, 18446744073709551615, 18446744073709551615, 18446744073709551615}
+	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
+	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// a block that exceeds the maximum size allowed by AvalancheGo.
+	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	gen.MinBlockGap = 100
 	gen.CustomAllocation = []*genesis.CustomAllocation{
 		{
