@@ -1,5 +1,4 @@
 # Base directory for the whole execution.
-# All relative paths is based on this path.
 baseDir = "."
 
 # Path to the header template file.
@@ -15,30 +14,9 @@ includes = ["**/*.rs", "**/*.go"]
 # exclude all mock_*.go files
 excludes = ["**/mock_*.go"]
 
-# Whether you use the default mapping. Check DocumentType.defaultMapping() for the completed list.
+# Whether you use the default mapping.
 useDefaultMapping = true
 
 # Properties to fulfill the template.
 [properties]
 Year = 2024
-
-# Options to configure Git features.
-[git]
-# If enabled, do not process files that are ignored by Git; possible value: ['auto', 'enable', 'disable']
-# 'auto' means this feature tries to be enabled with:
-#   * gix - if `basedir` is in a Git repository.
-#   * ignore crate's gitignore rules - if `basedir` is not in a Git repository.
-# 'enable' means always enabled with gix; failed if it is impossible.
-# default: 'auto'
-ignore = 'auto'
-
-# If enabled, populate file attrs determinated by Git; possible value: ['auto', 'enable', 'disable']
-# Attributes contains:
-#   * 'hawkeye.git.fileCreatedYear'
-#   * 'hawkeye.git.fileModifiedYear'
-# 'auto' means this feature tries to be enabled with:
-#   * gix - if `basedir` is in a Git repository.
-# 'enable' means always enabled with gix; failed if it is impossible.
-# default: 'disable'
-attrs = 'disable'
-
