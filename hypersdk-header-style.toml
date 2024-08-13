@@ -1,0 +1,19 @@
+# [REQUIRED] The name of this header.
+[HYPERSDK_HEADER_STYLE]
+
+# The characters to prepend before each license header lines. Default to empty.
+beforeEachLine = "// "
+afterEachLine = ""
+
+# Specify whether this is a multi-line comment style or not.
+multipleLines = false
+
+# Only for non multi-line comments: specify if some spaces should be added after the header line and before
+# the `afterEachLine` characters so that all the lines are aligned.
+padLines = true
+
+# [REQUIRED] The regex used to detect the start of a header section or line.
+firstLineDetectionPattern = "package"
+
+# [REQUIRED] The regex used to detect the end of a header section or line.
+lastLineDetectionPattern = "import"
