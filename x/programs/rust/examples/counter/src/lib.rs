@@ -42,7 +42,7 @@ mod tests {
         let mut simulator = Simulator::new(&mut state);
 
         let actor = Address::default();
-        simulator.actor = actor;
+        simulator.set_actor(actor);
         let error = simulator.create_program(PROGRAM_PATH).has_error();
         assert!(!error, "Create program errored")
     }

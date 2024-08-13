@@ -13,6 +13,8 @@ mod bindings {
         type Target = [u8];
 
         fn deref(&self) -> &Self::Target {
+            // # Safety:
+            // the ptr must be valid for the length of the slice
             unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
         }
     }
@@ -22,7 +24,7 @@ mod bindings {
             Address {
                 // # Safety:
                 // Address is a simple wrapper around an array of bytes
-                // this will fail at compile time if the size is changed
+                // this will fail if the size is changed
                 address: unsafe { std::mem::transmute::<SdkAddress, [libc::c_uchar; 33]>(value) },
             }
         }
