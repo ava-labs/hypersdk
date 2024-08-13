@@ -14,14 +14,16 @@ pub fn get_value(_: &mut Context, external: Program, address: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::{ClientBuilder, Endpoint, Param, Step, TestContext};
+    use simulator::{SimpleState, Simulator};
+
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn inc_and_get_value() {
-        let mut simulator = ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let counter_path = PROGRAM_PATH
             .replace("counter-external", "counter")
@@ -29,42 +31,17 @@ mod tests {
 
         let owner = Address::new([1; 33]);
 
-        let counter_external = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .expect("should be able to create this program")
-            .id;
+        let counter_external = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
-        let counter = simulator
-            .run_step(&Step::create_program(counter_path))
-            .expect("should be able to create the counter")
-            .id;
-        let counter = Param::Id(counter);
-
-        let params = vec![
-            TestContext::from(counter_external).into(),
-            counter.clone(),
-            owner.into(),
-        ];
+        let counter = simulator.create_program(&counter_path).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "inc".into(),
-                max_units: 100_000_000,
-                params: params.clone(),
-            })
-            .expect("call inc");
+            .call_program(counter_external, "inc", (counter, owner), 100_000_000)
+            .unwrap();
 
         let response = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_value".into(),
-                max_units: 1_000_000,
-                params,
-            })
-            .expect("call get_value")
-            .result
-            .response::<u64>()
+            .call_program(counter_external, "get_value", (counter, owner), 100_000_000)
+            .result::<u64>()
             .unwrap();
 
         assert_eq!(response, 1);

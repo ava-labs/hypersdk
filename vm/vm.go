@@ -484,6 +484,18 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 
+	// Add optional direct state read handler
+	if vm.config.EnableJSONRPCStateHandler {
+		if _, ok := vm.handlers[rpc.JSONRPCStateEndpoint]; ok {
+			return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCStateEndpoint)
+		}
+		jsonRPCStateHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCStateServer(vm))
+		if err != nil {
+			return fmt.Errorf("unable to create handler: %w", err)
+		}
+		vm.handlers[rpc.JSONRPCStateEndpoint] = jsonRPCStateHandler
+	}
+
 	err = vm.restoreAcceptedQueue(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to restore accepted blocks to the queue: %w", err)
