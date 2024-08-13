@@ -19,7 +19,7 @@ excludes = ["**/mock_*.go"]
 useDefaultMapping = true
 
 # Paths to additional header style files. The model of user-defined header style can be found below.
-additionalHeaders = ["./go-header-style.toml"]
+additionalHeaders = ["go-header-style.toml"]
 
 # Mapping rules (repeated).
 [mapping.GO_STYLE]
