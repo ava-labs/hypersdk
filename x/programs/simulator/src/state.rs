@@ -6,7 +6,7 @@ use std::{collections::HashMap, ffi::CString};
 // TODO: Would love a less-hardcodey way of representing errors between rust <-> go
 pub const ERR_NOT_FOUND: &str = "not found";
 
-#[repr(C)]
+#[repr(transparent)]
 pub struct SimpleState {
     state: HashMap<Vec<u8>, Vec<u8>>,
 }
@@ -37,18 +37,16 @@ impl Default for SimpleState {
 
 // We re-define this mutable in rust for more control over the pointer types
 // mute clippy warnings
-#[allow(improper_ctypes)]
 #[repr(C)]
-pub struct Mutable {
-    pub state: Box<SimpleState>,
+pub struct Mutable<'a> {
+    pub state: &'a mut SimpleState,
     pub get_state: GetStateCallback,
     pub insert_state: InsertStateCallback,
     pub remove_state: RemoveStateCallback,
 }
 
-impl Mutable {
-    pub fn new() -> Self {
-        let state = Box::new(SimpleState::new());
+impl<'a> Mutable<'a> {
+    pub fn new(state: &'a mut SimpleState) -> Self {
         Mutable {
             state,
             get_state: get_state_callback,
@@ -58,15 +56,9 @@ impl Mutable {
     }
 }
 
-impl Default for Mutable {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> BytesWithError {
-    let obj = unsafe { &mut *obj_ptr };
-    let value = obj.get_value(&key);
+pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> BytesWithError {
+    // let obj = unsafe { &mut *obj_ptr };
+    let value = state.get_value(&key);
 
     match value {
         Some(v) => BytesWithError {
@@ -87,24 +79,22 @@ pub extern "C" fn get_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> B
 }
 
 pub extern "C" fn insert_state_callback(
-    obj_ptr: *mut SimpleState,
+    state: &mut SimpleState,
     key: Bytes,
     value: Bytes,
 ) -> *const c_char {
-    let obj = unsafe { &mut *obj_ptr };
-    obj.insert(key.to_vec(), value.to_vec());
+    state.insert(key.to_vec(), value.to_vec());
     std::ptr::null()
 }
 
-pub extern "C" fn remove_state_callback(obj_ptr: *mut SimpleState, key: Bytes) -> *const c_char {
-    let obj = unsafe { &mut *obj_ptr };
-    obj.remove(key.to_vec());
+pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) -> *const c_char {
+    state.remove(key.to_vec());
     std::ptr::null()
 }
 
 pub type GetStateCallback =
-    extern "C" fn(simObjectPtr: *mut SimpleState, key: Bytes) -> BytesWithError;
+    extern "C" fn(simObjectPtr: &mut SimpleState, key: Bytes) -> BytesWithError;
 pub type InsertStateCallback =
-    extern "C" fn(objectPtr: *mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
+    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
 pub type RemoveStateCallback =
-    extern "C" fn(objectPtr: *mut SimpleState, key: Bytes) -> *const c_char;
+    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes) -> *const c_char;

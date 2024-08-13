@@ -217,7 +217,7 @@ mod internal {
 #[cfg(test)]
 mod tests {
     use super::Units;
-    use simulator::Simulator;
+    use simulator::{SimpleState, Simulator};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
@@ -225,7 +225,8 @@ mod tests {
     const MAX_UNITS: u64 = 1000000;
     #[test]
     fn create_program() {
-        let simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         simulator.create_program(PROGRAM_PATH).unwrap()
     }
@@ -233,7 +234,8 @@ mod tests {
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
@@ -262,7 +264,8 @@ mod tests {
 
     #[test]
     fn mint() {
-        let simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
@@ -297,7 +300,8 @@ mod tests {
 
     #[test]
     fn burn() {
-        let simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;

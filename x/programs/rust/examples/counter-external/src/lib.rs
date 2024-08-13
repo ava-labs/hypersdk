@@ -14,7 +14,7 @@ pub fn get_value(_: &mut Context, external: Program, address: Address) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use simulator::Simulator;
+    use simulator::{SimpleState, Simulator};
 
     use wasmlanche_sdk::Address;
 
@@ -22,7 +22,8 @@ mod tests {
 
     #[test]
     fn inc_and_get_value() {
-        let simulator = Simulator::new();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let counter_path = PROGRAM_PATH
             .replace("counter-external", "counter")

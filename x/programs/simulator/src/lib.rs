@@ -33,3 +33,4 @@ mod simulator;
 mod state;
 
 pub use simulator::Simulator;
+pub use state::SimpleState;
