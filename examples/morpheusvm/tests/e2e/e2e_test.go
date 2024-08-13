@@ -23,11 +23,11 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/rpc"
-	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
 
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
