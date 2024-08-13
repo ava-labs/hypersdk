@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber/router"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/extension/indexer"
@@ -26,27 +25,16 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-type JSONRPCRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params"`
-	ID      interface{} `json:"id"`
-}
-
-type JSONRPCResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Result  interface{} `json:"result,omitempty"`
-	ID      interface{} `json:"id"`
-}
-
-type JSONRPCErrorResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Error   interface{} `json:"error"`
-	ID      interface{} `json:"id"`
-}
-
 type GetBlockRequest struct {
+	Id ids.ID `json:"id"`
+}
+
+type GetBlockByHeightRequest struct {
 	Height uint64 `json:"height"`
+}
+
+type GetBlockResponse struct {
+	Block *chain.StatefulBlock `json:"block"`
 }
 
 type GetTxRequest struct {
@@ -63,10 +51,8 @@ type GetTXResponse struct {
 
 type MorpheusSidecar struct {
 	pb.ExternalSubscriberServer
-	http.Handler
 	standardIndexer indexer.Indexer
 	parser          *rpc.Parser
-	router          *router.Router
 	Logger          *log.Logger
 }
 
@@ -77,7 +63,6 @@ func NewMorpheusSidecar(stdDBDir string, logger *log.Logger) *MorpheusSidecar {
 	}
 	return &MorpheusSidecar{
 		standardIndexer: indexer.NewDBIndexer(stdDB),
-		router:          router.NewRouter(),
 		Logger:          logger,
 	}
 }
@@ -126,88 +111,51 @@ func (m *MorpheusSidecar) ProcessBlock(ctx context.Context, b *pb.BlockRequest) 
 JSON-RPC related functions
 */
 
-func (m *MorpheusSidecar) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req JSONRPCRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON-RPC request format", http.StatusBadRequest)
-		return
-	}
-	switch req.Method {
-	case "getBlock":
-		var getBlockRequest GetBlockRequest
-		if err := m.parseParams(req.Params, &getBlockRequest); err != nil {
-			m.sendErrorResponse(w, req.ID, err)
-		}
-		// Get block
-		blk, err := m.standardIndexer.GetBlockByHeight(getBlockRequest.Height)
-		if err != nil {
-			m.Logger.Println("Could not get block", zap.Any("Height", getBlockRequest.Height))
-			m.sendErrorResponse(w, req.ID, err)
-			return
-		}
-		// Unmarshal block
-		uBlk, err := chain.UnmarshalBlock(blk, m.parser)
-		if err != nil {
-			m.Logger.Println("Could not unmarshall block", zap.Any("Block Bytes", blk))
-			m.sendErrorResponse(w, req.ID, err)
-			return
-		}
-		m.sendResponse(w, req.ID, uBlk)
-	case "getTX":
-		var getTxRequest GetTxRequest
-		if err := m.parseParams(req.Params, &getTxRequest); err != nil {
-			http.Error(w, "Invalid TX params", http.StatusBadRequest)
-			return
-		}
-		exists, timestamp, success, dim, fee, err := m.standardIndexer.GetTransaction(getTxRequest.TxID)
-		if err != nil {
-			m.Logger.Println("Could not get TX", zap.Any("txID", getTxRequest.TxID))
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		resp := GetTXResponse{
-			Exists:        exists,
-			Timestamp:     timestamp,
-			Success:       success,
-			FeeDimensions: dim,
-			Fee:           fee,
-		}
-		m.sendResponse(w, req.ID, resp)
-	default:
-		m.Logger.Println("could not match method")
-		m.sendErrorResponse(w, req.ID, "unknown rpc method")
-	}
-}
-
-func (*MorpheusSidecar) parseParams(params interface{}, dest interface{}) error {
-	// Convert params to JSON, then decode into the destination struct
-	data, err := json.Marshal(params)
+func (m *MorpheusSidecar) GetBlock(_ *http.Request, args *GetBlockRequest, resp *GetBlockResponse) error {
+	blk, err := m.standardIndexer.GetBlock(args.Id)
 	if err != nil {
+		m.Logger.Println("Could not get block", zap.Any("ID", args.Id))
 		return err
 	}
-	return json.Unmarshal(data, dest)
+
+	uBlk, err := chain.UnmarshalBlock(blk, m.parser)
+	if err != nil {
+		m.Logger.Println("Could not unmarshal block", zap.Any("Block Bytes", blk))
+	}
+	
+	resp.Block = uBlk
+
+	return nil
 }
 
-func (*MorpheusSidecar) sendResponse(w http.ResponseWriter, id interface{}, result interface{}) {
-	response := JSONRPCResponse{
-		JSONRPC: "2.0",
-		Result:  result,
-		ID:      id,
+func (m *MorpheusSidecar) GetBlockByHeight(_ *http.Request, args *GetBlockByHeightRequest, resp *GetBlockResponse) error {
+	blk, err := m.standardIndexer.GetBlockByHeight(args.Height)
+	if err != nil {
+		m.Logger.Println("Could not get block", zap.Any("ID", args.Height))
+		return err
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	
+	uBlk, err := chain.UnmarshalBlock(blk, m.parser)
+	if err != nil {
+		m.Logger.Println("Could not unmarshal block", zap.Any("Block Bytes", blk))
 	}
+	
+	resp.Block = uBlk
+
+	return nil
 }
 
-func (*MorpheusSidecar) sendErrorResponse(w http.ResponseWriter, id interface{}, errMsg interface{}) {
-	errResponse := JSONRPCErrorResponse{
-		JSONRPC: "2.0",
-		Error:   errMsg,
-		ID:      id,
+func (m *MorpheusSidecar) GetTX(_ *http.Request, args *GetTxRequest, resp *GetTXResponse) error {
+	exists, timestamp, success, dim, fee, err := m.standardIndexer.GetTransaction(args.TxID)
+	if err != nil {
+		m.Logger.Println("Could not get TX", zap.Any("txID", args.TxID))
+		return err
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(errResponse); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	resp.Exists = exists
+	resp.Timestamp = timestamp
+	resp.Success = success
+	resp.FeeDimensions = dim
+	resp.Fee = fee
+
+	return nil
 }

@@ -30,6 +30,7 @@ func NewExternalSubscriber(server string) (*ExternalSubscriber, error) {
 	}, nil
 }
 
+// TODO: send results as well to allow for marshaling Stateless blocks
 func (e *ExternalSubscriber) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
 	// Make gRPC call to client
 	blockBytes, err := blk.Marshal()
