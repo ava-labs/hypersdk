@@ -14,19 +14,19 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
-	"github.com/ava-labs/hypersdk/extension/indexer"
+	"github.com/ava-labs/hypersdk/extension/grpcindexer"
 
 	pb "github.com/ava-labs/hypersdk/proto"
 )
 
 type MorpheusSubscriber struct {
-	*indexer.ExternalSubscriber
+	*grpcindexer.ExternalSubscriber
 	client pb.ExternalSubscriberClient
 }
 
 func NewMorpheusSubscriber(ctx context.Context, server string, networkID uint32, chainID ids.ID, g *genesis.Genesis, log logging.Logger) (*MorpheusSubscriber, error) {
 	// Connect to external subscriber
-	extSub, err := indexer.NewExternalSubscriber(server)
+	extSub, err := grpcindexer.NewExternalSubscriber(server)
 	if err != nil {
 		return nil, err
 	}

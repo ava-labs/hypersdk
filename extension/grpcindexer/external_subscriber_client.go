@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package indexer
+package grpcindexer
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/extension/indexer"
 
 	pb "github.com/ava-labs/hypersdk/proto"
 )
 
-var _ AcceptedSubscriber = (*ExternalSubscriber)(nil)
+var _ indexer.AcceptedSubscriber = (*ExternalSubscriber)(nil)
 
 type ExternalSubscriber struct {
 	client pb.ExternalSubscriberClient
