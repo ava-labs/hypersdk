@@ -38,22 +38,21 @@ function add_license_headers() {
 
   go install -v github.com/google/addlicense@latest
   check_command addlicense
-
   local license_file="license-header.txt"
   if [[ ! -f "$license_file" ]]; then
     license_file="../../license-header.txt"
   fi
 
-  local addlicense_args="-f $license_file"
+  local check_flag=""
   if [[ "$1" == "-check" ]]; then
-    addlicense_args+=" -check"
+    check_flag="-check"
   fi
 
   # run for all go files
-  find . -type f -name '*.go' -print0 | xargs -0 -n1 addlicense $addlicense_args
+  find . -type f -name '*.go' -print0 | xargs -0 -n1 addlicense -f "$license_file" "$check_flag"
 
   # Check for .rs files and only run if they exist
-  if find . -type f -name '*.rs' | read; then
-    find . -type f -name '*.rs' -print0 | xargs -0 -n1 addlicense $addlicense_args
+  if find . -type f -name '*.rs' | read -r; then
+    find . -type f -name '*.rs' -print0 | xargs -0 -n1 addlicense -f "$license_file" "$check_flag"
   fi
 }
