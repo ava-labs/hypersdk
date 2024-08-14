@@ -24,9 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/tests/fixture"
 )
 
-const (
-	owner = "deployer"
-)
+const owner = "deployer"
 
 func Deploy() {
 	avalancheGoPath := flag.String("avalanchego-path", "", "path to avalanchego binary")
