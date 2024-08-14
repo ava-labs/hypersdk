@@ -180,8 +180,10 @@ type fieldInfo struct {
 	typ   reflect.Type
 }
 
-var typeInfoCache sync.Map
-var typeInfoCacheUnsafe map[reflect.Type][]fieldInfo = make(map[reflect.Type][]fieldInfo)
+var (
+	typeInfoCache       sync.Map
+	typeInfoCacheUnsafe map[reflect.Type][]fieldInfo = make(map[reflect.Type][]fieldInfo)
+)
 
 func getTypeInfo(t reflect.Type) []fieldInfo {
 	if info, ok := typeInfoCacheUnsafe[t]; ok {

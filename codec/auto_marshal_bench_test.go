@@ -1,14 +1,18 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 package codec_test
 
 import (
 	"bytes"
 	"fmt"
-	reflect "reflect"
+	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/stretchr/testify/require"
 )
 
 // $  go test -bench=BenchmarkMarshalUnmarshal -benchmem ./codec
@@ -25,6 +29,7 @@ import (
 // PASS
 // ok      github.com/ava-labs/hypersdk/codec      7.936s
 func BenchmarkMarshalUnmarshal(b *testing.B) {
+	require := require.New(b)
 	sampleSize := 100000
 
 	type Transfer struct {
@@ -41,7 +46,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		}
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, transfer)
-		require.NoError(b, packer.Err())
+		require.NoError(packer.Err())
 		transfersEncoded[i] = packer.Bytes()
 	}
 
@@ -87,16 +92,16 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	//compare auto and manual unmarshalling just to make sure they are the same
+	// compare auto and manual unmarshalling just to make sure they are the same
 	var autoRestored, manualRestored Transfer
 	err := unpackAutoTransfer(transfersEncoded[0], &autoRestored)
-	require.NoError(b, err)
+	require.NoError(err)
 	err = unpackManualTransfer(transfersEncoded[0], &manualRestored)
-	require.NoError(b, err)
+	require.NoError(err)
 	if autoRestored.To != manualRestored.To ||
 		autoRestored.Value != manualRestored.Value ||
 		!bytes.Equal(autoRestored.Memo, manualRestored.Memo) {
-		b.Fatal("mismatch between auto and manual unmarshalled data")
+		require.Fail("mismatch between auto and manual unmarshalled data")
 	}
 
 	type InnerStruct struct {
@@ -110,8 +115,8 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	}
 
 	outerStructsEncoded := make([][]byte, sampleSize)
-	for i := 0; i < sampleSize; i++ {
 
+	for i := 0; i < sampleSize; i++ {
 		test := OuterStruct{
 			BytesField: []byte("test bytes field"),
 			InnerField: func() []InnerStruct {
@@ -128,7 +133,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, test)
-		require.NoError(b, packer.Err())
+		require.NoError(packer.Err())
 		outerStructsEncoded[i] = packer.Bytes()
 	}
 
@@ -164,7 +169,6 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	}
 
 	b.Run("InnerOuter-Manual", func(b *testing.B) {
-
 		i := 0
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
@@ -178,14 +182,14 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	//compare auto and manual unmarshalling just to make sure they are the same
+	// compare auto and manual unmarshalling just to make sure they are the same
 	var autoRestoredOuter, manualRestoredOuter OuterStruct
 	err = unpackAutoOuter(outerStructsEncoded[0], &autoRestoredOuter)
-	require.NoError(b, err)
+	require.NoError(err)
 	err = unpackManualOuter(outerStructsEncoded[0], &manualRestoredOuter)
-	require.NoError(b, err)
+	require.NoError(err)
 	if !reflect.DeepEqual(autoRestoredOuter, manualRestoredOuter) {
-		b.Fatal("mismatch between auto and manual unmarshalled data")
+		require.Fail("mismatch between auto and manual unmarshalled data")
 	}
 
 	type BigFlatObject struct {
@@ -257,7 +261,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		}
 		packer := codec.NewWriter(0, consts.NetworkSizeLimit)
 		codec.AutoMarshalStruct(packer, test)
-		require.NoError(b, packer.Err())
+		require.NoError(packer.Err())
 		bigFlatObjectsEncoded[i] = packer.Bytes()
 	}
 
@@ -329,13 +333,13 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	//compare auto and manual unmarshalling just to make sure they are the same
+	// compare auto and manual unmarshalling just to make sure they are the same
 	var autoRestoredBigFlat, manualRestoredBigFlat BigFlatObject
 	err = unpackAutoBigFlat(bigFlatObjectsEncoded[0], &autoRestoredBigFlat)
-	require.NoError(b, err)
+	require.NoError(err)
 	err = unpackManualBigFlat(bigFlatObjectsEncoded[0], &manualRestoredBigFlat)
-	require.NoError(b, err)
+	require.NoError(err)
 	if !reflect.DeepEqual(autoRestoredBigFlat, manualRestoredBigFlat) {
-		b.Fatal("mismatch between auto and manual unmarshalled data")
+		require.Fail("mismatch between auto and manual unmarshalled data")
 	}
 }
