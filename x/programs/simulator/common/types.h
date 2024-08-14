@@ -57,9 +57,13 @@ typedef char *(*InsertStateCallback)(void *data, Bytes key, Bytes value);
 typedef char *(*RemoveStateCallback)(void *data, Bytes key);
 
 typedef struct {
-    // this ptr gives context to the callbacks
+    // this is a pointer to the state passed in from rust
+	// it points to the state object on the rust side of the simulator
     void *stateObj;
+	// this is ptr to the get function
     GetStateCallback get_value_callback;
+    // this is ptr to the insert function
     InsertStateCallback insert_callback;
+	// this is a ptr to the delete function
     RemoveStateCallback remove_callback;
 } Mutable;

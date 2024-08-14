@@ -30,7 +30,7 @@ pub enum SimulatorError {
 extern "C" {
     #[link_name = "CreateProgram"]
     fn create_program(db: usize, path: *const c_char) -> CreateProgramResponse;
-    
+
     #[link_name = "CallProgram"]
     fn call_program(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 }

@@ -22,8 +22,8 @@ var _ runtime.StateManager = &ProgramStateManager{}
 
 var (
 	ErrUnknownAccount = errors.New("unknown account")
-	balanceKeyBytes 		 = []byte("balance")
-	programKeyBytes = []byte("program")
+	balanceKeyBytes   = []byte("balance")
+	programKeyBytes   = []byte("program")
 )
 
 const (

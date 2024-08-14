@@ -14,7 +14,7 @@ mod bindings {
 
         fn deref(&self) -> &Self::Target {
             // # Safety:
-            // These bytes were mallocated by CGo 
+            // These bytes were mallocated by CGo
             // They are guaranteed to be valid since for the length of the slice
             unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
         }

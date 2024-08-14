@@ -22,43 +22,25 @@ import (
 )
 
 // ensure SimulatorState implements state.Mutable
-var _ state.Mutable = &SimulatorState{}
+var _ state.Mutable = &Mutable{}
 
-type SimulatorState struct {
-	// this is a pointer to the state passed in from rust
-	// it points to the state object on the rust side of the simulator
-	statePtr unsafe.Pointer
+type Mutable = C.Mutable
 
-	// this is ptr to the get function
-	getFunc C.GetStateCallback
-
-	// this is ptr to the insert function
-	insertFunc C.InsertStateCallback
-
-	// this is a ptr to the delete function
-	removeFunc C.RemoveStateCallback
-}
-
-func NewSimulatorState(db unsafe.Pointer) *SimulatorState {
+func NewSimulatorState(db unsafe.Pointer) *Mutable {
 	// convert unsafe pointer to C.Mutable
 	mutable := (*C.Mutable)(db)
-	return &SimulatorState{
-		statePtr:   mutable.stateObj,
-		getFunc:    mutable.get_value_callback,
-		insertFunc: mutable.insert_callback,
-		removeFunc: mutable.remove_callback,
-	}
+	return mutable
 }
 
-func (s *SimulatorState) GetValue(_ context.Context, key []byte) ([]byte, error) {
+func (s *Mutable) GetValue(_ context.Context, key []byte) ([]byte, error) {
 	return s.getValue(key)
 }
 
-func (s *SimulatorState) Insert(_ context.Context, key []byte, value []byte) error {
+func (s *Mutable) Insert(_ context.Context, key []byte, value []byte) error {
 	return s.insert(key, value)
 }
 
-func (s *SimulatorState) Remove(_ context.Context, key []byte) error {
+func (s *Mutable) Remove(_ context.Context, key []byte) error {
 	return s.remove(key)
 }
 
@@ -67,11 +49,11 @@ func (s *SimulatorState) Remove(_ context.Context, key []byte) error {
 // convention and adjust the call accordingly, but Go cannot. In Go, you must pass
 // the pointer to the first element explicitly: C.f(&C.x[0]).
 //
-// getFuncPtr is a pointer to the get state callback function
+// get_value_ptr is a pointer to the get state callback function
 // dbPtr is a pointer to the state object on the rust side of the simulator
 // key is the key to be used to get the value from the state object
 // this function returns the value grabbed from the state object
-func (s *SimulatorState) getValue(key []byte) ([]byte, error) {
+func (s *Mutable) getValue(key []byte) ([]byte, error) {
 	bytesPtr := C.CBytes(key)
 	defer C.free(bytesPtr)
 
@@ -79,7 +61,7 @@ func (s *SimulatorState) getValue(key []byte) ([]byte, error) {
 		data:   (*C.uint8_t)(bytesPtr),
 		length: C.uint(len(key)),
 	}
-	valueBytes := C.bridge_get_callback(s.getFunc, s.statePtr, bytesStruct)
+	valueBytes := C.bridge_get_callback(s.get_value_callback, s.stateObj, bytesStruct)
 
 	if valueBytes.error != nil {
 		err := C.GoString(valueBytes.error)
@@ -94,7 +76,7 @@ func (s *SimulatorState) getValue(key []byte) ([]byte, error) {
 	return val, nil
 }
 
-func (s *SimulatorState) insert(key []byte, value []byte) error {
+func (s *Mutable) insert(key []byte, value []byte) error {
 	// this will malloc
 	keyBytes := C.CBytes(key)
 	defer C.free(keyBytes)
@@ -112,12 +94,12 @@ func (s *SimulatorState) insert(key []byte, value []byte) error {
 		length: C.uint(len(value)),
 	}
 
-	bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
+	C.bridge_insert_callback(s.insert_callback, s.stateObj, keyStruct, valueStruct)
 
 	return nil
 }
 
-func (s *SimulatorState) remove(key []byte) error {
+func (s *Mutable) remove(key []byte) error {
 	keyBytes := C.CBytes(key)
 	defer C.free(keyBytes)
 
@@ -126,7 +108,7 @@ func (s *SimulatorState) remove(key []byte) error {
 		length: C.uint(len(key)),
 	}
 
-	C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
+	C.bridge_remove_callback(s.remove_callback, s.stateObj, keyStruct)
 
 	return nil
 }

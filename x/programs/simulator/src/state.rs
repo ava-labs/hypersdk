@@ -72,11 +72,7 @@ pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> Byt
     }
 }
 
-pub extern "C" fn insert_state_callback(
-    state: &mut SimpleState,
-    key: Bytes,
-    value: Bytes,
-) {
+pub extern "C" fn insert_state_callback(state: &mut SimpleState, key: Bytes, value: Bytes) {
     state.insert(key.to_vec(), value.to_vec());
 }
 
@@ -86,7 +82,5 @@ pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) {
 
 pub type GetStateCallback =
     extern "C" fn(simObjectPtr: &mut SimpleState, key: Bytes) -> BytesWithError;
-pub type InsertStateCallback =
-    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes);
-pub type RemoveStateCallback =
-    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes);
+pub type InsertStateCallback = extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes);
+pub type RemoveStateCallback = extern "C" fn(objectPtr: &mut SimpleState, key: Bytes);
