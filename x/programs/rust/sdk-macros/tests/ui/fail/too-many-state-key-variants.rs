@@ -1,13 +1,15 @@
-use seq_macro::seq;
-use wasmlanche_sdk::state_keys;
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 
-seq!(N in 0..=255  {
-    #[state_keys]
-    pub enum StateKeysFail {
+use seq_macro::seq;
+use wasmlanche_sdk::state_schema;
+
+seq!(N in 0..=255 {
+    state_schema! {
         #(
-            Variant~N,
+            Variant~N => u8,
         )*
-        Variant256,
+        Variant256 => u8,
     }
 });
 

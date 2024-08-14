@@ -1,9 +1,13 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     process::Command,
 };
 use wasmlanche_sdk::{Address, ID_LEN};
-use wasmtime::{Caller, Extern, Func, Instance, Module, Store, TypedFunc};
+use wasmtime::{Caller, Extern, Instance, Linker, Module, Store, TypedFunc};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const TEST_PKG: &str = "test-crate";
@@ -60,7 +64,9 @@ type AllocFn = TypedFunc<AllocParam, AllocReturn>;
 type UserDefinedFnParam = u32;
 type UserDefinedFnReturn = ();
 type UserDefinedFn = TypedFunc<UserDefinedFnParam, UserDefinedFnReturn>;
-type StoreData = Option<Vec<u8>>;
+type StateKey = Box<[u8]>;
+type StateValue = Box<[u8]>;
+type StoreData = (Option<Vec<u8>>, HashMap<StateKey, StateValue>);
 
 struct TestCrate {
     store: Store<StoreData>,
@@ -73,30 +79,91 @@ struct TestCrate {
 impl TestCrate {
     fn new(wasm_path: impl AsRef<Path>) -> Self {
         let mut store: Store<StoreData> = Store::default();
+        let mut linker = Linker::new(store.engine());
         let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
 
-        let set_result_fn = Func::wrap(
-            &mut store,
-            |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
-                let Extern::Memory(memory) = caller
-                    .get_export("memory")
-                    .expect("memory should be exported")
-                else {
-                    panic!("export `memory` should be of type `Memory`");
-                };
+        linker
+            .func_wrap(
+                "program",
+                "set_call_result",
+                |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
+                    let Extern::Memory(memory) = caller
+                        .get_export("memory")
+                        .expect("memory should be exported")
+                    else {
+                        panic!("export `memory` should be of type `Memory`");
+                    };
 
-                let (ptr, len) = (ptr as usize, len as usize);
+                    let (ptr, len) = (ptr as usize, len as usize);
 
-                let result = memory
-                    .data(&mut caller)
-                    .get(ptr..ptr + len)
-                    .expect("data should exist");
+                    let result = memory
+                        .data(&caller)
+                        .get(ptr..ptr + len)
+                        .expect("data should exist")
+                        .to_vec();
 
-                *caller.data_mut() = Some(result.to_vec());
-            },
-        );
+                    let store_result = &mut caller.data_mut().0;
+                    *store_result = Some(result.to_vec())
+                },
+            )
+            .expect("failed to link `program.set_call_result` function");
 
-        let instance = Instance::new(&mut store, &module, &[set_result_fn.into()])
+        linker
+            .func_wrap(
+                "log",
+                "write",
+                |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
+                    let Extern::Memory(memory) = caller
+                        .get_export("memory")
+                        .expect("memory should be exported")
+                    else {
+                        panic!("export `memory` should be of type `Memory`");
+                    };
+
+                    let (ptr, len) = (ptr as usize, len as usize);
+
+                    let message = memory
+                        .data(&caller)
+                        .get(ptr..ptr + len)
+                        .expect("data should exist");
+
+                    println!("{}", String::from_utf8_lossy(message));
+                },
+            )
+            .expect("failed to link `log.write` function");
+
+        linker
+            .func_wrap(
+                "state",
+                "put",
+                move |mut caller: Caller<'_, StoreData>, ptr: u32, len: u32| {
+                    let Extern::Memory(memory) = caller
+                        .get_export("memory")
+                        .expect("memory should be exported")
+                    else {
+                        panic!("export `memory` should be of type `Memory`");
+                    };
+
+                    let (ptr, len) = (ptr as usize, len as usize);
+
+                    let serialized_args = memory
+                        .data(&caller)
+                        .get(ptr..ptr + len)
+                        .expect("data should exist");
+
+                    let args: Vec<(StateKey, StateValue)> =
+                        borsh::from_slice(dbg!(&serialized_args))
+                            .expect("failed to deserialize args");
+
+                    let state = &mut caller.data_mut().1;
+
+                    state.extend(args);
+                },
+            )
+            .expect("failed to link `state.put` function");
+
+        let instance = linker
+            .instantiate(&mut store, &module)
             .expect("failed to instantiate wasm");
 
         let allocate_func = instance
@@ -160,6 +227,7 @@ impl TestCrate {
         let result = self
             .store
             .data_mut()
+            .0
             .take()
             .expect("always_true should always return something");
 
@@ -173,6 +241,7 @@ impl TestCrate {
         let result = self
             .store
             .data_mut()
+            .0
             .take()
             .expect("combine_last_bit_of_each_id_byte should always return something");
         borsh::from_slice(&result).expect("failed to deserialize result")

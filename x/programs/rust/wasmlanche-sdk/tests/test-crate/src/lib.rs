@@ -1,17 +1,17 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 #![no_std]
 
-use wasmlanche_sdk::{public, state_keys, Context};
-
-#[state_keys]
-pub enum StateKeys {}
+use wasmlanche_sdk::{public, Context};
 
 #[public]
-pub fn always_true(_: Context<StateKeys>) -> bool {
+pub fn always_true(_: &mut Context) -> bool {
     true
 }
 
 #[public]
-pub fn combine_last_bit_of_each_id_byte(context: Context<StateKeys>) -> u32 {
+pub fn combine_last_bit_of_each_id_byte(context: &mut Context) -> u32 {
     context
         .program()
         .account()

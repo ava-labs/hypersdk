@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"go.uber.org/zap"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -102,7 +101,7 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) shouldComapct(expiryHeight uint64) bool {
+func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
 		compactionOffset = rand.Intn(vm.config.BlockCompactionFrequency) //nolint:gosec
 		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
@@ -162,7 +161,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	vm.lastAccepted = blk
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
-	if expired && vm.shouldComapct(expiryHeight) {
+	if expired && vm.shouldCompact(expiryHeight) {
 		go func() {
 			start := time.Now()
 			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
@@ -180,7 +179,7 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 	if err != nil {
 		return nil, err
 	}
-	return chain.ParseBlock(ctx, b, choices.Accepted, vm)
+	return chain.ParseBlock(ctx, b, true, vm)
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {

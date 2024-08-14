@@ -11,19 +11,9 @@ bindings = []
 
 [dependencies]
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
-borsh = { workspace = true }
 
 [dev-dependencies]
 simulator = { workspace = true }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
-
-# when creating a new project, you can uncomment the following lines to enable optimizations
-# [profile.release]
-# opt-level = 3
-# lto = true
-# codegen-units = 1
-# overflow-checks = true
-# # https://doc.rust-lang.org/book/ch09-01-unrecoverable-errors-with-panic.html#unwinding-the-stack-or-aborting-in-response-to-a-panic
-# panic = 'abort'

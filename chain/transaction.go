@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -217,7 +217,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	}
 
 	// Estimate storage costs
-	for maxChunks := range stateKeysMaxChunks {
+	for _, maxChunks := range stateKeysMaxChunks {
 		// Compute key costs
 		readsOp.Add(r.GetStorageKeyReadUnits())
 		allocatesOp.Add(r.GetStorageKeyAllocateUnits())

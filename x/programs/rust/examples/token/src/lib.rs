@@ -1,56 +1,65 @@
-use wasmlanche_sdk::Context;
-use wasmlanche_sdk::{public, state_keys, Address};
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 
-/// The program state keys.
-#[state_keys]
-pub enum StateKeys {
+#[cfg(not(feature = "bindings"))]
+use wasmlanche_sdk::Context;
+use wasmlanche_sdk::{public, state_schema, Address};
+
+pub type Units = u64;
+
+state_schema! {
     /// The total supply of the token. Key prefix 0x0.
-    TotalSupply,
+    TotalSupply => Units,
     /// The name of the token. Key prefix 0x1.
-    Name,
+    Name => String,
     /// The symbol of the token. Key prefix 0x2.
-    Symbol,
+    Symbol => String,
     /// The balance of the token by address. Key prefix 0x3 + address.
-    Balance(Address),
+    Balance(Address) => Units,
     /// The allowance of the token by owner and spender. Key prefix 0x4 + owner + spender.
-    Allowance(Address, Address),
+    Allowance(Address, Address) => Units,
     // Original owner of the token
-    Owner,
+    Owner => Address,
 }
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn init(context: Context<StateKeys>, name: String, symbol: String) {
+pub fn init(context: &mut Context, name: String, symbol: String) {
     let actor = context.actor();
 
     context
-        .store_by_key(StateKeys::Owner, &actor)
+        .store_by_key(Owner, actor)
         .expect("failed to store owner");
 
     context
-        .store([(StateKeys::Name, &name), (StateKeys::Symbol, &symbol)])
+        .store(((Name, name), (Symbol, symbol)))
         .expect("failed to store owner");
 }
 
 /// Returns the total supply of the token.
 #[public]
-pub fn total_supply(context: Context<StateKeys>) -> u64 {
-    _total_supply(&context)
+pub fn total_supply(context: &mut Context) -> Units {
+    context
+        .get(TotalSupply)
+        .expect("failed to get total supply")
+        .unwrap_or_default()
 }
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
+pub fn mint(context: &mut Context, recipient: Address, amount: Units) -> bool {
     let actor = context.actor();
 
-    check_owner(&context, actor);
-    let balance = _balance_of(&context, recipient);
-    let total_supply = _total_supply(&context);
+    check_owner(context, actor);
+
+    let balance = balance_of(context, recipient);
+    let total_supply = total_supply(context);
+
     context
-        .store([
-            (StateKeys::Balance(recipient), &(balance + amount)),
-            (StateKeys::TotalSupply, &(total_supply + amount)),
-        ])
+        .store((
+            (Balance(recipient), (balance + amount)),
+            (TotalSupply, (total_supply + amount)),
+        ))
         .expect("failed to store balance");
 
     true
@@ -58,17 +67,19 @@ pub fn mint(context: Context<StateKeys>, recipient: Address, amount: u64) -> boo
 
 /// Burn the token from the recipient.
 #[public]
-pub fn burn(context: Context<StateKeys>, recipient: Address, value: u64) -> u64 {
+pub fn burn(context: &mut Context, recipient: Address, value: Units) -> Units {
     let actor = context.actor();
 
-    check_owner(&context, actor);
-    let total = _balance_of(&context, recipient);
+    check_owner(context, actor);
+
+    let total = balance_of(context, recipient);
 
     assert!(value <= total, "address doesn't have enough tokens to burn");
+
     let new_amount = total - value;
 
     context
-        .store_by_key::<u64>(StateKeys::Balance(recipient), &new_amount)
+        .store_by_key(Balance(recipient), new_amount)
         .expect("failed to burn recipient tokens");
 
     new_amount
@@ -76,75 +87,76 @@ pub fn burn(context: Context<StateKeys>, recipient: Address, value: u64) -> u64 
 
 /// Gets the balance of the recipient.
 #[public]
-pub fn balance_of(context: Context<StateKeys>, account: Address) -> u64 {
-    _balance_of(&context, account)
-}
-
-fn _balance_of(context: &Context<StateKeys>, account: Address) -> u64 {
+pub fn balance_of(context: &mut Context, account: Address) -> Units {
     context
-        .get(StateKeys::Balance(account))
+        .get(Balance(account))
         .expect("failed to get balance")
         .unwrap_or_default()
 }
 
 /// Returns the allowance of the spender for the owner's tokens.
 #[public]
-pub fn allowance(context: Context<StateKeys>, owner: Address, spender: Address) -> u64 {
-    _allowance(&context, owner, spender)
+pub fn allowance(context: &mut Context, owner: Address, spender: Address) -> Units {
+    context
+        .get(Allowance(owner, spender))
+        .expect("failed to get allowance")
+        .unwrap_or_default()
 }
 
 /// Approves the spender to spend the owner's tokens.
 /// Returns true if the approval was successful.
 #[public]
-pub fn approve(context: Context<StateKeys>, spender: Address, amount: u64) -> bool {
+pub fn approve(context: &mut Context, spender: Address, amount: Units) -> bool {
     let actor = context.actor();
 
     context
-        .store_by_key(StateKeys::Allowance(actor, spender), &amount)
+        .store_by_key(Allowance(actor, spender), amount)
         .expect("failed to store allowance");
+
     true
 }
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(context: Context<StateKeys>, recipient: Address, amount: u64) -> bool {
-    let actor = context.actor();
-    _transfer(&context, actor, recipient, amount)
+pub fn transfer(context: &mut Context, recipient: Address, amount: Units) -> bool {
+    let sender = context.actor();
+
+    internal::transfer(context, sender, recipient, amount);
+
+    true
 }
 
 /// Transfers balance from the sender to the recipient.
 /// The caller must have an allowance to spend the senders tokens.
 #[public]
 pub fn transfer_from(
-    context: Context<StateKeys>,
+    context: &mut Context,
     sender: Address,
     recipient: Address,
-    amount: u64,
+    amount: Units,
 ) -> bool {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     let actor = context.actor();
 
-    let total_allowance = _allowance(&context, sender, actor);
+    let total_allowance = allowance(context, sender, actor);
     assert!(total_allowance >= amount, "insufficient allowance");
 
     context
-        .store_by_key(
-            StateKeys::Allowance(sender, actor),
-            &(total_allowance - amount),
-        )
+        .store_by_key(Allowance(sender, actor), total_allowance - amount)
         .expect("failed to store allowance");
 
-    _transfer(&context, sender, recipient, amount)
+    internal::transfer(context, sender, recipient, amount);
+
+    true
 }
 
 #[public]
-pub fn transfer_ownership(context: Context<StateKeys>, new_owner: Address) -> bool {
-    let actor = context.actor();
+pub fn transfer_ownership(context: &mut Context, new_owner: Address) -> bool {
+    check_owner(context, context.actor());
 
-    check_owner(&context, actor);
     context
-        .store_by_key(StateKeys::Owner, &new_owner)
+        .store_by_key(Owner, new_owner)
         .expect("failed to store owner");
 
     true
@@ -152,18 +164,18 @@ pub fn transfer_ownership(context: Context<StateKeys>, new_owner: Address) -> bo
 
 #[public]
 // grab the symbol of the token
-pub fn symbol(context: Context<StateKeys>) -> String {
+pub fn symbol(context: &mut Context) -> String {
     context
-        .get::<String>(StateKeys::Symbol)
+        .get(Symbol)
         .expect("failed to get symbol")
         .expect("symbol not initialized")
 }
 
 #[public]
 // grab the name of the token
-pub fn name(context: Context<StateKeys>) -> String {
+pub fn name(context: &mut Context) -> String {
     context
-        .get::<String>(StateKeys::Name)
+        .get(Name)
         .expect("failed to get name")
         .expect("name not initialized")
 }
@@ -171,274 +183,161 @@ pub fn name(context: Context<StateKeys>) -> String {
 // Checks if the caller is the owner of the token
 // If the caller is not the owner, the program will panic
 #[cfg(not(feature = "bindings"))]
-fn check_owner(context: &Context<StateKeys>, actor: Address) {
+fn check_owner(context: &mut Context, actor: Address) {
     assert_eq!(get_owner(context), actor, "caller is required to be owner")
 }
 
 // Returns the owner of the token
 #[cfg(not(feature = "bindings"))]
-fn get_owner(context: &Context<StateKeys>) -> Address {
+fn get_owner(context: &mut Context) -> Address {
     context
-        .get::<Address>(StateKeys::Owner)
+        .get(Owner)
         .expect("failed to get owner")
         .expect("owner not initialized")
 }
 
-fn _transfer(
-    context: &Context<StateKeys>,
-    sender: Address,
-    recipient: Address,
-    amount: u64,
-) -> bool {
-    assert_ne!(sender, recipient, "sender and recipient must be different");
+#[cfg(not(feature = "bindings"))]
+mod internal {
+    use super::*;
 
-    // ensure the sender has adequate balance
-    let sender_balance = _balance_of(context, sender);
+    pub fn transfer(context: &mut Context, sender: Address, recipient: Address, amount: Units) {
+        // ensure the sender has adequate balance
+        let sender_balance = balance_of(context, sender);
 
-    assert!(sender_balance >= amount, "sender has insufficient balance");
+        assert!(sender_balance >= amount, "sender has insufficient balance");
 
-    let recipient_balance = _balance_of(context, recipient);
+        let recipient_balance = balance_of(context, recipient);
 
-    // update balances
-    context
-        .store([
-            (StateKeys::Balance(sender), &(sender_balance - amount)),
-            (StateKeys::Balance(recipient), &(recipient_balance + amount)),
-        ])
-        .expect("failed to update balances");
-
-    true
-}
-
-pub fn _allowance(context: &Context<StateKeys>, owner: Address, spender: Address) -> u64 {
-    context
-        .get::<u64>(StateKeys::Allowance(owner, spender))
-        .expect("failed to get allowance")
-        .unwrap_or_default()
-}
-
-fn _total_supply(context: &Context<StateKeys>) -> u64 {
-    context
-        .get(StateKeys::TotalSupply)
-        .expect("failed to get total supply")
-        .unwrap_or_default()
+        context
+            .store((
+                (Balance(sender), (sender_balance - amount)),
+                (Balance(recipient), (recipient_balance + amount)),
+            ))
+            .expect("failed to update balances");
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Param, Step, TestContext};
+    use super::Units;
+    use simulator::{SimpleState, Simulator};
     use wasmlanche_sdk::Address;
 
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
+    const MAX_UNITS: u64 = 1000000;
     #[test]
     fn create_program() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
-        simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap();
+        simulator.create_program(PROGRAM_PATH).unwrap()
     }
 
     #[test]
     // initialize the token, check that the statekeys are set to the correct values
     fn init_token() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         let supply = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "total_supply".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
+            .call_program(program_address, "total_supply", (), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
         assert_eq!(supply, 0);
 
         let symbol = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "symbol".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into()],
-            })
-            .unwrap()
-            .result
-            .response::<String>()
+            .call_program(program_address, "symbol", (), MAX_UNITS)
+            .result::<String>()
             .unwrap();
         assert_eq!(symbol, "TST");
 
         let name = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "name".into(),
-                max_units: 0,
-                params: vec![test_context.into()],
-            })
-            .unwrap()
-            .result
-            .response::<String>()
+            .call_program(program_address, "name", (), MAX_UNITS)
+            .result::<String>()
             .unwrap();
         assert_eq!(name, "Test");
     }
 
     #[test]
     fn mint() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "mint".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_initial_balance),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(
+                program_address,
+                "mint",
+                (alice, alice_initial_balance),
+                MAX_UNITS,
+            )
             .unwrap();
 
         let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "balance_of".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into(), alice.into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
+            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(balance, alice_initial_balance);
 
         let total_supply = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "total_supply".into(),
-                max_units: 0,
-                params: vec![test_context.into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
+            .call_program(program_address, "total_supply", (), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
         assert_eq!(total_supply, alice_initial_balance);
     }
 
     #[test]
     fn burn() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
 
         let alice = Address::new([1; 33]);
         let alice_initial_balance = 1000;
         let alice_burn_amount = 100;
 
-        let program_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(program_id);
+        let program_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "init".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    Param::String("Test".into()),
-                    Param::String("TST".into()),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(program_address, "init", ("Test", "TST"), MAX_UNITS)
             .unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "mint".into(),
-                params: vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_initial_balance),
-                ],
-                max_units: 1000000,
-            })
+            .call_program(
+                program_address,
+                "mint",
+                (alice, alice_initial_balance),
+                MAX_UNITS,
+            )
             .unwrap();
 
         simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "burn".into(),
-                max_units: 1000000,
-                params: vec![
-                    test_context.clone().into(),
-                    alice.into(),
-                    Param::U64(alice_burn_amount),
-                ],
-            })
+            .call_program(
+                program_address,
+                "burn",
+                (alice, alice_burn_amount),
+                MAX_UNITS,
+            )
             .unwrap();
 
         let balance = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "balance_of".into(),
-                max_units: 0,
-                params: vec![test_context.clone().into(), alice.into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
+            .call_program(program_address, "balance_of", (alice,), MAX_UNITS)
+            .result::<Units>()
             .unwrap();
-
         assert_eq!(balance, alice_initial_balance - alice_burn_amount);
     }
 }

@@ -1,10 +1,11 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package actions
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -17,7 +18,16 @@ import (
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
-var _ chain.Action = (*Transfer)(nil)
+const (
+	TransferComputeUnits = 1
+	MaxMemoSize          = 256
+)
+
+var (
+	ErrOutputValueZero                 = errors.New("value is zero")
+	ErrOutputMemoTooLarge              = errors.New("memo is too large")
+	_                     chain.Action = (*Transfer)(nil)
+)
 
 type Transfer struct {
 	// To is the recipient of the [Value].

@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package chain
@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
@@ -87,16 +86,16 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 }
 
 // Stateless is defined separately from "Block"
-// in case external packages needs use the stateful block
+// in case external packages need to use the stateful block
 // without mocking VM or parent block
 type StatelessBlock struct {
 	*StatefulBlock `json:"block"`
 
-	id     ids.ID
-	st     choices.Status
-	t      time.Time
-	bytes  []byte
-	txsSet set.Set[ids.ID]
+	id       ids.ID
+	accepted bool
+	t        time.Time
+	bytes    []byte
+	txsSet   set.Set[ids.ID]
 
 	results    []*Result
 	feeManager *fees.Manager
@@ -114,15 +113,15 @@ func NewBlock(vm VM, parent snowman.Block, tmstp int64) *StatelessBlock {
 			Tmstmp: tmstp,
 			Hght:   parent.Height() + 1,
 		},
-		vm: vm,
-		st: choices.Processing,
+		vm:       vm,
+		accepted: false,
 	}
 }
 
 func ParseBlock(
 	ctx context.Context,
 	source []byte,
-	status choices.Status,
+	accepted bool,
 	vm VM,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseBlock")
@@ -133,7 +132,7 @@ func ParseBlock(
 		return nil, err
 	}
 	// Not guaranteed that a parsed block is verified
-	return ParseStatefulBlock(ctx, blk, source, status, vm)
+	return ParseStatefulBlock(ctx, blk, source, accepted, vm)
 }
 
 // populateTxs is only called on blocks we did not build
@@ -183,7 +182,7 @@ func ParseStatefulBlock(
 	ctx context.Context,
 	blk *StatefulBlock,
 	source []byte,
-	status choices.Status,
+	accepted bool,
 	vm VM,
 ) (*StatelessBlock, error) {
 	ctx, span := vm.Tracer().Start(ctx, "chain.ParseStatefulBlock")
@@ -205,7 +204,7 @@ func ParseStatefulBlock(
 		StatefulBlock: blk,
 		t:             time.UnixMilli(blk.Tmstmp),
 		bytes:         source,
-		st:            status,
+		accepted:      accepted,
 		vm:            vm,
 		id:            utils.ToID(source),
 	}
@@ -391,7 +390,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	//
 	// If a block is already accepted, its transactions have already been added
 	// to the VM's seen emap and calling [IsRepeat] will return a non-zero value.
-	if b.st != choices.Accepted {
+	if !b.accepted {
 		oldestAllowed := b.Tmstmp - r.GetValidityWindow()
 		if oldestAllowed < 0 {
 			// Can occur if verifying genesis
@@ -570,7 +569,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 
 func (b *StatelessBlock) MarkAccepted(ctx context.Context) {
 	// Accept block and free unnecessary memory
-	b.st = choices.Accepted
+	b.accepted = true
 	b.txsSet = nil // only used for replay protection when processing
 
 	// [Accepted] will persist the block to disk and set in-memory variables
@@ -585,13 +584,9 @@ func (b *StatelessBlock) Reject(ctx context.Context) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.Reject")
 	defer span.End()
 
-	b.st = choices.Rejected
 	b.vm.Rejected(ctx, b)
 	return nil
 }
-
-// implements "snowman.Block.choices.Decidable"
-func (b *StatelessBlock) Status() choices.Status { return b.st }
 
 // implements "snowman.Block"
 func (b *StatelessBlock) Parent() ids.ID { return b.StatefulBlock.Prnt }
@@ -640,7 +635,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	// If block is processed, we can return either the accepted state
 	// or its pending view.
 	if b.Processed() {
-		if b.st == choices.Accepted {
+		if b.accepted {
 			// We assume that base state was properly updated if this
 			// block was accepted (this is not obvious because
 			// the accepted state may be that of the parent of the last
@@ -659,7 +654,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	//
 	// We cannot use the merkle root to check against the accepted state
 	// because the block only contains the root of the parent block's post-execution.
-	if b.st == choices.Accepted {
+	if b.accepted {
 		acceptedState, err := b.vm.State()
 		if err != nil {
 			return nil, err
@@ -704,7 +699,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 	b.vm.Logger().Info("verifying block when view requested",
 		zap.Uint64("height", b.Hght),
 		zap.Stringer("blkID", b.ID()),
-		zap.Bool("accepted", b.st == choices.Accepted),
+		zap.Bool("accepted", b.accepted),
 	)
 	vctx, err := b.vm.GetVerifyContext(ctx, b.Hght, b.Prnt)
 	if err != nil {
@@ -715,7 +710,7 @@ func (b *StatelessBlock) View(ctx context.Context, verify bool) (state.View, err
 		b.vm.Logger().Error("unable to verify block", zap.Error(err))
 		return nil, err
 	}
-	if b.st != choices.Accepted {
+	if !b.accepted {
 		return b.view, nil
 	}
 
@@ -759,7 +754,7 @@ func (b *StatelessBlock) IsRepeat(
 
 	// If we are at an accepted block or genesis, we can use the emap on the VM
 	// instead of checking each block
-	if b.st == choices.Accepted || b.Hght == 0 /* genesis */ {
+	if b.accepted || b.Hght == 0 /* genesis */ {
 		return b.vm.IsRepeat(ctx, txs, marker, stop), nil
 	}
 

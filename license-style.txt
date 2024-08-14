@@ -1,0 +1,10 @@
+[GO_STYLE]
+endLine = "\n"
+
+beforeEachLine = "// "
+
+allowBlankLines = true
+
+firstLineDetectionPattern = ""
+
+lastLineDetectionPattern = ""

@@ -1,29 +1,26 @@
-use wasmlanche_sdk::{public, state_keys, Context};
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
 
-/// The program state keys.
-#[state_keys]
-pub enum StateKeys {
-    State,
+use wasmlanche_sdk::{public, state_schema, Context};
+
+state_schema! {
+    State => i64,
 }
 
 /// Initializes the program with a name, symbol, and total supply.
 #[public]
-pub fn put(context: Context<StateKeys>, value: i64) {
+pub fn put(context: &mut Context, value: i64) {
     context
-        .store_by_key(StateKeys::State, &value)
+        .store_by_key(State, value)
         .expect("failed to store state");
 }
 
 #[public]
-pub fn get(context: Context<StateKeys>) -> Option<i64> {
-    context
-        .get::<i64>(StateKeys::State)
-        .expect("failed to get state")
+pub fn get(context: &mut Context) -> Option<i64> {
+    context.get(State).expect("failed to get state")
 }
 
 #[public]
-pub fn delete(context: Context<StateKeys>) -> Option<i64> {
-    context
-        .delete(StateKeys::State)
-        .expect("failed to get state")
+pub fn delete(context: &mut Context) -> Option<i64> {
+    context.delete(State).expect("failed to get state")
 }

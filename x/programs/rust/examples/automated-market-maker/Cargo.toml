@@ -4,18 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["cdylib"]
 
 [dependencies]
+token = { path = "../token", features = ["bindings"] }
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
-borsh = { workspace = true }
-token = { path = "../token", features = ["bindings"]}
 
 [dev-dependencies]
 simulator = { workspace = true }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
-
-[profile.release]
-overflow-checks = true
