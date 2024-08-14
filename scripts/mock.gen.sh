@@ -28,10 +28,10 @@ fi
 # alert the user if they do not have $GOPATH properly configured
 check_command mockgen
 
-if ! command -v hawkeye &> /dev/null
+if ! command -v addlicense &> /dev/null
 then
-  echo "hawkeye not found, installing..."
-  cargo install hawkeye
+  echo "addlicense not found, installing..."
+  go install -v github.com/google/addlicense@latest
 fi
 
 # tuples of (source interface import path, comma-separated interface names, output file path)
@@ -45,7 +45,6 @@ do
 done < "$input"
 
 # add license headers to mock files
-# ignore errors since mockgen files give warnings when edited
-hawkeye format || true
+add_license_headers
 
 echo "SUCCESS"

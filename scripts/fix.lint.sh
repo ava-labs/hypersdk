@@ -16,12 +16,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=/scripts/common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
-echo "adding license header"
-
-# alert the user if they do not have $GOPATH properly configured
-check_command hawkeye
-
-hawkeye format
+add_license_headers
 
 echo "gofumpt files"
 go install -v mvdan.cc/gofumpt@latest
