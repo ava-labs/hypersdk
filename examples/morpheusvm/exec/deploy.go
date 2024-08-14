@@ -26,7 +26,6 @@ import (
 
 const (
 	owner = "deployer"
-	Name  = "morpheusvm"
 )
 
 func Deploy() {
