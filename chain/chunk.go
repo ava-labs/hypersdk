@@ -18,7 +18,19 @@ import (
 
 const chunkPrealloc = 16_384
 
+const (
+	AnchorToB = iota
+	AnchorRoB
+)
+
+type Anchor struct {
+	BlockType int    `json:"blockType"` // use to determine if it is TOB or ROB
+	Namespace string `json:"namespace"`
+}
+
 type Chunk struct {
+	Anchor *Anchor `json:"anchor"` // if null then the chunk is generated from txs in mempool
+
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
 
@@ -202,6 +214,11 @@ func (c *Chunk) Digest() ([]byte, error) {
 	size := consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + bls.PublicKeyLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
+	// p.PackBool(c.Anchor != nil)
+	// if c.Anchor != nil {
+	// 	p.PackInt(c.Anchor.BlockType)
+	// 	p.PackString(c.Anchor.Namespace)
+	// }
 	// Marshal transactions
 	p.PackInt64(c.Slot)
 	p.PackInt(len(c.Txs))
@@ -224,7 +241,14 @@ func (c *Chunk) ID() ids.ID {
 }
 
 func (c *Chunk) Size() int {
-	return consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+	size := consts.BoolLen + consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+
+	isAnchor := c.Anchor != nil
+	if isAnchor {
+		size += consts.IntLen
+		size += codec.StringLen(c.Anchor.Namespace)
+	}
+	return size
 }
 
 func (c *Chunk) Units(sm StateManager, r Rules) (Dimensions, error) {
@@ -268,7 +292,17 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	p.PackAddress(c.Beneficiary)
 	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
+
+	isAnchorChunk := c.Anchor != nil
+	p.PackBool(isAnchorChunk)
+	fmt.Printf("anchor chunk: %+v\n", isAnchorChunk)
+	if isAnchorChunk {
+		p.PackInt(c.Anchor.BlockType)
+		p.PackString(c.Anchor.Namespace)
+	}
+
 	bytes, err := p.Bytes(), p.Err()
+	fmt.Printf("chunk bytes: %s\n", hex.EncodeToString(bytes))
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +334,8 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 		c                            Chunk
 		authCounts                   = make(map[uint8]int)
 	)
+	fmt.Printf("chunk bytes: %s\n", hex.EncodeToString(raw))
+
 	c.id = utils.ToID(raw)
 
 	// Parse transactions
@@ -333,6 +369,18 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 		return nil, err
 	}
 	c.Signature = signature
+
+	isAnchorChunk := p.UnpackBool()
+	fmt.Printf("anchor chunk: %+v\n", isAnchorChunk)
+	if isAnchorChunk {
+		blockType := p.UnpackInt(false)
+		namespace := p.UnpackString(false)
+		anchor := Anchor{
+			BlockType: blockType,
+			Namespace: namespace,
+		}
+		c.Anchor = &anchor
+	}
 
 	// Ensure no leftover bytes
 	if !p.Empty() {

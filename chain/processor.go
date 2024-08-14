@@ -23,6 +23,7 @@ type Processor struct {
 
 	latestPHeight *uint64
 	epochHeights  []*uint64
+	acceptedNS    map[string]struct{} // to record accepted L2 block, we only allow one L2 block per SEQ block
 
 	timestamp  int64
 	epoch      uint64
@@ -216,6 +217,24 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		return
 	}
 
+	// constraint on only allowing one L2 block per SEQ block
+	if chunk.Anchor != nil {
+		switch chunk.Anchor.BlockType {
+		case AnchorToB:
+			if _, exists := p.acceptedNS["TOB"]; exists {
+				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+				return
+			}
+			p.acceptedNS["TOB"] = struct{}{}
+		case AnchorRoB:
+			if _, exists := p.acceptedNS[chunk.Anchor.Namespace]; exists {
+				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+				return
+			}
+			p.acceptedNS[chunk.Anchor.Namespace] = struct{}{}
+		}
+	}
+
 	// TODO: consider doing some of these checks in parallel
 	queueStart := time.Now()
 	for rtxIndex, rtx := range chunk.Txs {
@@ -286,16 +305,19 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			// If this passes, we know that latest pHeight must be non-nil
 
 			// Check that transaction is in right partition
-			parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Action.NMTNamespace(), tx.Partition())
-			if err != nil {
-				p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				return nil, nil
-			}
-			if parition != chunk.Producer {
-				p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				return nil, nil
+			if chunk.Anchor == nil || chunk.Anchor != nil && chunk.Anchor.BlockType == AnchorRoB { // RoB block and chunk from mempool
+				parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Action.NMTNamespace(), tx.Partition())
+				if err != nil {
+					p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
+					p.results[chunkIndex][txIndex] = &Result{Valid: false}
+					return nil, nil
+				}
+				if parition != chunk.Producer {
+					p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
+					p.results[chunkIndex][txIndex] = &Result{Valid: false}
+					return nil, nil
+				}
+			} else { // TODO: handle ToB, probably don't need this branch
 			}
 
 			// Check that transaction isn't frozen (can avoid state lookups)
