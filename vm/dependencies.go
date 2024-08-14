@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -51,6 +51,7 @@ type Config struct {
 	ProcessingBuildSkip              int             `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
+	EnableJSONRPCStateHandler        bool            `json:"enableJSONRPCStateHandler"`
 	// Config is defined by the Controller
 	Config map[string]any `json:"config"`
 }

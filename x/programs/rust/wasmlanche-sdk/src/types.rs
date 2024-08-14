@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::mem::size_of;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -26,11 +29,6 @@ impl Address {
     #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
         Self(bytes)
-    }
-
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
     }
 }
 

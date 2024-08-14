@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpc
@@ -6,9 +6,10 @@ package rpc
 import "time"
 
 const (
-	Name              = "hypersdk"
-	JSONRPCEndpoint   = "/coreapi"
-	WebSocketEndpoint = "/corews"
+	Name                 = "hypersdk"
+	JSONRPCEndpoint      = "/coreapi"
+	WebSocketEndpoint    = "/corews"
+	JSONRPCStateEndpoint = "/corestate"
 
 	DefaultHandshakeTimeout = 10 * time.Second
 )

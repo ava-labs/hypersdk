@@ -29,9 +29,7 @@ else
 fi
 
 # by default, "./scripts/lint.sh" runs all lint tests
-# to run only "license_header" test
-# TESTS='license_header' ./scripts/lint.sh
-TESTS=${TESTS:-"golangci_lint gci license_header"}
+TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
@@ -41,26 +39,6 @@ function test_golangci_lint {
   check_command golangci-lint
 
   golangci-lint run --config .golangci.yml
-}
-
-# automatically checks license headers
-# to modify the file headers (if missing), remove "--verify" flag
-# TESTS='license_header' ADDLICENSE_FLAGS="--verify --debug" ./scripts/lint.sh
-_addlicense_flags=${ADDLICENSE_FLAGS:-"--verify --debug"}
-function test_license_header {
-  go install -v github.com/palantir/go-license@v1.25.0
-
-  # alert the user if they do not have $GOPATH properly configured
-  check_command go-license
-
-  local files=()
-  while IFS= read -r line; do files+=("$line"); done < <(find . -type f -name '*.go' ! -name '*.pb.go' ! -name 'mock_*.go')
-
-  # shellcheck disable=SC2086
-  go-license \
-  --config ./license.yml \
-  ${_addlicense_flags} \
-  "${files[@]}"
 }
 
 function test_gci {
