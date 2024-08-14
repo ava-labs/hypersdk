@@ -3,9 +3,10 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Id, Program};
 
 mod math;
+mod tests;
 
 state_schema! {
     // Tokens in the Pool as Program type
@@ -19,7 +20,7 @@ const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Program) {
+pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Id) {
     context
         .store((
             (TokenX, token_x),
@@ -30,10 +31,8 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
 
     let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
 
-    let transfer_reuslt =
-        token::transfer_ownership(&liquidity_context, *context.program().account());
-    // TODO: the init function should spin up a new token contract instead
-    // of requiring the caller to pass in the liquidity token
+    // initialize the liquidity token
+    // let init_result = context
     assert!(
         transfer_reuslt,
         "failed to transfer ownership of the liquidity token"
