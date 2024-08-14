@@ -58,7 +58,7 @@ typedef char *(*RemoveStateCallback)(void *data, Bytes key);
 
 typedef struct {
     // this is a pointer to the state passed in from rust
-	// it points to the state object on the rust side of the simulator
+    // it points to the state object on the rust side of the simulator
     void *stateObj;
 	// this is ptr to the get function
     GetStateCallback get_value_callback;
