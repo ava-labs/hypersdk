@@ -588,6 +588,10 @@ func (vm *VM) Engine() *chain.Engine {
 	return vm.engine
 }
 
+func (vm *VM) HandleAnchorChunk(ctx context.Context, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+	return vm.cm.HandleAnchorChunk(ctx, slot, txs, priorityFeeReceiverAddr)
+}
+
 func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {
 	return vm.issuedTxs.Has(tx)
 }

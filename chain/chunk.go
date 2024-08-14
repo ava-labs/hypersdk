@@ -34,8 +34,9 @@ type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
 
-	Producer    ids.NodeID    `json:"producer"`
-	Beneficiary codec.Address `json:"beneficiary"` // used for fees
+	PriorityFeeReceiverAddr codec.Address `json:"priorityFeeReceiver"`
+	Producer                ids.NodeID    `json:"producer"`
+	Beneficiary             codec.Address `json:"beneficiary"` // used for fees
 
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
@@ -44,6 +45,148 @@ type Chunk struct {
 	units      *Dimensions
 	bytes      []byte
 	authCounts map[uint8]int
+}
+
+func BuildChunkFromAnchor(ctx context.Context, vm VM, slot int64, txs []*Transaction, priorityFeeReceiver codec.Address) (*Chunk, error) {
+	start := time.Now()
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+	sm := vm.StateManager()
+	r := vm.Rules(now)
+	c := &Chunk{
+		Slot: slot,
+		Txs:  txs,
+	}
+	epoch := utils.Epoch(now, r.GetEpochDuration())
+
+	// Don't build chunk if no P-Chain height for epoch
+	timestamp, heights, err := vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
+	if err != nil {
+		return nil, err
+	}
+	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration()) // epoch duration set to 10 seconds.
+	if executedEpoch+2 < epoch {                                  // only require + 2 because we don't care about epoch + 1 like in verification.
+		return nil, fmt.Errorf("executed epoch (%d) is too far behind (%d) to verify chunk", executedEpoch, epoch)
+	}
+	if heights[0] == nil {
+		return nil, fmt.Errorf("no P-Chain height for epoch %d", epoch)
+	}
+
+	// Check if validator
+	//
+	// If not a validator in this epoch height, don't build.
+	amValidator, err := vm.IsValidator(ctx, *heights[0], vm.NodeID())
+	if err != nil {
+		return nil, err
+	}
+	if !amValidator {
+		return nil, ErrNotAValidator
+	}
+
+	// Pack chunk for build duration
+	//
+	// TODO: sort mempool by priority and fit (only fetch items that can be included)
+	var (
+		maxChunkUnits = r.GetMaxChunkUnits()
+		chunkUnits    = Dimensions{}
+		full          bool
+		authCounts    = make(map[uint8]int)
+	)
+	for _, tx := range txs {
+		// Ensure we haven't included this transaction in a chunk yet
+		//
+		// Should protect us from issuing repeat txs (if others get duplicates,
+		// there will be duplicate inclusion but this is fixed with partitions)
+		if vm.IsIssuedTx(ctx, tx) {
+			return nil, fmt.Errorf("tx already issued")
+		}
+
+		// TODO: count outstanding for an account and ensure less than epoch bond
+		// if too many, just put back into mempool and try again later
+
+		// TODO: ensure tx can still be processed (bond not frozen)
+
+		// TODO: skip if transaction will pay < max fee over validity window (this fee period or a future one based on limit
+		// of activity).
+
+		// TODO: check if chunk units greater than limit
+
+		// TODO: verify transactions
+		if tx.Base.Timestamp > c.Slot {
+			vm.RecordChunkBuildTxDropped()
+			return nil, fmt.Errorf("tx timestamp greater than the slot")
+		}
+
+		// Check if tx can fit in chunk
+		txUnits, err := tx.Units(sm, r)
+		if err != nil {
+			vm.RecordChunkBuildTxDropped()
+			vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
+			continue
+		}
+		nextUnits, err := Add(chunkUnits, txUnits)
+		if err != nil || !maxChunkUnits.Greater(nextUnits) {
+			return nil, fmt.Errorf("too many units consumed in a chunk")
+		}
+		chunkUnits = nextUnits
+
+		// Add transaction to chunk
+		vm.IssueTx(ctx, tx) // prevents duplicate from being re-added to mempool
+		c.Txs = append(c.Txs, tx)
+		authCounts[tx.Auth.GetTypeID()]++
+	}
+
+	// Discard chunk if nothing produced
+	if len(c.Txs) == 0 {
+		return nil, ErrNoTxs
+	}
+
+	// Setup chunk
+	c.PriorityFeeReceiverAddr = priorityFeeReceiver
+	c.Producer = vm.NodeID()
+	c.Beneficiary = vm.Beneficiary()
+	c.Signer = vm.Signer()
+	c.units = &chunkUnits
+	c.authCounts = authCounts
+
+	// Sign chunk
+	digest, err := c.Digest()
+	if err != nil {
+		return nil, err
+	}
+	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+	if err != nil {
+		return nil, err
+	}
+	sig, err := vm.Sign(wm)
+	if err != nil {
+		return nil, err
+	}
+	c.Signature, err = bls.SignatureFromBytes(sig)
+	if err != nil {
+		return nil, err
+	}
+	bytes, err := c.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	c.id = utils.ToID(bytes)
+
+	vm.Logger().Info(
+		"built chunk with signature from anchor msg",
+		zap.Stringer("nodeID", vm.NodeID()),
+		zap.Uint32("networkID", r.NetworkID()),
+		zap.Stringer("chainID", r.ChainID()),
+		zap.Int64("slot", c.Slot),
+		zap.Uint64("epoch", epoch),
+		zap.Bool("full", full),
+		zap.Int("txs", len(c.Txs)),
+		zap.Any("units", chunkUnits),
+		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
+		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
+		zap.Duration("t", time.Since(start)),
+	)
+	return c, nil
+
 }
 
 func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
@@ -164,6 +307,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Setup chunk
+	c.PriorityFeeReceiverAddr = codec.EmptyAddress
 	c.Producer = vm.NodeID()
 	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
@@ -214,11 +358,11 @@ func (c *Chunk) Digest() ([]byte, error) {
 	size := consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + bls.PublicKeyLen
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
-	// p.PackBool(c.Anchor != nil)
-	// if c.Anchor != nil {
-	// 	p.PackInt(c.Anchor.BlockType)
-	// 	p.PackString(c.Anchor.Namespace)
-	// }
+	p.PackBool(c.Anchor != nil)
+	if c.Anchor != nil {
+		p.PackInt(c.Anchor.BlockType)
+		p.PackString(c.Anchor.Namespace)
+	}
 	// Marshal transactions
 	p.PackInt64(c.Slot)
 	p.PackInt(len(c.Txs))

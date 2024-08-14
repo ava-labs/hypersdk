@@ -1449,6 +1449,37 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	c.sendTxGossip(ctx, gossipable)
 }
 
+func (c *ChunkManager) SignAnchorChunkHeader(ctx context.Context, header *chain.Chunk) ([]byte, error) {
+	digest, err := header.Digest()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+	r := c.vm.Rules(now)
+	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.vm.Sign(wm)
+}
+
+// fields that are guaranteed populated:
+// Slot, Txs, PriorityFeeReceiverAddr
+func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, slot, txs, priorityFeeReceiverAddr)
+	if err != nil {
+		return err
+	}
+
+	// for gossipping & sig collecting
+	c.auth.Add(chunk)
+	c.PushChunk(ctx, chunk)
+
+	return nil
+}
+
 func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {
 	txs := maps.Values(gossip.txs)
 	txBytes, err := chain.MarshalTxs(txs)

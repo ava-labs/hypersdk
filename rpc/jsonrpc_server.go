@@ -89,6 +89,37 @@ func (j *JSONRPCServer) SubmitTx(
 	return j.vm.Submit(ctx, false, []*chain.Transaction{tx})[0]
 }
 
+// TODO: make it permissioned
+type SubmitAnchorChunkArgs struct {
+	Slot                    int64         `json:"slot"`
+	Txs                     []byte        `json:"txs"` // raw tx
+	PriorityFeeReceiverAddr codec.Address `json:"priorityFeeReceiverAddr"`
+}
+
+type SubmitAnchorChunkReply struct {
+	Success bool `json:"success"`
+}
+
+func (j *JSONRPCServer) SubmitAnchorChunk(
+	req *http.Request,
+	args *SubmitAnchorChunkArgs,
+	reply *SubmitAnchorChunkReply,
+) error {
+	actionRegistry, authRegistery := j.vm.Registry()
+	_, txs, err := chain.UnmarshalTxs(args.Txs, len(args.Txs), actionRegistry, authRegistery)
+	if err != nil {
+		return err
+	}
+
+	err = j.vm.HandleAnchorChunk(context.TODO(), args.Slot, txs, args.PriorityFeeReceiverAddr)
+	if err == nil {
+		reply.Success = true
+		return nil
+	}
+
+	return err
+}
+
 type LastAcceptedReply struct {
 	Height    uint64 `json:"height"`
 	BlockID   ids.ID `json:"blockId"`
