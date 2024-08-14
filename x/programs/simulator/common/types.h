@@ -64,6 +64,6 @@ typedef struct {
     GetStateCallback get_value_callback;
     // this is ptr to the insert function
     InsertStateCallback insert_callback;
-	// this is a ptr to the delete function
+    // this is a ptr to the delete function
     RemoveStateCallback remove_callback;
 } Mutable;
