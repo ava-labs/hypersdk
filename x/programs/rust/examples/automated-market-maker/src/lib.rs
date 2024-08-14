@@ -29,17 +29,8 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
         .expect("failed to set state");
 
     let lt_program = context.program().deploy(liquidity_token, &[]);
-    let lt_programn = Program {
-        account: lt_program,
-    };
     let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
-
-    // initialize the liquidity token
-    // let init_result = context
-    assert!(
-        transfer_reuslt,
-        "failed to transfer ownership of the liquidity token"
-    );
+    token::init(&liquidity_context, String::from("liquidity token"), String::from("LT"));
 }
 
 /// Swaps 'amount' of `token_program_in` with the other token in the pool
