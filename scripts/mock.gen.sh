@@ -28,12 +28,6 @@ fi
 # alert the user if they do not have $GOPATH properly configured
 check_command mockgen
 
-if ! command -v addlicense &> /dev/null
-then
-  echo "addlicense not found, installing..."
-  go install -v github.com/google/addlicense@latest
-fi
-
 # tuples of (source interface import path, comma-separated interface names, output file path)
 input="scripts/mocks.mockgen.txt"
 while IFS= read -r line
