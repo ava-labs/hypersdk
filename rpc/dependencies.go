@@ -44,5 +44,5 @@ type VM interface {
 	RecordWebsocketConnection(int)
 	RecordRPCTxInvalid()
 
-	HandleAnchorChunk(ctx context.Context, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error
+	HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error
 }

@@ -47,7 +47,7 @@ type Chunk struct {
 	authCounts map[uint8]int
 }
 
-func BuildChunkFromAnchor(ctx context.Context, vm VM, slot int64, txs []*Transaction, priorityFeeReceiver codec.Address) (*Chunk, error) {
+func BuildChunkFromAnchor(ctx context.Context, vm VM, anchor *Anchor, slot int64, txs []*Transaction, priorityFeeReceiver codec.Address) (*Chunk, error) {
 	start := time.Now()
 	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	sm := vm.StateManager()

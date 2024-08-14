@@ -91,6 +91,7 @@ func (j *JSONRPCServer) SubmitTx(
 
 // TODO: make it permissioned
 type SubmitAnchorChunkArgs struct {
+	Anchor                  chain.Anchor  `json:"anchor"`
 	Slot                    int64         `json:"slot"`
 	Txs                     []byte        `json:"txs"` // raw tx
 	PriorityFeeReceiverAddr codec.Address `json:"priorityFeeReceiverAddr"`
@@ -111,7 +112,7 @@ func (j *JSONRPCServer) SubmitAnchorChunk(
 		return err
 	}
 
-	err = j.vm.HandleAnchorChunk(context.TODO(), args.Slot, txs, args.PriorityFeeReceiverAddr)
+	err = j.vm.HandleAnchorChunk(context.TODO(), &args.Anchor, args.Slot, txs, args.PriorityFeeReceiverAddr)
 	if err == nil {
 		reply.Success = true
 		return nil

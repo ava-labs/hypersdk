@@ -1467,8 +1467,8 @@ func (c *ChunkManager) SignAnchorChunkHeader(ctx context.Context, header *chain.
 
 // fields that are guaranteed populated:
 // Slot, Txs, PriorityFeeReceiverAddr
-func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
-	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, slot, txs, priorityFeeReceiverAddr)
+func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, anchor, slot, txs, priorityFeeReceiverAddr)
 	if err != nil {
 		return err
 	}
