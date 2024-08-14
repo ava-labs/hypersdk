@@ -969,7 +969,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 							invalid = true
 							break
 						}
-						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Action.NMTNamespace(), tx.Partition())
+						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor(), tx.Partition())
 						if err != nil {
 							c.vm.Logger().Debug("unable to compute address partition", zap.Error(err))
 							invalid = true
@@ -1398,7 +1398,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 		return
 	}
-	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Action.NMTNamespace(), tx.Partition())
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor(), tx.Partition())
 	if err != nil {
 		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return

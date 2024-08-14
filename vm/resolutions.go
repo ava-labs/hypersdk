@@ -414,8 +414,13 @@ func (vm *VM) CacheValidators(ctx context.Context, height uint64) {
 	vm.proposerMonitor.Fetch(ctx, height)
 }
 
-func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
-	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, ns, partition)
+func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, addr, partition)
+}
+
+// used for txs from Anchor
+func (vm *VM) AddressPartitionByNamespace(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartitionByNamespace(ctx, epoch, height, ns, partition)
 }
 
 func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (bool, error) {

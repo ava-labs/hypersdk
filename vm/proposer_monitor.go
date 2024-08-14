@@ -237,9 +237,38 @@ func (p *ProposerMonitor) RandomValidator(ctx context.Context, height uint64) (i
 	return ids.NodeID{}, fmt.Errorf("no validators")
 }
 
-// @todo instead of codec.Address, we can do tx.NamespaceID().
-// this makes, sure all general transactions are sampled by a validator, whereas rollup transactions in individual chunks per validator.
-func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
+func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error) {
+	// Get determinisitc ordering of validators
+	info, ok := p.proposers.Get(height)
+	if !ok {
+		info = p.Fetch(ctx, height)
+	}
+	if info == nil {
+		return ids.NodeID{}, errors.New("could not get validator set for height")
+	}
+	if len(info.partitionSet) == 0 {
+		return ids.NodeID{}, errors.New("no validators")
+	}
+
+	// Compute seed
+	seedBytes := make([]byte, consts.Uint64Len*2+codec.AddressLen)
+	binary.BigEndian.PutUint64(seedBytes, epoch) // ensures partitions rotate even if P-Chain height is static
+	binary.BigEndian.PutUint64(seedBytes[consts.Uint64Len:], height)
+	copy(seedBytes[consts.Uint64Len*2:], addr[:])
+	seed := utils.ToID(seedBytes)
+
+	// Select validator
+	//
+	// It is important to ensure each partition is actually a unique validator, otherwise
+	// the censorship resistance that partitions are supposed to provide is lost (all partitions
+	// could be allocated to a single validator if we aren't careful).
+	seedInt := new(big.Int).SetBytes(seed[:])
+	partitionInt := new(big.Int).Add(seedInt, big.NewInt(int64(partition)))
+	partitionIdx := new(big.Int).Mod(partitionInt, big.NewInt(int64(len(info.partitionSet)))).Int64()
+	return info.partitionSet[int(partitionIdx)], nil
+}
+
+func (p *ProposerMonitor) AddressPartitionByNamespace(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
 	// Get determinisitc ordering of validators
 	info, ok := p.proposers.Get(height)
 	if !ok {
