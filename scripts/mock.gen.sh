@@ -44,7 +44,4 @@ do
   mockgen -package="${package_name}" -destination="${output_path}" "${src_import_path}" "${interface_name}"
 done < "$input"
 
-# add license headers to mock files
-add_license_headers
-
 echo "SUCCESS"
