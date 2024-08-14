@@ -42,6 +42,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Check License Header
+        uses: korandoru/hawkeye@v5
       - name: Set up Go
         uses: ./.github/actions/install-go
       - name: Run static analysis tests
@@ -143,25 +145,9 @@ jobs:
         working-directory: ./examples/morpheusvm
         shell: bash
         run: scripts/tests.integration.sh
-      # - name: Archive code coverage results (text)
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: code-coverage-out
-      #     path: ./examples/morpheusvm/integration.coverage.out
-      # - name: Archive code coverage results (html)
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: code-coverage-html
-      #     path: ./examples/morpheusvm/integration.coverage.html
-      - name: Run e2e tests
-        working-directory: ./examples/morpheusvm
-        shell: bash
-        run: scripts/run.sh
-        env:
-          MODE: 'test'
 
-  morpheusvm-sync-tests:
-    needs: [morpheusvm-lint, morpheusvm-unit-tests]
+  morpheusvm-e2e-tests:
+    needs: [hypersdk-tests]
     runs-on: ubuntu-20.04-32
     timeout-minutes: 25
     steps:
@@ -173,15 +159,15 @@ jobs:
           cache-dependency-path: |
             go.sum
             examples/morpheusvm/go.sum
-      - name: Run sync tests
+      - name: Run e2e tests
         working-directory: ./examples/morpheusvm
         shell: bash
         run: scripts/run.sh
         env:
-          MODE: 'full-test'
+          MODE: 'test'
 
   morpheusvm-release:
-    needs: [morpheusvm-sync-tests]
+    needs: [morpheusvm-lint, morpheusvm-unit-tests, morpheusvm-e2e-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
     steps:

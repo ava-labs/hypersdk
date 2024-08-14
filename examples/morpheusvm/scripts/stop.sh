@@ -4,4 +4,9 @@
 
 set -e
 
-killall avalanche-network-runner
+MORPHEUSVM_PATH=$(
+  cd "$(dirname "${BASH_SOURCE[0]}")"
+  cd .. && pwd
+)
+
+ginkgo -v "$MORPHEUSVM_PATH"/tests/e2e/e2e.test -- --stop-network

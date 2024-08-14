@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package codec
@@ -83,7 +83,7 @@ func TestTypeParser(t *testing.T) {
 			// 0 and 1 are already existing -> we use index + 2
 			require.NoError(tp.Register(uint8(index+2), nil))
 		}
-		// all possible uint8 value should already be store, using any return ErrTooManyItems
+		// all possible uint8 value should already be stored, using any return ErrTooManyItems
 		err := tp.Register(uint8(4), nil)
 		require.ErrorIs(err, ErrTooManyItems)
 	})

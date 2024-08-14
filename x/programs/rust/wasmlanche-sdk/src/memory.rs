@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 //! Temporary storage allocated during the Program runtime.
 //! The general pattern for handling memory is to have the
 //! host allocate a block of memory and return a pointer to
