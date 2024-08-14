@@ -6,19 +6,23 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": {
-			"INSTALL_GO_VERSION": "1.21"
+			"INSTALL_GO_VERSION": "1.21",
+			"INSTALL_AVALANCHEGO_VERSION": "d729e5c7ef9f008c3e89cd7131148ad3acda2e34"
 		}
 	},
+	"mounts": [
+		"source=go_packege_cache,target=/go/pkg/mod,type=volume",
+	],
 	"features": {
-		//uncomment 
+		//uncomment if you want to install rust
 		// "ghcr.io/devcontainers/features/rust:1": {}
-	}
+	},
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "go version",
+	"postCreateCommand": "sudo chown -R $USER /go && sudo chown -R $USER /tmp/hypersdk/",
 	// Configure tool-specific properties.
 	// "customizations": {},
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
