@@ -13,10 +13,10 @@ BytesWithError bridge_get_callback(GetStateCallback getFuncPtr, void *dbPtr, Byt
     return getFuncPtr(dbPtr, key);
 }
 
-char *bridge_insert_callback(InsertStateCallback insertFuncPtr, void *dbPtr, Bytes key, Bytes value) {
+void bridge_insert_callback(InsertStateCallback insertFuncPtr, void *dbPtr, Bytes key, Bytes value) {
     return insertFuncPtr(dbPtr, key, value);
 }
 
-char *bridge_remove_callback(RemoveStateCallback removeFuncPtr, void *dbPtr, Bytes key) {
+void bridge_remove_callback(RemoveStateCallback removeFuncPtr, void *dbPtr, Bytes key) {
     return removeFuncPtr(dbPtr, key);
 }

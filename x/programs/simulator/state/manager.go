@@ -18,8 +18,13 @@ import (
 	"github.com/ava-labs/hypersdk/x/programs/runtime"
 )
 
-// ensure SimulatorStateManager implements StateManager
 var _ runtime.StateManager = &ProgramStateManager{}
+
+var (
+	ErrUnknownAccount = errors.New("unknown account")
+	balanceKeyBytes 		 = []byte("balance")
+	programKeyBytes = []byte("program")
+)
 
 const (
 	programPrefix = 0x0
@@ -39,9 +44,7 @@ func NewProgramStateManager(db state.Mutable) *ProgramStateManager {
 	return &ProgramStateManager{db}
 }
 
-// Balance Manager Methods
-
-// getAccountBalance gets the balance associated [account].
+// GetBalance gets the balance associated [account].
 // Returns 0 if no balance was found or errors if another error is present
 func (p *ProgramStateManager) GetBalance(ctx context.Context, address codec.Address) (uint64, error) {
 	return p.getAccountBalance(ctx, address)
@@ -68,7 +71,6 @@ func (p *ProgramStateManager) TransferBalance(ctx context.Context, from codec.Ad
 	return p.setAccountBalance(ctx, from, fromBalance-amount)
 }
 
-// ProgramManager methods
 func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutable {
 	return newAccountPrefixedMutable(account, p.db)
 }
@@ -81,7 +83,7 @@ func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account cod
 		return ids.Empty, err
 	}
 	if !exists {
-		return ids.Empty, errors.New("unknown account")
+		return ids.Empty, ErrUnknownAccount
 	}
 	return programID, nil
 }
@@ -90,16 +92,18 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids
 	// TODO: take fee out of balance?
 	programBytes, exists, err := p.getProgram(ctx, programID)
 	if err != nil {
-		return []byte{}, errors.New("onkown program")
+		return []byte{}, ErrUnknownAccount
 	}
 	if !exists {
-		return []byte{}, errors.New("unknown account")
+		return []byte{}, ErrUnknownAccount
 	}
 	return programBytes, nil
 }
 
 func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
-	return p.DeployProgram(ctx, programID, accountCreationData)
+	newID := sha256.Sum256(append(programID[:], accountCreationData...))
+	newAccount := codec.CreateAddress(0, newID)
+	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
 }
 
 func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
@@ -122,18 +126,18 @@ func (p *ProgramStateManager) getAccountBalance(ctx context.Context, account cod
 	return binary.BigEndian.Uint64(v), nil
 }
 
-// Creates a key an account balance key
+// Creates an account balance key
 func accountBalanceKey(account []byte) []byte {
-	return accountDataKey(account, []byte("balance"))
+	return accountDataKey(account, balanceKeyBytes)
 }
 
 func accountProgramKey(account []byte) []byte {
-	return accountDataKey(account, []byte("program"))
+	return accountDataKey(account, programKeyBytes)
 }
 
 // Creates a key an account balance key
 func accountDataKey(account []byte, key []byte) (k []byte) {
-	// make an array _ _ + account + key
+	// accountPrefix + account + accountDataPrefix + key
 	k = make([]byte, 2+len(account)+len(key))
 	k[0] = accountPrefix
 	copy(k[1:], account)
@@ -165,7 +169,7 @@ func (p *ProgramStateManager) setAccountProgram(
 	account codec.Address,
 	programID ids.ID,
 ) error {
-	return p.db.Insert(ctx, accountDataKey(account[:], []byte("program")), programID[:])
+	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID[:])
 }
 
 // [programID] -> [programBytes]
@@ -187,16 +191,6 @@ func (p *ProgramStateManager) SetProgram(
 	program []byte,
 ) error {
 	return p.db.Insert(ctx, programKey(programID[:]), program)
-}
-
-func (p *ProgramStateManager) DeployProgram(
-	ctx context.Context,
-	programID ids.ID,
-	accountCreationData []byte,
-) (codec.Address, error) {
-	newID := sha256.Sum256(append(programID[:], accountCreationData...))
-	newAccount := codec.CreateAddress(0, newID)
-	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
 }
 
 // gets the public key mapped to the given name.

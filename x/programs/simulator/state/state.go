@@ -112,10 +112,8 @@ func (s *SimulatorState) insert(key []byte, value []byte) error {
 		length: C.uint(len(value)),
 	}
 
-	cErr := C.bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
-	if cErr != nil {
-		return fmt.Errorf("error inserting value: %s", C.GoString(cErr))
-	}
+	bridge_insert_callback(s.insertFunc, s.statePtr, keyStruct, valueStruct)
+
 	return nil
 }
 
@@ -128,10 +126,8 @@ func (s *SimulatorState) remove(key []byte) error {
 		length: C.uint(len(key)),
 	}
 
-	cErr := C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
-	if cErr != nil {
-		return fmt.Errorf("error removing value: %s", C.GoString(cErr))
-	}
+	C.bridge_remove_callback(s.removeFunc, s.statePtr, keyStruct)
+
 	return nil
 }
 

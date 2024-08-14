@@ -76,12 +76,6 @@ impl<'a> Simulator<'a> {
     }
 }
 
-impl<'a> From<&Mutable<'a>> for *mut Mutable<'a> {
-    fn from(state: &Mutable) -> Self {
-        state as *const Mutable as *mut Mutable
-    }
-}
-
 impl CreateProgramResponse {
     pub fn program(&self) -> Result<Address, SimulatorError> {
         if self.has_error() {
