@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 #![deny(clippy::pedantic)]
 
 #[cfg(feature = "build")]

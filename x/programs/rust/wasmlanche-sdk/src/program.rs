@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use crate::{memory::HostPtr, types::Address, types::Id, Gas};
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 mod bindings {
     #![allow(non_upper_case_globals)]
     #![allow(non_camel_case_types)]

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::cmp;
 use token::Units;
 use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
