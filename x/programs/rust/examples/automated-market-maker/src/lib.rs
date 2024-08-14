@@ -25,11 +25,14 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
         .store((
             (TokenX, token_x),
             (TokenY, token_y),
-            (LiquidityToken, liquidity_token),
         ))
         .expect("failed to set state");
 
-    let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
+    let lt_program = context.program().deploy(liquidity_token, &[]);
+    let lt_programn = Program {
+        account: lt_program,
+    };
+    let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
 
     // initialize the liquidity token
     // let init_result = context
