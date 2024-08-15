@@ -28,9 +28,9 @@ import (
 )
 
 var (
-	ErrInvalidParam     = errors.New("invalid parameter")
-	SimLogger           = logging.NewLogger("Simulator")
-	SimContext          = context.TODO()
+	ErrInvalidParam = errors.New("invalid parameter")
+	SimLogger       = logging.NewLogger("Simulator")
+	SimContext      = context.TODO()
 )
 
 //export CallProgram
