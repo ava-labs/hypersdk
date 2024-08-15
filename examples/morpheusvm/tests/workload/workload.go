@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -127,9 +126,6 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, uri string) error {
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
-
 		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
