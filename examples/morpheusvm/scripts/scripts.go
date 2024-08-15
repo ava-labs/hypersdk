@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"strings"
 )
 
 //go:embed *.sh
@@ -16,32 +17,23 @@ var scriptsFolder embed.FS
 var ErrScriptNotFound = errors.New("script not found")
 
 func RunScript(script string) ([]byte, error) {
-	switch script {
-	case "run":
-		runScript, err := scriptsFolder.Open("run.sh")
-		if err != nil {
-			return nil, err
-		}
-		defer runScript.Close()
-		scriptContent, err := io.ReadAll(runScript)
-		if err != nil {
-			return nil, err
-		}
-		cmd := exec.Command("bash", "-c", string(scriptContent)) // #nosec 204
-		return cmd.Output()
-	case "stop":
-		stopScript, err := scriptsFolder.Open("stop.sh")
-		if err != nil {
-			return nil, err
-		}
-		defer stopScript.Close()
-		scriptContent, err := io.ReadAll(stopScript)
-		if err != nil {
-			return nil, err
-		}
-		cmd := exec.Command("bash", "-c", string(scriptContent)) // #nosec 204
-		return cmd.Output()
-	default:
-		return nil, ErrScriptNotFound
+	var shPath strings.Builder
+	if _, err := shPath.WriteString(script); err != nil {
+		return nil, err
 	}
+	if _, err := shPath.WriteString(".sh"); err != nil {
+		return nil, err
+	}
+
+	scriptFile, err := scriptsFolder.Open(shPath.String())
+	if err != nil {
+		return nil, err
+	}
+	defer scriptFile.Close()
+	scriptContent, err := io.ReadAll(scriptFile)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command("bash", "-c", string(scriptContent)) // #nosec 204
+	return cmd.Output()
 }
