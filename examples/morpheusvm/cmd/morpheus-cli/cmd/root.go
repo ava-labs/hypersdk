@@ -36,9 +36,9 @@ var (
 	prometheusData        string
 	startPrometheus       bool
 
-	avalancheGoPath string
+	avalancheGoPath      string
 	avalancheGoPluginDir string
-	numOfNodes int
+	numOfNodes           int
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",

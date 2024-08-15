@@ -12,10 +12,11 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/tests/fixture"
 
 	le2e "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/e2e"
 )
@@ -23,7 +24,7 @@ import (
 const owner = "morpheus-cli"
 
 var deployCmd = &cobra.Command{
-	Use: "deploy",
+	Use:   "deploy",
 	Short: "Quickly deploy an instance of MorpheusVM",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		genesisBytes, err := le2e.DefaultGenesisValues()
