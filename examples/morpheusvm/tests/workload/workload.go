@@ -14,7 +14,9 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/crypto/bls"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
+	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
@@ -32,6 +34,7 @@ var (
 
 type workloadFactory struct {
 	factory *auth.ED25519Factory
+	address codec.Address
 }
 
 func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error) {
@@ -59,16 +62,13 @@ func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error
 	}
 
 	priv := ed25519.PrivateKey(privBytes)
+	addr := auth.NewED25519Address(priv.PublicKey())
 	factory := auth.NewED25519Factory(priv)
 
 	return gen, &workloadFactory{
 		factory: factory,
+		address: addr,
 	}, nil
-}
-
-func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator, error) {
-	basicTxWorkload, err := f.NewSizedTxWorkload(uri, 1)
-	return []workload.TxWorkloadIterator{basicTxWorkload}, err
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
@@ -145,6 +145,116 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		if balance != 1 {
 			return fmt.Errorf("expected balance of 1, got %d", balance)
 		}
+		return nil
+	}, nil
+}
+
+func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterator, error) {
+	blsPriv, err := bls.GeneratePrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	blsPub := bls.PublicFromPrivateKey(blsPriv)
+	blsAddr := auth.NewBLSAddress(blsPub)
+	blsFactory := auth.NewBLSFactory(blsPriv)
+
+	secpPriv, err := secp256r1.GeneratePrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	secpPub := secpPriv.PublicKey()
+	secpAddr := auth.NewSECP256R1Address(secpPub)
+	secpFactory := auth.NewSECP256R1Factory(secpPriv)
+
+	cli := rpc.NewJSONRPCClient(uri)
+	networkID, _, blockchainID, err := cli.Network(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
+
+	initialBalance, err := lcli.Balance(context.TODO(), codec.MustAddressBech32(consts.HRP, f.address))
+	if err != nil {
+		return nil, err
+	}
+	generator := &mixedAuthWorkload{
+		addressAndFactories: []addressAndFactory{
+			{address: f.address, authFactory: f.factory},
+			{address: blsAddr, authFactory: blsFactory},
+			{address: secpAddr, authFactory: secpFactory},
+		},
+		balance:   initialBalance,
+		cli:       cli,
+		lcli:      lcli,
+		networkID: networkID,
+		chainID:   blockchainID,
+	}
+
+	return []workload.TxWorkloadIterator{generator}, nil
+}
+
+type addressAndFactory struct {
+	address     codec.Address
+	authFactory chain.AuthFactory
+}
+
+type mixedAuthWorkload struct {
+	addressAndFactories []addressAndFactory
+	balance             uint64
+	cli                 *rpc.JSONRPCClient
+	lcli                *lrpc.JSONRPCClient
+	networkID           uint32
+	chainID             ids.ID
+	count               int
+}
+
+func (g *mixedAuthWorkload) Next() bool {
+	return g.count < len(g.addressAndFactories)-1
+}
+
+func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.Transaction, workload.TxAssertion, error) {
+	defer func() { g.count++ }()
+
+	sender := g.addressAndFactories[g.count]
+	receiver := g.addressAndFactories[g.count+1]
+	receiverAddrStr := codec.MustAddressBech32(consts.HRP, receiver.address)
+	expectedBalance := g.balance - 1_000_000
+
+	parser, err := g.lcli.Parser(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, tx, _, err := g.cli.GenerateTransaction(
+		ctx,
+		parser,
+		[]chain.Action{&actions.Transfer{
+			To:    receiver.address,
+			Value: expectedBalance,
+		}},
+		sender.authFactory,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	g.balance = expectedBalance
+
+	return tx, func(ctx context.Context, uri string) error {
+		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
+		if err != nil {
+			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
+		}
+		if !success {
+			return fmt.Errorf("tx %s not accepted", tx.ID())
+		}
+		balance, err := lcli.Balance(ctx, receiverAddrStr)
+		if err != nil {
+			return fmt.Errorf("failed to get balance of %s: %w", receiverAddrStr, err)
+		}
+		if balance != expectedBalance {
+			return fmt.Errorf("expected balance of 1, got %d", balance)
+		}
+		// TODO check tx fee + units (not currently available via API)
 		return nil
 	}, nil
 }

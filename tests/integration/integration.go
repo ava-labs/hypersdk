@@ -36,20 +36,11 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-// Gotchas TODO(aaronbuchwald)
-// despite numVMs being an ostensible parameter, these tests require exactly 3 VMs
-// Integration tests require MinBlockGap to be 0, so that BuildBlock can be called successfully
-// immediately after issuing a tx
-// Parameters set in the genesis are coupled to the integration tests, so they must be set the same for
-// each VM implementation. After https://github.com/ava-labs/hypersdk/issues/1217, we should modify the
-// integration tests, so that only VM specific parameters are populated by the VM.
-// The tests as currently written make it difficult to keep track of where txs have been issued/gossiped to
-// and which VMs have processed / marked blocks as accepted - overall these tests in their current form are
-// not easily readable and are difficult to debug.
-// Current tests removes the txFee and txUnits checks because the txs are defined by the VM, this can be left to the txAssertion but it must then add
-// a check for this in the workload generator - we can add this under Workloads()
-// Add move funds back and forth between auth types
-// would it be better to add a callback into the workload generator to make sure txs are accepted before performing the check
+// TODO(aaronbuchwald) integration tests required MinBlockGap to be 0, so that BuildBlock can be called
+// immediately after issuing a tx. After https://github.com/ava-labs/hypersdk/issues/1217, switch
+// integration/e2e tests to set the parameters and only allow the VM to populate VM-specific parameters.
+
+// TODO: switch from workload generator to procedural test style for VM-defined workloads
 
 const numVMs = 3
 
@@ -343,6 +334,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
 			require.NoError(initialTxAssertion(ctx, uris[1]))
 		})
 	})
@@ -360,6 +354,8 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			results := accept(true)
 			require.Len(results, 1)
 
+			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			defer cancel()
 			require.NoError(txAssertion(ctx, uris[1]))
 		})
 
@@ -494,7 +490,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.Len(results, 1)
 		require.True(results[0].Success)
 
-		require.NoError(txAssertion(ctx, uris[0]))
+		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		require.NoError(txAssertion(cctx, uris[0]))
 
 		// Read item from connection
 		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
@@ -535,7 +533,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.Len(results, 1)
 		require.True(results[0].Success)
 
-		require.NoError(txAssertion(ctx, uris[0]))
+		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		require.NoError(txAssertion(cctx, uris[0]))
 
 		// Read decision from connection
 		txID, dErr, result, err := cli.ListenTx(context.TODO())
@@ -562,7 +562,9 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 				accept := expectBlk(instances[0])
 				_ = accept(true)
-				require.NoError(txAssertion(ctx, uris[0]))
+				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+				defer cancel()
+				require.NoError(txAssertion(cctx, uris[0]))
 			}
 		}
 	})

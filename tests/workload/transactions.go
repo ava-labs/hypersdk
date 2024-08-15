@@ -23,7 +23,7 @@ type TxWorkloadFactory interface {
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 }
 
-type TxAssertion func(context.Context, string) error
+type TxAssertion func(ctx context.Context, uri string) error
 
 // TxWorkloadIterator provides an interface for generating a sequence of transactions and corresponding assertions.
 // The caller must proceed in the following sequence:
