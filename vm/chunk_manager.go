@@ -1449,12 +1449,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 	c.sendTxGossip(ctx, gossipable)
 }
 
-func (c *ChunkManager) SignAnchorChunkHeader(ctx context.Context, header *chain.Chunk) ([]byte, error) {
-	digest, err := header.Digest()
-	if err != nil {
-		return nil, err
-	}
-
+func (c *ChunkManager) SignAnchorDigest(ctx context.Context, digest []byte) ([]byte, error) {
 	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	r := c.vm.Rules(now)
 	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)

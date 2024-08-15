@@ -588,6 +588,10 @@ func (vm *VM) Engine() *chain.Engine {
 	return vm.engine
 }
 
+func (vm *VM) SignAnchorDigest(ctx context.Context, digest []byte) ([]byte, error) {
+	return vm.cm.SignAnchorDigest(ctx, digest)
+}
+
 func (vm *VM) HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
 	return vm.cm.HandleAnchorChunk(ctx, anchor, slot, txs, priorityFeeReceiverAddr)
 }

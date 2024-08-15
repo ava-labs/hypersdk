@@ -47,3 +47,4 @@ func (c *Config) GetBlockBuildFrequency() time.Duration           { return time.
 func (c *Config) GetProcessingBuildSkip() int                     { return 16 }
 func (c *Config) GetMinimumCertificateBroadcastNumerator() uint64 { return 85 } // out of 100 (more weight == more fees) // @todo
 func (c *Config) GetBeneficiary() codec.Address                   { return codec.EmptyAddress }
+func (c *Config) GetAnchorURL() string                            { return "" }

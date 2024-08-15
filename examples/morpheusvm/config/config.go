@@ -31,6 +31,9 @@ const (
 type Config struct {
 	*config.Config
 
+	// Anchor
+	AnchorURL string `json:"anchorUrl"`
+
 	// Building
 	ChunkBuildFrequency      int64 `json:"chunkBuildFrequency"`      // in milliseconds
 	TargetChunkBuildDuration int64 `json:"targetChunkBuildDuration"` // in milliseconds
@@ -115,6 +118,7 @@ func (c *Config) setDefault() {
 	c.AuthGossipBacklog = c.Config.GetAuthGossipBacklog()
 	c.ChunkStorageCores = c.Config.GetChunkStorageCores()
 	c.ChunkStorageBacklog = c.Config.GetChunkStorageBacklog()
+	c.AnchorURL = c.Config.GetAnchorURL()
 }
 
 func (c *Config) GetLogLevel() logging.Level                { return c.LogLevel }
@@ -196,4 +200,7 @@ func (c *Config) GetChunkStorageCores() int {
 
 func (c *Config) GetChunkStorageBacklog() int {
 	return c.ChunkStorageBacklog
+}
+func (c *Config) GetAnchorURL() string {
+	return ""
 }

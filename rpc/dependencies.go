@@ -12,7 +12,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 )
 
 type VM interface {
@@ -43,6 +42,4 @@ type VM interface {
 
 	RecordWebsocketConnection(int)
 	RecordRPCTxInvalid()
-
-	HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/hypersdk/anchor"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -79,6 +80,7 @@ type VM struct {
 
 	// Handle chunks
 	cm     *ChunkManager
+	anchor *anchor.Anchor
 	engine *chain.Engine
 
 	// track all issuedTxs (to prevent wasting bandwidth)
@@ -210,6 +212,9 @@ func (vm *VM) Initialize(
 	vm.cm = NewChunkManager(vm)
 	vm.networkManager.SetHandler(chunkHandler, vm.cm)
 	go vm.cm.Run(chunkSender)
+
+	anchorUrl := vm.config.GetAnchorURL()
+	vm.anchor = anchor.NewAnchor(anchorUrl, vm)
 
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
