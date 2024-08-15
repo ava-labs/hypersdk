@@ -69,6 +69,8 @@ type VM struct {
 	config         Config
 	genesis        Genesis
 	ruleFactory    RuleFactory
+	RuleParser     RuleParser
+	genesisLoader  GenesisLoader
 	builder        builder.Builder
 	gossiper       gossiper.Gossiper
 	rawStateDB     database.Database

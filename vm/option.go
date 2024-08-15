@@ -21,3 +21,15 @@ func WithManualGossiper() Option {
 		vm.gossiper = gossiper.NewManual(vm)
 	}
 }
+
+func WithRuleUpgrader(ru RuleUpgrader) Option {
+	return func(vm *VM) {
+		vm.ruleUpgrader = ru
+	}
+}
+
+func WithGenesisUpgrader(ru RuleUpgrader) Option {
+	return func(vm *VM) {
+		vm.ruleUpgrader = ru
+	}
+}

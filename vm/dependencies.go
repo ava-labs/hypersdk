@@ -5,6 +5,8 @@ package vm
 
 import (
 	"context"
+	avatrace "github.com/ava-labs/avalanchego/trace"
+	"github.com/ava-labs/hypersdk/codec"
 	"net/http"
 	"time"
 
@@ -15,11 +17,9 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
-	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 type Handlers map[string]http.Handler
@@ -87,17 +87,38 @@ func NewConfig() Config {
 }
 
 type Genesis interface {
-	Load(context.Context, avatrace.Tracer, state.Mutable) error
+	LoadAllocations(ctx context.Context, tracer avatrace.Tracer, addressParser AddressParser, am AllocationManager) error
 	GetStateBranchFactor() merkledb.BranchFactor
+}
+
+type GenesisLoader interface {
+	SetBalance(address codec.Address, amount uint64) error
+}
+
+type AddressParser interface {
+	ParseAddress(addressString string) (codec.Address, error)
+}
+
+type AllocationManager interface {
+	SetBalance(address codec.Address, amount uint64) error
+}
+
+type RuleParser interface {
+	ParseRules(initialBytes []byte, upgradeBytes []byte) RuleFactory
+}
+
+type RuleParserGeneric[T chain.Rules] interface {
+	ParseRulesGeneric(initialBytes []byte, upgradeBytes []byte) RuleFactoryGeneric[T]
+	RuleParser
 }
 
 type RuleFactory interface {
 	GetRules(t int64) chain.Rules
 }
 
-type TypedRuleFactory[T chain.Rules] interface {
+type RuleFactoryGeneric[T chain.Rules] interface {
 	RuleFactory
-	GetTypedRules(t int64) T
+	GetRulesGeneric(t int64) T
 }
 
 type AuthEngine interface {
