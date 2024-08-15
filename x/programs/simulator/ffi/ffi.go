@@ -29,7 +29,7 @@ import (
 
 var (
 	ErrInvalidParam     = errors.New("invalid parameter")
-	ErrRuntimeExecution = errors.New("invalid parameter")
+	ErrRuntimeExecution = errors.New("runtime execution error")
 	SimLogger           = logging.NewLogger("Simulator")
 	SimContext          = context.TODO()
 )
@@ -48,7 +48,7 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 	rt := runtime.NewRuntime(runtime.NewConfig(), SimLogger)
 	result, err := rt.CallProgram(SimContext, callInfo)
 	if err != nil {
-		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", ErrRuntimeExecution))
+		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
 	}
 
 	fuel := callInfo.RemainingFuel()
@@ -132,7 +132,7 @@ func generateRandomID() (ids.ID, error) {
 	if err != nil {
 		return ids.Empty, err
 	}
-
+	fmt.Println("random id generated: ", id)
 	return id, nil
 }
 

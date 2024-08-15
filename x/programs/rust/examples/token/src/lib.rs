@@ -26,7 +26,6 @@ state_schema! {
 #[public]
 pub fn init(context: &mut Context, name: String, symbol: String) {
     let actor = context.actor();
-
     context
         .store_by_key(Owner, actor)
         .expect("failed to store owner");
