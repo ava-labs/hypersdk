@@ -21,16 +21,19 @@ const MAX_GAS: Gas = 10000000;
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
 pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Id) {
-    context
-        .store((
-            (TokenX, token_x),
-            (TokenY, token_y),
-        ))
-        .expect("failed to set state");
+   
 
-    let lt_program = context.program().deploy(liquidity_token, &[]);
+    let lt_program = context.deploy(liquidity_token, &[]);
     let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
     token::init(&liquidity_context, String::from("liquidity token"), String::from("LT"));
+
+    context
+    .store((
+        (TokenX, token_x),
+        (TokenY, token_y),
+        (LiquidityToken, lt_program),
+    ))
+    .expect("failed to set state");
 }
 
 /// Swaps 'amount' of `token_program_in` with the other token in the pool
@@ -173,6 +176,11 @@ pub fn remove_all_liquidity(context: &mut Context) -> (Units, Units) {
     let lp_token = external_liquidity_token(context);
     let lp_balance = token::balance_of(&lp_token, context.actor());
     remove_liquidity(context, lp_balance)
+}
+
+#[public]
+pub fn get_liquidity_token(context: &mut Context) -> Program {
+    context.get(LiquidityToken).unwrap().unwrap()
 }
 
 /// Returns the token reserves in the pool
