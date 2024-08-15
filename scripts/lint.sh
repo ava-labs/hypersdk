@@ -28,6 +28,8 @@ else
   TARGET="${1}"
 fi
 
+add_license_headers -check
+
 # by default, "./scripts/lint.sh" runs all lint tests
 TESTS=${TESTS:-"golangci_lint gci"}
 

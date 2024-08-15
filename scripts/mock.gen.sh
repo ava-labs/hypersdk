@@ -28,12 +28,6 @@ fi
 # alert the user if they do not have $GOPATH properly configured
 check_command mockgen
 
-if ! command -v hawkeye &> /dev/null
-then
-  echo "hawkeye not found, installing..."
-  cargo install hawkeye
-fi
-
 # tuples of (source interface import path, comma-separated interface names, output file path)
 input="scripts/mocks.mockgen.txt"
 while IFS= read -r line
@@ -43,9 +37,5 @@ do
   echo "Generating ${output_path}..."
   mockgen -package="${package_name}" -destination="${output_path}" "${src_import_path}" "${interface_name}"
 done < "$input"
-
-# add license headers to mock files
-# ignore errors since mockgen files give warnings when edited
-hawkeye format || true
 
 echo "SUCCESS"
