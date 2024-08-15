@@ -7,16 +7,19 @@ set -e
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
 MODE=${MODE:-run}
-if ! [[ "$0" =~ scripts/run.sh ]]; then
-  echo "must be run from morpheusvm root"
-  exit 255
-fi
+# if ! [[ "$0" =~ scripts/run.sh ]]; then
+#   echo "must be run from morpheusvm root"
+#   exit 255
+# fi
+
+WORK_DIR=${GOPATH}/src/github.com/ava-labs/hypersdk
 
 # shellcheck source=/scripts/constants.sh
-source ../../scripts/constants.sh
+# source ../../scripts/constants.sh
 # shellcheck source=/scripts/common/utils.sh
-source ../../scripts/common/utils.sh
+source ${WORK_DIR}/scripts/common/utils.sh
 
+MORPHEUSVM_DIR=${WORK_DIR}/examples/morpheusvm
 VERSION=d729e5c7ef9f008c3e89cd7131148ad3acda2e34
 
 ############################
@@ -64,15 +67,15 @@ rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w4
 # rebuild with latest code
 go build \
 -o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/morpheusvm
+${MORPHEUSVM_DIR}/cmd/morpheusvm
 
 ############################
 echo "building e2e.test"
 
 prepare_ginkgo
 
-ACK_GINKGO_RC=true ginkgo build ./tests/e2e
-./tests/e2e/e2e.test --help
+ACK_GINKGO_RC=true ginkgo build ${MORPHEUSVM_DIR}/tests/e2e
+${MORPHEUSVM_DIR}/tests/e2e/e2e.test --help
 
 additional_args=("$@")
 
@@ -83,7 +86,7 @@ if [[ ${MODE} == "run" ]]; then
 fi
 
 echo "running e2e tests"
-./tests/e2e/e2e.test \
+${MORPHEUSVM_DIR}/tests/e2e/e2e.test \
 --ginkgo.v \
 --avalanchego-path="${AVALANCHEGO_PATH}" \
 --plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \

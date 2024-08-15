@@ -57,6 +57,8 @@ func init() {
 		spamCmd,
 		prometheusCmd,
 		deployCmd,
+		runCmd,
+		stopCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -203,7 +205,6 @@ func init() {
 		"/tmp/hypersdk/avalanchego-d729e5c7ef9f008c3e89cd7131148ad3acda2e34/plugins",
 		"location of avalancheGo plugin binaries",
 	)
-
 	deployCmd.PersistentFlags().IntVar(
 		&numOfNodes,
 		"num-of-nodes",

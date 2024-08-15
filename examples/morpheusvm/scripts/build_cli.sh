@@ -56,18 +56,6 @@ fi
 
 ############################
 
-echo "building morpheusvm"
-
-# delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
-
-# rebuild with latest code
-go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
-./cmd/morpheusvm
-
-############################
-
 echo "building morpheus-cli"
 
 go build -o ./build/morpheus-cli ./cmd/morpheus-cli

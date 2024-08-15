@@ -61,13 +61,20 @@ var deployCmd = &cobra.Command{
 		}
 
 		utils.Outf("\nBootstrapped Network")
-		var rpc_url strings.Builder
-		rpc_url.WriteString(nodes[0].URI)
-		rpc_url.WriteString("/ext/bc/")
-		rpc_url.WriteString(subnet.Chains[0].ChainID.String())
-		rpc_url.WriteString(rpc.JSONRPCEndpoint)
-
-		utils.Outf("\nRPC URL is: %v\n", rpc_url.String())
+		var rpcURL strings.Builder
+		if _, err := rpcURL.WriteString(nodes[0].URI); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString("/ext/bc/"); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString(subnet.Chains[0].ChainID.String()); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString(rpc.JSONRPCEndpoint); err != nil {
+			return err
+		}
+		utils.Outf("\nRPC URL is: %v\n", rpcURL.String())
 
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
