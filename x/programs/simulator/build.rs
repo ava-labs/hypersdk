@@ -1,10 +1,11 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use std::env;
-use std::path::Path;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 // builds the go library
 // go build -buildmode=c-shared -o libsimulator.so ffi/ffi.go
