@@ -354,3 +354,18 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 	}
 	return message, weight, signatureWeight, nil
 }
+
+func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string, pubkey *bls.PublicKey, sig *bls.Signature) (bool, error) {
+	resp := new(ReplaceAnchorReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"replaceAnchor",
+		&ReplaceAnchorArgs{
+			Url:       url,
+			Pubkey:    pubkey,
+			Signature: sig,
+		},
+		resp,
+	)
+	return resp.Success, err
+}

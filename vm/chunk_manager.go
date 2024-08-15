@@ -860,6 +860,67 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				}
 
 				// Attempt to build a chunk
+				now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+				r := c.vm.Rules(now)
+				anchorCli := c.vm.Anchor()
+				digest, err := anchorCli.RequestAnchorDigest()
+				if err != nil {
+					c.vm.Logger().Error("unable to fetch chunk digest from anchor", zap.Error(err))
+					continue
+				}
+				wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+				if err != nil {
+					c.vm.Logger().Error("unable to generate warp message", zap.Error(err))
+					continue
+				}
+				sigBytes, err := c.vm.Sign(wm)
+				if err != nil {
+					c.vm.Logger().Error("unable to sign message", zap.Error(err))
+					continue
+				}
+				sig, err := bls.SignatureFromBytes(sigBytes)
+				if err != nil {
+					c.vm.Logger().Error("unable to unmarshal sig", zap.Error(err))
+					continue
+				}
+
+				meta, slot, txs, priorityFeeReceiver, err := anchorCli.RequestAnchorChunk(sig)
+				if err != nil {
+					c.vm.Logger().Error("unable to fetch chunk from Anchor", zap.Error(err))
+					continue
+				}
+
+				chunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, meta, slot, txs, priorityFeeReceiver)
+				if err != nil {
+					c.vm.Logger().Error("unable to build chunk", zap.Error(err))
+					continue
+				}
+				c.auth.Add(chunk) // this will be a no-op because we are the producer
+				c.PushChunk(context.TODO(), chunk)
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+
+	g.Go(func() error {
+		t := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				if !c.vm.isReady() {
+					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
+					continue
+				}
+				if skipChunks {
+					continue
+				}
+
+				// Attempt to build a chunk
 				chunkStart := time.Now()
 				chunk, err := chain.BuildChunk(context.TODO(), c.vm)
 				switch {

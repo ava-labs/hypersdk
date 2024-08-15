@@ -20,6 +20,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/anchor"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
@@ -594,6 +595,10 @@ func (vm *VM) SignAnchorDigest(ctx context.Context, digest []byte) ([]byte, erro
 
 func (vm *VM) HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
 	return vm.cm.HandleAnchorChunk(ctx, anchor, slot, txs, priorityFeeReceiverAddr)
+}
+
+func (vm *VM) Anchor() *anchor.Anchor {
+	return vm.anchor
 }
 
 func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {
