@@ -104,7 +104,7 @@ type GetABIReply struct {
 	ABIJSON string `json:"abi"`
 }
 
-func (*JSONRPCServer) GetABI(req *http.Request, args *GetABIArgs, reply *GetABIReply) error {
+func (*JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
 	reply.ABIJSON = string(consts.ABIString)
 	return nil
 }
