@@ -18,6 +18,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ava-labs/hypersdk/anchor"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -38,6 +39,9 @@ const (
 	chunkCertificateMsg uint8 = 0x2
 	chunkCertifiedMsg   uint8 = 0x3 // chunk + chunk certificate
 	txMsg               uint8 = 0x4
+
+	// anchor registeration message, anchorInfo + sig + pubkey
+	anchorRegisterMsg uint8 = 0xf0
 
 	chunkReq uint8 = 0x0
 	// TODO: add support for filtered chunk requests
@@ -343,6 +347,18 @@ func (c *ChunkManager) Disconnected(_ context.Context, nodeID ids.NodeID) error 
 
 	c.connected.Remove(nodeID)
 	return nil
+}
+
+func (c *ChunkManager) PushAnchorRegisterMsg(ctx context.Context, nodeID ids.NodeID, cert *anchor.AnchorRegisterMsg) {
+	msg := make([]byte, 1+cert.Size())
+	msg[0] = anchorRegisterMsg
+	certBytes, err := cert.Marshal()
+	if err != nil {
+		c.vm.Logger().Warn("failed to marshal anchor registeration msg", zap.Error(err))
+		return
+	}
+	copy(msg[1:], certBytes)
+	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: set.Of(nodeID)}, msg) // skips validators we aren't connected to
 }
 
 func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig *chain.ChunkSignature) {
