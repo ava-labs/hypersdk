@@ -7,7 +7,7 @@ members = [
     "x/programs/rust/examples/counter-external",
     "x/programs/rust/examples/automated-market-maker",
     "x/programs/rust/wasmlanche-sdk/tests/test-crate",
-    "x/programs/test/programs/*", "x/programs/simulator",
+    "x/programs/test/programs/*", "x/programs/simulator", "x/programs/rust/examples/blackjack",
 ]
 resolver = "2"
 
