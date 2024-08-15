@@ -16,10 +16,10 @@ import (
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
+	"github.com/ava-labs/avalanchego/snow/engine/enginetest"
 	"github.com/ava-labs/avalanchego/snow/validators/validatorstest"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -49,7 +49,6 @@ import (
 // Current tests removes the txFee and txUnits checks because the txs are defined by the VM, this can be left to the txAssertion but it must then add
 // a check for this in the workload generator - we can add this under Workloads()
 // Add move funds back and forth between auth types
-// Replace testSender with existing implementation in AvalancheGo
 // would it be better to add a callback into the workload generator to make sure txs are accepted before performing the check
 
 const numVMs = 3
@@ -59,9 +58,10 @@ var (
 	log        logging.Logger
 
 	// when used with embedded VMs
-	instances []instance
-	uris      []string
-	blocks    []snowman.Block
+	instances            []instance
+	sendAppGossipCounter int
+	uris                 []string
+	blocks               []snowman.Block
 
 	networkID uint32
 
@@ -130,7 +130,15 @@ func setInstances() {
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
 
-	app := &appSender{}
+	app := &enginetest.Sender{
+		SendAppGossipF: func(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
+			n := len(instances)
+			sender := instances[sendAppGossipCounter].nodeID
+			sendAppGossipCounter++
+			sendAppGossipCounter %= n
+			return instances[sendAppGossipCounter].vm.AppGossip(ctx, sender, appGossipBytes)
+		},
+	}
 	for i := range instances {
 		nodeID := ids.GenerateTestNodeID()
 		sk, err := bls.NewSecretKey()
@@ -206,7 +214,6 @@ func setInstances() {
 
 	blocks = []snowman.Block{}
 
-	app.instances = instances
 	log.Info("created instances", zap.Int("count", len(instances)))
 }
 
@@ -591,43 +598,4 @@ func expectBlk(i instance) func(add bool) []*chain.Result {
 		require.Equal(lastAccepted, blk.ID())
 		return blk.(*chain.StatelessBlock).Results()
 	}
-}
-
-var _ common.AppSender = (*appSender)(nil)
-
-type appSender struct {
-	next      int
-	instances []instance
-}
-
-func (app *appSender) SendAppGossip(ctx context.Context, _ common.SendConfig, appGossipBytes []byte) error {
-	n := len(app.instances)
-	sender := app.instances[app.next].nodeID
-	app.next++
-	app.next %= n
-	return app.instances[app.next].vm.AppGossip(ctx, sender, appGossipBytes)
-}
-
-func (*appSender) SendAppRequest(context.Context, set.Set[ids.NodeID], uint32, []byte) error {
-	return nil
-}
-
-func (*appSender) SendAppError(context.Context, ids.NodeID, uint32, int32, string) error {
-	return nil
-}
-
-func (*appSender) SendAppResponse(context.Context, ids.NodeID, uint32, []byte) error {
-	return nil
-}
-
-func (*appSender) SendCrossChainAppRequest(context.Context, ids.ID, uint32, []byte) error {
-	return nil
-}
-
-func (*appSender) SendCrossChainAppResponse(context.Context, ids.ID, uint32, []byte) error {
-	return nil
-}
-
-func (*appSender) SendCrossChainAppError(context.Context, ids.ID, uint32, int32, string) error {
-	return nil
 }
