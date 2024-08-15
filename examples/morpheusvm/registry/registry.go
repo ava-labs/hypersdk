@@ -10,6 +10,7 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 )
 
 var (
@@ -32,6 +33,17 @@ func init() {
 		Auth.Register((&auth.SECP256R1{}).GetTypeID(), auth.UnmarshalSECP256R1),
 		Auth.Register((&auth.BLS{}).GetTypeID(), auth.UnmarshalBLS),
 	)
+
+	// Adding actions to ABI
+	var actionsForABI []codec.HavingTypeId = []codec.HavingTypeId{
+		&actions.Transfer{},
+		//... add all other actions here
+	}
+
+	var err error
+	consts.ABIString, err = codec.GetVmABIString(actionsForABI)
+	errs.Add(err)
+
 	if errs.Errored() {
 		panic(errs.Err)
 	}

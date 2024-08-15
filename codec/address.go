@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -87,4 +88,9 @@ func ParseAddressBech32(hrp, saddr string) (Address, error) {
 		return EmptyAddress, ErrInsufficientLength
 	}
 	return Address(p[:AddressLen]), nil
+}
+
+// It marshals the Address as a base64-encoded string.
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + base64.StdEncoding.EncodeToString(a[:]) + `"`), nil
 }
