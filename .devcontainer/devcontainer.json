@@ -11,7 +11,7 @@
 		}
 	},
 	"mounts": [
-		"source=go_packege_cache,target=/go/pkg/mod,type=volume",
+		"source=go_package_cache,target=/go/pkg/mod,type=volume"
 	],
 	"features": {
 		//uncomment if you want to install rust
