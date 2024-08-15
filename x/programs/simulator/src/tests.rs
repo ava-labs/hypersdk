@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 #[cfg(test)]
 mod tests {
     use wasmlanche_sdk::Address;

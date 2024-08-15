@@ -154,6 +154,9 @@ func newCallProgramResponse(result []byte, fuel uint64, err error) C.CallProgram
 	}
 }
 
+// getBalance returns the balance of [account].
+// Panics if there is an error.
+//
 //export GetBalance
 func GetBalance(db *C.Mutable, address *C.Address) C.uint64_t {
 	if db == nil || address == nil {
@@ -162,7 +165,7 @@ func GetBalance(db *C.Mutable, address *C.Address) C.uint64_t {
 
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	pState := simState.NewProgramStateManager(state)
-	account := C.GoBytes(unsafe.Pointer(address), codec.AddressLen)     //nolint:all
+	account := C.GoBytes(unsafe.Pointer(address), codec.AddressLen) //nolint:all
 
 	balance, err := pState.GetBalance(SimContext, codec.Address(account))
 	if err != nil {
@@ -174,6 +177,7 @@ func GetBalance(db *C.Mutable, address *C.Address) C.uint64_t {
 
 // SetBalance sets the balance of [account] to [balance].
 // Panics if there is an error.
+//
 //export SetBalance
 func SetBalance(db *C.Mutable, address *C.Address, balance C.uint64_t) {
 	if db == nil || address == nil {
