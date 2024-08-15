@@ -21,12 +21,17 @@ import (
 
 const owner = "morpheusvm-e2e-tests"
 
+var flagVars *e2e.FlagVars
+
 func TestE2e(t *testing.T) {
 	ginkgo.RunSpecs(t, "morpheusvm e2e test suites")
 }
 
+func init() {
+	flagVars = e2e.RegisterFlags()
+}
+
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
-	flagVars := e2e.RegisterFlags()
 	require := require.New(ginkgo.GinkgoT())
 
 	gen, workloadFactory, err := workload.New(100 /* minBlockGap: 100ms */)

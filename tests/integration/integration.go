@@ -36,7 +36,7 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-// TODO(aaronbuchwald) integration tests required MinBlockGap to be 0, so that BuildBlock can be called
+// TODO integration tests require MinBlockGap to be 0, so that BuildBlock can be called
 // immediately after issuing a tx. After https://github.com/ava-labs/hypersdk/issues/1217, switch
 // integration/e2e tests to set the parameters and only allow the VM to populate VM-specific parameters.
 
