@@ -37,6 +37,7 @@ mod bindings {
 
 mod simulator;
 mod state;
+mod tests;
 
 pub use simulator::Simulator;
 pub use state::SimpleState;
