@@ -37,6 +37,8 @@ mod bindings {
 
 mod simulator;
 mod state;
+
+#[cfg(test)]
 mod tests;
 
 pub use simulator::Simulator;
