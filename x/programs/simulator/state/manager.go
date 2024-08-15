@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
@@ -104,7 +103,6 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids
 func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
 	newID := sha256.Sum256(append(programID[:], accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
-	fmt.Println("New account created with address: ", newAccount)
 	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
 }
 

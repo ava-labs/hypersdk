@@ -6,6 +6,9 @@ use token::Units;
 use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Id, Program};
 
 mod math;
+
+
+#[cfg(test)]
 mod tests;
 
 state_schema! {

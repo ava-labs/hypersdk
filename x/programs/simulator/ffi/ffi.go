@@ -132,7 +132,6 @@ func generateRandomID() (ids.ID, error) {
 	if err != nil {
 		return ids.Empty, err
 	}
-	fmt.Println("random id generated: ", id)
 	return id, nil
 }
 
