@@ -7,7 +7,7 @@ set -e
 # to run E2E tests (terminates cluster afterwards)
 # MODE=test ./scripts/run.sh
 MODE=${MODE:-run}
-if ! [[ "$0" =~ scripts/deploy.sh ]]; then
+if ! [[ "$0" =~ scripts/build_cli.sh ]]; then
   echo "must be run from morpheusvm root"
   exit 255
 fi
@@ -68,13 +68,7 @@ go build \
 
 ############################
 
-echo "starting network"
+echo "building morpheus-cli"
 
-go build -o ./exec/main/deploy-exec ./exec/main
+go build -o ./build/morpheus-cli ./cmd/morpheus-cli
 
-NUM_OF_NODES=5
-
-./exec/main/deploy-exec \
---avalanchego-path="${AVALANCHEGO_PATH}" \
---plugin-dir="${AVALANCHEGO_PLUGIN_DIR}" \
---num-of-nodes=${NUM_OF_NODES}

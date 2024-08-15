@@ -36,6 +36,10 @@ var (
 	prometheusData        string
 	startPrometheus       bool
 
+	avalancheGoPath string
+	avalancheGoPluginDir string
+	numOfNodes int
+
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
 		Short:      "MorpheusVM CLI",
@@ -52,6 +56,7 @@ func init() {
 		actionCmd,
 		spamCmd,
 		prometheusCmd,
+		deployCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -59,6 +64,7 @@ func init() {
 		defaultDatabase,
 		"path to database (will create it missing)",
 	)
+	// TODO: allow for multiple reads to DB
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		controller := NewController(dbPath)
@@ -182,6 +188,27 @@ func init() {
 	)
 	prometheusCmd.AddCommand(
 		generatePrometheusCmd,
+	)
+
+	// deploy
+	deployCmd.PersistentFlags().StringVar(
+		&avalancheGoPath,
+		"avalancheGo-path",
+		"/tmp/hypersdk/avalanchego-d729e5c7ef9f008c3e89cd7131148ad3acda2e34/avalanchego",
+		"location of avalancheGo binary",
+	)
+	deployCmd.PersistentFlags().StringVar(
+		&avalancheGoPluginDir,
+		"avalancheGo-plugin-dir",
+		"/tmp/hypersdk/avalanchego-d729e5c7ef9f008c3e89cd7131148ad3acda2e34/plugins",
+		"location of avalancheGo plugin binaries",
+	)
+
+	deployCmd.PersistentFlags().IntVar(
+		&numOfNodes,
+		"num-of-nodes",
+		1,
+		"number of nodes to deploy with",
 	)
 }
 
