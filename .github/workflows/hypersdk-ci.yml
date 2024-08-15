@@ -164,7 +164,7 @@ jobs:
         env:
           MODE: 'test'
       - name: Upload tmpnet network dir
-        uses: ./.github/actions/upload-tmpnet-artifact
+        uses: ava-labs/avalanchego/.github/actions/upload-tmpnet-artifact@v1-actions
         if: always()
         with:
           name: morpheusvm-e2e-tmpnet-data
