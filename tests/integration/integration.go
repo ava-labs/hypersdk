@@ -40,8 +40,6 @@ import (
 // immediately after issuing a tx. After https://github.com/ava-labs/hypersdk/issues/1217, switch
 // integration/e2e tests to set the parameters and only allow the VM to populate VM-specific parameters.
 
-// TODO: switch from workload generator to procedural test style for VM-defined workloads
-
 const numVMs = 3
 
 var (

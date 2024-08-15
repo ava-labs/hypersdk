@@ -18,6 +18,7 @@ import (
 type TxWorkloadFactory interface {
 	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
 	// to define each sequence of transactions that should be tested.
+	// TODO: switch from workload generator to procedural test style for VM-defined workloads
 	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
 	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
