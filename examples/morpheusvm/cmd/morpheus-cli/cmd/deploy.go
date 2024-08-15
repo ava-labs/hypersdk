@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
-	"github.com/onsi/ginkgo/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -50,7 +49,7 @@ var deployCmd = &cobra.Command{
 		network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
 		if err := tmpnet.BootstrapNewNetwork(
 			ctx,
-			ginkgo.GinkgoWriter,
+			os.Stdout,
 			network,
 			"",
 			avalancheGoPath,
