@@ -5,9 +5,9 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,7 +16,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/tests/fixture"
+	"github.com/ava-labs/hypersdk/utils"
 
 	le2e "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/e2e"
 )
@@ -54,12 +56,18 @@ var deployCmd = &cobra.Command{
 			avalancheGoPath,
 			avalancheGoPluginDir,
 		); err != nil {
-			fmt.Println(err)
+			utils.Outf(err.Error())
 			return err
 		}
 
-		fmt.Println("Bootstrapped Network!")
-		fmt.Println(network.GetNodeURIs())
+		utils.Outf("\nBootstrapped Network")
+		var rpc_url strings.Builder
+		rpc_url.WriteString(nodes[0].URI)
+		rpc_url.WriteString("/ext/bc/")
+		rpc_url.WriteString(subnet.Chains[0].ChainID.String())
+		rpc_url.WriteString(rpc.JSONRPCEndpoint)
+
+		utils.Outf("\nRPC URL is: %v\n", rpc_url.String())
 
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -68,7 +76,7 @@ var deployCmd = &cobra.Command{
 		if err := network.Stop(context.Background()); err != nil {
 			panic(err)
 		}
-		fmt.Println("\nClosed network")
+		utils.Outf("\nClosed network\n")
 
 		return nil
 	},
