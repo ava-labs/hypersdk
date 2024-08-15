@@ -26,28 +26,28 @@ import (
 
 type AbstractMockAction struct{}
 
-func (s AbstractMockAction) ComputeUnits(chain.Rules) uint64 {
+func (AbstractMockAction) ComputeUnits(chain.Rules) uint64 {
 	panic("ComputeUnits unimplemented")
 }
 
-func (s AbstractMockAction) Execute(ctx context.Context, r chain.Rules, mu state.Mutable, timestamp int64, actor codec.Address, actionID ids.ID) (outputs [][]byte, err error) {
+func (AbstractMockAction) Execute(_ context.Context, _ chain.Rules, _ state.Mutable, _ int64, _ codec.Address, _ ids.ID) (outputs [][]byte, err error) {
 	panic("Execute unimplemented")
 }
 
-func (s AbstractMockAction) Size() int {
+func (AbstractMockAction) Size() int {
 	// TODO: This has to be automatic for automatic marshalling
 	return 0
 }
 
-func (s AbstractMockAction) StateKeys(actor codec.Address, actionID ids.ID) state.Keys {
+func (AbstractMockAction) StateKeys(_ codec.Address, _ ids.ID) state.Keys {
 	panic("StateKeys unimplemented")
 }
 
-func (s AbstractMockAction) StateKeysMaxChunks() []uint16 {
+func (AbstractMockAction) StateKeysMaxChunks() []uint16 {
 	panic("StateKeysMaxChunks unimplemented")
 }
 
-func (s AbstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
+func (AbstractMockAction) ValidRange(chain.Rules) (start int64, end int64) {
 	panic("ValidRange unimplemented")
 }
 
@@ -56,7 +56,7 @@ type MockActionSingleNumber struct {
 	Field1 uint16
 }
 
-func (s MockActionSingleNumber) GetTypeID() uint8 {
+func (MockActionSingleNumber) GetTypeID() uint8 {
 	return 1
 }
 
@@ -67,14 +67,14 @@ type MockActionTransfer struct {
 	Memo  []byte        `json:"memo"`
 }
 
-func (s MockActionTransfer) GetTypeID() uint8 {
+func (MockActionTransfer) GetTypeID() uint8 {
 	return 2
 }
 
 func TestABISpec(t *testing.T) {
 	require := require.New(t)
 
-	VMActions := []codec.HavingTypeId{
+	vmActions := []codec.HavingTypeID{
 		MockActionSingleNumber{},
 		MockActionTransfer{},
 		MockActionAllNumbers{},
@@ -84,7 +84,7 @@ func TestABISpec(t *testing.T) {
 		MockActionWithTransfer{},
 		MockActionWithTransferMap{},
 	}
-	abiString, err := codec.GetVmABIString(VMActions)
+	abiString, err := codec.GetVMABIString(vmActions)
 	require.NoError(err)
 	// This JSON will be input in TypeScript
 	expectedABI := `[
@@ -291,7 +291,7 @@ func TestABISpec(t *testing.T) {
 ]`
 	require.Equal(expectedABI, string(abiString))
 
-	abiHash := sha256.Sum256([]byte(abiString))
+	abiHash := sha256.Sum256(abiString)
 	require.Equal("1b11cc4be907c26b3aa8346c07866a86ec685f63198ccbe27937a4372c49a4bd", hex.EncodeToString(abiHash[:]))
 }
 
@@ -363,7 +363,7 @@ type MockActionAllNumbers struct {
 	Int64  int64  `json:"int64"`
 }
 
-func (s MockActionAllNumbers) GetTypeID() uint8 {
+func (MockActionAllNumbers) GetTypeID() uint8 {
 	return 3
 }
 
@@ -412,7 +412,7 @@ type MockActionStringAndBytes struct {
 	Field2 []byte `json:"field2"`
 }
 
-func (s MockActionStringAndBytes) GetTypeID() uint8 {
+func (MockActionStringAndBytes) GetTypeID() uint8 {
 	return 4
 }
 
@@ -464,7 +464,7 @@ func TestMarshalStringAndBytesSpec(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			structJSON, err := json.Marshal(tc.action)
 			require.NoError(err)
 			require.JSONEq(tc.expectedJSON, string(structJSON))
@@ -493,7 +493,7 @@ type MockActionArrays struct {
 	Int64s  []int64  `json:"int64s"`
 }
 
-func (s MockActionArrays) GetTypeID() uint8 {
+func (MockActionArrays) GetTypeID() uint8 {
 	return 5
 }
 
@@ -572,7 +572,7 @@ type MockActionWithTransfer struct {
 	Transfer MockActionTransfer `json:"transfer"`
 }
 
-func (s MockActionWithTransfer) GetTypeID() uint8 {
+func (MockActionWithTransfer) GetTypeID() uint8 {
 	return 6
 }
 
@@ -581,7 +581,7 @@ type MockActionWithTransferArray struct {
 	Transfers []MockActionTransfer `json:"transfers"`
 }
 
-func (s MockActionWithTransferArray) GetTypeID() uint8 {
+func (MockActionWithTransferArray) GetTypeID() uint8 {
 	return 7
 }
 
@@ -590,7 +590,7 @@ type MockActionWithTransferMap struct {
 	TransfersMap map[string]MockActionTransfer `json:"transfersMap"`
 }
 
-func (s MockActionWithTransferMap) GetTypeID() uint8 {
+func (MockActionWithTransferMap) GetTypeID() uint8 {
 	return 8
 }
 

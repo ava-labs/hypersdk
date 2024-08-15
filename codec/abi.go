@@ -22,11 +22,11 @@ type SingleActionABI struct {
 	Types map[string][]ABIField `json:"types"`
 }
 
-type HavingTypeId interface {
+type HavingTypeID interface {
 	GetTypeID() uint8
 }
 
-func GetVmABIString(actions []HavingTypeId) ([]byte, error) {
+func GetVMABIString(actions []HavingTypeID) ([]byte, error) {
 	vmABI := make([]SingleActionABI, 0)
 	for _, action := range actions {
 		actionABI, err := getActionABI(action)
@@ -38,7 +38,7 @@ func GetVmABIString(actions []HavingTypeId) ([]byte, error) {
 	return json.MarshalIndent(vmABI, "", "  ")
 }
 
-func getActionABI(action HavingTypeId) (SingleActionABI, error) {
+func getActionABI(action HavingTypeID) (SingleActionABI, error) {
 	t := reflect.TypeOf(action)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -53,7 +53,7 @@ func getActionABI(action HavingTypeId) (SingleActionABI, error) {
 	typesleft := []reflect.Type{t}
 	typesAlreadyProcessed := make(map[reflect.Type]bool)
 
-	for i := 0; i < 1000; i++ { // curcuit breakers are always good
+	for i := 0; i < 1000; i++ { // circuit breakers are always good
 		var nextType reflect.Type
 		nextTypeFound := false
 		for _, anotherType := range typesleft {
@@ -110,16 +110,14 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 			fields = append(fields, embeddedFields...)
 			otherStructsSeen = append(otherStructsSeen, moreTypes...)
 		} else {
-
 			arrayPrefix := ""
 
 			for i := 0; i < 100; i++ {
-				if fieldType.Kind() == reflect.Slice {
-					arrayPrefix += "[]"
-					fieldType = fieldType.Elem()
-				} else {
+				if fieldType.Kind() != reflect.Slice {
 					break
 				}
+				arrayPrefix += "[]"
+				fieldType = fieldType.Elem()
 			}
 
 			typeName := arrayPrefix + fieldType.Name()

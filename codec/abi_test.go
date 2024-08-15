@@ -16,14 +16,14 @@ type Struct1 struct {
 	Field2 int32
 }
 
-func (s Struct1) GetTypeID() uint8 {
+func (Struct1) GetTypeID() uint8 {
 	return 1
 }
 
 func TestGetABIBasic(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{Struct1{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{Struct1{}})
 	require.NoError(err)
 	require.JSONEq(`[
 		{
@@ -48,7 +48,7 @@ func TestGetABIBasic(t *testing.T) {
 func TestGetABIBasicPtr(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{&Struct1{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{&Struct1{}})
 	require.NoError(err)
 	require.JSONEq(`[
 		{
@@ -76,14 +76,14 @@ type Transfer struct {
 	Memo  []byte        `json:"memo,omitempty"`
 }
 
-func (t Transfer) GetTypeID() uint8 {
+func (Transfer) GetTypeID() uint8 {
 	return 2
 }
 
 func TestGetABITransfer(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{Transfer{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{Transfer{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -112,14 +112,14 @@ type AllInts struct {
 	Uint64 uint64
 }
 
-func (a AllInts) GetTypeID() uint8 {
+func (AllInts) GetTypeID() uint8 {
 	return 3
 }
 
 func TestGetABIAllInts(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{AllInts{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{AllInts{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -151,14 +151,14 @@ type OuterStructSingle struct {
 	SingleItem InnerStruct `json:"single_item"`
 }
 
-func (o OuterStructSingle) GetTypeID() uint8 {
+func (OuterStructSingle) GetTypeID() uint8 {
 	return 4
 }
 
 func TestGetABIOuterStructSingle(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{OuterStructSingle{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{OuterStructSingle{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -191,14 +191,14 @@ type OuterStructArray struct {
 	Items []InnerStruct `json:"items"`
 }
 
-func (o OuterStructArray) GetTypeID() uint8 {
+func (OuterStructArray) GetTypeID() uint8 {
 	return 5
 }
 
 func TestGetABIOuterStructArray(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{OuterStructArray{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{OuterStructArray{}})
 	require.NoError(err)
 
 	require.JSONEq(`[
@@ -231,7 +231,7 @@ type CompositionInner struct {
 	InnerField1 uint64
 }
 
-func (c CompositionInner) GetTypeID() uint8 {
+func (CompositionInner) GetTypeID() uint8 {
 	return 5
 }
 
@@ -241,14 +241,14 @@ type CompositionOuter struct {
 	Field2 string
 }
 
-func (c CompositionOuter) GetTypeID() uint8 {
+func (CompositionOuter) GetTypeID() uint8 {
 	return 6
 }
 
 func TestGetABIComposition(t *testing.T) {
 	require := require.New(t)
 
-	abiString, err := codec.GetVmABIString([]codec.HavingTypeId{CompositionOuter{}})
+	abiString, err := codec.GetVMABIString([]codec.HavingTypeID{CompositionOuter{}})
 	require.NoError(err)
 
 	require.JSONEq(`[

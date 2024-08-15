@@ -35,13 +35,13 @@ func init() {
 	)
 
 	// Adding actions to ABI
-	var actionsForABI []codec.HavingTypeId = []codec.HavingTypeId{
+	var actionsForABI []codec.HavingTypeID = []codec.HavingTypeID{
 		&actions.Transfer{},
 		//... add all other actions here
 	}
 
 	var err error
-	consts.ABIString, err = codec.GetVmABIString(actionsForABI)
+	consts.ABIString, err = codec.GetVMABIString(actionsForABI)
 	errs.Add(err)
 
 	if errs.Errored() {
