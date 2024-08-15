@@ -317,21 +317,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 					p.results[chunkIndex][txIndex] = &Result{Valid: false}
 					return nil, nil
 				}
-			} else { // from Anchor, which we allow
-				if chunk.Anchor.BlockType == AnchorRoB {
-					parition, err := p.vm.AddressPartitionByNamespace(ctx, txEpoch, *epochHeight, tx.Action.NMTNamespace(), tx.Partition())
-					if err != nil {
-						p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
-						p.results[chunkIndex][txIndex] = &Result{Valid: false}
-						return nil, nil
-					}
-					if parition != chunk.Producer {
-						p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
-						p.results[chunkIndex][txIndex] = &Result{Valid: false}
-						return nil, nil
-					}
-				}
 			}
+			// TODO: some checks are needed to ensure that the Anchor chunk is issued by a correct validator
 
 			// Check that transaction isn't frozen (can avoid state lookups)
 			//
