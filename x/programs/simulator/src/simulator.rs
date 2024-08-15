@@ -31,14 +31,16 @@ pub enum SimulatorError {
 
 #[link(name = "simulator")]
 extern "C" {
-    fn CreateProgram(db: usize, path: *const c_char) -> CreateProgramResponse;
+    #[link_name = "CreateProgram"]
+    fn create_program(db: usize, path: *const c_char) -> CreateProgramResponse;
 
-    fn CallProgram(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+    #[link_name = "CallProgram"]
+    fn call_program(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 }
 
 pub struct Simulator<'a> {
     state: Mutable<'a>,
-    pub actor: Address,
+    actor: Address,
 }
 
 impl<'a> Simulator<'a> {
@@ -52,7 +54,7 @@ impl<'a> Simulator<'a> {
     pub fn create_program(&self, program_path: &str) -> CreateProgramResponse {
         let program_path = CString::new(program_path).unwrap();
         let state_addr = &self.state as *const _ as usize;
-        unsafe { CreateProgram(state_addr, program_path.as_ptr()) }
+        unsafe { create_program(state_addr, program_path.as_ptr()) }
     }
 
     pub fn call_program<T: wasmlanche_sdk::borsh::BorshSerialize>(
@@ -69,13 +71,11 @@ impl<'a> Simulator<'a> {
         let context = SimulatorCallContext::new(program, self.actor, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
 
-        unsafe { CallProgram(state_addr, &context) }
+        unsafe { call_program(state_addr, &context) }
     }
-}
 
-impl<'a> From<&Mutable<'a>> for *mut Mutable<'a> {
-    fn from(state: &Mutable) -> Self {
-        state as *const Mutable as *mut Mutable
+    pub fn set_actor(&mut self, actor: Address) {
+        self.actor = actor;
     }
 }
 

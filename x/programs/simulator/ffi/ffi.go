@@ -101,7 +101,7 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 		}
 	}
 
-	account, err := programManager.DeployProgram(context.TODO(), programID, []byte{})
+	account, err := programManager.NewAccountWithProgram(context.TODO(), programID, []byte{})
 	if err != nil {
 		errmsg := "program deployment failed: " + err.Error()
 		return C.CreateProgramResponse{
