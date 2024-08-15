@@ -35,9 +35,9 @@ func init() {
 	)
 
 	// Adding actions to ABI
-	var actionsForABI []codec.HavingTypeID = []codec.HavingTypeID{
+	actionsForABI := []codec.HavingTypeID{
 		&actions.Transfer{},
-		//... add all other actions here
+		// ...add all other actions here
 	}
 
 	var err error
