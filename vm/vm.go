@@ -264,8 +264,6 @@ func (vm *VM) Initialize(
 	vm.c, vm.handlers, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
-		controllerContext.NetworkID,
-		controllerContext.ChainID,
 		controllerContext.ChainDataDir,
 		controllerContext.Metrics,
 		controllerConfigBytes,
