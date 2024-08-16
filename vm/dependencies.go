@@ -5,11 +5,12 @@ package vm
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
-	"net/http"
-	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/trace"
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
@@ -60,8 +61,7 @@ func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, 
 	return nil
 }
 
-type baseGenesisParser struct {
-}
+type baseGenesisParser struct{}
 
 func (baseGenesisParser) ParseGenesis(b []byte) (Genesis, error) {
 	g := DefaultGenesis()

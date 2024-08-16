@@ -6,6 +6,7 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -175,8 +176,7 @@ func (r *UnchangingRuleFactory) GetRules(_ int64) chain.Rules {
 	return r.UnchangingRules
 }
 
-type baseRuleParser struct {
-}
+type baseRuleParser struct{}
 
 func (baseRuleParser) ParseRules(initialBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error) {
 	rules, err := LoadBaseRules(initialBytes, networkID, chainID)
