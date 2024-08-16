@@ -73,7 +73,7 @@ func TestGetABIBasicPtr(t *testing.T) {
 type Transfer struct {
 	To    codec.Address `json:"to"`
 	Value uint64        `json:"value"`
-	Memo  []byte        `json:"memo,omitempty"`
+	Memo  []byte        `json:"memo,omitempty" mask:"byteString"`
 }
 
 func (Transfer) GetTypeID() uint8 {
@@ -94,7 +94,7 @@ func TestGetABITransfer(t *testing.T) {
 				"Transfer": [
 					{ "name": "to", "type": "Address" },
 					{ "name": "value", "type": "uint64" },
-					{ "name": "memo", "type": "[]uint8" }
+					{ "name": "memo", "type": "[]uint8", "mask": "byteString" }
 				]
 			}
 		}

@@ -14,6 +14,7 @@ import (
 type ABIField struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	Mask string `json:"mask,omitempty"`
 }
 
 type SingleActionABI struct {
@@ -95,10 +96,17 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 		field := t.Field(i)
 		fieldType := field.Type
 		fieldName := field.Name
+		mask := ""
 
-		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+		jsonTag := field.Tag.Get("json")
+		if jsonTag != "" {
 			parts := strings.Split(jsonTag, ",")
 			fieldName = parts[0]
+		}
+
+		maskTag := field.Tag.Get("mask")
+		if maskTag != "" {
+			mask = maskTag
 		}
 
 		if field.Anonymous && fieldType.Kind() == reflect.Struct {
@@ -131,6 +139,7 @@ func describeStruct(t reflect.Type) ([]ABIField, []reflect.Type, error) {
 			fields = append(fields, ABIField{
 				Name: fieldName,
 				Type: typeName,
+				Mask: mask,
 			})
 		}
 	}

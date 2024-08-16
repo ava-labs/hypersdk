@@ -37,7 +37,7 @@ type Transfer struct {
 	Value uint64 `json:"value"`
 
 	// Optional message to accompany transaction.
-	Memo []byte `json:"memo"`
+	Memo []byte `json:"memo" mask:"byteString"`
 }
 
 func (*Transfer) GetTypeID() uint8 {
