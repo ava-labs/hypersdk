@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::mem::size_of;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,7 +13,7 @@ pub type Id = [u8; ID_LEN];
 /// Gas type alias.
 pub type Gas = u64;
 
-/// A struct that enforces a fixed length of 32 bytes which represents an address.
+/// A struct that enforces a fixed length of 33 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 #[repr(transparent)]

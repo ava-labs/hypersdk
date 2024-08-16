@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_schema, Address};
@@ -42,7 +45,7 @@ mod tests {
         let mut simulator = Simulator::new(&mut state);
 
         let actor = Address::default();
-        simulator.actor = actor;
+        simulator.set_actor(actor);
         let error = simulator.create_program(PROGRAM_PATH).has_error();
         assert!(!error, "Create program errored")
     }

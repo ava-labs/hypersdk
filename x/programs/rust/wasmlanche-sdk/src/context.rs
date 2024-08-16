@@ -1,7 +1,10 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use crate::{
     state::{self, Error, IntoPairs, Schema, State},
     types::Address,
-    Gas, Id, Program,
+    Gas, HostPtr, Id, Program,
 };
 use borsh::BorshDeserialize;
 use std::{cell::RefCell, collections::HashMap};
@@ -108,6 +111,24 @@ impl Context {
     /// See [`State::delete`].
     pub fn delete<K: Schema>(&self, key: K) -> Result<Option<K::Value>, Error> {
         State::new(&self.state_cache).delete(key)
+    }
+
+    /// Deploy an instance of the specified program and returns the account of the new instance
+    /// # Panics
+    /// Panics if there was an issue deserializing the account
+    #[must_use]
+    pub fn deploy(&self, program_id: Id, account_creation_data: &[u8]) -> Program {
+        #[link(wasm_import_module = "program")]
+        extern "C" {
+            #[link_name = "deploy"]
+            fn deploy(ptr: *const u8, len: usize) -> HostPtr;
+        }
+        let ptr =
+            borsh::to_vec(&(program_id, account_creation_data)).expect("failed to serialize args");
+
+        let bytes = unsafe { deploy(ptr.as_ptr(), ptr.len()) };
+
+        borsh::from_slice(&bytes).expect("failed to deserialize the account")
     }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -253,6 +253,7 @@ func (vm *VM) Initialize(
 	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
 	controllerConfigBytes, err := json.Marshal(vm.config.Config)
 	if err != nil {

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 mod bindings {
     #![allow(non_upper_case_globals)]
     #![allow(non_camel_case_types)]
@@ -13,6 +16,9 @@ mod bindings {
         type Target = [u8];
 
         fn deref(&self) -> &Self::Target {
+            // # Safety:
+            // These bytes were allocated by CGo
+            // They are guaranteed to be valid for the length of the slice
             unsafe { std::slice::from_raw_parts(self.data, self.length as usize) }
         }
     }

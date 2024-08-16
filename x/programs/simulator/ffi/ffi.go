@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package main
@@ -28,10 +28,9 @@ import (
 )
 
 var (
-	ErrInvalidParam     = errors.New("invalid parameter")
-	ErrRuntimeExecution = errors.New("invalid parameter")
-	SimLogger           = logging.NewLogger("Simulator")
-	SimContext          = context.TODO()
+	ErrInvalidParam = errors.New("invalid parameter")
+	SimLogger       = logging.NewLogger("Simulator")
+	SimContext      = context.TODO()
 )
 
 //export CallProgram
@@ -48,7 +47,7 @@ func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramRespon
 	rt := runtime.NewRuntime(runtime.NewConfig(), SimLogger)
 	result, err := rt.CallProgram(SimContext, callInfo)
 	if err != nil {
-		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", ErrRuntimeExecution))
+		return newCallProgramResponse(nil, 0, fmt.Errorf("error during runtime execution: %w", err))
 	}
 
 	fuel := callInfo.RemainingFuel()
@@ -101,7 +100,7 @@ func CreateProgram(db *C.Mutable, path *C.char) C.CreateProgramResponse {
 		}
 	}
 
-	account, err := programManager.DeployProgram(context.TODO(), programID, []byte{})
+	account, err := programManager.NewAccountWithProgram(context.TODO(), programID, []byte{})
 	if err != nil {
 		errmsg := "program deployment failed: " + err.Error()
 		return C.CreateProgramResponse{

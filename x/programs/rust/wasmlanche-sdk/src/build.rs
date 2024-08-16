@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::{path::Path, process::Command};
 
 pub const BUILD_DIR_NAME: &str = "build";

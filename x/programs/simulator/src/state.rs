@@ -1,5 +1,7 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use crate::bindings::{Bytes, BytesWithError};
-use libc::c_char;
 use std::{collections::HashMap, ffi::CString};
 
 // define constant error messages
@@ -35,8 +37,6 @@ impl Default for SimpleState {
     }
 }
 
-// We re-define this mutable in rust for more control over the pointer types
-// mute clippy warnings
 #[repr(C)]
 pub struct Mutable<'a> {
     pub state: &'a mut SimpleState,
@@ -57,10 +57,7 @@ impl<'a> Mutable<'a> {
 }
 
 pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> BytesWithError {
-    // let obj = unsafe { &mut *obj_ptr };
-    let value = state.get_value(&key);
-
-    match value {
+    match state.get_value(&key) {
         Some(v) => BytesWithError {
             bytes: Bytes {
                 data: v.as_ptr(),
@@ -78,23 +75,15 @@ pub extern "C" fn get_state_callback(state: &mut SimpleState, key: Bytes) -> Byt
     }
 }
 
-pub extern "C" fn insert_state_callback(
-    state: &mut SimpleState,
-    key: Bytes,
-    value: Bytes,
-) -> *const c_char {
+pub extern "C" fn insert_state_callback(state: &mut SimpleState, key: Bytes, value: Bytes) {
     state.insert(key.to_vec(), value.to_vec());
-    std::ptr::null()
 }
 
-pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) -> *const c_char {
+pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) {
     state.remove(key.to_vec());
-    std::ptr::null()
 }
 
 pub type GetStateCallback =
     extern "C" fn(simObjectPtr: &mut SimpleState, key: Bytes) -> BytesWithError;
-pub type InsertStateCallback =
-    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes) -> *const c_char;
-pub type RemoveStateCallback =
-    extern "C" fn(objectPtr: &mut SimpleState, key: Bytes) -> *const c_char;
+pub type InsertStateCallback = extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes);
+pub type RemoveStateCallback = extern "C" fn(objectPtr: &mut SimpleState, key: Bytes);
