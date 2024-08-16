@@ -12,8 +12,6 @@ bindings = []
 
 [dependencies]
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
-rand = {version = "0.8.5", features = ["small_rng"]}
-getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 simulator = { workspace = true }

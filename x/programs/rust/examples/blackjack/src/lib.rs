@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use std::hash::{DefaultHasher, Hasher};
 use wasmlanche_sdk::{public, state_schema, Address, Context};
 
 pub type Units = u64;
@@ -13,17 +13,17 @@ state_schema! {
 
 #[public]
 // Returns whether the player has bust or not
-pub fn hit(context: &mut Context) -> bool {
-    // Create RNG
-    // TODO: remove deterministic seed
-    let mut small_rng = SmallRng::seed_from_u64(0);
-
+pub fn hit(context: &mut Context, seed: u64) -> bool {
     let actor = context.actor();
     let curr_balance = context
         .get(Balance(actor))
         .expect("failed to get actor balance");
 
-    let bust = small_rng.gen_bool(0.5);
+    let mut s = DefaultHasher::new();
+    s.write_u64(seed);
+    // True if even, false if odd
+    // p = 0.5
+    let bust = (s.finish() % 2) == 0;
     if bust {
         // Delete account
         context
@@ -33,7 +33,7 @@ pub fn hit(context: &mut Context) -> bool {
         // Double balance (or init to 1 if zero)
         let new_balance = match curr_balance {
             Some(v) => v * 2,
-            None => 1
+            None => 1,
         };
 
         context
@@ -82,7 +82,6 @@ mod tests {
             .result::<u64>()
             .unwrap();
 
-        assert_eq!(value, 10);
+        assert_eq!(value, 0);
     }
-
 }
