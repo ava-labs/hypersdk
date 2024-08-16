@@ -31,6 +31,37 @@ import (
 
 const amtStr = "10.00"
 
+var (
+	priv    ed25519.PrivateKey
+	factory chain.AuthFactory
+	cli     *rpc.JSONRPCClient
+	lcli    *lrpc.JSONRPCClient
+)
+
+func init() {
+	privBytes, err := hex.DecodeString(os.Getenv("FAUCET_PRIVATE_KEY_HEX"))
+	if err != nil {
+		log.Fatalf("failed to load private key: %v", err)
+	}
+	priv = ed25519.PrivateKey(privBytes)
+	factory = auth.NewED25519Factory(priv)
+
+	rpcEndpoint := os.Getenv("RPC_ENDPOINT")
+	if rpcEndpoint == "" {
+		rpcEndpoint = "localhost:9650"
+	}
+	url := fmt.Sprintf("http://%s/ext/bc/morpheusvm", rpcEndpoint)
+	cli = rpc.NewJSONRPCClient(url)
+
+	networkID, subnetID, chainID, err := cli.Network(context.TODO())
+	if err != nil {
+		log.Fatalf("failed to get network info: %v", err)
+	}
+	fmt.Println(networkID, subnetID, chainID)
+
+	lcli = lrpc.NewJSONRPCClient(url, networkID, chainID)
+}
+
 func transferCoins(to string) (string, error) {
 	toAddr, err := codec.ParseAddressBech32(lconsts.HRP, to)
 	if err != nil {
@@ -42,30 +73,6 @@ func transferCoins(to string) (string, error) {
 		return "", fmt.Errorf("failed to parse amount: %w", err)
 	}
 
-	privBytes, err := hex.DecodeString(
-		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to load private key: %w", err)
-	}
-
-	priv := ed25519.PrivateKey(privBytes)
-	factory := auth.NewED25519Factory(priv)
-
-	rpcEndpoint := os.Getenv("RPC_ENDPOINT")
-	if rpcEndpoint == "" {
-		rpcEndpoint = "localhost:9650"
-	}
-	url := fmt.Sprintf("http://%s/ext/bc/morpheusvm", rpcEndpoint)
-	cli := rpc.NewJSONRPCClient(url)
-
-	networkID, subnetID, chainID, err := cli.Network(context.TODO())
-	if err != nil {
-		return "", fmt.Errorf("failed to get network info: %w", err)
-	}
-	fmt.Println(networkID, subnetID, chainID)
-
-	lcli := lrpc.NewJSONRPCClient(url, networkID, chainID)
 	balanceBefore, err := lcli.Balance(context.TODO(), to)
 	if err != nil {
 		return "", fmt.Errorf("failed to get balance: %w", err)
@@ -124,7 +131,7 @@ func main() {
 	// Wrap the router with the CORS handler
 	handler := c.Handler(r)
 
-	fmt.Println("Starting faucet server on http://localhost:8765")
+	fmt.Println("Starting faucet server on port 8765\nOpen http://localhost:8765/faucet/morpheus1qqgvs58cq6f0fv876f2lccay8t55fwf6vg4c77h5c3h4gjruqelk5srn9ds to test the transfer")
 
 	srv := &http.Server{
 		Addr:         ":8765",
