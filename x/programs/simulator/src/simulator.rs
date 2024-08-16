@@ -36,6 +36,12 @@ extern "C" {
 
     #[link_name = "CallProgram"]
     fn call_program(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
+
+    #[link_name = "GetBalance"]
+    fn get_balance(db: usize, account: Address) -> u64;
+
+    #[link_name = "SetBalance"]
+    fn set_balance(db: usize, account: Address, balance: u64);
 }
 
 pub struct Simulator<'a> {
@@ -76,6 +82,20 @@ impl<'a> Simulator<'a> {
 
     pub fn set_actor(&mut self, actor: Address) {
         self.actor = actor;
+    }
+
+    pub fn get_balance(&self, account: Address) -> u64 {
+        let state_addr = &self.state as *const _ as usize;
+        unsafe { get_balance(state_addr, account) }
+    }
+
+    pub fn set_balance(&mut self, account: Address, balance: u64) {
+        let state_addr = &self.state as *const _ as usize;
+        unsafe { set_balance(state_addr, account, balance) }
+    }
+
+    pub fn get_actor(&self) -> Address {
+        self.actor
     }
 }
 
