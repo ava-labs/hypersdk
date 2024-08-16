@@ -1,6 +1,8 @@
 package anchor
 
 import (
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -47,6 +49,23 @@ func (r *AnchorRegistry) Remove(url string) error {
 
 	delete(r.clients, cilentID)
 	return nil
+}
+
+func (r *AnchorRegistry) Len() int {
+	return len(r.clients)
+}
+
+func (r *AnchorRegistry) SortedAnchors() []*Anchor {
+	anchors := make([]*Anchor, 0, len(r.clients))
+	for _, anchor := range r.clients {
+		anchors = append(anchors, anchor)
+	}
+
+	slices.SortFunc(anchors, func(a, b *Anchor) int {
+		return strings.Compare(a.Url, b.Url)
+	})
+
+	return anchors
 }
 
 type Anchor struct {

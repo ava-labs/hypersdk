@@ -268,6 +268,31 @@ func (p *ProposerMonitor) AddressPartition(ctx context.Context, epoch uint64, he
 	return info.partitionSet[int(partitionIdx)], nil
 }
 
+// returns validatorIdx -> indexes of a set of anchors
+func (p *ProposerMonitor) PartitionArray(ctx context.Context, epoch uint64, height uint64, targetLength int, validatorLength int) map[int][]int {
+	seedBytes := make([]byte, consts.Uint64Len)
+	binary.BigEndian.PutUint64(seedBytes, epoch)
+	binary.BigEndian.PutUint64(seedBytes[consts.Uint64Len:], height)
+	seed := utils.ToID(seedBytes)
+	shift := new(big.Int).SetBytes(seed[:]).Int64()
+
+	ret := make(map[int][]int)
+
+	for i := 0; i < validatorLength; i++ {
+		ret[i] = make([]int, 0)
+	}
+
+	inc := 0
+	for j := 0; j < targetLength; j++ {
+		validatorIdx := (int(shift) + inc) % validatorLength
+		l := ret[validatorIdx]
+		l = append(l, j)
+		ret[validatorIdx] = l
+	}
+
+	return ret
+}
+
 func (p *ProposerMonitor) AddressPartitionByNamespace(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
 	// Get determinisitc ordering of validators
 	info, ok := p.proposers.Get(height)
