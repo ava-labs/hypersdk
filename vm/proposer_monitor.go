@@ -282,9 +282,8 @@ func (p *ProposerMonitor) PartitionArray(ctx context.Context, epoch uint64, heig
 		ret[i] = make([]int, 0)
 	}
 
-	inc := 0
 	for j := 0; j < targetLength; j++ {
-		validatorIdx := (int(shift) + inc) % validatorLength
+		validatorIdx := (int(shift) + j) % validatorLength
 		l := ret[validatorIdx]
 		l = append(l, j)
 		ret[validatorIdx] = l
