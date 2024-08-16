@@ -114,7 +114,7 @@ func transferCoins(to string) (string, error) {
 		return "", fmt.Errorf("failed to wait for balance: %w", err)
 	}
 
-	return "Coins transferred successfully to " + to, nil
+	return "Coins transferred successfully", nil
 }
 
 func main() {
