@@ -136,6 +136,9 @@ func setInstances() {
 		require.NoError(err)
 		dname, err := os.MkdirTemp("", nodeID.String()+"-chainData")
 		require.NoError(err)
+		ginkgo.DeferCleanup(func() {
+			os.RemoveAll(dname)
+		})
 		snowCtx := &snow.Context{
 			NetworkID:      networkID,
 			SubnetID:       subnetID,
@@ -223,9 +226,11 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	require := require.New(ginkgo.GinkgoT())
 
 	ginkgo.It("Ping", func() {
+		ginkgo.By("Send Ping request to every node")
 		workload.Ping(ctx, require, uris)
 	})
 	ginkgo.It("GetNetwork", func() {
+		ginkgo.By("Send GetNetwork request to every node")
 		workload.GetNetwork(ctx, require, uris, instances[0].vm.NetworkID(), instances[0].chainID)
 	})
 })
@@ -259,12 +264,12 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			require.Equal(1, instances[0].vm.Mempool().Len(context.Background()))
 		})
 
-		ginkgo.By("skip duplicate", func() {
+		ginkgo.By("skip mempool duplicate", func() {
 			_, err := instances[0].cli.SubmitTx(
 				context.Background(),
 				initialTx.Bytes(),
 			)
-			require.Error(err) //nolint:forbidigo
+			require.ErrorContains(err, vm.ErrNotAdded.Error()) //nolint:forbidigo
 		})
 
 		ginkgo.By("send gossip from node 0 to 1", func() {
@@ -275,7 +280,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			tx := chain.NewTx(
 				&chain.Base{
 					ChainID:   instances[0].chainID,
-					Timestamp: 0,
+					Timestamp: 1,
 					MaxFee:    1000,
 				},
 				initialTx.Actions,
@@ -294,7 +299,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 				context.Background(),
 				p.Bytes(),
 			)
-			require.Error(err) //nolint:forbidigo
+			require.ErrorContains(err, chain.ErrMisalignedTime.Error()) //nolint:forbidigo
 		})
 
 		ginkgo.By("skip duplicate (after gossip, which shouldn't clear)", func() {
@@ -302,7 +307,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 				context.Background(),
 				initialTx.Bytes(),
 			)
-			require.Error(err) //nolint:forbidigo
+			require.ErrorContains(err, vm.ErrNotAdded.Error()) //nolint:forbidigo
 		})
 
 		ginkgo.By("receive gossip in the node 1, and signal block build", func() {
@@ -473,7 +478,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.NoError(cli.RegisterBlocks())
 
 		// Wait for message to be sent
-		time.Sleep(2 * pubsub.MaxMessageWait)
+		time.Sleep(2 * pubsub.MaxMessageWait) // TODO: remove after websocket server rewrite
 
 		workload, err := txWorkloadFactory.NewSizedTxWorkload(uris[0], 100)
 		require.NoError(err)
