@@ -22,7 +22,10 @@ import (
 	le2e "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/e2e"
 )
 
-const owner = "morpheus-cli"
+const (
+	owner      = "morpheus-cli"
+	devNetPort = "9560"
+)
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
@@ -34,6 +37,8 @@ var deployCmd = &cobra.Command{
 		}
 
 		nodes := tmpnet.NewNodesOrPanic(numOfNodes)
+		// Set static port for DevNet
+		nodes[0].Flags["http-port"] = devNetPort
 		subnet := fixture.NewHyperVMSubnet(
 			consts.Name,
 			consts.ID,
@@ -61,7 +66,10 @@ var deployCmd = &cobra.Command{
 
 		utils.Outf("\nBootstrapped Network")
 		var rpcURL strings.Builder
-		if _, err := rpcURL.WriteString(nodes[0].URI); err != nil {
+		if _, err := rpcURL.WriteString("http://127.0.0.1:"); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString(devNetPort); err != nil {
 			return err
 		}
 		if _, err := rpcURL.WriteString("/ext/bc/"); err != nil {
