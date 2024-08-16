@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
@@ -122,8 +121,6 @@ type Controller struct {
 	log          logging.Logger
 	config       *Config
 	stateManager *storage.StateManager
-	networkID    uint32
-	chainID      ids.ID
 
 	metrics *metrics
 
