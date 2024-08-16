@@ -357,10 +357,10 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
                     const _: fn() = || {
                         #[doc(hidden)]
                         struct TypeWithoutPadding([u8; 1 + ::core::mem::size_of::<#key_type_name>()]);
-                        let _ = ::core::mem::transmute::<wasmlanche_sdk::state::PrefixedKey<#key_type_name>, TypeWithoutPadding>;
+                        let _ = ::core::mem::transmute::<wasmlanche_sdk::PrefixedKey<#key_type_name>, TypeWithoutPadding>;
                     };
 
-                    unsafe impl wasmlanche_sdk::state::Schema for #key_type_name {
+                    unsafe impl wasmlanche_sdk::Schema for #key_type_name {
                         type Value = #value_type;
 
                         fn prefix() -> u8 {
