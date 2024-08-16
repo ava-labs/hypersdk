@@ -31,6 +31,7 @@ func init() {
 	flagVars = e2e.RegisterFlags()
 }
 
+// Construct tmpnet network with a single MorpheusVM Subnet
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	require := require.New(ginkgo.GinkgoT())
 
@@ -40,6 +41,8 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	genesisBytes, err := json.Marshal(gen)
 	require.NoError(err)
 
+	// Import HyperSDK e2e test coverage and inject MorpheusVM name
+	// and workload factory to orchestrate the test.
 	he2e.SetWorkload(consts.Name, workloadFactory)
 
 	// Run only once in the first ginkgo process
