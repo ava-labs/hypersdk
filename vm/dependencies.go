@@ -119,8 +119,6 @@ type ControllerFactory interface {
 	New(
 		inner *VM, // hypersdk VM
 		log logging.Logger,
-		networkID uint32,
-		chainID ids.ID,
 		chainDataDir string,
 		gatherer avametrics.MultiGatherer,
 		configBytes []byte,

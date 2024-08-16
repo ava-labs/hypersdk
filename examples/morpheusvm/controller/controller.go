@@ -57,8 +57,6 @@ type factory struct{}
 func (*factory) New(
 	inner *vm.VM,
 	log logging.Logger,
-	networkID uint32,
-	chainID ids.ID,
 	chainDataDir string,
 	gatherer ametrics.MultiGatherer,
 	configBytes []byte,
