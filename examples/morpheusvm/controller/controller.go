@@ -5,7 +5,8 @@ package controller
 
 import (
 	"context"
-	"fmt"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -16,7 +17,6 @@ import (
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
@@ -34,6 +34,12 @@ var (
 	_ vm.ControllerFactory = (*factory)(nil)
 )
 
+type allocationManager struct{}
+
+func (allocationManager) SetBalance(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error {
+	return storage.SetBalance(ctx, mu, addr, balance)
+}
+
 func New(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		&factory{},
@@ -41,6 +47,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
+		&allocationManager{},
 		options...,
 	)
 }
@@ -54,14 +61,9 @@ func (*factory) New(
 	chainID ids.ID,
 	chainDataDir string,
 	gatherer ametrics.MultiGatherer,
-	genesisBytes []byte,
-	ruleBytes []byte,
-	_ []byte, // subnets to allow for AWM
 	configBytes []byte,
 ) (
 	vm.Controller,
-	vm.Genesis,
-	vm.RuleFactory,
 	vm.Handlers,
 	error,
 ) {
@@ -74,38 +76,20 @@ func (*factory) New(
 	var err error
 	c.metrics, err = newMetrics(gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Load config and genesis
 	c.config, err = newConfig(configBytes)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	log.Info("initialized config", zap.Any("contents", c.config))
 
-	chainGenesis, err := genesis.New(genesisBytes)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf(
-			"unable to read genesis: %w",
-			err,
-		)
-	}
-	log.Info("loaded genesis", zap.Any("genesis", chainGenesis))
-
-	rules, err := vm.LoadUnchangingRuleFactory[*vm.BaseRules](vm.LoadBaseRules, ruleBytes, chainID, networkID)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf(
-			"unable to read rules: %w",
-			err,
-		)
-	}
-	log.Info("loaded rules", zap.Any("rules", rules.UnchangingRules))
-
 	c.txDB, err = hstorage.New(pebble.NewDefaultConfig(), chainDataDir, "db", gatherer)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	acceptedSubscribers := []indexer.AcceptedSubscriber{
 		indexer.NewSuccessfulTxSubscriber(&actionHandler{c: c}),
@@ -125,14 +109,14 @@ func (*factory) New(
 	apis := map[string]http.Handler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,
-		rpc.NewJSONRPCServer(c, chainGenesis, rules),
+		rpc.NewJSONRPCServer(c, inner.Genesis().(*vm.BaseGenesis), inner.RuleFactory()),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	apis[rpc.JSONRPCEndpoint] = jsonRPCHandler
 
-	return c, chainGenesis, rules, apis, nil
+	return c, apis, nil
 }
 
 type Controller struct {
@@ -140,6 +124,8 @@ type Controller struct {
 	log          logging.Logger
 	config       *Config
 	stateManager *storage.StateManager
+	networkID    uint32
+	chainID      ids.ID
 
 	metrics *metrics
 

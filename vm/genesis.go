@@ -5,11 +5,13 @@ package vm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/x/merkledb"
-
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 )
 
 var _ Genesis = (*BaseGenesis)(nil)
@@ -30,20 +32,20 @@ func (g *BaseGenesis) GetStateBranchFactor() merkledb.BranchFactor {
 	return g.StateBranchFactor
 }
 
-func Default() *BaseGenesis {
+func DefaultGenesis() *BaseGenesis {
 	return &BaseGenesis{
 		StateBranchFactor: merkledb.BranchFactor16,
 		CustomAllocation:  []*CustomAllocation{},
 	}
 }
 
-func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, addressParser AddressParser, am AllocationManager) error {
+func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, mu state.Mutable, am AllocationManager) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
 	supply := uint64(0)
 	for _, alloc := range g.CustomAllocation {
-		addr, err := addressParser.ParseAddress(alloc.Address)
+		addr, err := codec.ParseAnyHrpAddressBech32(alloc.Address)
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
@@ -51,9 +53,22 @@ func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, 
 		if err != nil {
 			return err
 		}
-		if err := am.SetBalance(addr, alloc.Balance); err != nil {
+		if err := am.SetBalance(ctx, mu, addr, alloc.Balance); err != nil {
 			return fmt.Errorf("%w: addr=%s, bal=%d", err, alloc.Address, alloc.Balance)
 		}
 	}
 	return nil
+}
+
+type baseGenesisParser struct {
+}
+
+func (bgp baseGenesisParser) ParseGenesis(b []byte) (Genesis, error) {
+	g := DefaultGenesis()
+	if len(b) > 0 {
+		if err := json.Unmarshal(b, g); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)
+		}
+	}
+	return g, nil
 }

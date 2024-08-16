@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -30,16 +29,16 @@ type Controller interface {
 
 type JSONRPCServer struct {
 	c Controller
-	g *genesis.Genesis
-	r vm.TypedRuleFactory[*vm.BaseRules]
+	g *vm.BaseGenesis
+	r vm.RuleFactory
 }
 
-func NewJSONRPCServer(c Controller, g *genesis.Genesis, r vm.TypedRuleFactory[*vm.BaseRules]) *JSONRPCServer {
+func NewJSONRPCServer(c Controller, g *vm.BaseGenesis, r vm.RuleFactory) *JSONRPCServer {
 	return &JSONRPCServer{c: c, g: g, r: r}
 }
 
 type GenesisReply struct {
-	Genesis *genesis.Genesis `json:"genesis"`
+	Genesis *vm.BaseGenesis `json:"genesis"`
 }
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
@@ -52,7 +51,7 @@ type RulesReply struct {
 }
 
 func (j *JSONRPCServer) Rules(_ *http.Request, _ *struct{}, reply *RulesReply) (err error) {
-	reply.Rules = j.r.GetTypedRules(0)
+	reply.Rules = j.r.GetRules(0).(*vm.BaseRules)
 	return nil
 }
 

@@ -65,8 +65,16 @@ func (vm *VM) Logger() logging.Logger {
 	return vm.snowCtx.Log
 }
 
+func (vm *VM) RuleFactory() RuleFactory {
+	return vm.ruleFactory
+}
+
 func (vm *VM) Rules(t int64) chain.Rules {
 	return vm.ruleFactory.GetRules(t)
+}
+
+func (vm *VM) Genesis() Genesis {
+	return vm.genesis
 }
 
 func (vm *VM) LastAcceptedBlock() *chain.StatelessBlock {

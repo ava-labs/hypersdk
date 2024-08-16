@@ -7,6 +7,7 @@ import (
 	"context"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"net/http"
 	"time"
 
@@ -87,38 +88,26 @@ func NewConfig() Config {
 }
 
 type Genesis interface {
-	LoadAllocations(ctx context.Context, tracer avatrace.Tracer, addressParser AddressParser, am AllocationManager) error
+	LoadAllocations(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, am AllocationManager) error
 	GetStateBranchFactor() merkledb.BranchFactor
 }
 
-type GenesisLoader interface {
-	SetBalance(address codec.Address, amount uint64) error
-}
-
-type AddressParser interface {
-	ParseAddress(addressString string) (codec.Address, error)
+type GenesisParser interface {
+	ParseGenesis(genesisBytes []byte) (Genesis, error)
 }
 
 type AllocationManager interface {
-	SetBalance(address codec.Address, amount uint64) error
+	SetBalance(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error
 }
 
 type RuleParser interface {
-	ParseRules(initialBytes []byte, upgradeBytes []byte) RuleFactory
-}
-
-type RuleParserGeneric[T chain.Rules] interface {
-	ParseRulesGeneric(initialBytes []byte, upgradeBytes []byte) RuleFactoryGeneric[T]
-	RuleParser
+	// ParseRules constructs a ruleFactory given the initial bytes and any upgrades
+	// currently networkID and chainID are defined in the snow context, but still required to be exposed by rules
+	ParseRules(initialBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)
 }
 
 type RuleFactory interface {
 	GetRules(t int64) chain.Rules
-}
-
-type RuleFactoryGeneric[T chain.Rules] interface {
-	RuleFactory
-	GetRulesGeneric(t int64) T
 }
 
 type AuthEngine interface {
@@ -134,14 +123,9 @@ type ControllerFactory interface {
 		chainID ids.ID,
 		chainDataDir string,
 		gatherer avametrics.MultiGatherer,
-		genesisBytes []byte,
-		rulesBytes []byte,
-		rulesUpgradeBytes []byte,
 		configBytes []byte,
 	) (
 		Controller,
-		Genesis,
-		RuleFactory,
 		Handlers,
 		error,
 	)

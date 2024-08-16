@@ -22,14 +22,14 @@ func WithManualGossiper() Option {
 	}
 }
 
-func WithRuleUpgrader(ru RuleUpgrader) Option {
+func WithRuleParser(rp RuleParser) Option {
 	return func(vm *VM) {
-		vm.ruleUpgrader = ru
+		vm.ruleParser = rp
 	}
 }
 
-func WithGenesisUpgrader(ru RuleUpgrader) Option {
+func WithGenesisParser(gp GenesisParser) Option {
 	return func(vm *VM) {
-		vm.ruleUpgrader = ru
+		vm.genesisParser = gp
 	}
 }

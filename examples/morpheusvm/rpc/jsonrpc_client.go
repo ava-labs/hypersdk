@@ -11,7 +11,6 @@ import (
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/requester"
@@ -22,8 +21,10 @@ import (
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
-	g         *genesis.Genesis
+	g         *vm.BaseGenesis
 	rules     *vm.BaseRules
+	networkID uint32
+	chainID   ids.ID
 }
 
 // NewJSONRPCClient creates a new client object.
@@ -31,10 +32,10 @@ func NewJSONRPCClient(uri string) *JSONRPCClient {
 	uri = strings.TrimSuffix(uri, "/")
 	uri += JSONRPCEndpoint
 	req := requester.New(uri, consts.Name)
-	return &JSONRPCClient{req, nil, nil}
+	return &JSONRPCClient{req, nil, nil, 0, ids.Empty}
 }
 
-func (cli *JSONRPCClient) Genesis(ctx context.Context) (*genesis.Genesis, error) {
+func (cli *JSONRPCClient) Genesis(ctx context.Context) (*vm.BaseGenesis, error) {
 	if cli.g != nil {
 		return cli.g, nil
 	}
@@ -146,12 +147,8 @@ func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
-	genesis *genesis.Genesis
+	genesis *vm.BaseGenesis
 	rules   vm.RuleFactory
-}
-
-func (p *Parser) ChainID() ids.ID {
-	return p.Rules(0).GetChainID()
 }
 
 func (p *Parser) Rules(t int64) chain.Rules {
@@ -175,5 +172,5 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{genesis: g, rules: &vm.UnchangingRuleFactory[*vm.BaseRules]{UnchangingRules: rules}}, nil
+	return &Parser{genesis: g, rules: &vm.UnchangingRuleFactory{UnchangingRules: rules}}, nil
 }

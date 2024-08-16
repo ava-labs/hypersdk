@@ -36,7 +36,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -171,12 +170,12 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	type genAndRules struct {
-		*genesis.Genesis
+		*vm.BaseGenesis
 		*vm.BaseRules
 	}
 	combined := genAndRules{}
-	combined.Genesis = genesis.Default()
-	combined.Genesis.CustomAllocation = []*genesis.CustomAllocation{
+	combined.BaseGenesis = vm.DefaultGenesis()
+	combined.BaseGenesis.CustomAllocation = []*vm.CustomAllocation{
 		{
 			Address: addrStr,
 			Balance: 10_000_000,

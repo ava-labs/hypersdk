@@ -10,7 +10,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/vm"
 )
@@ -33,11 +32,11 @@ var genGenesisCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		type genAndRules struct {
-			*genesis.Genesis
+			*vm.BaseGenesis
 			*vm.BaseRules
 		}
 		combined := genAndRules{}
-		combined.Genesis = genesis.Default()
+		combined.BaseGenesis = vm.DefaultGenesis()
 		combined.BaseRules = vm.DefaultRules()
 
 		if len(minUnitPrice) > 0 {
@@ -69,7 +68,7 @@ var genGenesisCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		allocs := []*genesis.CustomAllocation{}
+		var allocs []*vm.CustomAllocation
 		if err := json.Unmarshal(a, &allocs); err != nil {
 			return err
 		}

@@ -6,7 +6,6 @@ package vm
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -80,25 +79,21 @@ func DefaultRules() *BaseRules {
 	}
 }
 
-func LoadBaseRules(b []byte, chainID ids.ID, networkID uint32) (*BaseRules, error) {
-	g := DefaultRules()
+func LoadBaseRules(b []byte, networkID uint32, chainID ids.ID) (*BaseRules, error) {
+	r := DefaultRules()
 	if len(b) > 0 {
-		if err := json.Unmarshal(b, g); err != nil {
+		if err := json.Unmarshal(b, r); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal base genesis %s: %w", string(b), err)
 		}
 	}
-	g.NetworkID = networkID
-	g.ChainID = chainID
-	return g, nil
+	r.NetworkID = networkID
+	r.ChainID = chainID
+	return r, nil
 }
 
-func (r *BaseRules) GetNetworkID() uint32 {
-	return r.NetworkID
-}
+func (r *BaseRules) GetNetworkID() uint32 { return r.NetworkID }
 
-func (r *BaseRules) GetChainID() ids.ID {
-	return r.ChainID
-}
+func (r *BaseRules) GetChainID() ids.ID { return r.ChainID }
 
 func (r *BaseRules) GetMinBlockGap() int64 {
 	return r.MinBlockGap
@@ -172,22 +167,21 @@ func (*BaseRules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
 
-type UnchangingRuleFactory[T chain.Rules] struct {
-	UnchangingRules T
+type UnchangingRuleFactory struct {
+	UnchangingRules chain.Rules
 }
 
-func (r *UnchangingRuleFactory[T]) GetTypedRules(_ int64) T {
+func (r *UnchangingRuleFactory) GetRules(t int64) chain.Rules {
 	return r.UnchangingRules
 }
 
-func (r *UnchangingRuleFactory[T]) GetRules(t int64) chain.Rules {
-	return r.GetTypedRules(t)
+type baseRuleParser struct {
 }
 
-func LoadUnchangingRuleFactory[T chain.Rules](load func(b []byte, chainID ids.ID, networkID uint32) (T, error), b []byte, chainID ids.ID, networkID uint32) (*UnchangingRuleFactory[T], error) {
-	rules, err := load(b, chainID, networkID)
+func (baseRuleParser) ParseRules(initialBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error) {
+	rules, err := LoadBaseRules(initialBytes, networkID, chainID)
 	if err != nil {
 		return nil, err
 	}
-	return &UnchangingRuleFactory[T]{UnchangingRules: rules}, nil
+	return &UnchangingRuleFactory{UnchangingRules: rules}, nil
 }
