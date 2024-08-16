@@ -1,3 +1,11 @@
+/*
+ *
+ * This header file defines a common set of types and structures used as part of the
+ * Foreign Function Interface between Go(CGO) in the context
+ * of a smart contract simulator.
+ *
+ */
+
 #include <stdint.h>
 
 typedef struct {
