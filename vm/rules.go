@@ -171,7 +171,7 @@ type UnchangingRuleFactory struct {
 	UnchangingRules chain.Rules
 }
 
-func (r *UnchangingRuleFactory) GetRules(t int64) chain.Rules {
+func (r *UnchangingRuleFactory) GetRules(_ int64) chain.Rules {
 	return r.UnchangingRules
 }
 

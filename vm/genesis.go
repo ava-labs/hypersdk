@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ava-labs/avalanchego/trace"
-	smath "github.com/ava-labs/avalanchego/utils/math"
+	safemath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
@@ -49,7 +49,7 @@ func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, 
 		if err != nil {
 			return fmt.Errorf("%w: %s", err, alloc.Address)
 		}
-		supply, err = smath.Add64(supply, alloc.Balance)
+		supply, err = safemath.Add[uint64](supply, alloc.Balance)
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, 
 type baseGenesisParser struct {
 }
 
-func (bgp baseGenesisParser) ParseGenesis(b []byte) (Genesis, error) {
+func (baseGenesisParser) ParseGenesis(b []byte) (Genesis, error) {
 	g := DefaultGenesis()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {

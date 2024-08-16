@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/hypersdk/vm"
 	"math"
 	"testing"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/vm"
 
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"

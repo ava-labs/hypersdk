@@ -5,8 +5,6 @@ package controller
 
 import (
 	"context"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -16,12 +14,14 @@ import (
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/pebble"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/vm"
 
 	ametrics "github.com/ava-labs/avalanchego/api/metrics"
