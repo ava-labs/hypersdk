@@ -8,10 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	avatrace "github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/state"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
@@ -19,9 +15,12 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
+	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
 type Handlers map[string]http.Handler

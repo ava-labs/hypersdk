@@ -9,10 +9,12 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/trace"
-	safemath "github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+
+	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ Genesis = (*BaseGenesis)(nil)
