@@ -3,7 +3,7 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Id, Program};
 
 mod math;
 
@@ -19,16 +19,24 @@ const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Program) {
+pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Id) {
+    let lt_program = context.deploy(liquidity_token, &[0, 1]);
+    let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
+    token::init(
+        &liquidity_context,
+        String::from("liquidity token"),
+        String::from("LT"),
+    );
+
     context
         .store((
             (TokenX, token_x),
             (TokenY, token_y),
-            (LiquidityToken, liquidity_token),
+            (LiquidityToken, lt_program),
         ))
         .expect("failed to set state");
 
-    let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
+    let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
 
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
@@ -170,6 +178,11 @@ pub fn remove_all_liquidity(context: &mut Context) -> (Units, Units) {
     let lp_token = external_liquidity_token(context);
     let lp_balance = token::balance_of(&lp_token, context.actor());
     remove_liquidity(context, lp_balance)
+}
+
+#[public]
+pub fn get_liquidity_token(context: &mut Context) -> Program {
+    context.get(LiquidityToken).unwrap().unwrap()
 }
 
 /// Returns the token reserves in the pool
