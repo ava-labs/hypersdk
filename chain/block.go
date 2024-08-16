@@ -50,6 +50,8 @@ type StatefulBlock struct {
 	ExecutedChunks []ids.ID `json:"executedChunks"`
 	Checksum       ids.ID   `json:"checksum"`
 
+	AnchorRegistrations []*Anchor `json:"anchorRegistrations"`
+
 	built bool
 }
 
@@ -501,11 +503,12 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	// Prune async results (if any)
 	var filteredChunks []*FilteredChunk
 	if b.execHeight != nil {
-		_, fc, err := b.vm.Engine().PruneResults(ctx, *b.execHeight)
+		_, fc, anchors, err := b.vm.Engine().PruneResults(ctx, *b.execHeight)
 		if err != nil {
 			return fmt.Errorf("%w: cannot prune results", err)
 		}
 		filteredChunks = fc
+		b.AnchorRegistrations = anchors // new registered anchors is at current block height - 3
 	}
 
 	// Notify the VM that the block has been accepted

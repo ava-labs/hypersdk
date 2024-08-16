@@ -50,7 +50,6 @@ type Config interface {
 	GetBlockBuildFrequency() time.Duration
 	GetProcessingBuildSkip() int
 	GetMinimumCertificateBroadcastNumerator() uint64
-	GetAnchorURL() string
 }
 
 type Genesis interface {

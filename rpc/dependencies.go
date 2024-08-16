@@ -11,7 +11,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/hypersdk/anchor"
 	"github.com/ava-labs/hypersdk/chain"
 )
 
@@ -43,6 +42,5 @@ type VM interface {
 
 	RecordWebsocketConnection(int)
 	RecordRPCTxInvalid()
-
-	Anchor() *anchor.Anchor
+	PushAnchorRegisterMsg(ctx context.Context, anchor *chain.Anchor)
 }

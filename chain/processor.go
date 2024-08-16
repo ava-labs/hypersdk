@@ -36,6 +36,7 @@ type Processor struct {
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
+	anchors map[string]*Anchor
 
 	// TODO: track frozen sponsors
 
@@ -232,6 +233,11 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 				return
 			}
 			p.acceptedNS[chunk.Anchor.Namespace] = struct{}{}
+		case AnchorRegister:
+			if _, exists := p.anchors[chunk.Anchor.Url]; !exists {
+				p.anchors[chunk.Anchor.Url] = chunk.Anchor
+				p.vm.Logger().Debug("adding new anchor to processor")
+			}
 		}
 	}
 
@@ -335,19 +341,24 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	p.queueWait += time.Since(queueStart)
 }
 
-func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
+func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*Anchor, error) {
 	p.vm.RecordWaitRepeat(p.repeatWait)
 	p.vm.RecordWaitQueue(p.queueWait)
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	precheckStart := time.Now()
 	if err := p.prechecker.Wait(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: prechecker failed", err)
+		return nil, nil, nil, nil, fmt.Errorf("%w: prechecker failed", err)
 	}
 	p.vm.RecordWaitPrecheck(time.Since(precheckStart))
 	exectutorStart := time.Now()
 	if err := p.executor.Wait(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
+		return nil, nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
+	anchors := make([]*Anchor, 0, len(p.anchors))
+	for _, anchor := range p.anchors {
+		anchors = append(anchors, anchor)
+	}
+
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
-	return p.txs, p.ts, p.results, nil
+	return p.txs, p.ts, p.results, anchors, nil
 }

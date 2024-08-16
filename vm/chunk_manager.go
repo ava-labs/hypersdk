@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/hypersdk/anchor"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -248,6 +247,8 @@ type ChunkManager struct {
 	incomingChunks chan *chunkGossipWrapper
 	incomingTxs    chan *txGossipWrapper
 
+	incomingAnchorRegisterMsg chan *chain.Anchor
+
 	epochHeights *cache.FIFO[uint64, uint64]
 
 	built *emap.EMap[*chunkWrapper]
@@ -347,18 +348,6 @@ func (c *ChunkManager) Disconnected(_ context.Context, nodeID ids.NodeID) error 
 
 	c.connected.Remove(nodeID)
 	return nil
-}
-
-func (c *ChunkManager) PushAnchorRegisterMsg(ctx context.Context, nodeID ids.NodeID, cert *anchor.AnchorRegisterMsg) {
-	msg := make([]byte, 1+cert.Size())
-	msg[0] = anchorRegisterMsg
-	certBytes, err := cert.Marshal()
-	if err != nil {
-		c.vm.Logger().Warn("failed to marshal anchor registeration msg", zap.Error(err))
-		return
-	}
-	copy(msg[1:], certBytes)
-	c.appSender.SendAppGossip(ctx, common.SendConfig{NodeIDs: set.Of(nodeID)}, msg) // skips validators we aren't connected to
 }
 
 func (c *ChunkManager) PushSignature(ctx context.Context, nodeID ids.NodeID, sig *chain.ChunkSignature) {
@@ -866,7 +855,11 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 		defer t.Stop()
 		for {
 			select {
-			case <-t.C:
+			case anchorRegisterMsg := <-c.incomingAnchorRegisterMsg:
+				if !anchorRegisterMsg.Creation {
+					continue
+				}
+
 				if !c.vm.isReady() {
 					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
 					continue
@@ -875,44 +868,61 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					continue
 				}
 
-				// Attempt to build a chunk
-				now := time.Now().UnixMilli() - consts.ClockSkewAllowance
-				r := c.vm.Rules(now)
-				anchorCli := c.vm.Anchor()
-				digest, err := anchorCli.RequestAnchorDigest()
+				chunk, err := chain.BuildAnchorRegisterChunk(context.TODO(), c.vm, anchorRegisterMsg)
 				if err != nil {
-					c.vm.Logger().Error("unable to fetch chunk digest from anchor", zap.Error(err))
-					continue
-				}
-				wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
-				if err != nil {
-					c.vm.Logger().Error("unable to generate warp message", zap.Error(err))
-					continue
-				}
-				sigBytes, err := c.vm.Sign(wm)
-				if err != nil {
-					c.vm.Logger().Error("unable to sign message", zap.Error(err))
-					continue
-				}
-				sig, err := bls.SignatureFromBytes(sigBytes)
-				if err != nil {
-					c.vm.Logger().Error("unable to unmarshal sig", zap.Error(err))
-					continue
+					c.vm.Logger().Error("unable to generate anchor registeration chunk", zap.Error(err))
 				}
 
-				meta, slot, txs, priorityFeeReceiver, err := anchorCli.RequestAnchorChunk(sig)
-				if err != nil {
-					c.vm.Logger().Error("unable to fetch chunk from Anchor", zap.Error(err))
-					continue
-				}
-
-				chunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, meta, slot, txs, priorityFeeReceiver)
-				if err != nil {
-					c.vm.Logger().Error("unable to build chunk", zap.Error(err))
-					continue
-				}
 				c.auth.Add(chunk) // this will be a no-op because we are the producer
 				c.PushChunk(context.TODO(), chunk)
+
+			case <-t.C:
+				// if !c.vm.isReady() {
+				// 	c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
+				// 	continue
+				// }
+				// if skipChunks {
+				// 	continue
+				// }
+
+				// // Attempt to build a chunk
+				// now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+				// r := c.vm.Rules(now)
+				// anchorCli := c.vm.Anchor()
+				// digest, err := anchorCli.RequestAnchorDigest()
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to fetch chunk digest from anchor", zap.Error(err))
+				// 	continue
+				// }
+				// wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to generate warp message", zap.Error(err))
+				// 	continue
+				// }
+				// sigBytes, err := c.vm.Sign(wm)
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to sign message", zap.Error(err))
+				// 	continue
+				// }
+				// sig, err := bls.SignatureFromBytes(sigBytes)
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to unmarshal sig", zap.Error(err))
+				// 	continue
+				// }
+
+				// meta, slot, txs, priorityFeeReceiver, err := anchorCli.RequestAnchorChunk(sig)
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to fetch chunk from Anchor", zap.Error(err))
+				// 	continue
+				// }
+
+				// chunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, meta, slot, txs, priorityFeeReceiver)
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to build chunk", zap.Error(err))
+				// 	continue
+				// }
+				// c.auth.Add(chunk) // this will be a no-op because we are the producer
+				// c.PushChunk(context.TODO(), chunk)
 			case <-c.vm.stop:
 				// If engine taking too long to process message, Shutdown will not
 				// be called.

@@ -13,9 +13,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/hypersdk/vilmo"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
+	"github.com/ava-labs/hypersdk/vilmo"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +31,8 @@ type output struct {
 
 	chunks   []*FilteredChunk
 	checksum ids.ID
+
+	anchors []*Anchor
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -120,7 +122,7 @@ func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 		p.Add(ctx, len(chunks), chunk)
 		chunks = append(chunks, chunk)
 	}
-	txSet, ts, chunkResults, err := p.Wait()
+	txSet, ts, chunkResults, newAnchors, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err)) // does not actually panic
 		return err
@@ -311,6 +313,7 @@ func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 
 		chunks:   filteredChunks,
 		checksum: checksum,
+		anchors:  newAnchors,
 	}
 	e.largestOutput = &job.blk.StatefulBlock.Height
 	e.outputsLock.Unlock()
@@ -406,19 +409,19 @@ func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, ids.ID 
 	return nil, ids.Empty, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
 
-func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, error) {
+func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, []*Anchor, error) {
 	e.outputsLock.Lock()
 	defer e.outputsLock.Unlock()
 
 	output, ok := e.outputs[height]
 	if !ok {
-		return nil, nil, fmt.Errorf("%w: %d", errors.New("not outputs found at height"), height)
+		return nil, nil, nil, fmt.Errorf("%w: %d", errors.New("not outputs found at height"), height)
 	}
 	delete(e.outputs, height)
 	if e.largestOutput != nil && *e.largestOutput == height {
 		e.largestOutput = nil
 	}
-	return output.chunkResults, output.chunks, nil
+	return output.chunkResults, output.chunks, output.anchors, nil
 }
 
 func (e *Engine) ReadLatestState(ctx context.Context, keys []string) ([][]byte, []error) {

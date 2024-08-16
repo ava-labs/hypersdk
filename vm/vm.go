@@ -79,9 +79,9 @@ type VM struct {
 	tracer trace.Tracer
 
 	// Handle chunks
-	cm     *ChunkManager
-	anchor *anchor.Anchor
-	engine *chain.Engine
+	cm             *ChunkManager
+	anchorRegistry *anchor.AnchorRegistry
+	engine         *chain.Engine
 
 	// track all issuedTxs (to prevent wasting bandwidth)
 	//
@@ -213,8 +213,8 @@ func (vm *VM) Initialize(
 	vm.networkManager.SetHandler(chunkHandler, vm.cm)
 	go vm.cm.Run(chunkSender)
 
-	anchorUrl := vm.config.GetAnchorURL()
-	vm.anchor = anchor.NewAnchor(anchorUrl, vm)
+	anchorRegistry := anchor.NewAnchorRegistry(vm)
+	vm.anchorRegistry = anchorRegistry
 
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())

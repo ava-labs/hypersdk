@@ -356,16 +356,16 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 }
 
 func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string, pubkey *bls.PublicKey, sig *bls.Signature) (bool, error) {
-	resp := new(ReplaceAnchorReply)
+	resp := new(RegisterAnchorReply)
 	err := cli.requester.SendRequest(
 		ctx,
 		"replaceAnchor",
-		&ReplaceAnchorArgs{
+		&RegisterAnchorArgs{
 			Url:       url,
 			Pubkey:    pubkey,
 			Signature: sig,
 		},
 		resp,
 	)
-	return resp.Success, err
+	return resp.Added, err
 }

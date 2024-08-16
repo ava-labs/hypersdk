@@ -361,6 +361,10 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
 
+	for _, anchor := range b.AnchorRegistrations {
+		vm.anchorRegistry.Register(anchor.Url, anchor.Namespace)
+	}
+
 	// Cleanup expired chunks we are tracking and chunk certificates
 	vm.cm.SetBuildableMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
 
@@ -597,8 +601,12 @@ func (vm *VM) HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot 
 	return vm.cm.HandleAnchorChunk(ctx, anchor, slot, txs, priorityFeeReceiverAddr)
 }
 
-func (vm *VM) Anchor() *anchor.Anchor {
-	return vm.anchor
+func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
+	return vm.anchorRegistry
+}
+
+func (vm *VM) PushAnchorRegisterMsg(ctx context.Context, anchor *chain.Anchor) {
+	vm.cm.incomingAnchorRegisterMsg <- anchor
 }
 
 func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {
