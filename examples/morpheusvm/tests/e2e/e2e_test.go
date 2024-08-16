@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/hypersdk/vm"
 	"math"
 	"testing"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/fixture"
@@ -59,20 +59,27 @@ func init() {
 	priv := ed25519.PrivateKey(privBytes)
 	factory = auth.NewED25519Factory(priv)
 
-	gen := genesis.Default()
-	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
-	// a block that exceeds the maximum size allowed by AvalancheGo.
-	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	gen.MinBlockGap = 100
-	gen.CustomAllocation = []*genesis.CustomAllocation{
+	type genAndRules struct {
+		*vm.BaseGenesis
+		*vm.BaseRules
+	}
+	combined := genAndRules{}
+	combined.BaseGenesis = vm.DefaultGenesis()
+	combined.BaseGenesis.CustomAllocation = []*vm.CustomAllocation{
 		{
 			Address: prefundedAddrStr,
 			Balance: 10_000_000_000_000,
 		},
 	}
-	genesisBytes, err = json.Marshal(gen)
+	combined.BaseRules = vm.DefaultRules()
+	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
+	combined.BaseRules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// a block that exceeds the maximum size allowed by AvalancheGo.
+	combined.BaseRules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	combined.BaseRules.MinBlockGap = 100
+
+	genesisBytes, err = json.Marshal(combined)
 	require.NoError(err)
 
 	he2e.SetWorkload(consts.Name, &workloadFactory{factory})
