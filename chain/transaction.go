@@ -59,8 +59,8 @@ func (t *Transaction) Digest() ([]byte, error) {
 	p.PackByte(uint8(len(t.Actions)))
 	for _, action := range t.Actions {
 		p.PackByte(action.GetTypeID())
-		if marshaler, ok := action.(Marshaler); ok {
-			marshaler.Marshal(p)
+		if marshaller, ok := action.(Marshaller); ok {
+			marshaller.Marshal(p)
 		} else {
 			codec.AutoMarshalStruct(p, action)
 		}
@@ -370,8 +370,8 @@ func (t *Transaction) marshalActions(p *codec.Packer) error {
 	for _, action := range t.Actions {
 		actionID := action.GetTypeID()
 		p.PackByte(actionID)
-		if marshaler, ok := action.(Marshaler); ok {
-			marshaler.Marshal(p)
+		if marshaller, ok := action.(Marshaller); ok {
+			marshaller.Marshal(p)
 		} else {
 			codec.AutoMarshalStruct(p, action)
 		}

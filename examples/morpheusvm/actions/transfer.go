@@ -86,9 +86,9 @@ func (t *Transfer) Size() int {
 	return codec.AddressLen + consts.Uint64Len + codec.BytesLen(t.Memo)
 }
 
-// Optional. Only use if you have to manually marshal the action.
+// Optional: Use only if you need to manually marshal the action.
 
-// var _ chain.Marshaler = (*Transfer)(nil)
+// var _ chain.Marshaller = (*Transfer)(nil)
 
 // func (t *Transfer) Marshal(p *codec.Packer) {
 // 	p.PackAddress(t.To)

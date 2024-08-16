@@ -185,7 +185,7 @@ type StateManager interface {
 	MetadataManager
 }
 
-type Marshaler interface {
+type Marshaller interface {
 	// Marshal encodes an [Action] as bytes.
 	Marshal(p *codec.Packer)
 }
@@ -246,7 +246,7 @@ type Action interface {
 
 type Auth interface {
 	Object
-	Marshaler
+	Marshaller
 
 	// ComputeUnits is the amount of compute required to call [Verify]. This is
 	// used to determine whether [Auth] can be included in a given block and to compute
