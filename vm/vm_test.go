@@ -55,7 +55,7 @@ func TestBlockCache(t *testing.T) {
 		mempool:        mempool.New[*chain.Transaction](tracer, 100, 32),
 		acceptedQueue:  make(chan *chain.StatelessBlock, 1024), // don't block on queue
 		c:              controller,
-		ruleFactory:    &UnchangingRuleFactory[chain.Rules]{UnchangingRules: rules},
+		ruleFactory:    &UnchangingRuleFactory{UnchangingRules: rules},
 	}
 
 	// Init metrics (called in [Accepted])
