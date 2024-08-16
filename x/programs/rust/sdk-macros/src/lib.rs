@@ -19,9 +19,10 @@ use syn::{
 
 const CONTEXT_TYPE: &str = "&mut wasmlanche_sdk::Context";
 
-/// An attribute procedural macro that makes a function visible to the VM host.
-/// It does so by creating an `extern "C" fn` that handles all pointer resolution and deserialization.
+/// The `public` attribute macro will make the function you attach it to an entry-point for your smart-contract.
 /// `#[public]` functions must have `pub` visibility and the first parameter must be of type `Context`.
+/// They can have any number of additional parameters that implement `BorshSerialize` + `BorshDeserialize`.
+/// The return type must also implement `BorshSerialize` + `BorshDeserialize`.
 #[proc_macro_attribute]
 pub fn public(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
