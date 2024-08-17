@@ -82,6 +82,7 @@ func init() {
 var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
+	nodes[0].Flags["http-port"] = "9650"
 	subnet := fixture.NewHyperVMSubnet(
 		consts.Name,
 		consts.ID,
