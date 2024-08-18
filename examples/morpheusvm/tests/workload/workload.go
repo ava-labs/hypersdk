@@ -35,15 +35,13 @@ var (
 		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
 		"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
 	}
-	ed25519PrivKeys      []ed25519.PrivateKey
-	ed25519Addrs         []codec.Address
-	ed25519AuthFactories []*auth.ED25519Factory
-	ed25519AddrStrs      []string
+	ed25519PrivKeys      = make([]ed25519.PrivateKey, len(ed25519HexKeys))
+	ed25519Addrs         = make([]codec.Address, len(ed25519HexKeys))
+	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
+	ed25519AddrStrs      = make([]string, len(ed25519HexKeys))
 )
 
 func init() {
-	ed25519PrivKeys = make([]ed25519.PrivateKey, len(ed25519HexKeys))
-	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
 	for i, keyHex := range ed25519HexKeys {
 		privBytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
 		if err != nil {
