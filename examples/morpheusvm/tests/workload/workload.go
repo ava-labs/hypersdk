@@ -26,26 +26,44 @@ import (
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
+const initialBalance uint64 = 10_000_000_000_000
+
 var (
-	_ workload.TxWorkloadFactory  = (*workloadFactory)(nil)
-	_ workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+	_              workload.TxWorkloadFactory  = (*workloadFactory)(nil)
+	_              workload.TxWorkloadIterator = (*simpleTxWorkload)(nil)
+	ed25519HexKeys                             = []string{
+		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+		"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
+	}
+	ed25519PrivKeys      []ed25519.PrivateKey
+	ed25519Addrs         []codec.Address
+	ed25519AuthFactories []*auth.ED25519Factory
+	ed25519AddrStrs      []string
 )
 
+func init() {
+	ed25519PrivKeys = make([]ed25519.PrivateKey, len(ed25519HexKeys))
+	ed25519AuthFactories = make([]*auth.ED25519Factory, len(ed25519HexKeys))
+	for i, keyHex := range ed25519HexKeys {
+		privBytes, err := codec.LoadHex(keyHex, ed25519.PrivateKeyLen)
+		if err != nil {
+			panic(err)
+		}
+		priv := ed25519.PrivateKey(privBytes)
+		ed25519PrivKeys[i] = priv
+		ed25519AuthFactories[i] = auth.NewED25519Factory(priv)
+		addr := auth.NewED25519Address(priv.PublicKey())
+		ed25519Addrs[i] = addr
+		ed25519AddrStrs[i] = codec.MustAddressBech32(consts.HRP, addr)
+	}
+}
+
 type workloadFactory struct {
-	factory *auth.ED25519Factory
-	address codec.Address
+	factories []*auth.ED25519Factory
+	addrs     []codec.Address
 }
 
 func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error) {
-	// Load default pk
-	prefundedAddrStr := "morpheus1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdjk97rwu"
-	privBytes, err := codec.LoadHex(
-		"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
-		ed25519.PrivateKeyLen,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
 	gen := genesis.Default()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
 	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
@@ -53,20 +71,16 @@ func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error
 	// a block that exceeds the maximum size allowed by AvalancheGo.
 	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	gen.MinBlockGap = minBlockGap
-	gen.CustomAllocation = []*genesis.CustomAllocation{
-		{
+	for _, prefundedAddrStr := range ed25519AddrStrs {
+		gen.CustomAllocation = append(gen.CustomAllocation, &genesis.CustomAllocation{
 			Address: prefundedAddrStr,
-			Balance: 10_000_000_000_000,
-		},
+			Balance: initialBalance,
+		})
 	}
 
-	priv := ed25519.PrivateKey(privBytes)
-	addr := auth.NewED25519Address(priv.PublicKey())
-	factory := auth.NewED25519Factory(priv)
-
 	return gen, &workloadFactory{
-		factory: factory,
-		address: addr,
+		factories: ed25519AuthFactories,
+		addrs:     ed25519Addrs,
 	}, nil
 }
 
@@ -78,7 +92,7 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 	}
 	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
 	return &simpleTxWorkload{
-		factory: f.factory,
+		factory: f.factories[0],
 		cli:     cli,
 		lcli:    lcli,
 		size:    size,
@@ -169,13 +183,9 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	}
 	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
 
-	initialBalance, err := lcli.Balance(context.TODO(), codec.MustAddressBech32(consts.HRP, f.address))
-	if err != nil {
-		return nil, err
-	}
 	generator := &mixedAuthWorkload{
 		addressAndFactories: []addressAndFactory{
-			{address: f.address, authFactory: f.factory},
+			{address: f.addrs[1], authFactory: f.factories[1]},
 			{address: blsAddr, authFactory: blsFactory},
 			{address: secpAddr, authFactory: secpFactory},
 		},
