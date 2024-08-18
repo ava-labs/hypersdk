@@ -144,7 +144,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		require.True(success)
 		balance, err := lcli.Balance(ctx, aotherStr)
 		require.NoError(err)
-		require.Equal(1, balance)
+		require.Equal(uint64(1), balance)
 	}, nil
 }
 
