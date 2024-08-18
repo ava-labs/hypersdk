@@ -5,10 +5,10 @@ package workload
 
 import (
 	"context"
-	"fmt"
 	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
@@ -137,23 +137,14 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 		return nil, nil, err
 	}
 
-	return tx, func(ctx context.Context, uri string) error {
+	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
 		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
-		}
-		if !success {
-			return fmt.Errorf("tx %s not accepted", tx.ID())
-		}
+		require.NoError(err)
+		require.True(success)
 		balance, err := lcli.Balance(ctx, aotherStr)
-		if err != nil {
-			return fmt.Errorf("failed to get balance of %s: %w", aotherStr, err)
-		}
-		if balance != 1 {
-			return fmt.Errorf("expected balance of 1, got %d", balance)
-		}
-		return nil
+		require.NoError(err)
+		require.Equal(1, balance)
 	}, nil
 }
 
@@ -242,23 +233,14 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	}
 	g.balance = expectedBalance
 
-	return tx, func(ctx context.Context, uri string) error {
+	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
 		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
-		if err != nil {
-			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
-		}
-		if !success {
-			return fmt.Errorf("tx %s not accepted", tx.ID())
-		}
+		require.NoError(err)
+		require.True(success)
 		balance, err := lcli.Balance(ctx, receiverAddrStr)
-		if err != nil {
-			return fmt.Errorf("failed to get balance of %s: %w", receiverAddrStr, err)
-		}
-		if balance != expectedBalance {
-			return fmt.Errorf("expected balance of 1, got %d", balance)
-		}
+		require.NoError(err)
+		require.Equal(expectedBalance, balance)
 		// TODO check tx fee + units (not currently available via API)
-		return nil
 	}, nil
 }
