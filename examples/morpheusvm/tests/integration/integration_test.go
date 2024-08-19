@@ -51,16 +51,3 @@ var _ = ginkgo.BeforeSuite(func() {
 		randomEd25519AuthFactory,
 	)
 })
-
-// ginkgo.It("responds on ABI request with a valid json response", func() {
-// 		abi, err := instances[0].lcli.GetABI(context.TODO())
-// 		require.NoError(err)
-
-// 		var abiJSON []map[string]interface{}
-// 		err = json.Unmarshal([]byte(abi), &abiJSON)
-// 		require.NoError(err)
-
-// 		obj := abiJSON[0]
-// 		require.Equal(obj["id"], float64(0)) // JSON numbers are parsed as float64
-// 		require.Equal(obj["name"], "Transfer")
-// 	})
