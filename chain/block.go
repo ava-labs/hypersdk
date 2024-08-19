@@ -43,14 +43,14 @@ type StatefulBlock struct {
 	Height    uint64 `json:"height"`
 	Timestamp int64  `json:"timestamp"`
 
+	Anchors []*Anchor `json:"anchors"`
+
 	// AvailableChunks is a collection of valid Chunks that will be executed in
 	// the future.
 	AvailableChunks []*ChunkCertificate `json:"availableChunks"`
 
 	ExecutedChunks []ids.ID `json:"executedChunks"`
 	Checksum       ids.ID   `json:"checksum"`
-
-	AnchorRegistrations []*Anchor `json:"anchorRegistrations"`
 
 	built bool
 }
@@ -77,6 +77,13 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackID(b.Parent)
 	p.PackUint64(b.Height)
 	p.PackInt64(b.Timestamp)
+
+	p.PackInt(len(b.Anchors))
+	for _, anchor := range b.Anchors {
+		if err := anchor.Marshal(p); err != nil {
+			return nil, err
+		}
+	}
 
 	p.PackInt(len(b.AvailableChunks))
 	for _, cert := range b.AvailableChunks {
@@ -109,6 +116,16 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
 	b.Timestamp = p.UnpackInt64(false)
+
+	numAnchors := p.UnpackInt(false)
+	b.Anchors = make([]*Anchor, 0, 16)
+	for i := 0; i < numAnchors; i++ {
+		anchor, err := UnmarshalAnchor(p)
+		if err != nil {
+			return nil, err
+		}
+		b.Anchors = append(b.Anchors, anchor)
+	}
 
 	// Parse available chunks
 	availableChunks := p.UnpackInt(false)                // can produce empty blocks
@@ -508,7 +525,11 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 			return fmt.Errorf("%w: cannot prune results", err)
 		}
 		filteredChunks = fc
-		b.AnchorRegistrations = anchors // new registered anchors is at current block height - 3
+		b.Anchors = anchors
+		b.vm.Logger().Debug("anchors of block", zap.Uint64("blockHeight", b.Height()), zap.Int("numAnchors", len(anchors)))
+		for _, anchor := range anchors {
+			b.vm.Logger().Debug("anchor info", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+		}
 	}
 
 	// Notify the VM that the block has been accepted

@@ -2,11 +2,14 @@ package chain
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/state"
@@ -36,7 +39,8 @@ type Processor struct {
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
-	anchors map[string]*Anchor
+
+	anchors []*Anchor
 
 	// TODO: track frozen sponsors
 
@@ -83,6 +87,7 @@ func NewProcessor(
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
+		anchors: make([]*Anchor, 0),
 	}
 }
 
@@ -350,11 +355,35 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, [
 	if err := p.executor.Wait(); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
-	anchors := make([]*Anchor, 0, len(p.anchors))
-	for _, anchor := range p.anchors {
-		anchors = append(anchors, anchor)
+
+	nsRaw, err := p.im.Get(context.TODO(), actions.AnchorRegistryKey())
+	switch err {
+	case database.ErrNotFound:
+		p.anchors = nil
+	case nil:
+		namespaces, err := actions.UnpackNamespaces(nsRaw)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		for _, ns := range namespaces {
+			url, err := p.im.Get(context.TODO(), actions.AnchorKey(ns))
+			if err != nil {
+				// should never happen since url and namespace are paired, should be created & deleted the same time
+				return nil, nil, nil, nil, err
+			}
+
+			anchor := Anchor{
+				Url:       string(url),
+				Namespace: hex.EncodeToString(ns),
+				BlockType: -1,
+			}
+			p.vm.Logger().Debug("anchor", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+			p.anchors = append(p.anchors, &anchor)
+		}
+	default:
+		return nil, nil, nil, nil, fmt.Errorf("state: %+v", err)
 	}
 
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
-	return p.txs, p.ts, p.results, anchors, nil
+	return p.txs, p.ts, p.results, p.anchors, nil
 }

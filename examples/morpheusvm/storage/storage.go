@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	hactions "github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -44,16 +45,18 @@ const (
 	txPrefix = 0x0
 
 	// stateDB
-	balancePrefix         = 0x0
-	heightPrefix          = 0x1
-	pHeightPrefix         = 0x2
-	timestampPrefix       = 0x3
-	feePrefix             = 0x4
-	incomingWarpPrefix    = 0x5
-	outgoingWarpPrefix    = 0x6
-	epochPrefix           = 0x7
-	anchorRegisteryPrefix = 0x8
-	anchorPrefix          = 0x9
+	balancePrefix      = 0x0
+	heightPrefix       = 0x1
+	pHeightPrefix      = 0x2
+	timestampPrefix    = 0x3
+	feePrefix          = 0x4
+	incomingWarpPrefix = 0x5
+	outgoingWarpPrefix = 0x6
+	epochPrefix        = 0x7
+
+	// anchor related prefixs, see hypersdk/actions
+	// anchorRegistryPrefix = 0xf0
+	// anchorPrefix = 0xf1
 )
 
 const BalanceChunks uint16 = 1
@@ -286,33 +289,21 @@ func EpochKey(epoch uint64) string {
 }
 
 func AnchorRegistryKey() string {
-	// state key must >= 2 bytes
-	k := make([]byte, 1+consts.Uint16Len)
-	k[0] = anchorRegisteryPrefix
-	binary.BigEndian.PutUint16(k[1:], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
-	return string(k)
+	return hactions.AnchorRegistryKey()
+
+	// // state key must >= 2 bytes
+	// k := make([]byte, 1+consts.Uint16Len)
+	// k[0] = anchorRegisteryPrefix
+	// binary.BigEndian.PutUint16(k[1:], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
+	// return string(k)
 }
 
 func PackNamespaces(namespaces [][]byte) ([]byte, error) {
-	p := codec.NewWriter(len(namespaces)*8, consts.NetworkSizeLimit)
-	p.PackInt(len(namespaces))
-	for _, ns := range namespaces {
-		p.PackBytes(ns)
-	}
-	return p.Bytes(), p.Err()
+	return hactions.PackNamespaces(namespaces)
 }
 
 func UnpackNamespaces(raw []byte) ([][]byte, error) {
-	p := codec.NewReader(raw, consts.NetworkSizeLimit)
-	nsLen := p.UnpackInt(false)
-	namespaces := make([][]byte, 0, nsLen)
-	for i := 0; i < nsLen; i++ {
-		ns := make([]byte, 0, 8)
-		p.UnpackBytes(-1, false, &ns)
-		namespaces = append(namespaces, ns)
-	}
-
-	return namespaces, p.Err()
+	return hactions.UnpackNamespaces(raw)
 }
 
 func GetAnchors(
@@ -409,11 +400,12 @@ func setAnchors(
 }
 
 func AnchorKey(namespace []byte) string {
-	k := make([]byte, 1+len(namespace)+consts.Uint16Len)
-	k[0] = anchorPrefix
-	copy(k[1:], namespace[:])
-	binary.BigEndian.PutUint16(k[1+len(namespace):], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
-	return string(k)
+	return hactions.AnchorKey(namespace)
+	// k := make([]byte, 1+len(namespace)+consts.Uint16Len)
+	// k[0] = anchorPrefix
+	// copy(k[1:], namespace[:])
+	// binary.BigEndian.PutUint16(k[1+len(namespace):], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
+	// return string(k)
 }
 
 // If locked is 0, then account does not exist

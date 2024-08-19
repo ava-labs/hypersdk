@@ -9,6 +9,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 type AnchorRegistry struct {
@@ -23,16 +24,20 @@ func NewAnchorRegistry(vm VM) *AnchorRegistry {
 	}
 }
 
+func (r *AnchorRegistry) Reset() {
+	r.clientsL.Lock()
+	defer r.clientsL.Unlock()
+
+	r.clients = make(map[ids.ID]*Anchor)
+}
+
 func (r *AnchorRegistry) Register(url string, namespace string) error {
 	anchorCli := &Anchor{
 		Url:       url,
 		vm:        r.vm,
 		Namespace: namespace,
 	}
-	clientID, err := anchorCli.ID()
-	if err != nil {
-		return err
-	}
+	clientID := anchorCli.ID()
 
 	r.clients[clientID] = anchorCli
 	return nil
@@ -82,8 +87,8 @@ func NewAnchor(url string, vm VM) *Anchor {
 	}
 }
 
-func (a *Anchor) ID() (ids.ID, error) {
-	return ids.ToID([]byte(a.Url))
+func (a *Anchor) ID() ids.ID {
+	return utils.ToID([]byte(a.Namespace + a.Url))
 }
 
 // only the Anchor provide the signature signed by the same key the validator has will be accepted

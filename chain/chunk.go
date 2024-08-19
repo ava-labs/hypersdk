@@ -27,6 +27,74 @@ type Anchor struct {
 	BlockType int    `json:"blockType"` // use to determine if it is TOB or ROB
 	Namespace string `json:"namespace"`
 	Url       string `json:"url"`
+
+	bytes []byte
+}
+
+func (a *Anchor) Size() int {
+	return consts.IntLen + codec.StringLen(a.Namespace) + codec.StringLen(a.Url)
+}
+
+func (a *Anchor) Marshal(p *codec.Packer) error {
+	if len(a.bytes) > 0 {
+		p.PackFixedBytes(a.bytes)
+		return p.Err()
+	}
+
+	p.PackInt(a.BlockType)
+	p.PackString(a.Namespace)
+	p.PackString(a.Url)
+
+	return p.Err()
+}
+
+func UnmarshalAnchor(p *codec.Packer) (*Anchor, error) {
+	ret := new(Anchor)
+	ret.BlockType = p.UnpackInt(false)
+	ret.Namespace = p.UnpackString(false)
+	ret.Url = p.UnpackString(false)
+
+	if err := p.Err(); err != nil {
+		return nil, p.Err()
+	}
+
+	return ret, nil
+}
+
+func MarshalAnchors(anchors []*Anchor) ([]byte, error) {
+	size := consts.IntLen
+	for _, a := range anchors {
+		size += a.Size()
+	}
+	p := codec.NewWriter(size, consts.NetworkSizeLimit)
+
+	p.PackInt(len(anchors))
+	for _, a := range anchors {
+		if err := a.Marshal(p); err != nil {
+			return nil, err
+		}
+	}
+
+	return p.Bytes(), p.Err()
+}
+
+func UnmarshalAnchors(raw []byte) ([]*Anchor, error) {
+	p := codec.NewReader(raw, consts.NetworkSizeLimit)
+	numAnchors := p.UnpackInt(false)
+	ret := make([]*Anchor, 0, numAnchors)
+	for i := 0; i < numAnchors; i++ {
+		a, err := UnmarshalAnchor(p)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, a)
+	}
+
+	if p.Err() != nil {
+		return nil, p.Err()
+	}
+
+	return ret, nil
 }
 
 type Chunk struct {
@@ -368,8 +436,7 @@ func (c *Chunk) Digest() ([]byte, error) {
 
 	p.PackBool(c.Anchor != nil)
 	if c.Anchor != nil {
-		p.PackInt(c.Anchor.BlockType)
-		p.PackString(c.Anchor.Namespace)
+		c.Anchor.Marshal(p)
 	}
 	// Marshal transactions
 	p.PackInt64(c.Slot)
@@ -449,8 +516,9 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	p.PackBool(isAnchorChunk)
 	fmt.Printf("anchor chunk: %+v\n", isAnchorChunk)
 	if isAnchorChunk {
-		p.PackInt(c.Anchor.BlockType)
-		p.PackString(c.Anchor.Namespace)
+		if err := c.Anchor.Marshal(p); err != nil {
+			return nil, err
+		}
 	}
 
 	bytes, err := p.Bytes(), p.Err()
@@ -525,13 +593,11 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	isAnchorChunk := p.UnpackBool()
 	fmt.Printf("anchor chunk: %+v\n", isAnchorChunk)
 	if isAnchorChunk {
-		blockType := p.UnpackInt(false)
-		namespace := p.UnpackString(false)
-		anchor := Anchor{
-			BlockType: blockType,
-			Namespace: namespace,
+		anchor, err := UnmarshalAnchor(p)
+		if err != nil {
+			return nil, err
 		}
-		c.Anchor = &anchor
+		c.Anchor = anchor
 	}
 
 	// Ensure no leftover bytes

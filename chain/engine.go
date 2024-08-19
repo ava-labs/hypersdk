@@ -122,7 +122,7 @@ func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 		p.Add(ctx, len(chunks), chunk)
 		chunks = append(chunks, chunk)
 	}
-	txSet, ts, chunkResults, newAnchors, err := p.Wait()
+	txSet, ts, chunkResults, anchors, err := p.Wait()
 	if err != nil {
 		e.vm.Logger().Fatal("chunk processing failed", zap.Error(err)) // does not actually panic
 		return err
@@ -313,8 +313,16 @@ func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 
 		chunks:   filteredChunks,
 		checksum: checksum,
-		anchors:  newAnchors,
+		anchors:  anchors,
 	}
+
+	if len(anchors) != 0 {
+		log.Debug("anchor list", zap.Uint64("blkHeight", job.blk.StatefulBlock.Height), zap.Int("numAnchors", len(anchors)))
+		for _, anchor := range anchors {
+			log.Debug("anchor", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+		}
+	}
+
 	e.largestOutput = &job.blk.StatefulBlock.Height
 	e.outputsLock.Unlock()
 

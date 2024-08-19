@@ -10,10 +10,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	hactions "github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
-	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/utils"
@@ -28,7 +28,7 @@ type AnchorRegister struct {
 }
 
 func (*AnchorRegister) GetTypeID() uint8 {
-	return mconsts.AnchorRegisterID
+	return hactions.AnchorRegisterID
 }
 
 func (t *AnchorRegister) StateKeys(actor codec.Address, _ ids.ID) state.Keys {

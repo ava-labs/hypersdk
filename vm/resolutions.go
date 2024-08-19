@@ -361,12 +361,18 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 		vm.Fatal("unable to update last accepted", zap.Error(err))
 	}
 
-	for _, anchor := range b.AnchorRegistrations {
-		vm.anchorRegistry.Register(anchor.Url, anchor.Namespace)
-	}
-
 	// Cleanup expired chunks we are tracking and chunk certificates
 	vm.cm.SetBuildableMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
+
+	vm.anchorRegistry.Reset()
+	for _, anchor := range b.Anchors {
+		if err := vm.anchorRegistry.Register(anchor.Url, anchor.Namespace); err != nil {
+			vm.Logger().Error("unable to register anchor", zap.Error(err))
+			continue
+		}
+
+		vm.Logger().Debug("registered anchor", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+	}
 
 	// Remove from verified caches
 	//
