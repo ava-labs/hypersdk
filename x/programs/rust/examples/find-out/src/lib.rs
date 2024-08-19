@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 // Here, we import the `public` attribute-macro, the `state_schema` macro,
 // and the `Address` and `Context` types
 use wasmlanche_sdk::{public, state_schema, Address, Context};
