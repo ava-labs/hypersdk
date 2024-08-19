@@ -50,7 +50,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
+
 	nodes[0].Flags["http-port"] = "9650"
+
 	subnet := fixture.NewHyperVMSubnet(
 		consts.Name,
 		consts.ID,
@@ -59,11 +61,16 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	)
 
 	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
-	return e2e.NewTestEnvironment(
-		e2e.NewTestContext(),
+	tc := e2e.NewTestContext()
+	testEnv := e2e.NewTestEnvironment(
+		tc,
 		flagVars,
 		network,
-	).Marshal()
+	)
+
+	he2e.SetupDefaultChainAlias(network.GetSubnet(consts.Name).Chains[0].ChainID, tc)
+
+	return testEnv.Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 
