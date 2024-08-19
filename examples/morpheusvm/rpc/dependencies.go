@@ -18,4 +18,5 @@ type Controller interface {
 	Tracer() trace.Tracer
 	GetTransaction(context.Context, ids.ID) (bool, int64, bool, chain.Dimensions, uint64, error)
 	GetBalanceFromState(context.Context, codec.Address) (uint64, error)
+	GetRegisteredAnchorsFromState(context.Context) ([][]byte, []string, error)
 }

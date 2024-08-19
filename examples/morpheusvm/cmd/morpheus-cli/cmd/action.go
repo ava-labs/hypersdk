@@ -59,3 +59,36 @@ var transferCmd = &cobra.Command{
 		return err
 	},
 }
+
+var anchorCmd = &cobra.Command{
+	Use: "anchor",
+	RunE: func(*cobra.Command, []string) error {
+		ctx := context.Background()
+		_, _, factory, cli, bcli, ws, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+
+		namespaceStr, err := handler.Root().PromptString("namespace", 0, 8)
+		if err != nil {
+			return err
+		}
+		namespace := []byte(namespaceStr)
+		url, err := handler.Root().PromptString("url", 0, 100)
+		if err != nil {
+			return err
+		}
+		delete, err := handler.Root().PromptBool("delete")
+		if err != nil {
+			return err
+		}
+
+		// Generate transaction
+		_, _, err = sendAndWait(ctx, nil, &actions.AnchorRegister{
+			Namespace: namespace,
+			Delete:    delete,
+			Url:       url,
+		}, cli, bcli, ws, factory, true)
+		return err
+	},
+}

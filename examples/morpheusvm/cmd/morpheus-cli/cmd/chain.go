@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -70,6 +71,27 @@ var watchChainCmd = &cobra.Command{
 			cli := brpc.NewJSONRPCClient(uri, networkID, chainID)
 			return cli.Parser(context.TODO())
 		}, handleTx)
+	},
+}
+
+var anchorsCmd = &cobra.Command{
+	Use: "anchors",
+	RunE: func(_ *cobra.Command, args []string) error {
+		ctx := context.Background()
+		_, _, _, _, bcli, _, err := handler.DefaultActor()
+		if err != nil {
+			return err
+		}
+		namespaces, urls, err := bcli.RegisteredAnchors(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("num of anchors registered: %d\n", len(namespaces))
+		for i := 0; i < len(namespaces); i++ {
+			fmt.Printf("%s: %s\n", string(namespaces[i]), urls[i])
+		}
+
+		return nil
 	},
 }
 

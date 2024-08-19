@@ -4,8 +4,9 @@
 package actions
 
 const (
-	TransferComputeUnits = 1
-	MsgComputeUnits      = 2
+	TransferComputeUnits       = 1
+	MsgComputeUnits            = 2
+	AnchorRegisterComputeUnits = 1
 )
 
 var defaultNMTNamespace = make([]byte, 8)

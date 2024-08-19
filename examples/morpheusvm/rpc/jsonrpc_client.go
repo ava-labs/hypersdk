@@ -86,6 +86,17 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, err
 	return resp.Amount, err
 }
 
+func (cli *JSONRPCClient) RegisteredAnchors(ctx context.Context) ([][]byte, []string, error) {
+	resp := new(RegisteredAnchorReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"registeredAnchors",
+		nil,
+		resp,
+	)
+	return resp.Namespaces, resp.Urls, err
+}
+
 func (cli *JSONRPCClient) WaitForBalance(
 	ctx context.Context,
 	addr string,

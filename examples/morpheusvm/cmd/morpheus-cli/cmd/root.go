@@ -155,11 +155,13 @@ func init() {
 		watchChainCmd,
 		watchPreConfsCmd,
 		watchPreConfsStandCmd,
+		anchorsCmd,
 	)
 
 	// actions
 	actionCmd.AddCommand(
 		transferCmd,
+		anchorCmd,
 	)
 
 	// spam

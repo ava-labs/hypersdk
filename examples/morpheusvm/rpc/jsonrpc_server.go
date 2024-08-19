@@ -83,3 +83,21 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 	reply.Amount = balance
 	return err
 }
+
+type RegisteredAnchorReply struct {
+	Namespaces [][]byte `json:"namespaces"`
+	Urls       []string `json:"urls"`
+}
+
+func (j *JSONRPCServer) RegisteredAnchors(req *http.Request, args *struct{}, reply *RegisteredAnchorReply) error {
+	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
+	defer span.End()
+
+	namespaces, urls, err := j.c.GetRegisteredAnchorsFromState(ctx)
+	if err != nil {
+		return err
+	}
+	reply.Namespaces = namespaces
+	reply.Urls = urls
+	return err
+}

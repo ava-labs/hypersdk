@@ -40,3 +40,9 @@ func (c *Controller) GetBalanceFromState(
 ) (uint64, error) {
 	return storage.GetBalanceFromState(ctx, c.inner.ReadState, acct)
 }
+
+func (c *Controller) GetRegisteredAnchorsFromState(
+	ctx context.Context,
+) ([][]byte, []string, error) {
+	return storage.GetAnchorsFromState(ctx, c.inner.ReadState)
+}
