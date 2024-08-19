@@ -1,0 +1,100 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+package cmd
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	"github.com/ava-labs/hypersdk/tests/fixture"
+	"github.com/ava-labs/hypersdk/utils"
+)
+
+const (
+	owner      = "morpheus-cli"
+	devNetPort = "9560"
+)
+
+var deployCmd = &cobra.Command{
+	Use:   "deploy",
+	Short: "Quickly deploy an instance of MorpheusVM",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		genesis, _, err := workload.New(minBlockGap)
+		if err != nil {
+			return err
+		}
+		genBytes, err := json.Marshal(genesis)
+		if err != nil {
+			return err
+		}
+		nodes := tmpnet.NewNodesOrPanic(numOfNodes)
+		// Set static port for DevNet
+		nodes[0].Flags["http-port"] = devNetPort
+		subnet := fixture.NewHyperVMSubnet(
+			consts.Name,
+			consts.ID,
+			genBytes,
+			nodes...,
+		)
+
+		timeOut := 2 * time.Minute
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeOut)
+		defer cancel()
+
+		network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
+		if err := tmpnet.BootstrapNewNetwork(
+			ctx,
+			os.Stdout,
+			network,
+			"",
+			avalancheGoPath,
+			avalancheGoPluginDir,
+		); err != nil {
+			utils.Outf(err.Error())
+			return err
+		}
+
+		utils.Outf("\nBootstrapped Network")
+		var rpcURL strings.Builder
+		if _, err := rpcURL.WriteString("http://127.0.0.1:"); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString(devNetPort); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString("/ext/bc/"); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString(subnet.Chains[0].ChainID.String()); err != nil {
+			return err
+		}
+		if _, err := rpcURL.WriteString(rpc.JSONRPCEndpoint); err != nil {
+			return err
+		}
+		utils.Outf("\nRPC URL is: %v\n", rpcURL.String())
+
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+		<-signals
+		if err := network.Stop(context.Background()); err != nil {
+			panic(err)
+		}
+		utils.Outf("\nClosed network\n")
+
+		return nil
+	},
+}
