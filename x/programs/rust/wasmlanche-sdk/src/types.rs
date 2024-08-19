@@ -2,6 +2,7 @@
 // See the file LICENSE for licensing terms.
 
 use std::mem::size_of;
+use std::num::NonZeroU64;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
@@ -11,7 +12,7 @@ pub const ID_LEN: usize = 32;
 /// Action id.
 pub type Id = [u8; ID_LEN];
 /// Gas type alias.
-pub type Gas = u64;
+pub type Gas = NonZeroU64;
 
 /// A struct that enforces a fixed length of 33 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]

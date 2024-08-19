@@ -136,13 +136,13 @@ impl Context {
 #[allow(clippy::module_name_repetitions)]
 pub struct ExternalCallContext {
     program: Program,
-    max_units: Gas,
+    max_units: Option<Gas>,
     value: u64,
 }
 
 impl ExternalCallContext {
     #[must_use]
-    pub fn new(program: Program, max_units: Gas, value: u64) -> Self {
+    pub fn new(program: Program, max_units: Option<Gas>, value: u64) -> Self {
         Self {
             program,
             max_units,
@@ -156,8 +156,8 @@ impl ExternalCallContext {
     }
 
     #[must_use]
-    pub fn max_units(&self) -> Gas {
-        self.max_units
+    pub fn max_units(&self) -> u64 {
+        self.max_units.map(|num| num.into()).unwrap_or_default()
     }
 
     #[must_use]

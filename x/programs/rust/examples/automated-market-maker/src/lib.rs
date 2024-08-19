@@ -15,8 +15,6 @@ state_schema! {
     LiquidityToken => Program,
 }
 
-const MAX_GAS: Gas = 10000000;
-
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
 pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Program) {
@@ -28,7 +26,7 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
         ))
         .expect("failed to set state");
 
-    let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
+    let liquidity_context = ExternalCallContext::new(liquidity_token, None, 0);
 
     let transfer_reuslt =
         token::transfer_ownership(&liquidity_context, *context.program().account());
@@ -211,20 +209,21 @@ fn token_programs(context: &mut Context) -> (Program, Program) {
             .expect("token y not initialized"),
     )
 }
+
 /// Returns the external call contexts for the tokens in the pool
 fn external_token_contracts(context: &mut Context) -> (ExternalCallContext, ExternalCallContext) {
     let (token_x, token_y) = token_programs(context);
 
     (
-        ExternalCallContext::new(token_x, MAX_GAS, 0),
-        ExternalCallContext::new(token_y, MAX_GAS, 0),
+        ExternalCallContext::new(token_x, None, 0),
+        ExternalCallContext::new(token_y, None, 0),
     )
 }
 
 /// Returns the external call context for the liquidity token
 fn external_liquidity_token(context: &mut Context) -> ExternalCallContext {
     let token = context.get(LiquidityToken).unwrap().unwrap();
-    ExternalCallContext::new(token, MAX_GAS, 0)
+    ExternalCallContext::new(token, None, 0)
 }
 
 mod internal {
