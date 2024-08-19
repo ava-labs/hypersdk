@@ -6,6 +6,7 @@ package grpcindexer
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -15,24 +16,37 @@ import (
 	pb "github.com/ava-labs/hypersdk/proto"
 )
 
-var _ indexer.AcceptedSubscriber = (*ExternalSubscriber)(nil)
+var _ indexer.AcceptedSubscriber = (*ExternalSubscriberClient)(nil)
 
-type ExternalSubscriber struct {
+type ExternalSubscriberClient struct {
 	client pb.ExternalSubscriberClient
 }
 
-func NewExternalSubscriber(server string) (*ExternalSubscriber, error) {
+func NewExternalSubscriberClient(ctx context.Context, server string, networkID uint32, chainID ids.ID, genBytes []byte) (*ExternalSubscriberClient, error) {
+	// Establish connection to server
 	conn, err := grpc.Dial(server, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
-	return &ExternalSubscriber{
-		client: pb.NewExternalSubscriberClient(conn),
+	client := pb.NewExternalSubscriberClient(conn)
+	// Initialize parser
+	_, err = client.Initialize(
+		ctx,
+		&pb.InitRequest{
+			NetworkID: networkID,
+			ChainID:   chainID[:],
+			Genesis:   genBytes,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &ExternalSubscriberClient{
+		client: client,
 	}, nil
 }
 
-// TODO: send results as well to allow for marshaling Stateless blocks
-func (e *ExternalSubscriber) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+func (e *ExternalSubscriberClient) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
 	// Make gRPC call to client
 	blockBytes, err := blk.Marshal()
 	if err != nil {

@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -17,11 +18,11 @@ import (
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/config"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/version"
+	"github.com/ava-labs/hypersdk/extension/grpcindexer"
 	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/ava-labs/hypersdk/vm"
@@ -115,7 +116,8 @@ func (*factory) New(
 
 	if c.config.ExportedBlockSubcriberAddress != "" {
 		// Connect to gRPC server
-		externalSubscriber, err := externalsubscriber.NewMorpheusSubscriber(context.Background(), c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, c.genesis, c.log)
+		genBytes, _ := json.Marshal(c.genesis)
+		externalSubscriber, err := grpcindexer.NewExternalSubscriberClient(context.Background(), c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, genBytes)
 		// Immediately fail if we couldn't connect
 		if err != nil {
 			return nil, nil, nil, err

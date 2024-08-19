@@ -4,23 +4,34 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/ava-labs/avalanchego/utils/json"
-	"github.com/gorilla/rpc/v2"
+	"github.com/ava-labs/avalanchego/ids"
 	"google.golang.org/grpc"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/externalsubscriber"
+	"github.com/ava-labs/hypersdk/chain"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/extension/grpcindexer"
 
 	pb "github.com/ava-labs/hypersdk/proto"
 )
 
-// Spins up a Sidecar server (gRPC server and API server)
+// Used as a lambda function for creating ExternalSubscriberServer parser
+func ParserFactory(networkID uint32, chainID ids.ID, genBytes []byte) (chain.Parser, error) {
+	var genesis genesis.Genesis
+	if err := json.Unmarshal(genBytes, &genesis); err != nil {
+		return nil, err
+	}
+	parser := rpc.NewParser(networkID, chainID, &genesis)
+	return parser, nil
+}
+
 func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -28,17 +39,15 @@ func main() {
 	stdDBDir := "./stdDB/"
 	logger := log.Default()
 
-	morpheusSidecar := externalsubscriber.NewMorpheusSidecar(stdDBDir, logger)
+	externalSubscriberServer := grpcindexer.NewExternalSubscriberServer(stdDBDir, logger, ParserFactory)
 
-	go startGRPCServer(morpheusSidecar)
-	go startMorpheusAPI(morpheusSidecar)
+	go startGRPCServer(externalSubscriberServer)
 
-	// Wait for a signal
 	<-signals
-	morpheusSidecar.Logger.Println("\nShutting down...")
+	externalSubscriberServer.Logger.Println("\nShutting down...")
 }
 
-func startGRPCServer(m *externalsubscriber.MorpheusSidecar) {
+func startGRPCServer(m *grpcindexer.ExternalSubscriberServer) {
 	lis, err := net.Listen("tcp", ":9001") // #nosec G102
 	if err != nil {
 		m.Logger.Fatalln("could not listen to TCP port 9001")
@@ -52,21 +61,4 @@ func startGRPCServer(m *externalsubscriber.MorpheusSidecar) {
 	if err := s.Serve(lis); err != nil {
 		m.Logger.Fatalln("failed to serve TCP port 9001")
 	}
-}
-
-func startMorpheusAPI(m *externalsubscriber.MorpheusSidecar) {
-	codec := json.NewCodec()
-
-	rpcServer := rpc.NewServer()
-	rpcServer.RegisterCodec(codec, "application/json")
-	rpcServer.RegisterCodec(codec, "application/json;charset=UTF-8")
-
-	if err := rpcServer.RegisterService(m, "mei"); err != nil {
-		m.Logger.Fatalln("Could not register indexer-rpc service")
-	}
-
-	http.Handle("/rpc", rpcServer)
-
-	m.Logger.Println("Starting API service at port 8080")
-	m.Logger.Fatalln(http.ListenAndServe(":8080", rpcServer)) // #nosec G114
 }
