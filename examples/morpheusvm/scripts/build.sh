@@ -6,19 +6,46 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Get the directory of the script, even if sourced from another directory
-SCRIPT_DIR=$(
-  cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd
-)
+############################
+# from build.sh
+realpath() {
+	[[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
 
-# shellcheck source=/scripts/common/build.sh
-source "$SCRIPT_DIR"/../../../scripts/common/build.sh
-# shellcheck source=/scripts/constants.sh
-source "$SCRIPT_DIR"/../../../scripts/constants.sh
+build_project() {
+	local project_path
+	project_path=$(realpath "$1")
+	local project_name=$2
+
+	local binary_path
+	if [[ $# -eq 3 ]]; then
+		local binary_dir
+		local binary_name
+		# Ensure binary_dir is an absolute path
+		binary_dir=$(realpath "$project_path/build/$(dirname "$3")")
+		binary_name=$(basename "$3")
+		binary_path=$binary_dir/$binary_name
+	else
+		# Set default binary directory location
+		binary_path=$project_path/build/$project_name
+	fi
+
+	cd "$project_path"
+	echo "Building $project_name in $binary_path"
+	mkdir -p "$(dirname "$binary_path")"
+
+	go build -o "$binary_path" ./cmd/"$project_name"
+}
+
+# from constants.sh
+export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
+
+############################
+
 # Construct the correct path to morpheusvm directory
 MORPHEUSVM_PATH=$(
-  cd "$(dirname "${BASH_SOURCE[0]}")"
-  cd .. && pwd
+	cd "$(dirname "${BASH_SOURCE[0]}")"
+	cd .. && pwd
 )
 
 build_project "$MORPHEUSVM_PATH" "morpheusvm" "pkEmJQuTUic3dxzg8EYnktwn4W7uCHofNcwiYo458vodAUbY7"

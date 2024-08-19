@@ -6,15 +6,50 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if ! [[ "$0" =~ scripts/build.release.sh ]]; then
-  echo "must be run from morpheusvm root"
-  exit 255
-fi
+# Get the directory of the script, even if sourced from another directory
+SCRIPT_DIR=$(
+	cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
+)
 
-# shellcheck source=/scripts/constants.sh
-source ../../scripts/constants.sh
-# shellcheck source=/scripts/common/utils.sh
-source ../../scripts/common/utils.sh
+############################
+# from utils.sh
+function check_command() {
+	if ! which "$1" &>/dev/null; then
+		echo -e "\033[0;31myour golang environment is misconfigued...please ensure the golang bin folder is in your PATH\033[0m"
+		echo -e "\033[0;31myou can set this for the current terminal session by running \"export PATH=\$PATH:\$(go env GOPATH)/bin\"\033[0m"
+		exit
+	fi
+}
+
+# Function to check if the script is run from the repository root
+function check_repository_root() {
+	if ! [[ "$0" =~ $1 ]]; then
+		echo "must be run from repository root"
+		exit 255
+	fi
+}
+
+function prepare_ginkgo() {
+	set -e
+
+	# to install the ginkgo binary (required for test build and run)
+	go install -v github.com/onsi/ginkgo/v2/ginkgo@v2.13.1 || true
+
+	# alert the user if they do not have $GOPATH properly configured
+	check_command ginkgo
+}
+
+function rm_previous_cov_reports() {
+	rm -f integration.coverage.out
+	rm -f integration.coverage.html
+}
+
+# from constants.sh
+export CGO_CFLAGS="-O -D__BLST_PORTABLE__"
+
+############################
+
+cd "$SCRIPT_DIR"/..
 
 # https://goreleaser.com/install/
 go install -v github.com/goreleaser/goreleaser@latest
@@ -25,6 +60,6 @@ check_command goreleaser
 # e.g.,
 # git tag 1.0.0
 goreleaser release \
---config .goreleaser.yml \
---skip-announce \
---skip-publish
+	--config .goreleaser.yml \
+	--skip-announce \
+	--skip-publish

@@ -4,11 +4,6 @@
 
 set -e
 
-# MORPHEUSVM_PATH=$(
-#   cd "$(dirname "${BASH_SOURCE[0]}")"
-#   cd .. && pwd
-# )
-
 WORK_DIR=${GOPATH}/src/github.com/ava-labs/hypersdk
 MORPHEUSVM_PATH=${WORK_DIR}/examples/morpheusvm
 

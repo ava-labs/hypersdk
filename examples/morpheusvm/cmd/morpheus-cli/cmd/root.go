@@ -57,8 +57,6 @@ func init() {
 		spamCmd,
 		prometheusCmd,
 		deployCmd,
-		runCmd,
-		stopCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -66,7 +64,6 @@ func init() {
 		defaultDatabase,
 		"path to database (will create it missing)",
 	)
-	// TODO: allow for multiple reads to DB
 	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		utils.Outf("{{yellow}}database:{{/}} %s\n", dbPath)
 		controller := NewController(dbPath)

@@ -9,12 +9,55 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/ava-labs/hypersdk/utils"
 )
 
 //go:embed *.sh
 var scriptsFolder embed.FS
 
 var ErrScriptNotFound = errors.New("script not found")
+
+var ScriptsMapping map[string]*cobra.Command
+
+func init() {
+	ScriptsMapping = make(map[string]*cobra.Command)
+	scriptNames, err := getAllScripts()
+	if err != nil {
+		panic("unable to get script names")
+	}
+	for _, n := range scriptNames {
+		putScriptCommand(n)
+	}
+}
+
+func putScriptCommand(n string) {
+	cmd := &cobra.Command{
+		Use: n,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			output, err := RunScript(n)
+			utils.Outf(string(output))
+			return err
+		},
+	}
+	ScriptsMapping[n] = cmd
+}
+
+func getAllScripts() ([]string, error) {
+	dirContents, err := scriptsFolder.ReadDir(".")
+	if err != nil {
+		return nil, err
+	}
+	scriptNames := make([]string, len(dirContents))
+	for _, v := range dirContents {
+		scriptName := strings.TrimSuffix(v.Name(), ".sh")
+		scriptNames = append(scriptNames, scriptName)
+	}
+
+	return scriptNames, nil
+}
 
 func RunScript(script string) ([]byte, error) {
 	var shPath strings.Builder
@@ -24,7 +67,6 @@ func RunScript(script string) ([]byte, error) {
 	if _, err := shPath.WriteString(".sh"); err != nil {
 		return nil, err
 	}
-
 	scriptFile, err := scriptsFolder.Open(shPath.String())
 	if err != nil {
 		return nil, err

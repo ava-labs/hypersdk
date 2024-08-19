@@ -6,9 +6,6 @@ set -o errexit
 set -o pipefail
 set -e
 
-if ! [[ "$0" =~ scripts/fix.lint.sh ]]; then
-  echo "must be run from morpheusvm root"
-  exit 255
-fi
+WORKDIR="${GOPATH}"/src/github.com/ava-labs/hypersdk
 
-../../scripts/fix.lint.sh
+"${WORKDIR}"/scripts/fix.lint.sh
