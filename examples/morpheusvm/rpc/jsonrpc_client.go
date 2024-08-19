@@ -133,6 +133,10 @@ type Parser struct {
 	genesis   *genesis.Genesis
 }
 
+func NewParser(networkID uint32, chainID ids.ID, genesis *genesis.Genesis) *Parser {
+	return &Parser{networkID, chainID, genesis}
+}
+
 func (p *Parser) ChainID() ids.ID {
 	return p.chainID
 }
@@ -154,5 +158,5 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{cli.networkID, cli.chainID, g}, nil
+	return NewParser(cli.networkID, cli.chainID, g), nil
 }
