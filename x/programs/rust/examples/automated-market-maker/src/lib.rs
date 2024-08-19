@@ -30,14 +30,9 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
 
     let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
 
-    let transfer_reuslt =
-        token::transfer_ownership(&liquidity_context, *context.program().account());
     // TODO: the init function should spin up a new token contract instead
     // of requiring the caller to pass in the liquidity token
-    assert!(
-        transfer_reuslt,
-        "failed to transfer ownership of the liquidity token"
-    );
+    token::transfer_ownership(&liquidity_context, *context.program().account());
 }
 
 /// Swaps 'amount' of `token_program_in` with the other token in the pool
@@ -77,11 +72,7 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> 
     token::transfer_from(&token_out, account, actor, amount_out);
 
     // update the allowance for token_in
-    let token_approved = token::approve(&token_in, account, reserve_token_in + amount);
-    assert!(
-        token_approved,
-        "failed to update the allowance for the token"
-    );
+    token::approve(&token_in, account, reserve_token_in + amount);
 
     amount_out
 }
@@ -133,9 +124,8 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     token::mint(&lp_token, actor, shares);
 
     // update the amm's allowances
-    let approved = token::approve(&token_x, account, reserve_x + amount_x)
-        && token::approve(&token_y, account, reserve_y + amount_y);
-    assert!(approved, "failed to update the allowances for the tokens");
+    token::approve(&token_x, account, reserve_x + amount_x);
+    token::approve(&token_y, account, reserve_y + amount_y);
 
     shares
 }
