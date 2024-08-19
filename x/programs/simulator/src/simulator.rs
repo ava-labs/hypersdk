@@ -11,7 +11,10 @@ use thiserror::Error;
 use wasmlanche_sdk::{Address, ExternalCallError, Id};
 
 use crate::{
-    bindings::{Bytes, CallProgramResponse, CreateProgramResponse, SimulatorCallContext},
+    bindings::{
+        Address as BindingAddress, Bytes, CallProgramResponse, CreateProgramResponse,
+        SimulatorCallContext,
+    },
     state::{Mutable, SimpleState},
 };
 
@@ -38,10 +41,10 @@ extern "C" {
     fn call_program(db: usize, ctx: *const SimulatorCallContext) -> CallProgramResponse;
 
     #[link_name = "GetBalance"]
-    fn get_balance(db: usize, account: Address) -> u64;
+    fn get_balance(db: usize, account: BindingAddress) -> u64;
 
     #[link_name = "SetBalance"]
-    fn set_balance(db: usize, account: Address, balance: u64);
+    fn set_balance(db: usize, account: BindingAddress, balance: u64);
 }
 
 pub struct Simulator<'a> {
@@ -107,13 +110,13 @@ impl<'a> Simulator<'a> {
     /// Returns the balance of the given account.
     pub fn get_balance(&self, account: Address) -> u64 {
         let state_addr = &self.state as *const _ as usize;
-        unsafe { get_balance(state_addr, account) }
+        unsafe { get_balance(state_addr, account.into()) }
     }
 
     /// Sets the balance of the given account.
     pub fn set_balance(&mut self, account: Address, balance: u64) {
         let state_addr = &self.state as *const _ as usize;
-        unsafe { set_balance(state_addr, account, balance) }
+        unsafe { set_balance(state_addr, account.into(), balance) }
     }
 }
 
