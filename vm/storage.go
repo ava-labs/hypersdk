@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -101,7 +101,7 @@ func (vm *VM) GetLastProcessedHeight() (uint64, error) {
 	return binary.BigEndian.Uint64(b), nil
 }
 
-func (vm *VM) shouldComapct(expiryHeight uint64) bool {
+func (vm *VM) shouldCompact(expiryHeight uint64) bool {
 	if compactionOffset == -1 {
 		compactionOffset = rand.Intn(vm.config.BlockCompactionFrequency) //nolint:gosec
 		vm.Logger().Info("setting compaction offset", zap.Int("n", compactionOffset))
@@ -160,7 +160,7 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 	}
 	vm.lastAccepted = blk
 	vm.CacheBlock(blk)
-	if expired && vm.shouldComapct(expiryHeight) {
+	if expired && vm.shouldCompact(expiryHeight) {
 		go func() {
 			start := time.Now()
 			if err := vm.CompactDiskBlocks(expiryHeight); err != nil {
@@ -182,13 +182,11 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 }
 
 func (vm *VM) GetCachedBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	if id, ok := vm.acceptedBlocksByHeight.Get(height); ok {
-		if blk, ok := vm.acceptedBlocksByID.Get(id); ok {
-			return blk, nil
-		}
+	id, err := vm.GetBlockIDAtHeight(ctx, height)
+	if err != nil {
+		return nil, err
 	}
-
-	blk, err := vm.GetDiskBlock(ctx, height)
+	blk, err := vm.GetStatelessBlock(ctx, id)
 	if err != nil {
 		return nil, err
 	}

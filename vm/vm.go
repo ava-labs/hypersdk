@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package vm
@@ -236,6 +236,7 @@ func (vm *VM) Initialize(
 	if err := json.Unmarshal(configBytes, &vm.config); err != nil {
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	snowCtx.Log.Info("initialized hypersdk config", zap.Any("config", vm.config))
 
 	controllerConfigBytes, err := json.Marshal(vm.config.Config)
 	if err != nil {
@@ -482,6 +483,18 @@ func (vm *VM) Initialize(
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
+
+	// Add optional direct state read handler
+	if vm.config.EnableJSONRPCStateHandler {
+		if _, ok := vm.handlers[rpc.JSONRPCStateEndpoint]; ok {
+			return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCStateEndpoint)
+		}
+		jsonRPCStateHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCStateServer(vm))
+		if err != nil {
+			return fmt.Errorf("unable to create handler: %w", err)
+		}
+		vm.handlers[rpc.JSONRPCStateEndpoint] = jsonRPCStateHandler
+	}
 
 	err = vm.restoreAcceptedQueue(ctx)
 	if err != nil {
@@ -1166,7 +1179,7 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
 		blk, err := vm.GetCachedBlock(ctx, i)
 		if err != nil {
-			vm.snowCtx.Log.Info("could not find block on disk", zap.Uint64("height", i))
+			vm.snowCtx.Log.Info("could not find accepted block on disk", zap.Uint64("height", i))
 			continue
 		}
 		vm.CacheBlock(blk)
