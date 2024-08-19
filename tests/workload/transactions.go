@@ -18,10 +18,13 @@ import (
 type TxWorkloadFactory interface {
 	// NewWorkloads returns a set of TxWorkloadIterators from the VM. VM developers can use this function
 	// to define each sequence of transactions that should be tested.
+	// TODO: switch from workload generator to procedural test style for VM-defined workloads
 	NewWorkloads(uri string) ([]TxWorkloadIterator, error)
 	// Generates a new TxWorkloadIterator that generates a sequence of transactions of the given size.
 	NewSizedTxWorkload(uri string, size int) (TxWorkloadIterator, error)
 }
+
+type TxAssertion func(ctx context.Context, uri string) error
 
 // TxWorkloadIterator provides an interface for generating a sequence of transactions and corresponding assertions.
 // The caller must proceed in the following sequence:
@@ -44,7 +47,7 @@ type TxWorkloadIterator interface {
 	// GenerateTxWithAssertion generates a new transaction and an assertion function that confirms
 	// 1. The tx was accepted on the provided URI
 	// 2. The state was updated as expected according to the provided URI
-	GenerateTxWithAssertion(context.Context) (*chain.Transaction, func(ctx context.Context, uri string) error, error)
+	GenerateTxWithAssertion(context.Context) (*chain.Transaction, TxAssertion, error)
 }
 
 func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
