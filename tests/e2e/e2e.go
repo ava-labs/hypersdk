@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/api/admin"
 	"github.com/ava-labs/avalanchego/api/info"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
@@ -39,6 +40,26 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	ginkgo.It("Ping", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
+
+		baseURIs := getE2EBaseURIs(tc)
+		for _, baseURI := range baseURIs {
+			adminClient := admin.NewClient(baseURI)
+
+			aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), expectedBlockchainID.String())
+			require.NoError(err)
+
+			hasAlias := false
+			for _, alias := range aliases {
+				if alias == vmName {
+					hasAlias = true
+				}
+			}
+
+			if !hasAlias {
+				err = adminClient.AliasChain(tc.DefaultContext(), expectedBlockchainID.String(), vmName)
+				require.NoError(err)
+			}
+		}
 	})
 
 	ginkgo.It("GetNetwork", func() {
