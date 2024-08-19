@@ -75,9 +75,9 @@ var _ = ginkgo.Describe("[MorpheusVM]", func() {
 		tc := e2e.NewTestContext()
 		require := require.New(tc)
 		network := e2e.GetEnv(tc).GetNetwork()
-		nodeBaseUri := network.GetNodeURIs()[0].URI
+		nodeBaseURI := network.GetNodeURIs()[0].URI
 		blockchainID := network.GetSubnet(consts.Name).Chains[0].ChainID
-		nodeURI := fmt.Sprintf("%s/ext/bc/%s", nodeBaseUri, blockchainID)
+		nodeURI := fmt.Sprintf("%s/ext/bc/%s", nodeBaseURI, blockchainID)
 
 		morpheusRPCClient := rpc.NewJSONRPCClient(nodeURI, network.NetworkID, blockchainID)
 
