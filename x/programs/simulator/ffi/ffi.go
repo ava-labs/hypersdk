@@ -164,7 +164,7 @@ func GetBalance(db *C.Mutable, address C.Address) C.uint64_t {
 
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	pState := simState.NewProgramStateManager(state)
-	account := C.GoBytes(unsafe.Pointer(&address.address[0]), codec.AddressLen)
+	account := C.GoBytes(unsafe.Pointer(&address.address), codec.AddressLen)
 
 	balance, err := pState.GetBalance(SimContext, codec.Address(account))
 	if err != nil {
@@ -185,7 +185,7 @@ func SetBalance(db *C.Mutable, address C.Address, balance C.uint64_t) {
 
 	state := simState.NewSimulatorState(unsafe.Pointer(db))
 	pState := simState.NewProgramStateManager(state)
-	account := C.GoBytes(unsafe.Pointer(&address.address[0]), codec.AddressLen)
+	account := C.GoBytes(unsafe.Pointer(&address.address), codec.AddressLen)
 
 	err := pState.SetBalance(SimContext, codec.Address(account), uint64(balance))
 	if err != nil {
