@@ -1,15 +1,8 @@
 {
 	"name": "Go",
 	"build": {
-		"dockerfile": "Dockerfile",
-		"args": {
-			"INSTALL_AVALANCHEGO_VERSION": "d729e5c7ef9f008c3e89cd7131148ad3acda2e34",
-			"INSTALL_AVALANCHEGO_VERSION_SHORT": "d729e5c7"
-		}
+		"dockerfile": "Dockerfile"
 	},
-	"mounts": [
-		"source=go_package_cache,target=/go/pkg/mod,type=volume"
-	],
 	"features": {
 		//uncomment if you want to install rust
 		// "ghcr.io/devcontainers/features/rust:1": {}
