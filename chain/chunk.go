@@ -21,14 +21,12 @@ const chunkPrealloc = 16_384
 const (
 	AnchorToB = iota
 	AnchorRoB
-	AnchorRegister
 )
 
 type Anchor struct {
 	BlockType int    `json:"blockType"` // use to determine if it is TOB or ROB
 	Namespace string `json:"namespace"`
 	Url       string `json:"url"`
-	Creation  bool   `json:"string"` // with this flag, we can include zero tx in a chunk for a anchor registeration
 }
 
 type Chunk struct {
@@ -48,87 +46,6 @@ type Chunk struct {
 	units      *Dimensions
 	bytes      []byte
 	authCounts map[uint8]int
-}
-
-func BuildAnchorRegisterChunk(ctx context.Context, vm VM, anchor *Anchor) (*Chunk, error) {
-	if !anchor.Creation {
-		return nil, fmt.Errorf("not a anchor registeration chunk")
-	}
-
-	start := time.Now()
-	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
-	r := vm.Rules(now)
-	c := &Chunk{
-		Slot: utils.UnixRDeci(now, r.GetValidityWindow()), // chunk validity window is 9 seconds @todo
-	}
-	epoch := utils.Epoch(now, r.GetEpochDuration())
-
-	// Don't build chunk if no P-Chain height for epoch
-	timestamp, heights, err := vm.Engine().GetEpochHeights(ctx, []uint64{epoch})
-	if err != nil {
-		return nil, err
-	}
-	executedEpoch := utils.Epoch(timestamp, r.GetEpochDuration()) // epoch duration set to 10 seconds.
-	if executedEpoch+2 < epoch {                                  // only require + 2 because we don't care about epoch + 1 like in verification.
-		return nil, fmt.Errorf("executed epoch (%d) is too far behind (%d) to verify chunk", executedEpoch, epoch)
-	}
-	if heights[0] == nil {
-		return nil, fmt.Errorf("no P-Chain height for epoch %d", epoch)
-	}
-
-	// Check if validator
-	//
-	// If not a validator in this epoch height, don't build.
-	amValidator, err := vm.IsValidator(ctx, *heights[0], vm.NodeID())
-	if err != nil {
-		return nil, err
-	}
-	if !amValidator {
-		return nil, ErrNotAValidator
-	}
-
-	// Setup chunk
-	c.PriorityFeeReceiverAddr = codec.BlackholeAddress
-	c.Producer = vm.NodeID()
-	c.Beneficiary = vm.Beneficiary()
-	c.Signer = vm.Signer()
-
-	// Sign chunk
-	digest, err := c.Digest()
-	if err != nil {
-		return nil, err
-	}
-	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
-	if err != nil {
-		return nil, err
-	}
-	sig, err := vm.Sign(wm)
-	if err != nil {
-		return nil, err
-	}
-	c.Signature, err = bls.SignatureFromBytes(sig)
-	if err != nil {
-		return nil, err
-	}
-	bytes, err := c.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	c.id = utils.ToID(bytes)
-
-	vm.Logger().Info(
-		"built registering chunk with signature from anchor msg",
-		zap.Stringer("nodeID", vm.NodeID()),
-		zap.Uint32("networkID", r.NetworkID()),
-		zap.Stringer("chainID", r.ChainID()),
-		zap.Int64("slot", c.Slot),
-		zap.Uint64("epoch", epoch),
-		zap.Int("txs", len(c.Txs)),
-		zap.String("signer", hex.EncodeToString(bls.PublicKeyToCompressedBytes(c.Signer))),
-		zap.String("signature", hex.EncodeToString(bls.SignatureToBytes(c.Signature))),
-		zap.Duration("t", time.Since(start)),
-	)
-	return c, nil
 }
 
 func BuildChunkFromAnchor(ctx context.Context, vm VM, anchor *Anchor, slot int64, txs []*Transaction, priorityFeeReceiver codec.Address) (*Chunk, error) {
@@ -326,12 +243,15 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		if !ok {
 			break
 		}
+		txID := tx.ID().String()
+		vm.Logger().Debug("picking up a tx from mempool", zap.String("txID", txID))
 		// Ensure we haven't included this transaction in a chunk yet
 		//
 		// Should protect us from issuing repeat txs (if others get duplicates,
 		// there will be duplicate inclusion but this is fixed with partitions)
 		if vm.IsIssuedTx(ctx, tx) {
 			vm.RecordChunkBuildTxDropped()
+			vm.Logger().Debug("tx issued", zap.String("txID", txID))
 			continue
 		}
 
@@ -347,6 +267,7 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 
 		// TODO: verify transactions
 		if tx.Base.Timestamp > c.Slot {
+			vm.Logger().Debug("tx timestamp greater than chunk slot", zap.String("txID", txID))
 			vm.RecordChunkBuildTxDropped()
 			continue
 		}
@@ -355,11 +276,14 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 		txUnits, err := tx.Units(sm, r)
 		if err != nil {
 			vm.RecordChunkBuildTxDropped()
+			vm.Logger().Debug("failed to get units for tx", zap.String("txID", txID), zap.Error(err))
 			vm.Logger().Warn("failed to get units for transaction", zap.Error(err))
 			continue
 		}
+		vm.Logger().Debug("units", zap.String("txID", txID), zap.Any("tx units", txUnits), zap.Any("max units", maxChunkUnits))
 		nextUnits, err := Add(chunkUnits, txUnits)
 		if err != nil || !maxChunkUnits.Greater(nextUnits) {
+			vm.Logger().Debug("chunk full before tx", zap.String("txID", txID), zap.Any("tx units", txUnits), zap.Any("max units", maxChunkUnits))
 			full = true
 			// TODO: update mempool to only provide txs that can fit in chunk
 			// Want to maximize how "full" chunk is, so need to be a little complex

@@ -233,11 +233,6 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 				return
 			}
 			p.acceptedNS[chunk.Anchor.Namespace] = struct{}{}
-		case AnchorRegister:
-			if _, exists := p.anchors[chunk.Anchor.Url]; !exists {
-				p.anchors[chunk.Anchor.Url] = chunk.Anchor
-				p.vm.Logger().Debug("adding new anchor to processor")
-			}
 		}
 	}
 
@@ -290,6 +285,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 				p.results[chunkIndex][txIndex] = &Result{Valid: false}
 				return nil, nil
 			}
+			p.vm.Logger().Debug("units", zap.Any("units", units), zap.Any("unitPrices", p.r.GetUnitPrices()), zap.Uint64("fee", fee), zap.Uint64("maxFee", tx.Base.MaxFee))
 			if tx.Base.MaxFee < fee {
 				// This should be checked by chunk producer before inclusion.
 				//

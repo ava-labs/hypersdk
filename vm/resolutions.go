@@ -605,10 +605,6 @@ func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
 	return vm.anchorRegistry
 }
 
-func (vm *VM) PushAnchorRegisterMsg(ctx context.Context, anchor *chain.Anchor) {
-	vm.cm.incomingAnchorRegisterMsg <- anchor
-}
-
 func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {
 	return vm.issuedTxs.Has(tx)
 }

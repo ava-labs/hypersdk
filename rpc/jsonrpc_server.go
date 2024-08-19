@@ -204,39 +204,3 @@ func (j *JSONRPCServer) GetWarpSignatures(
 	reply.Signatures = validSignatures
 	return nil
 }
-
-type RegisterAnchorArgs struct {
-	Url       string         `json:"url"`
-	Namespace string         `json:"namespace"`
-	Signature *bls.Signature `json:"signature"`
-	Pubkey    *bls.PublicKey `json:"pubkey"`
-}
-
-type RegisterAnchorReply struct {
-	Added bool `json:"success"`
-}
-
-func (j *JSONRPCServer) RegisterAnchor(
-	req *http.Request,
-	args *RegisterAnchorArgs,
-	reply *RegisterAnchorReply,
-) error {
-	msg := []byte(args.Url)
-	verified := bls.Verify(args.Pubkey, args.Signature, msg)
-	if !verified {
-		j.vm.Logger().Error("unable to veirfy anchor replacement sig")
-		return fmt.Errorf("unable to verify the signature against the pubkey and msg")
-	}
-
-	anchor := chain.Anchor{
-		BlockType: -1,
-		Namespace: args.Namespace,
-		Url:       args.Url,
-		Creation:  true,
-	}
-
-	j.vm.PushAnchorRegisterMsg(context.Background(), &anchor)
-	reply.Added = true
-
-	return nil
-}

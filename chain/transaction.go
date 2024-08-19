@@ -136,6 +136,7 @@ func (t *Transaction) StateKeys(sm StateManager) (state.Keys, error) {
 	for _, m := range []state.Keys{actionKeys, sponsorKeys} {
 		for k, v := range m {
 			if !keys.Valid(k) {
+				fmt.Printf("action key not valid: %s\n", t.ID().String())
 				return nil, ErrInvalidKeyValue
 			}
 			stateKeys.Add(k, v)

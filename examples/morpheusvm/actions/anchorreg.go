@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	mconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/state"
@@ -38,7 +39,7 @@ func (t *AnchorRegister) StateKeys(actor codec.Address, _ ids.ID) state.Keys {
 }
 
 func (*AnchorRegister) StateKeyChunks() []uint16 {
-	return []uint16{}
+	return []uint16{storage.BalanceChunks, storage.BalanceChunks}
 }
 
 func (*AnchorRegister) OutputsWarpMessage() bool {
@@ -88,7 +89,7 @@ func (*AnchorRegister) ComputeUnits(chain.Rules) uint64 {
 }
 
 func (t *AnchorRegister) Size() int {
-	return codec.BytesLen(t.Namespace) + codec.StringLen(t.Url)
+	return codec.BytesLen(t.Namespace) + codec.StringLen(t.Url) + consts.BoolLen
 }
 
 func (t *AnchorRegister) Marshal(p *codec.Packer) {

@@ -180,10 +180,12 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
+	fmt.Printf("estimated max units: %+v\n", maxUnits)
 	maxFee, err := chain.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return nil, nil, 0, err
 	}
+	fmt.Printf("maxFee: %+v\n", maxFee)
 	f, tx, err := cli.GenerateTransactionManual(parser, wm, action, authFactory, maxFee, modifiers...)
 	if err != nil {
 		return nil, nil, 0, err
@@ -353,19 +355,4 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 		return nil, 0, 0, fmt.Errorf("%w: failed to generate warp message", err)
 	}
 	return message, weight, signatureWeight, nil
-}
-
-func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string, pubkey *bls.PublicKey, sig *bls.Signature) (bool, error) {
-	resp := new(RegisterAnchorReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"replaceAnchor",
-		&RegisterAnchorArgs{
-			Url:       url,
-			Pubkey:    pubkey,
-			Signature: sig,
-		},
-		resp,
-	)
-	return resp.Added, err
 }

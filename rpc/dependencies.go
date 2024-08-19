@@ -42,5 +42,4 @@ type VM interface {
 
 	RecordWebsocketConnection(int)
 	RecordRPCTxInvalid()
-	PushAnchorRegisterMsg(ctx context.Context, anchor *chain.Anchor)
 }

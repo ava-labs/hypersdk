@@ -245,8 +245,6 @@ type ChunkManager struct {
 	incomingChunks chan *chunkGossipWrapper
 	incomingTxs    chan *txGossipWrapper
 
-	incomingAnchorRegisterMsg chan *chain.Anchor
-
 	epochHeights *cache.FIFO[uint64, uint64]
 
 	built *emap.EMap[*chunkWrapper]
@@ -853,27 +851,6 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 		defer t.Stop()
 		for {
 			select {
-			case anchorRegisterMsg := <-c.incomingAnchorRegisterMsg:
-				if !anchorRegisterMsg.Creation {
-					continue
-				}
-
-				if !c.vm.isReady() {
-					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
-					continue
-				}
-				if skipChunks {
-					continue
-				}
-
-				chunk, err := chain.BuildAnchorRegisterChunk(context.TODO(), c.vm, anchorRegisterMsg)
-				if err != nil {
-					c.vm.Logger().Error("unable to generate anchor registeration chunk", zap.Error(err))
-				}
-
-				c.auth.Add(chunk) // this will be a no-op because we are the producer
-				c.PushChunk(context.TODO(), chunk)
-
 			case <-t.C:
 				if !c.vm.isReady() {
 					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
@@ -999,6 +976,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					c.vm.Logger().Error("unable to build chunk", zap.Error(err))
 					continue
 				default:
+					c.vm.Logger().Debug("chunk built", zap.Int("numTxs", len(chunk.Txs)))
+					for _, tx := range chunk.Txs {
+						c.vm.Logger().Debug("tx in chunk", zap.String("txID", tx.ID().String()))
+					}
 				}
 				c.auth.Add(chunk) // this will be a no-op because we are the producer
 				c.PushChunk(context.TODO(), chunk)

@@ -286,8 +286,10 @@ func EpochKey(epoch uint64) string {
 }
 
 func AnchorRegistryKey() string {
-	k := make([]byte, 1)
+	// state key must >= 2 bytes
+	k := make([]byte, 1+consts.Uint16Len)
 	k[0] = anchorRegisteryPrefix
+	binary.BigEndian.PutUint16(k[1:], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
 	return string(k)
 }
 
@@ -407,9 +409,10 @@ func setAnchors(
 }
 
 func AnchorKey(namespace []byte) string {
-	k := make([]byte, 1+len(namespace))
+	k := make([]byte, 1+len(namespace)+consts.Uint16Len)
 	k[0] = anchorPrefix
 	copy(k[1:], namespace[:])
+	binary.BigEndian.PutUint16(k[1+len(namespace):], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
 	return string(k)
 }
 
