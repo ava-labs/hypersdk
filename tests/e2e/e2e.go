@@ -201,13 +201,13 @@ func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
 }
 
-func SetupDefaultChainAlias(chainId ids.ID, tc tests.TestContext) {
+func SetupDefaultChainAlias(chainID ids.ID, tc tests.TestContext) {
 	require := require.New(ginkgo.GinkgoT())
 
 	baseURI := "http://localhost:9650"
 	adminClient := admin.NewClient(baseURI)
 
-	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainId.String())
+	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
 	require.NoError(err)
 
 	hasAlias := false
@@ -218,7 +218,7 @@ func SetupDefaultChainAlias(chainId ids.ID, tc tests.TestContext) {
 	}
 
 	if !hasAlias {
-		err = adminClient.AliasChain(tc.DefaultContext(), chainId.String(), vmName)
+		err = adminClient.AliasChain(tc.DefaultContext(), chainID.String(), vmName)
 		require.NoError(err)
 	}
 }
