@@ -6,9 +6,6 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "lib"]
 
-[features]
-bindings = []
-
 [dependencies]
 wasmlanche-sdk = { workspace = true, features = ["debug"] }
 
@@ -17,3 +14,6 @@ simulator = { workspace = true }
 
 [build-dependencies]
 wasmlanche-sdk = { workspace = true, features = ["build"] }
+
+[features]
+bindings = []
