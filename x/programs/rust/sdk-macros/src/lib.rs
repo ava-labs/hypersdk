@@ -316,7 +316,7 @@ pub fn state_schema(input: TokenStream) -> TokenStream {
 
                 token_stream.extend(Some(quote! {
                     #(#key_comments)*
-                    #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::Pod, wasmlanche_sdk::bytemuck::Zeroable)]
+                    #[derive(Copy, Clone, wasmlanche_sdk::bytemuck::NoUninit)]
                     #[bytemuck(crate = "wasmlanche_sdk::bytemuck")]
                     #[repr(C)]
                     #key_vis struct #key_type_name #key_fields;
