@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+
 	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 )
 
