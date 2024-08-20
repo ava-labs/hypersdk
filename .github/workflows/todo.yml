@@ -1,4 +1,4 @@
-name: TODO Bot
+name: TODO issue bot
 on:
   push:
     branches:
