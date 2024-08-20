@@ -91,7 +91,9 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 				}
 
 				// return any remaining fuel to the calling program
-				callInfo.AddFuel(newInfo.RemainingFuel())
+				if callInfo.Fuel > 0 {
+					callInfo.AddFuel(newInfo.RemainingFuel())
+				}
 
 				return Ok[RawBytes, ProgramCallErrorCode](result), nil
 			})},
