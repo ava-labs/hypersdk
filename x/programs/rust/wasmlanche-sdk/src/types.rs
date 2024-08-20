@@ -12,30 +12,30 @@ pub const ID_LEN: usize = 32;
 pub type Id = [u8; ID_LEN];
 
 /// Gas type alias.
-pub enum GasUnits {
+pub enum Gas {
     PassAll,
     Units(NonZeroU64),
 }
 
-impl From<&GasUnits> for u64 {
-    fn from(value: &GasUnits) -> Self {
+impl From<&Gas> for u64 {
+    fn from(value: &Gas) -> Self {
         match value {
-            GasUnits::PassAll => 0,
-            GasUnits::Units(num) => num.get(),
+            Gas::PassAll => 0,
+            Gas::Units(num) => num.get(),
         }
     }
 }
 
-impl From<u64> for GasUnits {
+impl From<u64> for Gas {
     fn from(value: u64) -> Self {
         match value {
-            0 => GasUnits::PassAll,
-            num => GasUnits::Units(unsafe { NonZeroU64::new_unchecked(num) }),
+            0 => Gas::PassAll,
+            num => Gas::Units(unsafe { NonZeroU64::new_unchecked(num) }),
         }
     }
 }
 
-impl BorshDeserialize for GasUnits {
+impl BorshDeserialize for Gas {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let num = u64::deserialize_reader(reader)?;
         Ok(num.into())

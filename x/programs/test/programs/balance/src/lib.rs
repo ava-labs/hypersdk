@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche_sdk::{public, send, state::get_balance, Address, Context, GasUnits, Program};
+use wasmlanche_sdk::{public, send, state::get_balance, Address, Context, Gas, Program};
 
 #[public]
 pub fn balance(ctx: &mut Context) -> u64 {
@@ -14,7 +14,7 @@ pub fn send_balance(_: &mut Context, recipient: Address) -> bool {
 }
 
 #[public]
-pub fn send_via_call(_: &mut Context, target: Program, max_units: GasUnits, value: u64) -> u64 {
+pub fn send_via_call(_: &mut Context, target: Program, max_units: Gas, value: u64) -> u64 {
     target
         .call_function("balance", &[], &max_units, value)
         .unwrap()

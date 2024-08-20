@@ -3,7 +3,7 @@
 
 use crate::{
     state::{self, Error, IntoPairs, Schema, State},
-    types::{Address, GasUnits},
+    types::{Address, Gas},
     HostPtr, Id, Program,
 };
 use borsh::BorshDeserialize;
@@ -136,13 +136,13 @@ impl Context {
 #[allow(clippy::module_name_repetitions)]
 pub struct ExternalCallContext {
     program: Program,
-    max_units: GasUnits,
+    max_units: Gas,
     value: u64,
 }
 
 impl ExternalCallContext {
     #[must_use]
-    pub fn new(program: Program, max_units: GasUnits, value: u64) -> Self {
+    pub fn new(program: Program, max_units: Gas, value: u64) -> Self {
         Self {
             program,
             max_units,
@@ -156,7 +156,7 @@ impl ExternalCallContext {
     }
 
     #[must_use]
-    pub fn max_units(&self) -> &GasUnits {
+    pub fn max_units(&self) -> &Gas {
         &self.max_units
     }
 

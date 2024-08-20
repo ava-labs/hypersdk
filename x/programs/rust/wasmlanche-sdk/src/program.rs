@@ -1,7 +1,10 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{memory::HostPtr, types::{Address, GasUnits}};
+use crate::{
+    memory::HostPtr,
+    types::{Address, Gas},
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
@@ -79,7 +82,7 @@ impl Program {
         &self,
         function_name: &str,
         args: &[u8],
-        max_units: &GasUnits,
+        max_units: &Gas,
         max_value: u64,
     ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]

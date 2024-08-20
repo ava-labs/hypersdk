@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use wasmlanche_sdk::{public, Address, Context, GasUnits, Program};
+use wasmlanche_sdk::{public, Address, Context, Gas, Program};
 
 #[public]
 pub fn simple_call(_: &mut Context) -> i64 {
@@ -9,7 +9,7 @@ pub fn simple_call(_: &mut Context) -> i64 {
 }
 
 #[public]
-pub fn simple_call_external(_: &mut Context, target: Program, max_units: GasUnits) -> i64 {
+pub fn simple_call_external(_: &mut Context, target: Program, max_units: Gas) -> i64 {
     target
         .call_function("simple_call", &[], &max_units, 0)
         .unwrap()
@@ -21,7 +21,7 @@ pub fn actor_check(context: &mut Context) -> Address {
 }
 
 #[public]
-pub fn actor_check_external(_: &mut Context, target: Program, max_units: GasUnits) -> Address {
+pub fn actor_check_external(_: &mut Context, target: Program, max_units: Gas) -> Address {
     target
         .call_function("actor_check", &[], &max_units, 0)
         .expect("failure")
@@ -36,7 +36,7 @@ pub fn call_with_param(_: &mut Context, value: i64) -> i64 {
 pub fn call_with_param_external(
     _: &mut Context,
     target: Program,
-    max_units: GasUnits,
+    max_units: Gas,
     value: i64,
 ) -> i64 {
     target
@@ -53,7 +53,7 @@ pub fn call_with_two_params(_: &mut Context, value1: i64, value2: i64) -> i64 {
 pub fn call_with_two_params_external(
     _: &mut Context,
     target: Program,
-    max_units: GasUnits,
+    max_units: Gas,
     value1: i64,
     value2: i64,
 ) -> i64 {
