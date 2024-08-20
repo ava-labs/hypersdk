@@ -50,6 +50,8 @@ extern "C" {
 pub struct Simulator<'a> {
     state: Mutable<'a>,
     actor: Address,
+    height: u64,
+    timestamp: u64,
 }
 
 impl<'a> Simulator<'a> {
@@ -58,6 +60,8 @@ impl<'a> Simulator<'a> {
         Simulator {
             state: Mutable::new(state),
             actor: Address::default(),
+            height: 0,
+            timestamp: 0,
         }
     }
 
@@ -91,10 +95,31 @@ impl<'a> Simulator<'a> {
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
         // build the call context
-        let context = SimulatorCallContext::new(program, self.actor, &method, &params, gas);
+        let context = self.new_call_context(program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
 
         unsafe { call_program(state_addr, &context) }
+    }
+
+    fn new_call_context(
+        &self,
+        program: Address,
+        method: &CString,
+        params: &[u8],
+        gas: u64,
+    ) -> SimulatorCallContext {
+        SimulatorCallContext {
+            program_address: program.into(),
+            actor_address: self.actor.into(),
+            height: self.height,
+            timestamp: self.timestamp,
+            method: method.as_ptr(),
+            params: Bytes {
+                data: params.as_ptr(),
+                length: params.len() as c_uint,
+            },
+            max_gas: gas as c_uint,
+        }
     }
 
     /// Returns the actor address for the simulator.
@@ -105,6 +130,26 @@ impl<'a> Simulator<'a> {
     /// Sets the actor address for the simulator.
     pub fn set_actor(&mut self, actor: Address) {
         self.actor = actor;
+    }
+
+    /// Returns the height of the blockchain.
+    pub fn get_height(&self) -> u64 {
+        self.height
+    }
+
+    /// Sets the height of the blockchain.
+    pub fn set_height(&mut self, height: u64) {
+        self.height = height;
+    }
+
+    /// Returns the timestamp of the blockchain.
+    pub fn get_timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    /// Sets the timestamp of the blockchain.
+    pub fn set_timestamp(&mut self, timestamp: u64) {
+        self.timestamp = timestamp;
     }
 
     /// Returns the balance of the given account.
@@ -206,29 +251,6 @@ impl CallProgramResponse {
     pub fn unwrap(&self) {
         if self.has_error() {
             panic!("CallProgramResponse errored")
-        }
-    }
-}
-
-impl SimulatorCallContext {
-    pub fn new(
-        program_address: Address,
-        actor_address: Address,
-        method: &CString,
-        params: &[u8],
-        gas: u64,
-    ) -> Self {
-        SimulatorCallContext {
-            program_address: program_address.into(),
-            actor_address: actor_address.into(),
-            height: 0,
-            timestamp: 0,
-            method: method.as_ptr(),
-            params: Bytes {
-                data: params.as_ptr(),
-                length: params.len() as c_uint,
-            },
-            max_gas: gas as c_uint,
         }
     }
 }
