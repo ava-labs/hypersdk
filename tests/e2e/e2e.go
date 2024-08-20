@@ -43,12 +43,12 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
-		fixedNodeUrl := "http://localhost:9650/ext/bc/" + vmName
+		fixedNodeURL := "http://localhost:9650/ext/bc/" + vmName
 
-		c := rpc.NewJSONRPCClient(fixedNodeUrl)
-		_, _, chainIdFromRPC, err := c.Network(tc.DefaultContext())
+		c := rpc.NewJSONRPCClient(fixedNodeURL)
+		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
 		require.NoError(err)
-		require.Equal(chainIdFromRPC, e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID)
+		require.Equal(chainIDFromRPC, e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID)
 	})
 
 	ginkgo.It("GetNetwork", func() {

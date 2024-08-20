@@ -37,9 +37,9 @@ func NewTestEnvironment(
 		network,
 	)
 
-	chainId := network.GetSubnet(vmName).Chains[0].ChainID
-	if chainId != ids.Empty {
-		he2e.SetupDefaultChainAlias(chainId, testContext)
+	chainID := network.GetSubnet(vmName).Chains[0].ChainID
+	if chainID != ids.Empty {
+		he2e.SetupDefaultChainAlias(chainID, testContext)
 	}
 
 	return testEnv
