@@ -3,11 +3,15 @@
 
 package event
 
+// SubscriptionFactory returns an instance of a concrete Subscription
 type SubscriptionFactory[T any] interface {
 	New() (Subscription[T], error)
 }
 
+// Subscription defines how to consume events
 type Subscription[T any] interface {
+	// Accept returns fatal errors
 	Accept(t T) error
+	// Close returns fatal errors
 	Close() error
 }
