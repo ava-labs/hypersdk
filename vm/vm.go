@@ -964,7 +964,7 @@ func (vm *VM) Submit(
 
 				for _, subscription := range vm.txRemovedSubscriptions {
 					if err := subscription.Accept(event); err != nil {
-						vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+						vm.snowCtx.Log.Warn("subscription failed to accept event", zap.Stringer("txID", txID), zap.Error(err))
 					}
 				}
 
