@@ -42,6 +42,15 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 		workload.Ping(tc.DefaultContext(), require, getE2EURIs(tc, expectedBlockchainID))
 	})
 
+	ginkgo.It("StableNetworkIdentity", func() {
+		fixedNodeUrl := "http://localhost:9650/ext/bc/" + vmName
+
+		c := rpc.NewJSONRPCClient(fixedNodeUrl)
+		_, _, chainIdFromRPC, err := c.Network(tc.DefaultContext())
+		require.NoError(err)
+		require.Equal(chainIdFromRPC, e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID)
+	})
+
 	ginkgo.It("GetNetwork", func() {
 		expectedBlockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(vmName).Chains[0].ChainID
 		baseURIs := getE2EBaseURIs(tc)
@@ -209,6 +218,9 @@ func SetupDefaultChainAlias(chainID ids.ID, tc tests.TestContext) {
 
 	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
 	require.NoError(err)
+
+	fmt.Println("DEBUG: aliases", aliases)
+	fmt.Println("DEBUG: chainID", chainID)
 
 	hasAlias := false
 	for _, alias := range aliases {

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
-	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -45,29 +44,9 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	// and workload factory to orchestrate the test.
 	he2e.SetWorkload(consts.Name, workloadFactory)
 
-	// Run only once in the first ginkgo process
-	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
-
-	nodes[0].Flags["http-port"] = "9650"
-
-	subnet := fixture.NewHyperVMSubnet(
-		consts.Name,
-		consts.ID,
-		genesisBytes,
-		nodes...,
-	)
-
-	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
 	tc := e2e.NewTestContext()
-	testEnv := e2e.NewTestEnvironment(
-		tc,
-		flagVars,
-		network,
-	)
 
-	he2e.SetupDefaultChainAlias(network.GetSubnet(consts.Name).Chains[0].ChainID, tc)
-
-	return testEnv.Marshal()
+	return fixture.NewTestEnvironment(tc, flagVars, owner, consts.Name, consts.ID, genesisBytes).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 

@@ -8,6 +8,7 @@ import (
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
+	he2e "github.com/ava-labs/hypersdk/tests/e2e"
 )
 
 func NewTestEnvironment(
@@ -20,6 +21,8 @@ func NewTestEnvironment(
 ) *e2e.TestEnvironment {
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
+	nodes[0].Flags["http-port"] = "9650"
+
 	subnet := NewHyperVMSubnet(
 		vmName,
 		vmID,
@@ -27,9 +30,17 @@ func NewTestEnvironment(
 		nodes...,
 	)
 	network := NewTmpnetNetwork(owner, nodes, subnet)
-	return e2e.NewTestEnvironment(
+
+	testEnv := e2e.NewTestEnvironment(
 		testContext,
 		flagVars,
 		network,
 	)
+
+	chainId := network.GetSubnet(vmName).Chains[0].ChainID
+	if chainId != ids.Empty {
+		he2e.SetupDefaultChainAlias(chainId, testContext)
+	}
+
+	return testEnv
 }
