@@ -8,7 +8,9 @@ use std::{collections::HashMap, ffi::CString};
 // TODO: Would love a less-hardcodey way of representing errors between rust <-> go
 pub const ERR_NOT_FOUND: &str = "not found";
 
+/// A simple key-value store representing the state of the simulated VM.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct SimpleState {
     state: HashMap<Vec<u8>, Vec<u8>>,
 }
@@ -83,6 +85,10 @@ pub extern "C" fn remove_state_callback(state: &mut SimpleState, key: Bytes) {
     state.remove(key.to_vec());
 }
 
+/// Callback functions for retrieving/modifying state values.
+///
+/// These function are used as part of the FFI interface to allow CGO code
+/// to query the Rust-side state storage.
 pub type GetStateCallback =
     extern "C" fn(simObjectPtr: &mut SimpleState, key: Bytes) -> BytesWithError;
 pub type InsertStateCallback = extern "C" fn(objectPtr: &mut SimpleState, key: Bytes, value: Bytes);
