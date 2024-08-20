@@ -7,9 +7,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v4
     - name: Run tdg-github-action
-      uses: ribtoks/tdg-github-action@master
+      uses: ribtoks/tdg-github-action@7e41dea
       with:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         REPO: ${{ github.repository }}
