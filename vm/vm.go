@@ -356,10 +356,7 @@ func (vm *VM) Initialize(
 			return err
 		}
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
-		if err := vm.loadAcceptedBlocks(ctx); err != nil {
-			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
-			return err
-		}
+		vm.loadAcceptedBlocks(ctx)
 		// It is not guaranteed that the last accepted state on-disk matches the post-execution
 		// result of the last accepted block.
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
@@ -1205,7 +1202,7 @@ func (vm *VM) backfillSeenTransactions() {
 	)
 }
 
-func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
+func (vm *VM) loadAcceptedBlocks(ctx context.Context) {
 	start := uint64(0)
 	lookback := uint64(vm.config.AcceptedBlockWindowCache) - 1 // include latest
 	if vm.lastAccepted.Hght > lookback {
@@ -1224,7 +1221,6 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		zap.Uint64("start", start),
 		zap.Uint64("finish", vm.lastAccepted.Hght),
 	)
-	return nil
 }
 
 func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {

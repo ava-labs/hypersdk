@@ -99,10 +99,10 @@ type WebSocketServerFactory struct {
 	handler *pubsub.Server
 }
 
-func (p WebSocketServerFactory) New(api.VM) (api.Handler, error) {
+func (w WebSocketServerFactory) New(api.VM) (api.Handler, error) {
 	return api.Handler{
 		Path:    Endpoint,
-		Handler: p.handler,
+		Handler: w.handler,
 	}, nil
 }
 
