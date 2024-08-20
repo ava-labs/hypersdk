@@ -10,7 +10,6 @@ awscpu
 *.exe
 *.exe~
 *.dll
-*.so
 *.dylib
 *.profile
 
