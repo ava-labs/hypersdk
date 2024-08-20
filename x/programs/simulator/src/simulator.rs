@@ -50,6 +50,8 @@ extern "C" {
 pub struct Simulator<'a> {
     state: Mutable<'a>,
     actor: Address,
+    height: u64,
+    timestamp: u64,
 }
 
 impl<'a> Simulator<'a> {
@@ -58,6 +60,8 @@ impl<'a> Simulator<'a> {
         Simulator {
             state: Mutable::new(state),
             actor: Address::default(),
+            height: 0,
+            timestamp: 0,
         }
     }
 
@@ -91,10 +95,31 @@ impl<'a> Simulator<'a> {
         let params = wasmlanche_sdk::borsh::to_vec(&params).expect("error serializing result");
         let method = CString::new(method).expect("Unable to create a cstring");
         // build the call context
-        let context = SimulatorCallContext::new(program, self.actor, &method, &params, gas);
+        let context = self.new_call_context(program, &method, &params, gas);
         let state_addr = &self.state as *const _ as usize;
 
         unsafe { call_program(state_addr, &context) }
+    }
+
+    fn new_call_context(
+        &self,
+        program: Address,
+        method: &CString,
+        params: &[u8],
+        gas: u64,
+    ) -> SimulatorCallContext {
+        SimulatorCallContext {
+            program_address: program.into(),
+            actor_address: self.actor.into(),
+            height: self.height,
+            timestamp: self.timestamp,
+            method: method.as_ptr(),
+            params: Bytes {
+                data: params.as_ptr(),
+                length: params.len() as c_uint,
+            },
+            max_gas: gas as c_uint,
+        }
     }
 
     /// Returns the actor address for the simulator.
@@ -105,18 +130,6 @@ impl<'a> Simulator<'a> {
     /// Sets the actor address for the simulator.
     pub fn set_actor(&mut self, actor: Address) {
         self.actor = actor;
-    }
-
-    /// Returns the balance of the given account.
-    pub fn get_balance(&self, account: Address) -> u64 {
-        let state_addr = &self.state as *const _ as usize;
-        unsafe { get_balance(state_addr, account.into()) }
-    }
-
-    /// Sets the balance of the given account.
-    pub fn set_balance(&mut self, account: Address, balance: u64) {
-        let state_addr = &self.state as *const _ as usize;
-        unsafe { set_balance(state_addr, account.into(), balance) }
     }
 }
 
@@ -230,55 +243,5 @@ impl SimulatorCallContext {
             },
             max_gas: gas as c_uint,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn initial_balance_is_zero() {
-        let mut state = SimpleState::new();
-        let simulator = Simulator::new(&mut state);
-        let alice = Address::new([1; 33]);
-
-        let bal = simulator.get_balance(alice);
-        assert_eq!(bal, 0);
-    }
-
-    #[test]
-    fn get_balance() {
-        let account_data_prefix = [0x00];
-        let account_prefix = [0x01];
-        let alice = Address::new([1; 33]);
-        let mut state = SimpleState::new();
-        let exptected_balance = 999u64;
-
-        let key = account_prefix
-            .into_iter()
-            .chain(alice.as_ref().iter().copied())
-            .chain(account_data_prefix)
-            .chain(b"balance".iter().copied())
-            .collect();
-
-        state.insert(key, exptected_balance.to_be_bytes().to_vec());
-
-        let simulator = Simulator::new(&mut state);
-
-        let bal = simulator.get_balance(alice);
-        assert_eq!(bal, exptected_balance);
-    }
-
-    #[test]
-    fn set_balance() {
-        let expected_balance = 100;
-        let mut state = SimpleState::new();
-        let mut simulator = Simulator::new(&mut state);
-        let alice = Address::new([1; 33]);
-
-        simulator.set_balance(alice, expected_balance);
-        let bal = simulator.get_balance(alice);
-        assert_eq!(bal, expected_balance);
     }
 }

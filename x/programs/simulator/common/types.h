@@ -34,9 +34,9 @@ typedef struct {
     // invoker
     Address actor_address;
     // block height
-    unsigned int height;
+    uint64_t height;
     // block timestamp
-    unsigned int timestamp;
+    uint64_t timestamp;
     // method being called on program
     const char* method;
     // params borsh serialized as byte vector
