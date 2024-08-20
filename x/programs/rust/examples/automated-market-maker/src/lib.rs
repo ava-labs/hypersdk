@@ -3,7 +3,7 @@
 
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, GasUnits, Program};
 
 mod math;
 
@@ -26,7 +26,7 @@ pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity
         ))
         .expect("failed to set state");
 
-    let liquidity_context = ExternalCallContext::new(liquidity_token, None, 0);
+    let liquidity_context = ExternalCallContext::new(liquidity_token, GasUnits::PassAll, 0);
 
     let transfer_reuslt =
         token::transfer_ownership(&liquidity_context, *context.program().account());
@@ -215,15 +215,15 @@ fn external_token_contracts(context: &mut Context) -> (ExternalCallContext, Exte
     let (token_x, token_y) = token_programs(context);
 
     (
-        ExternalCallContext::new(token_x, None, 0),
-        ExternalCallContext::new(token_y, None, 0),
+        ExternalCallContext::new(token_x, GasUnits::PassAll, 0),
+        ExternalCallContext::new(token_y, GasUnits::PassAll, 0),
     )
 }
 
 /// Returns the external call context for the liquidity token
 fn external_liquidity_token(context: &mut Context) -> ExternalCallContext {
     let token = context.get(LiquidityToken).unwrap().unwrap();
-    ExternalCallContext::new(token, None, 0)
+    ExternalCallContext::new(token, GasUnits::PassAll, 0)
 }
 
 mod internal {

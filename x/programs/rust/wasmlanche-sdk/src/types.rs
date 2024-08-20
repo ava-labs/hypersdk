@@ -1,18 +1,46 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use std::mem::size_of;
-use std::num::NonZeroU64;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
+use std::mem::size_of;
+use std::num::NonZeroU64;
 
 /// Byte length of an action ID.
 pub const ID_LEN: usize = 32;
 /// Action id.
 pub type Id = [u8; ID_LEN];
+
 /// Gas type alias.
-pub type Gas = NonZeroU64;
+pub enum GasUnits {
+    PassAll,
+    Units(NonZeroU64),
+}
+
+impl From<&GasUnits> for u64 {
+    fn from(value: &GasUnits) -> Self {
+        match value {
+            GasUnits::PassAll => 0,
+            GasUnits::Units(num) => num.get(),
+        }
+    }
+}
+
+impl From<u64> for GasUnits {
+    fn from(value: u64) -> Self {
+        match value {
+            0 => GasUnits::PassAll,
+            num => GasUnits::Units(unsafe { NonZeroU64::new_unchecked(num) }),
+        }
+    }
+}
+
+impl BorshDeserialize for GasUnits {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let num = u64::deserialize_reader(reader)?;
+        Ok(num.into())
+    }
+}
 
 /// A struct that enforces a fixed length of 33 bytes which represents an address.
 #[cfg_attr(feature = "debug", derive(Debug))]

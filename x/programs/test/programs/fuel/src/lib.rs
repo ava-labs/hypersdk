@@ -11,6 +11,6 @@ pub fn get_fuel(ctx: &mut Context) -> u64 {
 #[public]
 pub fn out_of_fuel(_: &mut Context, target: Program) -> ExternalCallError {
     target
-        .call_function::<u64>("get_fuel", &[], 1u64.into(), 0)
+        .call_function::<u64>("get_fuel", &[], &1u64.into(), 0)
         .unwrap_err()
 }

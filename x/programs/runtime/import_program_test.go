@@ -116,6 +116,30 @@ func TestImportProgramCallProgramWithParam(t *testing.T) {
 	require.Equal(expected, result)
 }
 
+func TestImportProgramCallProgramWithParamPassAllGas(t *testing.T) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	program := newTestProgram(ctx, "call_program")
+
+	expected, err := Serialize(uint64(1))
+	require.NoError(err)
+
+	result, err := program.Call(
+		"call_with_param",
+		uint64(1))
+	require.NoError(err)
+	require.Equal(expected, result)
+
+	result, err = program.Call(
+		"call_with_param_external",
+		program.Address, uint64(0), uint64(1))
+	require.NoError(err)
+	require.Equal(expected, result)
+}
+
 func TestImportProgramCallProgramWithParams(t *testing.T) {
 	require := require.New(t)
 

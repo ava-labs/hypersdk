@@ -1,7 +1,7 @@
 // Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-use crate::{memory::HostPtr, types::Address, Gas};
+use crate::{memory::HostPtr, types::{Address, GasUnits}};
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
@@ -79,7 +79,7 @@ impl Program {
         &self,
         function_name: &str,
         args: &[u8],
-        max_units: Option<Gas>,
+        max_units: &GasUnits,
         max_value: u64,
     ) -> Result<T, ExternalCallError> {
         #[link(wasm_import_module = "program")]
@@ -87,6 +87,8 @@ impl Program {
             #[link_name = "call_program"]
             fn call_program(ptr: *const u8, len: usize) -> HostPtr;
         }
+
+        let max_units = &max_units.into();
 
         let args = CallProgramArgs {
             target: self,
@@ -120,21 +122,11 @@ impl Program {
     }
 }
 
+#[derive(BorshSerialize)]
 struct CallProgramArgs<'a> {
     target: &'a Program,
     function: &'a [u8],
     args: &'a [u8],
-    max_units: Option<Gas>,
+    max_units: &'a u64,
     max_value: u64,
-}
-
-impl BorshSerialize for CallProgramArgs<'_> {
-    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        self.target.serialize(writer)?;
-        self.function.serialize(writer)?;
-        self.args.serialize(writer)?;
-        let max_units: u64 = self.max_units.map(|units| units.into()).unwrap_or_default();
-        max_units.serialize(writer)?;
-        self.max_value.serialize(writer)
-    }
 }

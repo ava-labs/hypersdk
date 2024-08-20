@@ -65,15 +65,19 @@ func NewProgramModule(r *WasmRuntime) *ImportModule {
 			"call_program": {FuelCost: callProgramCost, Function: Function[callProgramInput, Result[RawBytes, ProgramCallErrorCode]](func(callInfo *CallInfo, input callProgramInput) (Result[RawBytes, ProgramCallErrorCode], error) {
 				newInfo := *callInfo
 
-				if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
-					return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil //nolint:nilerr
+				if input.Fuel == 0 {
+					newInfo.Fuel = callInfo.RemainingFuel()
+				} else {
+					if err := callInfo.ConsumeFuel(input.Fuel); err != nil {
+						return Err[RawBytes, ProgramCallErrorCode](OutOfFuel), nil //nolint:nilerr
+					}
+					newInfo.Fuel = input.Fuel
 				}
 
 				newInfo.Actor = callInfo.Program
 				newInfo.Program = input.Program
 				newInfo.FunctionName = input.FunctionName
 				newInfo.Params = input.Params
-				newInfo.Fuel = input.Fuel
 				newInfo.Value = input.Value
 
 				result, err := r.CallProgram(

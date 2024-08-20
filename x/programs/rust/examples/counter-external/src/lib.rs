@@ -5,13 +5,13 @@ use wasmlanche_sdk::{public, Address, Context, ExternalCallContext, Program};
 
 #[public]
 pub fn inc(_: &mut Context, external: Program, address: Address) {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+    let ctx = ExternalCallContext::new(external, 1_000_000.into(), 0);
     counter::inc(&ctx, address, 1);
 }
 
 #[public]
 pub fn get_value(_: &mut Context, external: Program, address: Address) -> u64 {
-    let ctx = ExternalCallContext::new(external, 1_000_000, 0);
+    let ctx = ExternalCallContext::new(external, 1_000_000.into(), 0);
     counter::get_value(&ctx, address)
 }
 

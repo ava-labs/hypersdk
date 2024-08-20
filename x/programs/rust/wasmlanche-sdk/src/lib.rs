@@ -19,7 +19,7 @@ pub use self::{
     logging::{log, register_panic},
     memory::HostPtr,
     program::{send, ExternalCallError, Program},
-    types::{Address, Gas, Id, ID_LEN},
+    types::{Address, GasUnits, Id, ID_LEN},
 };
 pub use sdk_macros::{public, state_schema};
 
