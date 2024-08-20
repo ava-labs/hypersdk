@@ -44,17 +44,17 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 }
 
 // Accepted mocks base method.
-func (m *MockController) Accepted(arg0 context.Context, arg1 *chain.StatelessBlock) error {
+func (m *MockController) Accepted(arg0 context.Context, arg1 *chain.StatefulBlock, arg2 []*chain.Result) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Accepted", arg0, arg1)
+	ret := m.ctrl.Call(m, "Accepted", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Accepted indicates an expected call of Accepted.
-func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 any) *gomock.Call {
+func (mr *MockControllerMockRecorder) Accepted(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Accepted", reflect.TypeOf((*MockController)(nil).Accepted), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Accepted", reflect.TypeOf((*MockController)(nil).Accepted), arg0, arg1, arg2)
 }
 
 // Rules mocks base method.

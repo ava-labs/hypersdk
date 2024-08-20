@@ -29,7 +29,6 @@ var (
 type Indexer interface {
 	AcceptedSubscriber
 	GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensions, uint64, error)
-	AcceptedStateful(context.Context, *chain.StatefulBlock, []*chain.Result) error
 	GetBlockByHeight(height uint64) ([]byte, error)
 	GetBlock(blockID ids.ID) ([]byte, error)
 }
@@ -63,15 +62,7 @@ func (s *DBIndexer) GetTransaction(txID ids.ID) (bool, int64, bool, fees.Dimensi
 	return true, timestamp, success, d, fee, nil
 }
 
-func (s *DBIndexer) Accepted(_ context.Context, blk *chain.StatelessBlock) error {
-	return s.innerAccepted(blk.StatefulBlock, blk.Results())
-}
-
-func (s *DBIndexer) AcceptedStateful(_ context.Context, blk *chain.StatefulBlock, results []*chain.Result) error {
-	return s.innerAccepted(blk, results)
-}
-
-func (s *DBIndexer) innerAccepted(blk *chain.StatefulBlock, results []*chain.Result) error {
+func (s *DBIndexer) Accepted(_ context.Context, blk *chain.StatefulBlock, results []*chain.Result) error {
 	batch := s.db.NewBatch()
 	defer batch.Reset()
 
@@ -191,7 +182,7 @@ func NewNoOpIndexer() *NoOpIndexer {
 	return &NoOpIndexer{}
 }
 
-func (*NoOpIndexer) Accepted(_ context.Context, _ *chain.StatelessBlock) error {
+func (*NoOpIndexer) Accepted(_ context.Context, _ *chain.StatefulBlock, _ []*chain.Result) error {
 	return nil
 }
 

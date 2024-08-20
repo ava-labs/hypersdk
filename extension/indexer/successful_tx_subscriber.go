@@ -24,8 +24,7 @@ func NewSuccessfulTxSubscriber(subscriber SuccessfulTxSubscriber) AcceptedSubscr
 	return &successfulTxSubscriber{subscriber}
 }
 
-func (s *successfulTxSubscriber) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	results := blk.Results()
+func (s *successfulTxSubscriber) Accepted(ctx context.Context, blk *chain.StatefulBlock, results []*chain.Result) error {
 	for i, tx := range blk.Txs {
 		result := results[i]
 		if result.Success {

@@ -115,9 +115,9 @@ func (*factory) New(
 	}
 
 	if c.config.ExportedBlockSubcriberAddress != "" {
-		// Connect to gRPC server
-		genBytes, _ := json.Marshal(c.genesis)
-		externalSubscriber, err := grpcindexer.NewExternalSubscriberClient(context.Background(), c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, genBytes)
+		// Connect to splitter
+		genesisBytes, _ := json.Marshal(c.genesis)
+		externalSubscriber, err := grpcindexer.NewExternalSubscriberClient(context.Background(), c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, genesisBytes)
 		// Immediately fail if we couldn't connect
 		if err != nil {
 			return nil, nil, nil, err
@@ -169,8 +169,8 @@ func (c *Controller) StateManager() chain.StateManager {
 	return c.stateManager
 }
 
-func (c *Controller) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
-	return c.acceptedSubscriber.Accepted(ctx, blk)
+func (c *Controller) Accepted(ctx context.Context, blk *chain.StatefulBlock, results []*chain.Result) error {
+	return c.acceptedSubscriber.Accepted(ctx, blk, results)
 }
 
 func (c *Controller) Shutdown(context.Context) error {

@@ -166,7 +166,7 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	}
 
 	// Update controller
-	if err := vm.c.Accepted(context.TODO(), b); err != nil {
+	if err := vm.c.Accepted(context.TODO(), b.StatefulBlock, b.Results()); err != nil {
 		vm.Fatal("accepted processing failed", zap.Error(err))
 	}
 

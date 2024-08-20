@@ -10,7 +10,7 @@ import (
 )
 
 type AcceptedSubscriber interface {
-	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
+	Accepted(ctx context.Context, blk *chain.StatefulBlock, results []*chain.Result) error
 }
 
 type AcceptedSubscribers struct {
@@ -21,9 +21,9 @@ func NewAcceptedSubscribers(subscribers ...AcceptedSubscriber) *AcceptedSubscrib
 	return &AcceptedSubscribers{subscribers: subscribers}
 }
 
-func (a *AcceptedSubscribers) Accepted(ctx context.Context, blk *chain.StatelessBlock) error {
+func (a *AcceptedSubscribers) Accepted(ctx context.Context, blk *chain.StatefulBlock, results []*chain.Result) error {
 	for _, subscriber := range a.subscribers {
-		if err := subscriber.Accepted(ctx, blk); err != nil {
+		if err := subscriber.Accepted(ctx, blk, results); err != nil {
 			return err
 		}
 	}
