@@ -1,8 +1,8 @@
 name: TODO Bot
-on:
-  push:
-    branches:
-    - main
+on: [push, pull_request]
+  #  push:
+  #    branches:
+  #    - main
 jobs:
   build:
     runs-on: ubuntu-latest
