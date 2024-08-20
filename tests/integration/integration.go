@@ -41,10 +41,7 @@ import (
 // immediately after issuing a tx. After https://github.com/ava-labs/hypersdk/issues/1217, switch
 // integration/e2e tests to set the parameters and only allow the VM to populate VM-specific parameters.
 
-const (
-	timeout = time.Second
-	numVMs  = 3
-)
+const numVMs = 3
 
 var (
 	logFactory logging.Factory
@@ -341,7 +338,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
 			require.NoError(initialTxAssertion(ctx, uris[1]))
@@ -361,7 +358,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			results := accept(true)
 			require.Len(results, 1)
 
-			ctx, cancel := context.WithTimeout(ctx, timeout)
+			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 			defer cancel()
 			require.NoError(txAssertion(ctx, uris[1]))
 		})
@@ -497,7 +494,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.Len(results, 1)
 		require.True(results[0].Success)
 
-		cctx, cancel := context.WithTimeout(ctx, timeout)
+		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 		require.NoError(txAssertion(cctx, uris[0]))
 
@@ -540,7 +537,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.Len(results, 1)
 		require.True(results[0].Success)
 
-		cctx, cancel := context.WithTimeout(ctx, timeout)
+		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 		require.NoError(txAssertion(cctx, uris[0]))
 
@@ -569,7 +566,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 				accept := expectBlk(instances[0])
 				_ = accept(true)
-				cctx, cancel := context.WithTimeout(ctx, timeout)
+				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
 				require.NoError(txAssertion(cctx, uris[0]))
 			}
