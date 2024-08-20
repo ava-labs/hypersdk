@@ -181,18 +181,6 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 	return chain.ParseBlock(ctx, b, true, vm)
 }
 
-func (vm *VM) GetCachedBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error) {
-	id, err := vm.GetBlockIDAtHeight(ctx, height)
-	if err != nil {
-		return nil, err
-	}
-	blk, err := vm.GetStatelessBlock(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return blk, nil
-}
-
 func (vm *VM) CacheBlock(blk *chain.StatelessBlock) {
 	vm.acceptedBlocksByID.Put(blk.ID(), blk)
 	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())

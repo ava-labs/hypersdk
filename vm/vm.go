@@ -1177,10 +1177,14 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 		start = vm.lastAccepted.Hght - lookback
 	}
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
-		blk, err := vm.GetCachedBlock(ctx, i)
+		blkID, err := vm.GetBlockIDAtHeight(ctx, i)
 		if err != nil {
-			vm.snowCtx.Log.Info("could not find accepted block on disk", zap.Uint64("height", i))
-			continue
+			return fmt.Errorf("could not find accepted block at height %d: %w", i, err)
+		}
+
+		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, i, err)
 		}
 		vm.CacheBlock(blk)
 	}
@@ -1214,10 +1218,14 @@ func (vm *VM) restoreAcceptedQueue(ctx context.Context) error {
 	vm.snowCtx.Log.Info("restoring accepted blocks to the accepted queue", zap.Uint64("blocks", acceptedToRestore))
 
 	for height := start; height <= end; height++ {
-		var blk *chain.StatelessBlock
-		blk, err := vm.GetCachedBlock(ctx, height)
+		blkID, err := vm.GetBlockIDAtHeight(ctx, height)
 		if err != nil {
-			return fmt.Errorf("failed to find accepted block at height %d, err: %w", height, err)
+			return fmt.Errorf("could not find accepted block at height %d: %w", height, err)
+		}
+
+		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		if err != nil {
+			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, height, err)
 		}
 
 		vm.acceptedQueue <- blk
