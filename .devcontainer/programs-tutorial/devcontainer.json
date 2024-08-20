@@ -17,13 +17,14 @@
   "remoteEnv": {},
 
   "postCreateCommand": {
-    "install-wasm-target": "rustup target add wasm32-unknown-unknown"
+    "install-wasm-target": "rustup target add wasm32-unknown-unknown",
+    "install-libclang": "sudo apt update && sudo apt install -y libclang-dev"
   },
 
-  "postStartCommand": "sudo apt update && sudo apt install -y libclang-dev",
+  "postStartCommand": {},
 
   "workspaceMount": "source=${localWorkspaceFolder},target=/go/src/github.com/ava-labs/hypersdk,type=bind",
-  "workspaceFolder": "/go/src/github.com/ava-labs/hypersdk/x/programs/rust/examples/find-out",
+  "workspaceFolder": "/go/src/github.com/ava-labs/hypersdk/x/programs/rust/examples/tutorial",
 
   // Configure tool-specific properties.
   "customizations": {
