@@ -37,7 +37,6 @@ import (
 	"github.com/ava-labs/hypersdk/mempool"
 	"github.com/ava-labs/hypersdk/network"
 	"github.com/ava-labs/hypersdk/pebble"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/storage"
 	"github.com/ava-labs/hypersdk/trace"
@@ -74,6 +73,9 @@ type VM struct {
 	gossiper                   gossiper.Gossiper
 	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
 	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
+	// TODO remove by returning an verification error from the submit tx api
+	txRemovedSubscriptionFactories []event.SubscriptionFactory[TxRemovedEvent]
+	txRemovedSubscriptions         []event.Subscription[TxRemovedEvent]
 
 	vmAPIHandlerFactories         []api.HandlerFactory[api.VM]
 	controllerAPIHandlerFactories []api.HandlerFactory[Controller]
@@ -110,9 +112,6 @@ type VM struct {
 	// Accepted block queue
 	acceptedQueue chan *chain.StatelessBlock
 	acceptorDone  chan struct{}
-
-	// Transactions that streaming users are currently subscribed to
-	webSocketServer *rpc.WebSocketServer
 
 	// authVerifiers are used to verify signatures in parallel
 	// with limited parallelism
@@ -481,24 +480,16 @@ func (vm *VM) Initialize(
 		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
 	}
 
+	for _, factory := range vm.txRemovedSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
+		}
+
+		vm.txRemovedSubscriptions = append(vm.txRemovedSubscriptions, subscription)
+	}
+
 	vm.handlers = make(map[string]http.Handler)
-
-	// Setup handlers
-	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm))
-	if err != nil {
-		return fmt.Errorf("unable to create handler: %w", err)
-	}
-	if _, ok := vm.handlers[rpc.JSONRPCEndpoint]; ok {
-		return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCEndpoint)
-	}
-	vm.handlers[rpc.JSONRPCEndpoint] = jsonRPCHandler
-	if _, ok := vm.handlers[rpc.WebSocketEndpoint]; ok {
-		return fmt.Errorf("duplicate WebSocket handler found: %s", rpc.WebSocketEndpoint)
-	}
-	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.StreamingBacklogSize)
-	vm.webSocketServer = webSocketServer
-	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
-
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
 		api, err := apiFactory.New(vm)
 		if err != nil {
@@ -687,12 +678,6 @@ func (vm *VM) Shutdown(context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	for _, subscription := range vm.blockSubscriptions {
-		if err := subscription.Close(); err != nil {
-			return err
-		}
-	}
-
 	// Close DBs
 	if vm.snowCtx == nil {
 		return nil
@@ -703,7 +688,25 @@ func (vm *VM) Shutdown(context.Context) error {
 	if err := vm.stateDB.Close(); err != nil {
 		return err
 	}
-	return vm.rawStateDB.Close()
+
+	if err := vm.rawStateDB.Close(); err != nil {
+		return err
+	}
+
+	// Close subscriptions
+	for _, subscription := range vm.txRemovedSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // implements "block.ChainVM.common.VM"
@@ -957,9 +960,17 @@ func (vm *VM) Submit(
 				// Failed signature verification is the only safe place to remove
 				// a transaction in listeners. Every other case may still end up with
 				// the transaction in a block.
-				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
-					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+				event := TxRemovedEvent{
+					TxID: txID,
+					Err:  err,
 				}
+
+				for _, subscription := range vm.txRemovedSubscriptions {
+					if err := subscription.Accept(event); err != nil {
+						vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
+					}
+				}
+
 				errs = append(errs, err)
 				continue
 			}

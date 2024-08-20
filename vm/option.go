@@ -42,3 +42,9 @@ func WithControllerAPIs(apiHandlerFactories ...api.HandlerFactory[Controller]) O
 		vm.controllerAPIHandlerFactories = append(vm.controllerAPIHandlerFactories, apiHandlerFactories...)
 	}
 }
+
+func WithTxRemovedSubscriptions(subscriptions ...event.SubscriptionFactory[TxRemovedEvent]) Option {
+	return func(vm *VM) {
+		vm.txRemovedSubscriptionFactories = append(vm.txRemovedSubscriptionFactories, subscriptions...)
+	}
+}

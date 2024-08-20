@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/ulimit"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
@@ -43,11 +45,21 @@ func main() {
 }
 
 func runFunc(*cobra.Command, []string) error {
-	if err := ulimit.Set(ulimit.DefaultFDLimit, logging.NoLog{}); err != nil {
+	logFactory := logging.NewFactory(logging.Config{
+		DisplayLevel: logging.Debug,
+	})
+
+	log, err := logFactory.Make("main")
+	if err != nil {
+		return fmt.Errorf("failed to initialize log: %w", err)
+	}
+
+	if err := ulimit.Set(ulimit.DefaultFDLimit, log); err != nil {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	controller, err := controller.New()
+	// TODO use disk-based db
+	controller, err := controller.New(log, trace.Noop, memdb.New())
 	if err != nil {
 		return fmt.Errorf("failed to initialize controller: %w", err)
 	}

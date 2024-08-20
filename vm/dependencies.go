@@ -5,7 +5,6 @@ package vm
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -21,8 +20,6 @@ import (
 	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
-type Handlers map[string]http.Handler
-
 type Config struct {
 	TraceConfig                      trace.Config    `json:"traceConfig"`
 	MempoolSize                      int             `json:"mempoolSize"`
@@ -32,7 +29,6 @@ type Config struct {
 	TransactionExecutionCores        int             `json:"transactionExecutionCores"`
 	StateFetchConcurrency            int             `json:"stateFetchConcurrency"`
 	MempoolSponsorSize               int             `json:"mempoolSponsorSize"`
-	StreamingBacklogSize             int             `json:"streamingBacklogSize"`
 	StateHistoryLength               int             `json:"stateHistoryLength"`               // how many roots back of data to keep to serve state queries
 	IntermediateNodeCacheSize        int             `json:"intermediateNodeCacheSize"`        // how many bytes to keep in intermediate cache
 	StateIntermediateWriteBufferSize int             `json:"stateIntermediateWriteBufferSize"` // how many bytes to keep unwritten in intermediate cache
@@ -50,7 +46,6 @@ type Config struct {
 	ProcessingBuildSkip              int             `json:"processingBuildSkip"`
 	TargetGossipDuration             time.Duration   `json:"targetGossipDuration"`
 	BlockCompactionFrequency         int             `json:"blockCompactionFrequency"`
-	EnableJSONRPCStateHandler        bool            `json:"enableJSONRPCStateHandler"`
 	// Config is defined by the Controller
 	Config map[string]any `json:"config"`
 }
@@ -119,4 +114,9 @@ type Controller interface {
 	// information in state (without clobbering things the Controller is
 	// storing).
 	StateManager() chain.StateManager
+}
+
+type TxRemovedEvent struct {
+	TxID ids.ID
+	Err  error
 }

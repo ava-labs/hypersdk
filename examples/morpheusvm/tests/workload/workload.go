@@ -23,7 +23,6 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
 )
 
@@ -84,7 +83,7 @@ func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error
 }
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
-	cli := rpc.NewJSONRPCClient(uri)
+	cli := jsonrpc.NewJSONRPCClient(uri)
 	networkID, _, blockchainID, err := cli.Network(context.Background())
 	if err != nil {
 		return nil, err
@@ -100,7 +99,7 @@ func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxW
 
 type simpleTxWorkload struct {
 	factory   *auth.ED25519Factory
-	cli       *rpc.JSONRPCClient
+	cli       *jsonrpc.JSONRPCClient
 	lcli      *controller.JSONRPCClient
 	networkID uint32
 	chainID   ids.ID
@@ -253,7 +252,6 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 		if !success {
 			return fmt.Errorf("tx %s not accepted", tx.ID())
 		}
-
 		lcli := controller.NewJSONRPCClient(uri, g.networkID, g.chainID)
 		balance, err := lcli.Balance(ctx, receiverAddrStr)
 		if err != nil {

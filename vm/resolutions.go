@@ -171,16 +171,6 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		vm.cacheAuth(tx.Auth)
 	}
 
-	// Update server
-	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
-		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
-	}
-	// Must clear accepted txs before [SetMinTx] or else we will errnoueously
-	// send [ErrExpired] messages.
-	if err := vm.webSocketServer.SetMinTx(b.Tmstmp); err != nil {
-		vm.Fatal("unable to set min tx in websocket server", zap.Error(err))
-	}
-
 	// Update price metrics
 	feeManager := b.FeeManager()
 	vm.metrics.bandwidthPrice.Set(float64(feeManager.UnitPrice(fees.Bandwidth)))

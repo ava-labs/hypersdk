@@ -6,12 +6,14 @@ package controller
 import (
 	"fmt"
 
-	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
-	indexerapi "github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/hypersdk/api/indexer"
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -27,10 +29,12 @@ var (
 )
 
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(options ...vm.Option) (*vm.VM, error) {
+func New(log logging.Logger, tracer trace.Tracer, db database.Database, options ...vm.Option) (*vm.VM, error) {
 	opts := []vm.Option{
+		indexer.WithIndexer(db, consts.Name, indexer.Endpoint),
+		ws.WithWebsocketAPI(log, tracer, registry.Action, registry.Auth, 10_000_000),
+		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
 		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
-		indexerapi.WithIndexer(memdb.New(), consts.Name, "/indexer"),
 	}
 
 	opts = append(opts, options...)
@@ -72,7 +76,6 @@ func (*factory) New(
 	c.chainID = chainID
 	c.stateManager = &storage.StateManager{}
 
-	// Instantiate metrics
 	var err error
 
 	// Load config and genesis
@@ -104,8 +107,6 @@ type Controller struct {
 	genesis      *genesis.Genesis
 	config       *Config
 	stateManager *storage.StateManager
-
-	metrics *metrics
 }
 
 func (c *Controller) Rules(t int64) chain.Rules {

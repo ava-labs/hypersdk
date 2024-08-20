@@ -8,6 +8,8 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/cli"
@@ -16,11 +18,9 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
-
-	brpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )
 
 var _ cli.Controller = (*Controller)(nil)
@@ -39,7 +39,7 @@ func (h *Handler) Root() *cli.Handler {
 
 func (h *Handler) DefaultActor() (
 	ids.ID, *cli.PrivateKey, chain.AuthFactory,
-	*rpc.JSONRPCClient, *brpc.JSONRPCClient, *rpc.WebSocketClient, error,
+	*jsonrpc.JSONRPCClient, *controller.JSONRPCClient, *ws.WebSocketClient, error,
 ) {
 	addr, priv, err := h.h.GetDefaultKey(true)
 	if err != nil {
@@ -64,12 +64,12 @@ func (h *Handler) DefaultActor() (
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	jcli := rpc.NewJSONRPCClient(uris[0])
+	jcli := jsonrpc.NewJSONRPCClient(uris[0])
 	networkID, _, _, err := jcli.Network(context.TODO())
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
-	ws, err := rpc.NewWebSocketClient(uris[0], rpc.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
+	ws, err := ws.NewWebSocketClient(uris[0], ws.DefaultHandshakeTimeout, pubsub.MaxPendingMessages, pubsub.MaxReadMessageSize)
 	if err != nil {
 		return ids.Empty, nil, nil, nil, nil, nil, err
 	}
@@ -78,7 +78,7 @@ func (h *Handler) DefaultActor() (
 			Address: addr,
 			Bytes:   priv,
 		}, factory, jcli,
-		brpc.NewJSONRPCClient(
+		controller.NewJSONRPCClient(
 			uris[0],
 			networkID,
 			chainID,
@@ -87,7 +87,7 @@ func (h *Handler) DefaultActor() (
 
 func (*Handler) GetBalance(
 	ctx context.Context,
-	cli *brpc.JSONRPCClient,
+	cli *controller.JSONRPCClient,
 	addr codec.Address,
 ) (uint64, error) {
 	saddr, err := codec.AddressBech32(consts.HRP, addr)

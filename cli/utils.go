@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -19,7 +19,7 @@ const (
 
 func (*Handler) SubmitDummy(
 	ctx context.Context,
-	cli *rpc.JSONRPCClient,
+	cli *jsonrpc.JSONRPCClient,
 	sendAndWait func(context.Context, uint64) error,
 ) error {
 	var (
