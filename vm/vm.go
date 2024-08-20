@@ -1173,13 +1173,16 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 	for i := start; i <= vm.lastAccepted.Hght; i++ {
 		blkID, err := vm.GetBlockIDAtHeight(ctx, i)
 		if err != nil {
-			return fmt.Errorf("could not find accepted block at height %d: %w", i, err)
+			vm.snowCtx.Log.Info("could not find block ID on-disk", zap.Uint64("height", i))
+			continue
 		}
-
-		_, err = vm.GetStatelessBlock(ctx, blkID)
+		blk, err := vm.GetStatelessBlock(ctx, blkID)
 		if err != nil {
-			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, i, err)
+			vm.snowCtx.Log.Info("could not find block on-disk", zap.Uint64("height", i))
+			continue
 		}
+		vm.acceptedBlocksByID.Put(blk.ID(), blk)
+		vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 	}
 	vm.snowCtx.Log.Info("loaded blocks from disk",
 		zap.Uint64("start", start),
