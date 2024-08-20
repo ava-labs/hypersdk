@@ -351,7 +351,6 @@ func (vm *VM) Initialize(
 			snowCtx.Log.Error("could not get last accepted block", zap.Error(err))
 			return err
 		}
-		vm.CacheBlock(blk)
 		vm.preferred, vm.lastAccepted = blk.ID(), blk
 		if err := vm.loadAcceptedBlocks(ctx); err != nil {
 			snowCtx.Log.Error("could not load accepted blocks from disk", zap.Error(err))
@@ -749,12 +748,7 @@ func (vm *VM) GetStatelessBlock(ctx context.Context, blkID ids.ID) (*chain.State
 	// blocks we don't have yet at tip and we don't want
 	// to count that as a historical read.
 	vm.metrics.blocksFromDisk.Inc()
-	blk, err := vm.GetDiskBlock(ctx, blkHeight)
-	if err != nil {
-		return nil, err
-	}
-	vm.CacheBlock(blk)
-	return blk, nil
+	return vm.GetDiskBlock(ctx, blkHeight)
 }
 
 // implements "block.ChainVM.commom.VM.Parser"
@@ -1182,11 +1176,10 @@ func (vm *VM) loadAcceptedBlocks(ctx context.Context) error {
 			return fmt.Errorf("could not find accepted block at height %d: %w", i, err)
 		}
 
-		blk, err := vm.GetStatelessBlock(ctx, blkID)
+		_, err = vm.GetStatelessBlock(ctx, blkID)
 		if err != nil {
 			return fmt.Errorf("could not find accepted block (%s) at height %d: %w", blkID, i, err)
 		}
-		vm.CacheBlock(blk)
 	}
 	vm.snowCtx.Log.Info("loaded blocks from disk",
 		zap.Uint64("start", start),

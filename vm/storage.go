@@ -159,7 +159,8 @@ func (vm *VM) UpdateLastAccepted(blk *chain.StatelessBlock) error {
 		return fmt.Errorf("%w: unable to update last accepted", err)
 	}
 	vm.lastAccepted = blk
-	vm.CacheBlock(blk)
+	vm.acceptedBlocksByID.Put(blk.ID(), blk)
+	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 	if expired && vm.shouldCompact(expiryHeight) {
 		go func() {
 			start := time.Now()
@@ -179,11 +180,6 @@ func (vm *VM) GetDiskBlock(ctx context.Context, height uint64) (*chain.Stateless
 		return nil, err
 	}
 	return chain.ParseBlock(ctx, b, true, vm)
-}
-
-func (vm *VM) CacheBlock(blk *chain.StatelessBlock) {
-	vm.acceptedBlocksByID.Put(blk.ID(), blk)
-	vm.acceptedBlocksByHeight.Put(blk.Height(), blk.ID())
 }
 
 func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
