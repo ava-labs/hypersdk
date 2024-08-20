@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
-	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 )
 
@@ -103,15 +102,12 @@ type ControllerFactory interface {
 		log logging.Logger,
 		networkID uint32,
 		chainID ids.ID,
-		chainDataDir string,
-		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,
 		configBytes []byte,
 	) (
 		Controller,
 		Genesis,
-		Handlers,
 		error,
 	)
 }
@@ -123,13 +119,4 @@ type Controller interface {
 	// information in state (without clobbering things the Controller is
 	// storing).
 	StateManager() chain.StateManager
-
-	// Anything that the VM wishes to store outside of state or blocks must be
-	// recorded here
-	Accepted(ctx context.Context, blk *chain.StatelessBlock) error
-
-	// Shutdown should be used by the [Controller] to terminate any async
-	// processes it may be running in the background. It is invoked when
-	// `vm.Shutdown` is called.
-	Shutdown(context.Context) error
 }

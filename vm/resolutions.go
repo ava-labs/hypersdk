@@ -165,11 +165,6 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		return
 	}
 
-	// Update controller
-	if err := vm.c.Accepted(context.TODO(), b); err != nil {
-		vm.Fatal("accepted processing failed", zap.Error(err))
-	}
-
 	// TODO: consider removing this (unused and requires an extra iteration)
 	for _, tx := range b.Txs {
 		// Only cache auth for accepted blocks to prevent cache manipulation from RPC submissions
@@ -196,6 +191,13 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 
 	if err := vm.SetLastProcessedHeight(b.Height()); err != nil {
 		vm.Fatal("failed to update the last processed height", zap.Error(err))
+	}
+
+	// Update subscriptions
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Accept(b); err != nil {
+			vm.Fatal("subscription failed to process block", zap.Error(err))
+		}
 	}
 }
 

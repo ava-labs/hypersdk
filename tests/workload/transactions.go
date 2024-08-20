@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/rpc"
 )
 
 // TxWorkloadFactory prescribes an exact interface for generating transactions to test on a given environment
@@ -51,7 +51,7 @@ type TxWorkloadIterator interface {
 }
 
 func ExecuteWorkload(ctx context.Context, require *require.Assertions, uris []string, generator TxWorkloadIterator) {
-	submitClient := rpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
 
 	for generator.Next() {
 		tx, confirm, err := generator.GenerateTxWithAssertion(ctx)
@@ -71,7 +71,7 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	uri := uris[0]
 	generator, err := factory.NewSizedTxWorkload(uri, int(n))
 	require.NoError(err)
-	client := rpc.NewJSONRPCClient(uri)
+	client := jsonrpc.NewJSONRPCClient(uri)
 
 	_, startHeight, _, err := client.Accepted(ctx)
 	require.NoError(err)
@@ -93,8 +93,8 @@ func GenerateNBlocks(ctx context.Context, require *require.Assertions, uris []st
 	}
 
 	for _, uri := range uris {
-		client := rpc.NewJSONRPCClient(uri)
-		err := rpc.Wait(ctx, func(ctx context.Context) (bool, error) {
+		client := jsonrpc.NewJSONRPCClient(uri)
+		err := jsonrpc.Wait(ctx, func(ctx context.Context) (bool, error) {
 			_, acceptedHeight, _, err := client.Accepted(ctx)
 			if err != nil {
 				return false, err
@@ -110,7 +110,7 @@ func GenerateUntilCancel(
 	uris []string,
 	generator TxWorkloadIterator,
 ) {
-	submitClient := rpc.NewJSONRPCClient(uris[0])
+	submitClient := jsonrpc.NewJSONRPCClient(uris[0])
 
 	// Use backgroundCtx within the loop to avoid erroring due to an expected
 	// context cancellation.

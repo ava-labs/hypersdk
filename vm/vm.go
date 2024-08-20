@@ -26,10 +26,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/api"
 	"github.com/ava-labs/hypersdk/builder"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/emap"
+	"github.com/ava-labs/hypersdk/event"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/gossiper"
 	"github.com/ava-labs/hypersdk/mempool"
@@ -66,17 +68,22 @@ type VM struct {
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 
-	config         Config
-	genesis        Genesis
-	builder        builder.Builder
-	gossiper       gossiper.Gossiper
-	rawStateDB     database.Database
-	stateDB        merkledb.MerkleDB
-	vmDB           database.Database
-	handlers       Handlers
-	actionRegistry chain.ActionRegistry
-	authRegistry   chain.AuthRegistry
-	authEngine     map[uint8]AuthEngine
+	config                     Config
+	genesis                    Genesis
+	builder                    builder.Builder
+	gossiper                   gossiper.Gossiper
+	blockSubscriptionFactories []event.SubscriptionFactory[*chain.StatelessBlock]
+	blockSubscriptions         []event.Subscription[*chain.StatelessBlock]
+
+	vmAPIHandlerFactories         []api.HandlerFactory[api.VM]
+	controllerAPIHandlerFactories []api.HandlerFactory[Controller]
+	rawStateDB                    database.Database
+	stateDB                       merkledb.MerkleDB
+	vmDB                          database.Database
+	handlers                      map[string]http.Handler
+	actionRegistry                chain.ActionRegistry
+	authRegistry                  chain.AuthRegistry
+	authEngine                    map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -244,13 +251,11 @@ func (vm *VM) Initialize(
 	}
 
 	// Always initialize implementation first
-	vm.c, vm.genesis, vm.handlers, err = vm.factory.New(
+	vm.c, vm.genesis, err = vm.factory.New(
 		vm,
 		controllerContext.Log,
 		controllerContext.NetworkID,
 		controllerContext.ChainID,
-		controllerContext.ChainDataDir,
-		controllerContext.Metrics,
 		genesisBytes,
 		upgradeBytes,
 		controllerConfigBytes,
@@ -467,6 +472,17 @@ func (vm *VM) Initialize(
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
+	for _, factory := range vm.blockSubscriptionFactories {
+		subscription, err := factory.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize block subscription: %w", err)
+		}
+
+		vm.blockSubscriptions = append(vm.blockSubscriptions, subscription)
+	}
+
+	vm.handlers = make(map[string]http.Handler)
+
 	// Setup handlers
 	jsonRPCHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCServer(vm))
 	if err != nil {
@@ -483,16 +499,30 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 
-	// Add optional direct state read handler
-	if vm.config.EnableJSONRPCStateHandler {
-		if _, ok := vm.handlers[rpc.JSONRPCStateEndpoint]; ok {
-			return fmt.Errorf("duplicate JSONRPC handler found: %s", rpc.JSONRPCStateEndpoint)
-		}
-		jsonRPCStateHandler, err := rpc.NewJSONRPCHandler(rpc.Name, rpc.NewJSONRPCStateServer(vm))
+	for _, apiFactory := range vm.vmAPIHandlerFactories {
+		api, err := apiFactory.New(vm)
 		if err != nil {
-			return fmt.Errorf("unable to create handler: %w", err)
+			return fmt.Errorf("failed to initialize api: %w", err)
 		}
-		vm.handlers[rpc.JSONRPCStateEndpoint] = jsonRPCStateHandler
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
+	}
+
+	for _, apiFactory := range vm.controllerAPIHandlerFactories {
+		api, err := apiFactory.New(vm.c)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api: %w", err)
+		}
+
+		if _, ok := vm.handlers[api.Path]; ok {
+			return fmt.Errorf("failed to register duplicate vm api path: %s", api.Path)
+		}
+
+		vm.handlers[api.Path] = api.Handler
 	}
 
 	err = vm.restoreAcceptedQueue(ctx)
@@ -637,7 +667,7 @@ func (vm *VM) onNormalOperationsStarted() error {
 }
 
 // implements "block.ChainVM.common.VM"
-func (vm *VM) Shutdown(ctx context.Context) error {
+func (vm *VM) Shutdown(context.Context) error {
 	close(vm.stop)
 
 	// Shutdown state sync client if still running
@@ -657,10 +687,10 @@ func (vm *VM) Shutdown(ctx context.Context) error {
 		vm.profiler.Shutdown()
 	}
 
-	// Shutdown controller once all mechanisms that could invoke it have
-	// shutdown.
-	if err := vm.c.Shutdown(ctx); err != nil {
-		return err
+	for _, subscription := range vm.blockSubscriptions {
+		if err := subscription.Close(); err != nil {
+			return err
+		}
 	}
 
 	// Close DBs

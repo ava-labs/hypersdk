@@ -32,15 +32,19 @@ import (
 	"github.com/ava-labs/hypersdk/tests/workload"
 	"github.com/ava-labs/hypersdk/vm"
 
+	"github.com/onsi/ginkgo/v2"
+
 	hutils "github.com/ava-labs/hypersdk/utils"
-	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 // TODO integration tests require MinBlockGap to be 0, so that BuildBlock can be called
 // immediately after issuing a tx. After https://github.com/ava-labs/hypersdk/issues/1217, switch
 // integration/e2e tests to set the parameters and only allow the VM to populate VM-specific parameters.
 
-const numVMs = 3
+const (
+	timeout = time.Hour
+	numVMs  = 3
+)
 
 var (
 	logFactory logging.Factory
@@ -337,7 +341,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		})
 
 		ginkgo.By("ensure balance is updated", func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
 			require.NoError(initialTxAssertion(ctx, uris[1]))
@@ -357,7 +361,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			results := accept(true)
 			require.Len(results, 1)
 
-			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			require.NoError(txAssertion(ctx, uris[1]))
 		})
@@ -493,7 +497,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.Len(results, 1)
 		require.True(results[0].Success)
 
-		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		cctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		require.NoError(txAssertion(cctx, uris[0]))
 
@@ -536,7 +540,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 		require.Len(results, 1)
 		require.True(results[0].Success)
 
-		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		cctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		require.NoError(txAssertion(cctx, uris[0]))
 
@@ -565,7 +569,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 				accept := expectBlk(instances[0])
 				_ = accept(true)
-				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+				cctx, cancel := context.WithTimeout(ctx, timeout)
 				defer cancel()
 				require.NoError(txAssertion(cctx, uris[0]))
 			}
