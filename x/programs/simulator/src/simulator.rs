@@ -232,3 +232,53 @@ impl SimulatorCallContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn initial_balance_is_zero() {
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
+        let alice = Address::new([1; 33]);
+
+        let bal = simulator.get_balance(alice);
+        assert_eq!(bal, 0);
+    }
+
+    #[test]
+    fn get_balance() {
+        let account_data_prefix = [0x00];
+        let account_prefix = [0x01];
+        let alice = Address::new([1; 33]);
+        let mut state = SimpleState::new();
+        let exptected_balance = 999u64;
+
+        let key = account_prefix
+            .into_iter()
+            .chain(alice.as_ref().iter().copied())
+            .chain(account_data_prefix)
+            .chain(b"balance".iter().copied())
+            .collect();
+
+        state.insert(key, exptected_balance.to_be_bytes().to_vec());
+
+        let simulator = Simulator::new(&mut state);
+
+        let bal = simulator.get_balance(alice);
+        assert_eq!(bal, exptected_balance);
+    }
+
+    #[test]
+    fn set_balance() {
+        let expected_balance = 100;
+        let mut state = SimpleState::new();
+        let mut simulator = Simulator::new(&mut state);
+        let alice = Address::new([1; 33]);
+
+        simulator.set_balance(alice, expected_balance);
+        let bal = simulator.get_balance(alice);
+        assert_eq!(bal, expected_balance);
+    }
+}

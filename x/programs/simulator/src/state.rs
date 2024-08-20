@@ -10,6 +10,7 @@ pub const ERR_NOT_FOUND: &str = "not found";
 
 /// A simple key-value store representing the state of the simulated VM.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct SimpleState {
     state: HashMap<Vec<u8>, Vec<u8>>,
 }
