@@ -35,6 +35,7 @@ var (
 	prometheusFile        string
 	prometheusData        string
 	startPrometheus       bool
+	tcpPort               string
 
 	rootCmd = &cobra.Command{
 		Use:        "morpheus-cli",
@@ -52,6 +53,7 @@ func init() {
 		actionCmd,
 		spamCmd,
 		prometheusCmd,
+		startSplitterCmd,
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&dbPath,
@@ -182,6 +184,14 @@ func init() {
 	)
 	prometheusCmd.AddCommand(
 		generatePrometheusCmd,
+	)
+
+	// start-splitter
+	startSplitterCmd.PersistentFlags().StringVar(
+		&tcpPort,
+		"tcp-port",
+		":9001",
+		"port number for splitter",
 	)
 }
 
