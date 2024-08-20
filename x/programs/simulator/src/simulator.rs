@@ -131,6 +131,38 @@ impl<'a> Simulator<'a> {
     pub fn set_actor(&mut self, actor: Address) {
         self.actor = actor;
     }
+
+    /// Returns the height of the blockchain.
+    pub fn get_height(&self) -> u64 {
+        self.height
+    }
+
+    /// Sets the height of the blockchain.
+    pub fn set_height(&mut self, height: u64) {
+        self.height = height;
+    }
+
+    /// Returns the timestamp of the blockchain.
+    pub fn get_timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    /// Sets the timestamp of the blockchain.
+    pub fn set_timestamp(&mut self, timestamp: u64) {
+        self.timestamp = timestamp;
+    }
+
+    /// Returns the balance of the given account.
+    pub fn get_balance(&self, account: Address) -> u64 {
+        let state_addr = &self.state as *const _ as usize;
+        unsafe { get_balance(state_addr, account.into()) }
+    }
+
+    /// Sets the balance of the given account.
+    pub fn set_balance(&mut self, account: Address, balance: u64) {
+        let state_addr = &self.state as *const _ as usize;
+        unsafe { set_balance(state_addr, account.into(), balance) }
+    }
 }
 
 impl CreateProgramResponse {
@@ -223,25 +255,52 @@ impl CallProgramResponse {
     }
 }
 
-impl SimulatorCallContext {
-    pub fn new(
-        program_address: Address,
-        actor_address: Address,
-        method: &CString,
-        params: &[u8],
-        gas: u64,
-    ) -> Self {
-        SimulatorCallContext {
-            program_address: program_address.into(),
-            actor_address: actor_address.into(),
-            height: 0,
-            timestamp: 0,
-            method: method.as_ptr(),
-            params: Bytes {
-                data: params.as_ptr(),
-                length: params.len() as c_uint,
-            },
-            max_gas: gas as c_uint,
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn initial_balance_is_zero() {
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
+        let alice = Address::new([1; 33]);
+
+        let bal = simulator.get_balance(alice);
+        assert_eq!(bal, 0);
+    }
+
+    #[test]
+    fn get_balance() {
+        let account_data_prefix = [0x00];
+        let account_prefix = [0x01];
+        let alice = Address::new([1; 33]);
+        let mut state = SimpleState::new();
+        let exptected_balance = 999u64;
+
+        let key = account_prefix
+            .into_iter()
+            .chain(alice.as_ref().iter().copied())
+            .chain(account_data_prefix)
+            .chain(b"balance".iter().copied())
+            .collect();
+
+        state.insert(key, exptected_balance.to_be_bytes().to_vec());
+
+        let simulator = Simulator::new(&mut state);
+
+        let bal = simulator.get_balance(alice);
+        assert_eq!(bal, exptected_balance);
+    }
+
+    #[test]
+    fn set_balance() {
+        let expected_balance = 100;
+        let mut state = SimpleState::new();
+        let mut simulator = Simulator::new(&mut state);
+        let alice = Address::new([1; 33]);
+
+        simulator.set_balance(alice, expected_balance);
+        let bal = simulator.get_balance(alice);
+        assert_eq!(bal, expected_balance);
     }
 }
