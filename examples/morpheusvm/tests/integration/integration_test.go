@@ -37,6 +37,9 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/extension/grpcindexer"
+	"github.com/ava-labs/hypersdk/extension/indexer"
+	"github.com/ava-labs/hypersdk/extension/splitter"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/pubsub"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -46,6 +49,7 @@ import (
 	hbls "github.com/ava-labs/hypersdk/crypto/bls"
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	lsplitter "github.com/ava-labs/hypersdk/examples/morpheusvm/splitter"
 	hutils "github.com/ava-labs/hypersdk/utils"
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
@@ -80,6 +84,11 @@ var (
 	instances    []instance
 	blocks       []snowman.Block
 
+	// for tests that require the splitter
+	splitterServer      *splitter.Splitter
+	acceptedSubscribers *indexer.AcceptedSubscribers
+	tcpPort             string
+
 	networkID uint32
 	gen       *genesis.Genesis
 )
@@ -111,6 +120,12 @@ func init() {
 		"vms",
 		3,
 		"number of VMs to create",
+	)
+	flag.StringVar(
+		&tcpPort,
+		"tcp-port",
+		":9001",
+		"port to host splitter server",
 	)
 }
 
@@ -187,6 +202,15 @@ var _ = ginkgo.BeforeSuite(func() {
 	networkID = uint32(1)
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
+
+	// Create splitter
+	var acceptedSubscriberList []indexer.AcceptedSubscriber
+	acceptedSubscribers = indexer.NewAcceptedSubscribers(acceptedSubscriberList...)
+	externalSubscriberServer := grpcindexer.NewExternalSubscriberServer(log, lsplitter.ParserFactory, acceptedSubscribers)
+	splitterServer = splitter.NewSplitter(externalSubscriberServer, log, tcpPort)
+
+	splitterServer.Start()
+	log.Debug("starting splitter server", zap.Any("TCP Port", tcpPort))
 
 	app := &appSender{}
 	for i := range instances {
@@ -286,6 +310,8 @@ var _ = ginkgo.AfterSuite(func() {
 		iv.WebSocketServer.Close()
 		require.NoError(iv.vm.Shutdown(context.TODO()))
 	}
+
+	splitterServer.Stop()
 })
 
 var _ = ginkgo.Describe("[Ping]", func() {
