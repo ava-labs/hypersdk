@@ -42,7 +42,7 @@ import (
 // integration/e2e tests to set the parameters and only allow the VM to populate VM-specific parameters.
 
 const (
-	timeout = time.Hour
+	timeout = time.Second
 	numVMs  = 3
 )
 
