@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -54,6 +55,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		nodes...,
 	)
 
+	fmt.Println("hello")
 	network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
 	return e2e.NewTestEnvironment(
 		e2e.NewTestContext(),

@@ -6,7 +6,6 @@ package workload
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
 
@@ -64,16 +63,43 @@ type workloadFactory struct {
 func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error) {
 	gen := genesis.Default()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
-	// a block that exceeds the maximum size allowed by AvalancheGo.
-	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	gen.MinBlockGap = minBlockGap
-	for _, prefundedAddrStr := range ed25519AddrStrs {
-		gen.CustomAllocation = append(gen.CustomAllocation, &genesis.CustomAllocation{
-			Address: prefundedAddrStr,
-			Balance: initialBalance,
-		})
+	// gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// // Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
+	// // a block that exceeds the maximum size allowed by AvalancheGo.
+	// gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	// gen.MinBlockGap = minBlockGap
+
+	gen.StateBranchFactor = 16
+	gen.MinBlockGap = 50
+	gen.MinEmptyBlockGap = 2500
+	gen.MinUnitPrice = fees.Dimensions{100, 100, 100, 100, 100}
+	gen.UnitPriceChangeDenominator = fees.Dimensions{48, 48, 48, 48, 48}
+	gen.WindowTargetUnits = fees.Dimensions{20000000, 20000, 20000, 20000, 20000}
+	gen.MaxBlockUnits = fees.Dimensions{1800000, 2000, 2000, 2000, 2000}
+	gen.ValidityWindow = 60000
+	gen.MaxActionsPerTx = 16
+	gen.MaxOutputsPerAction = 1
+	gen.BaseComputeUnits = 1
+	gen.StorageKeyReadUnits = 0
+	gen.StorageValueReadUnits = 0
+	gen.StorageKeyAllocateUnits = 10
+	gen.StorageValueAllocateUnits = 0
+	gen.StorageKeyWriteUnits = 1
+	gen.StorageValueWriteUnits = 1
+
+	// for _, prefundedAddrStr := range ed25519AddrStrs {
+	// 	gen.CustomAllocation = append(gen.CustomAllocation, &genesis.CustomAllocation{
+	// 		Address: prefundedAddrStr,
+	// 		Balance: initialBalance,
+	// 	})
+	// }
+
+	gen.CustomAllocation = []*genesis.CustomAllocation{
+		&genesis.CustomAllocation{
+			// Address: "morph1qrzvk4zlwj9zsacqgtufx7zvapd3quufqpxk5rsdd4633m4wz2fdj73w34s",
+			Address: "morpheus1q8rc050907hx39vfejpawjydmwe6uujw0njx9s6skzdpp3cm2he5s036p07",
+			Balance: 10000000000000000000,
+		},
 	}
 
 	return gen, &workloadFactory{
