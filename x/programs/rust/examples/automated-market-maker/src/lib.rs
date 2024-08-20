@@ -183,7 +183,11 @@ pub fn get_liquidity_token(context: &mut Context) -> Program {
 }
 
 /// Returns the token reserves in the pool
-fn reserves(context: &Context, token_x: &ExternalCallContext, token_y: &ExternalCallContext) -> (Units, Units) {
+fn reserves(
+    context: &Context,
+    token_x: &ExternalCallContext,
+    token_y: &ExternalCallContext,
+) -> (Units, Units) {
     let balance_x = token::allowance(
         token_x,
         context.program().account(),
