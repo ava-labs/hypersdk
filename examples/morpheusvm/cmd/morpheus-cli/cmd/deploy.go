@@ -10,15 +10,12 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
-	"github.com/ava-labs/avalanchego/tests/fixture/tmpnet"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/e2e"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
-	"github.com/ava-labs/hypersdk/tests/fixture"
 	"github.com/ava-labs/hypersdk/utils"
 )
 
@@ -35,35 +32,13 @@ var deployCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		genBytes, err := json.Marshal(genesis)
+		genesisBytes, err := json.Marshal(genesis)
 		if err != nil {
 			return err
 		}
-		nodes := tmpnet.NewNodesOrPanic(numOfNodes)
-		// Set static port for DevNet
-		nodes[0].Flags["http-port"] = devNetPort
-		subnet := fixture.NewHyperVMSubnet(
-			consts.Name,
-			consts.ID,
-			genBytes,
-			nodes...,
-		)
 
-		timeOut := 2 * time.Minute
-
-		ctx, cancel := context.WithTimeout(context.Background(), timeOut)
-		defer cancel()
-
-		network := fixture.NewTmpnetNetwork(owner, nodes, subnet)
-		if err := tmpnet.BootstrapNewNetwork(
-			ctx,
-			os.Stdout,
-			network,
-			"",
-			avalancheGoPath,
-			avalancheGoPluginDir,
-		); err != nil {
-			utils.Outf(err.Error())
+		network, err := e2e.NewMorpheusNetwork(numOfNodes, devNetPort, genesisBytes, owner, avalancheGoPath, avalancheGoPluginDir)
+		if err != nil {
 			return err
 		}
 
@@ -78,7 +53,7 @@ var deployCmd = &cobra.Command{
 		if _, err := rpcURL.WriteString("/ext/bc/"); err != nil {
 			return err
 		}
-		if _, err := rpcURL.WriteString(subnet.Chains[0].ChainID.String()); err != nil {
+		if _, err := rpcURL.WriteString(network.Subnets[0].Chains[0].ChainID.String()); err != nil {
 			return err
 		}
 		if _, err := rpcURL.WriteString(rpc.JSONRPCEndpoint); err != nil {
