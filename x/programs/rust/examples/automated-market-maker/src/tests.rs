@@ -44,7 +44,7 @@ fn add_liquidity_same_ratio() {
         .unwrap();
 
     let balance = simulator
-        .call_program(lt, "balance_of", ((alice),), gas)
+        .call_program(lt, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
@@ -64,7 +64,7 @@ fn add_liquidity_same_ratio() {
     );
 
     let balance = simulator
-        .call_program(lt, "balance_of", ((alice),), gas)
+        .call_program(lt, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert!(balance > 0, "Balance of liquidity token is incorrect");
@@ -89,7 +89,7 @@ fn add_liquidity_without_approval() {
         .unwrap();
 
     let balance = simulator
-        .call_program(lt, "balance_of", ((alice),), gas)
+        .call_program(lt, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
@@ -132,7 +132,7 @@ fn swap_changes_ratio() {
     );
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", (alice,), gas)
+        .call_program(token_y, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_y, 0, "Balance of token y is incorrect");
@@ -144,13 +144,13 @@ fn swap_changes_ratio() {
     assert!(swap > 0, "Swap did not return any tokens");
 
     let balance_x = simulator
-        .call_program(token_x, "balance_of", (alice,), gas)
+        .call_program(token_x, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_x, 0, "Balance of token x is incorrect");
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", (alice,), gas)
+        .call_program(token_y, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert!(balance_y > 0, "Balance of token y is incorrect");
@@ -195,7 +195,7 @@ fn swap_insufficient_funds() {
     );
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", (alice,), gas)
+        .call_program(token_y, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_y, 0, "Balance of token y is incorrect");
@@ -266,7 +266,7 @@ fn remove_liquidity() {
         .unwrap();
 
     let balance = simulator
-        .call_program(lt, "balance_of", ((alice),), gas)
+        .call_program(lt, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
@@ -286,12 +286,12 @@ fn remove_liquidity() {
     );
 
     let balance = simulator
-        .call_program(lt, "balance_of", ((alice),), gas)
+        .call_program(lt, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert!(balance > 0, "Balance of liquidity token is incorrect");
 
-    let result = simulator.call_program(amm, "remove_liquidity", ((balance),), gas);
+    let result = simulator.call_program(amm, "remove_liquidity", balance, gas);
     assert!(
         !result.has_error(),
         "Remove liquidity errored {:?}",
@@ -303,19 +303,19 @@ fn remove_liquidity() {
     assert_eq!(token_y_balance, amount, "Token y balance is incorrect");
 
     let balance = simulator
-        .call_program(lt, "balance_of", ((alice),), gas)
+        .call_program(lt, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance, 0, "Balance of liquidity token is incorrect");
 
     let balance_x = simulator
-        .call_program(token_x, "balance_of", (alice,), gas)
+        .call_program(token_x, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_x, amount, "Balance of token x is incorrect");
 
     let balance_y = simulator
-        .call_program(token_y, "balance_of", (alice,), gas)
+        .call_program(token_y, "balance_of", alice, gas)
         .result::<u64>()
         .unwrap();
     assert_eq!(balance_y, amount, "Balance of token y is incorrect");
