@@ -35,7 +35,7 @@ func NewSimulatorState(db unsafe.Pointer) *Mutable {
 // GetValue returns the value associated with the key.
 // If the key doesn't exist, returns database.ErrNotFound.
 // If there is an error, returns an error.
-// 
+//
 // Note: In C, a function argument written as a fixed size array actually requires a
 // pointer to the first element of the array. C compilers are aware of this calling
 // convention and adjust the call accordingly, but Go cannot. In Go, you must pass
