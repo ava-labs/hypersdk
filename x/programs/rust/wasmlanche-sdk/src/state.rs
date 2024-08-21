@@ -44,6 +44,7 @@ pub struct State<'a> {
     cache: &'a RefCell<HashMap<CacheKey, Option<CacheValue>>>,
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct PrefixedKey<K: NoUninit> {
@@ -68,6 +69,8 @@ const _: fn() = || {
     let _ = ::core::mem::transmute::<crate::state::PrefixedKey<u32>, TypeWithoutPadding>;
 };
 
+/// A trait for defining the associated value for a given state-key.
+/// This trait is not meant to be implemented manually but should instead be implemented with the [`state_schema!`](crate::state_schema) macro.
 /// # Safety
 /// Do not implement this trait manually. Use the [`state_schema`](crate::state_schema) macro instead.
 pub unsafe trait Schema: NoUninit {
@@ -96,10 +99,6 @@ impl<'a> State<'a> {
         Self { cache }
     }
 
-    /// Store a list of tuple of key and value to the host storage.
-    /// # Errors
-    /// Returns an [`Error`] if the key or value cannot be
-    /// serialized or if the host fails to handle the operation.
     pub fn store<Pairs: IntoPairs>(self, pairs: Pairs) -> Result<(), Error> {
         let cache = &mut self.cache.borrow_mut();
 
@@ -112,30 +111,11 @@ impl<'a> State<'a> {
         Ok(())
     }
 
-    /// Store a key and value to the host storage. If the key already exists,
-    /// the value will be overwritten.
-    /// # Errors
-    /// Returns an [`Error`] if the key or value cannot be
-    /// serialized or if the host fails to handle the operation.
     pub fn store_by_key<K>(self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
     {
         self.store(((key, value),))
-    }
-
-    /// Get a value from the host's storage.
-    ///
-    /// Note: The pointer passed to the host are only valid for the duration of this
-    /// function call. This function will take ownership of the pointer and free it.
-    ///
-    /// # Errors
-    /// Returns an [`Error`] if the key cannot be serialized or if
-    /// the host fails to read the key and value.
-    /// # Panics
-    /// Panics if the value cannot be converted from i32 to usize.
-    pub fn get<K: Schema>(self, key: K) -> Result<Option<K::Value>, Error> {
-        self.get_mut_with(key, |x| from_slice(x))
     }
 
     pub(crate) fn get_with_raw_key<V>(self, key: &[u8]) -> Result<Option<V>, Error>
@@ -163,11 +143,6 @@ impl<'a> State<'a> {
         }
     }
 
-    /// Delete a value from the hosts's storage.
-    /// # Errors
-    /// Returns an [Error] if the value is inexistent
-    /// or if the key cannot be serialized
-    /// or if the host fails to delete the key and the associated value
     pub fn delete<K: Schema>(self, key: K) -> Result<Option<K::Value>, Error> {
         self.get_mut_with(key, |val| from_slice(&std::mem::take(val)))
     }

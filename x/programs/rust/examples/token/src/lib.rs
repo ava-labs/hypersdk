@@ -47,7 +47,7 @@ pub fn total_supply(context: &mut Context) -> Units {
 
 /// Transfers balance from the token owner to the recipient.
 #[public]
-pub fn mint(context: &mut Context, recipient: Address, amount: Units) -> bool {
+pub fn mint(context: &mut Context, recipient: Address, amount: Units) {
     let actor = context.actor();
 
     check_owner(context, actor);
@@ -61,8 +61,6 @@ pub fn mint(context: &mut Context, recipient: Address, amount: Units) -> bool {
             (TotalSupply, (total_supply + amount)),
         ))
         .expect("failed to store balance");
-
-    true
 }
 
 /// Burn the token from the recipient.
@@ -104,37 +102,27 @@ pub fn allowance(context: &mut Context, owner: Address, spender: Address) -> Uni
 }
 
 /// Approves the spender to spend the owner's tokens.
-/// Returns true if the approval was successful.
 #[public]
-pub fn approve(context: &mut Context, spender: Address, amount: Units) -> bool {
+pub fn approve(context: &mut Context, spender: Address, amount: Units) {
     let actor = context.actor();
 
     context
         .store_by_key(Allowance(actor, spender), amount)
         .expect("failed to store allowance");
-
-    true
 }
 
 /// Transfers balance from the sender to the the recipient.
 #[public]
-pub fn transfer(context: &mut Context, recipient: Address, amount: Units) -> bool {
+pub fn transfer(context: &mut Context, recipient: Address, amount: Units) {
     let sender = context.actor();
 
     internal::transfer(context, sender, recipient, amount);
-
-    true
 }
 
 /// Transfers balance from the sender to the recipient.
 /// The caller must have an allowance to spend the senders tokens.
 #[public]
-pub fn transfer_from(
-    context: &mut Context,
-    sender: Address,
-    recipient: Address,
-    amount: Units,
-) -> bool {
+pub fn transfer_from(context: &mut Context, sender: Address, recipient: Address, amount: Units) {
     assert_ne!(sender, recipient, "sender and recipient must be different");
 
     let actor = context.actor();
@@ -147,19 +135,15 @@ pub fn transfer_from(
         .expect("failed to store allowance");
 
     internal::transfer(context, sender, recipient, amount);
-
-    true
 }
 
 #[public]
-pub fn transfer_ownership(context: &mut Context, new_owner: Address) -> bool {
+pub fn transfer_ownership(context: &mut Context, new_owner: Address) {
     check_owner(context, context.actor());
 
     context
         .store_by_key(Owner, new_owner)
         .expect("failed to store owner");
-
-    true
 }
 
 #[public]
