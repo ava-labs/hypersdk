@@ -29,16 +29,16 @@ type Controller interface {
 
 type JSONRPCServer struct {
 	c Controller
-	g *vm.BaseGenesis
+	g *vm.Bech32Genesis
 	r vm.RuleFactory
 }
 
-func NewJSONRPCServer(c Controller, g *vm.BaseGenesis, r vm.RuleFactory) *JSONRPCServer {
+func NewJSONRPCServer(c Controller, g *vm.Bech32Genesis, r vm.RuleFactory) *JSONRPCServer {
 	return &JSONRPCServer{c: c, g: g, r: r}
 }
 
 type GenesisReply struct {
-	Genesis *vm.BaseGenesis `json:"genesis"`
+	Genesis *vm.Bech32Genesis `json:"genesis"`
 }
 
 func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisReply) (err error) {
@@ -47,11 +47,11 @@ func (j *JSONRPCServer) Genesis(_ *http.Request, _ *struct{}, reply *GenesisRepl
 }
 
 type RulesReply struct {
-	Rules *vm.BaseRules `json:"rules"`
+	Rules *vm.Rules `json:"rules"`
 }
 
 func (j *JSONRPCServer) Rules(_ *http.Request, _ *struct{}, reply *RulesReply) (err error) {
-	reply.Rules = j.r.GetRules(0).(*vm.BaseRules)
+	reply.Rules = j.r.GetRules(0).(*vm.Rules)
 	return nil
 }
 

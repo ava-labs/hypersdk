@@ -106,7 +106,7 @@ func (*factory) New(
 	apis := map[string]http.Handler{}
 	jsonRPCHandler, err := hrpc.NewJSONRPCHandler(
 		consts.Name,
-		rpc.NewJSONRPCServer(c, inner.Genesis().(*vm.BaseGenesis), inner.RuleFactory()),
+		rpc.NewJSONRPCServer(c, inner.Genesis().(*vm.Bech32Genesis), inner.RuleFactory()),
 	)
 	if err != nil {
 		return nil, nil, err

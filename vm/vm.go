@@ -145,14 +145,17 @@ func New(
 	options ...Option,
 ) (*VM, error) {
 	vm := &VM{
-		factory:               factory,
-		v:                     v,
-		config:                NewConfig(),
-		actionRegistry:        actionRegistry,
-		authRegistry:          authRegistry,
-		authEngine:            authEngine,
-		genesisAndRuleHandler: baseGenesisAndRuleHandler{},
-		allocationManager:     allocationManager,
+		factory:        factory,
+		v:              v,
+		config:         NewConfig(),
+		actionRegistry: actionRegistry,
+		authRegistry:   authRegistry,
+		authEngine:     authEngine,
+		genesisAndRuleHandler: &SplitGenesisAndRuleHandler{
+			LoadRules:   LoadRules,
+			LoadGenesis: LoadBaseGenesis,
+		},
+		allocationManager: allocationManager,
 	}
 	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
 	if err != nil {

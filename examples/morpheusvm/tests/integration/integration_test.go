@@ -170,21 +170,21 @@ var _ = ginkgo.BeforeSuite(func() {
 	instances = make([]instance, vms)
 
 	type genAndRules struct {
-		*vm.BaseGenesis
-		*vm.BaseRules
+		*vm.Bech32Genesis
+		*vm.Rules
 	}
 	combined := genAndRules{}
-	combined.BaseGenesis = vm.DefaultGenesis()
-	combined.BaseGenesis.CustomAllocation = []*vm.CustomAllocation{
+	combined.Bech32Genesis = vm.NewBech32Genesis()
+	combined.Bech32Genesis.CustomAllocation = []*vm.CustomAllocation{
 		{
 			Address: addrStr,
 			Balance: 10_000_000,
 		},
 	}
 
-	combined.BaseRules = vm.DefaultRules()
-	combined.BaseRules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
-	combined.BaseRules.MinBlockGap = 0
+	combined.Rules = vm.NewRules()
+	combined.Rules.MinUnitPrice = fees.Dimensions{1, 1, 1, 1, 1}
+	combined.Rules.MinBlockGap = 0
 
 	genesisBytes, err := json.Marshal(combined)
 	require.NoError(err)

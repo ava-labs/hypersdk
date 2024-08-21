@@ -21,8 +21,8 @@ import (
 
 type JSONRPCClient struct {
 	requester *requester.EndpointRequester
-	g         *vm.BaseGenesis
-	rules     *vm.BaseRules
+	g         *vm.Bech32Genesis
+	rules     *vm.Rules
 	networkID uint32
 	chainID   ids.ID
 }
@@ -35,7 +35,7 @@ func NewJSONRPCClient(uri string) *JSONRPCClient {
 	return &JSONRPCClient{req, nil, nil, 0, ids.Empty}
 }
 
-func (cli *JSONRPCClient) Genesis(ctx context.Context) (*vm.BaseGenesis, error) {
+func (cli *JSONRPCClient) Genesis(ctx context.Context) (*vm.Bech32Genesis, error) {
 	if cli.g != nil {
 		return cli.g, nil
 	}
@@ -54,7 +54,7 @@ func (cli *JSONRPCClient) Genesis(ctx context.Context) (*vm.BaseGenesis, error) 
 	return resp.Genesis, nil
 }
 
-func (cli *JSONRPCClient) Rules(ctx context.Context) (*vm.BaseRules, error) {
+func (cli *JSONRPCClient) Rules(ctx context.Context) (*vm.Rules, error) {
 	if cli.rules != nil {
 		return cli.rules, nil
 	}
@@ -147,7 +147,7 @@ func (cli *JSONRPCClient) WaitForTransaction(ctx context.Context, txID ids.ID) (
 var _ chain.Parser = (*Parser)(nil)
 
 type Parser struct {
-	genesis *vm.BaseGenesis
+	genesis *vm.Bech32Genesis
 	rules   vm.RuleFactory
 }
 

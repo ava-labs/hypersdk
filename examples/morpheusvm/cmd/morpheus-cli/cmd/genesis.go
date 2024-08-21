@@ -32,12 +32,12 @@ var genGenesisCmd = &cobra.Command{
 	},
 	RunE: func(_ *cobra.Command, args []string) error {
 		type genAndRules struct {
-			*vm.BaseGenesis
-			*vm.BaseRules
+			*vm.Bech32Genesis
+			*vm.Rules
 		}
 		combined := genAndRules{}
-		combined.BaseGenesis = vm.DefaultGenesis()
-		combined.BaseRules = vm.DefaultRules()
+		combined.Bech32Genesis = vm.NewBech32Genesis()
+		combined.Rules = vm.NewRules()
 
 		if len(minUnitPrice) > 0 {
 			d, err := fees.ParseDimensions(minUnitPrice)

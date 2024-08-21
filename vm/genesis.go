@@ -17,32 +17,32 @@ import (
 	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
-var _ Genesis = (*BaseGenesis)(nil)
+var _ Genesis = (*Bech32Genesis)(nil)
 
 type CustomAllocation struct {
 	Address string `json:"address"`
 	Balance uint64 `json:"balance"`
 }
 
-type BaseGenesis struct {
+type Bech32Genesis struct {
 	StateBranchFactor merkledb.BranchFactor `json:"stateBranchFactor"`
 
 	// Allocates
 	CustomAllocation []*CustomAllocation `json:"customAllocation"`
 }
 
-func (g *BaseGenesis) GetStateBranchFactor() merkledb.BranchFactor {
+func (g *Bech32Genesis) GetStateBranchFactor() merkledb.BranchFactor {
 	return g.StateBranchFactor
 }
 
-func DefaultGenesis() *BaseGenesis {
-	return &BaseGenesis{
+func NewBech32Genesis() *Bech32Genesis {
+	return &Bech32Genesis{
 		StateBranchFactor: merkledb.BranchFactor16,
 		CustomAllocation:  []*CustomAllocation{},
 	}
 }
 
-func (g *BaseGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, am AllocationManager) error {
+func (g *Bech32Genesis) InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, am AllocationManager) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
@@ -64,7 +64,7 @@ func (g *BaseGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, 
 }
 
 func LoadBaseGenesis(b []byte) (Genesis, error) {
-	g := DefaultGenesis()
+	g := NewBech32Genesis()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config %s: %w", string(b), err)

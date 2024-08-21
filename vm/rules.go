@@ -80,7 +80,7 @@ func NewRules() *Rules {
 	}
 }
 
-func LoadRules(b []byte, networkID uint32, chainID ids.ID) (*Rules, error) {
+func LoadRules(b []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error) {
 	r := NewRules()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, r); err != nil {
@@ -89,7 +89,7 @@ func LoadRules(b []byte, networkID uint32, chainID ids.ID) (*Rules, error) {
 	}
 	r.NetworkID = networkID
 	r.ChainID = chainID
-	return r, nil
+	return &UnchangingRuleFactory{UnchangingRules: r}, nil
 }
 
 func (r *Rules) GetNetworkID() uint32 { return r.NetworkID }
@@ -176,16 +176,20 @@ func (r *UnchangingRuleFactory) GetRules(_ int64) chain.Rules {
 	return r.UnchangingRules
 }
 
-type baseGenesisAndRuleHandler struct{}
+// SplitGenesisAndRuleHandler needs a better name
+type SplitGenesisAndRuleHandler struct {
+	LoadRules   func(b []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)
+	LoadGenesis func(b []byte) (Genesis, error)
+}
 
-func (baseGenesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
-	genesis, err := LoadBaseGenesis(initialBytes)
+func (grh *SplitGenesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
+	genesis, err := grh.LoadGenesis(initialBytes)
 	if err != nil {
 		return nil, nil, err
 	}
-	rules, err := LoadRules(initialBytes, networkID, chainID)
+	rules, err := grh.LoadRules(initialBytes, upgradeBytes, networkID, chainID)
 	if err != nil {
 		return nil, nil, err
 	}
-	return genesis, &UnchangingRuleFactory{UnchangingRules: rules}, nil
+	return genesis, rules, nil
 }
