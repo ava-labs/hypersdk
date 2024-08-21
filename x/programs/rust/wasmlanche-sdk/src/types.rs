@@ -42,7 +42,7 @@ impl BorshDeserialize for Gas {
     }
 }
 
-/// A struct that enforces a fixed length of 33 bytes which represents an address.
+/// A newtype wrapper around address bytes.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 #[repr(transparent)]

@@ -1,3 +1,11 @@
+/*
+ *
+ * This header file defines a common set of types and structures used as part of the
+ * Foreign Function Interface between Go(CGO) in the context
+ * of a smart contract simulator.
+ *
+ */
+
 #include <stdint.h>
 
 typedef struct {
@@ -26,9 +34,9 @@ typedef struct {
     // invoker
     Address actor_address;
     // block height
-    unsigned int height;
+    uint64_t height;
     // block timestamp
-    unsigned int timestamp;
+    uint64_t timestamp;
     // method being called on program
     const char* method;
     // params borsh serialized as byte vector

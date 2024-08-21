@@ -1,0 +1,50 @@
+name: rust docs as github-pages
+
+on:
+  push:
+    branches:
+      - 'find-out'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Go
+        uses: ./.github/actions/install-go
+      - name: Install Rust
+        uses: ./.github/actions/install-rust
+      - name: Run doc tests
+        run: RUSTDOCFLAGS="-D warnings" cargo doc -p wasmlanche-sdk -p simulator
+      - name: Tar docs
+        run: |
+          echo "<meta http-equiv=\"refresh\" content=\"0; url=wasmlanche_sdk\">" > target/doc/index.html
+          tar -cvf rust-docs.tar -C target/doc .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: rust-docs.tar
+          if-no-files-found: error
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy to GitHub pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -2,9 +2,9 @@
 // See the file LICENSE for licensing terms.
 
 use crate::{
-    state::{self, Error, IntoPairs, Schema, State},
-    types::{Address, Gas},
-    HostPtr, Id, Program,
+    state::{Error, IntoPairs, Schema, State},
+    types::Address,
+    Gas, HostPtr, Id, Program,
 };
 use borsh::BorshDeserialize;
 use std::{cell::RefCell, collections::HashMap};
@@ -53,26 +53,35 @@ impl Context {
         &self.program
     }
 
+    /// Returns the address of the actor that is executing the program.
     pub fn actor(&self) -> Address {
         self.actor
     }
 
+    /// Returns the block-height
     pub fn height(&self) -> u64 {
         self.height
     }
 
+    /// Returns the block-timestamp
     pub fn timestamp(&self) -> u64 {
         self.timestamp
     }
 
+    /// Returns the action-id
     pub fn action_id(&self) -> Id {
         self.action_id
     }
 
-    /// See [`State::get`].
+    /// Get a value from state.
+    ///
     /// # Errors
-    /// See [`State::get`].
-    pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, state::Error>
+    /// Returns an [`Error`] if the key cannot be serialized or if
+    /// the host fails to read the key and value.
+    ///
+    /// # Panics
+    /// Panics if the value cannot be converted from i32 to usize.
+    pub fn get<Key>(&mut self, key: Key) -> Result<Option<Key::Value>, Error>
     where
         Key: Schema,
     {
@@ -82,16 +91,18 @@ impl Context {
     /// Should not use this function directly.
     /// # Errors
     /// Errors when there's an issue deserializing.
-    pub fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, state::Error>
+    pub fn get_with_raw_key<V>(&mut self, key: &[u8]) -> Result<Option<V>, Error>
     where
         V: BorshDeserialize,
     {
         State::new(&self.state_cache).get_with_raw_key(key)
     }
 
-    /// See [`State::store_by_key`].
+    /// Store a key and value to the host storage. If the key already exists,
+    /// the value will be overwritten.
     /// # Errors
-    /// See [`State::store_by_key`].
+    /// Returns an [`Error`] if the key or value cannot be
+    /// serialized or if the host fails to handle the operation.
     pub fn store_by_key<K>(&self, key: K, value: K::Value) -> Result<(), Error>
     where
         K: Schema,
@@ -99,16 +110,19 @@ impl Context {
         State::new(&self.state_cache).store_by_key(key, value)
     }
 
-    /// See [`State::store`].
+    /// Store a list of tuple of key and value to the host storage.
     /// # Errors
-    /// See [`State::store`].    
+    /// Returns an [`Error`] if the key or value cannot be
+    /// serialized or if the host fails to handle the operation.
     pub fn store<Pairs: IntoPairs>(&self, pairs: Pairs) -> Result<(), Error> {
         State::new(&self.state_cache).store(pairs)
     }
 
-    /// See [`State::delete`].
+    /// Delete a value from the hosts's storage.
     /// # Errors
-    /// See [`State::delete`].
+    /// Returns an [Error] if the value is inexistent
+    /// or if the key cannot be serialized
+    /// or if the host fails to delete the key and the associated value
     pub fn delete<K: Schema>(&self, key: K) -> Result<Option<K::Value>, Error> {
         State::new(&self.state_cache).delete(key)
     }
