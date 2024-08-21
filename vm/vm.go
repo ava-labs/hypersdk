@@ -482,7 +482,7 @@ func (vm *VM) Initialize(
 	}
 
 	for _, factory := range vm.txRemovedSubscriptionFactories {
-		subscription, err := factory.New(controllerContext.ChainDataDir)
+		subscription, err := factory.New()
 		if err != nil {
 			return fmt.Errorf("failed to initialize tx removed subscription: %w", err)
 		}
