@@ -27,10 +27,7 @@ var (
 	_ event.Subscription[*chain.StatelessBlock]        = (*txDBIndexer)(nil)
 )
 
-func WithIndexer(
-	name string,
-	path string,
-) vm.Option {
+func WithIndexer(name string, path string) vm.Option {
 	return func(v *vm.VM) error {
 		dbPath := filepath.Join(v.DataDir, "indexer", "db")
 		db, _, err := pebble.New(dbPath, pebble.NewDefaultConfig())
