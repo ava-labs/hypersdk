@@ -1,4 +1,4 @@
-// Copyright (C) 2023, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package rpc
@@ -9,11 +9,10 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
-	_ "github.com/ava-labs/hypersdk/examples/morpheusvm/registry" // ensure registry populated
-
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/registry"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/requester"
 	"github.com/ava-labs/hypersdk/rpc"
@@ -134,6 +133,10 @@ type Parser struct {
 	genesis   *genesis.Genesis
 }
 
+func NewParser(networkID uint32, chainID ids.ID, genesis *genesis.Genesis) *Parser {
+	return &Parser{networkID, chainID, genesis}
+}
+
 func (p *Parser) ChainID() ids.ID {
 	return p.chainID
 }
@@ -143,7 +146,7 @@ func (p *Parser) Rules(t int64) chain.Rules {
 }
 
 func (*Parser) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
-	return consts.ActionRegistry, consts.AuthRegistry
+	return registry.Action, registry.Auth
 }
 
 func (*Parser) StateManager() chain.StateManager {
@@ -155,5 +158,5 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{cli.networkID, cli.chainID, g}, nil
+	return NewParser(cli.networkID, cli.chainID, g), nil
 }

@@ -10,7 +10,6 @@ awscpu
 *.exe
 *.exe~
 *.dll
-*.so
 *.dylib
 *.profile
 
@@ -69,7 +68,12 @@ target/
 Cargo.lock
 **/*.rs.bk
 
-x/programs/cmd/simulator/simulator
+x/programs/simulator/libsimulator.h
 x/programs/runtime/debug
 x/programs/runtime/wasm32-unknown-unknown
 x/programs/runtime/.rustc_info.json
+compose-dev.yaml
+
+# Do not ignore specific .txt files for license check
+!license-header.txt
+!license-style.txt

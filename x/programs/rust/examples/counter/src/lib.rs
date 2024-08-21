@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 #[cfg(not(feature = "bindings"))]
 use wasmlanche_sdk::Context;
 use wasmlanche_sdk::{public, state_schema, Address};
@@ -7,6 +10,15 @@ type Count = u64;
 state_schema! {
     /// Counter for each address.
     Counter(Address) => Count,
+}
+
+/// Gets the count at the address.
+#[public]
+pub fn get_value(context: &mut Context, of: Address) -> Count {
+    context
+        .get(Counter(of))
+        .expect("state corrupt")
+        .unwrap_or_default()
 }
 
 /// Increments the count at the address by the amount.
@@ -21,64 +33,36 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
     true
 }
 
-/// Gets the count at the address.
-#[public]
-pub fn get_value(context: &mut Context, of: Address) -> Count {
-    context
-        .get(Counter(of))
-        .expect("state corrupt")
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
-    use simulator::{Endpoint, Step, TestContext};
+    use simulator::{SimpleState, Simulator};
     use wasmlanche_sdk::Address;
-
     const PROGRAM_PATH: &str = env!("PROGRAM_PATH");
 
     #[test]
     fn init_program() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
+        let mut state = SimpleState::new();
+        let mut simulator = Simulator::new(&mut state);
 
-        simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap();
+        let actor = Address::default();
+        simulator.set_actor(actor);
+        let error = simulator.create_program(PROGRAM_PATH).has_error();
+        assert!(!error, "Create program errored")
     }
 
     #[test]
     fn increment() {
-        let mut simulator = simulator::ClientBuilder::new().try_build().unwrap();
-
+        let mut state = SimpleState::new();
+        let simulator = Simulator::new(&mut state);
+        let gas = 100000000;
         let bob = Address::new([1; 33]);
-
-        let counter_id = simulator
-            .run_step(&Step::create_program(PROGRAM_PATH))
-            .unwrap()
-            .id;
-
-        let test_context = TestContext::from(counter_id);
-
-        simulator
-            .run_step(&Step {
-                endpoint: Endpoint::Execute,
-                method: "inc".into(),
-                max_units: 1000000,
-                params: vec![test_context.clone().into(), bob.into(), 10u64.into()],
-            })
-            .unwrap();
-
+        let counter_address = simulator.create_program(PROGRAM_PATH).program().unwrap();
+        simulator.call_program(counter_address, "inc", (bob, 10u64), gas);
         let value = simulator
-            .run_step(&Step {
-                endpoint: Endpoint::ReadOnly,
-                method: "get_value".into(),
-                max_units: 0,
-                params: vec![test_context.into(), bob.into()],
-            })
-            .unwrap()
-            .result
-            .response::<u64>()
+            .call_program(counter_address, "get_value", ((bob),), gas)
+            .result::<u64>()
             .unwrap();
+
         assert_eq!(value, 10);
     }
 }

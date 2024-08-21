@@ -1,6 +1,9 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::cmp;
 use token::Units;
-use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Program};
+use wasmlanche_sdk::{public, state_schema, Context, ExternalCallContext, Gas, Id, Program};
 
 mod math;
 
@@ -16,25 +19,22 @@ const MAX_GAS: Gas = 10000000;
 
 /// Initializes the pool with the two tokens and the liquidity token
 #[public]
-pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Program) {
+pub fn init(context: &mut Context, token_x: Program, token_y: Program, liquidity_token: Id) {
+    let lt_program = context.deploy(liquidity_token, &[0, 1]);
+    let liquidity_context = ExternalCallContext::new(lt_program, MAX_GAS, 0);
+    token::init(
+        &liquidity_context,
+        String::from("liquidity token"),
+        String::from("LT"),
+    );
+
     context
         .store((
             (TokenX, token_x),
             (TokenY, token_y),
-            (LiquidityToken, liquidity_token),
+            (LiquidityToken, lt_program),
         ))
         .expect("failed to set state");
-
-    let liquidity_context = ExternalCallContext::new(liquidity_token, MAX_GAS, 0);
-
-    let transfer_reuslt =
-        token::transfer_ownership(&liquidity_context, *context.program().account());
-    // TODO: the init function should spin up a new token contract instead
-    // of requiring the caller to pass in the liquidity token
-    assert!(
-        transfer_reuslt,
-        "failed to transfer ownership of the liquidity token"
-    );
 }
 
 /// Swaps 'amount' of `token_program_in` with the other token in the pool
@@ -74,11 +74,7 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> 
     token::transfer_from(&token_out, account, actor, amount_out);
 
     // update the allowance for token_in
-    let token_approved = token::approve(&token_in, account, reserve_token_in + amount);
-    assert!(
-        token_approved,
-        "failed to update the allowance for the token"
-    );
+    token::approve(&token_in, account, reserve_token_in + amount);
 
     amount_out
 }
@@ -130,9 +126,8 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     token::mint(&lp_token, actor, shares);
 
     // update the amm's allowances
-    let approved = token::approve(&token_x, account, reserve_x + amount_x)
-        && token::approve(&token_y, account, reserve_y + amount_y);
-    assert!(approved, "failed to update the allowances for the tokens");
+    token::approve(&token_x, account, reserve_x + amount_x);
+    token::approve(&token_y, account, reserve_y + amount_y);
 
     shares
 }
@@ -177,6 +172,11 @@ pub fn remove_all_liquidity(context: &mut Context) -> (Units, Units) {
     let lp_token = external_liquidity_token(context);
     let lp_balance = token::balance_of(&lp_token, context.actor());
     remove_liquidity(context, lp_balance)
+}
+
+#[public]
+pub fn get_liquidity_token(context: &mut Context) -> Program {
+    context.get(LiquidityToken).unwrap().unwrap()
 }
 
 /// Returns the token reserves in the pool

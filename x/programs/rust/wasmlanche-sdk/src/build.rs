@@ -1,11 +1,16 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::{path::Path, process::Command};
 
 pub const BUILD_DIR_NAME: &str = "build";
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const RELEASE_PROFILE: &str = "release";
 
-#[allow(clippy::missing_panics_doc, clippy::module_name_repetitions)]
+#[allow(clippy::module_name_repetitions)]
 /// Put this in your build.rs file. It currently relies on `/build` directory to be in your crate root.
+/// # Panics
+/// Will panic when attempting to buld the wasm file fails.
 pub fn build_wasm_on_test() {
     let target = std::env::var("TARGET").unwrap();
     let profile = std::env::var("PROFILE").unwrap();

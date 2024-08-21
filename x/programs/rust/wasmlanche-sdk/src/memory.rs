@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 //! Temporary storage allocated during the Program runtime.
 //! The general pattern for handling memory is to have the
 //! host allocate a block of memory and return a pointer to
@@ -11,6 +14,7 @@ thread_local! {
     static ALLOCATIONS: RefCell<HashMap<*const u8, usize>> = RefCell::new(HashMap::new());
 }
 
+#[doc(hidden)]
 /// A pointer where data points to the host.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[repr(transparent)]

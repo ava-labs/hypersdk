@@ -1,4 +1,7 @@
-use wasmlanche_sdk::{public, send, state::get_balance, Address, Context, Gas, Program};
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
+use wasmlanche_sdk::{get_balance, public, send, Address, Context, Gas, Program};
 
 #[public]
 pub fn balance(ctx: &mut Context) -> u64 {

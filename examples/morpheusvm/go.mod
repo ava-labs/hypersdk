@@ -3,7 +3,7 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 go 1.21.12
 
 require (
-	github.com/ava-labs/avalanchego v1.11.10
+	github.com/ava-labs/avalanchego v1.11.11-0.20240813002618-d729e5c7ef9f
 	github.com/ava-labs/hypersdk v0.0.1
 	github.com/fatih/color v1.13.0
 	github.com/onsi/ginkgo/v2 v2.13.1
@@ -19,7 +19,7 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0 // indirect
-	github.com/ava-labs/coreth v0.13.7 // indirect
+	github.com/ava-labs/coreth v0.13.8-0.20240802110637-b3e5088d062d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect

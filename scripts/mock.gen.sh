@@ -28,13 +28,6 @@ fi
 # alert the user if they do not have $GOPATH properly configured
 check_command mockgen
 
-if ! command -v go-license &> /dev/null
-then
-  echo "go-license not found, installing..."
-  # https://github.com/palantir/go-license
-  go install -v github.com/palantir/go-license@latest
-fi
-
 # tuples of (source interface import path, comma-separated interface names, output file path)
 input="scripts/mocks.mockgen.txt"
 while IFS= read -r line
@@ -43,10 +36,6 @@ do
   package_name=$(basename "$(dirname "$output_path")")
   echo "Generating ${output_path}..."
   mockgen -package="${package_name}" -destination="${output_path}" "${src_import_path}" "${interface_name}"
-
-  go-license \
-  --config=./license.yml \
-  "${output_path}"
 done < "$input"
 
 echo "SUCCESS"

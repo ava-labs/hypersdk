@@ -163,11 +163,18 @@ jobs:
         run: scripts/run.sh
         env:
           MODE: 'test'
+      - name: Upload tmpnet network dir
+        uses: ava-labs/avalanchego/.github/actions/upload-tmpnet-artifact@v1-actions
+        if: always()
+        with:
+          name: morpheusvm-e2e-tmpnet-data
 
   morpheusvm-release:
     needs: [morpheusvm-lint, morpheusvm-unit-tests, morpheusvm-e2e-tests]
     # We build with 20.04 to maintain max compatibility: https://github.com/golang/go/issues/57328
     runs-on: ubuntu-20.04-32
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use std::mem::size_of;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,7 +13,7 @@ pub type Id = [u8; ID_LEN];
 /// Gas type alias.
 pub type Gas = u64;
 
-/// A struct that enforces a fixed length of 32 bytes which represents an address.
+/// A newtype wrapper around address bytes.
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize, Hash)]
 #[repr(transparent)]
@@ -26,11 +29,6 @@ impl Address {
     #[must_use]
     pub fn new(bytes: [u8; Self::LEN]) -> Self {
         Self(bytes)
-    }
-
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
     }
 }
 
