@@ -33,7 +33,7 @@ func NewStateBranchFactorGenesis() *StateBranchFactorGenesis {
 	}
 }
 
-func (g *StateBranchFactorGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, _ state.Mutable) error {
+func (*StateBranchFactorGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, _ state.Mutable) error {
 	_, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 	return nil
