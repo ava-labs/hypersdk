@@ -22,14 +22,8 @@ func WithManualGossiper() Option {
 	}
 }
 
-func WithRuleParser(rp RuleParser) Option {
+func WithGenesisAndRuleHandler(rp GenesisAndRuleHandler) Option {
 	return func(vm *VM) {
-		vm.ruleParser = rp
-	}
-}
-
-func WithGenesisParser(gp GenesisParser) Option {
-	return func(vm *VM) {
-		vm.genesisParser = gp
+		vm.genesisAndRuleHandler = rp
 	}
 }

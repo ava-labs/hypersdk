@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/ids"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -39,6 +40,22 @@ func (allocationManager) SetBalance(ctx context.Context, mu state.Mutable, addr 
 	return storage.SetBalance(ctx, mu, addr, balance)
 }
 
+type genesisAndRuleHandler struct {
+	am vm.AllocationManager
+}
+
+func (g *genesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (vm.Genesis, vm.RuleFactory, error) {
+	genesis, err := vm.LoadBech32AllocationGenesis(initialBytes, g.am)
+	if err != nil {
+		return nil, nil, err
+	}
+	rules, err := vm.LoadBaseRules(initialBytes, networkID, chainID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return genesis, &vm.UnchangingRuleFactory{UnchangingRules: rules}, nil
+}
+
 func New(options ...vm.Option) (*vm.VM, error) {
 	return vm.New(
 		&factory{},
@@ -46,8 +63,7 @@ func New(options ...vm.Option) (*vm.VM, error) {
 		registry.Action,
 		registry.Auth,
 		auth.Engines(),
-		&allocationManager{},
-		options...,
+		append([]vm.Option{vm.WithGenesisAndRuleHandler(&genesisAndRuleHandler{allocationManager{}})}, options...)...,
 	)
 }
 

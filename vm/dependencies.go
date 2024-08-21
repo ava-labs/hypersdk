@@ -88,7 +88,7 @@ func NewConfig() Config {
 }
 
 type Genesis interface {
-	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, am AllocationManager) error
+	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable) error
 	GetStateBranchFactor() merkledb.BranchFactor
 }
 
