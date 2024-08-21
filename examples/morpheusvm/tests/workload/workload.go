@@ -6,6 +6,7 @@ package workload
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/vm"
 	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -18,7 +19,6 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
@@ -61,22 +61,31 @@ type workloadFactory struct {
 	addrs     []codec.Address
 }
 
-func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error) {
-	gen := genesis.Default()
+type genAndRules struct {
+	*vm.Bech32Genesis
+	*vm.Rules
+}
+
+func New(minBlockGap int64) (*genAndRules, workload.TxWorkloadFactory, error) {
+	combined := &genAndRules{}
+	combined.Rules = vm.NewRules()
 	// Set WindowTargetUnits to MaxUint64 for all dimensions to iterate full mempool during block building.
-	gen.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	combined.Rules.WindowTargetUnits = fees.Dimensions{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	// Set all lmiits to MaxUint64 to avoid limiting block size for all dimensions except bandwidth. Must limit bandwidth to avoid building
 	// a block that exceeds the maximum size allowed by AvalancheGo.
-	gen.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
-	gen.MinBlockGap = minBlockGap
+	combined.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
+	combined.Rules.MinBlockGap = minBlockGap
+
+	combined.Bech32Genesis = vm.NewBech32Genesis()
+
 	for _, prefundedAddrStr := range ed25519AddrStrs {
-		gen.CustomAllocation = append(gen.CustomAllocation, &genesis.CustomAllocation{
+		combined.Bech32Genesis.CustomAllocation = append(combined.Bech32Genesis.CustomAllocation, &vm.CustomAllocation{
 			Address: prefundedAddrStr,
 			Balance: initialBalance,
 		})
 	}
 
-	return gen, &workloadFactory{
+	return combined, &workloadFactory{
 		factories: ed25519AuthFactories,
 		addrs:     ed25519Addrs,
 	}, nil
@@ -84,11 +93,7 @@ func New(minBlockGap int64) (*genesis.Genesis, workload.TxWorkloadFactory, error
 
 func (f *workloadFactory) NewSizedTxWorkload(uri string, size int) (workload.TxWorkloadIterator, error) {
 	cli := rpc.NewJSONRPCClient(uri)
-	networkID, _, blockchainID, err := cli.Network(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
+	lcli := lrpc.NewJSONRPCClient(uri)
 	return &simpleTxWorkload{
 		factory: f.factories[0],
 		cli:     cli,
@@ -138,7 +143,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	}
 
 	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		lcli := lrpc.NewJSONRPCClient(uri)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)
@@ -179,7 +184,7 @@ func (f *workloadFactory) NewWorkloads(uri string) ([]workload.TxWorkloadIterato
 	if err != nil {
 		return nil, err
 	}
-	lcli := lrpc.NewJSONRPCClient(uri, networkID, blockchainID)
+	lcli := lrpc.NewJSONRPCClient(uri)
 
 	generator := &mixedAuthWorkload{
 		addressAndFactories: []addressAndFactory{
@@ -243,7 +248,7 @@ func (g *mixedAuthWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain
 	g.balance = expectedBalance
 
 	return tx, func(ctx context.Context, uri string) error {
-		lcli := lrpc.NewJSONRPCClient(uri, g.networkID, g.chainID)
+		lcli := lrpc.NewJSONRPCClient(uri)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
 		if err != nil {
 			return fmt.Errorf("failed to wait for tx %s: %w", tx.ID(), err)

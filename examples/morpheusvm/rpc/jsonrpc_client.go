@@ -172,5 +172,9 @@ func (cli *JSONRPCClient) Parser(ctx context.Context) (chain.Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{genesis: g, rules: &vm.UnchangingRuleFactory{UnchangingRules: rules}}, nil
+	return NewParser(g, &vm.UnchangingRuleFactory{UnchangingRules: rules}), nil
+}
+
+func NewParser(genesis *vm.Bech32Genesis, rules vm.RuleFactory) chain.Parser {
+	return &Parser{genesis: genesis, rules: rules}
 }

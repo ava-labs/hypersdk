@@ -5,9 +5,9 @@ package integration_test
 
 import (
 	"encoding/json"
+	"github.com/ava-labs/hypersdk/vm"
 	"testing"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
@@ -28,11 +28,11 @@ func TestIntegration(t *testing.T) {
 
 var _ = ginkgo.BeforeSuite(func() {
 	require := require.New(ginkgo.GinkgoT())
-	gen, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
+	combined, workloadFactory, err := morpheusWorkload.New(0 /* minBlockGap: 0ms */)
 	require.NoError(err)
 
-	parser := lrpc.NewParser(0, ids.Empty, gen)
-	genesisBytes, err := json.Marshal(gen)
+	parser := lrpc.NewParser(combined.Bech32Genesis, &vm.UnchangingRuleFactory{UnchangingRules: combined.Rules})
+	genesisBytes, err := json.Marshal(combined)
 	require.NoError(err)
 
 	randomEd25519Priv, err := ed25519.GeneratePrivateKey()
