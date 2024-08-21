@@ -31,7 +31,7 @@ var (
 func New(options ...vm.Option) *vm.VM {
 	opts := []vm.Option{
 		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(registry.Action, registry.Auth, 10_000_000),
+		ws.WithWebsocketAPI(10_000_000),
 		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
 		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
 	}

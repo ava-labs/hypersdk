@@ -33,12 +33,9 @@ var (
 	ErrExpired = errors.New("expired")
 )
 
-func WithWebsocketAPI(
-	actionRegistry *codec.TypeParser[chain.Action],
-	authRegistry *codec.TypeParser[chain.Auth],
-	maxPendingMessages int,
-) vm.Option {
+func WithWebsocketAPI(maxPendingMessages int) vm.Option {
 	return func(v *vm.VM) error {
+		actionRegistry, authRegistry := v.Registry()
 		server, handler := NewWebSocketServer(
 			v,
 			v.Logger(),
