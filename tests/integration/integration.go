@@ -340,7 +340,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
-			require.NoError(initialTxAssertion(ctx, uris[1]))
+			initialTxAssertion(ctx, require, uris[1])
 		})
 	})
 
@@ -359,7 +359,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 			defer cancel()
-			require.NoError(txAssertion(ctx, uris[1]))
+			txAssertion(ctx, require, uris[1])
 		})
 
 		ginkgo.By("transfer funds again (test storage keys)", func() {
@@ -495,7 +495,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
-		require.NoError(txAssertion(cctx, uris[0]))
+		txAssertion(cctx, require, uris[0])
 
 		// Read item from connection
 		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
@@ -538,7 +538,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 
 		cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
-		require.NoError(txAssertion(cctx, uris[0]))
+		txAssertion(cctx, require, uris[0])
 
 		// Read decision from connection
 		txID, dErr, result, err := cli.ListenTx(context.TODO())
@@ -567,7 +567,7 @@ var _ = ginkgo.Describe("[Tx Processing]", ginkgo.Serial, func() {
 				_ = accept(true)
 				cctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
-				require.NoError(txAssertion(cctx, uris[0]))
+				txAssertion(cctx, require, uris[0])
 			}
 		}
 	})
