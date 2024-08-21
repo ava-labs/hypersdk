@@ -92,7 +92,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	// compare auto and manual unmarshalling just to make sure they are the same
+	// compare auto and manual unmarshaling just to make sure they are the same
 	var autoRestored, manualRestored Transfer
 	err := unpackAutoTransfer(transfersEncoded[0], &autoRestored)
 	require.NoError(err)
@@ -101,7 +101,7 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 	if autoRestored.To != manualRestored.To ||
 		autoRestored.Value != manualRestored.Value ||
 		!bytes.Equal(autoRestored.Memo, manualRestored.Memo) {
-		require.Fail("mismatch between auto and manual unmarshalled data")
+		require.Fail("mismatch between auto and manual unmarshaled data")
 	}
 
 	type InnerStruct struct {
@@ -182,14 +182,14 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	// compare auto and manual unmarshalling just to make sure they are the same
+	// compare auto and manual unmarshaling just to make sure they are the same
 	var autoRestoredOuter, manualRestoredOuter OuterStruct
 	err = unpackAutoOuter(outerStructsEncoded[0], &autoRestoredOuter)
 	require.NoError(err)
 	err = unpackManualOuter(outerStructsEncoded[0], &manualRestoredOuter)
 	require.NoError(err)
 	if !reflect.DeepEqual(autoRestoredOuter, manualRestoredOuter) {
-		require.Fail("mismatch between auto and manual unmarshalled data")
+		require.Fail("mismatch between auto and manual unmarshaled data")
 	}
 
 	type BigFlatObject struct {
@@ -333,13 +333,13 @@ func BenchmarkMarshalUnmarshal(b *testing.B) {
 		})
 	})
 
-	// compare auto and manual unmarshalling just to make sure they are the same
+	// compare auto and manual unmarshaling just to make sure they are the same
 	var autoRestoredBigFlat, manualRestoredBigFlat BigFlatObject
 	err = unpackAutoBigFlat(bigFlatObjectsEncoded[0], &autoRestoredBigFlat)
 	require.NoError(err)
 	err = unpackManualBigFlat(bigFlatObjectsEncoded[0], &manualRestoredBigFlat)
 	require.NoError(err)
 	if !reflect.DeepEqual(autoRestoredBigFlat, manualRestoredBigFlat) {
-		require.Fail("mismatch between auto and manual unmarshalled data")
+		require.Fail("mismatch between auto and manual unmarshaled data")
 	}
 }
