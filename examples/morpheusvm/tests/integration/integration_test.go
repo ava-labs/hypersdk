@@ -18,10 +18,9 @@ import (
 	"github.com/ava-labs/hypersdk/tests/integration"
 	"github.com/ava-labs/hypersdk/vm"
 
-	"github.com/onsi/ginkgo/v2"
-
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
+	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
 func TestIntegration(t *testing.T) {
