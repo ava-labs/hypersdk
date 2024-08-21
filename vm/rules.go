@@ -176,12 +176,16 @@ func (r *UnchangingRuleFactory) GetRules(_ int64) chain.Rules {
 	return r.UnchangingRules
 }
 
-type baseRuleParser struct{}
+type baseGenesisAndRuleHandler struct{}
 
-func (baseRuleParser) ParseRules(initialBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (RuleFactory, error) {
+func (baseGenesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte, _ []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error) {
+	genesis, err := LoadBaseGenesis(initialBytes)
+	if err != nil {
+		return nil, nil, err
+	}
 	rules, err := LoadBaseRules(initialBytes, networkID, chainID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &UnchangingRuleFactory{UnchangingRules: rules}, nil
+	return genesis, &UnchangingRuleFactory{UnchangingRules: rules}, nil
 }

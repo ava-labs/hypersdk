@@ -88,22 +88,16 @@ func NewConfig() Config {
 }
 
 type Genesis interface {
-	LoadAllocations(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, am AllocationManager) error
+	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, am AllocationManager) error
 	GetStateBranchFactor() merkledb.BranchFactor
-}
-
-type GenesisParser interface {
-	ParseGenesis(genesisBytes []byte) (Genesis, error)
 }
 
 type AllocationManager interface {
 	SetBalance(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error
 }
 
-type RuleParser interface {
-	// ParseRules constructs a ruleFactory given the initial bytes and any upgrades
-	// currently networkID and chainID are defined in the snow context, but still required to be exposed by rules
-	ParseRules(initialBytes []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (RuleFactory, error)
+type GenesisAndRuleHandler interface {
+	ParseGenesisAndUpgradeBytes(genesis []byte, upgradeBytes []byte, networkID uint32, chainID ids.ID) (Genesis, RuleFactory, error)
 }
 
 type RuleFactory interface {

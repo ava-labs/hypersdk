@@ -66,21 +66,20 @@ type VM struct {
 	pkBytes         []byte
 	proposerMonitor *ProposerMonitor
 
-	config            Config
-	genesis           Genesis
-	ruleFactory       RuleFactory
-	ruleParser        RuleParser
-	genesisParser     GenesisParser
-	allocationManager AllocationManager
-	builder           builder.Builder
-	gossiper          gossiper.Gossiper
-	rawStateDB        database.Database
-	stateDB           merkledb.MerkleDB
-	vmDB              database.Database
-	handlers          Handlers
-	actionRegistry    chain.ActionRegistry
-	authRegistry      chain.AuthRegistry
-	authEngine        map[uint8]AuthEngine
+	config                Config
+	genesis               Genesis
+	ruleFactory           RuleFactory
+	genesisAndRuleHandler GenesisAndRuleHandler
+	allocationManager     AllocationManager
+	builder               builder.Builder
+	gossiper              gossiper.Gossiper
+	rawStateDB            database.Database
+	stateDB               merkledb.MerkleDB
+	vmDB                  database.Database
+	handlers              Handlers
+	actionRegistry        chain.ActionRegistry
+	authRegistry          chain.AuthRegistry
+	authEngine            map[uint8]AuthEngine
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
@@ -146,15 +145,14 @@ func New(
 	options ...Option,
 ) (*VM, error) {
 	vm := &VM{
-		factory:           factory,
-		v:                 v,
-		config:            NewConfig(),
-		actionRegistry:    actionRegistry,
-		authRegistry:      authRegistry,
-		authEngine:        authEngine,
-		genesisParser:     baseGenesisParser{},
-		allocationManager: allocationManager,
-		ruleParser:        baseRuleParser{},
+		factory:               factory,
+		v:                     v,
+		config:                NewConfig(),
+		actionRegistry:        actionRegistry,
+		authRegistry:          authRegistry,
+		authEngine:            authEngine,
+		genesisAndRuleHandler: baseGenesisAndRuleHandler{},
+		allocationManager:     allocationManager,
 	}
 	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
 	if err != nil {
@@ -217,12 +215,7 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	vm.genesis, err = vm.genesisParser.ParseGenesis(genesisBytes)
-	if err != nil {
-		return err
-	}
-
-	vm.ruleFactory, err = vm.ruleParser.ParseRules(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
+	vm.genesis, vm.ruleFactory, err = vm.genesisAndRuleHandler.ParseGenesisAndUpgradeBytes(genesisBytes, upgradeBytes, vm.snowCtx.NetworkID, vm.snowCtx.ChainID)
 	if err != nil {
 		return err
 	}
@@ -374,7 +367,7 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.LoadAllocations(ctx, vm.tracer, sps, vm.allocationManager); err != nil {
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.allocationManager); err != nil {
 			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
 			return err
 		}

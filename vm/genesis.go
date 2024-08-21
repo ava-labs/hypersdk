@@ -42,7 +42,7 @@ func DefaultGenesis() *BaseGenesis {
 	}
 }
 
-func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, mu state.Mutable, am AllocationManager) error {
+func (g *BaseGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, mu state.Mutable, am AllocationManager) error {
 	ctx, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 
@@ -63,9 +63,7 @@ func (g *BaseGenesis) LoadAllocations(ctx context.Context, tracer trace.Tracer, 
 	return nil
 }
 
-type baseGenesisParser struct{}
-
-func (baseGenesisParser) ParseGenesis(b []byte) (Genesis, error) {
+func LoadBaseGenesis(b []byte) (Genesis, error) {
 	g := DefaultGenesis()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, g); err != nil {
