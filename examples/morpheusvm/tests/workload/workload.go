@@ -135,7 +135,7 @@ func (g *simpleTxWorkload) GenerateTxWithAssertion(ctx context.Context) (*chain.
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	return tx, func(ctx context.Context, require *require.Assertions, uri string) {
 		lcli := lrpc.NewJSONRPCClient(uri)
 		success, _, err := lcli.WaitForTransaction(ctx, tx.ID())
