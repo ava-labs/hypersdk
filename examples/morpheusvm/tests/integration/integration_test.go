@@ -8,15 +8,12 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/trace"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/auth"
 	"github.com/ava-labs/hypersdk/crypto/ed25519"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/tests/integration"
-	"github.com/ava-labs/hypersdk/vm"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	morpheusWorkload "github.com/ava-labs/hypersdk/examples/morpheusvm/tests/workload"
@@ -41,13 +38,9 @@ var _ = ginkgo.BeforeSuite(func() {
 
 	randomEd25519AuthFactory := auth.NewED25519Factory(randomEd25519Priv)
 
-	vmF := func(options ...vm.Option) *vm.VM {
-		return controller.New(logging.NoLog{}, trace.Noop, options...)
-	}
-
 	// Setup imports the integration test coverage
 	integration.Setup(
-		vmF,
+		controller.New,
 		genesisBytes,
 		lconsts.ID,
 		parser,

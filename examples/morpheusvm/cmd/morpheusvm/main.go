@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/ulimit"
 	"github.com/ava-labs/avalanchego/vms/rpcchainvm"
@@ -57,7 +56,5 @@ func runFunc(*cobra.Command, []string) error {
 		return fmt.Errorf("%w: failed to set fd limit correctly", err)
 	}
 
-	controller := controller.New(log, trace.Noop)
-
-	return rpcchainvm.Serve(context.TODO(), controller)
+	return rpcchainvm.Serve(context.TODO(), controller.New())
 }

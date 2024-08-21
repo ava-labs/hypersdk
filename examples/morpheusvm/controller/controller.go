@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 
@@ -29,10 +28,10 @@ var (
 )
 
 // New returns a VM with the indexer, websocket, and rpc apis enabled.
-func New(log logging.Logger, tracer trace.Tracer, options ...vm.Option) *vm.VM {
+func New(options ...vm.Option) *vm.VM {
 	opts := []vm.Option{
 		indexer.WithIndexer(consts.Name, indexer.Endpoint),
-		ws.WithWebsocketAPI(log, tracer, registry.Action, registry.Auth, 10_000_000),
+		ws.WithWebsocketAPI(registry.Action, registry.Auth, 10_000_000),
 		vm.WithVMAPIs(jsonrpc.JSONRPCServerFactory{}),
 		vm.WithControllerAPIs(&jsonRPCServerFactory{}),
 	}

@@ -34,8 +34,6 @@ var (
 )
 
 func WithWebsocketAPI(
-	log logging.Logger,
-	tracer trace.Tracer,
 	actionRegistry *codec.TypeParser[chain.Action],
 	authRegistry *codec.TypeParser[chain.Auth],
 	maxPendingMessages int,
@@ -43,8 +41,8 @@ func WithWebsocketAPI(
 	return func(v *vm.VM) error {
 		server, handler := NewWebSocketServer(
 			v,
-			log,
-			tracer,
+			v.Logger(),
+			v.Tracer(),
 			actionRegistry,
 			authRegistry,
 			maxPendingMessages,
