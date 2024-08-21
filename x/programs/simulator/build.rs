@@ -27,12 +27,14 @@ fn main() {
     let output = Path::new(&target_dir).join("libsimulator.so");
     let ffi_package = Path::new(&dir).join("ffi");
     let state_package = Path::new(&dir).join("state");
+    let common_package = Path::new(&dir).join("common");
     let go_file = Path::new(&ffi_package).join("ffi.go");
 
     // rerun the build script if go files change
     println!("cargo:rerun-if-changed={}", state_package.to_string_lossy());
     println!("cargo:rerun-if-changed={}", ffi_package.to_string_lossy());
-
+    println!("cargo:rerun-if-changed={}", common_package.to_string_lossy());
+    
     // Build the Go library
     let status = Command::new("go")
         .args(["build", "-buildmode=c-shared", "-tags=debug", "-o"])
