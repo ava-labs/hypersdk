@@ -4,6 +4,7 @@
 package fixture
 
 import (
+	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -22,7 +23,7 @@ func NewTestEnvironment(
 ) *e2e.TestEnvironment {
 	// Run only once in the first ginkgo process
 	nodes := tmpnet.NewNodesOrPanic(flagVars.NodeCount())
-	nodes[0].Flags["http-port"] = "9650"
+	nodes[0].Flags[config.HTTPPortKey] = config.DefaultHTTPPort
 
 	subnet := NewHyperVMSubnet(
 		vmName,

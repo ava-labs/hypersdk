@@ -10,6 +10,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/api/admin"
 	"github.com/ava-labs/avalanchego/api/info"
+	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -43,7 +44,8 @@ var _ = ginkgo.Describe("[HyperSDK APIs]", func() {
 	})
 
 	ginkgo.It("StableNetworkIdentity", func() {
-		fixedNodeURL := "http://localhost:9650/ext/bc/" + vmName
+		hardcodedHostPort := "http://localhost:9650"
+		fixedNodeURL := hardcodedHostPort + "/ext/bc/" + vmName
 
 		c := rpc.NewJSONRPCClient(fixedNodeURL)
 		_, _, chainIDFromRPC, err := c.Network(tc.DefaultContext())
@@ -214,7 +216,7 @@ func formatURI(baseURI string, blockchainID ids.ID) string {
 func SetupDefaultChainAlias(chainID ids.ID, tc tests.TestContext) {
 	require := require.New(ginkgo.GinkgoT())
 
-	baseURI := "http://localhost:9650"
+	baseURI := fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
 	adminClient := admin.NewClient(baseURI)
 
 	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
