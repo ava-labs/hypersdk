@@ -70,7 +70,6 @@ type VM struct {
 	genesis               Genesis
 	ruleFactory           RuleFactory
 	genesisAndRuleHandler GenesisAndRuleHandler
-	allocationManager     AllocationManager
 	builder               builder.Builder
 	gossiper              gossiper.Gossiper
 	rawStateDB            database.Database
@@ -141,7 +140,6 @@ func New(
 	actionRegistry chain.ActionRegistry,
 	authRegistry chain.AuthRegistry,
 	authEngine map[uint8]AuthEngine,
-	allocationManager AllocationManager,
 	options ...Option,
 ) (*VM, error) {
 	vm := &VM{
@@ -153,9 +151,8 @@ func New(
 		authEngine:     authEngine,
 		genesisAndRuleHandler: &SplitGenesisAndRuleHandler{
 			LoadRules:   LoadRules,
-			LoadGenesis: LoadBaseGenesis,
+			LoadGenesis: LoadStateBranchFactorGenesis,
 		},
-		allocationManager: allocationManager,
 	}
 	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
 	if err != nil {
@@ -370,8 +367,8 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("initialized vm from last accepted", zap.Stringer("block", blk.ID()))
 	} else {
 		sps := state.NewSimpleMutable(vm.stateDB)
-		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps, vm.allocationManager); err != nil {
-			snowCtx.Log.Error("could not set genesis allocation", zap.Error(err))
+		if err := vm.genesis.InitializeState(ctx, vm.tracer, sps); err != nil {
+			snowCtx.Log.Error("could not set genesis state", zap.Error(err))
 			return err
 		}
 		if err := sps.Commit(ctx); err != nil {

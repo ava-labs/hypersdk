@@ -15,7 +15,6 @@ import (
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
 	"github.com/ava-labs/hypersdk/trace"
 
@@ -88,12 +87,8 @@ func NewConfig() Config {
 }
 
 type Genesis interface {
-	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable, am AllocationManager) error
+	InitializeState(ctx context.Context, tracer avatrace.Tracer, mu state.Mutable) error
 	GetStateBranchFactor() merkledb.BranchFactor
-}
-
-type AllocationManager interface {
-	SetBalance(ctx context.Context, mu state.Mutable, addr codec.Address, balance uint64) error
 }
 
 type GenesisAndRuleHandler interface {

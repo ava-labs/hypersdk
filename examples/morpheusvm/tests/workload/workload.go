@@ -6,6 +6,7 @@ package workload
 import (
 	"context"
 	"fmt"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/vm"
 	"math"
 
@@ -76,7 +77,7 @@ func New(minBlockGap int64) (*genAndRules, workload.TxWorkloadFactory, error) {
 	combined.Rules.MaxBlockUnits = fees.Dimensions{1800000, math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64}
 	combined.Rules.MinBlockGap = minBlockGap
 
-	combined.Bech32Genesis = vm.NewBech32Genesis()
+	combined.Bech32Genesis = vm.NewBech32Genesis(storage.SetBalance)
 
 	for _, prefundedAddrStr := range ed25519AddrStrs {
 		combined.Bech32Genesis.CustomAllocation = append(combined.Bech32Genesis.CustomAllocation, &vm.CustomAllocation{
