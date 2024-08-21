@@ -50,6 +50,10 @@ func (p *ProgramStateManager) GetBalance(ctx context.Context, address codec.Addr
 	return p.getAccountBalance(ctx, address)
 }
 
+func (p *ProgramStateManager) SetBalance(ctx context.Context, address codec.Address, amount uint64) error {
+	return p.setAccountBalance(ctx, address, amount)
+}
+
 func (p *ProgramStateManager) TransferBalance(ctx context.Context, from codec.Address, to codec.Address, amount uint64) error {
 	fromBalance, err := p.getAccountBalance(ctx, from)
 	if err != nil {

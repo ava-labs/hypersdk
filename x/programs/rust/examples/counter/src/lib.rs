@@ -12,6 +12,15 @@ state_schema! {
     Counter(Address) => Count,
 }
 
+/// Gets the count at the address.
+#[public]
+pub fn get_value(context: &mut Context, of: Address) -> Count {
+    context
+        .get(Counter(of))
+        .expect("state corrupt")
+        .unwrap_or_default()
+}
+
 /// Increments the count at the address by the amount.
 #[public]
 pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
@@ -22,15 +31,6 @@ pub fn inc(context: &mut Context, to: Address, amount: Count) -> bool {
         .expect("serialization failed");
 
     true
-}
-
-/// Gets the count at the address.
-#[public]
-pub fn get_value(context: &mut Context, of: Address) -> Count {
-    context
-        .get(Counter(of))
-        .expect("state corrupt")
-        .unwrap_or_default()
 }
 
 #[cfg(test)]
