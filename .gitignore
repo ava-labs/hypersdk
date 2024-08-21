@@ -77,5 +77,3 @@ compose-dev.yaml
 # Do not ignore specific .txt files for license check
 !license-header.txt
 !license-style.txt
-
-*.prof
