@@ -6,8 +6,6 @@ package workload
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/vm"
 	"math"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -20,9 +18,11 @@ import (
 	"github.com/ava-labs/hypersdk/crypto/secp256r1"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
 	"github.com/ava-labs/hypersdk/fees"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/workload"
+	"github.com/ava-labs/hypersdk/vm"
 
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"
 )

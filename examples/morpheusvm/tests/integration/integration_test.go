@@ -5,7 +5,6 @@ package integration_test
 
 import (
 	"encoding/json"
-	"github.com/ava-labs/hypersdk/vm"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +14,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/rpc"
 	"github.com/ava-labs/hypersdk/tests/integration"
+	"github.com/ava-labs/hypersdk/vm"
 
 	lconsts "github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	lrpc "github.com/ava-labs/hypersdk/examples/morpheusvm/rpc"

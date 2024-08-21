@@ -7,13 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	safemath "github.com/ava-labs/avalanchego/utils/math"
-	"github.com/ava-labs/hypersdk/codec"
 
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/state"
+
+	safemath "github.com/ava-labs/avalanchego/utils/math"
 )
 
 var _ Genesis = (*StateBranchFactorGenesis)(nil)
@@ -33,7 +34,7 @@ func NewStateBranchFactorGenesis() *StateBranchFactorGenesis {
 }
 
 func (g *StateBranchFactorGenesis) InitializeState(ctx context.Context, tracer trace.Tracer, _ state.Mutable) error {
-	ctx, span := tracer.Start(ctx, "Genesis.Load")
+	_, span := tracer.Start(ctx, "Genesis.Load")
 	defer span.End()
 	return nil
 }
