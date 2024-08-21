@@ -22,34 +22,37 @@ VERSION=d729e5c7ef9f008c3e89cd7131148ad3acda2e34
 ############################
 # build avalanchego
 # https://github.com/ava-labs/avalanchego/releases
-TMPDIR=/tmp/hypersdk
+HYPERSDK_DIR=$HOME/.hypersdk
 
-echo "working directory: $TMPDIR"
+echo "working directory: $HYPERSDK_DIR"
 
-AVALANCHEGO_PATH=${TMPDIR}/avalanchego-${VERSION}/avalanchego
-AVALANCHEGO_PLUGIN_DIR=${TMPDIR}/avalanchego-${VERSION}/plugins
+AVALANCHEGO_PATH=${HYPERSDK_DIR}/avalanchego-${VERSION}/avalanchego
+AVALANCHEGO_PLUGIN_DIR=${HYPERSDK_DIR}/avalanchego-${VERSION}/plugins
 
 if [ ! -f "$AVALANCHEGO_PATH" ]; then
   echo "building avalanchego"
   CWD=$(pwd)
 
   # Clear old folders
-  rm -rf "${TMPDIR}"/avalanchego-"${VERSION}"
-  mkdir -p "${TMPDIR}"/avalanchego-"${VERSION}"
-  rm -rf "${TMPDIR}"/avalanchego-src
-  mkdir -p "${TMPDIR}"/avalanchego-src
+  rm -rf "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"
+  mkdir -p "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"
+  rm -rf "${HYPERSDK_DIR}"/avalanchego-src
+  mkdir -p "${HYPERSDK_DIR}"/avalanchego-src
 
   # Download src
-  cd "${TMPDIR}"/avalanchego-src
+  cd "${HYPERSDK_DIR}"/avalanchego-src
   git clone https://github.com/ava-labs/avalanchego.git
   cd avalanchego
   git checkout "${VERSION}"
 
   # Build avalanchego
   ./scripts/build.sh
-  mv build/avalanchego "${TMPDIR}"/avalanchego-"${VERSION}"
+  mv build/avalanchego "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"
 
   cd "${CWD}"
+
+  # Clear src
+  rm -rf "${HYPERSDK_DIR}"/avalanchego-src
 else
   echo "using previously built avalanchego"
 fi
@@ -59,11 +62,11 @@ fi
 echo "building morpheusvm"
 
 # delete previous (if exists)
-rm -f "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
+rm -f "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u
 
 # rebuild with latest code
 go build \
--o "${TMPDIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
+-o "${HYPERSDK_DIR}"/avalanchego-"${VERSION}"/plugins/qCNyZHrs3rZX458wPJXPJJypPf6w423A84jnfbdP2TPEmEE9u \
 ./cmd/morpheusvm
 
 ############################
