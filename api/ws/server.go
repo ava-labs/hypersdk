@@ -27,7 +27,7 @@ const Endpoint = "/corews"
 
 var (
 	_ api.HandlerFactory[api.VM]          = (*WebSocketServerFactory)(nil)
-	_ event.Subscription[struct{}]        = (*SubscriptionFunc[struct{}])(nil)
+	_ event.Subscription[struct{}]        = (*subscriptionFunc[struct{}])(nil)
 	_ event.SubscriptionFactory[struct{}] = (*subscriptionFuncFactory[struct{}])(nil)
 
 	ErrExpired = errors.New("expired")
@@ -74,18 +74,18 @@ type subscriptionFuncFactory[T any] struct {
 }
 
 func (s subscriptionFuncFactory[T]) New() (event.Subscription[T], error) {
-	return SubscriptionFunc[T](s), nil
+	return subscriptionFunc[T](s), nil
 }
 
-type SubscriptionFunc[T any] struct {
+type subscriptionFunc[T any] struct {
 	AcceptF func(t T) error
 }
 
-func (s SubscriptionFunc[T]) Accept(t T) error {
+func (s subscriptionFunc[T]) Accept(t T) error {
 	return s.AcceptF(t)
 }
 
-func (SubscriptionFunc[_]) Close() error {
+func (subscriptionFunc[_]) Close() error {
 	return nil
 }
 
