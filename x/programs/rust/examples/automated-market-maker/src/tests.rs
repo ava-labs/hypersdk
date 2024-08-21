@@ -1,3 +1,6 @@
+// Copyright (C) 2024, Ava Labs, Inc. All rights reserved.
+// See the file LICENSE for licensing terms.
+
 use simulator::{SimpleState, Simulator};
 use wasmlanche_sdk::Address;
 const PROGRAM_PATH: &str = env!("PROGRAM_PATH");

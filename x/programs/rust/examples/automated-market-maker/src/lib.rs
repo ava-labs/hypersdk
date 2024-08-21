@@ -58,7 +58,7 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> 
     };
 
     // calculate the amount of tokens in the pool
-    let (reserve_token_in, reserve_token_out) = reserves(&context, &token_in, &token_out);
+    let (reserve_token_in, reserve_token_out) = reserves(context, &token_in, &token_out);
     assert!(reserve_token_out > 0, "insufficient liquidity");
 
     // x * y = k
@@ -93,7 +93,7 @@ pub fn add_liquidity(context: &mut Context, amount_x: Units, amount_y: Units) ->
     let lp_token = external_liquidity_token(context);
 
     // calculate the amount of tokens in the pool
-    let (reserve_x, reserve_y) = reserves(&context, &token_x, &token_y);
+    let (reserve_x, reserve_y) = reserves(context, &token_x, &token_y);
 
     // ensure the proper ratio
     assert_eq!(
@@ -147,7 +147,7 @@ pub fn remove_liquidity(context: &mut Context, shares: Units) -> (Units, Units) 
 
     let total_shares = token::total_supply(&lp_token);
     let (token_x, token_y) = external_token_contracts(context);
-    let (reserve_x, reserve_y) = reserves(&context, &token_x, &token_y);
+    let (reserve_x, reserve_y) = reserves(context, &token_x, &token_y);
 
     let amount_x = (shares * reserve_x) / total_shares;
     let amount_y = (shares * reserve_y) / total_shares;
