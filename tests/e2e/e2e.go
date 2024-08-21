@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/avalanchego/api/admin"
 	"github.com/ava-labs/avalanchego/api/info"
-	"github.com/ava-labs/avalanchego/config"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
@@ -211,29 +209,4 @@ func getE2EBaseURIs(tc tests.TestContext) []string {
 
 func formatURI(baseURI string, blockchainID ids.ID) string {
 	return fmt.Sprintf("%s/ext/bc/%s", baseURI, blockchainID)
-}
-
-func SetupDefaultChainAlias(chainID ids.ID, tc tests.TestContext) {
-	require := require.New(ginkgo.GinkgoT())
-
-	baseURI := fmt.Sprintf("http://localhost:%d", config.DefaultHTTPPort)
-	adminClient := admin.NewClient(baseURI)
-
-	aliases, err := adminClient.GetChainAliases(tc.DefaultContext(), chainID.String())
-	require.NoError(err)
-
-	fmt.Println("DEBUG: aliases", aliases)
-	fmt.Println("DEBUG: chainID", chainID)
-
-	hasAlias := false
-	for _, alias := range aliases {
-		if alias == vmName {
-			hasAlias = true
-		}
-	}
-
-	if !hasAlias {
-		err = adminClient.AliasChain(tc.DefaultContext(), chainID.String(), vmName)
-		require.NoError(err)
-	}
 }
