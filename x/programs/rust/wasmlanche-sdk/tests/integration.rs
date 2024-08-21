@@ -7,7 +7,10 @@ use std::{
     process::Command,
 };
 use wasmlanche_sdk::{Address, ID_LEN};
-use wasmtime::{Caller, Extern, Instance, Linker, Module, Store, TypedFunc};
+use wasmtime::{
+    Caller, Config, Engine, Extern, Instance, InstanceAllocationStrategy, Linker, Memory, Module,
+    PoolingAllocationConfig, Store, TypedFunc,
+};
 
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
 const TEST_PKG: &str = "test-crate";
@@ -15,6 +18,52 @@ const PROFILE: &str = "release";
 
 #[test]
 fn public_functions() {
+    let mut test_crate = build_test_crate();
+
+    let context_ptr = test_crate.write_context();
+    assert!(test_crate.always_true(context_ptr));
+
+    let context_ptr = test_crate.write_context();
+    let combined_binary_digits = test_crate.combine_last_bit_of_each_id_byte(context_ptr);
+    assert_eq!(combined_binary_digits, u32::MAX);
+}
+
+#[test]
+#[should_panic]
+fn allocate_zero() {
+    let mut test_crate = build_test_crate();
+    let result = test_crate.allocate(Vec::new());
+    dbg!(result);
+}
+
+const ALLOCATION_MAP_OVERHEAD: usize = 48;
+
+#[test]
+fn allocate_data_size() {
+    let mut test_crate = build_test_crate();
+    let context_ptr = test_crate.write_context();
+    let highest_address = test_crate.highest_allocated_address(context_ptr);
+    let memory = test_crate.memory();
+    let room = memory.data_size(test_crate.store_mut()) - highest_address - ALLOCATION_MAP_OVERHEAD;
+    let data = vec![0xaa; room];
+    let ptr = test_crate.allocate(data.clone()) as usize;
+    let memory = memory.data(test_crate.store_mut());
+    assert_eq!(&memory[ptr..ptr + room], &data);
+}
+
+#[test]
+#[should_panic]
+fn allocate_data_size_plus_one() {
+    let mut test_crate = build_test_crate();
+    let context_ptr = test_crate.write_context();
+    let highest_address = test_crate.highest_allocated_address(context_ptr);
+    let memory = test_crate.memory();
+    let room = memory.data_size(test_crate.store_mut()) - highest_address - ALLOCATION_MAP_OVERHEAD;
+    let data = vec![0xaa; room + 1];
+    test_crate.allocate(data.clone());
+}
+
+fn build_test_crate() -> TestCrate {
     let wasm_path = {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let manifest_dir = std::path::Path::new(&manifest_dir);
@@ -48,17 +97,10 @@ fn public_functions() {
             .with_extension("wasm")
     };
 
-    let mut test_crate = TestCrate::new(wasm_path);
-
-    let context_ptr = test_crate.write_context();
-    assert!(test_crate.always_true(context_ptr));
-
-    let context_ptr = test_crate.write_context();
-    let combined_binary_digits = test_crate.combine_last_bit_of_each_id_byte(context_ptr);
-    assert_eq!(combined_binary_digits, u32::MAX);
+    TestCrate::new(wasm_path)
 }
 
-type AllocParam = i32;
+type AllocParam = u32;
 type AllocReturn = u32;
 type AllocFn = TypedFunc<AllocParam, AllocReturn>;
 type UserDefinedFnParam = u32;
@@ -72,13 +114,22 @@ struct TestCrate {
     store: Store<StoreData>,
     instance: Instance,
     allocate_func: AllocFn,
+    highest_address_func: UserDefinedFn,
     always_true_func: UserDefinedFn,
     combine_last_bit_of_each_id_byte_func: UserDefinedFn,
 }
 
 impl TestCrate {
     fn new(wasm_path: impl AsRef<Path>) -> Self {
-        let mut store: Store<StoreData> = Store::default();
+        let mut config = Config::new();
+        let mut allocation_strategy = PoolingAllocationConfig::default();
+        allocation_strategy.memory_pages(18); // not sure why, but this seems to be the min
+
+        let allocation_strategy = InstanceAllocationStrategy::Pooling(allocation_strategy);
+        config.allocation_strategy(allocation_strategy);
+
+        let engine = Engine::new(&config).expect("engine failure");
+        let mut store: Store<StoreData> = Store::new(&engine, Default::default());
         let mut linker = Linker::new(store.engine());
         let module = Module::from_file(store.engine(), wasm_path).expect("failed to load wasm");
 
@@ -170,6 +221,10 @@ impl TestCrate {
             .get_typed_func(&mut store, "alloc")
             .expect("failed to find `alloc` function");
 
+        let highest_address_func = instance
+            .get_typed_func(&mut store, "highest_allocated_address")
+            .expect("failed to find `highest_allocated_address` function");
+
         let always_true_func = instance
             .get_typed_func(&mut store, "always_true")
             .expect("failed to find `always_true` function");
@@ -181,6 +236,7 @@ impl TestCrate {
             store,
             instance,
             allocate_func,
+            highest_address_func,
             always_true_func,
             combine_last_bit_of_each_id_byte_func,
         }
@@ -203,10 +259,20 @@ impl TestCrate {
         self.allocate(serialized_context)
     }
 
+    fn store_mut(&mut self) -> &mut Store<StoreData> {
+        &mut self.store
+    }
+
+    fn memory(&mut self) -> Memory {
+        self.instance
+            .get_memory(&mut self.store, "memory")
+            .expect("failed to get memory")
+    }
+
     fn allocate(&mut self, data: Vec<u8>) -> AllocReturn {
         let offset = self
             .allocate_func
-            .call(&mut self.store, data.len() as i32)
+            .call(&mut self.store, data.len() as u32)
             .expect("failed to allocate memory");
         let memory = self
             .instance
@@ -218,6 +284,20 @@ impl TestCrate {
             .expect("failed to write data to memory");
 
         offset
+    }
+
+    fn highest_allocated_address(&mut self, ptr: UserDefinedFnParam) -> usize {
+        self.highest_address_func
+            .call(&mut self.store, ptr)
+            .expect("failed to call `highest_allocated_address` function");
+        let result = self
+            .store
+            .data_mut()
+            .0
+            .take()
+            .expect("highest_allocated_address should always return something");
+
+        borsh::from_slice(&result).expect("failed to deserialize result")
     }
 
     fn always_true(&mut self, ptr: UserDefinedFnParam) -> bool {
