@@ -15,9 +15,9 @@ import (
 	hconsts "github.com/ava-labs/hypersdk/consts"
 )
 
-var _ chain.Rules = (*BaseRules)(nil)
+var _ chain.Rules = (*Rules)(nil)
 
-type BaseRules struct {
+type Rules struct {
 	NetworkID uint32 `json:"networkID"`
 	ChainID   ids.ID `json:"chainID"`
 
@@ -47,8 +47,8 @@ type BaseRules struct {
 	SponsorStateKeysMaxChunks []uint16 `json:"sponsorStateKeysMaxChunks"`
 }
 
-func DefaultRules() *BaseRules {
-	return &BaseRules{
+func NewRules() *Rules {
+	return &Rules{
 		// Chain Parameters
 		MinBlockGap:      100,
 		MinEmptyBlockGap: 750,
@@ -80,8 +80,8 @@ func DefaultRules() *BaseRules {
 	}
 }
 
-func LoadBaseRules(b []byte, networkID uint32, chainID ids.ID) (*BaseRules, error) {
-	r := DefaultRules()
+func LoadRules(b []byte, networkID uint32, chainID ids.ID) (*Rules, error) {
+	r := NewRules()
 	if len(b) > 0 {
 		if err := json.Unmarshal(b, r); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal base genesis %s: %w", string(b), err)
@@ -92,79 +92,79 @@ func LoadBaseRules(b []byte, networkID uint32, chainID ids.ID) (*BaseRules, erro
 	return r, nil
 }
 
-func (r *BaseRules) GetNetworkID() uint32 { return r.NetworkID }
+func (r *Rules) GetNetworkID() uint32 { return r.NetworkID }
 
-func (r *BaseRules) GetChainID() ids.ID { return r.ChainID }
+func (r *Rules) GetChainID() ids.ID { return r.ChainID }
 
-func (r *BaseRules) GetMinBlockGap() int64 {
+func (r *Rules) GetMinBlockGap() int64 {
 	return r.MinBlockGap
 }
 
-func (r *BaseRules) GetMinEmptyBlockGap() int64 {
+func (r *Rules) GetMinEmptyBlockGap() int64 {
 	return r.MinEmptyBlockGap
 }
 
-func (r *BaseRules) GetValidityWindow() int64 {
+func (r *Rules) GetValidityWindow() int64 {
 	return r.ValidityWindow
 }
 
-func (r *BaseRules) GetMaxActionsPerTx() uint8 {
+func (r *Rules) GetMaxActionsPerTx() uint8 {
 	return r.MaxActionsPerTx
 }
 
-func (r *BaseRules) GetMaxOutputsPerAction() uint8 {
+func (r *Rules) GetMaxOutputsPerAction() uint8 {
 	return r.MaxOutputsPerAction
 }
 
-func (r *BaseRules) GetMaxBlockUnits() fees.Dimensions {
+func (r *Rules) GetMaxBlockUnits() fees.Dimensions {
 	return r.MaxBlockUnits
 }
 
-func (r *BaseRules) GetBaseComputeUnits() uint64 {
+func (r *Rules) GetBaseComputeUnits() uint64 {
 	return r.BaseComputeUnits
 }
 
-func (r *BaseRules) GetSponsorStateKeysMaxChunks() []uint16 {
+func (r *Rules) GetSponsorStateKeysMaxChunks() []uint16 {
 	return r.SponsorStateKeysMaxChunks
 }
 
-func (r *BaseRules) GetStorageKeyReadUnits() uint64 {
+func (r *Rules) GetStorageKeyReadUnits() uint64 {
 	return r.StorageKeyReadUnits
 }
 
-func (r *BaseRules) GetStorageValueReadUnits() uint64 {
+func (r *Rules) GetStorageValueReadUnits() uint64 {
 	return r.StorageValueReadUnits
 }
 
-func (r *BaseRules) GetStorageKeyAllocateUnits() uint64 {
+func (r *Rules) GetStorageKeyAllocateUnits() uint64 {
 	return r.StorageKeyAllocateUnits
 }
 
-func (r *BaseRules) GetStorageValueAllocateUnits() uint64 {
+func (r *Rules) GetStorageValueAllocateUnits() uint64 {
 	return r.StorageValueAllocateUnits
 }
 
-func (r *BaseRules) GetStorageKeyWriteUnits() uint64 {
+func (r *Rules) GetStorageKeyWriteUnits() uint64 {
 	return r.StorageKeyWriteUnits
 }
 
-func (r *BaseRules) GetStorageValueWriteUnits() uint64 {
+func (r *Rules) GetStorageValueWriteUnits() uint64 {
 	return r.StorageValueWriteUnits
 }
 
-func (r *BaseRules) GetMinUnitPrice() fees.Dimensions {
+func (r *Rules) GetMinUnitPrice() fees.Dimensions {
 	return r.MinUnitPrice
 }
 
-func (r *BaseRules) GetUnitPriceChangeDenominator() fees.Dimensions {
+func (r *Rules) GetUnitPriceChangeDenominator() fees.Dimensions {
 	return r.UnitPriceChangeDenominator
 }
 
-func (r *BaseRules) GetWindowTargetUnits() fees.Dimensions {
+func (r *Rules) GetWindowTargetUnits() fees.Dimensions {
 	return r.WindowTargetUnits
 }
 
-func (*BaseRules) FetchCustom(string) (any, bool) {
+func (*Rules) FetchCustom(string) (any, bool) {
 	return nil, false
 }
 
@@ -183,7 +183,7 @@ func (baseGenesisAndRuleHandler) ParseGenesisAndUpgradeBytes(initialBytes []byte
 	if err != nil {
 		return nil, nil, err
 	}
-	rules, err := LoadBaseRules(initialBytes, networkID, chainID)
+	rules, err := LoadRules(initialBytes, networkID, chainID)
 	if err != nil {
 		return nil, nil, err
 	}
