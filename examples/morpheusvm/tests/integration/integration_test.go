@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/controller"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
+	"github.com/ava-labs/hypersdk/examples/morpheusvm/tests/integration"
 	"github.com/ava-labs/hypersdk/extension/grpcindexer"
 	"github.com/ava-labs/hypersdk/extension/indexer"
 	"github.com/ava-labs/hypersdk/extension/splitter"
@@ -85,9 +87,12 @@ var (
 	blocks       []snowman.Block
 
 	// for tests that require the splitter
-	splitterServer      *splitter.Splitter
-	acceptedSubscribers *indexer.AcceptedSubscribers
-	tcpPort             string
+	splitterServer            *splitter.Splitter
+	acceptedSubscribers       *indexer.AcceptedSubscribers
+	tcpPort                   string
+	integrationTestSubscriber *integration.IntegrationTestSubscriber
+	blkChan                   chan *chain.StatefulBlock
+	resultsChan               chan []*chain.Result
 
 	networkID uint32
 	gen       *genesis.Genesis
@@ -203,9 +208,11 @@ var _ = ginkgo.BeforeSuite(func() {
 	subnetID := ids.GenerateTestID()
 	chainID := ids.GenerateTestID()
 
-	// Create splitter
-	var acceptedSubscriberList []indexer.AcceptedSubscriber
-	acceptedSubscribers = indexer.NewAcceptedSubscribers(acceptedSubscriberList...)
+	blkChan = make(chan *chain.StatefulBlock)
+	resultsChan = make(chan []*chain.Result)
+
+	integrationTestSubscriber = integration.NewIntegrationTestSubscriber(blkChan, resultsChan, log)
+	acceptedSubscribers = indexer.NewAcceptedSubscribers(integrationTestSubscriber)
 	externalSubscriberServer := grpcindexer.NewExternalSubscriberServer(log, lsplitter.ParserFactory, acceptedSubscribers)
 	splitterServer = splitter.NewSplitter(externalSubscriberServer, log, tcpPort)
 
@@ -213,6 +220,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	log.Debug("starting splitter server", zap.Any("TCP Port", tcpPort))
 
 	app := &appSender{}
+	dialExternalSubscriber := true
 	for i := range instances {
 		nodeID := ids.GenerateTestNodeID()
 		sk, err := bls.NewSecretKey()
@@ -238,23 +246,40 @@ var _ = ginkgo.BeforeSuite(func() {
 
 		v, err := controller.New(vm.WithManualGossiper(), vm.WithManualBuilder())
 		require.NoError(err)
+		configMap := make(map[string]any)
 		require.NoError(v.Initialize(
 			context.TODO(),
 			snowCtx,
 			db,
 			genesisBytes,
 			nil,
-			[]byte(
-				`{
-				  "config": {
-				    "logLevel":"debug"
-				  }
-				}`,
-			),
+			func() []byte {
+				vmCfg := vm.NewConfig()
+				if dialExternalSubscriber {
+					var exportedBlockSubscriberAddress strings.Builder
+					_, err := exportedBlockSubscriberAddress.WriteString("localhost")
+					require.NoError(err)
+					_, err = exportedBlockSubscriberAddress.WriteString(tcpPort)
+					require.NoError(err)
+					configMap["indexAll"] = true
+					configMap["logLevel"] = logging.Debug
+					configMap["exportedBlockSubscriberAddress"] = exportedBlockSubscriberAddress.String()
+					vmCfg.Config = configMap
+					require.NoError(err)
+					mVMCfg, err := json.Marshal(vmCfg)
+					require.NoError(err)
+					return mVMCfg
+				}
+				mVMCfg, err := json.Marshal(vmCfg)
+				require.NoError(err)
+				return mVMCfg
+			}(),
 			toEngine,
 			nil,
 			app,
 		))
+
+		dialExternalSubscriber = false
 
 		var hd map[string]http.Handler
 		hd, err = v.CreateHandlers(context.TODO())
@@ -904,6 +929,83 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			balance, err := instances[0].lcli.Balance(context.TODO(), codec.MustAddressBech32(lconsts.HRP, addr))
 			require.NoError(err)
 			require.Equal(balance, bbalance+100)
+		})
+	})
+
+	ginkgo.It("communicates with the splitter", func() {
+		ginkgo.By("sending an empty block", func() {
+			// Wait for any outstanding blocks to be finalized
+			time.Sleep(time.Second * 2)
+
+			// Allow for integration test subscriber to forward blocks/results
+			integrationTestSubscriber.StartSendingToChan()
+			defer integrationTestSubscriber.StopSendingToChan()
+
+			ctx := context.TODO()
+			blk, err := instances[0].vm.BuildBlock(ctx)
+			require.NoError(err)
+
+			require.NoError(blk.Verify(ctx))
+
+			require.NoError(instances[0].vm.SetPreference(ctx, blk.ID()))
+
+			require.NoError(blk.Accept(ctx))
+			blocks = append(blocks, blk)
+
+			statelessBlk := blk.(*chain.StatelessBlock)
+			// Get block, results from splitter
+			receivedBlk, receivedResults := <-blkChan, <-resultsChan
+			// Compare block heights
+			require.Equal(statelessBlk.StatefulBlock, receivedBlk, "blocks are not equal")
+			// Compare block results
+			require.Equal(statelessBlk.Results(), receivedResults, "block results are not equal")
+		})
+
+		ginkgo.By("Sending a block with a TX", func() {
+			ctx := context.TODO()
+			time.Sleep(time.Second * 2)
+
+			integrationTestSubscriber.StartSendingToChan()
+			defer integrationTestSubscriber.StopSendingToChan()
+
+			parser, err := instances[0].lcli.Parser(context.Background())
+			require.NoError(err)
+			submit, _, _, err := instances[0].cli.GenerateTransaction(
+				context.Background(),
+				parser,
+				[]chain.Action{&actions.Transfer{
+					To:    addr2,
+					Value: 5,
+				}},
+				factory,
+			)
+
+			// Check results
+			require.NoError(err)
+			require.NoError(submit(context.Background()))
+			accept := expectBlk(instances[0])
+			results := accept(true)
+			require.Len(results, 1)
+			require.True(results[0].Success)
+			require.Equal(results[0].Units, transferTxUnits)
+			require.Equal(results[0].Fee, transferTxFee)
+
+			// Get most recent accepted block
+			lastAcceptedHght, err := instances[0].vm.GetLastAcceptedHeight()
+			require.NoError(err)
+			lastAcceptedID, err := instances[0].vm.GetBlockIDAtHeight(ctx, lastAcceptedHght)
+			require.NoError(err)
+			lastAcceptedBlk, err := instances[0].vm.GetBlock(ctx, lastAcceptedID)
+			require.NoError(err)
+
+			receivedBlock, receivedResults := <-blkChan, <-resultsChan
+			// Compare results
+			require.Equal(results, receivedResults, "block results are not equal")
+			// Compare block IDs
+			receivedBlockID, err := receivedBlock.ID()
+			require.NoError(err)
+			statelessBlk := lastAcceptedBlk.(*chain.StatelessBlock)
+			require.Equal(statelessBlk.ID(), receivedBlockID, "block IDs are not equal")
 		})
 	})
 })

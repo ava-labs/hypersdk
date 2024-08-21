@@ -17,8 +17,9 @@ type Config struct {
 
 func New(b []byte) (*Config, error) {
 	c := &Config{
-		IndexAll: true,
-		LogLevel: logging.Info,
+		IndexAll:                      true,
+		LogLevel:                      logging.Info,
+		ExportedBlockSubcriberAddress: "",
 	}
 
 	if len(b) > 0 {

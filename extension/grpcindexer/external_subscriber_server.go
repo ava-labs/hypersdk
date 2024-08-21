@@ -20,7 +20,10 @@ import (
 
 type ParserFactory func(networkID uint32, chainID ids.ID, genesisBytes []byte) (chain.Parser, error)
 
-var ErrParserNotInitialized = errors.New("parser not initialized")
+var (
+	ErrParserNotInitialized     = errors.New("parser not initialized")
+	ErrParserAlreadyInitialized = errors.New("parser already initialized")
+)
 
 type ExternalSubscriberServer struct {
 	pb.ExternalSubscriberServer
@@ -45,7 +48,7 @@ func NewExternalSubscriberServer(
 func (e *ExternalSubscriberServer) Initialize(_ context.Context, initRequest *pb.InitRequest) (*emptypb.Empty, error) {
 	// TODO: return error instead of nil if trying to initialize more than once
 	if e.parser != nil {
-		return &emptypb.Empty{}, nil
+		return &emptypb.Empty{}, ErrParserAlreadyInitialized
 	}
 	// Unmarshal chainID
 	chainID := ids.ID(initRequest.ChainId)

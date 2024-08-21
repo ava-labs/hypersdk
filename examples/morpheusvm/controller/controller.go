@@ -86,11 +86,6 @@ func (*factory) New(
 		return nil, nil, nil, err
 	}
 
-	// TODO: remove hardcoded config value
-	c.config.ExportedBlockSubcriberAddress = "localhost:9001"
-
-	log.Info("initialized config", zap.Any("contents", c.config))
-
 	c.genesis, err = genesis.New(genesisBytes, upgradeBytes)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf(
@@ -117,7 +112,7 @@ func (*factory) New(
 	if c.config.ExportedBlockSubcriberAddress != "" {
 		// Connect to splitter
 		genesisBytes, _ := json.Marshal(c.genesis)
-		externalSubscriber, err := grpcindexer.NewExternalSubscriberClient(context.Background(), c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, genesisBytes)
+		externalSubscriber, err := grpcindexer.NewExternalSubscriberClient(context.Background(), c.log, c.config.ExportedBlockSubcriberAddress, c.networkID, c.chainID, genesisBytes)
 		// Immediately fail if we couldn't connect
 		if err != nil {
 			return nil, nil, nil, err

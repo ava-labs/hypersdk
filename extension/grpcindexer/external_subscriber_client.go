@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -20,10 +22,12 @@ var _ indexer.AcceptedSubscriber = (*ExternalSubscriberClient)(nil)
 
 type ExternalSubscriberClient struct {
 	client pb.ExternalSubscriberClient
+	log    logging.Logger
 }
 
 func NewExternalSubscriberClient(
 	ctx context.Context,
+	log logging.Logger,
 	serverAddr string,
 	networkID uint32,
 	chainID ids.ID,
@@ -47,13 +51,16 @@ func NewExternalSubscriberClient(
 	if err != nil {
 		return nil, err
 	}
+	log.Debug("Established connection to External Subscriber Server", zap.Any("Server Address", serverAddr))
 	return &ExternalSubscriberClient{
 		client: client,
+		log:    log,
 	}, nil
 }
 
 func (e *ExternalSubscriberClient) Accepted(ctx context.Context, blk *chain.StatefulBlock, results []*chain.Result) error {
 	// Make gRPC call to client
+	e.log.Debug("Sending block over to server", zap.Any("Block", blk))
 	blockBytes, err := blk.Marshal()
 	if err != nil {
 		return err
