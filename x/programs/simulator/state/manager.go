@@ -84,15 +84,15 @@ func (p *ProgramStateManager) GetProgramState(account codec.Address) state.Mutab
 func (p *ProgramStateManager) GetAccountProgram(ctx context.Context, account codec.Address) ([]byte, error) {
 	programID, exists, err := p.getAccountProgram(ctx, account)
 	if err != nil {
-		return nil, err
+		return ids.Empty[:], err
 	}
 	if !exists {
-		return nil, ErrUnknownAccount
+		return ids.Empty[:], ErrUnknownAccount
 	}
 	return programID[:], nil
 }
 
-func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids.ID) ([]byte, error) {
+func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID []byte) ([]byte, error) {
 	// TODO: take fee out of balance?
 	programBytes, exists, err := p.getProgram(ctx, programID)
 	if err != nil {
@@ -104,13 +104,13 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID ids
 	return programBytes, nil
 }
 
-func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID ids.ID, accountCreationData []byte) (codec.Address, error) {
+func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID []byte, accountCreationData []byte) (codec.Address, error) {
 	newID := sha256.Sum256(append(programID[:], accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
 	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
 }
 
-func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID ids.ID) error {
+func (p *ProgramStateManager) SetAccountProgram(ctx context.Context, account codec.Address, programID []byte) error {
 	return p.setAccountProgram(ctx, account, programID)
 }
 
@@ -171,13 +171,13 @@ func (p *ProgramStateManager) getAccountProgram(ctx context.Context, account cod
 func (p *ProgramStateManager) setAccountProgram(
 	ctx context.Context,
 	account codec.Address,
-	programID ids.ID,
+	programID []byte,
 ) error {
 	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID[:])
 }
 
 // [programID] -> [programBytes]
-func (p *ProgramStateManager) getProgram(ctx context.Context, programID ids.ID) ([]byte, bool, error) {
+func (p *ProgramStateManager) getProgram(ctx context.Context, programID []byte) ([]byte, bool, error) {
 	v, err := p.db.GetValue(ctx, programKey(programID[:]))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
