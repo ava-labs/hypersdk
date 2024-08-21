@@ -105,7 +105,7 @@ func (p *ProgramStateManager) GetProgramBytes(ctx context.Context, programID []b
 }
 
 func (p *ProgramStateManager) NewAccountWithProgram(ctx context.Context, programID []byte, accountCreationData []byte) (codec.Address, error) {
-	newID := sha256.Sum256(append(programID[:], accountCreationData...))
+	newID := sha256.Sum256(append(programID, accountCreationData...))
 	newAccount := codec.CreateAddress(0, newID)
 	return newAccount, p.setAccountProgram(ctx, newAccount, programID)
 }
@@ -173,12 +173,12 @@ func (p *ProgramStateManager) setAccountProgram(
 	account codec.Address,
 	programID []byte,
 ) error {
-	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID[:])
+	return p.db.Insert(ctx, accountDataKey(account[:], programKeyBytes), programID)
 }
 
 // [programID] -> [programBytes]
 func (p *ProgramStateManager) getProgram(ctx context.Context, programID []byte) ([]byte, bool, error) {
-	v, err := p.db.GetValue(ctx, programKey(programID[:]))
+	v, err := p.db.GetValue(ctx, programKey(programID))
 	if errors.Is(err, database.ErrNotFound) {
 		return nil, false, nil
 	}
