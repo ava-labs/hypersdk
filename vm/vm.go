@@ -205,21 +205,6 @@ func (vm *VM) Initialize(
 		return err
 	}
 
-	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
-	if err != nil {
-		return err
-	}
-
-	// Set defaults
-	vm.builder = builder.NewTime(vm)
-	vm.gossiper = txGossiper
-
-	for _, option := range vm.options {
-		if err := option(vm); err != nil {
-			return err
-		}
-	}
-
 	// TODO do not expose entire context to the Controller
 	//
 	// Note: does not copy the consensus lock but this is safe because the
@@ -274,6 +259,21 @@ func (vm *VM) Initialize(
 	}
 	ctx, span := vm.tracer.Start(ctx, "VM.Initialize")
 	defer span.End()
+
+	txGossiper, err := gossiper.NewProposer(vm, gossiper.DefaultProposerConfig())
+	if err != nil {
+		return err
+	}
+
+	// Set defaults
+	vm.builder = builder.NewTime(vm)
+	vm.gossiper = txGossiper
+
+	for _, option := range vm.options {
+		if err := option(vm); err != nil {
+			return err
+		}
+	}
 
 	// Setup profiler
 	if cfg := vm.config.ContinuousProfilerConfig; cfg.Enabled {
