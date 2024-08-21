@@ -36,6 +36,7 @@ var (
 //export CallProgram
 func CallProgram(db *C.Mutable, ctx *C.SimulatorCallContext) C.CallProgramResponse {
 	if db == nil || ctx == nil {
+		fmt.Println("db or ctx is nil")
 		return newCallProgramResponse(nil, 0, ErrInvalidParam)
 	}
 

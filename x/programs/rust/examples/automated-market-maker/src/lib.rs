@@ -48,17 +48,17 @@ pub fn swap(context: &mut Context, token_program_in: Program, amount: Units) -> 
     // ensure the token_program_in is one of the tokens
     internal::check_token(context, &token_program_in);
 
-    let (token_in, token_out) = external_token_contracts(context);
+    let (token_x, token_y) = external_token_contracts(context);
 
     // make sure token_in matches the token_program_in
-    let (token_in, token_out) = if token_program_in.account() == token_in.program().account() {
-        (token_in, token_out)
+    let (token_in, token_out) = if token_program_in.account() == token_x.program().account() {
+        (token_x, token_y)
     } else {
-        (token_out, token_in)
+        (token_y, token_x)
     };
 
     // calculate the amount of tokens in the pool
-    let (reserve_token_in, reserve_token_out) = reserves(&context, &token_x, &token_y);
+    let (reserve_token_in, reserve_token_out) = reserves(&context, &token_in, &token_out);
     assert!(reserve_token_out > 0, "insufficient liquidity");
 
     // x * y = k
@@ -190,13 +190,13 @@ fn reserves(
 ) -> (Units, Units) {
     let balance_x = token::allowance(
         token_x,
-        context.program().account(),
-        context.program().account(),
+        *context.program().account(),
+       * context.program().account(),
     );
     let balance_y = token::allowance(
         token_y,
-        context.program().account(),
-        context.program().account(),
+        *context.program().account(),
+        *context.program().account(),
     );
 
     (balance_x, balance_y)
